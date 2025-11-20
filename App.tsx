@@ -590,8 +590,14 @@ function MainApp({ user }: { user: firebase.User }) {
         if (adjustmentTab === 'subtract') {
             if (adjustmentAsset === 'USDT' && amountNum > portfolioStats.usdt.available) { setAlert("⚠️ Solde USDT insuffisant."); return; }
             if (adjustmentAsset === 'EUR' && amountNum > portfolioStats.eur.available) { setAlert("⚠️ Solde EUR insuffisant."); return; }
-            if (adjustmentAsset === 'DZD-Caisse' && amountNum > treasuryStats.caisse) { setAlert("⚠️ Solde Caisse insuffisant."); return; }
-            if (adjustmentAsset === 'DZD-Baridi' && amountNum > treasuryStats.baridi) { setAlert("⚠️ Solde Baridi insuffisant."); return; }
+            if (adjustmentAsset === 'DZD-Caisse') {
+                if (treasuryStats.caisse <= 0) { setAlert("⚠️ La Caisse est vide (0 DZD)."); return; }
+                if (amountNum > treasuryStats.caisse) { setAlert("⚠️ Solde Caisse insuffisant."); return; }
+            }
+            if (adjustmentAsset === 'DZD-Baridi') {
+                if (treasuryStats.baridi <= 0) { setAlert("⚠️ BaridiMob est vide (0 DZD)."); return; }
+                if (amountNum > treasuryStats.baridi) { setAlert("⚠️ Solde Baridi insuffisant."); return; }
+            }
         }
 
         const { date, time, timestamp } = now();
@@ -629,12 +635,18 @@ function MainApp({ user }: { user: firebase.User }) {
         } catch (error) { console.error(error); setAlert("❌ Erreur."); }
     };
 
+    const handleSwapSourceDest = () => {
+        setWalletTransferSource(walletTransferDest);
+        setWalletTransferDest(walletTransferSource);
+    };
+
     const handleWalletTransfer = async () => {
         const amount = parseAndEvaluate(walletTransferAmount);
         if (amount <= 0 || isNaN(amount)) { setAlert("⚠️ Montant invalide."); return; }
         if (walletTransferSource === walletTransferDest) { setAlert("⚠️ Source et destination identiques."); return; }
 
         const sourceBalance = walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+        if (sourceBalance <= 0) { setAlert(`⚠️ Le solde de ${walletTransferSource} est vide (0).`); return; }
         if (amount > sourceBalance) { setAlert(`⚠️ Solde ${walletTransferSource} insuffisant.`); return; }
 
         const { date, time, timestamp } = now();
@@ -696,6 +708,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
         if (clientTxSource && clientTxType === 'Paiement Effectué') {
             const balance = clientTxSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+            if (balance <= 0) { setAlert(`⚠️ Le solde de ${clientTxSource} est vide (0).`); return; }
             if (amount > balance) { setAlert(`⚠️ Solde ${clientTxSource} insuffisant.`); return; }
         }
 
@@ -887,32 +900,64 @@ function MainApp({ user }: { user: firebase.User }) {
             {/* 1. WALLET TRANSFER MODAL */}
             <Dialog isOpen={isWalletTransferModalOpen} onClose={() => setIsWalletTransferModalOpen(false)} className={`${cardBase} max-w-md`}>
                 <DialogHeader onClose={() => setIsWalletTransferModalOpen(false)} isDark={isDark}><DialogTitle>Virement Interne</DialogTitle></DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    <div className="grid grid-cols-2 gap-4 items-center">
-                        <div>
-                            <Label>Source (De)</Label>
-                            <Select value={walletTransferSource} onChange={e => setWalletTransferSource(e.target.value as any)} className={fieldBase}>
-                                <option value="Caisse">Caisse</option>
-                                <option value="BaridiMob">BaridiMob</option>
-                            </Select>
-                        </div>
-                        <div className="text-center text-gray-400"><RefreshCwIcon className="w-6 h-6 mx-auto" /></div>
-                        <div>
-                            <Label>Destination (Vers)</Label>
-                            <Select value={walletTransferDest} onChange={e => setWalletTransferDest(e.target.value as any)} className={fieldBase}>
-                                <option value="BaridiMob">BaridiMob</option>
-                                <option value="Caisse">Caisse</option>
-                            </Select>
+                <DialogContent className="px-6 pb-6 space-y-6">
+
+                    {/* 1. AMOUNT (Top & Prominent) */}
+                    <div className="relative">
+                        <Label className="text-center w-full block mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wider text-xs">Montant à transférer</Label>
+                        <div className="relative max-w-[200px] mx-auto">
+                            <NumberInput
+                                value={walletTransferAmount}
+                                onChange={e => setWalletTransferAmount(e.target.value)}
+                                className={`${fieldBase} text-center text-3xl font-bold h-16 bg-transparent border-b-2 border-sky-500/30 focus:border-sky-500 rounded-none px-0`}
+                                placeholder="0.00"
+                            />
+                            <span className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400 font-medium">DZD</span>
                         </div>
                     </div>
-                    <div>
-                        <Label>Montant</Label>
-                        <NumberInput value={walletTransferAmount} onChange={e => setWalletTransferAmount(e.target.value)} className={`${fieldBase} text-xl font-bold`} />
+
+                    {/* 2. SOURCE -> DESTINATION (Swappable Row) */}
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 relative">
+                        <div className="flex items-center justify-between gap-4">
+                            {/* Source */}
+                            <div className="flex-1">
+                                <Label className="text-xs mb-1.5 text-gray-500">De (Source)</Label>
+                                <div className={`p-3 rounded-xl font-semibold text-sm border ${isDark ? 'bg-slate-800 border-slate-700 text-gray-200' : 'bg-white border-slate-200 text-gray-800'}`}>
+                                    {walletTransferSource}
+                                </div>
+                            </div>
+
+                            {/* Swap Button */}
+                            <button
+                                onClick={handleSwapSourceDest}
+                                className={`p-2 rounded-full shadow-sm border transition-transform hover:scale-110 active:scale-95 z-10 ${isDark ? 'bg-slate-700 border-slate-600 text-sky-400' : 'bg-white border-slate-200 text-sky-600'}`}
+                                title="Inverser"
+                            >
+                                <ArrowRightLeftIcon className="w-5 h-5" />
+                            </button>
+
+                            {/* Destination */}
+                            <div className="flex-1 text-right">
+                                <Label className="text-xs mb-1.5 text-gray-500">Vers (Destination)</Label>
+                                <div className={`p-3 rounded-xl font-semibold text-sm border ${isDark ? 'bg-slate-800 border-slate-700 text-gray-200' : 'bg-white border-slate-200 text-gray-800'}`}>
+                                    {walletTransferDest}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Hidden Selects for Logic (Controlled by the UI above) */}
+                        <div className="hidden">
+                            <Select value={walletTransferSource} onChange={e => setWalletTransferSource(e.target.value as any)}><option value="Caisse">Caisse</option><option value="BaridiMob">BaridiMob</option></Select>
+                            <Select value={walletTransferDest} onChange={e => setWalletTransferDest(e.target.value as any)}><option value="BaridiMob">BaridiMob</option><option value="Caisse">Caisse</option></Select>
+                        </div>
                     </div>
-                    <div><Label>Notes</Label><Input value={walletTransferNotes} onChange={e => setWalletTransferNotes(e.target.value)} className={fieldBase} /></div>
+
+                    <div><Label>Notes (Optionnel)</Label><Input value={walletTransferNotes} onChange={e => setWalletTransferNotes(e.target.value)} className={fieldBase} placeholder="Ex: Alimentation caisse..." /></div>
                 </DialogContent>
                 <DialogFooter>
-                    <Button onClick={handleWalletTransfer} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">Transférer</Button>
+                    <Button onClick={handleWalletTransfer} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-500/20 transition-all active:scale-[0.98]">
+                        Confirmer le Transfert
+                    </Button>
                 </DialogFooter>
             </Dialog>
 
@@ -1159,6 +1204,28 @@ function MainApp({ user }: { user: firebase.User }) {
                 <DialogHeader isDark={isDark}><DialogTitle>Supprimer Client?</DialogTitle></DialogHeader>
                 <DialogContent className="p-6"><p>Cette action est irréversible.</p></DialogContent>
                 <DialogFooter><Button onClick={handleDeleteClient} className="w-full bg-red-600 text-white font-bold py-3 rounded-xl">Oui, supprimer</Button></DialogFooter>
+            </Dialog>
+
+            <Dialog isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} className={`${cardBase} max-w-sm`}>
+                <DialogHeader onClose={() => setIsSettingsModalOpen(false)} isDark={isDark}><DialogTitle>Paramètres</DialogTitle></DialogHeader>
+                <DialogContent className="px-6 pb-6 space-y-4">
+                    <div>
+                        <Label>Marge Bénéficiaire (%)</Label>
+                        <div className="relative">
+                            <NumberInput
+                                value={suggestedProfitMargin}
+                                onChange={e => setSuggestedProfitMargin(e.target.value)}
+                                className={`${fieldBase} text-center text-2xl font-bold`}
+                                placeholder="2"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
+                        </div>
+                        <p className={`text-xs mt-2 ${subtleText}`}>Cette marge est utilisée pour calculer le prix de vente suggéré.</p>
+                    </div>
+                </DialogContent>
+                <DialogFooter>
+                    <Button onClick={() => setIsSettingsModalOpen(false)} className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl">Enregistrer</Button>
+                </DialogFooter>
             </Dialog>
 
         </div>
