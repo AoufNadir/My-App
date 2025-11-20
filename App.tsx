@@ -1109,6 +1109,25 @@ function MainApp({ user }: { user: firebase.User }) {
                             {(buyUsdtMode || mode === 'buy_eur' || mode === 'sell_usdt') && (
                                 <div className="space-y-3">
 
+                                    {/* CASE 0: Buy USDT with DZD - REDESIGNED */}
+                                    {buyUsdtMode === 'with_dzd' && (
+                                        <>
+                                            <div>
+                                                <Label>Quantité (USDT)</Label>
+                                                <NumberInput value={buyUsdtAmount} onChange={e => setBuyUsdtAmount(e.target.value)} className={fieldBase} />
+                                            </div>
+                                            <div>
+                                                <Label>Prix d'achat (DZD)</Label>
+                                                <NumberInput value={buyUsdtPrice} onChange={e => setBuyUsdtPrice(e.target.value)} className={fieldBase} />
+                                            </div>
+                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark }} />
+                                            <div>
+                                                <Label>Notes (Optionnel)</Label>
+                                                <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
+                                            </div>
+                                        </>
+                                    )}
+
                                     {/* CASE 1: Buy USDT with EUR (Layout requested by user) */}
                                     {buyUsdtMode === 'with_eur' && (
                                         <>
@@ -1170,9 +1189,38 @@ function MainApp({ user }: { user: firebase.User }) {
                                         </>
                                     )}
 
-                                    {/* CASE 3: Buy USDT (Standard) or Buy EUR (Standard) */}
-                                    {mode !== 'sell_usdt' && buyUsdtMode !== 'with_eur' && (
+                                    {/* CASE 3: Buy EUR (Standard) - REDESIGNED */}
+                                    {mode === 'buy_eur' && (
                                         <div className="space-y-4">
+                                            <div>
+                                                <Label>Quantité (EUR)</Label>
+                                                <NumberInput value={buyEurAmount} onChange={e => setBuyEurAmount(e.target.value)} className={fieldBase} />
+                                            </div>
+                                            <div>
+                                                <Label>Prix d'achat (DZD)</Label>
+                                                <NumberInput value={buyEurPrice} onChange={e => setBuyEurPrice(e.target.value)} className={fieldBase} />
+                                                <p className={`text-xs mt-1 ${subtleText}`}>Basé sur votre PAM EUR actuel.</p>
+                                            </div>
+                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark }} />
+                                            <div>
+                                                <Label>Notes (Optionnel)</Label>
+                                                <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* CASE 4: Buy USDT (Standard) */}
+                                    {mode === 'buy_usdt' && !buyUsdtMode && (
+                                        <div className="space-y-4">
+                                            <div>
+                                                <Label>Quantité (USDT)</Label>
+                                                <NumberInput value={buyUsdtAmount} onChange={e => setBuyUsdtAmount(e.target.value)} className={fieldBase} />
+                                            </div>
+                                            <div>
+                                                <Label>Prix d'achat (DZD)</Label>
+                                                <NumberInput value={buyUsdtPrice} onChange={e => setBuyUsdtPrice(e.target.value)} className={fieldBase} />
+                                            </div>
+                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark }} />
                                             <div>
                                                 <Label>Notes (Optionnel)</Label>
                                                 <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
