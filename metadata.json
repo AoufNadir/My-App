@@ -1,0 +1,5 @@
+{
+  "name": "Copy of Version 4.5 Good Test",
+  "description": "A web application to track USDT buy and sell transactions, calculate profits, and view statistics. It uses Firebase for real-time data synchronization.",
+  "requestFramePermissions": []
+}
