@@ -369,13 +369,14 @@ function MainApp({ user }: { user: firebase.User }) {
     const [tempEndDate, setTempEndDate] = useState('');
     const [filterMode, setFilterMode] = useState<'all' | 'buy' | 'sell' | 'adjustments'>('all');
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-    const [clientPaymentStatus, setClientPaymentStatus] = useState<'paid' | 'credit'>('paid');
+    const [clientPaymentStatus, setClientPaymentStatus] = useState<'credit' | 'baridi' | 'cash'>('cash');
 
     // Treasury Card Modal
     const [isTreasuryCardModalOpen, setIsTreasuryCardModalOpen] = useState(false);
     const [treasuryCardName, setTreasuryCardName] = useState('');
     const [treasuryCardValue, setTreasuryCardValue] = useState('');
     const [treasuryCardToDelete, setTreasuryCardToDelete] = useState<TreasuryCard | null>(null);
+    const [editingTreasuryCard, setEditingTreasuryCard] = useState<TreasuryCard | null>(null);
 
     // ... Helper functions ...
     const parseAndEvaluate = (expr: string): number => {
@@ -465,7 +466,7 @@ function MainApp({ user }: { user: firebase.User }) {
         setAlert(''); setSellAmountError(''); setLinkedClientId('none');
         setBuyUsdtMode(null); setBuyEurForUsdtAmount(''); setEurDzdPrice(''); setEurUsdtRate('');
         setBuyUsdtMode(null); setBuyEurForUsdtAmount(''); setEurDzdPrice(''); setEurUsdtRate('');
-        setBuyUsdtTotal(''); setPaymentMethod('Espèces'); setClientPaymentStatus('paid');
+        setBuyUsdtTotal(''); setPaymentMethod('Espèces'); setClientPaymentStatus('cash');
         setEditingTx(txToEdit); setMode(newMode);
         if (txToEdit) {
             if (txToEdit.type === 'buy') {
@@ -496,22 +497,28 @@ function MainApp({ user }: { user: firebase.User }) {
                 }
             } else { currency = 'EUR'; quantity = parseAndEvaluate(buyEurAmount); price = parseAndEvaluate(buyEurPrice); }
             const totalCost = quantity * price; const { date, time, timestamp } = now();
-            if (!editingTx && (paymentMethod === 'Espèces' || paymentMethod === 'BaridiMob') && buyUsdtMode !== 'with_eur') {
-                batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: 'Retrait', source: paymentMethod === 'Espèces' ? 'Caisse' : 'BaridiMob', amount: totalCost, notes: `Achat ${quantity.toFixed(2)} ${currency}` });
+
+            // TREASURY LOGIC: Only if NOT Credit (Baridi or Cash)
+            if (!editingTx && buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit') {
+                const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: 'Retrait', source, amount: totalCost, notes: `Achat ${quantity.toFixed(2)} ${currency}` });
             }
+
             if (editingTx) {
-                batch.update(userDocRef.collection('usdt_txs').doc(editingTx.id), { quantity, price, total: totalCost, notes: notes.trim(), sell: firebase.firestore.FieldValue.delete(), profit: firebase.firestore.FieldValue.delete(), currency, paymentMethod });
+                batch.update(userDocRef.collection('usdt_txs').doc(editingTx.id), { quantity, price, total: totalCost, notes: notes.trim(), sell: firebase.firestore.FieldValue.delete(), profit: firebase.firestore.FieldValue.delete(), currency, paymentMethod: clientPaymentStatus });
                 const qs = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', editingTx.id).get(); qs.forEach(d => batch.delete(d.ref));
-                if (linkedClientId && linkedClientId !== 'none') {
-                    const cm = clientPaymentStatus === 'credit' ? 'Crédit' : paymentMethod;
-                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: totalCost, type: 'Règlement Reçu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`, linkedTxId: editingTx.id, paymentMethod: cm });
+
+                // CLIENT LOGIC: Only if Credit
+                if (linkedClientId && linkedClientId !== 'none' && clientPaymentStatus === 'credit') {
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: totalCost, type: 'Règlement Reçu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`, linkedTxId: editingTx.id, paymentMethod: 'Crédit' });
                 }
                 setAlert('✅ Transaction mise à jour.');
             } else {
-                const ref = userDocRef.collection('usdt_txs').doc(); batch.set(ref, { timestamp, type: 'buy', quantity, price, total: totalCost, date, time, notes: notes.trim(), currency, paymentMethod });
-                if (linkedClientId && linkedClientId !== 'none') {
-                    const cm = clientPaymentStatus === 'credit' ? 'Crédit' : paymentMethod;
-                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: totalCost, type: 'Règlement Reçu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`, linkedTxId: ref.id, paymentMethod: cm });
+                const ref = userDocRef.collection('usdt_txs').doc(); batch.set(ref, { timestamp, type: 'buy', quantity, price, total: totalCost, date, time, notes: notes.trim(), currency, paymentMethod: clientPaymentStatus });
+
+                // CLIENT LOGIC: Only if Credit
+                if (linkedClientId && linkedClientId !== 'none' && clientPaymentStatus === 'credit') {
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: totalCost, type: 'Règlement Reçu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`, linkedTxId: ref.id, paymentMethod: 'Crédit' });
                 }
                 setAlert('✅ Transaction ajoutée.');
             }
@@ -524,22 +531,28 @@ function MainApp({ user }: { user: firebase.User }) {
         setIsSaving(true); setAlert('');
         try {
             const quantity = parseAndEvaluate(sellAmount); const sell = parseAndEvaluate(sellPrice); const avg = portfolioStats.usdt.avgBuy; const profit = (sell - avg) * quantity; const totalRevenue = quantity * sell; const { date, time, timestamp } = now(); const batch = db.batch();
-            if (!editingTx && (paymentMethod === 'Espèces' || paymentMethod === 'BaridiMob')) {
-                batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: 'Ajout', source: paymentMethod === 'Espèces' ? 'Caisse' : 'BaridiMob', amount: totalRevenue, notes: `Vente ${quantity.toFixed(2)} USDT` });
+
+            // TREASURY LOGIC: Only if NOT Credit (Baridi or Cash)
+            if (!editingTx && clientPaymentStatus !== 'credit') {
+                const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: 'Ajout', source, amount: totalRevenue, notes: `Vente ${quantity.toFixed(2)} USDT` });
             }
+
             if (editingTx) {
-                batch.update(userDocRef.collection('usdt_txs').doc(editingTx.id), { quantity, sell, profit, notes: notes.trim(), price: firebase.firestore.FieldValue.delete(), total: firebase.firestore.FieldValue.delete(), currency: 'USDT', paymentMethod });
+                batch.update(userDocRef.collection('usdt_txs').doc(editingTx.id), { quantity, sell, profit, notes: notes.trim(), price: firebase.firestore.FieldValue.delete(), total: firebase.firestore.FieldValue.delete(), currency: 'USDT', paymentMethod: clientPaymentStatus });
                 const qs = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', editingTx.id).get(); qs.forEach(d => batch.delete(d.ref));
-                if (linkedClientId && linkedClientId !== 'none') {
-                    const cm = clientPaymentStatus === 'credit' ? 'Crédit' : paymentMethod;
-                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`, linkedTxId: editingTx.id, paymentMethod: cm });
+
+                // CLIENT LOGIC: Only if Credit
+                if (linkedClientId && linkedClientId !== 'none' && clientPaymentStatus === 'credit') {
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`, linkedTxId: editingTx.id, paymentMethod: 'Crédit' });
                 }
                 setAlert('✅ Transaction mise à jour.');
             } else {
-                const ref = userDocRef.collection('usdt_txs').doc(); batch.set(ref, { timestamp, type: 'sell', quantity, sell, profit, date, time, notes: notes.trim(), currency: 'USDT', paymentMethod });
-                if (linkedClientId && linkedClientId !== 'none') {
-                    const cm = clientPaymentStatus === 'credit' ? 'Crédit' : paymentMethod;
-                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`, linkedTxId: ref.id, paymentMethod: cm });
+                const ref = userDocRef.collection('usdt_txs').doc(); batch.set(ref, { timestamp, type: 'sell', quantity, sell, profit, date, time, notes: notes.trim(), currency: 'USDT', paymentMethod: clientPaymentStatus });
+
+                // CLIENT LOGIC: Only if Credit
+                if (linkedClientId && linkedClientId !== 'none' && clientPaymentStatus === 'credit') {
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`, linkedTxId: ref.id, paymentMethod: 'Crédit' });
                 }
                 setAlert('✅ Transaction ajoutée.');
             }
@@ -696,19 +709,24 @@ function MainApp({ user }: { user: firebase.User }) {
         } catch (e) { console.error(e); setAlert('❌ Erreur.'); }
     };
 
-    const openClientTxModal = (tx: ClientTransactionDzd | null = null) => {
+    const openClientTxModal = (tx: ClientTransactionDzd | null = null, presetType?: string) => {
         setEditingClientTx(tx);
         if (tx) {
             setClientTxAmount(Math.abs(tx.montant).toString()); setClientTxType(tx.type); setClientTxNotes(tx.notes || '');
             setClientTxSource('');
         } else {
-            setClientTxAmount(''); setClientTxType('Règlement Reçu'); setClientTxNotes(''); setClientTxSource('');
+            setClientTxAmount('');
+            setClientTxType(presetType || 'Règlement Reçu');
+            setClientTxNotes('');
+            setClientTxSource('');
+            setLinkedClientId(selectedClientId || 'none'); // Pre-fill with selected client if in client detail view
         }
         setIsClientTxModalOpen(true);
     };
 
     const handleSaveClientTx = async () => {
-        if (!selectedClientId) return;
+        const targetClientId = linkedClientId !== 'none' ? linkedClientId : selectedClientId;
+        if (!targetClientId || targetClientId === 'none') { setAlert('⚠️ Veuillez sélectionner un client.'); return; }
         if (clientTxType === 'Achat EUR' || clientTxType === 'Vente USDT') {
             const { date, time, timestamp } = now();
             if (clientTxType === 'Achat EUR') {
@@ -747,14 +765,11 @@ function MainApp({ user }: { user: firebase.User }) {
             const batch = db.batch();
 
             if (editingClientTx) {
-                batch.update(userDocRef.collection('dzd_client_txs').doc(editingClientTx.id), { montant: finalAmount, type: clientTxType, notes: clientTxNotes.trim() });
+                batch.update(userDocRef.collection('dzd_client_txs').doc(editingClientTx.id), { montant: finalAmount, type: clientTxType, notes: clientTxNotes.trim(), paymentMethod: 'Crédit' });
             } else {
-                batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: selectedClientId, timestamp, date, time, montant: finalAmount, type: clientTxType, notes: clientTxNotes.trim() });
-
+                batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: targetClientId, timestamp, date, time, montant: finalAmount, type: clientTxType, notes: clientTxNotes.trim(), paymentMethod: 'Crédit' });
                 if (clientTxSource) {
-                    const tType = clientTxType === 'Règlement Reçu' ? 'Ajout' : 'Retrait';
-                    const tNote = `${clientTxType} - ${clientsDzd.find(c => c.id === selectedClientId)?.fullName}`;
-                    batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: tType, source: clientTxSource, amount: amount, notes: tNote });
+                    batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: finalAmount > 0 ? 'Ajout' : 'Retrait', source: clientTxSource, amount: Math.abs(finalAmount), notes: `${clientTxType} - ${clientsDzd.find(c => c.id === targetClientId)?.fullName || 'Client'}` });
                 }
             }
             await batch.commit();
@@ -867,11 +882,28 @@ function MainApp({ user }: { user: firebase.User }) {
         if (!treasuryCardName.trim() || val < 0 || isNaN(val)) { setAlert('⚠️ Nom ou valeur invalide.'); return; }
         setIsSaving(true);
         try {
-            await userDocRef.collection('treasury_cards').add({ name: treasuryCardName.trim(), value: val });
-            setAlert('✅ Carte ajoutée.');
+            if (editingTreasuryCard) {
+                await userDocRef.collection('treasury_cards').doc(editingTreasuryCard.id).update({ name: treasuryCardName.trim(), value: val });
+                setAlert('✅ Carte mise à jour.');
+            } else {
+                await userDocRef.collection('treasury_cards').add({ name: treasuryCardName.trim(), value: val });
+                setAlert('✅ Carte ajoutée.');
+            }
             setIsTreasuryCardModalOpen(false);
-            setTreasuryCardName(''); setTreasuryCardValue('');
+            setTreasuryCardName(''); setTreasuryCardValue(''); setEditingTreasuryCard(null);
         } catch (e) { setAlert('❌ Erreur.'); } finally { setIsSaving(false); }
+    };
+
+    const openTreasuryCardModal = (card: TreasuryCard | null = null) => {
+        setEditingTreasuryCard(card);
+        if (card) {
+            setTreasuryCardName(card.name);
+            setTreasuryCardValue(card.value.toString());
+        } else {
+            setTreasuryCardName('');
+            setTreasuryCardValue('');
+        }
+        setIsTreasuryCardModalOpen(true);
     };
 
     const handleDeleteTreasuryCard = async () => {
@@ -928,9 +960,10 @@ function MainApp({ user }: { user: firebase.User }) {
             {linkedClientId && linkedClientId !== 'none' && (
                 <div>
                     <Label>Statut du Paiement Client</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                        <button type="button" onClick={() => setClientPaymentStatus('paid')} className={`py-2 px-3 rounded-lg text-sm font-bold border transition-all ${clientPaymentStatus === 'paid' ? (isDark ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-green-100 border-green-500 text-green-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Réglé (Immédiat)</button>
-                        <button type="button" onClick={() => setClientPaymentStatus('credit')} className={`py-2 px-3 rounded-lg text-sm font-bold border transition-all ${clientPaymentStatus === 'credit' ? (isDark ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-amber-100 border-amber-500 text-amber-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Crédit (Dette/Avance)</button>
+                    <div className="grid grid-cols-3 gap-2">
+                        <button type="button" onClick={() => setClientPaymentStatus('credit')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'credit' ? (isDark ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-amber-100 border-amber-500 text-amber-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Crédit</button>
+                        <button type="button" onClick={() => setClientPaymentStatus('baridi')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'baridi' ? (isDark ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-blue-100 border-blue-500 text-blue-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Réglé Baridi</button>
+                        <button type="button" onClick={() => setClientPaymentStatus('cash')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'cash' ? (isDark ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-green-100 border-green-500 text-green-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Réglé Cash</button>
                     </div>
                 </div>
             )}
@@ -1002,7 +1035,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
                     {view === 'dzd' && <ClientsPage {...{ selectedClientId, setSelectedClientId, cardBase, fieldBase, isDark, subtleText, openClientModal, setIsTransferModalOpen, openSettlementModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances: clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, selectedClient, selectedClientTransactions, transactions, handleExportClientReport, openClientTxModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick }} />}
 
-                    {view === 'tresorerie' && <TresoreriePage {...{ isDark, cardBase, subtleText, caisseBalance: treasuryStats.caisse, baridiBalance: treasuryStats.baridi, totalDettes: clientStats.totalDettes, totalAvances: clientStats.totalAvances, portfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), openTreasuryModal: () => openAdjustmentModal('add'), treasuryCards, openTreasuryCardModal: () => setIsTreasuryCardModalOpen(true), setTreasuryCardToDelete }} />}
+                    {view === 'tresorerie' && <TresoreriePage {...{ isDark, cardBase, subtleText, caisseBalance: treasuryStats.caisse, baridiBalance: treasuryStats.baridi, totalDettes: clientStats.totalDettes, totalAvances: clientStats.totalAvances, portfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), openTreasuryModal: () => openAdjustmentModal('add'), treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete }} />}
                 </main>
 
                 {/* Mobile Nav */}
@@ -1086,7 +1119,21 @@ function MainApp({ user }: { user: firebase.User }) {
             <Dialog isOpen={isClientTxModalOpen} onClose={() => setIsClientTxModalOpen(false)} className={`${cardBase} max-w-lg`}>
                 <DialogHeader onClose={() => setIsClientTxModalOpen(false)} isDark={isDark}><DialogTitle>{editingClientTx ? "Modifier l'Opération" : "Nouvelle Opération"}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
-                    <div><Label>Type d'Opération</Label><Select value={clientTxType} onChange={e => setClientTxType(e.target.value as any)} className={fieldBase} disabled={!!editingClientTx}><option>Règlement Reçu</option><option>Paiement Effectué</option><option>Vente USDT</option><option>Achat EUR</option></Select></div>
+                    {/* HIDE TYPE SELECTOR IF EDITING OR IF IT WAS PRE-SELECTED FROM DROPDOWN */}
+                    {!editingClientTx && (clientTxType === 'Règlement Reçu' || clientTxType === 'Paiement Effectué') && (
+                        <div><Label>Type d'Opération</Label><Select id="tx_type_select" value={clientTxType} onChange={e => setClientTxType(e.target.value as any)} className={fieldBase} disabled={!!editingClientTx}><option>Règlement Reçu</option><option>Paiement Effectué</option><option>Vente USDT</option><option>Achat EUR</option></Select></div>
+                    )}
+
+                    {/* CLIENT SELECTOR - ALWAYS SHOW FOR NEW OPERATIONS */}
+                    {!editingClientTx && (
+                        <div>
+                            <Label>Client</Label>
+                            <Select value={linkedClientId || 'none'} onChange={e => setLinkedClientId(e.target.value)} className={fieldBase}>
+                                <option value="none">-- Sélectionner un client --</option>
+                                {clientsDzd.map(c => <option key={c.id} value={c.id}>{c.fullName || c.nom}</option>)}
+                            </Select>
+                        </div>
+                    )}
 
                     {/* SHOW SOURCE SELECTOR FOR PAYMENTS/SETTLEMENTS - AVAILABLE ALWAYS WHEN ADDING NEW */}
                     {(clientTxType === 'Règlement Reçu' || clientTxType === 'Paiement Effectué') && !editingClientTx && (
@@ -1413,12 +1460,12 @@ function MainApp({ user }: { user: firebase.User }) {
 
             {/* TREASURY CARD MODAL */}
             <Dialog isOpen={isTreasuryCardModalOpen} onClose={() => setIsTreasuryCardModalOpen(false)} className={`${cardBase} max-w-sm`}>
-                <DialogHeader onClose={() => setIsTreasuryCardModalOpen(false)} isDark={isDark}><DialogTitle>Ajouter une Carte</DialogTitle></DialogHeader>
+                <DialogHeader onClose={() => setIsTreasuryCardModalOpen(false)} isDark={isDark}><DialogTitle>{editingTreasuryCard ? 'Modifier Carte' : 'Ajouter une Carte'}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
                     <div><Label>Nom de la carte / Source</Label><Input value={treasuryCardName} onChange={e => setTreasuryCardName(e.target.value)} className={fieldBase} placeholder="Ex: Coffre Fort" /></div>
                     <div><Label>Valeur (DZD)</Label><NumberInput value={treasuryCardValue} onChange={e => setTreasuryCardValue(e.target.value)} className={fieldBase} placeholder="0.00" /></div>
                 </DialogContent>
-                <DialogFooter><Button onClick={handleSaveTreasuryCard} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl">Ajouter</Button></DialogFooter>
+                <DialogFooter><Button onClick={handleSaveTreasuryCard} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl">{editingTreasuryCard ? 'Mettre à jour' : 'Ajouter'}</Button></DialogFooter>
             </Dialog>
 
             {/* DELETE TREASURY CARD CONFIRMATION */}

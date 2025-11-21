@@ -9,6 +9,7 @@ import { ArrowRightLeftIcon } from '../components/icons/ArrowRightLeftIcon';
 import { SparklesIcon } from '../components/icons/SparklesIcon';
 import { PlusIcon } from '../components/icons/PlusIcon';
 import { Trash2Icon } from '../components/icons/Trash2Icon';
+import { PencilIcon } from '../components/icons/PencilIcon';
 import { TreasuryCard } from '../types';
 
 type TresoreriePageProps = {
@@ -22,7 +23,7 @@ type TresoreriePageProps = {
   portfolioValue: number;
   openTreasuryModal: () => void;
   treasuryCards: TreasuryCard[];
-  openTreasuryCardModal: () => void;
+  openTreasuryCardModal: (card?: TreasuryCard) => void;
   setTreasuryCardToDelete: (card: TreasuryCard | null) => void;
 };
 
@@ -50,8 +51,16 @@ export function TresoreriePage({
   // Receivables = DettesAbs (Money owed to us)
   // Payables = TotalAvances (Money we owe)
   // Adjusted to match user formula structure: Assets - (Payables - Receivables) -> Assets - (Avances - DettesAbs)
+  // Adjusted to match user formula structure: Assets - (Payables - Receivables) -> Assets - (Avances - DettesAbs)
   const manualCardsTotal = treasuryCards.reduce((acc, card) => acc + card.value, 0);
-  const capitalTotal = caisseBalance + baridiBalance + portfolioValue + manualCardsTotal - (totalAvances - dettesAbs);
+
+  // Position Nette = Avance - Dettes
+  // If Positive: Net Liability (We owe more than we are owed) -> Reduces Capital
+  // If Negative: Net Asset (We are owed more than we owe) -> Increases Capital
+  const positionNette = totalAvances - dettesAbs;
+
+  // Capital Total = Caisse + Baridi + Stock + Manual - Position Nette
+  const capitalTotal = caisseBalance + baridiBalance + portfolioValue + manualCardsTotal - positionNette;
 
   // Helper for formatting currency
   const formatDZD = (amount: number) => amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -82,7 +91,7 @@ export function TresoreriePage({
               {formatDZD(capitalTotal)} <span className="text-lg font-medium opacity-60">DZD</span>
             </h1>
             <p className={`text-xs mt-2 ${subtleText} font-mono opacity-80`}>
-              = Caisse + Baridi + Stock + Cartes - (Avances - Dettes)
+              = Caisse + Baridi + Stock + Cartes - Position Nette
             </p>
           </div>
           <LandmarkIcon className={`absolute right-4 bottom-4 w-24 h-24 opacity-5 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
@@ -128,11 +137,25 @@ export function TresoreriePage({
           />
         </div>
 
+        {/* NEW: Position Nette Card */}
+        <div className={`p-5 rounded-2xl shadow-sm border transition-all ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'}`}>
+          <div className={`flex items-center justify-between text-sm font-medium mb-2 ${subtleText}`}>
+            <span>Position Nette (Avances - Dettes)</span>
+            <ArrowRightLeftIcon className="w-4 h-4" />
+          </div>
+          <div className={`text-2xl font-bold ${positionNette > 0 ? 'text-red-400' : positionNette < 0 ? 'text-green-400' : isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            {formatDZD(positionNette)} <span className={`text-sm font-normal ${subtleText}`}>DZD</span>
+          </div>
+          <p className={`text-xs mt-1 ${subtleText}`}>
+            {positionNette > 0 ? "Dette Nette (Réduit le Capital)" : positionNette < 0 ? "Crédit Net (Augmente le Capital)" : "Équilibré"}
+          </p>
+        </div>
+
         {/* Row 4: Manual Cards */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>Cartes & Actifs Manuels</h3>
-            <Button onClick={openTreasuryCardModal} className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg flex items-center gap-2 text-sm font-bold">
+            <Button onClick={() => openTreasuryCardModal()} className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg flex items-center gap-2 text-sm font-bold">
               <PlusIcon className="w-4 h-4" /> Ajouter
             </Button>
           </div>
@@ -143,12 +166,20 @@ export function TresoreriePage({
                 <div key={card.id} className={`p-5 rounded-2xl shadow-sm border transition-all relative group ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'}`}>
                   <div className={`flex items-center justify-between text-sm font-medium mb-2 ${subtleText}`}>
                     <span>{card.name}</span>
-                    <button
-                      onClick={() => setTreasuryCardToDelete(card)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-red-500/20 rounded-full text-red-500"
-                    >
-                      <Trash2Icon className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openTreasuryCardModal(card)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-blue-500/20 rounded-full text-blue-500"
+                      >
+                        <PencilIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setTreasuryCardToDelete(card)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-red-500/20 rounded-full text-red-500"
+                      >
+                        <Trash2Icon className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                   <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {formatDZD(card.value)} <span className={`text-sm font-normal ${subtleText}`}>DZD</span>
