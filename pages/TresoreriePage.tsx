@@ -1,12 +1,15 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Card, CardHeader } from '../components/ui/Card';
+import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { LandmarkIcon } from '../components/icons/LandmarkIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
 import { ArrowRightLeftIcon } from '../components/icons/ArrowRightLeftIcon';
 import { SparklesIcon } from '../components/icons/SparklesIcon';
+import { PlusIcon } from '../components/icons/PlusIcon';
+import { Trash2Icon } from '../components/icons/Trash2Icon';
+import { TreasuryCard } from '../types';
 
 type TresoreriePageProps = {
   isDark: boolean;
@@ -18,6 +21,9 @@ type TresoreriePageProps = {
   totalAvances: number; // Positive number
   portfolioValue: number;
   openTreasuryModal: () => void;
+  treasuryCards: TreasuryCard[];
+  openTreasuryCardModal: () => void;
+  setTreasuryCardToDelete: (card: TreasuryCard | null) => void;
 };
 
 export function TresoreriePage({
@@ -29,7 +35,10 @@ export function TresoreriePage({
   totalDettes,
   totalAvances,
   portfolioValue,
-  openTreasuryModal
+  openTreasuryModal,
+  treasuryCards,
+  openTreasuryCardModal,
+  setTreasuryCardToDelete
 }: TresoreriePageProps) {
 
   // Formula requested: = Caisse + Baridi + Stock - (Avances - Dettes)
@@ -41,7 +50,8 @@ export function TresoreriePage({
   // Receivables = DettesAbs (Money owed to us)
   // Payables = TotalAvances (Money we owe)
   // Adjusted to match user formula structure: Assets - (Payables - Receivables) -> Assets - (Avances - DettesAbs)
-  const capitalTotal = caisseBalance + baridiBalance + portfolioValue - (totalAvances - dettesAbs);
+  const manualCardsTotal = treasuryCards.reduce((acc, card) => acc + card.value, 0);
+  const capitalTotal = caisseBalance + baridiBalance + portfolioValue + manualCardsTotal - (totalAvances - dettesAbs);
 
   // Helper for formatting currency
   const formatDZD = (amount: number) => amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -61,17 +71,6 @@ export function TresoreriePage({
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
 
-      {/* Header Actions */}
-      <Card className={cardBase}>
-        <CardHeader className="flex flex-row items-center justify-between p-4">
-          <h2 className="font-bold text-lg flex items-center gap-2">
-            <LandmarkIcon className="w-5 h-5" />
-            Gestion de la Trésorerie
-          </h2>
-
-        </CardHeader>
-      </Card>
-
       {/* GRID LAYOUT */}
       <div className="grid grid-cols-1 gap-4">
 
@@ -83,7 +82,7 @@ export function TresoreriePage({
               {formatDZD(capitalTotal)} <span className="text-lg font-medium opacity-60">DZD</span>
             </h1>
             <p className={`text-xs mt-2 ${subtleText} font-mono opacity-80`}>
-              = Caisse + Baridi + Stock - (Avances - Dettes)
+              = Caisse + Baridi + Stock + Cartes - (Avances - Dettes)
             </p>
           </div>
           <LandmarkIcon className={`absolute right-4 bottom-4 w-24 h-24 opacity-5 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
@@ -127,6 +126,41 @@ export function TresoreriePage({
             colorClass="text-green-400"
             icon={<ArrowRightLeftIcon className="w-4 h-4 text-green-500 -rotate-45" />}
           />
+        </div>
+
+        {/* Row 4: Manual Cards */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>Cartes & Actifs Manuels</h3>
+            <Button onClick={openTreasuryCardModal} className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg flex items-center gap-2 text-sm font-bold">
+              <PlusIcon className="w-4 h-4" /> Ajouter
+            </Button>
+          </div>
+
+          {treasuryCards.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {treasuryCards.map(card => (
+                <div key={card.id} className={`p-5 rounded-2xl shadow-sm border transition-all relative group ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'}`}>
+                  <div className={`flex items-center justify-between text-sm font-medium mb-2 ${subtleText}`}>
+                    <span>{card.name}</span>
+                    <button
+                      onClick={() => setTreasuryCardToDelete(card)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-red-500/20 rounded-full text-red-500"
+                    >
+                      <Trash2Icon className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {formatDZD(card.value)} <span className={`text-sm font-normal ${subtleText}`}>DZD</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className={`p-8 rounded-2xl border border-dashed text-center ${isDark ? 'border-slate-700 text-slate-500' : 'border-slate-300 text-slate-400'}`}>
+              Aucune carte ajoutée.
+            </div>
+          )}
         </div>
 
       </div>

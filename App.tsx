@@ -9,7 +9,7 @@ import { Select } from './components/ui/Select';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './components/ui/Dialog';
 
-import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx } from './types';
+import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard } from './types';
 import { MONTHS_FR } from './constants';
 
 import { AlertTriangleIcon } from './components/icons/AlertTriangleIcon';
@@ -37,6 +37,7 @@ import { ArrowRightLeftIcon } from './components/icons/ArrowRightLeftIcon';
 import { ShareIcon } from './components/icons/ShareIcon';
 import { LandmarkIcon } from './components/icons/LandmarkIcon';
 import { RefreshCwIcon } from './components/icons/RefreshCwIcon';
+import { RotateCcwIcon } from './components/icons/RotateCcwIcon';
 
 // Page Components
 import { TransactionsPage } from './pages/TransactionsPage';
@@ -236,6 +237,14 @@ function MainApp({ user }: { user: firebase.User }) {
         return () => unsubscribe();
     }, [userDocRef]);
 
+    const [treasuryCards, setTreasuryCards] = useState<TreasuryCard[]>([]);
+    useEffect(() => {
+        const unsubscribe = userDocRef.collection('treasury_cards').onSnapshot((snapshot: firebase.firestore.QuerySnapshot) => {
+            setTreasuryCards(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as TreasuryCard[]);
+        });
+        return () => unsubscribe();
+    }, [userDocRef]);
+
     // Adjustment Modal
     const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
     const [adjustmentTab, setAdjustmentTab] = useState<'add' | 'subtract'>('add');
@@ -359,6 +368,14 @@ function MainApp({ user }: { user: firebase.User }) {
     const [tempStartDate, setTempStartDate] = useState('');
     const [tempEndDate, setTempEndDate] = useState('');
     const [filterMode, setFilterMode] = useState<'all' | 'buy' | 'sell' | 'adjustments'>('all');
+    const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+    const [clientPaymentStatus, setClientPaymentStatus] = useState<'paid' | 'credit'>('paid');
+
+    // Treasury Card Modal
+    const [isTreasuryCardModalOpen, setIsTreasuryCardModalOpen] = useState(false);
+    const [treasuryCardName, setTreasuryCardName] = useState('');
+    const [treasuryCardValue, setTreasuryCardValue] = useState('');
+    const [treasuryCardToDelete, setTreasuryCardToDelete] = useState<TreasuryCard | null>(null);
 
     // ... Helper functions ...
     const parseAndEvaluate = (expr: string): number => {
@@ -447,7 +464,8 @@ function MainApp({ user }: { user: firebase.User }) {
         setSellAmount(''); setSellPrice(''); setSellTotal(''); setProfitPercent(''); setNotes('');
         setAlert(''); setSellAmountError(''); setLinkedClientId('none');
         setBuyUsdtMode(null); setBuyEurForUsdtAmount(''); setEurDzdPrice(''); setEurUsdtRate('');
-        setBuyUsdtTotal(''); setPaymentMethod('Espèces');
+        setBuyUsdtMode(null); setBuyEurForUsdtAmount(''); setEurDzdPrice(''); setEurUsdtRate('');
+        setBuyUsdtTotal(''); setPaymentMethod('Espèces'); setClientPaymentStatus('paid');
         setEditingTx(txToEdit); setMode(newMode);
         if (txToEdit) {
             if (txToEdit.type === 'buy') {
@@ -484,11 +502,17 @@ function MainApp({ user }: { user: firebase.User }) {
             if (editingTx) {
                 batch.update(userDocRef.collection('usdt_txs').doc(editingTx.id), { quantity, price, total: totalCost, notes: notes.trim(), sell: firebase.firestore.FieldValue.delete(), profit: firebase.firestore.FieldValue.delete(), currency, paymentMethod });
                 const qs = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', editingTx.id).get(); qs.forEach(d => batch.delete(d.ref));
-                if (linkedClientId && linkedClientId !== 'none') batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: totalCost, type: 'Règlement Reçu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`, linkedTxId: editingTx.id, paymentMethod });
+                if (linkedClientId && linkedClientId !== 'none') {
+                    const cm = clientPaymentStatus === 'credit' ? 'Crédit' : paymentMethod;
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: totalCost, type: 'Règlement Reçu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`, linkedTxId: editingTx.id, paymentMethod: cm });
+                }
                 setAlert('✅ Transaction mise à jour.');
             } else {
                 const ref = userDocRef.collection('usdt_txs').doc(); batch.set(ref, { timestamp, type: 'buy', quantity, price, total: totalCost, date, time, notes: notes.trim(), currency, paymentMethod });
-                if (linkedClientId && linkedClientId !== 'none') batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: totalCost, type: 'Règlement Reçu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`, linkedTxId: ref.id, paymentMethod });
+                if (linkedClientId && linkedClientId !== 'none') {
+                    const cm = clientPaymentStatus === 'credit' ? 'Crédit' : paymentMethod;
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: totalCost, type: 'Règlement Reçu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`, linkedTxId: ref.id, paymentMethod: cm });
+                }
                 setAlert('✅ Transaction ajoutée.');
             }
             await batch.commit(); closeForm();
@@ -506,11 +530,17 @@ function MainApp({ user }: { user: firebase.User }) {
             if (editingTx) {
                 batch.update(userDocRef.collection('usdt_txs').doc(editingTx.id), { quantity, sell, profit, notes: notes.trim(), price: firebase.firestore.FieldValue.delete(), total: firebase.firestore.FieldValue.delete(), currency: 'USDT', paymentMethod });
                 const qs = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', editingTx.id).get(); qs.forEach(d => batch.delete(d.ref));
-                if (linkedClientId && linkedClientId !== 'none') batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`, linkedTxId: editingTx.id, paymentMethod });
+                if (linkedClientId && linkedClientId !== 'none') {
+                    const cm = clientPaymentStatus === 'credit' ? 'Crédit' : paymentMethod;
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`, linkedTxId: editingTx.id, paymentMethod: cm });
+                }
                 setAlert('✅ Transaction mise à jour.');
             } else {
                 const ref = userDocRef.collection('usdt_txs').doc(); batch.set(ref, { timestamp, type: 'sell', quantity, sell, profit, date, time, notes: notes.trim(), currency: 'USDT', paymentMethod });
-                if (linkedClientId && linkedClientId !== 'none') batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`, linkedTxId: ref.id, paymentMethod });
+                if (linkedClientId && linkedClientId !== 'none') {
+                    const cm = clientPaymentStatus === 'credit' ? 'Crédit' : paymentMethod;
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`, linkedTxId: ref.id, paymentMethod: cm });
+                }
                 setAlert('✅ Transaction ajoutée.');
             }
             await batch.commit(); closeForm();
@@ -811,6 +841,48 @@ function MainApp({ user }: { user: firebase.User }) {
         } catch (e) { setAlert('❌ Erreur.'); } finally { setIsSaving(false); }
     };
 
+    const handleGlobalReset = async () => {
+        setIsSaving(true);
+        try {
+            const batch = db.batch();
+            // Delete all collections
+            const collections = ['usdt_txs', 'treasury_txs', 'dzd_clients', 'dzd_client_txs', 'treasury_cards'];
+            for (const col of collections) {
+                const qs = await userDocRef.collection(col).get();
+                qs.forEach(doc => batch.delete(doc.ref));
+            }
+            await batch.commit();
+            setAlert('✅ Réinitialisation complète effectuée.');
+            setIsResetModalOpen(false);
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur lors de la réinitialisation.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleSaveTreasuryCard = async () => {
+        const val = parseAndEvaluate(treasuryCardValue);
+        if (!treasuryCardName.trim() || val < 0 || isNaN(val)) { setAlert('⚠️ Nom ou valeur invalide.'); return; }
+        setIsSaving(true);
+        try {
+            await userDocRef.collection('treasury_cards').add({ name: treasuryCardName.trim(), value: val });
+            setAlert('✅ Carte ajoutée.');
+            setIsTreasuryCardModalOpen(false);
+            setTreasuryCardName(''); setTreasuryCardValue('');
+        } catch (e) { setAlert('❌ Erreur.'); } finally { setIsSaving(false); }
+    };
+
+    const handleDeleteTreasuryCard = async () => {
+        if (!treasuryCardToDelete) return;
+        try {
+            await userDocRef.collection('treasury_cards').doc(treasuryCardToDelete.id).delete();
+            setAlert('✅ Carte supprimée.');
+            setTreasuryCardToDelete(null);
+        } catch (e) { setAlert('❌ Erreur.'); }
+    };
+
     const bgApp = isDark ? 'from-[#0B1120] via-[#0F172A] to-[#1E293B] text-gray-100' : 'from-[#F8FAFC] via-[#F1F5F9] to-[#E2E8F0] text-gray-900';
     const cardBase = isDark ? 'bg-[#111827]/90 border-[#1f2937] text-white' : 'bg-white/90 border-[#E5E7EB] text-gray-900';
     const fieldBase = isDark ? 'bg-[#0F172A] text-white border border-[#334155]' : 'bg-white text-gray-900 border border-[#CBD5E1]';
@@ -839,7 +911,31 @@ function MainApp({ user }: { user: firebase.User }) {
         if (tx.linkedTxId) { const l = transactions.find(t => t.id === tx.linkedTxId); if (l) setTxToDelete(l); else { setClientTxToDelete(tx); setAlert("⚠️ Transaction orpheline."); } }
         else setClientTxToDelete(tx);
     };
-    const ClientLinker = ({ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark }: any) => (<div className="pb-2"><Label htmlFor="link_client_buy">Lier à un client DZD (Optionnel)</Label><div className="flex items-center gap-2"><Select id="link_client_buy" value={linkedClientId} onChange={(e: any) => setLinkedClientId(e.target.value)} className={`${fieldBase} focus:ring-amber-400 rounded-xl flex-grow`}><option value="none">Aucun / Sans client</option>{clientsDzd.map(c => (<option key={c.id} value={c.id}>{c.fullName || c.nom}</option>))}</Select><Button type="button" onClick={() => openClientModal(null)} className={`p-2.5 h-10 w-10 rounded-xl shrink-0 transition-colors ${isDark ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}`}><PlusIcon className="w-5 h-5" /></Button></div></div>);
+    const ClientLinker = ({ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }: any) => (
+        <div className="pb-2 space-y-2">
+            <div>
+                <Label htmlFor="link_client_buy">Lier à un client DZD (Optionnel)</Label>
+                <div className="flex items-center gap-2">
+                    <Select id="link_client_buy" value={linkedClientId} onChange={(e: any) => setLinkedClientId(e.target.value)} className={`${fieldBase} focus:ring-amber-400 rounded-xl flex-grow`}>
+                        <option value="none">Aucun / Sans client</option>
+                        {clientsDzd.map(c => (<option key={c.id} value={c.id}>{c.fullName || c.nom}</option>))}
+                    </Select>
+                    <Button type="button" onClick={() => openClientModal(null)} className={`p-2.5 h-10 w-10 rounded-xl shrink-0 transition-colors ${isDark ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}`}>
+                        <PlusIcon className="w-5 h-5" />
+                    </Button>
+                </div>
+            </div>
+            {linkedClientId && linkedClientId !== 'none' && (
+                <div>
+                    <Label>Statut du Paiement Client</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button type="button" onClick={() => setClientPaymentStatus('paid')} className={`py-2 px-3 rounded-lg text-sm font-bold border transition-all ${clientPaymentStatus === 'paid' ? (isDark ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-green-100 border-green-500 text-green-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Réglé (Immédiat)</button>
+                        <button type="button" onClick={() => setClientPaymentStatus('credit')} className={`py-2 px-3 rounded-lg text-sm font-bold border transition-all ${clientPaymentStatus === 'credit' ? (isDark ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-amber-100 border-amber-500 text-amber-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Crédit (Dette/Avance)</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
     const ActionInputButton = ({ onClick, children }: any) => (<Button type="button" onClick={onClick} className="absolute right-1 top-1/2 -translate-y-1/2 h-8 px-3 text-xs bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 rounded-md z-10">{children}</Button>);
 
     const getClientFullName = (client: ClientDzd) => client.fullName || (client.prenom ? `${client.nom} ${client.prenom}` : client.nom);
@@ -867,21 +963,46 @@ function MainApp({ user }: { user: firebase.User }) {
                         </div>
                         <div className="flex items-center gap-1 sm:gap-2">
                             <Button onClick={() => setTheme(isDark ? 'light' : 'dark')} className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}>{isDark ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}</Button>
+                            <Button onClick={() => setIsResetModalOpen(true)} className={`p-2 rounded-full transition-colors ${isDark ? 'text-red-400 hover:bg-red-500/20' : 'text-red-500 hover:bg-red-100'}`} title="Réinitialiser l'application"><RotateCcwIcon className="w-5 h-5" /></Button>
                             <Button onClick={() => auth.signOut()} className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}><LogOutIcon className="w-5 h-5" /></Button>
                         </div>
                     </div>
                 </header>
 
+                {/* Mobile Menu Overlay */}
+                <AnimatePresence>
+                    {isMobileMenuOpen && (
+                        <MotionDiv
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            className={`fixed inset-0 z-50 p-4 ${isDark ? 'bg-slate-900/95' : 'bg-white/95'} backdrop-blur-xl sm:hidden`}
+                        >
+                            <div className="flex justify-end mb-8">
+                                <Button onClick={() => setIsMobileMenuOpen(false)} className={`p-2 rounded-full ${isDark ? 'bg-white/10 text-white' : 'bg-black/5 text-gray-900'}`}>
+                                    <XIcon className="w-6 h-6" />
+                                </Button>
+                            </div>
+                            <div className="space-y-2">
+                                <MobileNavLink targetView="transactions" icon={<BriefcaseIcon className="w-6 h-6" />} colorClass="text-indigo-500">Transactions</MobileNavLink>
+                                <MobileNavLink targetView="statistiques" icon={<WalletIcon className="w-6 h-6" />} colorClass="text-teal-500">Portefeuille</MobileNavLink>
+                                <MobileNavLink targetView="dzd" icon={<UsersIcon className="w-6 h-6" />} colorClass="text-sky-500">Clients</MobileNavLink>
+                                <MobileNavLink targetView="tresorerie" icon={<LandmarkIcon className="w-6 h-6" />} colorClass="text-emerald-500">Trésorerie</MobileNavLink>
+                            </div>
+                        </MotionDiv>
+                    )}
+                </AnimatePresence>
+
                 <main className="py-6">
                     <AnimatePresence>{alert && (<MotionDiv initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="mb-4"><Alert className={`rounded-xl ${alert.includes('✅') || alert.includes('⚠️') ? (isDark ? 'bg-green-900/50 border-green-400/30 text-green-300' : 'bg-green-50 border-green-300 text-green-800') : (isDark ? 'bg-red-900/50 border-red-400/30 text-red-300' : 'bg-red-50 border-red-300 text-red-800')}`}><AlertDescription>{alert}</AlertDescription></Alert></MotionDiv>)}</AnimatePresence>
 
-                    {view === 'transactions' && <TransactionsPage {...{ cardBase, isDark, subtleText, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, treasuryTransactions }} openWalletTransferModal={() => setIsWalletTransferModalOpen(true)} openTransferModal={() => setIsTransferModalOpen(true)} />}
+                    {view === 'transactions' && <TransactionsPage {...{ cardBase, isDark, subtleText, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, treasuryTransactions, handleEditClientTx, handleDeleteClientTxClick }} openWalletTransferModal={() => setIsWalletTransferModalOpen(true)} openTransferModal={() => setIsTransferModalOpen(true)} />}
 
                     {view === 'statistiques' && <PortfolioPage {...{ statsView, setStatsView, isDark, setIsSettingsModalOpen, cardBase, subtleText, portfolioStats, totalPortfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), suggestedProfitMargin, parseAndEvaluate, usdtReportMonth, setUsdtReportMonth, usdtReportYear, setUsdtReportYear, reportMonths: (y: number) => y === new Date().getFullYear() ? MONTHS_FR.slice(0, new Date().getMonth() + 1) : MONTHS_FR, reportYears: Array.from({ length: 3 }, (_, i) => 2024 + i), monthlyStats: { totalUsdtSoldMonth: 0, totalEurBoughtMonth: 0, realizedProfitMonth: 0, monthlyProfitMargin: 0 }, transactions, selectedHeatmapDay, setSelectedHeatmapDay, simMode, setSimMode, simBuyQty, setSimBuyQty, simBuyPrice, setSimBuyPrice, fieldBase, newPamFromDzdSimulator: null, simEurQty, setSimEurQty, simEurDzdPrice, setSimEurDzdPrice, simEurUsdtRate, setSimEurUsdtRate, newPamFromEurSimulator: null, handleExportUsdtReport, dzdDashboardStats: null, reportClient, setReportClient, clientsDzd, getClientFullName, reportMonth, setReportMonth, reportYear, setReportYear, handleExportClientReport }} />}
 
                     {view === 'dzd' && <ClientsPage {...{ selectedClientId, setSelectedClientId, cardBase, fieldBase, isDark, subtleText, openClientModal, setIsTransferModalOpen, openSettlementModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances: clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, selectedClient, selectedClientTransactions, transactions, handleExportClientReport, openClientTxModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick }} />}
 
-                    {view === 'tresorerie' && <TresoreriePage {...{ isDark, cardBase, subtleText, caisseBalance: treasuryStats.caisse, baridiBalance: treasuryStats.baridi, totalDettes: clientStats.totalDettes, totalAvances: clientStats.totalAvances, portfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), openTreasuryModal: () => openAdjustmentModal('add') }} />}
+                    {view === 'tresorerie' && <TresoreriePage {...{ isDark, cardBase, subtleText, caisseBalance: treasuryStats.caisse, baridiBalance: treasuryStats.baridi, totalDettes: clientStats.totalDettes, totalAvances: clientStats.totalAvances, portfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), openTreasuryModal: () => openAdjustmentModal('add'), treasuryCards, openTreasuryCardModal: () => setIsTreasuryCardModalOpen(true), setTreasuryCardToDelete }} />}
                 </main>
 
                 {/* Mobile Nav */}
@@ -1120,7 +1241,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                 <Label>Prix d'achat (DZD)</Label>
                                                 <NumberInput value={buyUsdtPrice} onChange={e => setBuyUsdtPrice(e.target.value)} className={fieldBase} />
                                             </div>
-                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark }} />
+                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
                                             <div>
                                                 <Label>Notes (Optionnel)</Label>
                                                 <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
@@ -1147,7 +1268,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                             </div>
                                             <div><Label>Taux de change (EUR pour 1 USDT)</Label><NumberInput value={eurUsdtRate} onChange={e => setEurUsdtRate(e.target.value)} className={fieldBase} placeholder="Ex: 0.92" /></div>
 
-                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark }} />
+                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
                                             <div><Label>Notes (Optionnel)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} /></div>
                                         </>
                                     )}
@@ -1184,7 +1305,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                 <div><Label>Prix de vente (DZD)</Label><NumberInput value={sellPrice} onChange={e => setSellPrice(e.target.value)} className={fieldBase} /></div>
                                                 <div><Label>Marge (%)</Label><Input value={profitPercent} onChange={e => { setProfitPercent(e.target.value); if (parseAndEvaluate(e.target.value) > 0) setSellPrice((portfolioStats.usdt.avgBuy * (1 + parseAndEvaluate(e.target.value) / 100)).toFixed(2)); }} className={fieldBase} placeholder="%" /></div>
                                             </div>
-                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark }} />
+                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
                                             <div><Label>Notes (Optionnel)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} /></div>
                                         </>
                                     )}
@@ -1201,7 +1322,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                 <NumberInput value={buyEurPrice} onChange={e => setBuyEurPrice(e.target.value)} className={fieldBase} />
                                                 <p className={`text-xs mt-1 ${subtleText}`}>Basé sur votre PAM EUR actuel.</p>
                                             </div>
-                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark }} />
+                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
                                             <div>
                                                 <Label>Notes (Optionnel)</Label>
                                                 <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
@@ -1220,7 +1341,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                 <Label>Prix d'achat (DZD)</Label>
                                                 <NumberInput value={buyUsdtPrice} onChange={e => setBuyUsdtPrice(e.target.value)} className={fieldBase} />
                                             </div>
-                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark }} />
+                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
                                             <div>
                                                 <Label>Notes (Optionnel)</Label>
                                                 <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
@@ -1274,6 +1395,36 @@ function MainApp({ user }: { user: firebase.User }) {
                 <DialogFooter>
                     <Button onClick={() => setIsSettingsModalOpen(false)} className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl">Enregistrer</Button>
                 </DialogFooter>
+            </Dialog>
+
+            {/* RESET CONFIRMATION MODAL */}
+            <Dialog isOpen={isResetModalOpen} onClose={() => setIsResetModalOpen(false)} className={cardBase}>
+                <DialogHeader isDark={isDark}><DialogTitle>Réinitialisation Globale</DialogTitle></DialogHeader>
+                <DialogContent className="p-6">
+                    <p className="text-red-500 font-bold mb-2">ATTENTION : Cette action est irréversible.</p>
+                    <p>Vous êtes sur le point de supprimer TOUTES les données de l'application (Transactions, Clients, Trésorerie, etc.).</p>
+                    <p className="mt-2">Voulez-vous vraiment recommencer à zéro ?</p>
+                </DialogContent>
+                <DialogFooter>
+                    <Button onClick={() => setIsResetModalOpen(false)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>Annuler</Button>
+                    <Button onClick={handleGlobalReset} className="w-full bg-red-600 text-white font-bold py-3 rounded-xl">OUI, TOUT EFFACER</Button>
+                </DialogFooter>
+            </Dialog>
+
+            {/* TREASURY CARD MODAL */}
+            <Dialog isOpen={isTreasuryCardModalOpen} onClose={() => setIsTreasuryCardModalOpen(false)} className={`${cardBase} max-w-sm`}>
+                <DialogHeader onClose={() => setIsTreasuryCardModalOpen(false)} isDark={isDark}><DialogTitle>Ajouter une Carte</DialogTitle></DialogHeader>
+                <DialogContent className="px-6 pb-6 space-y-4">
+                    <div><Label>Nom de la carte / Source</Label><Input value={treasuryCardName} onChange={e => setTreasuryCardName(e.target.value)} className={fieldBase} placeholder="Ex: Coffre Fort" /></div>
+                    <div><Label>Valeur (DZD)</Label><NumberInput value={treasuryCardValue} onChange={e => setTreasuryCardValue(e.target.value)} className={fieldBase} placeholder="0.00" /></div>
+                </DialogContent>
+                <DialogFooter><Button onClick={handleSaveTreasuryCard} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl">Ajouter</Button></DialogFooter>
+            </Dialog>
+
+            {/* DELETE TREASURY CARD CONFIRMATION */}
+            <Dialog isOpen={treasuryCardToDelete !== null} onClose={() => setTreasuryCardToDelete(null)} className={cardBase}>
+                <DialogHeader isDark={isDark}><DialogTitle>Supprimer cette carte ?</DialogTitle></DialogHeader>
+                <DialogFooter><Button onClick={handleDeleteTreasuryCard} className="bg-red-600 text-white w-full">Supprimer</Button></DialogFooter>
             </Dialog>
 
         </div>

@@ -86,7 +86,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
       </div>
     </div>
   );
-  
+
   const netMargin = useMemo(() => {
     if (totalPortfolioValue === 0) return 0;
     return (portfolioStats.usdt.totalProfit / totalPortfolioValue) * 100;
@@ -111,93 +111,92 @@ export function PortfolioPage(props: PortfolioPageProps) {
   const ProfitHeatmap = () => {
     const firstDayOfMonth = new Date(usdtReportYear, usdtReportMonth, 1).getDay(); // 0 = Sunday
     const daysInMonth = new Date(usdtReportYear, usdtReportMonth + 1, 0).getDate();
-    
+
     const getHeatmapColor = (profit: number) => {
-        if (profit > 10000) return 'bg-green-500';
-        if (profit > 5000) return 'bg-green-500/80';
-        if (profit > 1000) return 'bg-green-500/60';
-        if (profit > 0) return 'bg-green-500/40';
-        if (profit < -10000) return 'bg-red-500';
-        if (profit < -5000) return 'bg-red-500/80';
-        if (profit < -1000) return 'bg-red-500/60';
-        if (profit < 0) return 'bg-red-500/40';
-        return isDark ? 'bg-white/5' : 'bg-black/5';
+      if (profit > 10000) return 'bg-green-500';
+      if (profit > 5000) return 'bg-green-500/80';
+      if (profit > 1000) return 'bg-green-500/60';
+      if (profit > 0) return 'bg-green-500/40';
+      if (profit < -10000) return 'bg-red-500';
+      if (profit < -5000) return 'bg-red-500/80';
+      if (profit < -1000) return 'bg-red-500/60';
+      if (profit < 0) return 'bg-red-500/40';
+      return isDark ? 'bg-white/5' : 'bg-black/5';
     };
 
     return (
-        <div>
-            <div className="grid grid-cols-7 gap-1 text-center text-xs mb-1">
-                {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map(day => <div key={day}>{day}</div>)}
-            </div>
-            <div className="grid grid-cols-7 gap-1.5">
-                {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`} />)}
-                {Array.from({ length: daysInMonth }).map((_, i) => {
-                    const day = i + 1;
-                    const profit = heatmapData.get(day) || 0;
-                    return (
-                        <div 
-                          key={day} 
-                          className={`w-full aspect-square rounded-md flex items-center justify-center text-xs cursor-pointer transition-transform hover:scale-110 ${getHeatmapColor(profit)} ${selectedHeatmapDay?.day === day ? 'ring-2 ring-offset-2 ring-teal-400 ring-offset-gray-800' : ''}`}
-                          onClick={() => setSelectedHeatmapDay(selectedHeatmapDay?.day === day ? null : { day, profit })}
-                        >
-                          {day}
-                        </div>
-                    );
-                })}
-            </div>
+      <div>
+        <div className="grid grid-cols-7 gap-1 text-center text-xs mb-1">
+          {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map(day => <div key={day}>{day}</div>)}
         </div>
+        <div className="grid grid-cols-7 gap-1.5">
+          {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`} />)}
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const day = i + 1;
+            const profit = heatmapData.get(day) || 0;
+            return (
+              <div
+                key={day}
+                className={`w-full aspect-square rounded-md flex items-center justify-center text-xs cursor-pointer transition-transform hover:scale-110 ${getHeatmapColor(profit)} ${selectedHeatmapDay?.day === day ? 'ring-2 ring-offset-2 ring-teal-400 ring-offset-gray-800' : ''}`}
+                onClick={() => setSelectedHeatmapDay(selectedHeatmapDay?.day === day ? null : { day, profit })}
+              >
+                {day}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     );
   };
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       {/* Top Margin Button Removed - now integrated into StatCard */}
-      
+
       <div className="space-y-4">
         <Card className={`${cardBase} p-4 sm:p-6`}>
-          <h2 className="font-bold text-lg mb-4 flex items-center gap-2"><BriefcaseIcon className="w-5 h-5"/> État Actuel du Portefeuille</h2>
+          <h2 className="font-bold text-lg mb-4 flex items-center gap-2"><BriefcaseIcon className="w-5 h-5" /> État Actuel du Portefeuille</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* First Row: Total Profit & Suggested Price */}
             <StatCard cardBase={cardBase} subtleText={subtleText} title="Bénéfice/Perte Net" value={portfolioStats.usdt.totalProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass={portfolioStats.usdt.totalProfit >= 0 ? "text-green-400" : "text-red-400"} />
-            
-            <StatCard 
-              cardBase={cardBase} 
-              subtleText={subtleText} 
-              title="Prix Vente Suggéré" 
-              value={(portfolioStats.usdt.avgBuy * (1 + parseAndEvaluate(suggestedProfitMargin) / 100)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
-              currency="DZD" 
+
+            <StatCard
+              cardBase={cardBase}
+              subtleText={subtleText}
+              title="Prix Vente Suggéré"
+              value={(portfolioStats.usdt.avgBuy * (1 + parseAndEvaluate(suggestedProfitMargin) / 100)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              currency="DZD"
               colorClass="text-yellow-400"
               action={
-                <button 
-                  onClick={() => setIsSettingsModalOpen(true)} 
+                <button
+                  onClick={() => setIsSettingsModalOpen(true)}
                   className={`text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 transition-colors ${isDark ? 'bg-slate-700 text-gray-300 hover:bg-slate-600' : 'bg-slate-100 text-gray-600 hover:bg-slate-200'}`}
                 >
-                  Marge: {suggestedProfitMargin}% <PencilIcon className="w-3 h-3"/>
+                  Marge: {suggestedProfitMargin}% <PencilIcon className="w-3 h-3" />
                 </button>
-              } 
+              }
             />
 
             {/* Second Row: Balances */}
             <StatCard cardBase={cardBase} subtleText={subtleText} title="Solde Actuel USDT" value={portfolioStats.usdt.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} currency="USDT" colorClass="text-sky-400" />
             <StatCard cardBase={cardBase} subtleText={subtleText} title="Solde Actuel EUR" value={portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="EUR" colorClass="text-amber-400" />
-            
+
             {/* Third Row: Costs */}
             <StatCard cardBase={cardBase} subtleText={subtleText} title="PAM USDT" value={portfolioStats.usdt.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass="text-gray-300" />
             <StatCard cardBase={cardBase} subtleText={subtleText} title="PAM EUR" value={portfolioStats.eur.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass="text-gray-300" />
-            
-            {/* Fourth Row: Net Margin */}
-            <StatCard cardBase={cardBase} subtleText={subtleText} title="Marge Nette (%)" value={!isFinite(netMargin) ? 'N/A' : `${netMargin.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`} colorClass={netMargin >= 0 ? "text-green-400" : "text-red-400"} />
+
+
           </div>
         </Card>
-        
+
         <Card className={`${cardBase} p-4 sm:p-6`}>
-          <h2 className="font-bold text-lg mb-4 flex items-center gap-2"><TrendingUpIcon className="w-5 h-5"/> Analyse & Rapports</h2>
+          <h2 className="font-bold text-lg mb-4 flex items-center gap-2"><TrendingUpIcon className="w-5 h-5" /> Analyse & Rapports</h2>
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Mois</Label><Select value={usdtReportMonth} onChange={e => setUsdtReportMonth(Number(e.target.value))} className={fieldBase}>{reportMonths(usdtReportYear).map((m, i) => <option key={m} value={i}>{m}</option>)}</Select></div>
               <div><Label>Année</Label><Select value={usdtReportYear} onChange={e => setUsdtReportYear(Number(e.target.value))} className={fieldBase}>{reportYears.map(y => <option key={y} value={y}>{y}</option>)}</Select></div>
             </div>
-            
+
             <div className="space-y-4">
               <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                 <Label className={subtleText}>Volume Vendu (Période)</Label>
@@ -226,7 +225,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
               <ProfitHeatmap />
               {selectedHeatmapDay && (
                 <p className={`text-center text-sm mt-2 p-2 rounded-md ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
-                Bénéfice du {selectedHeatmapDay.day}/{usdtReportMonth + 1}/{usdtReportYear}: <span className="font-bold">{selectedHeatmapDay.profit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
+                  Bénéfice du {selectedHeatmapDay.day}/{usdtReportMonth + 1}/{usdtReportYear}: <span className="font-bold">{selectedHeatmapDay.profit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
                 </p>
               )}
             </div>
@@ -236,7 +235,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
               <div className="p-3 rounded-xl" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }}>
                 <div className="flex items-center gap-2 mb-4 p-1 rounded-full border" style={{ borderColor: isDark ? '#334155' : '#CBD5E1' }}>
                   <button onClick={() => setSimMode('dzd')} className={`flex-1 py-1 text-sm rounded-full font-semibold transition-colors ${simMode === 'dzd' ? 'bg-teal-500 text-white' : ''}`}>Achat avec DZD</button>
-                  <button 
+                  <button
                     onClick={() => {
                       setSimMode('eur');
                       if (portfolioStats.eur.available > 0) {
@@ -245,7 +244,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
                       if (portfolioStats.eur.avgBuy > 0) {
                         setSimEurDzdPrice(portfolioStats.eur.avgBuy.toFixed(2));
                       }
-                    }} 
+                    }}
                     className={`flex-1 py-1 text-sm rounded-full font-semibold transition-colors ${simMode === 'eur' ? 'bg-teal-500 text-white' : ''}`}
                   >
                     Achat avec EUR
@@ -284,7 +283,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
               </div>
             </div>
             <Button onClick={handleExportUsdtReport} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
-              <FileSpreadsheetIcon className="w-5 h-5"/> Exporter le Rapport (PDF)
+              <FileSpreadsheetIcon className="w-5 h-5" /> Exporter le Rapport (PDF)
             </Button>
           </div>
         </Card>

@@ -1,48 +1,44 @@
-
-export type Tx = {
-  id?: string; // Firestore ID
-  timestamp: number;
+export interface Tx {
+  id: string;
   type: 'buy' | 'sell' | 'Ajout Manuel' | 'Retrait Manuel';
-  currency: 'USDT' | 'EUR';
-  quantity: number; // Renamed from 'usd'
-  price?: number; // for buy rows (DZD per USDT)
-  sell?: number;  // for sell rows (DZD per USDT)
-  total?: number; // for buy rows (cost)
-  profit?: number; // for sell rows
+  quantity: number;
+  price?: number;
+  sell?: number;
+  total?: number;
+  profit?: number;
   date: string;
   time: string;
-  notes?: string; // Optional notes for the transaction
-  paymentMethod?: 'Espèces' | 'BaridiMob' | 'Crédit'; // NEW
-};
+  timestamp: number;
+  notes?: string;
+  currency: 'USDT' | 'EUR';
+  paymentMethod?: 'Espèces' | 'BaridiMob' | 'Crédit';
+}
 
-// NEW types for DZD Client Management
-export type ClientDzd = {
+export interface ClientDzd {
   id: string;
   fullName: string;
   phone?: string;
   redotpayId?: string;
   binanceEmail?: string;
-  // For backward compatibility
-  nom?: string;
-  prenom?: string; // Optional first name
-};
+  nom?: string; // Legacy support
+  prenom?: string; // Legacy support
+}
 
-export type ClientTransactionDzd = {
+export interface ClientTransactionDzd {
   id: string;
   clientId: string;
   timestamp: number;
   date: string;
   time: string;
-  type: 'Dépôt' | 'Retrait' | 'Vente USDT' | 'Autre' | 'Solde Initial' | 'Règlement Reçu' | 'Paiement Effectué' | 'Transfert Entrant' | 'Transfert Sortant';
-  montant: number; // Can be positive (Dépôt) or negative (Retrait)
+  montant: number; // Positive = Credit (Advance), Negative = Debt
+  type: 'Règlement Reçu' | 'Paiement Effectué' | 'Vente USDT' | 'Achat EUR' | 'Solde Initial' | 'Transfert Entrant' | 'Transfert Sortant';
   notes?: string;
-  linkedTxId?: string; // Renamed from linkedUsdtTxId to be generic
-  paymentMethod?: 'Espèces' | 'BaridiMob' | 'Crédit'; // NEW
-};
+  linkedTxId?: string; // ID of the USDT/EUR transaction if applicable
+  paymentMethod?: 'Espèces' | 'BaridiMob' | 'Crédit';
+}
 
-// NEW type for Treasury System
-export type TreasuryTx = {
-  id?: string;
+export interface TreasuryTx {
+  id: string;
   timestamp: number;
   date: string;
   time: string;
@@ -50,4 +46,10 @@ export type TreasuryTx = {
   source: 'Caisse' | 'BaridiMob';
   amount: number;
   notes?: string;
-};
+}
+
+export interface TreasuryCard {
+  id: string;
+  name: string;
+  value: number;
+}

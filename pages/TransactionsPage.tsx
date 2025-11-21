@@ -38,6 +38,8 @@ type TransactionsPageProps = {
   openWalletTransferModal: () => void;
   openTransferModal: () => void;
   treasuryTransactions: TreasuryTx[];
+  handleEditClientTx?: (tx: ClientTransactionDzd) => void;
+  handleDeleteClientTxClick?: (tx: ClientTransactionDzd) => void;
 };
 
 // Unified Transaction Interface for Display
@@ -76,6 +78,8 @@ export function TransactionsPage({
   openWalletTransferModal,
   openTransferModal,
   treasuryTransactions,
+  handleEditClientTx,
+  handleDeleteClientTxClick
 }: TransactionsPageProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -273,10 +277,15 @@ export function TransactionsPage({
                       {txsOnDate.map(tx => (
                         <React.Fragment key={tx.id}>
                           <SwipeableListItem
-                            // Only allow editing crypto txs for now via this shortcut, others can be added later
-                            onEdit={tx.sourceType === 'usdt_tx' ? () => openForm(tx.rawTx.type === 'buy' ? (tx.rawTx.currency === 'USDT' ? 'buy_usdt' : 'buy_eur') : 'sell_usdt', tx.rawTx) : undefined}
-                            onDelete={tx.sourceType === 'usdt_tx' ? () => setTxToDelete(tx.rawTx) : undefined}
-                            disableSwipe={tx.sourceType !== 'usdt_tx'} // Disable swipe for non-crypto for now to prevent errors
+                            onEdit={() => {
+                              if (tx.sourceType === 'usdt_tx') openForm(tx.rawTx.type === 'buy' ? (tx.rawTx.currency === 'USDT' ? 'buy_usdt' : 'buy_eur') : 'sell_usdt', tx.rawTx);
+                              else if (tx.sourceType === 'client_tx' && handleEditClientTx) handleEditClientTx(tx.rawTx);
+                            }}
+                            onDelete={() => {
+                              if (tx.sourceType === 'usdt_tx') setTxToDelete(tx.rawTx);
+                              else if (tx.sourceType === 'client_tx' && handleDeleteClientTxClick) handleDeleteClientTxClick(tx.rawTx);
+                            }}
+                            disableSwipe={tx.sourceType === 'treasury_tx'} // Disable swipe for treasury txs for now
                           >
                             <div className={`flex items-center gap-3 py-3 px-4 ${isDark ? 'bg-[#111827]' : 'bg-white'}`}>
                               {tx.icon}
