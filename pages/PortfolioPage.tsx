@@ -10,7 +10,6 @@ import { MONTHS_FR } from '../constants';
 
 import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
 import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
-import { FileSpreadsheetIcon } from '../components/icons/FileSpreadsheetIcon';
 import { PencilIcon } from '../components/icons/PencilIcon';
 
 type PortfolioPageProps = {
@@ -20,7 +19,7 @@ type PortfolioPageProps = {
   setIsSettingsModalOpen: (isOpen: boolean) => void;
   cardBase: string;
   subtleText: string;
-  portfolioStats: any; // Simplified for brevity
+  portfolioStats: any;
   totalPortfolioValue: number;
   suggestedProfitMargin: string;
   parseAndEvaluate: (expr: string) => number;
@@ -30,7 +29,7 @@ type PortfolioPageProps = {
   setUsdtReportYear: (year: number) => void;
   reportMonths: (year: number) => string[];
   reportYears: number[];
-  monthlyStats: any; // Simplified
+  monthlyStats: any;
   transactions: Tx[];
   selectedHeatmapDay: { day: number; profit: number; } | null;
   setSelectedHeatmapDay: (day: { day: number; profit: number; } | null) => void;
@@ -50,7 +49,7 @@ type PortfolioPageProps = {
   setSimEurUsdtRate: (val: string) => void;
   newPamFromEurSimulator: number | null;
   handleExportUsdtReport: () => void;
-  dzdDashboardStats: any; // Simplified
+  dzdDashboardStats: any;
   reportClient: string;
   setReportClient: (id: string) => void;
   clientsDzd: ClientDzd[];
@@ -73,7 +72,6 @@ export function PortfolioPage(props: PortfolioPageProps) {
     newPamFromEurSimulator, handleExportUsdtReport
   } = props;
 
-  // Redesigned StatCard to match Treasury style
   const StatCard = ({ title, value, currency, icon, colorClass, cardBase, subtleText, action }: { title: string, value: string, currency?: string, icon?: React.ReactNode, colorClass: string, cardBase: string, subtleText: string, action?: React.ReactNode }) => (
     <div className={`p-5 rounded-2xl shadow-sm border transition-all ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'}`}>
       <div className={`flex items-center justify-between text-sm font-medium mb-2 ${subtleText}`}>
@@ -289,6 +287,18 @@ export function PortfolioPage(props: PortfolioPageProps) {
                       <div><Label>Prix Achat EUR</Label><NumberInput value={simEurDzdPrice} onChange={e => setSimEurDzdPrice(e.target.value)} className={fieldBase} /></div>
                       <div><Label>Taux EUR/USDT</Label><NumberInput value={simEurUsdtRate} onChange={e => setSimEurUsdtRate(e.target.value)} className={fieldBase} /></div>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                        <p className={subtleText}>PAM Actuel</p>
+                        <p className="font-bold">{portfolioStats.usdt.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</p>
+                      </div>
+                      <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                        <p className={subtleText}>Prix Suggéré ({suggestedProfitMargin}%)</p>
+                        <p className="font-bold">{(portfolioStats.usdt.avgBuy * (1 + parseAndEvaluate(suggestedProfitMargin) / 100)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</p>
+                      </div>
+                    </div>
+
                     {newPamFromEurSimulator !== null && (
                       <div className="text-center p-2 rounded-lg bg-teal-500/10 text-teal-300">
                         <p>Nouveau PAM: <span className="font-bold">{newPamFromEurSimulator.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</span></p>
@@ -299,9 +309,6 @@ export function PortfolioPage(props: PortfolioPageProps) {
                 )}
               </div>
             </div>
-            <Button onClick={handleExportUsdtReport} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
-              <FileSpreadsheetIcon className="w-5 h-5" /> Exporter le Rapport (PDF)
-            </Button>
           </div>
         </Card>
       </div>

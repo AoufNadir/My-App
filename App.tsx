@@ -392,6 +392,8 @@ function MainApp({ user }: { user: firebase.User }) {
     // Treasury Tx Edit/Delete
     const [editingTreasuryTx, setEditingTreasuryTx] = useState<TreasuryTx | null>(null);
     const [treasuryTxToDelete, setTreasuryTxToDelete] = useState<TreasuryTx | null>(null);
+    const [summaryClient, setSummaryClient] = useState<ClientDzd | null>(null);
+    const touchTimer = useRef<any>(null);
 
     // ... Helper functions ...
     const parseAndEvaluate = (expr: string): number => {
@@ -940,6 +942,43 @@ function MainApp({ user }: { user: firebase.User }) {
         }
     };
 
+    const handleBackup = async () => {
+        setIsSaving(true);
+        try {
+            const collections = ['usdt_txs', 'treasury_txs', 'dzd_clients', 'dzd_client_txs', 'treasury_cards'];
+            const data: any = {};
+
+            for (const col of collections) {
+                const snapshot = await userDocRef.collection(col).get();
+                data[col] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            }
+
+            const backup = {
+                timestamp: Date.now(),
+                date: new Date().toISOString(),
+                data: data
+            };
+
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const dateStr = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-');
+            a.download = `backup_${dateStr}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            setAlert('✅ Sauvegarde téléchargée.');
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur lors de la sauvegarde.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const handleSaveTreasuryCard = async () => {
         const val = parseAndEvaluate(treasuryCardValue);
         if (!treasuryCardName.trim() || val < 0 || isNaN(val)) { setAlert('⚠️ Nom ou valeur invalide.'); return; }
@@ -1043,12 +1082,49 @@ function MainApp({ user }: { user: firebase.User }) {
     const ActionInputButton = ({ onClick, children }: any) => (<Button type="button" onClick={onClick} className="absolute right-1 top-1/2 -translate-y-1/2 h-8 px-3 text-xs bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 rounded-md z-10">{children}</Button>);
 
     const getClientFullName = (client: ClientDzd) => client.fullName || (client.prenom ? `${client.nom} ${client.prenom}` : client.nom);
-    const handleTouchStart = (c: ClientDzd) => { /* ... */ }; const handleTouchEnd = () => { /* ... */ };
+    const handleTouchStart = (c: ClientDzd) => {
+        touchTimer.current = setTimeout(() => {
+            setSummaryClient(c);
+        }, 800);
+    };
+    const handleTouchEnd = () => {
+        if (touchTimer.current) {
+            clearTimeout(touchTimer.current);
+            touchTimer.current = null;
+        }
+    };
     const handleExportClientReport = (cId: string, m: number, y: number) => { /* ... */ };
     const handleExportUsdtReport = () => { /* ... */ };
     const openDateFilterModal = () => { setTempStartDate(dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''); setTempEndDate(dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''); setIsDateFilterModalOpen(true); };
     const handleApplyDateFilter = () => { if (tempStartDate && tempEndDate) { const s = new Date(tempStartDate); s.setHours(0, 0, 0, 0); const e = new Date(tempEndDate); e.setHours(23, 59, 59, 999); setDateRange({ start: s, end: e }); setIsDateFilterModalOpen(false); } else setAlert('⚠️ Dates incomplètes.'); };
     const handleClearDateFilter = () => { setDateRange({ start: null, end: null }); setIsDateFilterModalOpen(false); };
+
+    const newPamFromDzdSimulator = useMemo(() => {
+        const qty = parseAndEvaluate(simBuyQty);
+        const price = parseAndEvaluate(simBuyPrice);
+        if (qty <= 0 || price <= 0) return null;
+        const newCost = qty * price;
+        const totalCost = portfolioStats.usdt.costBasis + newCost;
+        const totalQty = portfolioStats.usdt.purchasedQty + qty;
+        if (totalQty <= 0) return 0;
+        return totalCost / totalQty;
+    }, [simBuyQty, simBuyPrice, portfolioStats.usdt]);
+
+    const newPamFromEurSimulator = useMemo(() => {
+        const eurQty = parseAndEvaluate(simEurQty);
+        const eurPriceDzd = parseAndEvaluate(simEurDzdPrice);
+        const rate = parseAndEvaluate(simEurUsdtRate);
+        if (eurQty <= 0 || eurPriceDzd <= 0 || rate <= 0) return null;
+
+        const newUsdtQty = eurQty * rate;
+        const newCostDzd = eurQty * eurPriceDzd;
+
+        const totalCost = portfolioStats.usdt.costBasis + newCostDzd;
+        const totalQty = portfolioStats.usdt.purchasedQty + newUsdtQty;
+
+        if (totalQty <= 0) return 0;
+        return totalCost / totalQty;
+    }, [simEurQty, simEurDzdPrice, simEurUsdtRate, portfolioStats.usdt]);
 
     return (
         <div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
@@ -1102,7 +1178,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
                     {view === 'transactions' && <TransactionsPage {...{ cardBase, isDark, subtleText, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, treasuryTransactions, handleEditClientTx, handleDeleteClientTxClick, setTreasuryTxToDelete }} openWalletTransferModal={() => setIsWalletTransferModalOpen(true)} openTransferModal={() => setIsTransferModalOpen(true)} />}
 
-                    {view === 'statistiques' && <PortfolioPage {...{ statsView, setStatsView, isDark, setIsSettingsModalOpen, cardBase, subtleText, portfolioStats, totalPortfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), suggestedProfitMargin, parseAndEvaluate, usdtReportMonth, setUsdtReportMonth, usdtReportYear, setUsdtReportYear, reportMonths: (y: number) => y === new Date().getFullYear() ? MONTHS_FR.slice(0, new Date().getMonth() + 1) : MONTHS_FR, reportYears: Array.from({ length: 3 }, (_, i) => 2024 + i), monthlyStats: { totalUsdtSoldMonth: 0, totalEurBoughtMonth: 0, realizedProfitMonth: 0, monthlyProfitMargin: 0 }, transactions, selectedHeatmapDay, setSelectedHeatmapDay, simMode, setSimMode, simBuyQty, setSimBuyQty, simBuyPrice, setSimBuyPrice, fieldBase, newPamFromDzdSimulator: null, simEurQty, setSimEurQty, simEurDzdPrice, setSimEurDzdPrice, simEurUsdtRate, setSimEurUsdtRate, newPamFromEurSimulator: null, handleExportUsdtReport, dzdDashboardStats: null, reportClient, setReportClient, clientsDzd, getClientFullName, reportMonth, setReportMonth, reportYear, setReportYear, handleExportClientReport }} />}
+                    {view === 'statistiques' && <PortfolioPage {...{ statsView, setStatsView, isDark, setIsSettingsModalOpen, cardBase, subtleText, portfolioStats, totalPortfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), suggestedProfitMargin, parseAndEvaluate, usdtReportMonth, setUsdtReportMonth, usdtReportYear, setUsdtReportYear, reportMonths: (y: number) => y === new Date().getFullYear() ? MONTHS_FR.slice(0, new Date().getMonth() + 1) : MONTHS_FR, reportYears: Array.from({ length: 3 }, (_, i) => 2024 + i), monthlyStats: { totalUsdtSoldMonth: 0, totalEurBoughtMonth: 0, realizedProfitMonth: 0, monthlyProfitMargin: 0 }, transactions, selectedHeatmapDay, setSelectedHeatmapDay, simMode, setSimMode, simBuyQty, setSimBuyQty, simBuyPrice, setSimBuyPrice, fieldBase, newPamFromDzdSimulator, simEurQty, setSimEurQty, simEurDzdPrice, setSimEurDzdPrice, simEurUsdtRate, setSimEurUsdtRate, newPamFromEurSimulator, handleExportUsdtReport, dzdDashboardStats: null, reportClient, setReportClient, clientsDzd, getClientFullName, reportMonth, setReportMonth, reportYear, setReportYear, handleExportClientReport }} />}
 
                     {view === 'dzd' && <ClientsPage {...{ selectedClientId, setSelectedClientId, cardBase, fieldBase, isDark, subtleText, openClientModal, setIsTransferModalOpen, openSettlementModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances: clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, selectedClient, selectedClientTransactions, transactions, handleExportClientReport, openClientTxModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick }} />}
 
@@ -1224,7 +1300,26 @@ function MainApp({ user }: { user: firebase.User }) {
                     ) : clientTxType === 'Achat EUR' ? (
                         <div className="space-y-4"><div><Label>Quantité EUR</Label><NumberInput value={clientTxEurAmount} onChange={e => setClientTxEurAmount(e.target.value)} className={fieldBase} /></div><div><Label>Prix d'Achat</Label><NumberInput value={clientTxEurPrice} onChange={e => setClientTxEurPrice(e.target.value)} className={fieldBase} /></div></div>
                     ) : (
-                        <div><Label>Montant (DZD)</Label><div className="relative"><NumberInput value={clientTxAmount} onChange={e => setClientTxAmount(e.target.value)} className={fieldBase} /></div></div>
+                        <div>
+                            <Label>Montant (DZD)</Label>
+                            <div className="relative">
+                                <NumberInput value={clientTxAmount} onChange={e => setClientTxAmount(e.target.value)} className={fieldBase} />
+                                {(clientTxType === 'Règlement Reçu' || clientTxType === 'Paiement Effectué') && (
+                                    <button
+                                        onClick={() => {
+                                            const tId = (!editingClientTx && linkedClientId !== 'none') ? linkedClientId : selectedClientId;
+                                            if (tId) {
+                                                const bal = clientBalances.get(tId) || 0;
+                                                setClientTxAmount(Math.abs(bal).toString());
+                                            }
+                                        }}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-blue-600 text-white px-2 py-1 rounded"
+                                    >
+                                        MAX
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     )}
                     <div><Label>Notes (Optionnel)</Label><Input value={clientTxNotes} onChange={e => setClientTxNotes(e.target.value)} className={fieldBase} /></div>
                 </DialogContent>
@@ -1588,6 +1683,13 @@ function MainApp({ user }: { user: firebase.User }) {
                         </div>
                         <p className={`text-xs mt-2 ${subtleText}`}>Cette marge est utilisée pour calculer le prix de vente suggéré.</p>
                     </div>
+                    <div>
+                        <Label>Sauvegarde</Label>
+                        <Button onClick={handleBackup} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+                            <DownloadCloudIcon className="w-5 h-5" /> Sauvegarder les Données (JSON)
+                        </Button>
+                        <p className={`text-xs mt-2 ${subtleText}`}>Télécharge une copie locale de toutes vos données.</p>
+                    </div>
                 </DialogContent>
                 <DialogFooter>
                     <Button onClick={() => setIsSettingsModalOpen(false)} className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl">Enregistrer</Button>
@@ -1627,6 +1729,146 @@ function MainApp({ user }: { user: firebase.User }) {
             <Dialog isOpen={treasuryTxToDelete !== null} onClose={() => setTreasuryTxToDelete(null)} className={cardBase}>
                 <DialogHeader isDark={isDark}><DialogTitle>Supprimer Transaction ?</DialogTitle></DialogHeader>
                 <DialogFooter><Button onClick={handleDeleteTreasuryTxConfirm} className="bg-red-600 text-white w-full">Supprimer</Button></DialogFooter>
+            </Dialog>
+
+            {/* CLIENT SUMMARY MODAL */}
+            {/* CLIENT SUMMARY MODAL */}
+            <Dialog isOpen={summaryClient !== null} onClose={() => setSummaryClient(null)} className={`${cardBase} max-w-md`}>
+                <DialogHeader onClose={() => setSummaryClient(null)} isDark={isDark}>
+                    <DialogTitle>Détails Client</DialogTitle>
+                </DialogHeader>
+                <DialogContent className="px-6 pb-6 space-y-4">
+                    {summaryClient && (() => {
+                        const bal = clientBalances.get(summaryClient.id) || 0;
+                        const lastTxs = clientTransactionsDzd
+                            .filter(t => t.clientId === summaryClient.id)
+                            .sort((a, b) => b.timestamp - a.timestamp)
+                            .slice(0, 5);
+
+                        const getTxDetails = (tx: ClientTransactionDzd) => {
+                            let type: string = tx.type;
+                            let details = '';
+                            let method = tx.paymentMethod || '';
+
+                            if (tx.linkedTxId) {
+                                const linked = transactions.find(t => t.id === tx.linkedTxId);
+                                if (linked) {
+                                    if (linked.type === 'sell') {
+                                        type = 'Vente USDT';
+                                        details = `${linked.quantity} USDT à ${linked.sell} DZD`;
+                                    } else if (linked.type === 'buy') {
+                                        type = `Achat ${linked.currency}`;
+                                        details = `${linked.quantity} ${linked.currency} à ${linked.price} DZD`;
+                                    }
+                                }
+                            } else if (tx.type.includes('Transfert')) {
+                                details = tx.notes || '';
+                            }
+
+                            return { type, details, method, notes: tx.notes };
+                        };
+
+                        const handleShare = async () => {
+                            const modalContent = document.querySelector('[data-client-summary]');
+                            if (!modalContent) { setAlert('❌ Erreur.'); return; }
+
+                            try {
+                                const canvas = await html2canvas(modalContent as HTMLElement, {
+                                    backgroundColor: isDark ? '#111827' : '#ffffff',
+                                    scale: 2
+                                });
+
+                                canvas.toBlob(async (blob) => {
+                                    if (!blob) { setAlert('❌ Erreur.'); return; }
+
+                                    const file = new File([blob], `releve_${summaryClient.phone || 'client'}.png`, { type: 'image/png' });
+
+                                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                                        try {
+                                            await navigator.share({
+                                                files: [file],
+                                                title: 'Relevé Client',
+                                                text: `Relevé de ${getClientFullName(summaryClient)}`
+                                            });
+                                        } catch (e) {
+                                            console.error(e);
+                                            setAlert('❌ Partage annulé.');
+                                        }
+                                    } else {
+                                        // Fallback: download image
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = `releve_${summaryClient.phone || 'client'}.png`;
+                                        document.body.appendChild(a);
+                                        a.click();
+                                        document.body.removeChild(a);
+                                        URL.revokeObjectURL(url);
+                                        setAlert('✅ Image téléchargée.');
+                                    }
+                                }, 'image/png');
+                            } catch (e) {
+                                console.error(e);
+                                setAlert('❌ Erreur lors de la capture.');
+                            }
+                        };
+
+                        return (
+                            <div data-client-summary>
+                                <div className="space-y-5">
+                                    <div className={`text-center p-4 rounded-2xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                                        <h3 className="text-xl font-bold mb-1">{getClientFullName(summaryClient)}</h3>
+                                        <p className={`text-sm ${subtleText} mb-3`}>{summaryClient.phone || 'Pas de numéro'}</p>
+                                        <div className="flex flex-col items-center justify-center">
+                                            <span className={`text-xs uppercase tracking-wider font-semibold ${subtleText}`}>Solde Actuel</span>
+                                            <span className={`text-3xl font-bold ${bal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                {bal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-lg text-gray-400">DZD</span>
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h4 className="font-bold mb-3 text-sm uppercase tracking-wider opacity-70 flex items-center gap-2">
+                                            <RefreshCwIcon className="w-4 h-4" /> Dernières Transactions
+                                        </h4>
+                                        <div className={`rounded-xl overflow-hidden border ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                                            {lastTxs.length > 0 ? (
+                                                <div className="divide-y" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
+                                                    {lastTxs.map(tx => {
+                                                        const { type, details, method } = getTxDetails(tx);
+                                                        return (
+                                                            <div key={tx.id} className={`p-3.5 ${isDark ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
+                                                                <div className="flex justify-between items-start mb-1">
+                                                                    <div className="font-bold text-sm">{type}</div>
+                                                                    <div className={`font-bold text-sm ${tx.montant > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                                        {tx.montant > 0 ? '+' : ''}{tx.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD
+                                                                    </div>
+                                                                </div>
+                                                                <div className="space-y-0.5 text-xs">
+                                                                    {details && <div className={isDark ? 'text-gray-300' : 'text-gray-700'}>{details}</div>}
+                                                                    <div className={subtleText}>{tx.date} à {tx.time}</div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <p className="p-6 text-center text-sm opacity-50">Aucune transaction récente.</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3 pt-2">
+                                        <Button onClick={() => setSummaryClient(null)} className={`flex-1 py-3 rounded-xl font-semibold ${isDark ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-200 hover:bg-slate-300'}`}>Fermer</Button>
+                                        <Button onClick={handleShare} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20">
+                                            <ShareIcon className="w-4 h-4" /> Envoyer
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </DialogContent>
             </Dialog>
 
         </div>
