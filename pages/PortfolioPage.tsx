@@ -92,6 +92,35 @@ export function PortfolioPage(props: PortfolioPageProps) {
     return (portfolioStats.usdt.totalProfit / totalPortfolioValue) * 100;
   }, [totalPortfolioValue, portfolioStats.usdt.totalProfit]);
 
+  const calculatedStats = useMemo(() => {
+    let volUsdtBought = 0;
+    let volUsdtSold = 0;
+    let volEurBought = 0;
+    let realizedProfit = 0;
+
+    const startDate = new Date(usdtReportYear, usdtReportMonth, 1).getTime();
+    const endDate = new Date(usdtReportYear, usdtReportMonth + 1, 0, 23, 59, 59).getTime();
+
+    transactions.forEach(tx => {
+      if (tx.timestamp >= startDate && tx.timestamp <= endDate) {
+        if (tx.currency === 'USDT') {
+          if (tx.type === 'buy') {
+            volUsdtBought += tx.quantity;
+          } else if (tx.type === 'sell') {
+            volUsdtSold += tx.quantity;
+            realizedProfit += (tx.profit || 0);
+          }
+        } else if (tx.currency === 'EUR') {
+          if (tx.type === 'buy') {
+            volEurBought += tx.quantity;
+          }
+        }
+      }
+    });
+
+    return { volUsdtBought, volUsdtSold, volEurBought, realizedProfit };
+  }, [transactions, usdtReportMonth, usdtReportYear]);
+
   const heatmapData = useMemo(() => {
     const salesByDay = new Map<number, number>();
     const startDate = new Date(usdtReportYear, usdtReportMonth, 1);
@@ -151,15 +180,15 @@ export function PortfolioPage(props: PortfolioPageProps) {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      {/* Top Margin Button Removed - now integrated into StatCard */}
-
       <div className="space-y-4">
         <Card className={`${cardBase} p-4 sm:p-6`}>
           <h2 className="font-bold text-lg mb-4 flex items-center gap-2"><BriefcaseIcon className="w-5 h-5" /> État Actuel du Portefeuille</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* First Row: Total Profit & Suggested Price */}
             <StatCard cardBase={cardBase} subtleText={subtleText} title="Bénéfice/Perte Net" value={portfolioStats.usdt.totalProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass={portfolioStats.usdt.totalProfit >= 0 ? "text-green-400" : "text-red-400"} />
-
+            <StatCard cardBase={cardBase} subtleText={subtleText} title="Solde Actuel EUR" value={portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="EUR" colorClass="text-amber-400" />
+            <StatCard cardBase={cardBase} subtleText={subtleText} title="PAM EUR" value={portfolioStats.eur.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass="text-gray-300" />
+            <StatCard cardBase={cardBase} subtleText={subtleText} title="Solde Actuel USDT" value={portfolioStats.usdt.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} currency="USDT" colorClass="text-sky-400" />
+            <StatCard cardBase={cardBase} subtleText={subtleText} title="PAM USDT" value={portfolioStats.usdt.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass="text-gray-300" />
             <StatCard
               cardBase={cardBase}
               subtleText={subtleText}
@@ -176,16 +205,6 @@ export function PortfolioPage(props: PortfolioPageProps) {
                 </button>
               }
             />
-
-            {/* Second Row: Balances */}
-            <StatCard cardBase={cardBase} subtleText={subtleText} title="Solde Actuel USDT" value={portfolioStats.usdt.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} currency="USDT" colorClass="text-sky-400" />
-            <StatCard cardBase={cardBase} subtleText={subtleText} title="Solde Actuel EUR" value={portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="EUR" colorClass="text-amber-400" />
-
-            {/* Third Row: Costs */}
-            <StatCard cardBase={cardBase} subtleText={subtleText} title="PAM USDT" value={portfolioStats.usdt.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass="text-gray-300" />
-            <StatCard cardBase={cardBase} subtleText={subtleText} title="PAM EUR" value={portfolioStats.eur.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass="text-gray-300" />
-
-
           </div>
         </Card>
 
@@ -199,23 +218,21 @@ export function PortfolioPage(props: PortfolioPageProps) {
 
             <div className="space-y-4">
               <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                <Label className={subtleText}>Volume Acheté (Période)</Label>
+                <p className="text-xl font-bold text-sky-400">{calculatedStats.volUsdtBought.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} USDT</p>
+              </div>
+              <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                 <Label className={subtleText}>Volume Vendu (Période)</Label>
-                <p className="text-xl font-bold text-sky-400">{monthlyStats.totalUsdtSoldMonth.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} USDT</p>
+                <p className="text-xl font-bold text-sky-400">{calculatedStats.volUsdtSold.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} USDT</p>
               </div>
               <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                 <Label className={subtleText}>Volume Acheté (Période)</Label>
-                <p className="text-xl font-bold text-amber-400">{monthlyStats.totalEurBoughtMonth.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR</p>
+                <p className="text-xl font-bold text-amber-400">{calculatedStats.volEurBought.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR</p>
               </div>
               <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                 <Label className={subtleText}>Bénéfice Réalisé (Période)</Label>
-                <p className={`text-2xl font-bold ${monthlyStats.realizedProfitMonth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {monthlyStats.realizedProfitMonth.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
-                </p>
-              </div>
-              <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                <Label className={subtleText}>Marge de Bénéfice</Label>
-                <p className={`text-2xl font-bold ${monthlyStats.monthlyProfitMargin >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {monthlyStats.monthlyProfitMargin.toFixed(2)} %
+                <p className={`text-2xl font-bold ${calculatedStats.realizedProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {calculatedStats.realizedProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
                 </p>
               </div>
             </div>

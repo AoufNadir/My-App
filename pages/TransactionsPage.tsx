@@ -23,7 +23,7 @@ type TransactionsPageProps = {
   cardBase: string;
   isDark: boolean;
   subtleText: string;
-  openAdjustmentModal: (type: 'add' | 'subtract') => void;
+  openAdjustmentModal: (type: 'add' | 'subtract', txToEdit?: TreasuryTx | null) => void;
   openForm: (newMode: 'buy_usdt' | 'sell_usdt' | 'buy_eur', txToEdit?: Tx | null) => void;
   filterMode: 'all' | 'buy' | 'sell' | 'adjustments' | 'clients' | 'treasury';
   setFilterMode: (mode: 'all' | 'buy' | 'sell' | 'adjustments' | 'clients' | 'treasury') => void;
@@ -40,6 +40,7 @@ type TransactionsPageProps = {
   treasuryTransactions: TreasuryTx[];
   handleEditClientTx?: (tx: ClientTransactionDzd) => void;
   handleDeleteClientTxClick?: (tx: ClientTransactionDzd) => void;
+  setTreasuryTxToDelete?: (tx: TreasuryTx | null) => void;
 };
 
 // Unified Transaction Interface for Display
@@ -79,7 +80,8 @@ export function TransactionsPage({
   openTransferModal,
   treasuryTransactions,
   handleEditClientTx,
-  handleDeleteClientTxClick
+  handleDeleteClientTxClick,
+  setTreasuryTxToDelete
 }: TransactionsPageProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -101,6 +103,9 @@ export function TransactionsPage({
       const txClient = tx.id ? clientTransactionsDzd.find(ct => ct.linkedTxId === tx.id) : undefined;
       const client = txClient ? clientsDzd.find(c => c.id === txClient.clientId) : undefined;
       let details = client ? getClientFullName(client) : (tx.notes || '');
+      if (tx.price && (tx.type === 'Ajout Manuel' || tx.type === 'Retrait Manuel')) {
+        details = `${details} • Prix: ${tx.price.toLocaleString('fr-FR')} DZD`;
+      }
 
       all.push({
         id: `crypto_${tx.id}`,
@@ -280,12 +285,14 @@ export function TransactionsPage({
                             onEdit={() => {
                               if (tx.sourceType === 'usdt_tx') openForm(tx.rawTx.type === 'buy' ? (tx.rawTx.currency === 'USDT' ? 'buy_usdt' : 'buy_eur') : 'sell_usdt', tx.rawTx);
                               else if (tx.sourceType === 'client_tx' && handleEditClientTx) handleEditClientTx(tx.rawTx);
+                              else if (tx.sourceType === 'treasury_tx') openAdjustmentModal(tx.rawTx.type === 'Ajout' ? 'add' : 'subtract', tx.rawTx);
                             }}
                             onDelete={() => {
                               if (tx.sourceType === 'usdt_tx') setTxToDelete(tx.rawTx);
                               else if (tx.sourceType === 'client_tx' && handleDeleteClientTxClick) handleDeleteClientTxClick(tx.rawTx);
+                              else if (tx.sourceType === 'treasury_tx' && setTreasuryTxToDelete) setTreasuryTxToDelete(tx.rawTx);
                             }}
-                            disableSwipe={tx.sourceType === 'treasury_tx'} // Disable swipe for treasury txs for now
+                            disableSwipe={false}
                           >
                             <div className={`flex items-center gap-3 py-3 px-4 ${isDark ? 'bg-[#111827]' : 'bg-white'}`}>
                               {tx.icon}

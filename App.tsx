@@ -250,15 +250,26 @@ function MainApp({ user }: { user: firebase.User }) {
     const [adjustmentTab, setAdjustmentTab] = useState<'add' | 'subtract'>('add');
     const [adjustmentAsset, setAdjustmentAsset] = useState<'DZD-Caisse' | 'DZD-Baridi' | 'USDT' | 'EUR'>('DZD-Caisse');
     const [adjustmentAmount, setAdjustmentAmount] = useState('');
+    const [adjustmentPrice, setAdjustmentPrice] = useState('');
     const [adjustmentNote, setAdjustmentNote] = useState('');
     const [adjustmentClientId, setAdjustmentClientId] = useState('');
 
-    const openAdjustmentModal = (type: 'add' | 'subtract' = 'add') => {
-        setAdjustmentTab(type);
-        setAdjustmentAmount('');
-        setAdjustmentNote('');
-        setAdjustmentAsset('DZD-Caisse');
-        setAdjustmentClientId('');
+    const openAdjustmentModal = (type: 'add' | 'subtract' = 'add', txToEdit: TreasuryTx | null = null) => {
+        setEditingTreasuryTx(txToEdit);
+        if (txToEdit) {
+            setAdjustmentTab(txToEdit.type === 'Ajout' ? 'add' : 'subtract');
+            setAdjustmentAmount(txToEdit.amount.toString());
+            setAdjustmentNote(txToEdit.notes || '');
+            setAdjustmentAsset(txToEdit.source === 'Caisse' ? 'DZD-Caisse' : 'DZD-Baridi');
+            setAdjustmentClientId('');
+        } else {
+            setAdjustmentTab(type);
+            setAdjustmentAmount('');
+            setAdjustmentPrice('');
+            setAdjustmentNote('');
+            setAdjustmentAsset('DZD-Caisse');
+            setAdjustmentClientId('');
+        }
         setIsAdjustmentModalOpen(true);
     };
 
@@ -378,6 +389,10 @@ function MainApp({ user }: { user: firebase.User }) {
     const [treasuryCardToDelete, setTreasuryCardToDelete] = useState<TreasuryCard | null>(null);
     const [editingTreasuryCard, setEditingTreasuryCard] = useState<TreasuryCard | null>(null);
 
+    // Treasury Tx Edit/Delete
+    const [editingTreasuryTx, setEditingTreasuryTx] = useState<TreasuryTx | null>(null);
+    const [treasuryTxToDelete, setTreasuryTxToDelete] = useState<TreasuryTx | null>(null);
+
     // ... Helper functions ...
     const parseAndEvaluate = (expr: string): number => {
         if (!expr) return 0;
@@ -405,8 +420,12 @@ function MainApp({ user }: { user: firebase.User }) {
             if (tx.type === 'buy' || tx.type === 'Ajout Manuel') stats.available += tx.quantity;
             else stats.available -= tx.quantity;
             if (tx.type === 'sell' && tx.currency === 'USDT') usdtStats.totalProfit += (tx.profit || 0);
-            if (tx.type === 'Ajout Manuel' || tx.type === 'Retrait Manuel') continue;
-            if (tx.type === 'buy') {
+
+            // Include Ajout Manuel with price in Cost Basis calculation
+            if (tx.type === 'Ajout Manuel' && tx.total && tx.total > 0) {
+                stats.purchasedQty += tx.quantity;
+                stats.costBasis += tx.total;
+            } else if (tx.type === 'buy') {
                 stats.purchasedQty += tx.quantity;
                 stats.costBasis += (tx.total || 0);
             } else if (tx.type === 'sell' && tx.currency === 'USDT') {
@@ -472,12 +491,30 @@ function MainApp({ user }: { user: firebase.User }) {
             if (txToEdit.type === 'buy') {
                 if (txToEdit.currency === 'USDT') { setBuyUsdtMode('with_dzd'); setBuyUsdtAmount(txToEdit.quantity.toString()); setBuyUsdtPrice((txToEdit.price ?? 0).toString()); setBuyUsdtTotal(((txToEdit.quantity || 0) * (txToEdit.price || 0)).toFixed(2)); }
                 else { setBuyEurAmount(txToEdit.quantity.toString()); setBuyEurPrice((txToEdit.price ?? 0).toString()); }
-            } else { setSellAmount(txToEdit.quantity.toString()); setSellPrice((txToEdit.sell ?? 0).toString()); setSellTotal(((txToEdit.quantity || 0) * (txToEdit.sell || 0)).toFixed(2)); }
+            } else {
+                setSellAmount(txToEdit.quantity.toString());
+                setSellPrice((txToEdit.sell ?? 0).toString());
+                setSellTotal(((txToEdit.quantity || 0) * (txToEdit.sell || 0)).toFixed(2));
+                // Calculate margin from existing price
+                if (portfolioStats.usdt.avgBuy > 0 && txToEdit.sell) {
+                    const margin = ((txToEdit.sell - portfolioStats.usdt.avgBuy) / portfolioStats.usdt.avgBuy * 100);
+                    setProfitPercent(margin.toFixed(2));
+                }
+            }
             setNotes(txToEdit.notes ?? '');
             const linkedDzdTx = clientTransactionsDzd.find(t => t.linkedTxId === txToEdit.id);
             if (linkedDzdTx) { setLinkedClientId(linkedDzdTx.clientId); setPaymentMethod(linkedDzdTx.paymentMethod || 'Espèces'); }
             if (txToEdit.paymentMethod) setPaymentMethod(txToEdit.paymentMethod);
-        } else { if (newMode === 'buy_eur' && portfolioStats.eur.avgBuy > 0) setBuyEurPrice(portfolioStats.eur.avgBuy.toFixed(2)); }
+        } else {
+            if (newMode === 'buy_eur' && portfolioStats.eur.avgBuy > 0) setBuyEurPrice(portfolioStats.eur.avgBuy.toFixed(2));
+            // Initialize margin with suggested profit margin for new sell transactions
+            if (newMode === 'sell_usdt') {
+                setProfitPercent(suggestedProfitMargin);
+                // Set suggested price
+                const suggestedPrice = portfolioStats.usdt.avgBuy * (1 + parseAndEvaluate(suggestedProfitMargin) / 100);
+                setSellPrice(suggestedPrice.toFixed(2));
+            }
+        }
     };
     const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setSellTotal(''); setBuyUsdtTotal(''); };
 
@@ -648,33 +685,52 @@ function MainApp({ user }: { user: firebase.User }) {
             const batch = db.batch();
             if (adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR') {
                 const type = adjustmentTab === 'add' ? 'Ajout Manuel' : 'Retrait Manuel';
-                batch.set(userDocRef.collection('usdt_txs').doc(), { timestamp, type, currency: adjustmentAsset, quantity: amountNum, date, time, notes: adjustmentNote || 'Ajustement Manuel' });
+                const priceNum = parseAndEvaluate(adjustmentPrice);
+                const total = priceNum > 0 ? amountNum * priceNum : 0;
+
+                const txData: any = {
+                    timestamp, type, currency: adjustmentAsset, quantity: amountNum, date, time,
+                    notes: adjustmentNote || 'Ajustement Manuel'
+                };
+
+                if (priceNum > 0) {
+                    txData.price = priceNum;
+                    txData.total = total;
+                }
+
+                batch.set(userDocRef.collection('usdt_txs').doc(), txData);
             } else {
                 // Treasury Adjustment
                 const type = adjustmentTab === 'add' ? 'Ajout' : 'Retrait';
                 const source = adjustmentAsset === 'DZD-Caisse' ? 'Caisse' : 'BaridiMob';
                 const note = adjustmentNote || 'Ajustement Trésorerie';
 
-                // Create Treasury Tx
-                batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type, source, amount: amountNum, notes: note });
+                if (editingTreasuryTx) {
+                    batch.update(userDocRef.collection('treasury_txs').doc(editingTreasuryTx.id), {
+                        type, source, amount: amountNum, notes: note
+                    });
+                } else {
+                    // Create Treasury Tx
+                    batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type, source, amount: amountNum, notes: note });
 
-                // LINKED CLIENT LOGIC
-                if (adjustmentClientId) {
-                    const client = clientsDzd.find(c => c.id === adjustmentClientId);
-                    if (client) {
-                        const clientTxType = adjustmentTab === 'add' ? 'Règlement Reçu' : 'Paiement Effectué';
-                        const clientAmount = adjustmentTab === 'add' ? amountNum : -amountNum;
+                    // LINKED CLIENT LOGIC (Only for new adjustments for now)
+                    if (adjustmentClientId) {
+                        const client = clientsDzd.find(c => c.id === adjustmentClientId);
+                        if (client) {
+                            const clientTxType = adjustmentTab === 'add' ? 'Règlement Reçu' : 'Paiement Effectué';
+                            const clientAmount = adjustmentTab === 'add' ? amountNum : -amountNum;
 
-                        batch.set(userDocRef.collection('dzd_client_txs').doc(), {
-                            clientId: adjustmentClientId, timestamp, date, time,
-                            montant: clientAmount, type: clientTxType,
-                            notes: `${note} (${source})`
-                        });
+                            batch.set(userDocRef.collection('dzd_client_txs').doc(), {
+                                clientId: adjustmentClientId, timestamp, date, time,
+                                montant: clientAmount, type: clientTxType,
+                                notes: `${note} (${source})`
+                            });
+                        }
                     }
                 }
             }
             await batch.commit();
-            setAlert('✅ Ajustement enregistré.'); setIsAdjustmentModalOpen(false);
+            setAlert(editingTreasuryTx ? '✅ Ajustement mis à jour.' : '✅ Ajustement enregistré.'); setIsAdjustmentModalOpen(false);
         } catch (error) { console.error(error); setAlert("❌ Erreur."); }
     };
 
@@ -915,6 +971,14 @@ function MainApp({ user }: { user: firebase.User }) {
         } catch (e) { setAlert('❌ Erreur.'); }
     };
 
+    const handleDeleteTreasuryTxConfirm = async () => {
+        if (!treasuryTxToDelete) return;
+        try {
+            await userDocRef.collection('treasury_txs').doc(treasuryTxToDelete.id).delete();
+            setAlert('✅ Transaction supprimée.');
+        } catch (e) { setAlert('❌ Erreur.'); } finally { setTreasuryTxToDelete(null); }
+    };
+
     const bgApp = isDark ? 'from-[#0B1120] via-[#0F172A] to-[#1E293B] text-gray-100' : 'from-[#F8FAFC] via-[#F1F5F9] to-[#E2E8F0] text-gray-900';
     const cardBase = isDark ? 'bg-[#111827]/90 border-[#1f2937] text-white' : 'bg-white/90 border-[#E5E7EB] text-gray-900';
     const fieldBase = isDark ? 'bg-[#0F172A] text-white border border-[#334155]' : 'bg-white text-gray-900 border border-[#CBD5E1]';
@@ -1029,7 +1093,7 @@ function MainApp({ user }: { user: firebase.User }) {
                 <main className="py-6">
                     <AnimatePresence>{alert && (<MotionDiv initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="mb-4"><Alert className={`rounded-xl ${alert.includes('✅') || alert.includes('⚠️') ? (isDark ? 'bg-green-900/50 border-green-400/30 text-green-300' : 'bg-green-50 border-green-300 text-green-800') : (isDark ? 'bg-red-900/50 border-red-400/30 text-red-300' : 'bg-red-50 border-red-300 text-red-800')}`}><AlertDescription>{alert}</AlertDescription></Alert></MotionDiv>)}</AnimatePresence>
 
-                    {view === 'transactions' && <TransactionsPage {...{ cardBase, isDark, subtleText, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, treasuryTransactions, handleEditClientTx, handleDeleteClientTxClick }} openWalletTransferModal={() => setIsWalletTransferModalOpen(true)} openTransferModal={() => setIsTransferModalOpen(true)} />}
+                    {view === 'transactions' && <TransactionsPage {...{ cardBase, isDark, subtleText, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, treasuryTransactions, handleEditClientTx, handleDeleteClientTxClick, setTreasuryTxToDelete }} openWalletTransferModal={() => setIsWalletTransferModalOpen(true)} openTransferModal={() => setIsTransferModalOpen(true)} />}
 
                     {view === 'statistiques' && <PortfolioPage {...{ statsView, setStatsView, isDark, setIsSettingsModalOpen, cardBase, subtleText, portfolioStats, totalPortfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), suggestedProfitMargin, parseAndEvaluate, usdtReportMonth, setUsdtReportMonth, usdtReportYear, setUsdtReportYear, reportMonths: (y: number) => y === new Date().getFullYear() ? MONTHS_FR.slice(0, new Date().getMonth() + 1) : MONTHS_FR, reportYears: Array.from({ length: 3 }, (_, i) => 2024 + i), monthlyStats: { totalUsdtSoldMonth: 0, totalEurBoughtMonth: 0, realizedProfitMonth: 0, monthlyProfitMargin: 0 }, transactions, selectedHeatmapDay, setSelectedHeatmapDay, simMode, setSimMode, simBuyQty, setSimBuyQty, simBuyPrice, setSimBuyPrice, fieldBase, newPamFromDzdSimulator: null, simEurQty, setSimEurQty, simEurDzdPrice, setSimEurDzdPrice, simEurUsdtRate, setSimEurUsdtRate, newPamFromEurSimulator: null, handleExportUsdtReport, dzdDashboardStats: null, reportClient, setReportClient, clientsDzd, getClientFullName, reportMonth, setReportMonth, reportYear, setReportYear, handleExportClientReport }} />}
 
@@ -1162,14 +1226,18 @@ function MainApp({ user }: { user: firebase.User }) {
 
             {/* 3. TREASURY ADJUSTMENT MODAL */}
             <Dialog isOpen={isAdjustmentModalOpen} onClose={() => setIsAdjustmentModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsAdjustmentModalOpen(false)} isDark={isDark}><DialogTitle>Ajustement Trésorerie</DialogTitle></DialogHeader>
+                <DialogHeader onClose={() => setIsAdjustmentModalOpen(false)} isDark={isDark}><DialogTitle>{editingTreasuryTx ? "Modifier Ajustement" : "Ajustement Trésorerie"}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
                     <div className="grid grid-cols-2 gap-0 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl">
                         <button onClick={() => setAdjustmentTab('add')} className={`py-2.5 rounded-lg font-bold text-sm transition-all ${adjustmentTab === 'add' ? 'bg-[#1E293B] text-white shadow-sm' : 'text-gray-500'}`}>Ajouter (+)</button>
                         <button onClick={() => setAdjustmentTab('subtract')} className={`py-2.5 rounded-lg font-bold text-sm transition-all ${adjustmentTab === 'subtract' ? 'bg-[#1E293B] text-white shadow-sm' : 'text-gray-500'}`}>Retirer (-)</button>
                     </div>
                     <div><Label>Type d'Actif</Label><Select value={adjustmentAsset} onChange={e => setAdjustmentAsset(e.target.value as any)} className={`${fieldBase} h-12 text-base`}><option value="DZD-Caisse">DZD - Caisse</option><option value="DZD-Baridi">DZD - BaridiMob</option><option value="USDT">USDT</option><option value="EUR">EUR</option></Select></div>
-                    <div className="relative"><Label>Montant</Label><NumberInput value={adjustmentAmount} onChange={e => setAdjustmentAmount(e.target.value)} className={`${fieldBase} h-14 text-2xl font-bold text-center`} placeholder="0.00" /></div>
+                    <div className="relative"><Label>{adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR' ? 'Quantité' : 'Montant'}</Label><NumberInput value={adjustmentAmount} onChange={e => setAdjustmentAmount(e.target.value)} className={`${fieldBase} h-14 text-2xl font-bold text-center`} placeholder="0.00" /></div>
+
+                    {(adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR') && (
+                        <div><Label>Prix Unitaire (DZD)</Label><NumberInput value={adjustmentPrice} onChange={e => setAdjustmentPrice(e.target.value)} className={fieldBase} placeholder="Ex: 240.00" /></div>
+                    )}
 
                     {/* CLIENT SELECTOR FOR DZD ADJUSTMENTS */}
                     {(adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && (
@@ -1326,15 +1394,47 @@ function MainApp({ user }: { user: firebase.User }) {
                                             <div>
                                                 <Label>Quantité (USDT)</Label>
                                                 <div className="relative">
-                                                    <NumberInput value={sellAmount} onChange={e => setSellAmount(e.target.value)} className={fieldBase} placeholder="0.00" />
-                                                    <button onClick={() => setSellAmount(portfolioStats.usdt.available.toString())} className="absolute right-2 top-2 text-xs bg-sky-600 text-white px-2 py-1 rounded">Max</button>
+                                                    <NumberInput
+                                                        value={sellAmount}
+                                                        onChange={e => {
+                                                            setSellAmount(e.target.value);
+                                                            // Calculate total when quantity changes
+                                                            const qty = parseAndEvaluate(e.target.value);
+                                                            const price = parseAndEvaluate(sellPrice);
+                                                            if (qty > 0 && price > 0) {
+                                                                setSellTotal((qty * price).toFixed(2));
+                                                            }
+                                                        }}
+                                                        className={fieldBase}
+                                                        placeholder="0.00"
+                                                    />
+                                                    <button onClick={() => {
+                                                        setSellAmount(portfolioStats.usdt.available.toString());
+                                                        const price = parseAndEvaluate(sellPrice);
+                                                        if (price > 0) {
+                                                            setSellTotal((portfolioStats.usdt.available * price).toFixed(2));
+                                                        }
+                                                    }} className="absolute right-2 top-2 text-xs bg-sky-600 text-white px-2 py-1 rounded">Max</button>
                                                 </div>
                                                 <p className={`text-xs mt-1 ${subtleText}`}>Solde disponible: {portfolioStats.usdt.available.toLocaleString()} USDT</p>
                                             </div>
 
                                             <div>
                                                 <Label>Montant Total (DZD)</Label>
-                                                <NumberInput value={sellTotal} onChange={() => { }} className={`${fieldBase} bg-opacity-50`} placeholder="Calcul automatique" disabled />
+                                                <NumberInput
+                                                    value={sellTotal}
+                                                    onChange={e => {
+                                                        setSellTotal(e.target.value);
+                                                        // Calculate quantity when total changes
+                                                        const total = parseAndEvaluate(e.target.value);
+                                                        const price = parseAndEvaluate(sellPrice);
+                                                        if (total > 0 && price > 0) {
+                                                            setSellAmount((total / price).toFixed(4));
+                                                        }
+                                                    }}
+                                                    className={fieldBase}
+                                                    placeholder="0.00"
+                                                />
                                             </div>
 
                                             <div className={`p-3 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
@@ -1349,8 +1449,51 @@ function MainApp({ user }: { user: firebase.User }) {
                                             </div>
 
                                             <div className="grid grid-cols-2 gap-3">
-                                                <div><Label>Prix de vente (DZD)</Label><NumberInput value={sellPrice} onChange={e => setSellPrice(e.target.value)} className={fieldBase} /></div>
-                                                <div><Label>Marge (%)</Label><Input value={profitPercent} onChange={e => { setProfitPercent(e.target.value); if (parseAndEvaluate(e.target.value) > 0) setSellPrice((portfolioStats.usdt.avgBuy * (1 + parseAndEvaluate(e.target.value) / 100)).toFixed(2)); }} className={fieldBase} placeholder="%" /></div>
+                                                <div>
+                                                    <Label>Prix de vente (DZD)</Label>
+                                                    <NumberInput
+                                                        value={sellPrice}
+                                                        onChange={e => {
+                                                            setSellPrice(e.target.value);
+                                                            const price = parseAndEvaluate(e.target.value);
+                                                            const qty = parseAndEvaluate(sellAmount);
+
+                                                            // Update total when price changes
+                                                            if (qty > 0 && price > 0) {
+                                                                setSellTotal((qty * price).toFixed(2));
+                                                            }
+
+                                                            // Update margin when price changes
+                                                            if (portfolioStats.usdt.avgBuy > 0 && price > 0) {
+                                                                const margin = ((price - portfolioStats.usdt.avgBuy) / portfolioStats.usdt.avgBuy * 100);
+                                                                setProfitPercent(margin.toFixed(2));
+                                                            }
+                                                        }}
+                                                        className={fieldBase}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <Label>Marge (%)</Label>
+                                                    <NumberInput
+                                                        value={profitPercent}
+                                                        onChange={e => {
+                                                            setProfitPercent(e.target.value);
+                                                            const margin = parseAndEvaluate(e.target.value);
+                                                            if (margin >= 0 && portfolioStats.usdt.avgBuy > 0) {
+                                                                const newPrice = portfolioStats.usdt.avgBuy * (1 + margin / 100);
+                                                                setSellPrice(newPrice.toFixed(2));
+
+                                                                // Update total based on new price
+                                                                const qty = parseAndEvaluate(sellAmount);
+                                                                if (qty > 0) {
+                                                                    setSellTotal((qty * newPrice).toFixed(2));
+                                                                }
+                                                            }
+                                                        }}
+                                                        className={fieldBase}
+                                                        placeholder="%"
+                                                    />
+                                                </div>
                                             </div>
                                             <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
                                             <div><Label>Notes (Optionnel)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} /></div>
@@ -1472,6 +1615,11 @@ function MainApp({ user }: { user: firebase.User }) {
             <Dialog isOpen={treasuryCardToDelete !== null} onClose={() => setTreasuryCardToDelete(null)} className={cardBase}>
                 <DialogHeader isDark={isDark}><DialogTitle>Supprimer cette carte ?</DialogTitle></DialogHeader>
                 <DialogFooter><Button onClick={handleDeleteTreasuryCard} className="bg-red-600 text-white w-full">Supprimer</Button></DialogFooter>
+            </Dialog>
+
+            <Dialog isOpen={treasuryTxToDelete !== null} onClose={() => setTreasuryTxToDelete(null)} className={cardBase}>
+                <DialogHeader isDark={isDark}><DialogTitle>Supprimer Transaction ?</DialogTitle></DialogHeader>
+                <DialogFooter><Button onClick={handleDeleteTreasuryTxConfirm} className="bg-red-600 text-white w-full">Supprimer</Button></DialogFooter>
             </Dialog>
 
         </div>
