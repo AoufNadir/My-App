@@ -187,7 +187,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
             <StatCard cardBase={cardBase} subtleText={subtleText} title="Bénéfice/Perte Net" value={portfolioStats.usdt.totalProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass={portfolioStats.usdt.totalProfit >= 0 ? "text-green-400" : "text-red-400"} />
             <StatCard cardBase={cardBase} subtleText={subtleText} title="Solde Actuel EUR" value={portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="EUR" colorClass="text-amber-400" />
             <StatCard cardBase={cardBase} subtleText={subtleText} title="PAM EUR" value={portfolioStats.eur.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass="text-gray-300" />
-            <StatCard cardBase={cardBase} subtleText={subtleText} title="Solde Actuel USDT" value={portfolioStats.usdt.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} currency="USDT" colorClass="text-sky-400" />
+            <StatCard cardBase={cardBase} subtleText={subtleText} title="Solde Actuel USDT" value={portfolioStats.usdt.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="USDT" colorClass="text-sky-400" />
             <StatCard cardBase={cardBase} subtleText={subtleText} title="PAM USDT" value={portfolioStats.usdt.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass="text-gray-300" />
             <StatCard
               cardBase={cardBase}
@@ -219,11 +219,11 @@ export function PortfolioPage(props: PortfolioPageProps) {
             <div className="space-y-4">
               <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                 <Label className={subtleText}>Volume Acheté (Période)</Label>
-                <p className="text-xl font-bold text-sky-400">{calculatedStats.volUsdtBought.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} USDT</p>
+                <p className="text-xl font-bold text-sky-400">{calculatedStats.volUsdtBought.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</p>
               </div>
               <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                 <Label className={subtleText}>Volume Vendu (Période)</Label>
-                <p className="text-xl font-bold text-sky-400">{calculatedStats.volUsdtSold.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} USDT</p>
+                <p className="text-xl font-bold text-sky-400">{calculatedStats.volUsdtSold.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</p>
               </div>
               <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                 <Label className={subtleText}>Volume Acheté (Période)</Label>

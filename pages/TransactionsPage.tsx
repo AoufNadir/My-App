@@ -95,7 +95,7 @@ export function TransactionsPage({
       const isSell = tx.type === 'sell' || tx.type === 'Retrait Manuel';
 
       let typeLabel = tx.type === 'buy' ? `Achat ${tx.currency}` : tx.type === 'sell' ? `Vente ${tx.currency}` : tx.type;
-      let amountLabel = `${tx.quantity.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${tx.currency}`;
+      let amountLabel = `${tx.quantity.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${tx.currency}`;
       let amountColor = isBuy ? 'text-green-400' : 'text-red-400';
       let icon = isBuy ? <ArrowDownLeftIcon className="w-5 h-5" /> : <ArrowUpRightIcon className="w-5 h-5" />;
 

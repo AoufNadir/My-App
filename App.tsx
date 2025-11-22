@@ -567,7 +567,14 @@ function MainApp({ user }: { user: firebase.User }) {
         if (!isFormValid || isSaving) return;
         setIsSaving(true); setAlert('');
         try {
-            const quantity = parseAndEvaluate(sellAmount); const sell = parseAndEvaluate(sellPrice); const avg = portfolioStats.usdt.avgBuy; const profit = (sell - avg) * quantity; const totalRevenue = quantity * sell; const { date, time, timestamp } = now(); const batch = db.batch();
+            let quantity = parseAndEvaluate(sellAmount);
+            quantity = Number(quantity.toFixed(2)); // Enforce 2 decimals
+            const sell = parseAndEvaluate(sellPrice);
+            const avg = portfolioStats.usdt.avgBuy;
+            const profit = (sell - avg) * quantity;
+            const totalInput = parseAndEvaluate(sellTotal);
+            const totalRevenue = totalInput > 0 ? totalInput : quantity * sell;
+            const { date, time, timestamp } = now(); const batch = db.batch();
 
             // TREASURY LOGIC: Only if NOT Credit (Baridi or Cash)
             if (!editingTx && clientPaymentStatus !== 'credit') {

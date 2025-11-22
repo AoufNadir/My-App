@@ -135,7 +135,7 @@ export function ClientsPage(props: ClientsPageProps) {
           </Button>
           <div className="flex-grow min-w-0">
             <h2 className="font-bold text-xl truncate">{getClientFullName(selectedClient)}</h2>
-            <p className={`text-sm ${subtleText}`}>Solde: <span className={`font-bold ${selectedClientBalance >= 0 ? 'text-green-400' : 'text-red-400'}`}>{selectedClientBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span></p>
+            <p className={`text-sm ${subtleText}`}>Solde: <span className={`font-bold ${selectedClientBalance >= 0 ? 'text-green-400' : 'text-red-400'}`}>{selectedClientBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</span></p>
           </div>
           <Button onClick={() => openClientModal(selectedClient)} className={`p-2 rounded-full ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} aria-label="Modifier le client"><PencilIcon className="w-5 h-5" /></Button>
         </div>
@@ -191,10 +191,10 @@ export function ClientsPage(props: ClientsPageProps) {
                         if (linkedUsdtTx) {
                           if (linkedUsdtTx.type === 'buy') {
                             typeLabel = `Achat ${linkedUsdtTx.currency}`;
-                            calcDetails = `${linkedUsdtTx.quantity.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} x ${linkedUsdtTx.price?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}`;
+                            calcDetails = `${linkedUsdtTx.quantity.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} x ${linkedUsdtTx.price?.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                           } else if (linkedUsdtTx.type === 'sell') {
                             typeLabel = `Vente ${linkedUsdtTx.currency}`;
-                            calcDetails = `${linkedUsdtTx.quantity.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} x ${linkedUsdtTx.sell?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}`;
+                            calcDetails = `${linkedUsdtTx.quantity.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} x ${linkedUsdtTx.sell?.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                           }
                         }
 
@@ -235,7 +235,7 @@ export function ClientsPage(props: ClientsPageProps) {
                                   <div className="flex flex-col items-end flex-shrink-0">
                                     {/* Top Right: Amount */}
                                     <span className={`font-bold text-sm leading-tight mb-1 ${isCredit ? 'text-green-400' : 'text-red-400'}`}>
-                                      {tx.montant > 0 ? '+' : ''}{tx.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                                      {tx.montant > 0 ? '+' : ''}{tx.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD
                                     </span>
                                     {/* Bottom Right: Details (Calc) */}
                                     <span className={`text-[11px] ${subtleText} font-mono tracking-tight`}>
@@ -333,7 +333,7 @@ export function ClientsPage(props: ClientsPageProps) {
                       <p className={`text-xs ${subtleText} truncate`}>{client.phone || 'Pas de numéro'}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className={`font-bold ${balance > 0 ? 'text-green-400' : balance < 0 ? 'text-red-400' : ''}`}>{balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</p>
+                      <p className={`font-bold ${balance > 0 ? 'text-green-400' : balance < 0 ? 'text-red-400' : ''}`}>{balance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</p>
                     </div>
                   </div>
                 );

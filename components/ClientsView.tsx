@@ -56,14 +56,14 @@ const ClientsView: React.FC<ClientsViewProps> = ({ userProfile, clients }) => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      
+
       {/* Header & Add Button */}
       <div className="flex justify-between items-center px-1">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Trésorerie</h1>
           <p className="text-gray-400 text-xs mt-1">Caisse, Baridi & Clients</p>
         </div>
-        <button 
+        <button
           onClick={() => setIsAddClientModalOpen(true)}
           className="bg-blue-600 p-3 rounded-full shadow-lg shadow-blue-900/20 text-white hover:bg-blue-500 transition-colors"
         >
@@ -73,13 +73,13 @@ const ClientsView: React.FC<ClientsViewProps> = ({ userProfile, clients }) => {
 
       {/* Financial Dashboard Grid */}
       <div className="grid grid-cols-2 gap-3">
-        
+
         {/* Capital Total (Hero Card) */}
         <div className="col-span-2 bg-gradient-to-br from-emerald-900 to-emerald-800 p-5 rounded-2xl border border-emerald-700/50 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl"></div>
           <p className="text-emerald-200 text-xs font-medium uppercase tracking-wider mb-1 relative z-10">Capital Total (Estimé)</p>
           <h2 className="text-3xl font-bold text-white relative z-10">
-            {capitalTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
+            {capitalTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             <span className="text-sm text-emerald-300 font-normal ml-1">DZD</span>
           </h2>
         </div>
@@ -93,7 +93,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ userProfile, clients }) => {
             <span className="text-gray-400 text-xs font-medium">Caisse</span>
           </div>
           <p className="text-lg font-bold text-blue-100 truncate">
-            {caisseBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
+            {caisseBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
         </div>
 
@@ -106,7 +106,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ userProfile, clients }) => {
             <span className="text-gray-400 text-xs font-medium">BaridiMob</span>
           </div>
           <p className="text-lg font-bold text-yellow-100 truncate">
-            {baridiBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
+            {baridiBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
         </div>
 
@@ -114,7 +114,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ userProfile, clients }) => {
         <div className="bg-red-500/5 p-4 rounded-xl border border-red-500/20">
           <p className="text-red-400 text-xs mb-1 font-medium">Dettes (Crédits)</p>
           <p className="text-lg font-bold text-red-500 truncate">
-            {totalDettes.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
+            {totalDettes.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
         </div>
 
@@ -122,7 +122,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ userProfile, clients }) => {
         <div className="bg-green-500/5 p-4 rounded-xl border border-green-500/20">
           <p className="text-green-400 text-xs mb-1 font-medium">Avances</p>
           <p className="text-lg font-bold text-green-500 truncate">
-            {totalAvances.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
+            {totalAvances.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
         </div>
 
@@ -130,7 +130,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ userProfile, clients }) => {
         <div className="col-span-2 bg-gray-800/50 p-3 px-4 rounded-xl border border-gray-700/50 flex justify-between items-center">
           <span className="text-gray-400 text-xs font-medium">Position Nette</span>
           <span className={`text-lg font-bold ${positionNette >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {positionNette > 0 ? '+' : ''}{positionNette.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+            {positionNette > 0 ? '+' : ''}{positionNette.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD
           </span>
         </div>
       </div>
@@ -138,16 +138,16 @@ const ClientsView: React.FC<ClientsViewProps> = ({ userProfile, clients }) => {
       {/* Clients List Section */}
       <div className="mt-8">
         <div className="flex items-center gap-2 mb-4 px-1">
-            <UserGroupIcon className="w-5 h-5 text-gray-400" />
-            <h3 className="text-lg font-semibold text-white">Liste des Clients</h3>
+          <UserGroupIcon className="w-5 h-5 text-gray-400" />
+          <h3 className="text-lg font-semibold text-white">Liste des Clients</h3>
         </div>
 
         {/* Search Bar */}
         <div className="relative mb-4">
           <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-3.5 text-gray-500" />
-          <input 
-            type="text" 
-            placeholder="Rechercher un client..." 
+          <input
+            type="text"
+            placeholder="Rechercher un client..."
             className="w-full bg-gray-900 border border-gray-700 text-white rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-gray-600 transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
