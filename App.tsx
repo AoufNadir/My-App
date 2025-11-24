@@ -1648,7 +1648,17 @@ function MainApp({ user }: { user: firebase.User }) {
                 <DialogFooter>{(mode !== 'buy_usdt' || buyUsdtMode) && <Button onClick={mode?.startsWith('buy') ? handleBuy : handleSell} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl">Confirmer</Button>}</DialogFooter>
             </Dialog>
 
-            <Dialog isOpen={txToDelete !== null} onClose={() => setTxToDelete(null)} className={cardBase}><DialogHeader isDark={isDark}><DialogTitle>Supprimer?</DialogTitle></DialogHeader><DialogFooter><Button onClick={handleDeleteConfirm} className="bg-red-600 text-white w-full">Oui</Button></DialogFooter></Dialog>
+            <Dialog isOpen={txToDelete !== null} onClose={() => setTxToDelete(null)} className={cardBase}>
+                <DialogHeader isDark={isDark}><DialogTitle>Supprimer la transaction ?</DialogTitle></DialogHeader>
+                <DialogContent className="p-6">
+                    <p className="text-sm opacity-80">Êtes-vous sûr de vouloir supprimer cette transaction ?</p>
+                    <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
+                </DialogContent>
+                <DialogFooter>
+                    <Button onClick={() => setTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>Annuler</Button>
+                    <Button onClick={handleDeleteConfirm} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">Supprimer</Button>
+                </DialogFooter>
+            </Dialog>
             <Dialog isOpen={isClientModalOpen} onClose={() => setIsClientModalOpen(false)} className={`${cardBase} max-w-md`}>
                 <DialogHeader onClose={() => setIsClientModalOpen(false)} isDark={isDark}><DialogTitle>{editingClient ? 'Modifier Client' : 'Nouveau Client'}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
@@ -1662,9 +1672,15 @@ function MainApp({ user }: { user: firebase.User }) {
             </Dialog>
 
             <Dialog isOpen={clientToDelete !== null} onClose={() => setClientToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>Supprimer Client?</DialogTitle></DialogHeader>
-                <DialogContent className="p-6"><p>Cette action est irréversible.</p></DialogContent>
-                <DialogFooter><Button onClick={handleDeleteClient} className="w-full bg-red-600 text-white font-bold py-3 rounded-xl">Oui, supprimer</Button></DialogFooter>
+                <DialogHeader isDark={isDark}><DialogTitle>Supprimer le Client ?</DialogTitle></DialogHeader>
+                <DialogContent className="p-6">
+                    <p className="text-sm opacity-80">Voulez-vous vraiment supprimer ce client et tout son historique ?</p>
+                    <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
+                </DialogContent>
+                <DialogFooter>
+                    <Button onClick={() => setClientToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>Annuler</Button>
+                    <Button onClick={handleDeleteClient} className="w-full bg-red-600 text-white font-bold py-3 rounded-xl">Oui, supprimer</Button>
+                </DialogFooter>
             </Dialog>
 
             <Dialog isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} className={`${cardBase} max-w-sm`}>
@@ -1723,12 +1739,39 @@ function MainApp({ user }: { user: firebase.User }) {
             {/* DELETE TREASURY CARD CONFIRMATION */}
             <Dialog isOpen={treasuryCardToDelete !== null} onClose={() => setTreasuryCardToDelete(null)} className={cardBase}>
                 <DialogHeader isDark={isDark}><DialogTitle>Supprimer cette carte ?</DialogTitle></DialogHeader>
-                <DialogFooter><Button onClick={handleDeleteTreasuryCard} className="bg-red-600 text-white w-full">Supprimer</Button></DialogFooter>
+                <DialogContent className="p-6">
+                    <p className="text-sm opacity-80">Voulez-vous vraiment supprimer cette carte de trésorerie ?</p>
+                    <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
+                </DialogContent>
+                <DialogFooter>
+                    <Button onClick={() => setTreasuryCardToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>Annuler</Button>
+                    <Button onClick={handleDeleteTreasuryCard} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">Supprimer</Button>
+                </DialogFooter>
             </Dialog>
 
             <Dialog isOpen={treasuryTxToDelete !== null} onClose={() => setTreasuryTxToDelete(null)} className={cardBase}>
                 <DialogHeader isDark={isDark}><DialogTitle>Supprimer Transaction ?</DialogTitle></DialogHeader>
-                <DialogFooter><Button onClick={handleDeleteTreasuryTxConfirm} className="bg-red-600 text-white w-full">Supprimer</Button></DialogFooter>
+                <DialogContent className="p-6">
+                    <p className="text-sm opacity-80">Voulez-vous vraiment supprimer cette transaction de trésorerie ?</p>
+                    <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
+                </DialogContent>
+                <DialogFooter>
+                    <Button onClick={() => setTreasuryTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>Annuler</Button>
+                    <Button onClick={handleDeleteTreasuryTxConfirm} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">Supprimer</Button>
+                </DialogFooter>
+            </Dialog>
+
+            {/* NEW: DELETE CLIENT TX CONFIRMATION */}
+            <Dialog isOpen={clientTxToDelete !== null} onClose={() => setClientTxToDelete(null)} className={cardBase}>
+                <DialogHeader isDark={isDark}><DialogTitle>Supprimer Transaction ?</DialogTitle></DialogHeader>
+                <DialogContent className="p-6">
+                    <p className="text-sm opacity-80">Voulez-vous vraiment supprimer cette transaction client ?</p>
+                    <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
+                </DialogContent>
+                <DialogFooter>
+                    <Button onClick={() => setClientTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>Annuler</Button>
+                    <Button onClick={handleDeleteClientTx} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">Supprimer</Button>
+                </DialogFooter>
             </Dialog>
 
             {/* CLIENT SUMMARY MODAL */}
