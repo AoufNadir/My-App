@@ -512,8 +512,8 @@ function MainApp({ user }: { user: firebase.User }) {
             // Initialize margin with suggested profit margin for new sell transactions
             if (newMode === 'sell_usdt') {
                 setProfitPercent(suggestedProfitMargin);
-                // Set suggested price
-                const suggestedPrice = portfolioStats.usdt.avgBuy * (1 + parseAndEvaluate(suggestedProfitMargin) / 100);
+                // Set suggested price (Fixed Margin Logic)
+                const suggestedPrice = portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin);
                 setSellPrice(suggestedPrice.toFixed(2));
             }
         }
@@ -801,13 +801,24 @@ function MainApp({ user }: { user: firebase.User }) {
     const openClientTxModal = (tx: ClientTransactionDzd | null = null, presetType?: string) => {
         setEditingClientTx(tx);
         if (tx) {
-            setClientTxAmount(Math.abs(tx.montant).toString()); setClientTxType(tx.type); setClientTxNotes(tx.notes || '');
+            setClientTxAmount(Math.abs(tx.montant).toString());
+            setClientTxType(tx.type);
+            setClientTxNotes(tx.notes || '');
             setClientTxSource('');
+            // Initialize payment status from existing transaction
+            if (tx.paymentMethod === 'Crédit' || !tx.paymentMethod) {
+                setClientPaymentStatus('credit');
+            } else if (tx.paymentMethod === 'Espèces') {
+                setClientPaymentStatus('cash');
+            } else if (tx.paymentMethod === 'BaridiMob') {
+                setClientPaymentStatus('baridi');
+            }
         } else {
             setClientTxAmount('');
             setClientTxType(presetType || 'Règlement Reçu');
             setClientTxNotes('');
             setClientTxSource('');
+            setClientPaymentStatus('credit');
             setLinkedClientId(selectedClientId || 'none'); // Pre-fill with selected client if in client detail view
         }
         setIsClientTxModalOpen(true);
@@ -854,9 +865,29 @@ function MainApp({ user }: { user: firebase.User }) {
             const batch = db.batch();
 
             if (editingClientTx) {
-                batch.update(userDocRef.collection('dzd_client_txs').doc(editingClientTx.id), { montant: finalAmount, type: clientTxType, notes: clientTxNotes.trim(), paymentMethod: 'Crédit' });
+                batch.update(userDocRef.collection('dzd_client_txs').doc(editingClientTx.id), { montant: finalAmount, type: clientTxType, notes: clientTxNotes.trim(), paymentMethod: clientPaymentStatus });
+
+                // If changing from Credit to Cash/Baridi, add to Treasury
+                if (editingClientTx.paymentMethod === 'Crédit' && clientPaymentStatus !== 'credit') {
+                    // Auto-determine source based on payment method
+                    const autoSource = clientPaymentStatus === 'cash' ? 'Caisse' : (clientPaymentStatus === 'baridi' ? 'BaridiMob' : '');
+
+                    if (autoSource) {
+                        // If finalAmount < 0 (Sale/Debt), we receive money -> Ajout
+                        // If finalAmount > 0 (Advance), we pay money -> Retrait
+                        const treasuryType = finalAmount < 0 ? 'Ajout' : 'Retrait';
+
+                        batch.set(userDocRef.collection('treasury_txs').doc(), {
+                            timestamp, date, time,
+                            type: treasuryType,
+                            source: autoSource,
+                            amount: Math.abs(finalAmount),
+                            notes: `Régularisation: ${clientTxType} - ${clientsDzd.find(c => c.id === targetClientId)?.fullName || 'Client'}`
+                        });
+                    }
+                }
             } else {
-                batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: targetClientId, timestamp, date, time, montant: finalAmount, type: clientTxType, notes: clientTxNotes.trim(), paymentMethod: 'Crédit' });
+                batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: targetClientId, timestamp, date, time, montant: finalAmount, type: clientTxType, notes: clientTxNotes.trim(), paymentMethod: clientPaymentStatus });
                 if (clientTxSource) {
                     batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: finalAmount > 0 ? 'Ajout' : 'Retrait', source: clientTxSource, amount: Math.abs(finalAmount), notes: `${clientTxType} - ${clientsDzd.find(c => c.id === targetClientId)?.fullName || 'Client'}` });
                 }
@@ -1306,8 +1337,8 @@ function MainApp({ user }: { user: firebase.User }) {
                         </div>
                     )}
 
-                    {/* SHOW SOURCE SELECTOR FOR PAYMENTS/SETTLEMENTS - AVAILABLE ALWAYS WHEN ADDING NEW */}
-                    {(clientTxType === 'Règlement Reçu' || clientTxType === 'Paiement Effectué') && !editingClientTx && (
+                    {/* SHOW SOURCE SELECTOR FOR PAYMENTS/SETTLEMENTS OR WHEN EDITING TO REGULARIZE (ANY TYPE) */}
+                    {(clientTxType === 'Règlement Reçu' || clientTxType === 'Paiement Effectué' || editingClientTx) && (
                         <div>
                             <Label>Type d'Actif (Source/Destination)</Label>
                             <Select value={clientTxSource} onChange={(e) => setClientTxSource(e.target.value as any)} className={fieldBase}>
@@ -1315,7 +1346,19 @@ function MainApp({ user }: { user: firebase.User }) {
                                 <option value="Caisse">Caisse (Espèces)</option>
                                 <option value="BaridiMob">BaridiMob</option>
                             </Select>
-                            {clientTxSource && <p className="text-xs mt-1 opacity-70">Le montant sera {clientTxType === 'Règlement Reçu' ? 'ajouté à' : 'déduit de'} {clientTxSource}.</p>}
+                            {clientTxSource && <p className="text-xs mt-1 opacity-70">Le montant sera {clientTxType === 'Règlement Reçu' || (editingClientTx && parseFloat(clientTxAmount) < 0) ? 'ajouté à' : 'déduit de'} {clientTxSource}.</p>}
+                        </div>
+                    )}
+
+                    {/* PAYMENT METHOD SELECTOR - SHOW WHEN EDITING */}
+                    {editingClientTx && (
+                        <div>
+                            <Label>Statut du Paiement</Label>
+                            <div className="grid grid-cols-3 gap-2">
+                                <button type="button" onClick={() => setClientPaymentStatus('credit')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'credit' ? (isDark ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-amber-100 border-amber-500 text-amber-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Crédit</button>
+                                <button type="button" onClick={() => setClientPaymentStatus('baridi')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'baridi' ? (isDark ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-blue-100 border-blue-500 text-blue-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Réglé Baridi</button>
+                                <button type="button" onClick={() => setClientPaymentStatus('cash')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'cash' ? (isDark ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-green-100 border-green-500 text-green-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Réglé Cash</button>
+                            </div>
                         </div>
                     )}
 
