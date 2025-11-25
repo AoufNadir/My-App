@@ -191,7 +191,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
               cardBase={cardBase}
               subtleText={subtleText}
               title="Prix Vente Suggéré"
-              value={(portfolioStats.usdt.avgBuy * (1 + parseAndEvaluate(suggestedProfitMargin) / 100)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              value={(portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               currency="DZD"
               colorClass="text-yellow-400"
               action={
@@ -199,7 +199,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
                   onClick={() => setIsSettingsModalOpen(true)}
                   className={`text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 transition-colors ${isDark ? 'bg-slate-700 text-gray-300 hover:bg-slate-600' : 'bg-slate-100 text-gray-600 hover:bg-slate-200'}`}
                 >
-                  Marge: {suggestedProfitMargin}% <PencilIcon className="w-3 h-3" />
+                  Marge: {suggestedProfitMargin} DA <PencilIcon className="w-3 h-3" />
                 </button>
               }
             />
@@ -275,7 +275,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
                     {newPamFromDzdSimulator !== null && (
                       <div className="text-center p-2 rounded-lg bg-teal-500/10 text-teal-300">
                         <p>Nouveau PAM: <span className="font-bold">{newPamFromDzdSimulator.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</span></p>
-                        <p className="text-xs">Prix de Vente Suggéré: <span className="font-bold">{(newPamFromDzdSimulator * (1 + parseAndEvaluate(suggestedProfitMargin) / 100)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</span></p>
+                        <p className="text-xs">Prix de Vente Suggéré: <span className="font-bold">{(newPamFromDzdSimulator + parseAndEvaluate(suggestedProfitMargin)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</span></p>
                       </div>
                     )}
                   </div>
@@ -294,15 +294,15 @@ export function PortfolioPage(props: PortfolioPageProps) {
                         <p className="font-bold">{portfolioStats.usdt.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</p>
                       </div>
                       <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                        <p className={subtleText}>Prix Suggéré ({suggestedProfitMargin}%)</p>
-                        <p className="font-bold">{(portfolioStats.usdt.avgBuy * (1 + parseAndEvaluate(suggestedProfitMargin) / 100)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</p>
+                        <p className={subtleText}>Prix Suggéré (+{suggestedProfitMargin} DA)</p>
+                        <p className="font-bold">{(portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</p>
                       </div>
                     </div>
 
                     {newPamFromEurSimulator !== null && (
                       <div className="text-center p-2 rounded-lg bg-teal-500/10 text-teal-300">
                         <p>Nouveau PAM: <span className="font-bold">{newPamFromEurSimulator.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</span></p>
-                        <p className="text-xs">Prix de Vente Suggéré: <span className="font-bold">{(newPamFromEurSimulator * (1 + parseAndEvaluate(suggestedProfitMargin) / 100)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</span></p>
+                        <p className="text-xs">Prix de Vente Suggéré: <span className="font-bold">{(newPamFromEurSimulator + parseAndEvaluate(suggestedProfitMargin)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</span></p>
                       </div>
                     )}
                   </div>

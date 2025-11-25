@@ -537,11 +537,7 @@ function MainApp({ user }: { user: firebase.User }) {
             } else { currency = 'EUR'; quantity = parseAndEvaluate(buyEurAmount); price = parseAndEvaluate(buyEurPrice); }
             const totalCost = quantity * price; const { date, time, timestamp } = now();
 
-            // TREASURY LOGIC: Only if NOT Credit (Baridi or Cash)
-            if (!editingTx && buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit') {
-                const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
-                batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: 'Retrait', source, amount: totalCost, notes: `Achat ${quantity.toFixed(2)} ${currency}` });
-            }
+            // TREASURY LOGIC REMOVED FROM HERE - MOVED INSIDE else BLOCK TO ACCESS ref.id
 
             if (editingTx) {
                 batch.update(userDocRef.collection('usdt_txs').doc(editingTx.id), { quantity, price, total: totalCost, notes: notes.trim(), sell: firebase.firestore.FieldValue.delete(), profit: firebase.firestore.FieldValue.delete(), currency, paymentMethod: clientPaymentStatus });
@@ -553,7 +549,15 @@ function MainApp({ user }: { user: firebase.User }) {
                 }
                 setAlert('✅ Transaction mise à jour.');
             } else {
-                const ref = userDocRef.collection('usdt_txs').doc(); batch.set(ref, { timestamp, type: 'buy', quantity, price, total: totalCost, date, time, notes: notes.trim(), currency, paymentMethod: clientPaymentStatus });
+                const ref = userDocRef.collection('usdt_txs').doc();
+                batch.set(ref, { timestamp, type: 'buy', quantity, price, total: totalCost, date, time, notes: notes.trim(), currency, paymentMethod: clientPaymentStatus });
+
+                // TREASURY LOGIC: Only if NOT Credit (Baridi or Cash)
+                // MOVED HERE to access ref.id
+                if (buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit') {
+                    const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                    batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: 'Retrait', source, amount: totalCost, notes: `Achat ${quantity.toFixed(2)} ${currency}`, linkedTxId: ref.id });
+                }
 
                 // CLIENT LOGIC: Only if Credit
                 if (linkedClientId && linkedClientId !== 'none' && clientPaymentStatus === 'credit') {
@@ -578,11 +582,7 @@ function MainApp({ user }: { user: firebase.User }) {
             const totalRevenue = totalInput > 0 ? totalInput : quantity * sell;
             const { date, time, timestamp } = now(); const batch = db.batch();
 
-            // TREASURY LOGIC: Only if NOT Credit (Baridi or Cash)
-            if (!editingTx && clientPaymentStatus !== 'credit') {
-                const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
-                batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: 'Ajout', source, amount: totalRevenue, notes: `Vente ${quantity.toFixed(2)} USDT` });
-            }
+            // TREASURY LOGIC REMOVED FROM HERE - MOVED INSIDE else BLOCK TO ACCESS ref.id
 
             if (editingTx) {
                 batch.update(userDocRef.collection('usdt_txs').doc(editingTx.id), { quantity, sell, profit, notes: notes.trim(), price: firebase.firestore.FieldValue.delete(), total: firebase.firestore.FieldValue.delete(), currency: 'USDT', paymentMethod: clientPaymentStatus });
@@ -594,7 +594,15 @@ function MainApp({ user }: { user: firebase.User }) {
                 }
                 setAlert('✅ Transaction mise à jour.');
             } else {
-                const ref = userDocRef.collection('usdt_txs').doc(); batch.set(ref, { timestamp, type: 'sell', quantity, sell, profit, date, time, notes: notes.trim(), currency: 'USDT', paymentMethod: clientPaymentStatus });
+                const ref = userDocRef.collection('usdt_txs').doc();
+                batch.set(ref, { timestamp, type: 'sell', quantity, sell, profit, date, time, notes: notes.trim(), currency: 'USDT', paymentMethod: clientPaymentStatus });
+
+                // TREASURY LOGIC: Only if NOT Credit (Baridi or Cash)
+                // MOVED HERE to access ref.id
+                if (clientPaymentStatus !== 'credit') {
+                    const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                    batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: 'Ajout', source, amount: totalRevenue, notes: `Vente ${quantity.toFixed(2)} USDT`, linkedTxId: ref.id });
+                }
 
                 // CLIENT LOGIC: Only if Credit
                 if (linkedClientId && linkedClientId !== 'none' && clientPaymentStatus === 'credit') {
@@ -608,11 +616,27 @@ function MainApp({ user }: { user: firebase.User }) {
     const handleDeleteConfirm = async () => {
         if (!txToDelete?.id) return;
         try {
-            const qs = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', txToDelete.id).get();
-            const batch = db.batch(); qs.forEach(d => batch.delete(d.ref));
+            const batch = db.batch();
+
+            // 1. Delete associated Client Transactions
+            const qsClient = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', txToDelete.id).get();
+            qsClient.forEach(d => batch.delete(d.ref));
+
+            // 2. Delete associated Treasury Transactions (Try both linkedTxId and timestamp for backward compatibility)
+            const qsTreasuryLinked = await userDocRef.collection('treasury_txs').where('linkedTxId', '==', txToDelete.id).get();
+            qsTreasuryLinked.forEach(d => batch.delete(d.ref));
+
+            // Fallback for old transactions: Match by exact timestamp if no linkedTxId found
+            if (qsTreasuryLinked.empty && txToDelete.timestamp) {
+                const qsTreasuryTime = await userDocRef.collection('treasury_txs').where('timestamp', '==', txToDelete.timestamp).get();
+                qsTreasuryTime.forEach(d => batch.delete(d.ref));
+            }
+
+            // 3. Delete the Main Transaction
             batch.delete(userDocRef.collection('usdt_txs').doc(txToDelete.id));
+
             await batch.commit(); setAlert('✅ Supprimé.');
-        } catch (e) { setAlert('❌ Erreur.'); } finally { setTxToDelete(null); }
+        } catch (e) { console.error(e); setAlert('❌ Erreur.'); } finally { setTxToDelete(null); }
     };
 
     const openClientModal = (client: ClientDzd | null = null) => {
@@ -1545,8 +1569,8 @@ function MainApp({ user }: { user: firebase.User }) {
                                                     <span className="font-bold">{portfolioStats.usdt.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
                                                 </div>
                                                 <div className="flex justify-between text-sm mt-1">
-                                                    <span className="text-yellow-500">Prix Suggéré ({suggestedProfitMargin}%):</span>
-                                                    <span className="font-bold text-yellow-500">{(portfolioStats.usdt.avgBuy * (1 + parseAndEvaluate(suggestedProfitMargin) / 100)).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
+                                                    <span className="text-yellow-500">Prix Suggéré (+{suggestedProfitMargin} DA):</span>
+                                                    <span className="font-bold text-yellow-500">{(portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
                                                 </div>
                                             </div>
 
@@ -1567,7 +1591,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
                                                             // Update margin when price changes
                                                             if (portfolioStats.usdt.avgBuy > 0 && price > 0) {
-                                                                const margin = ((price - portfolioStats.usdt.avgBuy) / portfolioStats.usdt.avgBuy * 100);
+                                                                const margin = price - portfolioStats.usdt.avgBuy;
                                                                 setProfitPercent(margin.toFixed(2));
                                                             }
                                                         }}
@@ -1575,14 +1599,14 @@ function MainApp({ user }: { user: firebase.User }) {
                                                     />
                                                 </div>
                                                 <div>
-                                                    <Label>Marge (%)</Label>
+                                                    <Label>Marge (DZD)</Label>
                                                     <NumberInput
                                                         value={profitPercent}
                                                         onChange={e => {
                                                             setProfitPercent(e.target.value);
                                                             const margin = parseAndEvaluate(e.target.value);
                                                             if (margin >= 0 && portfolioStats.usdt.avgBuy > 0) {
-                                                                const newPrice = portfolioStats.usdt.avgBuy * (1 + margin / 100);
+                                                                const newPrice = portfolioStats.usdt.avgBuy + margin;
                                                                 setSellPrice(newPrice.toFixed(2));
 
                                                                 // Update total based on new price
@@ -1593,7 +1617,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                             }
                                                         }}
                                                         className={fieldBase}
-                                                        placeholder="%"
+                                                        placeholder="DZD"
                                                     />
                                                 </div>
                                             </div>
@@ -1687,15 +1711,15 @@ function MainApp({ user }: { user: firebase.User }) {
                 <DialogHeader onClose={() => setIsSettingsModalOpen(false)} isDark={isDark}><DialogTitle>Paramètres</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
                     <div>
-                        <Label>Marge Bénéficiaire (%)</Label>
+                        <Label>Marge Bénéficiaire (DZD)</Label>
                         <div className="relative">
                             <NumberInput
                                 value={suggestedProfitMargin}
                                 onChange={e => setSuggestedProfitMargin(e.target.value)}
                                 className={`${fieldBase} text-center text-2xl font-bold`}
-                                placeholder="2"
+                                placeholder="2.00"
                             />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">DZD</span>
                         </div>
                         <p className={`text-xs mt-2 ${subtleText}`}>Cette marge est utilisée pour calculer le prix de vente suggéré.</p>
                     </div>

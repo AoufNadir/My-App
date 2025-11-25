@@ -90,9 +90,6 @@ export function TresoreriePage({
             <h1 className={`text-4xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
               {formatDZD(capitalTotal)} <span className="text-lg font-medium opacity-60">DZD</span>
             </h1>
-            <p className={`text-xs mt-2 ${subtleText} font-mono opacity-80`}>
-              = Caisse + Baridi + Stock + Cartes - Position Nette
-            </p>
           </div>
           <LandmarkIcon className={`absolute right-4 bottom-4 w-24 h-24 opacity-5 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
         </div>
@@ -143,7 +140,7 @@ export function TresoreriePage({
             <span>Position Nette (Avances - Dettes)</span>
             <ArrowRightLeftIcon className="w-4 h-4" />
           </div>
-          <div className={`text-2xl font-bold ${positionNette > 0 ? 'text-red-400' : positionNette < 0 ? 'text-green-400' : isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+          <div className={`text-2xl font-bold ${positionNette > 0 ? 'text-green-400' : positionNette < 0 ? 'text-red-400' : isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             {formatDZD(positionNette)} <span className={`text-sm font-normal ${subtleText}`}>DZD</span>
           </div>
           <p className={`text-xs mt-1 ${subtleText}`}>
