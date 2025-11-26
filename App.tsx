@@ -474,6 +474,25 @@ function MainApp({ user }: { user: firebase.User }) {
         if (eurQty <= 0 || eurPrice <= 0 || rate <= 0) return null;
         return { usdtQty: eurQty / rate, usdtPriceDzd: eurPrice * rate, totalCostDzd: (eurQty / rate) * (eurPrice * rate) };
     }, [buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate]);
+
+    // Helper function to calculate client balance
+    const getClientBalance = (clientId: string): number => {
+        return clientTransactionsDzd
+            .filter(tx => tx.clientId === clientId)
+            .reduce((acc, tx) => acc + tx.montant, 0);
+    };
+
+    // Calculate balances for transfer clients
+    const transferFromBalance = useMemo(() => {
+        if (!transferFromClientId) return 0;
+        return getClientBalance(transferFromClientId);
+    }, [transferFromClientId, clientTransactionsDzd]);
+
+    const transferToBalance = useMemo(() => {
+        if (!transferToClientId) return 0;
+        return getClientBalance(transferToClientId);
+    }, [transferToClientId, clientTransactionsDzd]);
+
     const isFormValid = useMemo(() => {
         if (paymentMethod === 'Crédit' && (!linkedClientId || linkedClientId === 'none')) return false;
         if (mode === 'buy_usdt') {
@@ -1573,9 +1592,44 @@ function MainApp({ user }: { user: firebase.User }) {
                 <DialogHeader onClose={() => setIsTransferModalOpen(false)} isDark={isDark}><DialogTitle>Transfert Client</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
                     <div className="p-3 bg-sky-500/10 rounded-lg text-sm text-sky-600 dark:text-sky-400 mb-2">Transfert de dette/crédit entre deux clients.</div>
-                    <div><Label>De (Source)</Label><Select value={transferFromClientId} onChange={e => setTransferFromClientId(e.target.value)} className={fieldBase}><option value="">-- Client --</option>{clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}</Select></div>
-                    <div><Label>À (Destination)</Label><Select value={transferToClientId} onChange={e => setTransferToClientId(e.target.value)} className={fieldBase}><option value="">-- Client --</option>{clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}</Select></div>
-                    <div><Label>Montant</Label><NumberInput value={transferAmount} onChange={e => setTransferAmount(e.target.value)} className={fieldBase} /></div>
+                    <div>
+                        <Label>De (Source)</Label>
+                        <Select value={transferFromClientId} onChange={e => setTransferFromClientId(e.target.value)} className={fieldBase}>
+                            <option value="">-- Client --</option>
+                            {clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}
+                        </Select>
+                        {transferFromClientId && (
+                            <p className={`text-xs mt-1 ${subtleText}`}>
+                                Solde : {transferFromBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                            </p>
+                        )}
+                    </div>
+                    <div>
+                        <Label>À (Destination)</Label>
+                        <Select value={transferToClientId} onChange={e => setTransferToClientId(e.target.value)} className={fieldBase}>
+                            <option value="">-- Client --</option>
+                            {clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}
+                        </Select>
+                        {transferToClientId && (
+                            <p className={`text-xs mt-1 ${subtleText}`}>
+                                Solde : {transferToBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                            </p>
+                        )}
+                    </div>
+                    <div>
+                        <Label>Montant</Label>
+                        <div className="relative">
+                            <NumberInput value={transferAmount} onChange={e => setTransferAmount(e.target.value)} className={fieldBase} />
+                            {transferToClientId && (
+                                <button
+                                    onClick={() => setTransferAmount(Math.abs(transferToBalance).toString())}
+                                    className="absolute right-2 top-2 text-xs bg-sky-600 text-white px-2 py-1 rounded hover:bg-sky-700 transition-colors"
+                                >
+                                    Max
+                                </button>
+                            )}
+                        </div>
+                    </div>
                     <div><Label>Notes</Label><Input value={transferNotes} onChange={e => setTransferNotes(e.target.value)} className={fieldBase} /></div>
                 </DialogContent>
                 <DialogFooter><Button onClick={handleSaveTransfer} disabled={isSaving} className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl">Confirmer le Transfert</Button></DialogFooter>
