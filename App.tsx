@@ -592,11 +592,24 @@ function MainApp({ user }: { user: firebase.User }) {
 
             if (editingTx) {
                 batch.update(userDocRef.collection('usdt_txs').doc(editingTx.id), { quantity, price, total: totalCost, notes: notes.trim(), sell: firebase.firestore.FieldValue.delete(), profit: firebase.firestore.FieldValue.delete(), currency, paymentMethod: clientPaymentStatus });
-                const qs = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', editingTx.id).get(); qs.forEach(d => batch.delete(d.ref));
 
-                // CLIENT LOGIC: Only if Credit
+                // 1. Delete linked Client Txs
+                const qsClient = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', editingTx.id).get();
+                qsClient.forEach(d => batch.delete(d.ref));
+
+                // 2. Delete linked Treasury Txs (NEW)
+                const qsTreasury = await userDocRef.collection('treasury_txs').where('linkedTxId', '==', editingTx.id).get();
+                qsTreasury.forEach(d => batch.delete(d.ref));
+
+                // 3. Re-create Client Tx if Credit
                 if (linkedClientId && linkedClientId !== 'none' && clientPaymentStatus === 'credit') {
                     batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: totalCost, type: 'Règlement Reçu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`, linkedTxId: editingTx.id, paymentMethod: 'Crédit' });
+                }
+
+                // 4. Re-create Treasury Tx if NOT Credit (NEW)
+                if (buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit') {
+                    const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                    batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: 'Retrait', source, amount: totalCost, notes: `Achat ${quantity.toFixed(2)} ${currency}`, linkedTxId: editingTx.id });
                 }
                 setAlert('✅ Transaction mise à jour.');
             } else {
@@ -646,11 +659,24 @@ function MainApp({ user }: { user: firebase.User }) {
 
             if (editingTx) {
                 batch.update(userDocRef.collection('usdt_txs').doc(editingTx.id), { quantity, sell, profit, notes: notes.trim(), price: firebase.firestore.FieldValue.delete(), total: firebase.firestore.FieldValue.delete(), currency: 'USDT', paymentMethod: clientPaymentStatus });
-                const qs = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', editingTx.id).get(); qs.forEach(d => batch.delete(d.ref));
 
-                // CLIENT LOGIC: Only if Credit
+                // 1. Delete linked Client Txs
+                const qsClient = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', editingTx.id).get();
+                qsClient.forEach(d => batch.delete(d.ref));
+
+                // 2. Delete linked Treasury Txs (NEW)
+                const qsTreasury = await userDocRef.collection('treasury_txs').where('linkedTxId', '==', editingTx.id).get();
+                qsTreasury.forEach(d => batch.delete(d.ref));
+
+                // 3. Re-create Client Tx if Credit
                 if (linkedClientId && linkedClientId !== 'none' && clientPaymentStatus === 'credit') {
                     batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`, linkedTxId: editingTx.id, paymentMethod: 'Crédit' });
+                }
+
+                // 4. Re-create Treasury Tx if NOT Credit (NEW)
+                if (clientPaymentStatus !== 'credit') {
+                    const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                    batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: 'Ajout', source, amount: totalRevenue, notes: `Vente ${quantity.toFixed(2)} USDT`, linkedTxId: editingTx.id });
                 }
                 setAlert('✅ Transaction mise à jour.');
             } else {
@@ -804,7 +830,8 @@ function MainApp({ user }: { user: firebase.User }) {
                     });
                 } else {
                     // Create Treasury Tx
-                    batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type, source, amount: amountNum, notes: note });
+                    const treasuryTxRef = userDocRef.collection('treasury_txs').doc();
+                    batch.set(treasuryTxRef, { timestamp, date, time, type, source, amount: amountNum, notes: note });
 
                     // LINKED CLIENT LOGIC (Only for new adjustments for now)
                     if (adjustmentClientId) {
@@ -816,7 +843,9 @@ function MainApp({ user }: { user: firebase.User }) {
                             batch.set(userDocRef.collection('dzd_client_txs').doc(), {
                                 clientId: adjustmentClientId, timestamp, date, time,
                                 montant: clientAmount, type: clientTxType,
-                                notes: `${note} (${source})`
+                                notes: `${note} (${source})`,
+                                linkedTxId: treasuryTxRef.id, // STRICT LINKING
+                                origin: 'adjustment'
                             });
                         }
                     }
@@ -856,6 +885,15 @@ function MainApp({ user }: { user: firebase.User }) {
             setAlert('✅ Virement effectué.'); setIsWalletTransferModalOpen(false);
             setWalletTransferAmount(''); setWalletTransferNotes('');
         } catch (e) { console.error(e); setAlert('❌ Erreur.'); }
+    };
+
+    const handleWalletTransferMaxClick = () => {
+        const sourceBalance = walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+        if (sourceBalance > 0) {
+            setWalletTransferAmount(sourceBalance.toFixed(2));
+        } else {
+            setAlert(`⚠️ Le solde de ${walletTransferSource} est vide.`);
+        }
     };
 
     const openClientTxModal = (tx: ClientTransactionDzd | null = null, presetType?: string) => {
@@ -951,7 +989,9 @@ function MainApp({ user }: { user: firebase.User }) {
                         type: treasuryType,
                         source: autoSource,
                         amount: Math.abs(finalAmount),
-                        notes: `Régularisation: ${clientTxType} - ${clientsDzd.find(c => c.id === targetClientId)?.fullName || 'Client'}`
+                        notes: `Régularisation: ${clientTxType} - ${clientsDzd.find(c => c.id === targetClientId)?.fullName || 'Client'}`,
+                        linkedTxId: editingClientTx.id, // LINK TO EXISTING CLIENT TX
+                        origin: 'client_tx'
                     });
                 }
 
@@ -963,9 +1003,20 @@ function MainApp({ user }: { user: firebase.User }) {
                     paymentMethod: newPaymentMethod
                 });
             } else {
-                batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: targetClientId, timestamp, date, time, montant: finalAmount, type: clientTxType, notes: clientTxNotes.trim(), paymentMethod: clientPaymentStatus });
+                // NEW TRANSACTION
+                const clientTxRef = userDocRef.collection('dzd_client_txs').doc();
+                batch.set(clientTxRef, { clientId: targetClientId, timestamp, date, time, montant: finalAmount, type: clientTxType, notes: clientTxNotes.trim(), paymentMethod: clientPaymentStatus });
+
                 if (clientTxSource) {
-                    batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: finalAmount > 0 ? 'Ajout' : 'Retrait', source: clientTxSource, amount: Math.abs(finalAmount), notes: `${clientTxType} - ${clientsDzd.find(c => c.id === targetClientId)?.fullName || 'Client'}` });
+                    batch.set(userDocRef.collection('treasury_txs').doc(), {
+                        timestamp, date, time,
+                        type: finalAmount > 0 ? 'Ajout' : 'Retrait',
+                        source: clientTxSource,
+                        amount: Math.abs(finalAmount),
+                        notes: `${clientTxType} - ${clientsDzd.find(c => c.id === targetClientId)?.fullName || 'Client'}`,
+                        linkedTxId: clientTxRef.id, // STRICT LINKING
+                        origin: 'client_tx'
+                    });
                 }
             }
             await batch.commit();
@@ -975,6 +1026,14 @@ function MainApp({ user }: { user: firebase.User }) {
 
     const handleDeleteClientTx = async () => {
         if (!clientTxToDelete) return;
+
+        // 1. Check if it's a CHILD transaction (linked to an Adjustment)
+        if (clientTxToDelete.origin === 'adjustment') {
+            setAlert('⚠️ Impossible de supprimer : Cette transaction est liée à un ajustement de trésorerie. Supprimez l\'ajustement.');
+            setClientTxToDelete(null);
+            return;
+        }
+
         try {
             const batch = db.batch();
 
@@ -982,7 +1041,6 @@ function MainApp({ user }: { user: firebase.User }) {
             batch.delete(userDocRef.collection('dzd_client_txs').doc(clientTxToDelete.id));
 
             // 2. Find and delete linked Treasury Transactions (Cascading Delete)
-            // This handles the case where a Treasury Tx was created specifically for this Client Tx
             const treasurySnaps = await userDocRef.collection('treasury_txs').where('linkedTxId', '==', clientTxToDelete.id).get();
             treasurySnaps.forEach(doc => batch.delete(doc.ref));
 
@@ -1227,16 +1285,27 @@ function MainApp({ user }: { user: firebase.User }) {
     const handleDeleteTreasuryTxConfirm = async () => {
         if (!treasuryTxToDelete) return;
 
-        // PREVENT DELETION OF LINKED TRANSACTIONS
-        if (treasuryTxToDelete.linkedTxId) {
-            setAlert('⚠️ Impossible de supprimer : Cette transaction est liée à un règlement. Supprimez le règlement parent.');
+        // 1. Check if it's a CHILD transaction (linked to a Client Tx or USDT Tx)
+        // If origin is 'client_tx' or 'usdt_tx', it's a child -> Prevent Delete
+        // Fallback: if linkedTxId exists but no origin, assume it's a child (safe default for old data)
+        if (treasuryTxToDelete.origin === 'client_tx' || treasuryTxToDelete.origin === 'usdt_tx' || (treasuryTxToDelete.linkedTxId && !treasuryTxToDelete.origin)) {
+            setAlert('⚠️ Impossible de supprimer : Cette transaction est liée. Supprimez la transaction d\'origine.');
             setTreasuryTxToDelete(null);
             return;
         }
 
         try {
-            await userDocRef.collection('treasury_txs').doc(treasuryTxToDelete.id).delete();
-            setAlert('✅ Transaction supprimée.');
+            const batch = db.batch();
+
+            // Delete the Treasury Tx
+            batch.delete(userDocRef.collection('treasury_txs').doc(treasuryTxToDelete.id));
+
+            // Find and delete linked Client Txs (Cascading Delete)
+            const linkedClientTxs = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', treasuryTxToDelete.id).get();
+            linkedClientTxs.forEach(doc => batch.delete(doc.ref));
+
+            await batch.commit();
+            setAlert('✅ Transaction supprimée (et liens nettoyés).');
         } catch (e) { setAlert('❌ Erreur.'); } finally { setTreasuryTxToDelete(null); }
     };
 
@@ -1421,22 +1490,29 @@ function MainApp({ user }: { user: firebase.User }) {
                 <DialogHeader onClose={() => setIsWalletTransferModalOpen(false)} isDark={isDark}><DialogTitle>Virement Interne</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-6">
 
-                    {/* 1. AMOUNT (Top & Prominent) */}
-                    <div className="relative">
+                    {/* 1. AMOUNT (Top & Prominent) with MAX Button */}
+                    <div className="relative pb-4 border-b border-gray-200 dark:border-gray-700">
                         <Label className="text-center w-full block mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wider text-xs">Montant à transférer</Label>
-                        <div className="relative max-w-[200px] mx-auto">
+                        <div className="relative max-w-[240px] mx-auto">
                             <NumberInput
                                 value={walletTransferAmount}
                                 onChange={e => setWalletTransferAmount(e.target.value)}
-                                className={`${fieldBase} text-center text-3xl font-bold h-16 bg-transparent border-b-2 border-sky-500/30 focus:border-sky-500 rounded-none px-0`}
+                                className={`${fieldBase} text-center text-3xl font-bold h-16 bg-transparent border-b-2 border-sky-500/30 focus:border-sky-500 rounded-none px-12`}
                                 placeholder="0.00"
                             />
-                            <span className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400 font-medium">DZD</span>
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">DZD</span>
+                            <button
+                                onClick={handleWalletTransferMaxClick}
+                                className={`absolute left-2 top-1/2 -translate-y-1/2 text-xs font-bold px-2.5 py-1 rounded-md transition-all ${isDark ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-sky-500 text-white hover:bg-sky-600'} shadow-sm hover:shadow-md active:scale-95`}
+                                title="Montant maximum disponible"
+                            >
+                                MAX
+                            </button>
                         </div>
                     </div>
 
-                    {/* 2. SOURCE -> DESTINATION (Swappable Row) */}
-                    <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 relative">
+                    {/* 2. SOURCE -> DESTINATION (Swappable Row) with Balances */}
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/50 relative">
                         <div className="flex items-center justify-between gap-4">
                             {/* Source */}
                             <div className="flex-1">
@@ -1444,15 +1520,19 @@ function MainApp({ user }: { user: firebase.User }) {
                                 <div className={`p-3 rounded-xl font-semibold text-sm border ${isDark ? 'bg-slate-800 border-slate-700 text-gray-200' : 'bg-white border-slate-200 text-gray-800'}`}>
                                     {walletTransferSource}
                                 </div>
+                                {/* Balance Display */}
+                                <p className={`text-xs mt-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Solde: <span className="font-semibold">{(walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
+                                </p>
                             </div>
 
-                            {/* Swap Button */}
+                            {/* Swap Button - Enhanced */}
                             <button
                                 onClick={handleSwapSourceDest}
-                                className={`p-2 rounded-full shadow-sm border transition-transform hover:scale-110 active:scale-95 z-10 ${isDark ? 'bg-slate-700 border-slate-600 text-sky-400' : 'bg-white border-slate-200 text-sky-600'}`}
-                                title="Inverser"
+                                className={`p-3 rounded-full shadow-lg border-2 transition-all duration-200 hover:scale-110 hover:shadow-xl active:scale-95 z-10 ${isDark ? 'bg-gradient-to-br from-slate-700 to-slate-800 border-sky-500/50 text-sky-400 hover:border-sky-400' : 'bg-gradient-to-br from-white to-gray-50 border-sky-400/50 text-sky-600 hover:border-sky-500'}`}
+                                title="Inverser Source et Destination"
                             >
-                                <ArrowRightLeftIcon className="w-5 h-5" />
+                                <ArrowRightLeftIcon className="w-6 h-6" />
                             </button>
 
                             {/* Destination */}
@@ -1461,6 +1541,10 @@ function MainApp({ user }: { user: firebase.User }) {
                                 <div className={`p-3 rounded-xl font-semibold text-sm border ${isDark ? 'bg-slate-800 border-slate-700 text-gray-200' : 'bg-white border-slate-200 text-gray-800'}`}>
                                     {walletTransferDest}
                                 </div>
+                                {/* Balance Display */}
+                                <p className={`text-xs mt-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Solde: <span className="font-semibold">{(walletTransferDest === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
+                                </p>
                             </div>
                         </div>
 
@@ -1471,11 +1555,27 @@ function MainApp({ user }: { user: firebase.User }) {
                         </div>
                     </div>
 
+                    {/* 3. Notes Section */}
                     <div><Label>Notes (Optionnel)</Label><Input value={walletTransferNotes} onChange={e => setWalletTransferNotes(e.target.value)} className={fieldBase} placeholder="Ex: Alimentation caisse..." /></div>
                 </DialogContent>
                 <DialogFooter>
-                    <Button onClick={handleWalletTransfer} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-500/20 transition-all active:scale-[0.98]">
-                        Confirmer le Transfert
+                    {/* Enhanced Confirmation Button */}
+                    <Button
+                        onClick={handleWalletTransfer}
+                        disabled={isSaving}
+                        className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold py-4 rounded-xl shadow-xl shadow-indigo-500/30 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                        {isSaving ? (
+                            <>
+                                <RefreshCwIcon className="w-5 h-5 animate-spin" />
+                                Traitement...
+                            </>
+                        ) : (
+                            <>
+                                <ArrowRightLeftIcon className="w-5 h-5" />
+                                Confirmer le Transfert
+                            </>
+                        )}
                     </Button>
                 </DialogFooter>
             </Dialog>
