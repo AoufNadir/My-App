@@ -169,8 +169,11 @@ function MainApp({ user }: { user: firebase.User }) {
     const [buyEurForUsdtAmount, setBuyEurForUsdtAmount] = useState('');
     const [eurDzdPrice, setEurDzdPrice] = useState('');
     const [eurUsdtRate, setEurUsdtRate] = useState('');
+    const [buyUsdtWithEurTotal, setBuyUsdtWithEurTotal] = useState('');
     const [buyEurAmount, setBuyEurAmount] = useState('');
     const [buyEurPrice, setBuyEurPrice] = useState('');
+    const [buyEurTotal, setBuyEurTotal] = useState('');
+
 
     const [sellAmount, setSellAmount] = useState('');
     const [sellPrice, setSellPrice] = useState('');
@@ -291,7 +294,13 @@ function MainApp({ user }: { user: firebase.User }) {
         clientsDzd.forEach(c => balances.set(c.id, 0));
 
         clientTransactionsDzd.forEach(tx => {
-            if (!tx.paymentMethod || tx.paymentMethod === 'Crédit') {
+            // ALWAYS include Settlement transactions (Règlement Reçu / Paiement Effectué) as they directly affect balance
+            if (tx.type === 'Règlement Reçu' || tx.type === 'Paiement Effectué') {
+                const current = balances.get(tx.clientId) || 0;
+                balances.set(tx.clientId, current + tx.montant);
+            }
+            // For Sales/Purchases (Vente USDT / Achat EUR), only include if it's a Credit transaction
+            else if (!tx.paymentMethod || tx.paymentMethod === 'Crédit') {
                 const current = balances.get(tx.clientId) || 0;
                 balances.set(tx.clientId, current + tx.montant);
             }
@@ -393,6 +402,7 @@ function MainApp({ user }: { user: firebase.User }) {
     const [editingTreasuryTx, setEditingTreasuryTx] = useState<TreasuryTx | null>(null);
     const [treasuryTxToDelete, setTreasuryTxToDelete] = useState<TreasuryTx | null>(null);
     const [summaryClient, setSummaryClient] = useState<ClientDzd | null>(null);
+    const [isTotalManual, setIsTotalManual] = useState(false); // NEW STATE FOR STRICT TOTAL
     const touchTimer = useRef<any>(null);
 
     // ... Helper functions ...
@@ -487,12 +497,16 @@ function MainApp({ user }: { user: firebase.User }) {
         setAlert(''); setSellAmountError(''); setLinkedClientId('none');
         setBuyUsdtMode(null); setBuyEurForUsdtAmount(''); setEurDzdPrice(''); setEurUsdtRate('');
         setBuyUsdtMode(null); setBuyEurForUsdtAmount(''); setEurDzdPrice(''); setEurUsdtRate('');
-        setBuyUsdtTotal(''); setPaymentMethod('Espèces'); setClientPaymentStatus('cash');
-        setEditingTx(txToEdit); setMode(newMode);
+        setBuyUsdtTotal(''); setBuyEurTotal(''); setBuyUsdtWithEurTotal(''); setPaymentMethod('Espèces'); setClientPaymentStatus('cash');
+        setEditingTx(txToEdit); setMode(newMode); setIsTotalManual(false);
         if (txToEdit) {
             if (txToEdit.type === 'buy') {
                 if (txToEdit.currency === 'USDT') { setBuyUsdtMode('with_dzd'); setBuyUsdtAmount(txToEdit.quantity.toString()); setBuyUsdtPrice((txToEdit.price ?? 0).toString()); setBuyUsdtTotal(((txToEdit.quantity || 0) * (txToEdit.price || 0)).toFixed(2)); }
-                else { setBuyEurAmount(txToEdit.quantity.toString()); setBuyEurPrice((txToEdit.price ?? 0).toString()); }
+                else {
+                    setBuyEurAmount(txToEdit.quantity.toString());
+                    setBuyEurPrice((txToEdit.price ?? 0).toString());
+                    setBuyEurTotal(((txToEdit.quantity || 0) * (txToEdit.price || 0)).toFixed(2));
+                }
             } else {
                 setSellAmount(txToEdit.quantity.toString());
                 setSellPrice((txToEdit.sell ?? 0).toString());
@@ -518,7 +532,7 @@ function MainApp({ user }: { user: firebase.User }) {
             }
         }
     };
-    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setSellTotal(''); setBuyUsdtTotal(''); };
+    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setBuyUsdtWithEurTotal(''); setIsTotalManual(false); };
 
     const handleBuy = async () => {
         if (!isFormValid || isSaving) return;
@@ -528,14 +542,32 @@ function MainApp({ user }: { user: firebase.User }) {
             let quantity: number, price: number, currency: 'USDT' | 'EUR';
             if (mode === 'buy_usdt') {
                 currency = 'USDT';
-                if (buyUsdtMode === 'with_dzd') { quantity = parseAndEvaluate(buyUsdtAmount); price = parseAndEvaluate(buyUsdtPrice); }
+                if (buyUsdtMode === 'with_dzd') {
+                    quantity = parseAndEvaluate(buyUsdtAmount);
+                    price = parseAndEvaluate(buyUsdtPrice);
+                    // STRICT TOTAL LOGIC: Use manual total if set, otherwise calc
+                    if (isTotalManual && buyUsdtTotal) {
+                        // If manual total is set, we trust it.
+                        // We might need to adjust price or quantity to match, but for now we just use it for the total cost.
+                        // Ideally, we should recalculate one of them to be consistent, but user asked for total to be EXACT.
+                    }
+                }
                 else {
                     const eurSpent = parseAndEvaluate(buyEurForUsdtAmount);
                     quantity = usdtFromEurCalc!.usdtQty; price = usdtFromEurCalc!.usdtPriceDzd;
                     batch.set(userDocRef.collection('usdt_txs').doc(), { timestamp: now().timestamp - 1, type: 'Retrait Manuel', currency: 'EUR', quantity: eurSpent, date: now().date, time: now().time, notes: `Achat de ${quantity.toFixed(2)} USDT` });
                 }
             } else { currency = 'EUR'; quantity = parseAndEvaluate(buyEurAmount); price = parseAndEvaluate(buyEurPrice); }
-            const totalCost = quantity * price; const { date, time, timestamp } = now();
+
+            // STRICT TOTAL LOGIC
+            let totalCost = quantity * price;
+            if (isTotalManual) {
+                if (mode === 'buy_usdt' && buyUsdtMode === 'with_dzd') totalCost = parseAndEvaluate(buyUsdtTotal);
+                else if (mode === 'buy_eur') totalCost = parseAndEvaluate(buyEurTotal);
+                else if (mode === 'buy_usdt' && buyUsdtMode === 'with_eur') totalCost = parseAndEvaluate(buyUsdtWithEurTotal);
+            }
+
+            const { date, time, timestamp } = now();
 
             // TREASURY LOGIC REMOVED FROM HERE - MOVED INSIDE else BLOCK TO ACCESS ref.id
 
@@ -579,7 +611,16 @@ function MainApp({ user }: { user: firebase.User }) {
             const avg = portfolioStats.usdt.avgBuy;
             const profit = (sell - avg) * quantity;
             const totalInput = parseAndEvaluate(sellTotal);
-            const totalRevenue = totalInput > 0 ? totalInput : quantity * sell;
+
+            // STRICT TOTAL LOGIC
+            let totalRevenue = quantity * sell;
+            if (isTotalManual && totalInput > 0) {
+                totalRevenue = totalInput;
+            } else if (totalInput > 0 && !isTotalManual) {
+                // Fallback if user didn't trigger manual flag but field has value (shouldn't happen with new logic but safe)
+                totalRevenue = totalInput;
+            }
+
             const { date, time, timestamp } = now(); const batch = db.batch();
 
             // TREASURY LOGIC REMOVED FROM HERE - MOVED INSIDE else BLOCK TO ACCESS ref.id
@@ -835,7 +876,7 @@ function MainApp({ user }: { user: firebase.User }) {
                 const totalCost = eurAmount * eurPrice; const batch = db.batch();
                 const ref = userDocRef.collection('usdt_txs').doc();
                 batch.set(ref, { timestamp, type: 'buy', currency: 'EUR', quantity: eurAmount, price: eurPrice, total: totalCost, date, time, notes: clientTxNotes.trim() });
-                batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: selectedClientId, timestamp, date, time, montant: totalCost, type: 'Règlement Reçu', notes: clientTxNotes.trim(), linkedTxId: ref.id });
+                batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: selectedClientId, timestamp, date, time, montant: totalCost, type: 'Règlement Reçu', notes: clientTxNotes.trim(), linkedTxId: ref.id, paymentMethod: 'Crédit' });
                 await batch.commit(); setAlert('✅ Achat EUR enregistré.'); setIsClientTxModalOpen(false); return;
             }
             if (clientTxType === 'Vente USDT') {
@@ -845,7 +886,7 @@ function MainApp({ user }: { user: firebase.User }) {
                 const totalRevenue = usdtAmount * sellPrice; const profit = (sellPrice - portfolioStats.usdt.avgBuy) * usdtAmount; const batch = db.batch();
                 const ref = userDocRef.collection('usdt_txs').doc();
                 batch.set(ref, { timestamp, type: 'sell', currency: 'USDT', quantity: usdtAmount, sell: sellPrice, profit, date, time, notes: clientTxNotes.trim() });
-                batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: selectedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: clientTxNotes.trim(), linkedTxId: ref.id });
+                batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: selectedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: clientTxNotes.trim(), linkedTxId: ref.id, paymentMethod: 'Crédit' });
                 await batch.commit(); setAlert('✅ Vente USDT enregistrée.'); setIsClientTxModalOpen(false); return;
             }
         }
@@ -865,27 +906,43 @@ function MainApp({ user }: { user: firebase.User }) {
             const batch = db.batch();
 
             if (editingClientTx) {
-                batch.update(userDocRef.collection('dzd_client_txs').doc(editingClientTx.id), { montant: finalAmount, type: clientTxType, notes: clientTxNotes.trim(), paymentMethod: clientPaymentStatus });
+                // STEP 1: Capture the OLD status from the existing transaction
+                const oldPaymentMethod = editingClientTx.paymentMethod || 'credit'; // Default to credit if undefined
 
-                // If changing from Credit to Cash/Baridi, add to Treasury
-                if (editingClientTx.paymentMethod === 'Crédit' && clientPaymentStatus !== 'credit') {
+                // STEP 2: Get the NEW status from the form
+                const newPaymentMethod = clientPaymentStatus;
+
+                // STEP 3: Check if changing from Credit to Cash/Baridi
+                const isChangingFromCreditToPaid = (
+                    (oldPaymentMethod === 'credit' || oldPaymentMethod === 'Crédit' || !oldPaymentMethod) &&
+                    (newPaymentMethod === 'cash' || newPaymentMethod === 'baridi')
+                );
+
+                // STEP 4: If status changed from Credit to Paid, update treasury BEFORE updating transaction
+                if (isChangingFromCreditToPaid) {
                     // Auto-determine source based on payment method
-                    const autoSource = clientPaymentStatus === 'cash' ? 'Caisse' : (clientPaymentStatus === 'baridi' ? 'BaridiMob' : '');
+                    const autoSource = newPaymentMethod === 'cash' ? 'Caisse' : 'BaridiMob';
 
-                    if (autoSource) {
-                        // If finalAmount < 0 (Sale/Debt), we receive money -> Ajout
-                        // If finalAmount > 0 (Advance), we pay money -> Retrait
-                        const treasuryType = finalAmount < 0 ? 'Ajout' : 'Retrait';
+                    // If finalAmount < 0 (Sale/Debt), we receive money -> Ajout
+                    // If finalAmount > 0 (Advance), we pay money -> Retrait
+                    const treasuryType = finalAmount < 0 ? 'Ajout' : 'Retrait';
 
-                        batch.set(userDocRef.collection('treasury_txs').doc(), {
-                            timestamp, date, time,
-                            type: treasuryType,
-                            source: autoSource,
-                            amount: Math.abs(finalAmount),
-                            notes: `Régularisation: ${clientTxType} - ${clientsDzd.find(c => c.id === targetClientId)?.fullName || 'Client'}`
-                        });
-                    }
+                    batch.set(userDocRef.collection('treasury_txs').doc(), {
+                        timestamp, date, time,
+                        type: treasuryType,
+                        source: autoSource,
+                        amount: Math.abs(finalAmount),
+                        notes: `Régularisation: ${clientTxType} - ${clientsDzd.find(c => c.id === targetClientId)?.fullName || 'Client'}`
+                    });
                 }
+
+                // STEP 5: Finally, update the transaction with new status
+                batch.update(userDocRef.collection('dzd_client_txs').doc(editingClientTx.id), {
+                    montant: finalAmount,
+                    type: clientTxType,
+                    notes: clientTxNotes.trim(),
+                    paymentMethod: newPaymentMethod
+                });
             } else {
                 batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: targetClientId, timestamp, date, time, montant: finalAmount, type: clientTxType, notes: clientTxNotes.trim(), paymentMethod: clientPaymentStatus });
                 if (clientTxSource) {
@@ -899,8 +956,21 @@ function MainApp({ user }: { user: firebase.User }) {
 
     const handleDeleteClientTx = async () => {
         if (!clientTxToDelete) return;
-        try { await userDocRef.collection('dzd_client_txs').doc(clientTxToDelete.id).delete(); setAlert('✅ Supprimé.'); }
-        catch (e) { setAlert('❌ Erreur.'); } finally { setClientTxToDelete(null); }
+        try {
+            const batch = db.batch();
+
+            // 1. Delete the Client Transaction
+            batch.delete(userDocRef.collection('dzd_client_txs').doc(clientTxToDelete.id));
+
+            // 2. Find and delete linked Treasury Transactions (Cascading Delete)
+            // This handles the case where a Treasury Tx was created specifically for this Client Tx
+            const treasurySnaps = await userDocRef.collection('treasury_txs').where('linkedTxId', '==', clientTxToDelete.id).get();
+            treasurySnaps.forEach(doc => batch.delete(doc.ref));
+
+            await batch.commit();
+            setAlert('✅ Supprimé (et régularisé).');
+        }
+        catch (e) { console.error(e); setAlert('❌ Erreur.'); } finally { setClientTxToDelete(null); }
     };
 
     const openSettlementModal = (type: 'reçu' | 'effectué') => {
@@ -924,29 +994,92 @@ function MainApp({ user }: { user: firebase.User }) {
         setIsSaving(true);
         try {
             const { date, time, timestamp } = now();
-            const t = settlementType === 'reçu' ? 'Règlement Reçu' : 'Paiement Effectué';
-            const m = settlementType === 'reçu' ? amount : -amount;
             const batch = db.batch();
 
-            // Client Transaction
-            batch.set(userDocRef.collection('dzd_client_txs').doc(), {
-                clientId: settlementClientId, timestamp, date, time, montant: m, type: t, notes: settlementNotes.trim()
-            });
+            // Get current client balance (Rounded to 2 decimals to avoid floating point errors)
+            const rawBalance = clientBalances.get(settlementClientId) || 0;
+            const currentBalance = Number(rawBalance.toFixed(2));
 
-            // Treasury Transaction (if source selected)
-            if (settlementSource) {
-                const treasuryType = settlementType === 'reçu' ? 'Ajout' : 'Retrait';
-                const client = clientsDzd.find(c => c.id === settlementClientId);
-                const clientName = client ? (client.fullName || client.nom) : 'Client';
-                batch.set(userDocRef.collection('treasury_txs').doc(), {
-                    timestamp, date, time, type: treasuryType, source: settlementSource, amount: amount,
-                    notes: `${t} - ${clientName}`
+            // Helper to create linked pair
+            const createLinkedPair = (amt: number, type: string, notes: string, tsOffset: number = 0) => {
+                // 1. Create Client Transaction
+                const clientTxRef = userDocRef.collection('dzd_client_txs').doc();
+                batch.set(clientTxRef, {
+                    clientId: settlementClientId,
+                    timestamp: timestamp + tsOffset,
+                    date, time,
+                    montant: amt,
+                    type,
+                    notes,
+                    paymentMethod: 'Crédit' // Explicitly mark as Credit for balance calc
                 });
+
+                // 2. Create Treasury Transaction (if source selected) - LINKED to Client Tx
+                if (settlementSource) {
+                    const treasuryType = settlementType === 'reçu' ? 'Ajout' : 'Retrait';
+                    const client = clientsDzd.find(c => c.id === settlementClientId);
+                    const clientName = client ? (client.fullName || client.nom) : 'Client';
+                    const absAmount = Math.abs(amt);
+
+                    batch.set(userDocRef.collection('treasury_txs').doc(), {
+                        timestamp: timestamp + tsOffset,
+                        date, time,
+                        type: treasuryType,
+                        source: settlementSource,
+                        amount: absAmount,
+                        notes: `${notes} - ${clientName}`,
+                        linkedTxId: clientTxRef.id // STRICT LINKING
+                    });
+                }
+            };
+
+            // Apply proper accounting logic (STRICT IMPLEMENTATION)
+            if (settlementType === 'reçu') {
+                // 1. RÈGLEMENT REÇU (Payment Received)
+                if (currentBalance < 0) {
+                    const debt = Math.abs(currentBalance);
+                    if (amount >= debt) {
+                        // Split: Clear Debt + Add Advance
+                        createLinkedPair(debt, 'Règlement Reçu', `Solde de dette (${debt.toFixed(2)} DZD)`, 0);
+
+                        const remainder = Number((amount - debt).toFixed(2));
+                        if (remainder > 0) {
+                            createLinkedPair(remainder, 'Règlement Reçu', `Avance (${remainder.toFixed(2)} DZD)`, 1);
+                        }
+                    } else {
+                        // Single: Reduce Debt
+                        createLinkedPair(amount, 'Règlement Reçu', settlementNotes.trim() || 'Réduction de dette', 0);
+                    }
+                } else {
+                    // Single: Add Advance
+                    createLinkedPair(amount, 'Règlement Reçu', settlementNotes.trim() || 'Avance client', 0);
+                }
+            } else {
+                // 2. PAIEMENT EFFECTUÉ (Payment Made)
+                if (currentBalance > 0) {
+                    const advance = currentBalance;
+                    if (amount >= advance) {
+                        // Split: Clear Advance + Create Debt
+                        createLinkedPair(-advance, 'Paiement Effectué', `Solde d'avance (${advance.toFixed(2)} DZD)`, 0);
+
+                        const remainder = Number((amount - advance).toFixed(2));
+                        if (remainder > 0) {
+                            createLinkedPair(-remainder, 'Paiement Effectué', `Dette créée (${remainder.toFixed(2)} DZD)`, 1);
+                        }
+                    } else {
+                        // Single: Reduce Advance
+                        createLinkedPair(-amount, 'Paiement Effectué', settlementNotes.trim() || 'Réduction d\'avance', 0);
+                    }
+                } else {
+                    // Single: Add Debt
+                    createLinkedPair(-amount, 'Paiement Effectué', settlementNotes.trim() || 'Dette client', 0);
+                }
             }
 
             await batch.commit();
-            setAlert('✅ Enregistré.');
+            setAlert('✅ Enregistré (Lié).');
             setIsSettlementModalOpen(false);
+
         } catch (e) {
             console.error(e);
             setAlert('❌ Erreur lors de l\'enregistrement.');
@@ -1074,6 +1207,14 @@ function MainApp({ user }: { user: firebase.User }) {
 
     const handleDeleteTreasuryTxConfirm = async () => {
         if (!treasuryTxToDelete) return;
+
+        // PREVENT DELETION OF LINKED TRANSACTIONS
+        if (treasuryTxToDelete.linkedTxId) {
+            setAlert('⚠️ Impossible de supprimer : Cette transaction est liée à un règlement. Supprimez le règlement parent.');
+            setTreasuryTxToDelete(null);
+            return;
+        }
+
         try {
             await userDocRef.collection('treasury_txs').doc(treasuryTxToDelete.id).delete();
             setAlert('✅ Transaction supprimée.');
@@ -1108,32 +1249,35 @@ function MainApp({ user }: { user: firebase.User }) {
         if (tx.linkedTxId) { const l = transactions.find(t => t.id === tx.linkedTxId); if (l) setTxToDelete(l); else { setClientTxToDelete(tx); setAlert("⚠️ Transaction orpheline."); } }
         else setClientTxToDelete(tx);
     };
-    const ClientLinker = ({ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }: any) => (
-        <div className="pb-2 space-y-2">
-            <div>
-                <Label htmlFor="link_client_buy">Lier à un client DZD (Optionnel)</Label>
-                <div className="flex items-center gap-2">
-                    <Select id="link_client_buy" value={linkedClientId} onChange={(e: any) => setLinkedClientId(e.target.value)} className={`${fieldBase} focus:ring-amber-400 rounded-xl flex-grow`}>
-                        <option value="none">Aucun / Sans client</option>
-                        {clientsDzd.map(c => (<option key={c.id} value={c.id}>{c.fullName || c.nom}</option>))}
-                    </Select>
-                    <Button type="button" onClick={() => openClientModal(null)} className={`p-2.5 h-10 w-10 rounded-xl shrink-0 transition-colors ${isDark ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}`}>
-                        <PlusIcon className="w-5 h-5" />
-                    </Button>
-                </div>
-            </div>
-            {linkedClientId && linkedClientId !== 'none' && (
+    const ClientLinker = ({ isEditing, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }: any) => {
+        if (isEditing) return null;
+        return (
+            <div className="pb-2 space-y-2">
                 <div>
-                    <Label>Statut du Paiement Client</Label>
-                    <div className="grid grid-cols-3 gap-2">
-                        <button type="button" onClick={() => setClientPaymentStatus('credit')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'credit' ? (isDark ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-amber-100 border-amber-500 text-amber-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Crédit</button>
-                        <button type="button" onClick={() => setClientPaymentStatus('baridi')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'baridi' ? (isDark ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-blue-100 border-blue-500 text-blue-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Réglé Baridi</button>
-                        <button type="button" onClick={() => setClientPaymentStatus('cash')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'cash' ? (isDark ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-green-100 border-green-500 text-green-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Réglé Cash</button>
+                    <Label htmlFor="link_client_buy">Lier à un client DZD (Optionnel)</Label>
+                    <div className="flex items-center gap-2">
+                        <Select id="link_client_buy" value={linkedClientId} onChange={(e: any) => setLinkedClientId(e.target.value)} className={`${fieldBase} focus:ring-amber-400 rounded-xl flex-grow`}>
+                            <option value="none">Aucun / Sans client</option>
+                            {clientsDzd.map((c: any) => (<option key={c.id} value={c.id}>{c.fullName || c.nom}</option>))}
+                        </Select>
+                        <Button type="button" onClick={() => openClientModal(null)} className={`p-2.5 h-10 w-10 rounded-xl shrink-0 transition-colors ${isDark ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}`}>
+                            <PlusIcon className="w-5 h-5" />
+                        </Button>
                     </div>
                 </div>
-            )}
-        </div>
-    );
+                {linkedClientId && linkedClientId !== 'none' && (
+                    <div>
+                        <Label>Statut du Paiement Client</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                            <button type="button" onClick={() => setClientPaymentStatus('credit')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'credit' ? (isDark ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-amber-100 border-amber-500 text-amber-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Crédit</button>
+                            <button type="button" onClick={() => setClientPaymentStatus('baridi')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'baridi' ? (isDark ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-blue-100 border-blue-500 text-blue-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Réglé Baridi</button>
+                            <button type="button" onClick={() => setClientPaymentStatus('cash')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'cash' ? (isDark ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-green-100 border-green-500 text-green-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Réglé Cash</button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
     const ActionInputButton = ({ onClick, children }: any) => (<Button type="button" onClick={onClick} className="absolute right-1 top-1/2 -translate-y-1/2 h-8 px-3 text-xs bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 rounded-md z-10">{children}</Button>);
 
     const getClientFullName = (client: ClientDzd) => client.fullName || (client.prenom ? `${client.nom} ${client.prenom}` : client.nom);
@@ -1519,13 +1663,73 @@ function MainApp({ user }: { user: firebase.User }) {
                                         <>
                                             <div>
                                                 <Label>Quantité (USDT)</Label>
-                                                <NumberInput value={buyUsdtAmount} onChange={e => setBuyUsdtAmount(e.target.value)} className={fieldBase} />
+                                                <NumberInput
+                                                    value={buyUsdtAmount}
+                                                    onChange={e => {
+                                                        setBuyUsdtAmount(e.target.value);
+                                                        // Auto-calculate total when quantity changes ONLY IF NOT MANUAL
+                                                        if (!isTotalManual) {
+                                                            const qty = parseAndEvaluate(e.target.value);
+                                                            const price = parseAndEvaluate(buyUsdtPrice);
+                                                            if (qty > 0 && price > 0) {
+                                                                setBuyUsdtTotal((qty * price).toFixed(2));
+                                                            } else if (qty === 0 || e.target.value === '') {
+                                                                setBuyUsdtTotal('');
+                                                            }
+                                                        }
+                                                    }}
+                                                    className={fieldBase}
+                                                />
                                             </div>
                                             <div>
                                                 <Label>Prix d'achat (DZD)</Label>
-                                                <NumberInput value={buyUsdtPrice} onChange={e => setBuyUsdtPrice(e.target.value)} className={fieldBase} />
+                                                <NumberInput
+                                                    value={buyUsdtPrice}
+                                                    onChange={e => {
+                                                        setBuyUsdtPrice(e.target.value);
+                                                        // Auto-calculate total when price changes ONLY IF NOT MANUAL
+                                                        if (!isTotalManual) {
+                                                            const qty = parseAndEvaluate(buyUsdtAmount);
+                                                            const price = parseAndEvaluate(e.target.value);
+                                                            if (qty > 0 && price > 0) {
+                                                                setBuyUsdtTotal((qty * price).toFixed(2));
+                                                            } else if (price === 0 || e.target.value === '') {
+                                                                setBuyUsdtTotal('');
+                                                            }
+                                                        }
+                                                    }}
+                                                    className={fieldBase}
+                                                />
                                             </div>
-                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
+                                            <div>
+                                                <Label>Montant Total (DZD)</Label>
+                                                <NumberInput
+                                                    value={buyUsdtTotal}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        setBuyUsdtTotal(val);
+                                                        if (val) {
+                                                            setIsTotalManual(true);
+                                                            // Bidirectional: Calculate Quantity from Total
+                                                            const total = parseAndEvaluate(val);
+                                                            const price = parseAndEvaluate(buyUsdtPrice);
+                                                            if (total > 0 && price > 0) {
+                                                                setBuyUsdtAmount((total / price).toFixed(2));
+                                                            }
+                                                        } else {
+                                                            setIsTotalManual(false);
+                                                            // Immediate auto-calc when cleared
+                                                            const qty = parseAndEvaluate(buyUsdtAmount);
+                                                            const price = parseAndEvaluate(buyUsdtPrice);
+                                                            if (qty > 0 && price > 0) setBuyUsdtTotal((qty * price).toFixed(2));
+                                                        }
+                                                    }}
+                                                    className={fieldBase}
+                                                    placeholder="Calculé automatiquement"
+                                                />
+                                                <p className={`text-xs mt-1 ${subtleText}`}>Calcul automatique : Quantité × Prix</p>
+                                            </div>
+                                            <ClientLinker {...{ isEditing: !!editingTx, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
                                             <div>
                                                 <Label>Notes (Optionnel)</Label>
                                                 <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
@@ -1539,7 +1743,26 @@ function MainApp({ user }: { user: firebase.User }) {
                                             <div>
                                                 <Label>Quantité (EUR)</Label>
                                                 <div className="relative">
-                                                    <NumberInput value={buyEurForUsdtAmount} onChange={e => setBuyEurForUsdtAmount(e.target.value)} className={fieldBase} />
+                                                    <NumberInput
+                                                        value={buyEurForUsdtAmount}
+                                                        onChange={e => {
+                                                            setBuyEurForUsdtAmount(e.target.value);
+                                                            // Auto-calculate total when EUR quantity changes ONLY IF NOT MANUAL
+                                                            if (!isTotalManual) {
+                                                                const eurQty = parseAndEvaluate(e.target.value);
+                                                                const eurPrice = parseAndEvaluate(eurDzdPrice);
+                                                                const rate = parseAndEvaluate(eurUsdtRate);
+                                                                if (eurQty > 0 && eurPrice > 0 && rate > 0) {
+                                                                    const usdtQty = eurQty / rate;
+                                                                    const usdtPrice = eurPrice * rate;
+                                                                    setBuyUsdtWithEurTotal((usdtQty * usdtPrice).toFixed(2));
+                                                                } else if (eurQty === 0 || e.target.value === '') {
+                                                                    setBuyUsdtWithEurTotal('');
+                                                                }
+                                                            }
+                                                        }}
+                                                        className={fieldBase}
+                                                    />
                                                     <button onClick={() => setBuyEurForUsdtAmount(portfolioStats.eur.available.toString())} className="absolute right-2 top-2 text-xs bg-blue-600 text-white px-2 py-1 rounded">Max</button>
                                                 </div>
                                                 <p className={`text-xs mt-1 ${subtleText}`}>Solde EUR disponible: {portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} EUR</p>
@@ -1547,12 +1770,82 @@ function MainApp({ user }: { user: firebase.User }) {
 
                                             <div>
                                                 <Label>Prix d'achat EUR (DZD)</Label>
-                                                <NumberInput value={eurDzdPrice} onChange={e => setEurDzdPrice(e.target.value)} className={fieldBase} />
+                                                <NumberInput
+                                                    value={eurDzdPrice}
+                                                    onChange={e => {
+                                                        setEurDzdPrice(e.target.value);
+                                                        // Auto-calculate total when EUR price changes ONLY IF NOT MANUAL
+                                                        if (!isTotalManual) {
+                                                            const eurQty = parseAndEvaluate(buyEurForUsdtAmount);
+                                                            const eurPrice = parseAndEvaluate(e.target.value);
+                                                            const rate = parseAndEvaluate(eurUsdtRate);
+                                                            if (eurQty > 0 && eurPrice > 0 && rate > 0) {
+                                                                const usdtQty = eurQty / rate;
+                                                                const usdtPrice = eurPrice * rate;
+                                                                setBuyUsdtWithEurTotal((usdtQty * usdtPrice).toFixed(2));
+                                                            } else if (eurPrice === 0 || e.target.value === '') {
+                                                                setBuyUsdtWithEurTotal('');
+                                                            }
+                                                        }
+                                                    }}
+                                                    className={fieldBase}
+                                                />
                                                 <p className={`text-xs mt-1 ${subtleText}`}>Basé sur votre PAM EUR actuel</p>
                                             </div>
-                                            <div><Label>Taux de change (EUR pour 1 USDT)</Label><NumberInput value={eurUsdtRate} onChange={e => setEurUsdtRate(e.target.value)} className={fieldBase} placeholder="Ex: 0.92" /></div>
+                                            <div>
+                                                <Label>Taux de change (EUR pour 1 USDT)</Label>
+                                                <NumberInput
+                                                    value={eurUsdtRate}
+                                                    onChange={e => {
+                                                        setEurUsdtRate(e.target.value);
+                                                        // Auto-calculate total when exchange rate changes ONLY IF NOT MANUAL
+                                                        if (!isTotalManual) {
+                                                            const eurQty = parseAndEvaluate(buyEurForUsdtAmount);
+                                                            const eurPrice = parseAndEvaluate(eurDzdPrice);
+                                                            const rate = parseAndEvaluate(e.target.value);
+                                                            if (eurQty > 0 && eurPrice > 0 && rate > 0) {
+                                                                const usdtQty = eurQty / rate;
+                                                                const usdtPrice = eurPrice * rate;
+                                                                setBuyUsdtWithEurTotal((usdtQty * usdtPrice).toFixed(2));
+                                                            } else if (rate === 0 || e.target.value === '') {
+                                                                setBuyUsdtWithEurTotal('');
+                                                            }
+                                                        }
+                                                    }}
+                                                    className={fieldBase}
+                                                    placeholder="Ex: 0.92"
+                                                />
+                                            </div>
 
-                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
+                                            <div>
+                                                <Label>Montant Total (DZD)</Label>
+                                                <NumberInput
+                                                    value={buyUsdtWithEurTotal}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        setBuyUsdtWithEurTotal(val);
+                                                        if (val) {
+                                                            setIsTotalManual(true);
+                                                        } else {
+                                                            setIsTotalManual(false);
+                                                            // Immediate auto-calc when cleared
+                                                            const eurQty = parseAndEvaluate(buyEurForUsdtAmount);
+                                                            const eurPrice = parseAndEvaluate(eurDzdPrice);
+                                                            const rate = parseAndEvaluate(eurUsdtRate);
+                                                            if (eurQty > 0 && eurPrice > 0 && rate > 0) {
+                                                                const usdtQty = eurQty / rate;
+                                                                const usdtPrice = eurPrice * rate;
+                                                                setBuyUsdtWithEurTotal((usdtQty * usdtPrice).toFixed(2));
+                                                            }
+                                                        }
+                                                    }}
+                                                    className={fieldBase}
+                                                    placeholder="Calculé automatiquement"
+                                                />
+                                                <p className={`text-xs mt-1 ${subtleText}`}>Calcul : (EUR ÷ Taux) × (Prix EUR × Taux)</p>
+                                            </div>
+
+                                            <ClientLinker {...{ isEditing: !!editingTx, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
                                             <div><Label>Notes (Optionnel)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} /></div>
                                         </>
                                     )}
@@ -1567,11 +1860,13 @@ function MainApp({ user }: { user: firebase.User }) {
                                                         value={sellAmount}
                                                         onChange={e => {
                                                             setSellAmount(e.target.value);
-                                                            // Calculate total when quantity changes
-                                                            const qty = parseAndEvaluate(e.target.value);
-                                                            const price = parseAndEvaluate(sellPrice);
-                                                            if (qty > 0 && price > 0) {
-                                                                setSellTotal((qty * price).toFixed(2));
+                                                            // Calculate total when quantity changes ONLY IF NOT MANUAL
+                                                            if (!isTotalManual) {
+                                                                const qty = parseAndEvaluate(e.target.value);
+                                                                const price = parseAndEvaluate(sellPrice);
+                                                                if (qty > 0 && price > 0) {
+                                                                    setSellTotal((qty * price).toFixed(2));
+                                                                }
                                                             }
                                                         }}
                                                         className={fieldBase}
@@ -1593,12 +1888,22 @@ function MainApp({ user }: { user: firebase.User }) {
                                                 <NumberInput
                                                     value={sellTotal}
                                                     onChange={e => {
-                                                        setSellTotal(e.target.value);
-                                                        // Calculate quantity when total changes
-                                                        const total = parseAndEvaluate(e.target.value);
-                                                        const price = parseAndEvaluate(sellPrice);
-                                                        if (total > 0 && price > 0) {
-                                                            setSellAmount((total / price).toFixed(4));
+                                                        const val = e.target.value;
+                                                        setSellTotal(val);
+                                                        if (val) {
+                                                            setIsTotalManual(true);
+                                                            // Bidirectional: Calculate Quantity from Total
+                                                            const total = parseAndEvaluate(val);
+                                                            const price = parseAndEvaluate(sellPrice);
+                                                            if (total > 0 && price > 0) {
+                                                                setSellAmount((total / price).toFixed(4));
+                                                            }
+                                                        } else {
+                                                            setIsTotalManual(false);
+                                                            // Immediate auto-calc when cleared
+                                                            const qty = parseAndEvaluate(sellAmount);
+                                                            const price = parseAndEvaluate(sellPrice);
+                                                            if (qty > 0 && price > 0) setSellTotal((qty * price).toFixed(2));
                                                         }
                                                     }}
                                                     className={fieldBase}
@@ -1627,8 +1932,8 @@ function MainApp({ user }: { user: firebase.User }) {
                                                             const price = parseAndEvaluate(e.target.value);
                                                             const qty = parseAndEvaluate(sellAmount);
 
-                                                            // Update total when price changes
-                                                            if (qty > 0 && price > 0) {
+                                                            // Update total when price changes ONLY IF NOT MANUAL
+                                                            if (!isTotalManual && qty > 0 && price > 0) {
                                                                 setSellTotal((qty * price).toFixed(2));
                                                             }
 
@@ -1652,9 +1957,9 @@ function MainApp({ user }: { user: firebase.User }) {
                                                                 const newPrice = portfolioStats.usdt.avgBuy + margin;
                                                                 setSellPrice(newPrice.toFixed(2));
 
-                                                                // Update total based on new price
+                                                                // Update total based on new price ONLY IF NOT MANUAL
                                                                 const qty = parseAndEvaluate(sellAmount);
-                                                                if (qty > 0) {
+                                                                if (!isTotalManual && qty > 0) {
                                                                     setSellTotal((qty * newPrice).toFixed(2));
                                                                 }
                                                             }
@@ -1664,7 +1969,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                     />
                                                 </div>
                                             </div>
-                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
+                                            <ClientLinker {...{ isEditing: !!editingTx, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
                                             <div><Label>Notes (Optionnel)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} /></div>
                                         </>
                                     )}
@@ -1674,12 +1979,72 @@ function MainApp({ user }: { user: firebase.User }) {
                                         <div className="space-y-4">
                                             <div>
                                                 <Label>Quantité (EUR)</Label>
-                                                <NumberInput value={buyEurAmount} onChange={e => setBuyEurAmount(e.target.value)} className={fieldBase} />
+                                                <NumberInput
+                                                    value={buyEurAmount}
+                                                    onChange={e => {
+                                                        setBuyEurAmount(e.target.value);
+                                                        // Auto-calculate total when quantity changes ONLY IF NOT MANUAL
+                                                        if (!isTotalManual) {
+                                                            const qty = parseAndEvaluate(e.target.value);
+                                                            const price = parseAndEvaluate(buyEurPrice);
+                                                            if (qty > 0 && price > 0) {
+                                                                setBuyEurTotal((qty * price).toFixed(2));
+                                                            } else if (qty === 0 || e.target.value === '') {
+                                                                setBuyEurTotal('');
+                                                            }
+                                                        }
+                                                    }}
+                                                    className={fieldBase}
+                                                />
                                             </div>
                                             <div>
                                                 <Label>Prix d'achat (DZD)</Label>
-                                                <NumberInput value={buyEurPrice} onChange={e => setBuyEurPrice(e.target.value)} className={fieldBase} />
+                                                <NumberInput
+                                                    value={buyEurPrice}
+                                                    onChange={e => {
+                                                        setBuyEurPrice(e.target.value);
+                                                        // Auto-calculate total when price changes ONLY IF NOT MANUAL
+                                                        if (!isTotalManual) {
+                                                            const qty = parseAndEvaluate(buyEurAmount);
+                                                            const price = parseAndEvaluate(e.target.value);
+                                                            if (qty > 0 && price > 0) {
+                                                                setBuyEurTotal((qty * price).toFixed(2));
+                                                            } else if (price === 0 || e.target.value === '') {
+                                                                setBuyEurTotal('');
+                                                            }
+                                                        }
+                                                    }}
+                                                    className={fieldBase}
+                                                />
                                                 <p className={`text-xs mt-1 ${subtleText}`}>Basé sur votre PAM EUR actuel.</p>
+                                            </div>
+                                            <div>
+                                                <Label>Montant Total (DZD)</Label>
+                                                <NumberInput
+                                                    value={buyEurTotal}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        setBuyEurTotal(val);
+                                                        if (val) {
+                                                            setIsTotalManual(true);
+                                                            // Bidirectional: Calculate Quantity from Total
+                                                            const total = parseAndEvaluate(val);
+                                                            const price = parseAndEvaluate(buyEurPrice);
+                                                            if (total > 0 && price > 0) {
+                                                                setBuyEurAmount((total / price).toFixed(2));
+                                                            }
+                                                        } else {
+                                                            setIsTotalManual(false);
+                                                            // Immediate auto-calc when cleared
+                                                            const qty = parseAndEvaluate(buyEurAmount);
+                                                            const price = parseAndEvaluate(buyEurPrice);
+                                                            if (qty > 0 && price > 0) setBuyEurTotal((qty * price).toFixed(2));
+                                                        }
+                                                    }}
+                                                    className={fieldBase}
+                                                    placeholder="Calculé automatiquement"
+                                                />
+                                                <p className={`text-xs mt-1 ${subtleText}`}>Calcul automatique : Quantité × Prix</p>
                                             </div>
                                             <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
                                             <div>

@@ -46,6 +46,7 @@ export interface TreasuryTx {
   source: 'Caisse' | 'BaridiMob';
   amount: number;
   notes?: string;
+  linkedTxId?: string;
 }
 
 export interface TreasuryCard {
