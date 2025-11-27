@@ -412,6 +412,58 @@ function MainApp({ user }: { user: firebase.User }) {
     const [isTotalManual, setIsTotalManual] = useState(false); // NEW STATE FOR STRICT TOTAL
     const touchTimer = useRef<any>(null);
 
+    // Treasury Balance Edit Modal
+    const [isTreasuryBalanceEditModalOpen, setIsTreasuryBalanceEditModalOpen] = useState(false);
+    const [treasuryBalanceEditAsset, setTreasuryBalanceEditAsset] = useState<'Caisse' | 'BaridiMob'>('Caisse');
+    const [treasuryBalanceEditValue, setTreasuryBalanceEditValue] = useState('');
+    const [treasuryBalanceEditNotes, setTreasuryBalanceEditNotes] = useState('');
+
+    const openTreasuryBalanceEditModal = (asset: 'Caisse' | 'BaridiMob') => {
+        setTreasuryBalanceEditAsset(asset);
+        const currentBalance = asset === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+        setTreasuryBalanceEditValue(currentBalance.toString());
+        setTreasuryBalanceEditNotes('');
+        setIsTreasuryBalanceEditModalOpen(true);
+    };
+
+    const handleSaveTreasuryBalanceEdit = async () => {
+        const newValue = parseAndEvaluate(treasuryBalanceEditValue);
+        if (isNaN(newValue)) { setAlert('⚠️ Valeur invalide.'); return; }
+
+        const currentBalance = treasuryBalanceEditAsset === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+        const diff = newValue - currentBalance;
+
+        if (diff === 0) { setIsTreasuryBalanceEditModalOpen(false); return; }
+
+        setIsSaving(true);
+        try {
+            const { date, time, timestamp } = now();
+            const batch = db.batch();
+
+            // Create Adjustment Transaction
+            const type = diff > 0 ? 'Ajout' : 'Retrait';
+            const amount = Math.abs(diff);
+
+            batch.set(userDocRef.collection('treasury_txs').doc(), {
+                timestamp, date, time,
+                type,
+                source: treasuryBalanceEditAsset,
+                amount,
+                notes: treasuryBalanceEditNotes.trim() || `Ajustement manuel du solde (${diff > 0 ? '+' : ''}${diff.toFixed(2)})`,
+                origin: 'balance_adjustment'
+            });
+
+            await batch.commit();
+            setAlert('✅ Solde ajusté avec succès.');
+            setIsTreasuryBalanceEditModalOpen(false);
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur lors de l\'ajustement.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     // ... Helper functions ...
     const parseAndEvaluate = (expr: string): number => {
         if (!expr) return 0;
@@ -932,103 +984,40 @@ function MainApp({ user }: { user: firebase.User }) {
     const handleSaveClientTx = async () => {
         const targetClientId = linkedClientId !== 'none' ? linkedClientId : selectedClientId;
         if (!targetClientId || targetClientId === 'none') { setAlert('⚠️ Veuillez sélectionner un client.'); return; }
-        if (clientTxType === 'Achat EUR' || clientTxType === 'Vente USDT') {
-            const { date, time, timestamp } = now();
-            if (clientTxType === 'Achat EUR') {
-                const eurAmount = parseAndEvaluate(clientTxEurAmount); const eurPrice = parseAndEvaluate(clientTxEurPrice);
-                if (eurAmount <= 0 || eurPrice <= 0) { setAlert('⚠️ Valeurs invalides.'); return; }
-                const totalCost = eurAmount * eurPrice; const batch = db.batch();
-                const ref = userDocRef.collection('usdt_txs').doc();
-                batch.set(ref, { timestamp, type: 'buy', currency: 'EUR', quantity: eurAmount, price: eurPrice, total: totalCost, date, time, notes: clientTxNotes.trim() });
-                batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: selectedClientId, timestamp, date, time, montant: totalCost, type: 'Règlement Reçu', notes: clientTxNotes.trim(), linkedTxId: ref.id, paymentMethod: 'Crédit' });
-                await batch.commit(); setAlert('✅ Achat EUR enregistré.'); setIsClientTxModalOpen(false); return;
-            }
-            if (clientTxType === 'Vente USDT') {
-                const usdtAmount = parseAndEvaluate(clientTxUsdtAmount); const sellPrice = parseAndEvaluate(clientTxSellPrice);
-                if (usdtAmount <= 0 || sellPrice <= 0) { setAlert('⚠️ Valeurs invalides.'); return; }
-                if (usdtAmount > portfolioStats.usdt.available) { setAlert('⚠️ Solde USDT insuffisant.'); return; }
-                const totalRevenue = usdtAmount * sellPrice; const profit = (sellPrice - portfolioStats.usdt.avgBuy) * usdtAmount; const batch = db.batch();
-                const ref = userDocRef.collection('usdt_txs').doc();
-                batch.set(ref, { timestamp, type: 'sell', currency: 'USDT', quantity: usdtAmount, sell: sellPrice, profit, date, time, notes: clientTxNotes.trim() });
-                batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: selectedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: clientTxNotes.trim(), linkedTxId: ref.id, paymentMethod: 'Crédit' });
-                await batch.commit(); setAlert('✅ Vente USDT enregistrée.'); setIsClientTxModalOpen(false); return;
-            }
-        }
 
+        // SIMPLIFIED LOGIC: Just save Amount and Notes. No auto-calc, no restrictions.
         const amount = parseAndEvaluate(clientTxAmount);
-        if (amount <= 0 || isNaN(amount)) { setAlert('⚠️ Montant invalide.'); return; }
-        const finalAmount = clientTxType === 'Paiement Effectué' ? -amount : amount;
+        if (isNaN(amount)) { setAlert('⚠️ Montant invalide.'); return; }
 
-        if (clientTxSource && clientTxType === 'Paiement Effectué') {
-            const balance = clientTxSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
-            if (balance <= 0) { setAlert(`⚠️ Le solde de ${clientTxSource} est vide (0).`); return; }
-            if (amount > balance) { setAlert(`⚠️ Solde ${clientTxSource} insuffisant.`); return; }
-        }
-
+        setIsSaving(true);
         try {
             const { date, time, timestamp } = now();
             const batch = db.batch();
 
             if (editingClientTx) {
-                // STEP 1: Capture the OLD status from the existing transaction
-                const oldPaymentMethod = editingClientTx.paymentMethod || 'credit'; // Default to credit if undefined
-
-                // STEP 2: Get the NEW status from the form
-                const newPaymentMethod = clientPaymentStatus;
-
-                // STEP 3: Check if changing from Credit to Cash/Baridi
-                const isChangingFromCreditToPaid = (
-                    (oldPaymentMethod === 'credit' || oldPaymentMethod === 'Crédit' || !oldPaymentMethod) &&
-                    (newPaymentMethod === 'cash' || newPaymentMethod === 'baridi')
-                );
-
-                // STEP 4: If status changed from Credit to Paid, update treasury BEFORE updating transaction
-                if (isChangingFromCreditToPaid) {
-                    // Auto-determine source based on payment method
-                    const autoSource = newPaymentMethod === 'cash' ? 'Caisse' : 'BaridiMob';
-
-                    // If finalAmount < 0 (Sale/Debt), we receive money -> Ajout
-                    // If finalAmount > 0 (Advance), we pay money -> Retrait
-                    const treasuryType = finalAmount < 0 ? 'Ajout' : 'Retrait';
-
-                    batch.set(userDocRef.collection('treasury_txs').doc(), {
-                        timestamp, date, time,
-                        type: treasuryType,
-                        source: autoSource,
-                        amount: Math.abs(finalAmount),
-                        notes: `Régularisation: ${clientTxType} - ${clientsDzd.find(c => c.id === targetClientId)?.fullName || 'Client'}`,
-                        linkedTxId: editingClientTx.id, // LINK TO EXISTING CLIENT TX
-                        origin: 'client_tx'
-                    });
-                }
-
-                // STEP 5: Finally, update the transaction with new status
+                // Update existing
                 batch.update(userDocRef.collection('dzd_client_txs').doc(editingClientTx.id), {
-                    montant: finalAmount,
+                    montant: amount, // Allow negative/positive as is
+                    notes: clientTxNotes.trim(),
+                });
+                setAlert('✅ Transaction modifiée.');
+            } else {
+                // Create new
+                batch.set(userDocRef.collection('dzd_client_txs').doc(), {
+                    clientId: targetClientId,
+                    timestamp, date, time,
+                    montant: amount,
                     type: clientTxType,
                     notes: clientTxNotes.trim(),
-                    paymentMethod: newPaymentMethod
+                    paymentMethod: 'Crédit'
                 });
-            } else {
-                // NEW TRANSACTION
-                const clientTxRef = userDocRef.collection('dzd_client_txs').doc();
-                batch.set(clientTxRef, { clientId: targetClientId, timestamp, date, time, montant: finalAmount, type: clientTxType, notes: clientTxNotes.trim(), paymentMethod: clientPaymentStatus });
-
-                if (clientTxSource) {
-                    batch.set(userDocRef.collection('treasury_txs').doc(), {
-                        timestamp, date, time,
-                        type: finalAmount > 0 ? 'Ajout' : 'Retrait',
-                        source: clientTxSource,
-                        amount: Math.abs(finalAmount),
-                        notes: `${clientTxType} - ${clientsDzd.find(c => c.id === targetClientId)?.fullName || 'Client'}`,
-                        linkedTxId: clientTxRef.id, // STRICT LINKING
-                        origin: 'client_tx'
-                    });
-                }
+                setAlert('✅ Transaction ajoutée.');
             }
+
             await batch.commit();
-            setAlert('✅ Opération enregistrée.'); setIsClientTxModalOpen(false);
-        } catch (e) { console.error(e); setAlert("❌ Erreur."); }
+            setIsClientTxModalOpen(false);
+            setEditingClientTx(null);
+        } catch (e) { console.error(e); setAlert('❌ Erreur.'); } finally { setIsSaving(false); }
     };
 
     const handleDeleteClientTx = async () => {
@@ -1057,120 +1046,7 @@ function MainApp({ user }: { user: firebase.User }) {
         catch (e) { console.error(e); setAlert('❌ Erreur.'); } finally { setClientTxToDelete(null); }
     };
 
-    const openSettlementModal = (type: 'reçu' | 'effectué') => {
-        setSettlementType(type);
-        setSettlementClientId('');
-        setSettlementAmount('');
-        setSettlementNotes('');
-        setSettlementSource(''); // Reset source
-        setIsSettlementModalOpen(true);
-    };
 
-    const handleSaveSettlement = async () => {
-        const amount = parseAndEvaluate(settlementAmount);
-        if (amount <= 0 || !settlementClientId) { setAlert('⚠️ Erreur: Client ou Montant manquant.'); return; }
-
-        if (settlementSource && settlementType === 'effectué') {
-            const balance = settlementSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
-            if (amount > balance) { setAlert(`⚠️ Solde ${settlementSource} insuffisant.`); return; }
-        }
-
-        setIsSaving(true);
-        try {
-            const { date, time, timestamp } = now();
-            const batch = db.batch();
-
-            // Get current client balance (Rounded to 2 decimals to avoid floating point errors)
-            const rawBalance = clientBalances.get(settlementClientId) || 0;
-            const currentBalance = Number(rawBalance.toFixed(2));
-
-            // Helper to create linked pair
-            const createLinkedPair = (amt: number, type: string, notes: string, tsOffset: number = 0) => {
-                // 1. Create Client Transaction
-                const clientTxRef = userDocRef.collection('dzd_client_txs').doc();
-                batch.set(clientTxRef, {
-                    clientId: settlementClientId,
-                    timestamp: timestamp + tsOffset,
-                    date, time,
-                    montant: amt,
-                    type,
-                    notes,
-                    paymentMethod: 'Crédit' // Explicitly mark as Credit for balance calc
-                });
-
-                // 2. Create Treasury Transaction (if source selected) - LINKED to Client Tx
-                if (settlementSource) {
-                    const treasuryType = settlementType === 'reçu' ? 'Ajout' : 'Retrait';
-                    const client = clientsDzd.find(c => c.id === settlementClientId);
-                    const clientName = client ? (client.fullName || client.nom) : 'Client';
-                    const absAmount = Math.abs(amt);
-
-                    batch.set(userDocRef.collection('treasury_txs').doc(), {
-                        timestamp: timestamp + tsOffset,
-                        date, time,
-                        type: treasuryType,
-                        source: settlementSource,
-                        amount: absAmount,
-                        notes: `${notes} - ${clientName}`,
-                        linkedTxId: clientTxRef.id // STRICT LINKING
-                    });
-                }
-            };
-
-            // Apply proper accounting logic (STRICT IMPLEMENTATION)
-            if (settlementType === 'reçu') {
-                // 1. RÈGLEMENT REÇU (Payment Received)
-                if (currentBalance < 0) {
-                    const debt = Math.abs(currentBalance);
-                    if (amount >= debt) {
-                        // Split: Clear Debt + Add Advance
-                        createLinkedPair(debt, 'Règlement Reçu', `Solde de dette (${debt.toFixed(2)} DZD)`, 0);
-
-                        const remainder = Number((amount - debt).toFixed(2));
-                        if (remainder > 0) {
-                            createLinkedPair(remainder, 'Règlement Reçu', `Avance (${remainder.toFixed(2)} DZD)`, 1);
-                        }
-                    } else {
-                        // Single: Reduce Debt
-                        createLinkedPair(amount, 'Règlement Reçu', settlementNotes.trim() || 'Réduction de dette', 0);
-                    }
-                } else {
-                    // Single: Add Advance
-                    createLinkedPair(amount, 'Règlement Reçu', settlementNotes.trim() || 'Avance client', 0);
-                }
-            } else {
-                // 2. PAIEMENT EFFECTUÉ (Payment Made)
-                if (currentBalance > 0) {
-                    const advance = currentBalance;
-                    if (amount >= advance) {
-                        // Split: Clear Advance + Create Debt
-                        createLinkedPair(-advance, 'Paiement Effectué', `Solde d'avance (${advance.toFixed(2)} DZD)`, 0);
-
-                        const remainder = Number((amount - advance).toFixed(2));
-                        if (remainder > 0) {
-                            createLinkedPair(-remainder, 'Paiement Effectué', `Dette créée (${remainder.toFixed(2)} DZD)`, 1);
-                        }
-                    } else {
-                        // Single: Reduce Advance
-                        createLinkedPair(-amount, 'Paiement Effectué', settlementNotes.trim() || 'Réduction d\'avance', 0);
-                    }
-                } else {
-                    // Single: Add Debt
-                    createLinkedPair(-amount, 'Paiement Effectué', settlementNotes.trim() || 'Dette client', 0);
-                }
-            }
-
-            await batch.commit();
-            setAlert('✅ Enregistré (Lié).');
-            setIsSettlementModalOpen(false);
-
-        } catch (e) {
-            console.error(e);
-            setAlert('❌ Erreur lors de l\'enregistrement.');
-        } finally {
-            setIsSaving(false);
-        }
-    };
 
     const handleSaveTransfer = async () => {
         const amt = parseAndEvaluate(transferAmount); if (amt <= 0 || !transferFromClientId || !transferToClientId || transferFromClientId === transferToClientId) { setAlert('⚠️ Erreur.'); return; }
@@ -1477,9 +1353,9 @@ function MainApp({ user }: { user: firebase.User }) {
 
                     {view === 'statistiques' && <PortfolioPage {...{ statsView, setStatsView, isDark, setIsSettingsModalOpen, cardBase, subtleText, portfolioStats, totalPortfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), suggestedProfitMargin, parseAndEvaluate, usdtReportMonth, setUsdtReportMonth, usdtReportYear, setUsdtReportYear, reportMonths: (y: number) => y === new Date().getFullYear() ? MONTHS_FR.slice(0, new Date().getMonth() + 1) : MONTHS_FR, reportYears: Array.from({ length: 3 }, (_, i) => 2024 + i), monthlyStats: { totalUsdtSoldMonth: 0, totalEurBoughtMonth: 0, realizedProfitMonth: 0, monthlyProfitMargin: 0 }, transactions, selectedHeatmapDay, setSelectedHeatmapDay, simMode, setSimMode, simBuyQty, setSimBuyQty, simBuyPrice, setSimBuyPrice, fieldBase, newPamFromDzdSimulator, simEurQty, setSimEurQty, simEurDzdPrice, setSimEurDzdPrice, simEurUsdtRate, setSimEurUsdtRate, newPamFromEurSimulator, handleExportUsdtReport, dzdDashboardStats: null, reportClient, setReportClient, clientsDzd, getClientFullName, reportMonth, setReportMonth, reportYear, setReportYear, handleExportClientReport }} />}
 
-                    {view === 'dzd' && <ClientsPage {...{ selectedClientId, setSelectedClientId, cardBase, fieldBase, isDark, subtleText, openClientModal, setIsTransferModalOpen, openSettlementModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances: clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, selectedClient, selectedClientTransactions, transactions, handleExportClientReport, openClientTxModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick }} />}
+                    {view === 'dzd' && <ClientsPage {...{ selectedClientId, setSelectedClientId, cardBase, fieldBase, isDark, subtleText, openClientModal, setIsTransferModalOpen, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances: clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, selectedClient, selectedClientTransactions, transactions, handleExportClientReport, openClientTxModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick }} />}
 
-                    {view === 'tresorerie' && <TresoreriePage {...{ isDark, cardBase, subtleText, caisseBalance: treasuryStats.caisse, baridiBalance: treasuryStats.baridi, totalDettes: clientStats.totalDettes, totalAvances: clientStats.totalAvances, portfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), openTreasuryModal: () => openAdjustmentModal('add'), treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete }} />}
+                    {view === 'tresorerie' && <TresoreriePage {...{ isDark, cardBase, subtleText, caisseBalance: treasuryStats.caisse, baridiBalance: treasuryStats.baridi, totalDettes: clientStats.totalDettes, totalAvances: clientStats.totalAvances, portfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), openTreasuryModal: () => openAdjustmentModal('add'), treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal }} />}
                 </main>
 
                 {/* Mobile Nav */}
@@ -1594,46 +1470,15 @@ function MainApp({ user }: { user: firebase.User }) {
             <Dialog isOpen={isClientTxModalOpen} onClose={() => setIsClientTxModalOpen(false)} className={`${cardBase} max-w-lg`}>
                 <DialogHeader onClose={() => setIsClientTxModalOpen(false)} isDark={isDark}><DialogTitle>{editingClientTx ? "Modifier l'Opération" : "Nouvelle Opération"}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
+                    {/* SIMPLIFIED CLIENT TX MODAL CONTENT */}
+
                     {/* HIDE TYPE SELECTOR IF EDITING OR IF IT WAS PRE-SELECTED FROM DROPDOWN */}
                     {!editingClientTx && (clientTxType === 'Règlement Reçu' || clientTxType === 'Paiement Effectué') && (
                         <div><Label>Type d'Opération</Label><Select id="tx_type_select" value={clientTxType} onChange={e => setClientTxType(e.target.value as any)} className={fieldBase} disabled={!!editingClientTx}><option>Règlement Reçu</option><option>Paiement Effectué</option><option>Vente USDT</option><option>Achat EUR</option></Select></div>
                     )}
 
-                    {/* CLIENT SELECTOR - ALWAYS SHOW FOR NEW OPERATIONS */}
-                    {!editingClientTx && (
-                        <div>
-                            <Label>Client</Label>
-                            <Select value={linkedClientId || 'none'} onChange={e => setLinkedClientId(e.target.value)} className={fieldBase}>
-                                <option value="none">-- Sélectionner un client --</option>
-                                {clientsDzd.map(c => <option key={c.id} value={c.id}>{c.fullName || c.nom}</option>)}
-                            </Select>
-                        </div>
-                    )}
-
-                    {/* SHOW SOURCE SELECTOR FOR PAYMENTS/SETTLEMENTS OR WHEN EDITING TO REGULARIZE (ANY TYPE) */}
-                    {(clientTxType === 'Règlement Reçu' || clientTxType === 'Paiement Effectué' || editingClientTx) && (
-                        <div>
-                            <Label>Type d'Actif (Source/Destination)</Label>
-                            <Select value={clientTxSource} onChange={(e) => setClientTxSource(e.target.value as any)} className={fieldBase}>
-                                <option value="">-- Aucun (Juste le solde client) --</option>
-                                <option value="Caisse">Caisse (Espèces)</option>
-                                <option value="BaridiMob">BaridiMob</option>
-                            </Select>
-                            {clientTxSource && <p className="text-xs mt-1 opacity-70">Le montant sera {clientTxType === 'Règlement Reçu' || (editingClientTx && parseFloat(clientTxAmount) < 0) ? 'ajouté à' : 'déduit de'} {clientTxSource}.</p>}
-                        </div>
-                    )}
-
-                    {/* PAYMENT METHOD SELECTOR - SHOW WHEN EDITING */}
-                    {editingClientTx && (
-                        <div>
-                            <Label>Statut du Paiement</Label>
-                            <div className="grid grid-cols-3 gap-2">
-                                <button type="button" onClick={() => setClientPaymentStatus('credit')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'credit' ? (isDark ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-amber-100 border-amber-500 text-amber-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Crédit</button>
-                                <button type="button" onClick={() => setClientPaymentStatus('baridi')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'baridi' ? (isDark ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-blue-100 border-blue-500 text-blue-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Réglé Baridi</button>
-                                <button type="button" onClick={() => setClientPaymentStatus('cash')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'cash' ? (isDark ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-green-100 border-green-500 text-green-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Réglé Cash</button>
-                            </div>
-                        </div>
-                    )}
+                    {/* REMOVED: Source Selector (Type d'Actif) */}
+                    {/* REMOVED: Payment Status Selector (Statut du Paiement) */}
 
                     {clientTxType === 'Vente USDT' ? (
                         <div className="space-y-4"><div><Label>Quantité USDT</Label><NumberInput value={clientTxUsdtAmount} onChange={e => setClientTxUsdtAmount(e.target.value)} className={fieldBase} /></div><div><Label>Prix de Vente</Label><NumberInput value={clientTxSellPrice} onChange={e => setClientTxSellPrice(e.target.value)} className={fieldBase} /></div></div>
@@ -1643,22 +1488,21 @@ function MainApp({ user }: { user: firebase.User }) {
                         <div>
                             <Label>Montant (DZD)</Label>
                             <div className="relative">
-                                <NumberInput value={clientTxAmount} onChange={e => setClientTxAmount(e.target.value)} className={fieldBase} />
-                                {(clientTxType === 'Règlement Reçu' || clientTxType === 'Paiement Effectué') && (
-                                    <button
-                                        onClick={() => {
-                                            const tId = (!editingClientTx && linkedClientId !== 'none') ? linkedClientId : selectedClientId;
-                                            if (tId) {
-                                                const bal = clientBalances.get(tId) || 0;
-                                                setClientTxAmount(Math.abs(bal).toString());
-                                            }
-                                        }}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-blue-600 text-white px-2 py-1 rounded"
-                                    >
-                                        MAX
-                                    </button>
-                                )}
+                                {/* ALLOW NEGATIVE VALUES: Use Input type="number" or NumberInput without restrictions if possible. 
+                                    Our NumberInput might restrict? Let's check. 
+                                    If NumberInput restricts, use standard Input. 
+                                    User said: "يقبل القيم الموجبة والسالبة دون أي قيود"
+                                */}
+                                <Input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={clientTxAmount}
+                                    onChange={e => setClientTxAmount(e.target.value)}
+                                    className={fieldBase}
+                                    placeholder="+/- Montant"
+                                />
                             </div>
+                            <p className="text-xs mt-1 opacity-60">Entrez une valeur positive (Crédit) ou négative (Dette).</p>
                         </div>
                     )}
                     <div><Label>Notes (Optionnel)</Label><Input value={clientTxNotes} onChange={e => setClientTxNotes(e.target.value)} className={fieldBase} /></div>
@@ -1745,52 +1589,36 @@ function MainApp({ user }: { user: firebase.User }) {
                 <DialogFooter><Button onClick={handleSaveTransfer} disabled={isSaving} className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl">Confirmer le Transfert</Button></DialogFooter>
             </Dialog>
 
-            {/* NEW: SETTLEMENT MODAL */}
-            <Dialog isOpen={isSettlementModalOpen} onClose={() => setIsSettlementModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsSettlementModalOpen(false)} isDark={isDark}>
-                    <DialogTitle>{settlementType === 'reçu' ? 'Règlement Client (Reçu)' : 'Paiement Client (Effectué)'}</DialogTitle>
+            {/* NEW: Treasury Balance Edit Modal */}
+            <Dialog isOpen={isTreasuryBalanceEditModalOpen} onClose={() => setIsTreasuryBalanceEditModalOpen(false)} className={`${cardBase} max-w-sm`}>
+                <DialogHeader onClose={() => setIsTreasuryBalanceEditModalOpen(false)} isDark={isDark}>
+                    <DialogTitle>Modifier Solde {treasuryBalanceEditAsset}</DialogTitle>
                 </DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
-                    <div className={`p-3 rounded-lg text-sm mb-2 ${isDark ? 'bg-slate-800' : 'bg-gray-100'}`}>
-                        {settlementType === 'reçu'
-                            ? "Vous avez reçu de l'argent d'un client (Diminue sa dette / Augmente son avance)."
-                            : "Vous avez payé un client (Augmente sa dette / Diminue son avance)."
-                        }
+                    <div className="p-3 bg-blue-500/10 rounded-lg text-sm text-blue-600 dark:text-blue-400 mb-2">
+                        Modifiez le solde directement. Une transaction d'ajustement sera créée automatiquement pour combler la différence.
                     </div>
                     <div>
-                        <Label>Client</Label>
-                        <Select value={settlementClientId} onChange={e => setSettlementClientId(e.target.value)} className={fieldBase}>
-                            <option value="">-- Sélectionner un client --</option>
-                            {clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}
-                        </Select>
-                    </div>
-
-                    {/* Source Selector */}
-                    <div>
-                        <Label>Type d'Actif (Source/Destination)</Label>
-                        <Select value={settlementSource} onChange={e => setSettlementSource(e.target.value as any)} className={fieldBase}>
-                            <option value="">-- Aucun (Juste le solde) --</option>
-                            <option value="Caisse">Caisse (Espèces)</option>
-                            <option value="BaridiMob">BaridiMob</option>
-                        </Select>
-                        {settlementSource && <p className="text-xs mt-1 text-blue-400">Le solde de {settlementSource} sera mis à jour.</p>}
-                    </div>
-
-                    <div>
-                        <Label>Montant</Label>
-                        <NumberInput value={settlementAmount} onChange={e => setSettlementAmount(e.target.value)} className={fieldBase} placeholder="0.00" />
+                        <Label>Nouveau Solde (DZD)</Label>
+                        <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={treasuryBalanceEditValue}
+                            onChange={e => setTreasuryBalanceEditValue(e.target.value)}
+                            className={`${fieldBase} text-2xl font-bold text-center`}
+                        />
                     </div>
                     <div>
-                        <Label>Notes</Label>
-                        <Input value={settlementNotes} onChange={e => setSettlementNotes(e.target.value)} className={fieldBase} />
+                        <Label>Notes (Optionnel)</Label>
+                        <Input value={treasuryBalanceEditNotes} onChange={e => setTreasuryBalanceEditNotes(e.target.value)} className={fieldBase} placeholder="Raison de l'ajustement..." />
                     </div>
                 </DialogContent>
                 <DialogFooter>
-                    <Button onClick={handleSaveSettlement} disabled={isSaving} className={`w-full font-bold py-3 rounded-xl text-white ${settlementType === 'reçu' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>
-                        Confirmer
-                    </Button>
+                    <Button onClick={handleSaveTreasuryBalanceEdit} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">Sauvegarder</Button>
                 </DialogFooter>
             </Dialog>
+
+
 
             <Dialog isOpen={isDateFilterModalOpen} onClose={() => setIsDateFilterModalOpen(false)} className={`${cardBase} max-w-md`}>
                 <DialogHeader onClose={() => setIsDateFilterModalOpen(false)} isDark={isDark}><DialogTitle>Filtrer par Date</DialogTitle></DialogHeader>

@@ -29,7 +29,7 @@ type ClientsPageProps = {
   subtleText: string;
   openClientModal: (client: ClientDzd | null) => void;
   setIsTransferModalOpen: (isOpen: boolean) => void;
-  openSettlementModal: (type: 'reçu' | 'effectué') => void;
+
   clientSearchQuery: string;
   setClientSearchQuery: (query: string) => void;
   clientSortMode: 'all' | 'advances' | 'debts' | 'zero_balance';
@@ -54,7 +54,7 @@ type ClientsPageProps = {
 export function ClientsPage(props: ClientsPageProps) {
   const {
     selectedClientId, setSelectedClientId, cardBase, fieldBase, isDark, subtleText,
-    openClientModal, setIsTransferModalOpen, openSettlementModal,
+    openClientModal, setIsTransferModalOpen,
     clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode,
     filteredClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd,
     setClientToDelete, selectedClient, selectedClientTransactions, transactions,

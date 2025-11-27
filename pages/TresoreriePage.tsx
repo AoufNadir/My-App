@@ -25,6 +25,7 @@ type TresoreriePageProps = {
   treasuryCards: TreasuryCard[];
   openTreasuryCardModal: (card?: TreasuryCard) => void;
   setTreasuryCardToDelete: (card: TreasuryCard | null) => void;
+  openTreasuryBalanceEditModal: (asset: 'Caisse' | 'BaridiMob') => void;
 };
 
 export function TresoreriePage({
@@ -39,7 +40,8 @@ export function TresoreriePage({
   openTreasuryModal,
   treasuryCards,
   openTreasuryCardModal,
-  setTreasuryCardToDelete
+  setTreasuryCardToDelete,
+  openTreasuryBalanceEditModal
 }: TresoreriePageProps) {
 
   // Formula requested: = Caisse + Baridi + Stock - (Avances - Dettes)
@@ -65,11 +67,18 @@ export function TresoreriePage({
   // Helper for formatting currency
   const formatDZD = (amount: number) => amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const StatBox = ({ title, value, colorClass, icon }: { title: string, value: string, colorClass: string, icon?: React.ReactNode }) => (
-    <div className={`p-5 rounded-2xl shadow-sm border transition-all ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'}`}>
+  const StatBox = ({ title, value, colorClass, icon, onEdit }: { title: string, value: string, colorClass: string, icon?: React.ReactNode, onEdit?: () => void }) => (
+    <div className={`p-5 rounded-2xl shadow-sm border transition-all relative group ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'}`}>
       <div className={`flex items-center justify-between text-sm font-medium mb-2 ${subtleText}`}>
         <span>{title}</span>
-        {icon}
+        <div className="flex items-center gap-2">
+          {onEdit && (
+            <button onClick={onEdit} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-gray-500">
+              <PencilIcon className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {icon}
+        </div>
       </div>
       <div className={`text-2xl font-bold ${colorClass}`}>
         {value} <span className={`text-sm font-normal ${subtleText}`}>DZD</span>
@@ -109,12 +118,14 @@ export function TresoreriePage({
             value={formatDZD(caisseBalance)}
             colorClass="text-teal-400"
             icon={<WalletIcon className="w-4 h-4 text-teal-500" />}
+            onEdit={() => openTreasuryBalanceEditModal('Caisse')}
           />
           <StatBox
             title="BaridiMob"
             value={formatDZD(baridiBalance)}
             colorClass="text-blue-400"
             icon={<div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-500">CCP</div>}
+            onEdit={() => openTreasuryBalanceEditModal('BaridiMob')}
           />
         </div>
 
