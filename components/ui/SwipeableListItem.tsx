@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { motion, useMotionValue, PanInfo, animate } from 'framer-motion';
+import { motion, useMotionValue, PanInfo, animate, useTransform } from 'framer-motion';
 import { PencilIcon } from '../icons/PencilIcon';
 import { Trash2Icon } from '../icons/Trash2Icon';
 
@@ -12,10 +12,12 @@ type SwipeableListItemProps = {
   onEdit?: () => void;
   onDelete?: () => void;
   disableSwipe?: boolean;
+  className?: string;
 };
 
-export const SwipeableListItem = ({ children, onEdit, onDelete, disableSwipe = false }: SwipeableListItemProps) => {
+export const SwipeableListItem = ({ children, onEdit, onDelete, disableSwipe = false, className = '' }: SwipeableListItemProps) => {
   const x = useMotionValue(0);
+  const opacity = useTransform(x, [-50, 0], [1, 0]);
 
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (disableSwipe) return;
@@ -39,8 +41,8 @@ export const SwipeableListItem = ({ children, onEdit, onDelete, disableSwipe = f
   }
 
   return (
-    <div className="relative w-full overflow-hidden">
-      <div className="absolute inset-y-0 right-0 flex items-stretch" style={{ width: ACTIONS_WIDTH }}>
+    <div className={`relative w-full overflow-hidden ${className}`}>
+      <motion.div className="absolute inset-y-0 right-0 flex items-stretch" style={{ width: ACTIONS_WIDTH, opacity }}>
         <button
           onClick={() => handleActionClick(onEdit)}
           className="w-1/2 h-full flex items-center justify-center bg-sky-600 text-white transition-colors hover:bg-sky-700 focus:outline-none"
@@ -55,7 +57,7 @@ export const SwipeableListItem = ({ children, onEdit, onDelete, disableSwipe = f
         >
           <Trash2Icon className="w-5 h-5" />
         </button>
-      </div>
+      </motion.div>
 
       <motion.div
         className="relative w-full"

@@ -333,6 +333,7 @@ function MainApp({ user }: { user: firebase.User }) {
     const [initialBalance, setInitialBalance] = useState('');
     const [clientRedotpayId, setClientRedotpayId] = useState('');
     const [clientBinanceEmail, setClientBinanceEmail] = useState('');
+    const [clientBalanceInput, setClientBalanceInput] = useState(''); // NEW: For editing balance
 
     const [isClientTxModalOpen, setIsClientTxModalOpen] = useState(false);
     const [editingClientTx, setEditingClientTx] = useState<ClientTransactionDzd | null>(null);
@@ -783,20 +784,23 @@ function MainApp({ user }: { user: firebase.User }) {
             await batch.commit(); setAlert('✅ Supprimé.');
         } catch (e) { console.error(e); setAlert('❌ Erreur.'); } finally { setTxToDelete(null); }
     };
-
     const openClientModal = (client: ClientDzd | null = null) => {
         setEditingClient(client);
         if (client) {
-            setClientFullName(client.fullName || client.nom || '');
+            setClientFullName(client.fullName || client.nom);
             setClientPhone(client.phone || '');
             setClientRedotpayId(client.redotpayId || '');
             setClientBinanceEmail(client.binanceEmail || '');
+            // Pre-fill with current balance
+            const bal = clientBalances.get(client.id) || 0;
+            setClientBalanceInput(bal.toString());
         } else {
             setClientFullName('');
             setClientPhone('');
             setClientRedotpayId('');
             setClientBinanceEmail('');
             setInitialBalance('');
+            setClientBalanceInput('');
         }
         setIsClientModalOpen(true);
     };
@@ -814,6 +818,26 @@ function MainApp({ user }: { user: firebase.User }) {
             };
             if (editingClient) {
                 await userDocRef.collection('dzd_clients').doc(editingClient.id).update(data);
+
+                // NEW: Handle Balance Adjustment
+                const currentBal = clientBalances.get(editingClient.id) || 0;
+                const newBal = parseAndEvaluate(clientBalanceInput);
+
+                // Only create adjustment if valid number and value changed
+                if (!isNaN(newBal) && Math.abs(newBal - currentBal) > 0.01) {
+                    const diff = newBal - currentBal;
+                    const { date, time, timestamp } = now();
+
+                    await userDocRef.collection('dzd_client_txs').add({
+                        clientId: editingClient.id,
+                        timestamp, date, time,
+                        montant: diff,
+                        type: 'Ajustement Solde',
+                        notes: 'Mise à jour manuelle du solde',
+                        paymentMethod: 'Crédit'
+                    });
+                }
+
                 setAlert('✅ Client modifié.');
             } else {
                 const ref = await userDocRef.collection('dzd_clients').add(data);
@@ -833,6 +857,15 @@ function MainApp({ user }: { user: firebase.User }) {
 
     const handleDeleteClient = async () => {
         if (!clientToDelete) return;
+
+        // NEW: Check Balance Restriction
+        const bal = clientBalances.get(clientToDelete.id) || 0;
+        if (Math.abs(bal) > 0.01) {
+            setAlert("⚠️ Impossible de supprimer : Le client possède un solde non nul. Veuillez le régulariser avant suppression.");
+            setClientToDelete(null);
+            return;
+        }
+
         try {
             await userDocRef.collection('dzd_clients').doc(clientToDelete.id).delete();
             setAlert('✅ Client supprimé.');
@@ -1220,6 +1253,16 @@ function MainApp({ user }: { user: firebase.User }) {
         if (tx.linkedTxId) { const l = transactions.find(t => t.id === tx.linkedTxId); if (l) setTxToDelete(l); else { setClientTxToDelete(tx); setAlert("⚠️ Transaction orpheline."); } }
         else setClientTxToDelete(tx);
     };
+
+    const handleClientDeleteRequest = (client: ClientDzd | null) => {
+        if (!client) { setClientToDelete(null); return; }
+        const bal = clientBalances.get(client.id) || 0;
+        if (Math.abs(bal) > 0.01) {
+            setAlert("⚠️ Impossible de supprimer : Le client possède un solde non nul. Veuillez le régulariser avant suppression.");
+        } else {
+            setClientToDelete(client);
+        }
+    };
     const ClientLinker = ({ isEditing, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }: any) => {
         if (isEditing) return null;
         return (
@@ -1353,11 +1396,10 @@ function MainApp({ user }: { user: firebase.User }) {
 
                     {view === 'statistiques' && <PortfolioPage {...{ statsView, setStatsView, isDark, setIsSettingsModalOpen, cardBase, subtleText, portfolioStats, totalPortfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), suggestedProfitMargin, parseAndEvaluate, usdtReportMonth, setUsdtReportMonth, usdtReportYear, setUsdtReportYear, reportMonths: (y: number) => y === new Date().getFullYear() ? MONTHS_FR.slice(0, new Date().getMonth() + 1) : MONTHS_FR, reportYears: Array.from({ length: 3 }, (_, i) => 2024 + i), monthlyStats: { totalUsdtSoldMonth: 0, totalEurBoughtMonth: 0, realizedProfitMonth: 0, monthlyProfitMargin: 0 }, transactions, selectedHeatmapDay, setSelectedHeatmapDay, simMode, setSimMode, simBuyQty, setSimBuyQty, simBuyPrice, setSimBuyPrice, fieldBase, newPamFromDzdSimulator, simEurQty, setSimEurQty, simEurDzdPrice, setSimEurDzdPrice, simEurUsdtRate, setSimEurUsdtRate, newPamFromEurSimulator, handleExportUsdtReport, dzdDashboardStats: null, reportClient, setReportClient, clientsDzd, getClientFullName, reportMonth, setReportMonth, reportYear, setReportYear, handleExportClientReport }} />}
 
-                    {view === 'dzd' && <ClientsPage {...{ selectedClientId, setSelectedClientId, cardBase, fieldBase, isDark, subtleText, openClientModal, setIsTransferModalOpen, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances: clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, selectedClient, selectedClientTransactions, transactions, handleExportClientReport, openClientTxModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick }} />}
+                    {view === 'dzd' && <ClientsPage {...{ selectedClientId, setSelectedClientId, cardBase, fieldBase, isDark, subtleText, openClientModal, setIsTransferModalOpen, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances: clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete: handleClientDeleteRequest, selectedClient, selectedClientTransactions, transactions, handleExportClientReport, openClientTxModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick }} />}
 
                     {view === 'tresorerie' && <TresoreriePage {...{ isDark, cardBase, subtleText, caisseBalance: treasuryStats.caisse, baridiBalance: treasuryStats.baridi, totalDettes: clientStats.totalDettes, totalAvances: clientStats.totalAvances, portfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), openTreasuryModal: () => openAdjustmentModal('add'), treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal }} />}
                 </main>
-
                 {/* Mobile Nav */}
                 <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 p-2 backdrop-blur-md bg-opacity-50">
                     <div className="max-w-4xl mx-auto flex items-center justify-around gap-2 p-1 rounded-full border" style={{ borderColor: isDark ? '#334155' : '#CBD5E1', background: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(241, 245, 249, 0.8)' }}>
@@ -2090,6 +2132,20 @@ function MainApp({ user }: { user: firebase.User }) {
                     <div><Label>Téléphone</Label><Input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className={fieldBase} /></div>
                     <div><Label>RedotPay ID</Label><Input value={clientRedotpayId} onChange={e => setClientRedotpayId(e.target.value)} className={fieldBase} /></div>
                     <div><Label>Binance Email</Label><Input value={clientBinanceEmail} onChange={e => setClientBinanceEmail(e.target.value)} className={fieldBase} /></div>
+                    {editingClient && (
+                        <div>
+                            <Label>Solde Client (Modifiable)</Label>
+                            <Input
+                                type="text"
+                                inputMode="decimal"
+                                value={clientBalanceInput}
+                                onChange={e => setClientBalanceInput(e.target.value)}
+                                className={`${fieldBase} font-bold ${parseAndEvaluate(clientBalanceInput) < 0 ? 'text-red-500' : 'text-green-500'}`}
+                                placeholder="0.00"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Modifiez la valeur pour ajuster le solde. (0 pour réinitialiser)</p>
+                        </div>
+                    )}
                     {!editingClient && <div><Label>Solde Initial (DZD)</Label><NumberInput value={initialBalance} onChange={e => setInitialBalance(e.target.value)} className={fieldBase} placeholder="0.00" /></div>}
                 </DialogContent>
                 <DialogFooter><Button onClick={handleSaveClient} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl">Sauvegarder</Button></DialogFooter>
