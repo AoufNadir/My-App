@@ -9,7 +9,7 @@ import { Select } from './components/ui/Select';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './components/ui/Dialog';
 
-import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard } from './types';
+import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction } from './types';
 import { MONTHS_FR } from './constants';
 
 import { AlertTriangleIcon } from './components/icons/AlertTriangleIcon';
@@ -254,6 +254,166 @@ function MainApp({ user }: { user: firebase.User }) {
         });
         return () => unsubscribe();
     }, [userDocRef, refreshKey]);
+
+    // ===== MANUAL ASSETS =====
+    const [manualAssets, setManualAssets] = useState<ManualAsset[]>([]);
+    useEffect(() => {
+        const unsubscribe = userDocRef.collection('manual_assets').orderBy('createdAt', 'desc').onSnapshot((snapshot: firebase.firestore.QuerySnapshot) => {
+            setManualAssets(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as ManualAsset[]);
+        });
+        return () => unsubscribe();
+    }, [userDocRef, refreshKey]);
+
+    const [manualAssetClients, setManualAssetClients] = useState<ManualAssetClient[]>([]);
+    useEffect(() => {
+        const unsubscribe = userDocRef.collection('manual_asset_clients').orderBy('fullName', 'asc').onSnapshot((snapshot: firebase.firestore.QuerySnapshot) => {
+            setManualAssetClients(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as ManualAssetClient[]);
+        });
+        return () => unsubscribe();
+    }, [userDocRef, refreshKey]);
+
+    const [manualAssetTransactions, setManualAssetTransactions] = useState<ManualAssetTransaction[]>([]);
+    useEffect(() => {
+        const unsubscribe = userDocRef.collection('manual_asset_transactions').orderBy('timestamp', 'desc').onSnapshot((snapshot: firebase.firestore.QuerySnapshot) => {
+            setManualAssetTransactions(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as ManualAssetTransaction[]);
+        });
+        return () => unsubscribe();
+    }, [userDocRef, refreshKey]);
+
+    // Manual Assets UI State
+    const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+    const [selectedAssetClientId, setSelectedAssetClientId] = useState<string | null>(null);
+
+    // Manual Assets Balance Calculations
+    const assetBalances = useMemo(() => {
+        const map = new Map<string, number>();
+        manualAssetTransactions.forEach(tx => {
+            const current = map.get(tx.assetId) || 0;
+            map.set(tx.assetId, current + tx.amount);
+        });
+        return map;
+    }, [manualAssetTransactions]);
+
+    const assetClientBalances = useMemo(() => {
+        const map = new Map<string, number>();
+        manualAssetTransactions.forEach(tx => {
+            const key = `${tx.assetId}_${tx.clientId}`;
+            const current = map.get(key) || 0;
+            map.set(key, current + tx.amount);
+        });
+        return map;
+    }, [manualAssetTransactions]);
+
+    // Manual Assets CRUD Functions
+    const handleCreateAsset = async (name: string, description?: string) => {
+        setIsSaving(true);
+        try {
+            const now = Date.now();
+            await userDocRef.collection('manual_assets').add({
+                name: name.trim(),
+                description: description?.trim() || '',
+                createdAt: now,
+                updatedAt: now,
+                archived: false
+            });
+            setAlert('✅ Actif créé.');
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteAsset = async (assetId: string) => {
+        // Check if asset has transactions
+        const assetTxCount = manualAssetTransactions.filter(tx => tx.assetId === assetId).length;
+        if (assetTxCount > 0) {
+            setAlert("⚠️ Impossible de supprimer : L'actif possède des transactions. Supprimez-les d'abord.");
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            await userDocRef.collection('manual_assets').doc(assetId).delete();
+            setAlert('✅ Actif supprimé.');
+            if (selectedAssetId === assetId) setSelectedAssetId(null);
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleCreateAssetClient = async (assetId: string, fullName: string, phone?: string, email?: string, notes?: string) => {
+        setIsSaving(true);
+        try {
+            const now = Date.now();
+            await userDocRef.collection('manual_asset_clients').add({
+                assetId,
+                fullName: fullName.trim(),
+                phone: phone?.trim() || '',
+                email: email?.trim() || '',
+                notes: notes?.trim() || '',
+                createdAt: now,
+                updatedAt: now
+            });
+            setAlert('✅ Client ajouté.');
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteAssetClient = async (assetId: string, clientId: string) => {
+        // Check balance
+        const balance = assetClientBalances.get(`${assetId}_${clientId}`) || 0;
+        if (Math.abs(balance) > 0.01) {
+            setAlert("⚠️ Impossible de supprimer : Le client possède un solde non nul. Régularisez-le d'abord.");
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            await userDocRef.collection('manual_asset_clients').doc(clientId).delete();
+            setAlert('✅ Client supprimé.');
+            if (selectedAssetClientId === clientId) setSelectedAssetClientId(null);
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleCreateAssetTransaction = async (data: Omit<ManualAssetTransaction, 'id'>) => {
+        setIsSaving(true);
+        try {
+            await userDocRef.collection('manual_asset_transactions').add(data);
+            setAlert('✅ Transaction ajoutée.');
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteAssetTransaction = async (txId: string) => {
+        setIsSaving(true);
+        try {
+            await userDocRef.collection('manual_asset_transactions').doc(txId).delete();
+            setAlert('✅ Transaction supprimée.');
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     // Adjustment Modal
     const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
