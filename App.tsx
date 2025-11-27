@@ -141,6 +141,13 @@ function MainApp({ user }: { user: firebase.User }) {
     // ===== USER-SPECIFIC DATABASE REFERENCE =====
     const userDocRef = useMemo(() => db.collection('users').doc(user.uid), [user.uid]);
 
+    // ===== REFRESH MECHANISM =====
+    const [refreshKey, setRefreshKey] = useState(0);
+    const handleRefresh = () => {
+        setRefreshKey(prev => prev + 1);
+        setAlert('🔄 Actualisation des données en cours...');
+    };
+
     // ===== DATA =====
     const [transactions, setTransactions] = useState<Tx[]>([]);
     useEffect(() => {
@@ -155,7 +162,7 @@ function MainApp({ user }: { user: firebase.User }) {
             setTransactions(txsData);
         });
         return () => unsubscribe();
-    }, [userDocRef]);
+    }, [userDocRef, refreshKey]);
 
     // ... State definitions ...
     const [mode, setMode] = useState<'buy_usdt' | 'sell_usdt' | 'buy_eur' | null>(null);
@@ -216,7 +223,7 @@ function MainApp({ user }: { user: firebase.User }) {
             setClientsDzd(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as ClientDzd[]);
         });
         return () => unsubscribe();
-    }, [userDocRef]);
+    }, [userDocRef, refreshKey]);
 
     const [clientTransactionsDzd, setClientTransactionsDzd] = useState<ClientTransactionDzd[]>([]);
     useEffect(() => {
@@ -230,7 +237,7 @@ function MainApp({ user }: { user: firebase.User }) {
             setClientTransactionsDzd(clientTxsData);
         });
         return () => unsubscribe();
-    }, [userDocRef]);
+    }, [userDocRef, refreshKey]);
 
     const [treasuryTransactions, setTreasuryTransactions] = useState<TreasuryTx[]>([]);
     useEffect(() => {
@@ -238,7 +245,7 @@ function MainApp({ user }: { user: firebase.User }) {
             setTreasuryTransactions(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as TreasuryTx[]);
         });
         return () => unsubscribe();
-    }, [userDocRef]);
+    }, [userDocRef, refreshKey]);
 
     const [treasuryCards, setTreasuryCards] = useState<TreasuryCard[]>([]);
     useEffect(() => {
@@ -246,7 +253,7 @@ function MainApp({ user }: { user: firebase.User }) {
             setTreasuryCards(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as TreasuryCard[]);
         });
         return () => unsubscribe();
-    }, [userDocRef]);
+    }, [userDocRef, refreshKey]);
 
     // Adjustment Modal
     const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
@@ -1429,6 +1436,9 @@ function MainApp({ user }: { user: firebase.User }) {
                             <NavLink activeView={view} targetView="tresorerie" colorClass="bg-emerald-600">Trésorerie</NavLink>
                         </div>
                         <div className="flex items-center gap-1 sm:gap-2">
+                            <Button onClick={handleRefresh} className={`p-2 rounded-full transition-colors ${isDark ? 'text-blue-400 hover:bg-blue-500/20' : 'text-blue-500 hover:bg-blue-100'}`} title="Tout recalculer">
+                                <RefreshCwIcon className="w-5 h-5" />
+                            </Button>
                             <Button onClick={() => setTheme(isDark ? 'light' : 'dark')} className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}>{isDark ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}</Button>
                             <Button onClick={() => setIsResetModalOpen(true)} className={`p-2 rounded-full transition-colors ${isDark ? 'text-red-400 hover:bg-red-500/20' : 'text-red-500 hover:bg-red-100'}`} title="Réinitialiser l'application"><RotateCcwIcon className="w-5 h-5" /></Button>
                             <Button onClick={() => auth.signOut()} className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}><LogOutIcon className="w-5 h-5" /></Button>
