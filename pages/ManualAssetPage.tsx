@@ -10,6 +10,7 @@ import { PlusIcon } from '../components/icons/PlusIcon';
 import { SearchIcon } from '../components/icons/SearchIcon';
 import { UserIcon } from '../components/icons/UserIcon';
 import { Trash2Icon } from '../components/icons/Trash2Icon';
+import { SwipeableListItem } from '../components/ui/SwipeableListItem';
 import { ManualAsset, ManualAssetClient } from '../types';
 
 type ManualAssetPageProps = {
@@ -156,36 +157,28 @@ export function ManualAssetPage({
                         filteredClients.map(client => {
                             const balance = clientBalances.get(`${asset.id}_${client.id}`) || 0;
                             return (
-                                <div key={client.id} className={`p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group`} onClick={() => onSelectClient(client)}>
-                                    <div className="flex items-center gap-3">
-                                        <div className={`p-2.5 rounded-full ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
-                                            <UserIcon className="w-5 h-5" />
+                                <div key={client.id}>
+                                    <SwipeableListItem
+                                        onEdit={() => openEditModal(client)}
+                                        onDelete={() => onDeleteClient(client.id)}
+                                    >
+                                        <div className={`p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer`} onClick={() => onSelectClient(client)}>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2.5 rounded-full ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
+                                                    <UserIcon className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold">{client.fullName}</div>
+                                                    <div className={`text-xs ${subtleText}`}>{client.phone || 'Pas de téléphone'}</div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <div className={`text-right font-bold ${balance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                    {balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="text-xs opacity-70">DZD</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <div className="font-bold">{client.fullName}</div>
-                                            <div className={`text-xs ${subtleText}`}>{client.phone || 'Pas de téléphone'}</div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        <div className={`text-right font-bold ${balance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                            {balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="text-xs opacity-70">DZD</span>
-                                        </div>
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); openEditModal(client); }}
-                                                className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-full transition-all"
-                                            >
-                                                {/* Pencil Icon inline to avoid import issues if not present */}
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
-                                            </button>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); onDeleteClient(client.id); }}
-                                                className="p-2 text-red-500 hover:bg-red-500/10 rounded-full transition-all"
-                                            >
-                                                <Trash2Icon className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </div>
+                                    </SwipeableListItem>
                                 </div>
                             );
                         })

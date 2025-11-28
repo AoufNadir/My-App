@@ -1603,8 +1603,10 @@ function MainApp({ user }: { user: firebase.User }) {
         const rate = parseAndEvaluate(simEurUsdtRate);
         if (eurQty <= 0 || eurPriceDzd <= 0 || rate <= 0) return null;
 
-        const newUsdtQty = eurQty * rate;
-        const newCostDzd = eurQty * eurPriceDzd;
+        // Correct formula: TotalUSDT = AmountEUR / TauxEUR_USDT
+        const newUsdtQty = eurQty / rate;
+        const pricePerUSDT = eurPriceDzd * rate;
+        const newCostDzd = newUsdtQty * pricePerUSDT;
 
         const totalCost = portfolioStats.usdt.costBasis + newCostDzd;
         const totalQty = portfolioStats.usdt.purchasedQty + newUsdtQty;

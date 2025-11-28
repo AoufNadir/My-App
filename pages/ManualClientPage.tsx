@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { ArrowLeftIcon } from '../components/icons/ArrowLeftIcon';
 import { PlusIcon } from '../components/icons/PlusIcon';
 import { Trash2Icon } from '../components/icons/Trash2Icon';
+import { SwipeableListItem } from '../components/ui/SwipeableListItem';
 import { ManualAssetClient, ManualAssetTransaction } from '../types';
 
 type ManualClientPageProps = {
@@ -119,28 +120,29 @@ export function ManualClientPage({
                 <div className="divide-y divide-gray-200 dark:divide-gray-800">
                     {transactions.length > 0 ? (
                         transactions.map(tx => (
-                            <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors group">
-                                <div>
-                                    <div className="font-bold text-sm">
-                                        {tx.type === 'service' ? `Service: ${tx.serviceType || 'Autre'}` :
-                                            tx.type === 'payment_received' ? 'Règlement Reçu' :
-                                                tx.type === 'adjustment' ? 'Ajustement Solde' : 'Opération'}
+                            <div key={tx.id}>
+                                <SwipeableListItem
+                                    onEdit={() => {/* TODO: Implement edit transaction */ }}
+                                    onDelete={() => onDeleteTransaction(tx.id)}
+                                >
+                                    <div className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
+                                        <div>
+                                            <div className="font-bold text-sm">
+                                                {tx.type === 'service' ? `Service: ${tx.serviceType || 'Autre'}` :
+                                                    tx.type === 'payment_received' ? 'Règlement Reçu' :
+                                                        tx.type === 'adjustment' ? 'Ajustement Solde' : 'Opération'}
+                                            </div>
+                                            <div className={`text-xs ${subtleText}`}>
+                                                {tx.date} à {tx.time} • {tx.notes || 'Pas de notes'}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <div className={`font-bold ${tx.amount >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className={`text-xs ${subtleText}`}>
-                                        {tx.date} à {tx.time} • {tx.notes || 'Pas de notes'}
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                    <div className={`font-bold ${tx.amount >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                        {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
-                                    </div>
-                                    <button
-                                        onClick={() => onDeleteTransaction(tx.id)}
-                                        className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-500/10 rounded-full transition-all"
-                                    >
-                                        <Trash2Icon className="w-4 h-4" />
-                                    </button>
-                                </div>
+                                </SwipeableListItem>
                             </div>
                         ))
                     ) : (
