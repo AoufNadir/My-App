@@ -19,6 +19,7 @@ type ManualAssetPageProps = {
     onBack: () => void;
     onSelectClient: (client: ManualAssetClient) => void;
     onCreateClient: (fullName: string, phone?: string, email?: string, notes?: string) => void;
+    onUpdateClient: (clientId: string, data: { fullName: string, phone?: string, email?: string, notes?: string, balance?: number }) => void;
     onDeleteClient: (clientId: string) => void;
     isDark: boolean;
     cardBase: string;
@@ -33,6 +34,7 @@ export function ManualAssetPage({
     onBack,
     onSelectClient,
     onCreateClient,
+    onUpdateClient,
     onDeleteClient,
     isDark,
     cardBase,
@@ -41,10 +43,15 @@ export function ManualAssetPage({
 }: ManualAssetPageProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [isCreateClientModalOpen, setIsCreateClientModalOpen] = useState(false);
-    const [newClientName, setNewClientName] = useState('');
-    const [newClientPhone, setNewClientPhone] = useState('');
-    const [newClientEmail, setNewClientEmail] = useState('');
-    const [newClientNotes, setNewClientNotes] = useState('');
+    const [isEditClientModalOpen, setIsEditClientModalOpen] = useState(false);
+    const [editingClient, setEditingClient] = useState<ManualAssetClient | null>(null);
+
+    // Form State
+    const [clientName, setClientName] = useState('');
+    const [clientPhone, setClientPhone] = useState('');
+    const [clientEmail, setClientEmail] = useState('');
+    const [clientNotes, setClientNotes] = useState('');
+    const [clientBalanceInput, setClientBalanceInput] = useState('');
 
     const filteredClients = clients.filter(c =>
         c.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -54,14 +61,50 @@ export function ManualAssetPage({
     const totalBalance = Array.from(clientBalances.values()).reduce((acc, val) => acc + val, 0);
     const totalClients = clients.length;
 
+    const openCreateModal = () => {
+        setClientName('');
+        setClientPhone('');
+        setClientEmail('');
+        setClientNotes('');
+        setClientBalanceInput('');
+        setIsCreateClientModalOpen(true);
+    };
+
+    const openEditModal = (client: ManualAssetClient) => {
+        setEditingClient(client);
+        setClientName(client.fullName);
+        setClientPhone(client.phone || '');
+        setClientEmail(client.email || '');
+        setClientNotes(client.notes || '');
+        const currentBalance = clientBalances.get(`${asset.id}_${client.id}`) || 0;
+        setClientBalanceInput(currentBalance.toString());
+        setIsEditClientModalOpen(true);
+    };
+
     const handleCreate = () => {
-        if (!newClientName.trim()) return;
-        onCreateClient(newClientName, newClientPhone, newClientEmail, newClientNotes);
+        if (!clientName.trim()) return;
+        onCreateClient(clientName, clientPhone, clientEmail, clientNotes);
         setIsCreateClientModalOpen(false);
-        setNewClientName('');
-        setNewClientPhone('');
-        setNewClientEmail('');
-        setNewClientNotes('');
+    };
+
+    const handleUpdate = () => {
+        if (!editingClient || !clientName.trim()) return;
+
+        const balance = parseFloat(clientBalanceInput.replace(',', '.'));
+        const updateData: any = {
+            fullName: clientName,
+            phone: clientPhone,
+            email: clientEmail,
+            notes: clientNotes
+        };
+
+        if (!isNaN(balance)) {
+            updateData.balance = balance;
+        }
+
+        onUpdateClient(editingClient.id, updateData);
+        setIsEditClientModalOpen(false);
+        setEditingClient(null);
     };
 
     return (
@@ -103,7 +146,7 @@ export function ManualAssetPage({
                             placeholder="Rechercher un client..."
                         />
                     </div>
-                    <Button onClick={() => setIsCreateClientModalOpen(true)} className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2">
+                    <Button onClick={openCreateModal} className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2">
                         <PlusIcon className="w-5 h-5" /> Nouveau Client
                     </Button>
                 </div>
@@ -127,12 +170,21 @@ export function ManualAssetPage({
                                         <div className={`text-right font-bold ${balance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                             {balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="text-xs opacity-70">DZD</span>
                                         </div>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); onDeleteClient(client.id); }}
-                                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-500/10 rounded-full transition-all"
-                                        >
-                                            <Trash2Icon className="w-4 h-4" />
-                                        </button>
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); openEditModal(client); }}
+                                                className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-full transition-all"
+                                            >
+                                                {/* Pencil Icon inline to avoid import issues if not present */}
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onDeleteClient(client.id); }}
+                                                className="p-2 text-red-500 hover:bg-red-500/10 rounded-full transition-all"
+                                            >
+                                                <Trash2Icon className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             );
@@ -151,13 +203,42 @@ export function ManualAssetPage({
                     <DialogTitle>Nouveau Client</DialogTitle>
                 </DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
-                    <div><Label>Nom Complet</Label><Input value={newClientName} onChange={e => setNewClientName(e.target.value)} className={fieldBase} placeholder="Ex: Agence X" /></div>
-                    <div><Label>Téléphone (Optionnel)</Label><Input value={newClientPhone} onChange={e => setNewClientPhone(e.target.value)} className={fieldBase} /></div>
-                    <div><Label>Email (Optionnel)</Label><Input value={newClientEmail} onChange={e => setNewClientEmail(e.target.value)} className={fieldBase} /></div>
-                    <div><Label>Notes (Optionnel)</Label><Input value={newClientNotes} onChange={e => setNewClientNotes(e.target.value)} className={fieldBase} /></div>
+                    <div><Label>Nom Complet</Label><Input value={clientName} onChange={e => setClientName(e.target.value)} className={fieldBase} placeholder="Ex: Agence X" /></div>
+                    <div><Label>Téléphone (Optionnel)</Label><Input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className={fieldBase} /></div>
+                    <div><Label>Email (Optionnel)</Label><Input value={clientEmail} onChange={e => setClientEmail(e.target.value)} className={fieldBase} /></div>
+                    <div><Label>Notes (Optionnel)</Label><Input value={clientNotes} onChange={e => setClientNotes(e.target.value)} className={fieldBase} /></div>
                 </DialogContent>
                 <DialogFooter>
                     <Button onClick={handleCreate} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">Créer le Client</Button>
+                </DialogFooter>
+            </Dialog>
+
+            {/* Edit Client Modal */}
+            <Dialog isOpen={isEditClientModalOpen} onClose={() => setIsEditClientModalOpen(false)} className={`${cardBase} max-w-md`}>
+                <DialogHeader onClose={() => setIsEditClientModalOpen(false)} isDark={isDark}>
+                    <DialogTitle>Modifier le Client</DialogTitle>
+                </DialogHeader>
+                <DialogContent className="px-6 pb-6 space-y-4">
+                    <div><Label>Nom Complet</Label><Input value={clientName} onChange={e => setClientName(e.target.value)} className={fieldBase} /></div>
+                    <div><Label>Téléphone</Label><Input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className={fieldBase} /></div>
+                    <div><Label>Email</Label><Input value={clientEmail} onChange={e => setClientEmail(e.target.value)} className={fieldBase} /></div>
+                    <div><Label>Notes</Label><Input value={clientNotes} onChange={e => setClientNotes(e.target.value)} className={fieldBase} /></div>
+
+                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <Label className="text-amber-500">Ajustement Manuel du Solde</Label>
+                        <Input
+                            value={clientBalanceInput}
+                            onChange={e => setClientBalanceInput(e.target.value)}
+                            className={`${fieldBase} font-mono font-bold`}
+                            placeholder="0.00"
+                        />
+                        <p className={`text-xs mt-1 ${subtleText}`}>
+                            Modifiez cette valeur uniquement pour corriger une erreur. Une transaction d'ajustement sera créée automatiquement.
+                        </p>
+                    </div>
+                </DialogContent>
+                <DialogFooter>
+                    <Button onClick={handleUpdate} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">Enregistrer les modifications</Button>
                 </DialogFooter>
             </Dialog>
         </motion.div>

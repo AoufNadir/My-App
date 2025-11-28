@@ -58,26 +58,22 @@ export function TresoreriePage({
   onDeleteManualAsset
 }: TresoreriePageProps) {
 
-  // Formula requested: = Caisse + Baridi + Stock - (Avances - Dettes)
-  // Dettes is usually negative in the system, so we take absolute value for the display logic 'Avances - Dettes' 
-  // (assuming 'Dettes' means the magnitude of debt).
+  // Formula requested: Capital Total = Crypto + Caisse + BaridiMob + Cartes de Trésorerie (Simple) - (Avances Totales - Dettes Totales)
+
   const dettesAbs = Math.abs(totalDettes);
 
-  // Calculation: Assets + (Receivables - Payables)
-  // Receivables = DettesAbs (Money owed to us)
-  // Payables = TotalAvances (Money we owe)
-  // Adjusted to match user formula structure: Assets - (Payables - Receivables) -> Assets - (Avances - DettesAbs)
-  // Adjusted to match user formula structure: Assets - (Payables - Receivables) -> Assets - (Avances - DettesAbs)
-  const manualCardsTotal = treasuryCards.reduce((acc, card) => acc + card.value, 0);
-  const manualAssetsTotal = manualAssets.reduce((acc, asset) => acc + (assetBalances.get(asset.id) || 0), 0);
+  // Ensure all values are numbers
+  const safeCaisse = Number(caisseBalance) || 0;
+  const safeBaridi = Number(baridiBalance) || 0;
+  const safePortfolio = Number(portfolioValue) || 0;
+
+  const manualCardsTotal = treasuryCards.reduce((acc, card) => acc + (Number(card.value) || 0), 0);
 
   // Position Nette = Avance - Dettes
-  // If Positive: Net Liability (We owe more than we are owed) -> Reduces Capital
-  // If Negative: Net Asset (We are owed more than we owe) -> Increases Capital
   const positionNette = totalAvances - dettesAbs;
 
-  // Capital Total = Caisse + Baridi + Stock + Manual + ManualAssets - Position Nette
-  const capitalTotal = caisseBalance + baridiBalance + portfolioValue + manualCardsTotal + manualAssetsTotal - positionNette;
+  // Capital Total = Assets - (Avances - Dettes)
+  const capitalTotal = safeCaisse + safeBaridi + safePortfolio + manualCardsTotal - positionNette;
 
   // Helper for formatting currency
   const formatDZD = (amount: number) => amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

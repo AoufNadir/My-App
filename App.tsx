@@ -394,6 +394,8 @@ function MainApp({ user }: { user: firebase.User }) {
     const handleCreateAssetTransaction = async (data: Omit<ManualAssetTransaction, 'id'>) => {
         setIsSaving(true);
         try {
+            const batch = db.batch();
+
             // Ensure numeric amount and remove undefined values
             const rawPayload = {
                 ...data,
@@ -401,7 +403,35 @@ function MainApp({ user }: { user: firebase.User }) {
             };
             const payload = JSON.parse(JSON.stringify(rawPayload));
 
-            await userDocRef.collection('actifTransactions').add(payload);
+            // Create the asset transaction
+            const assetTxRef = userDocRef.collection('actifTransactions').doc();
+            batch.set(assetTxRef, payload);
+
+            // If payment_received with cash or baridi, create linked treasury transaction
+            if (data.type === 'payment_received' && (data.paymentMethod === 'cash' || data.paymentMethod === 'baridi')) {
+                // Get client and asset names for notes
+                const client = manualAssetClients.find(c => c.id === data.clientId);
+                const asset = manualAssets.find(a => a.id === data.actifId);
+
+                const treasuryTxRef = userDocRef.collection('treasury_txs').doc();
+                const treasuryPayload = {
+                    timestamp: data.timestamp,
+                    date: data.date,
+                    time: data.time,
+                    type: 'Ajout',
+                    source: data.paymentMethod === 'cash' ? 'Caisse' : 'BaridiMob',
+                    amount: Math.abs(Number(data.amount)),
+                    notes: `Paiement de ${client?.fullName || 'Client'} - ${asset?.name || 'Actif'}`,
+                    origin: 'manual_asset',
+                    linkedAssetTxId: assetTxRef.id
+                };
+                batch.set(treasuryTxRef, treasuryPayload);
+
+                // Update asset transaction with link to treasury tx
+                batch.update(assetTxRef, { linkedTreasuryTxId: treasuryTxRef.id });
+            }
+
+            await batch.commit();
             setAlert('✅ Transaction ajoutée.');
         } catch (e: any) {
             console.error("Error creating transaction:", e);
@@ -415,7 +445,21 @@ function MainApp({ user }: { user: firebase.User }) {
     const handleDeleteAssetTransaction = async (txId: string) => {
         setIsSaving(true);
         try {
-            await userDocRef.collection('actifTransactions').doc(txId).delete();
+            const batch = db.batch();
+
+            // Get the asset transaction to check for linked treasury tx
+            const assetTxDoc = await userDocRef.collection('actifTransactions').doc(txId).get();
+            const assetTxData = assetTxDoc.data() as ManualAssetTransaction | undefined;
+
+            // Delete the asset transaction
+            batch.delete(userDocRef.collection('actifTransactions').doc(txId));
+
+            // If there's a linked treasury transaction, delete it too
+            if (assetTxData?.linkedTreasuryTxId) {
+                batch.delete(userDocRef.collection('treasury_txs').doc(assetTxData.linkedTreasuryTxId));
+            }
+
+            await batch.commit();
             setAlert('✅ Transaction supprimée.');
         } catch (e) {
             console.error(e);
@@ -488,12 +532,21 @@ function MainApp({ user }: { user: firebase.User }) {
     const clientStats = useMemo(() => {
         let totalDettes = 0;
         let totalAvances = 0;
+
+        // Standard Clients
         clientBalances.forEach(balance => {
             if (balance < 0) totalDettes += balance;
             else if (balance > 0) totalAvances += balance;
         });
+
+        // Manual Assets (Cards)
+        assetBalances.forEach(balance => {
+            if (balance < 0) totalDettes += balance;
+            else if (balance > 0) totalAvances += balance;
+        });
+
         return { totalDettes, totalAvances };
-    }, [clientBalances]);
+    }, [clientBalances, assetBalances]);
 
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
     const [editingClient, setEditingClient] = useState<ClientDzd | null>(null);
@@ -635,6 +688,52 @@ function MainApp({ user }: { user: firebase.User }) {
         } catch (e) {
             console.error(e);
             setAlert('❌ Erreur lors de l\'ajustement.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleUpdateAssetClient = async (clientId: string, data: { fullName: string, phone?: string, email?: string, notes?: string, balance?: number }) => {
+        setIsSaving(true);
+        try {
+            const updatePayload: any = {
+                fullName: data.fullName.trim(),
+                phone: data.phone?.trim() || '',
+                email: data.email?.trim() || '',
+                notes: data.notes?.trim() || '',
+                updatedAt: Date.now()
+            };
+
+            await userDocRef.collection('manual_asset_clients').doc(clientId).update(updatePayload);
+
+            // Handle Balance Adjustment
+            if (data.balance !== undefined) {
+                // Find assetId for this client
+                const client = manualAssetClients.find(c => c.id === clientId);
+                if (client) {
+                    const currentBalance = assetClientBalances.get(`${client.assetId}_${clientId}`) || 0;
+                    const diff = data.balance - currentBalance;
+
+                    if (Math.abs(diff) > 0.01) {
+                        const now = new Date();
+                        await userDocRef.collection('actifTransactions').add({
+                            actifId: client.assetId,
+                            clientId: clientId,
+                            type: 'adjustment',
+                            amount: diff,
+                            date: now.toLocaleDateString('fr-FR'),
+                            time: now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+                            timestamp: now.getTime(),
+                            notes: 'Ajustement manuel du solde'
+                        });
+                    }
+                }
+            }
+
+            setAlert('✅ Client mis à jour.');
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur.');
         } finally {
             setIsSaving(false);
         }
@@ -1376,10 +1475,10 @@ function MainApp({ user }: { user: firebase.User }) {
     const handleDeleteTreasuryTxConfirm = async () => {
         if (!treasuryTxToDelete) return;
 
-        // 1. Check if it's a CHILD transaction (linked to a Client Tx or USDT Tx)
-        // If origin is 'client_tx' or 'usdt_tx', it's a child -> Prevent Delete
+        // 1. Check if it's a CHILD transaction (linked to a Client Tx, USDT Tx, or Manual Asset)
+        // If origin is 'client_tx', 'usdt_tx', or 'manual_asset', it's a child -> Prevent Delete
         // Fallback: if linkedTxId exists but no origin, assume it's a child (safe default for old data)
-        if (treasuryTxToDelete.origin === 'client_tx' || treasuryTxToDelete.origin === 'usdt_tx' || (treasuryTxToDelete.linkedTxId && !treasuryTxToDelete.origin)) {
+        if (treasuryTxToDelete.origin === 'client_tx' || treasuryTxToDelete.origin === 'usdt_tx' || treasuryTxToDelete.origin === 'manual_asset' || (treasuryTxToDelete.linkedTxId && !treasuryTxToDelete.origin)) {
             setAlert('⚠️ Impossible de supprimer : Cette transaction est liée. Supprimez la transaction d\'origine.');
             setTreasuryTxToDelete(null);
             return;
@@ -1595,6 +1694,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                 onBack={() => setSelectedAssetId(null)}
                                 onSelectClient={(client) => setSelectedAssetClientId(client.id)}
                                 onCreateClient={(fullName, phone, email, notes) => handleCreateAssetClient(selectedAssetId, fullName, phone, email, notes)}
+                                onUpdateClient={handleUpdateAssetClient}
                                 onDeleteClient={(clientId) => handleDeleteAssetClient(selectedAssetId, clientId)}
                                 isDark={isDark}
                                 cardBase={cardBase}

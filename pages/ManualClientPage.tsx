@@ -38,7 +38,7 @@ export function ManualClientPage({
     subtleText
 }: ManualClientPageProps) {
     const [isTxModalOpen, setIsTxModalOpen] = useState(false);
-    const [txType, setTxType] = useState<'service' | 'payment_received' | 'payment_made'>('service');
+    const [txType, setTxType] = useState<'service' | 'payment_received'>('service');
     const [amount, setAmount] = useState('');
     const [serviceType, setServiceType] = useState('');
     const [notes, setNotes] = useState('');
@@ -51,23 +51,11 @@ export function ManualClientPage({
         if (isNaN(val) || val <= 0) return;
 
         // Logic:
-        // Service (Income for us, Debt for client) -> Negative Balance (Client owes us) OR Positive?
-        // Let's stick to the system standard:
-        // Credit (Money we have) = Positive
-        // Debt (Money owed to us) = Negative (usually in this app 'Dettes' is negative)
-        // BUT in the main app:
-        // "Règlement Reçu" (Client pays us) -> Increases Balance (Positive)
-        // "Vente" (We sell to client) -> Decreases Balance (Negative)
-
-        // So:
-        // Service Provided -> Negative Amount (Client Debt increases)
+        // Service (Income for us, Debt for client) -> Negative Balance (Client owes us)
         // Payment Received -> Positive Amount (Client Debt decreases / Balance increases)
 
         let finalAmount = val;
         if (txType === 'service') {
-            finalAmount = -val;
-        } else if (txType === 'payment_made') {
-            // We pay the client (Refund?) -> Negative
             finalAmount = -val;
         }
         // payment_received -> Positive
@@ -136,7 +124,7 @@ export function ManualClientPage({
                                     <div className="font-bold text-sm">
                                         {tx.type === 'service' ? `Service: ${tx.serviceType || 'Autre'}` :
                                             tx.type === 'payment_received' ? 'Règlement Reçu' :
-                                                tx.type === 'payment_made' ? 'Paiement Effectué' : 'Ajustement'}
+                                                tx.type === 'adjustment' ? 'Ajustement Solde' : 'Opération'}
                                     </div>
                                     <div className={`text-xs ${subtleText}`}>
                                         {tx.date} à {tx.time} • {tx.notes || 'Pas de notes'}

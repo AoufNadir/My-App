@@ -47,6 +47,8 @@ export interface TreasuryTx {
   amount: number;
   notes?: string;
   linkedTxId?: string;
+  origin?: 'manual_asset' | 'client_tx' | 'usdt_tx'; // Source of the transaction
+  linkedAssetTxId?: string; // Link back to actifTransactions
 }
 
 export interface TreasuryCard {
@@ -97,4 +99,5 @@ export interface ManualAssetTransaction {
   notes?: string;
   paymentMethod?: 'cash' | 'baridi' | 'credit';
   runningBalance?: number; // Balance after this transaction (for client within asset)
+  linkedTreasuryTxId?: string; // Link to treasury_txs (when payment_received with cash/baridi)
 }
