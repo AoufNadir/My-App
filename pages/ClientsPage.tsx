@@ -152,17 +152,7 @@ export function ClientsPage(props: ClientsPageProps) {
         )}
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          <Button onClick={() => openClientTxModal(null, 'Règlement Reçu')} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-1 text-sm">
-            <ArrowDownIcon className="w-4 h-4" /> Règlement Reçu
-          </Button>
-          <Button onClick={() => openClientTxModal(null, 'Paiement Effectué')} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-1 text-sm">
-            <ArrowUpIcon className="w-4 h-4" /> Paiement Effectué
-          </Button>
-          <Button onClick={() => setIsTransferModalOpen(true)} className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-1 text-sm">
-            <ArrowRightLeftIcon className="w-4 h-4" /> Transfer Client
-          </Button>
-        </div>
+
 
         {/* FEATURE 2: Historique Redesign */}
         <Card className={cardBase}>
@@ -286,35 +276,11 @@ export function ClientsPage(props: ClientsPageProps) {
             </div>
 
             {/* Full Width Buttons */}
-            <div className="flex flex-col sm:flex-row gap-2 w-full">
-              <div className="flex-1">
-                <Dropdown
-                  trigger={
-                    <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
-                      <PlusIcon className="w-5 h-5" />
-                      <span>Nouvelle Opération</span>
-                    </Button>
-                  }
-                  align="start"
-                  contentClassName="w-full"
-                >
-                  <DropdownItem onClick={() => openClientTxModal(null, 'Règlement Reçu')} icon={<ArrowDownIcon className="w-4 h-4 text-green-500" />}>
-                    <span className="text-gray-900 dark:text-gray-100 font-medium">Règlement Reçu</span>
-                  </DropdownItem>
-                  <DropdownItem onClick={() => openClientTxModal(null, 'Paiement Effectué')} icon={<ArrowUpIcon className="w-4 h-4 text-red-500" />}>
-                    <span className="text-gray-900 dark:text-gray-100 font-medium">Paiement Effectué</span>
-                  </DropdownItem>
-                  <DropdownItem onClick={() => setIsTransferModalOpen(true)} icon={<ArrowRightLeftIcon className="w-4 h-4 text-sky-500" />}>
-                    <span className="text-gray-900 dark:text-gray-100 font-medium">Transfer Client</span>
-                  </DropdownItem>
-                </Dropdown>
-              </div>
-              <div className="flex-1">
-                <Button onClick={() => openClientModal(null)} className={`w-full py-3 rounded-xl font-bold border transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                  <UserIcon className="w-5 h-5" />
-                  <span>Nouveau Client</span>
-                </Button>
-              </div>
+            <div className="w-full">
+              <Button onClick={() => openClientModal(null)} className={`w-full py-3 rounded-xl font-bold border transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                <UserIcon className="w-5 h-5" />
+                <span>Nouveau Client</span>
+              </Button>
             </div>
           </div>
         </CardHeader>

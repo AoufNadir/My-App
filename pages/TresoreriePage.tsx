@@ -10,7 +10,7 @@ import { SparklesIcon } from '../components/icons/SparklesIcon';
 import { PlusIcon } from '../components/icons/PlusIcon';
 import { Trash2Icon } from '../components/icons/Trash2Icon';
 import { PencilIcon } from '../components/icons/PencilIcon';
-import { TreasuryCard } from '../types';
+import { TreasuryCard, ManualAsset, ManualAssetClient } from '../types';
 
 type TresoreriePageProps = {
   isDark: boolean;
@@ -26,6 +26,14 @@ type TresoreriePageProps = {
   openTreasuryCardModal: (card?: TreasuryCard) => void;
   setTreasuryCardToDelete: (card: TreasuryCard | null) => void;
   openTreasuryBalanceEditModal: (asset: 'Caisse' | 'BaridiMob') => void;
+
+  // Manual Assets Props
+  manualAssets: ManualAsset[];
+  manualAssetClients: ManualAssetClient[];
+  assetBalances: Map<string, number>;
+  onOpenManualAsset: (asset: ManualAsset) => void;
+  onOpenCreateManualAsset: () => void;
+  onDeleteManualAsset: (assetId: string) => void;
 };
 
 export function TresoreriePage({
@@ -41,7 +49,13 @@ export function TresoreriePage({
   treasuryCards,
   openTreasuryCardModal,
   setTreasuryCardToDelete,
-  openTreasuryBalanceEditModal
+  openTreasuryBalanceEditModal,
+  manualAssets,
+  manualAssetClients,
+  assetBalances,
+  onOpenManualAsset,
+  onOpenCreateManualAsset,
+  onDeleteManualAsset
 }: TresoreriePageProps) {
 
   // Formula requested: = Caisse + Baridi + Stock - (Avances - Dettes)
@@ -55,14 +69,15 @@ export function TresoreriePage({
   // Adjusted to match user formula structure: Assets - (Payables - Receivables) -> Assets - (Avances - DettesAbs)
   // Adjusted to match user formula structure: Assets - (Payables - Receivables) -> Assets - (Avances - DettesAbs)
   const manualCardsTotal = treasuryCards.reduce((acc, card) => acc + card.value, 0);
+  const manualAssetsTotal = manualAssets.reduce((acc, asset) => acc + (assetBalances.get(asset.id) || 0), 0);
 
   // Position Nette = Avance - Dettes
   // If Positive: Net Liability (We owe more than we are owed) -> Reduces Capital
   // If Negative: Net Asset (We are owed more than we owe) -> Increases Capital
   const positionNette = totalAvances - dettesAbs;
 
-  // Capital Total = Caisse + Baridi + Stock + Manual - Position Nette
-  const capitalTotal = caisseBalance + baridiBalance + portfolioValue + manualCardsTotal - positionNette;
+  // Capital Total = Caisse + Baridi + Stock + Manual + ManualAssets - Position Nette
+  const capitalTotal = caisseBalance + baridiBalance + portfolioValue + manualCardsTotal + manualAssetsTotal - positionNette;
 
   // Helper for formatting currency
   const formatDZD = (amount: number) => amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -159,10 +174,10 @@ export function TresoreriePage({
           </p>
         </div>
 
-        {/* Row 4: Manual Cards */}
+        {/* Row 4: Manual Cards (Legacy) */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>Cartes & Actifs Manuels</h3>
+            <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>Cartes de Trésorerie (Simple)</h3>
             <Button onClick={() => openTreasuryCardModal()} className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg flex items-center gap-2 text-sm font-bold">
               <PlusIcon className="w-4 h-4" /> Ajouter
             </Button>
@@ -198,6 +213,56 @@ export function TresoreriePage({
           ) : (
             <div className={`p-8 rounded-2xl border border-dashed text-center ${isDark ? 'border-slate-700 text-slate-500' : 'border-slate-300 text-slate-400'}`}>
               Aucune carte ajoutée.
+            </div>
+          )}
+        </div>
+
+        {/* Row 5: Manual Assets (Advanced) */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>Actifs Manuels (Avancé)</h3>
+            <Button onClick={onOpenCreateManualAsset} className="bg-teal-600 hover:bg-teal-700 text-white p-2 rounded-lg flex items-center gap-2 text-sm font-bold">
+              <PlusIcon className="w-4 h-4" /> Créer
+            </Button>
+          </div>
+
+          {manualAssets.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {manualAssets.map(asset => {
+                const balance = assetBalances.get(asset.id) || 0;
+                // Count clients for this asset
+                const clientCount = manualAssetClients.filter(c => c.assetId === asset.id).length;
+
+                return (
+                  <div
+                    key={asset.id}
+                    onClick={() => onOpenManualAsset(asset)}
+                    className={`p-5 rounded-2xl shadow-sm border transition-all relative group cursor-pointer hover:scale-[1.02] ${isDark ? 'bg-[#1E293B] border-[#334155] hover:bg-[#263345]' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                  >
+                    <div className={`flex items-center justify-between text-sm font-medium mb-2 ${subtleText}`}>
+                      <span>{asset.name}</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onDeleteManualAsset(asset.id); }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-red-500/20 rounded-full text-red-500"
+                        >
+                          <Trash2Icon className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className={`text-2xl font-bold ${balance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {formatDZD(balance)} <span className={`text-sm font-normal ${subtleText}`}>DZD</span>
+                    </div>
+                    <div className={`text-xs mt-2 ${subtleText} flex items-center gap-2`}>
+                      <span className="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">{clientCount} Clients</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className={`p-8 rounded-2xl border border-dashed text-center ${isDark ? 'border-slate-700 text-slate-500' : 'border-slate-300 text-slate-400'}`}>
+              Aucun actif manuel créé.
             </div>
           )}
         </div>

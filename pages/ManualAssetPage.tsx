@@ -1,0 +1,165 @@
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Card, CardHeader, CardContent } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Label } from '../components/ui/Label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
+import { ArrowLeftIcon } from '../components/icons/ArrowLeftIcon';
+import { PlusIcon } from '../components/icons/PlusIcon';
+import { SearchIcon } from '../components/icons/SearchIcon';
+import { UserIcon } from '../components/icons/UserIcon';
+import { Trash2Icon } from '../components/icons/Trash2Icon';
+import { ManualAsset, ManualAssetClient } from '../types';
+
+type ManualAssetPageProps = {
+    asset: ManualAsset;
+    clients: ManualAssetClient[];
+    clientBalances: Map<string, number>;
+    onBack: () => void;
+    onSelectClient: (client: ManualAssetClient) => void;
+    onCreateClient: (fullName: string, phone?: string, email?: string, notes?: string) => void;
+    onDeleteClient: (clientId: string) => void;
+    isDark: boolean;
+    cardBase: string;
+    fieldBase: string;
+    subtleText: string;
+};
+
+export function ManualAssetPage({
+    asset,
+    clients,
+    clientBalances,
+    onBack,
+    onSelectClient,
+    onCreateClient,
+    onDeleteClient,
+    isDark,
+    cardBase,
+    fieldBase,
+    subtleText
+}: ManualAssetPageProps) {
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isCreateClientModalOpen, setIsCreateClientModalOpen] = useState(false);
+    const [newClientName, setNewClientName] = useState('');
+    const [newClientPhone, setNewClientPhone] = useState('');
+    const [newClientEmail, setNewClientEmail] = useState('');
+    const [newClientNotes, setNewClientNotes] = useState('');
+
+    const filteredClients = clients.filter(c =>
+        c.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.phone && c.phone.includes(searchQuery))
+    );
+
+    const totalBalance = Array.from(clientBalances.values()).reduce((acc, val) => acc + val, 0);
+    const totalClients = clients.length;
+
+    const handleCreate = () => {
+        if (!newClientName.trim()) return;
+        onCreateClient(newClientName, newClientPhone, newClientEmail, newClientNotes);
+        setIsCreateClientModalOpen(false);
+        setNewClientName('');
+        setNewClientPhone('');
+        setNewClientEmail('');
+        setNewClientNotes('');
+    };
+
+    return (
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center gap-4">
+                <Button onClick={onBack} className={`p-2 rounded-full ${isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-600 hover:bg-slate-100'}`}>
+                    <ArrowLeftIcon className="w-6 h-6" />
+                </Button>
+                <div>
+                    <h1 className="text-2xl font-bold">{asset.name}</h1>
+                    <p className={`text-sm ${subtleText}`}>{asset.description || 'Gestion des clients et opérations'}</p>
+                </div>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+                    <div className={`text-sm font-medium mb-1 ${subtleText}`}>Solde Total (Estimé)</div>
+                    <div className={`text-2xl font-bold ${totalBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {totalBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="text-sm text-gray-500">DZD</span>
+                    </div>
+                </div>
+                <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+                    <div className={`text-sm font-medium mb-1 ${subtleText}`}>Nombre de Clients</div>
+                    <div className="text-2xl font-bold">{totalClients}</div>
+                </div>
+            </div>
+
+            {/* Clients List Section */}
+            <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row gap-4 justify-between items-center">
+                    <div className="relative w-full sm:w-auto flex-1">
+                        <SearchIcon className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${subtleText}`} />
+                        <Input
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className={`${fieldBase} pl-9 w-full`}
+                            placeholder="Rechercher un client..."
+                        />
+                    </div>
+                    <Button onClick={() => setIsCreateClientModalOpen(true)} className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2">
+                        <PlusIcon className="w-5 h-5" /> Nouveau Client
+                    </Button>
+                </div>
+
+                <div className="divide-y divide-gray-200 dark:divide-gray-800">
+                    {filteredClients.length > 0 ? (
+                        filteredClients.map(client => {
+                            const balance = clientBalances.get(`${asset.id}_${client.id}`) || 0;
+                            return (
+                                <div key={client.id} className={`p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group`} onClick={() => onSelectClient(client)}>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2.5 rounded-full ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
+                                            <UserIcon className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <div className="font-bold">{client.fullName}</div>
+                                            <div className={`text-xs ${subtleText}`}>{client.phone || 'Pas de téléphone'}</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className={`text-right font-bold ${balance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                            {balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="text-xs opacity-70">DZD</span>
+                                        </div>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onDeleteClient(client.id); }}
+                                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-500/10 rounded-full transition-all"
+                                        >
+                                            <Trash2Icon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <div className="p-8 text-center opacity-50">
+                            Aucun client trouvé.
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Create Client Modal */}
+            <Dialog isOpen={isCreateClientModalOpen} onClose={() => setIsCreateClientModalOpen(false)} className={`${cardBase} max-w-md`}>
+                <DialogHeader onClose={() => setIsCreateClientModalOpen(false)} isDark={isDark}>
+                    <DialogTitle>Nouveau Client</DialogTitle>
+                </DialogHeader>
+                <DialogContent className="px-6 pb-6 space-y-4">
+                    <div><Label>Nom Complet</Label><Input value={newClientName} onChange={e => setNewClientName(e.target.value)} className={fieldBase} placeholder="Ex: Agence X" /></div>
+                    <div><Label>Téléphone (Optionnel)</Label><Input value={newClientPhone} onChange={e => setNewClientPhone(e.target.value)} className={fieldBase} /></div>
+                    <div><Label>Email (Optionnel)</Label><Input value={newClientEmail} onChange={e => setNewClientEmail(e.target.value)} className={fieldBase} /></div>
+                    <div><Label>Notes (Optionnel)</Label><Input value={newClientNotes} onChange={e => setNewClientNotes(e.target.value)} className={fieldBase} /></div>
+                </DialogContent>
+                <DialogFooter>
+                    <Button onClick={handleCreate} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">Créer le Client</Button>
+                </DialogFooter>
+            </Dialog>
+        </motion.div>
+    );
+}

@@ -44,6 +44,8 @@ import { TransactionsPage } from './pages/TransactionsPage';
 import { PortfolioPage } from './pages/PortfolioPage';
 import { ClientsPage } from './pages/ClientsPage';
 import { TresoreriePage } from './pages/TresoreriePage';
+import { ManualAssetPage } from './pages/ManualAssetPage';
+import { ManualClientPage } from './pages/ManualClientPage';
 import { NumberInput } from './components/ui/NumberInput';
 import { ReportModal } from './components/ReportModal';
 
@@ -274,7 +276,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
     const [manualAssetTransactions, setManualAssetTransactions] = useState<ManualAssetTransaction[]>([]);
     useEffect(() => {
-        const unsubscribe = userDocRef.collection('manual_asset_transactions').orderBy('timestamp', 'desc').onSnapshot((snapshot: firebase.firestore.QuerySnapshot) => {
+        const unsubscribe = userDocRef.collection('actifTransactions').orderBy('timestamp', 'desc').onSnapshot((snapshot: firebase.firestore.QuerySnapshot) => {
             setManualAssetTransactions(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as ManualAssetTransaction[]);
         });
         return () => unsubscribe();
@@ -288,8 +290,8 @@ function MainApp({ user }: { user: firebase.User }) {
     const assetBalances = useMemo(() => {
         const map = new Map<string, number>();
         manualAssetTransactions.forEach(tx => {
-            const current = map.get(tx.assetId) || 0;
-            map.set(tx.assetId, current + tx.amount);
+            const current = map.get(tx.actifId) || 0;
+            map.set(tx.actifId, current + tx.amount);
         });
         return map;
     }, [manualAssetTransactions]);
@@ -297,7 +299,7 @@ function MainApp({ user }: { user: firebase.User }) {
     const assetClientBalances = useMemo(() => {
         const map = new Map<string, number>();
         manualAssetTransactions.forEach(tx => {
-            const key = `${tx.assetId}_${tx.clientId}`;
+            const key = `${tx.actifId}_${tx.clientId}`;
             const current = map.get(key) || 0;
             map.set(key, current + tx.amount);
         });
@@ -327,7 +329,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
     const handleDeleteAsset = async (assetId: string) => {
         // Check if asset has transactions
-        const assetTxCount = manualAssetTransactions.filter(tx => tx.assetId === assetId).length;
+        const assetTxCount = manualAssetTransactions.filter(tx => tx.actifId === assetId).length;
         if (assetTxCount > 0) {
             setAlert("⚠️ Impossible de supprimer : L'actif possède des transactions. Supprimez-les d'abord.");
             return;
@@ -392,11 +394,19 @@ function MainApp({ user }: { user: firebase.User }) {
     const handleCreateAssetTransaction = async (data: Omit<ManualAssetTransaction, 'id'>) => {
         setIsSaving(true);
         try {
-            await userDocRef.collection('manual_asset_transactions').add(data);
+            // Ensure numeric amount and remove undefined values
+            const rawPayload = {
+                ...data,
+                amount: Number(data.amount)
+            };
+            const payload = JSON.parse(JSON.stringify(rawPayload));
+
+            await userDocRef.collection('actifTransactions').add(payload);
             setAlert('✅ Transaction ajoutée.');
-        } catch (e) {
-            console.error(e);
-            setAlert('❌ Erreur.');
+        } catch (e: any) {
+            console.error("Error creating transaction:", e);
+            console.error("Payload:", JSON.stringify({ ...data, amount: Number(data.amount) }));
+            setAlert(`❌ Erreur: ${e.message || 'Création échouée'}`);
         } finally {
             setIsSaving(false);
         }
@@ -405,7 +415,7 @@ function MainApp({ user }: { user: firebase.User }) {
     const handleDeleteAssetTransaction = async (txId: string) => {
         setIsSaving(true);
         try {
-            await userDocRef.collection('manual_asset_transactions').doc(txId).delete();
+            await userDocRef.collection('actifTransactions').doc(txId).delete();
             setAlert('✅ Transaction supprimée.');
         } catch (e) {
             console.error(e);
@@ -578,6 +588,11 @@ function MainApp({ user }: { user: firebase.User }) {
     const [treasuryBalanceEditAsset, setTreasuryBalanceEditAsset] = useState<'Caisse' | 'BaridiMob'>('Caisse');
     const [treasuryBalanceEditValue, setTreasuryBalanceEditValue] = useState('');
     const [treasuryBalanceEditNotes, setTreasuryBalanceEditNotes] = useState('');
+
+    // Create Asset Modal State
+    const [isCreateAssetModalOpen, setIsCreateAssetModalOpen] = useState(false);
+    const [newAssetName, setNewAssetName] = useState('');
+    const [newAssetDescription, setNewAssetDescription] = useState('');
 
     const openTreasuryBalanceEditModal = (asset: 'Caisse' | 'BaridiMob') => {
         setTreasuryBalanceEditAsset(asset);
@@ -1558,7 +1573,58 @@ function MainApp({ user }: { user: firebase.User }) {
 
                     {view === 'dzd' && <ClientsPage {...{ selectedClientId, setSelectedClientId, cardBase, fieldBase, isDark, subtleText, openClientModal, setIsTransferModalOpen, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances: clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete: handleClientDeleteRequest, selectedClient, selectedClientTransactions, transactions, handleExportClientReport, openClientTxModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick }} />}
 
-                    {view === 'tresorerie' && <TresoreriePage {...{ isDark, cardBase, subtleText, caisseBalance: treasuryStats.caisse, baridiBalance: treasuryStats.baridi, totalDettes: clientStats.totalDettes, totalAvances: clientStats.totalAvances, portfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), openTreasuryModal: () => openAdjustmentModal('add'), treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal }} />}
+                    {view === 'tresorerie' && (
+                        selectedAssetClientId ? (
+                            <ManualClientPage
+                                client={manualAssetClients.find(c => c.id === selectedAssetClientId)!}
+                                transactions={manualAssetTransactions.filter(tx => tx.clientId === selectedAssetClientId)}
+                                balance={assetClientBalances.get(`${selectedAssetId}_${selectedAssetClientId}`) || 0}
+                                onBack={() => setSelectedAssetClientId(null)}
+                                onAddTransaction={handleCreateAssetTransaction}
+                                onDeleteTransaction={handleDeleteAssetTransaction}
+                                isDark={isDark}
+                                cardBase={cardBase}
+                                fieldBase={fieldBase}
+                                subtleText={subtleText}
+                            />
+                        ) : selectedAssetId ? (
+                            <ManualAssetPage
+                                asset={manualAssets.find(a => a.id === selectedAssetId)!}
+                                clients={manualAssetClients.filter(c => c.assetId === selectedAssetId)}
+                                clientBalances={assetClientBalances}
+                                onBack={() => setSelectedAssetId(null)}
+                                onSelectClient={(client) => setSelectedAssetClientId(client.id)}
+                                onCreateClient={(fullName, phone, email, notes) => handleCreateAssetClient(selectedAssetId, fullName, phone, email, notes)}
+                                onDeleteClient={(clientId) => handleDeleteAssetClient(selectedAssetId, clientId)}
+                                isDark={isDark}
+                                cardBase={cardBase}
+                                fieldBase={fieldBase}
+                                subtleText={subtleText}
+                            />
+                        ) : (
+                            <TresoreriePage
+                                {...{
+                                    isDark, cardBase, subtleText,
+                                    caisseBalance: treasuryStats.caisse,
+                                    baridiBalance: treasuryStats.baridi,
+                                    totalDettes: clientStats.totalDettes,
+                                    totalAvances: clientStats.totalAvances,
+                                    portfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy),
+                                    openTreasuryModal: () => openAdjustmentModal('add'),
+                                    treasuryCards,
+                                    openTreasuryCardModal,
+                                    setTreasuryCardToDelete,
+                                    openTreasuryBalanceEditModal,
+                                    manualAssets,
+                                    manualAssetClients,
+                                    assetBalances,
+                                    onOpenManualAsset: (asset) => setSelectedAssetId(asset.id),
+                                    onOpenCreateManualAsset: () => setIsCreateAssetModalOpen(true),
+                                    onDeleteManualAsset: handleDeleteAsset
+                                }}
+                            />
+                        )
+                    )}
                 </main>
                 {/* Mobile Nav */}
                 <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 p-2 backdrop-blur-md bg-opacity-50">
@@ -1721,7 +1787,37 @@ function MainApp({ user }: { user: firebase.User }) {
                         <button onClick={() => setAdjustmentTab('subtract')} className={`py-2.5 rounded-lg font-bold text-sm transition-all ${adjustmentTab === 'subtract' ? 'bg-[#1E293B] text-white shadow-sm' : 'text-gray-500'}`}>Retirer (-)</button>
                     </div>
                     <div><Label>Type d'Actif</Label><Select value={adjustmentAsset} onChange={e => setAdjustmentAsset(e.target.value as any)} className={`${fieldBase} h-12 text-base`}><option value="DZD-Caisse">DZD - Caisse</option><option value="DZD-Baridi">DZD - BaridiMob</option><option value="USDT">USDT</option><option value="EUR">EUR</option></Select></div>
-                    <div className="relative"><Label>{adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR' ? 'Quantité' : 'Montant'}</Label><NumberInput value={adjustmentAmount} onChange={e => setAdjustmentAmount(e.target.value)} className={`${fieldBase} h-14 text-2xl font-bold text-center`} placeholder="0.00" /></div>
+
+                    <div className="relative">
+                        <Label>{adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR' ? 'Quantité' : 'Montant'}</Label>
+                        <div className="relative">
+                            <NumberInput
+                                value={adjustmentAmount}
+                                onChange={e => setAdjustmentAmount(e.target.value)}
+                                className={fieldBase}
+                                placeholder="0.00"
+                            />
+                            {/* MAX BUTTON */}
+                            {(adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && (
+                                (adjustmentTab === 'subtract') || (adjustmentTab === 'add' && adjustmentClientId)
+                            ) && (
+                                    <button
+                                        onClick={() => {
+                                            if (adjustmentTab === 'subtract') {
+                                                const bal = adjustmentAsset === 'DZD-Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+                                                setAdjustmentAmount(bal.toString());
+                                            } else if (adjustmentTab === 'add' && adjustmentClientId) {
+                                                const clientBal = Math.abs(clientBalances.get(adjustmentClientId) || 0);
+                                                setAdjustmentAmount(clientBal.toString());
+                                            }
+                                        }}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 transition-colors"
+                                    >
+                                        MAX
+                                    </button>
+                                )}
+                        </div>
+                    </div>
 
                     {(adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR') && (
                         <div><Label>Prix Unitaire (DZD)</Label><NumberInput value={adjustmentPrice} onChange={e => setAdjustmentPrice(e.target.value)} className={fieldBase} placeholder="Ex: 240.00" /></div>
@@ -1735,7 +1831,14 @@ function MainApp({ user }: { user: firebase.User }) {
                                 <option value="">-- Aucun / Sans client --</option>
                                 {clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}
                             </Select>
-                            {adjustmentClientId && <p className="text-xs mt-1 text-blue-400">Une transaction client sera générée automatiquement.</p>}
+                            {adjustmentClientId && (
+                                <div className="flex justify-between items-center mt-1">
+                                    <p className="text-xs text-blue-400">Transaction client générée.</p>
+                                    <p className={`text-xs font-bold ${subtleText}`}>
+                                        Solde: {(clientBalances.get(adjustmentClientId) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -2366,6 +2469,31 @@ function MainApp({ user }: { user: firebase.User }) {
                 </DialogFooter>
             </Dialog>
 
+            {/* NEW: CREATE MANUAL ASSET MODAL */}
+            <Dialog isOpen={isCreateAssetModalOpen} onClose={() => setIsCreateAssetModalOpen(false)} className={`${cardBase} max-w-md`}>
+                <DialogHeader onClose={() => setIsCreateAssetModalOpen(false)} isDark={isDark}>
+                    <DialogTitle>Nouvel Actif Manuel</DialogTitle>
+                </DialogHeader>
+                <DialogContent className="px-6 pb-6 space-y-4">
+                    <div>
+                        <Label>Nom de l'actif</Label>
+                        <Input value={newAssetName} onChange={e => setNewAssetName(e.target.value)} className={fieldBase} placeholder="Ex: Impression, Conception..." />
+                    </div>
+                    <div>
+                        <Label>Description (Optionnel)</Label>
+                        <Input value={newAssetDescription} onChange={e => setNewAssetDescription(e.target.value)} className={fieldBase} />
+                    </div>
+                </DialogContent>
+                <DialogFooter>
+                    <Button onClick={() => {
+                        handleCreateAsset(newAssetName, newAssetDescription);
+                        setIsCreateAssetModalOpen(false);
+                        setNewAssetName('');
+                        setNewAssetDescription('');
+                    }} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">Créer</Button>
+                </DialogFooter>
+            </Dialog>
+
             {/* TREASURY CARD MODAL */}
             <Dialog isOpen={isTreasuryCardModalOpen} onClose={() => setIsTreasuryCardModalOpen(false)} className={`${cardBase} max-w-sm`}>
                 <DialogHeader onClose={() => setIsTreasuryCardModalOpen(false)} isDark={isDark}><DialogTitle>{editingTreasuryCard ? 'Modifier Carte' : 'Ajouter une Carte'}</DialogTitle></DialogHeader>
@@ -2393,19 +2521,6 @@ function MainApp({ user }: { user: firebase.User }) {
                 <DialogHeader isDark={isDark}><DialogTitle>Supprimer Transaction ?</DialogTitle></DialogHeader>
                 <DialogContent className="p-6">
                     <p className="text-sm opacity-80">Voulez-vous vraiment supprimer cette transaction de trésorerie ?</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => setTreasuryTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>Annuler</Button>
-                    <Button onClick={handleDeleteTreasuryTxConfirm} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">Supprimer</Button>
-                </DialogFooter>
-            </Dialog>
-
-            {/* NEW: DELETE CLIENT TX CONFIRMATION */}
-            <Dialog isOpen={clientTxToDelete !== null} onClose={() => setClientTxToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>Supprimer Transaction ?</DialogTitle></DialogHeader>
-                <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">Voulez-vous vraiment supprimer cette transaction client ?</p>
                     <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
                 </DialogContent>
                 <DialogFooter>

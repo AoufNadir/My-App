@@ -86,7 +86,7 @@ export type ManualAssetTransactionType =
 
 export interface ManualAssetTransaction {
   id: string;
-  assetId: string; // Foreign key to manual_assets
+  actifId: string; // Foreign key to manual_assets
   clientId: string; // Foreign key to manual_asset_clients
   type: ManualAssetTransactionType;
   serviceType?: string; // "Design", "Impression", "Branding", etc. (when type = 'service')

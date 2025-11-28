@@ -373,9 +373,17 @@ export function TransactionsPage({
               </Button>
             </div>
 
-            <Button onClick={() => { setIsMenuOpen(false); openAdjustmentModal('add'); }} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 mt-3 ${isDark ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
-              <BriefcaseIcon className="w-4 h-4 opacity-70" />
-              Ajustement Trésorerie
+            {/* Ajustement Trésorerie Button */}
+            <Button onClick={() => { setIsMenuOpen(false); openAdjustmentModal('add'); }}
+              className={`w-full py-3 rounded-xl font-bold shadow-sm flex items-center justify-between px-4 transition-all mt-3 ${isDark ? 'bg-slate-700 text-slate-200 border border-slate-600 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'}`}>
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-600' : 'bg-white'}`}><BriefcaseIcon className="w-5 h-5" /></div>
+                <div className="text-left">
+                  <div className="text-sm font-bold">Ajustement Trésorerie</div>
+                  <div className="text-[10px] opacity-70">Entrée/Sortie Manuelle</div>
+                </div>
+              </div>
+              <ChevronRightIcon className="w-4 h-4 opacity-50" />
             </Button>
           </div>
         </DialogContent>
