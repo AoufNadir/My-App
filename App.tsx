@@ -850,7 +850,7 @@ function MainApp({ user }: { user: firebase.User }) {
         setAlert(''); setSellAmountError(''); setLinkedClientId('none');
         setBuyUsdtMode(null); setBuyEurForUsdtAmount(''); setEurDzdPrice(''); setEurUsdtRate('');
         setBuyUsdtMode(null); setBuyEurForUsdtAmount(''); setEurDzdPrice(''); setEurUsdtRate('');
-        setBuyUsdtTotal(''); setBuyEurTotal(''); setBuyUsdtWithEurTotal(''); setPaymentMethod('Espèces'); setClientPaymentStatus('cash');
+        setBuyUsdtTotal(''); setBuyEurTotal(''); setPaymentMethod('Espèces'); setClientPaymentStatus('cash');
         setEditingTx(txToEdit); setMode(newMode); setIsTotalManual(false);
         if (txToEdit) {
             if (txToEdit.type === 'buy') {
@@ -885,7 +885,7 @@ function MainApp({ user }: { user: firebase.User }) {
             }
         }
     };
-    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setBuyUsdtWithEurTotal(''); setIsTotalManual(false); };
+    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setIsTotalManual(false); };
 
     const handleBuy = async () => {
         if (!isFormValid || isSaving) return;
@@ -917,7 +917,11 @@ function MainApp({ user }: { user: firebase.User }) {
             if (isTotalManual) {
                 if (mode === 'buy_usdt' && buyUsdtMode === 'with_dzd') totalCost = parseAndEvaluate(buyUsdtTotal);
                 else if (mode === 'buy_eur') totalCost = parseAndEvaluate(buyEurTotal);
-                else if (mode === 'buy_usdt' && buyUsdtMode === 'with_eur') totalCost = parseAndEvaluate(buyUsdtWithEurTotal);
+                // For EUR to USDT purchases, always use calculated total (no manual total field)
+                else if (mode === 'buy_usdt' && buyUsdtMode === 'with_eur' && usdtFromEurCalc) totalCost = usdtFromEurCalc.totalCostDzd;
+            } else if (mode === 'buy_usdt' && buyUsdtMode === 'with_eur' && usdtFromEurCalc) {
+                // Always use calculated total for EUR purchases
+                totalCost = usdtFromEurCalc.totalCostDzd;
             }
 
             const { date, time, timestamp } = now();
@@ -2146,19 +2150,6 @@ function MainApp({ user }: { user: firebase.User }) {
                                                         value={buyEurForUsdtAmount}
                                                         onChange={e => {
                                                             setBuyEurForUsdtAmount(e.target.value);
-                                                            // Auto-calculate total when EUR quantity changes ONLY IF NOT MANUAL
-                                                            if (!isTotalManual) {
-                                                                const eurQty = parseAndEvaluate(e.target.value);
-                                                                const eurPrice = parseAndEvaluate(eurDzdPrice);
-                                                                const rate = parseAndEvaluate(eurUsdtRate);
-                                                                if (eurQty > 0 && eurPrice > 0 && rate > 0) {
-                                                                    const usdtQty = eurQty / rate;
-                                                                    const usdtPrice = eurPrice * rate;
-                                                                    setBuyUsdtWithEurTotal((usdtQty * usdtPrice).toFixed(2));
-                                                                } else if (eurQty === 0 || e.target.value === '') {
-                                                                    setBuyUsdtWithEurTotal('');
-                                                                }
-                                                            }
                                                         }}
                                                         className={fieldBase}
                                                     />
@@ -2173,19 +2164,6 @@ function MainApp({ user }: { user: firebase.User }) {
                                                     value={eurDzdPrice}
                                                     onChange={e => {
                                                         setEurDzdPrice(e.target.value);
-                                                        // Auto-calculate total when EUR price changes ONLY IF NOT MANUAL
-                                                        if (!isTotalManual) {
-                                                            const eurQty = parseAndEvaluate(buyEurForUsdtAmount);
-                                                            const eurPrice = parseAndEvaluate(e.target.value);
-                                                            const rate = parseAndEvaluate(eurUsdtRate);
-                                                            if (eurQty > 0 && eurPrice > 0 && rate > 0) {
-                                                                const usdtQty = eurQty / rate;
-                                                                const usdtPrice = eurPrice * rate;
-                                                                setBuyUsdtWithEurTotal((usdtQty * usdtPrice).toFixed(2));
-                                                            } else if (eurPrice === 0 || e.target.value === '') {
-                                                                setBuyUsdtWithEurTotal('');
-                                                            }
-                                                        }
                                                     }}
                                                     className={fieldBase}
                                                 />
@@ -2197,54 +2175,42 @@ function MainApp({ user }: { user: firebase.User }) {
                                                     value={eurUsdtRate}
                                                     onChange={e => {
                                                         setEurUsdtRate(e.target.value);
-                                                        // Auto-calculate total when exchange rate changes ONLY IF NOT MANUAL
-                                                        if (!isTotalManual) {
-                                                            const eurQty = parseAndEvaluate(buyEurForUsdtAmount);
-                                                            const eurPrice = parseAndEvaluate(eurDzdPrice);
-                                                            const rate = parseAndEvaluate(e.target.value);
-                                                            if (eurQty > 0 && eurPrice > 0 && rate > 0) {
-                                                                const usdtQty = eurQty / rate;
-                                                                const usdtPrice = eurPrice * rate;
-                                                                setBuyUsdtWithEurTotal((usdtQty * usdtPrice).toFixed(2));
-                                                            } else if (rate === 0 || e.target.value === '') {
-                                                                setBuyUsdtWithEurTotal('');
-                                                            }
-                                                        }
                                                     }}
                                                     className={fieldBase}
                                                     placeholder="Ex: 0.92"
                                                 />
                                             </div>
 
-                                            <div>
-                                                <Label>Montant Total (DZD)</Label>
-                                                <NumberInput
-                                                    value={buyUsdtWithEurTotal}
-                                                    onChange={e => {
-                                                        const val = e.target.value;
-                                                        setBuyUsdtWithEurTotal(val);
-                                                        if (val) {
-                                                            setIsTotalManual(true);
-                                                        } else {
-                                                            setIsTotalManual(false);
-                                                            // Immediate auto-calc when cleared
-                                                            const eurQty = parseAndEvaluate(buyEurForUsdtAmount);
-                                                            const eurPrice = parseAndEvaluate(eurDzdPrice);
-                                                            const rate = parseAndEvaluate(eurUsdtRate);
-                                                            if (eurQty > 0 && eurPrice > 0 && rate > 0) {
-                                                                const usdtQty = eurQty / rate;
-                                                                const usdtPrice = eurPrice * rate;
-                                                                setBuyUsdtWithEurTotal((usdtQty * usdtPrice).toFixed(2));
-                                                            }
-                                                        }
-                                                    }}
-                                                    className={fieldBase}
-                                                    placeholder="Calculé automatiquement"
-                                                />
-                                                <p className={`text-xs mt-1 ${subtleText}`}>Calcul : (EUR ÷ Taux) × (Prix EUR × Taux)</p>
-                                            </div>
+                                            {/* Calculated USDT Quantity Message */}
+                                            {(() => {
+                                                const eurQty = parseAndEvaluate(buyEurForUsdtAmount);
+                                                const rate = parseAndEvaluate(eurUsdtRate);
+                                                const usdtQty = (eurQty > 0 && rate > 0) ? (eurQty / rate) : 0;
+                                                const currentUsdtBalance = portfolioStats.usdt.available;
+                                                const totalAfterPurchase = currentUsdtBalance + usdtQty;
 
-                                            <ClientLinker {...{ isEditing: !!editingTx, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
+                                                if (usdtQty > 0) {
+                                                    return (
+                                                        <div className="p-3 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-xl space-y-2">
+                                                            <div>
+                                                                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Quantité USDT à recevoir</p>
+                                                                <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">
+                                                                    {usdtQty.toFixed(2)} USDT
+                                                                </p>
+                                                            </div>
+
+                                                            <div className="pt-2 border-t border-emerald-500/20">
+                                                                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Solde total après achat</p>
+                                                                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
+                                                                    {totalAfterPurchase.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
+
                                             <div><Label>Notes (Optionnel)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} /></div>
                                         </>
                                     )}
