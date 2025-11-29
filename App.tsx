@@ -48,6 +48,8 @@ import { ManualAssetPage } from './pages/ManualAssetPage';
 import { ManualClientPage } from './pages/ManualClientPage';
 import { NumberInput } from './components/ui/NumberInput';
 import { ReportModal } from './components/ReportModal';
+import { BellIcon } from './components/icons/BellIcon';
+import { NotificationPanel, Notification } from './components/NotificationPanel';
 
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
@@ -204,6 +206,12 @@ function MainApp({ user }: { user: firebase.User }) {
     const [txToDelete, setTxToDelete] = useState<Tx | null>(null);
     const [suggestedProfitMargin, setSuggestedProfitMargin] = useState('2');
     const [linkedClientId, setLinkedClientId] = useState('none');
+
+    // ===== NOTIFICATION SYSTEM =====
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
+    const [lastPamValue, setLastPamValue] = useState<number | null>(null);
+    const [lastCheckDate, setLastCheckDate] = useState<string>('');
 
     const [view, setView] = useState<'transactions' | 'statistiques' | 'dzd' | 'tresorerie'>(() => {
         const savedView = localStorage.getItem('app_view');
@@ -786,6 +794,178 @@ function MainApp({ user }: { user: firebase.User }) {
         eurStats.avgBuy = (eurStats.purchasedQty > 0) ? eurStats.costBasis / eurStats.purchasedQty : 0;
         return { usdt: usdtStats, eur: eurStats };
     }, [transactions]);
+
+    // ===== NOTIFICATION SYSTEM LOGIC =====
+    // 1. Client Debt Alerts (7 & 10+ days)
+    const clientDebtAlerts = useMemo(() => {
+        const alerts: Notification[] = [];
+        const today = new Date();
+
+        clientsDzd.forEach(client => {
+            const balance = clientBalances.get(client.id) || 0;
+            if (balance >= 0) return; // No debt
+
+            // Find oldest debt transaction
+            const clientTxs = clientTransactionsDzd
+                .filter(tx => tx.clientId === client.id && tx.montant < 0)
+                .sort((a, b) => a.timestamp - b.timestamp);
+
+            if (clientTxs.length === 0) return;
+
+            const oldestDebtDate = new Date(clientTxs[0].timestamp);
+            const daysSinceDebt = Math.floor((today.getTime() - oldestDebtDate.getTime()) / (1000 * 60 * 60 * 24));
+
+            // Alert rouge: > 10 jours
+            if (daysSinceDebt > 10) {
+                alerts.push({
+                    id: `debt_critical_${client.id}`,
+                    type: 'client_debt_critical',
+                    priority: 1,
+                    title: 'Dette Cliente Critique',
+                    message: `Alerte : le client ${client.fullName || client.nom} a une dette depuis ${daysSinceDebt} jours – montant : ${Math.abs(balance).toFixed(2)} DZD`,
+                    timestamp: Date.now(),
+                    read: false,
+                    color: 'red',
+                    data: { clientId: client.id, days: daysSinceDebt, amount: balance }
+                });
+            }
+            // Alert jaune: >= 7 jours (mais <= 10)
+            else if (daysSinceDebt >= 7) {
+                alerts.push({
+                    id: `debt_warning_${client.id}`,
+                    type: 'client_debt_warning',
+                    priority: 2,
+                    title: 'Rappel Dette Client',
+                    message: `Rappel : le client ${client.fullName || client.nom} a une dette depuis ${daysSinceDebt} jours, veuillez le suivre.`,
+                    timestamp: Date.now(),
+                    read: false,
+                    color: 'yellow',
+                    data: { clientId: client.id, days: daysSinceDebt, amount: balance }
+                });
+            }
+        });
+
+        return alerts;
+    }, [clientsDzd, clientBalances, clientTransactionsDzd]);
+
+    // 2. Low Cash Alert
+    const lowCashAlert = useMemo(() => {
+        const alerts: Notification[] = [];
+        const caisseBalance = treasuryStats.caisse;
+
+        if (caisseBalance < 100000) {
+            alerts.push({
+                id: 'low_cash_alert',
+                type: 'low_cash',
+                priority: 2,
+                title: 'Solde Caisse Faible',
+                message: `Alerte : le solde Caisse est inférieur à 100 000.00 DZD (actuel: ${caisseBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD)`,
+                timestamp: Date.now(),
+                read: false,
+                color: 'orange',
+                data: { balance: caisseBalance }
+            });
+        }
+
+        return alerts;
+    }, [treasuryStats.caisse]);
+
+    // 3. PAM Variation Alert
+    const pamVariationAlert = useMemo(() => {
+        const alerts: Notification[] = [];
+        const currentPam = portfolioStats.usdt.avgBuy;
+        const todayDate = new Date().toLocaleDateString('fr-FR');
+
+        // Only check if we have a previous PAM and it's a new day
+        if (lastPamValue !== null && lastCheckDate !== todayDate && lastCheckDate !== '') {
+            const variation = currentPam - lastPamValue;
+
+            if (Math.abs(variation) >= 5) {
+                const isIncrease = variation > 0;
+                alerts.push({
+                    id: `pam_variation_${todayDate}`,
+                    type: 'pam_variation',
+                    priority: 2,
+                    title: isIncrease ? 'PAM en Hausse' : 'PAM en Baisse',
+                    message: isIncrease
+                        ? `Le PAM a augmenté de +${variation.toFixed(2)} DA`
+                        : `Le PAM a diminué de ${variation.toFixed(2)} DA`,
+                    timestamp: Date.now(),
+                    read: false,
+                    color: isIncrease ? 'blue' : 'red',
+                    data: { variation, previousPam: lastPamValue, currentPam }
+                });
+            }
+        }
+
+        return alerts;
+    }, [portfolioStats.usdt.avgBuy, lastPamValue, lastCheckDate]);
+
+    // Update last PAM value when day changes
+    useEffect(() => {
+        const todayDate = new Date().toLocaleDateString('fr-FR');
+        if (lastCheckDate !== todayDate) {
+            setLastPamValue(portfolioStats.usdt.avgBuy);
+            setLastCheckDate(todayDate);
+        }
+    }, [portfolioStats.usdt.avgBuy, lastCheckDate]);
+
+    // 4. Daily Profit/Loss Alert
+    const dailyProfitLossAlert = useMemo(() => {
+        const alerts: Notification[] = [];
+        const today = new Date().toLocaleDateString('fr-FR');
+
+        // Calculate today's profit/loss from transactions
+        const todayTransactions = transactions.filter(tx => tx.date === today && tx.type === 'sell');
+        const todayProfit = todayTransactions.reduce((sum, tx) => sum + (tx.profit || 0), 0);
+
+        if (todayProfit >= 5000) {
+            alerts.push({
+                id: `daily_profit_${today}`,
+                type: 'profit_loss',
+                priority: 3,
+                title: 'Gros Bénéfice Journalier',
+                message: `Le bénéfice du jour dépasse +5000.00 DZD (actuel: +${todayProfit.toFixed(2)} DZD)`,
+                timestamp: Date.now(),
+                read: false,
+                color: 'green',
+                data: { profit: todayProfit }
+            });
+        } else if (todayProfit <= -5000) {
+            alerts.push({
+                id: `daily_loss_${today}`,
+                type: 'profit_loss',
+                priority: 1,
+                title: 'Grosse Perte Journalière',
+                message: `La perte du jour dépasse -5000.00 DZD (actuel: ${todayProfit.toFixed(2)} DZD)`,
+                timestamp: Date.now(),
+                read: false,
+                color: 'red',
+                data: { loss: todayProfit }
+            });
+        }
+
+        return alerts;
+    }, [transactions]);
+
+    // Combine all notifications and sort by priority + timestamp
+    useEffect(() => {
+        const allAlerts = [
+            ...clientDebtAlerts,
+            ...lowCashAlert,
+            ...pamVariationAlert,
+            ...dailyProfitLossAlert
+        ];
+
+        // Sort by priority (1=high first) then by timestamp (newest first)
+        allAlerts.sort((a, b) => {
+            if (a.priority !== b.priority) return a.priority - b.priority;
+            return b.timestamp - a.timestamp;
+        });
+
+        setNotifications(allAlerts);
+    }, [clientDebtAlerts, lowCashAlert, pamVariationAlert, dailyProfitLossAlert]);
+
 
     const getRelativeDateLabel = (dateString: string) => {
         const today = new Date();
@@ -1635,11 +1815,37 @@ function MainApp({ user }: { user: firebase.User }) {
                             <NavLink activeView={view} targetView="tresorerie" colorClass="bg-emerald-600">Trésorerie</NavLink>
                         </div>
                         <div className="flex items-center gap-1 sm:gap-2">
-                            <Button onClick={handleRefresh} className={`p-2 rounded-full transition-colors ${isDark ? 'text-blue-400 hover:bg-blue-500/20' : 'text-blue-500 hover:bg-blue-100'}`} title="Tout recalculer">
-                                <RefreshCwIcon className="w-5 h-5" />
-                            </Button>
+                            {/* Notification Bell */}
+                            <div className="relative">
+                                <Button
+                                    onClick={() => setIsNotificationPanelOpen(!isNotificationPanelOpen)}
+                                    className={`p-2 rounded-full transition-colors relative ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}
+                                >
+                                    <BellIcon className="w-5 h-5" />
+                                    {notifications.filter(n => !n.read).length > 0 && (
+                                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                                            {notifications.filter(n => !n.read).length}
+                                        </span>
+                                    )}
+                                </Button>
+
+                                {/* Notification Panel */}
+                                {isNotificationPanelOpen && (
+                                    <NotificationPanel
+                                        notifications={notifications}
+                                        onClose={() => setIsNotificationPanelOpen(false)}
+                                        onMarkAsRead={(id) => {
+                                            setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+                                        }}
+                                        onMarkAllAsRead={() => {
+                                            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                                        }}
+                                        isDark={isDark}
+                                    />
+                                )}
+                            </div>
+
                             <Button onClick={() => setTheme(isDark ? 'light' : 'dark')} className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}>{isDark ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}</Button>
-                            <Button onClick={() => setIsResetModalOpen(true)} className={`p-2 rounded-full transition-colors ${isDark ? 'text-red-400 hover:bg-red-500/20' : 'text-red-500 hover:bg-red-100'}`} title="Réinitialiser l'application"><RotateCcwIcon className="w-5 h-5" /></Button>
                             <Button onClick={() => auth.signOut()} className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}><LogOutIcon className="w-5 h-5" /></Button>
                         </div>
                     </div>
