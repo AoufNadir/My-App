@@ -55,6 +55,9 @@ import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 
+// Transaction Service
+import { applyTransactionDelete, applyTransactionUpdate } from './src/transactionService';
+
 const MotionDiv = motion.div;
 
 declare const html2canvas: any;
@@ -205,6 +208,7 @@ function MainApp({ user }: { user: firebase.User }) {
     const [editingTx, setEditingTx] = useState<Tx | null>(null);
     const [txToDelete, setTxToDelete] = useState<Tx | null>(null);
     const [suggestedProfitMargin, setSuggestedProfitMargin] = useState('2');
+    const [suggestedSellingPrice, setSuggestedSellingPrice] = useState(''); // NEW: سعر البيع المقترح
     const [linkedClientId, setLinkedClientId] = useState('none');
 
     // ===== NOTIFICATION SYSTEM =====
@@ -289,6 +293,31 @@ function MainApp({ user }: { user: firebase.User }) {
         });
         return () => unsubscribe();
     }, [userDocRef, refreshKey]);
+
+    // Load Settings from Firestore (profit margin + selling price)
+    useEffect(() => {
+        const loadSettings = async () => {
+            try {
+                const doc = await userDocRef.get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (data?.suggestedProfitMargin !== undefined) {
+                        // FIX: Round to 2 decimals when loading
+                        const margin = parseFloat(data.suggestedProfitMargin);
+                        setSuggestedProfitMargin(margin.toFixed(2));
+                    }
+                    if (data?.suggestedSellingPrice !== undefined) {
+                        // FIX: Round to 2 decimals when loading
+                        const sellPrice = parseFloat(data.suggestedSellingPrice);
+                        setSuggestedSellingPrice(sellPrice.toFixed(2));
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading settings:', e);
+            }
+        };
+        loadSettings();
+    }, [userDocRef]);
 
     // Manual Assets UI State
     const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
@@ -1219,28 +1248,24 @@ function MainApp({ user }: { user: firebase.User }) {
     };
     const handleDeleteConfirm = async () => {
         if (!txToDelete?.id) return;
+
+        setIsSaving(true);
         try {
-            const batch = db.batch();
+            // Use centralized transaction service for consistent deletion
+            const result = await applyTransactionDelete(txToDelete.id, 'usdt_tx', userDocRef);
 
-            // 1. Delete associated Client Transactions
-            const qsClient = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', txToDelete.id).get();
-            qsClient.forEach(d => batch.delete(d.ref));
-
-            // 2. Delete associated Treasury Transactions (Try both linkedTxId and timestamp for backward compatibility)
-            const qsTreasuryLinked = await userDocRef.collection('treasury_txs').where('linkedTxId', '==', txToDelete.id).get();
-            qsTreasuryLinked.forEach(d => batch.delete(d.ref));
-
-            // Fallback for old transactions: Match by exact timestamp if no linkedTxId found
-            if (qsTreasuryLinked.empty && txToDelete.timestamp) {
-                const qsTreasuryTime = await userDocRef.collection('treasury_txs').where('timestamp', '==', txToDelete.timestamp).get();
-                qsTreasuryTime.forEach(d => batch.delete(d.ref));
+            if (result.success) {
+                setAlert('✅ Supprimé.');
+            } else {
+                setAlert(`❌ ${result.error || 'Erreur lors de la suppression.'}`);
             }
-
-            // 3. Delete the Main Transaction
-            batch.delete(userDocRef.collection('usdt_txs').doc(txToDelete.id));
-
-            await batch.commit(); setAlert('✅ Supprimé.');
-        } catch (e) { console.error(e); setAlert('❌ Erreur.'); } finally { setTxToDelete(null); }
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur.');
+        } finally {
+            setIsSaving(false);
+            setTxToDelete(null);
+        }
     };
     const openClientModal = (client: ClientDzd | null = null) => {
         setEditingClient(client);
@@ -1521,20 +1546,23 @@ function MainApp({ user }: { user: firebase.User }) {
             return;
         }
 
+        setIsSaving(true);
         try {
-            const batch = db.batch();
+            // Use centralized transaction service for consistent deletion
+            const result = await applyTransactionDelete(clientTxToDelete.id, 'client_tx', userDocRef);
 
-            // 1. Delete the Client Transaction
-            batch.delete(userDocRef.collection('dzd_client_txs').doc(clientTxToDelete.id));
-
-            // 2. Find and delete linked Treasury Transactions (Cascading Delete)
-            const treasurySnaps = await userDocRef.collection('treasury_txs').where('linkedTxId', '==', clientTxToDelete.id).get();
-            treasurySnaps.forEach(doc => batch.delete(doc.ref));
-
-            await batch.commit();
-            setAlert('✅ Supprimé (et régularisé).');
+            if (result.success) {
+                setAlert('✅ Supprimé (et régularisé).');
+            } else {
+                setAlert(`❌ ${result.error || 'Erreur'}`);
+            }
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur.');
+        } finally {
+            setIsSaving(false);
+            setClientTxToDelete(null);
         }
-        catch (e) { console.error(e); setAlert('❌ Erreur.'); } finally { setClientTxToDelete(null); }
     };
 
 
@@ -1668,19 +1696,23 @@ function MainApp({ user }: { user: firebase.User }) {
             return;
         }
 
+        setIsSaving(true);
         try {
-            const batch = db.batch();
+            // Use centralized transaction service for consistent deletion
+            const result = await applyTransactionDelete(treasuryTxToDelete.id, 'treasury_tx', userDocRef);
 
-            // Delete the Treasury Tx
-            batch.delete(userDocRef.collection('treasury_txs').doc(treasuryTxToDelete.id));
-
-            // Find and delete linked Client Txs (Cascading Delete)
-            const linkedClientTxs = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', treasuryTxToDelete.id).get();
-            linkedClientTxs.forEach(doc => batch.delete(doc.ref));
-
-            await batch.commit();
-            setAlert('✅ Transaction supprimée (et liens nettoyés).');
-        } catch (e) { setAlert('❌ Erreur.'); } finally { setTreasuryTxToDelete(null); }
+            if (result.success) {
+                setAlert('✅ Transaction supprimée (et liens nettoyés).');
+            } else {
+                setAlert(`❌ ${result.error || 'Erreur'}`);
+            }
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur.');
+        } finally {
+            setIsSaving(false);
+            setTreasuryTxToDelete(null);
+        }
     };
 
     const bgApp = isDark ? 'from-[#0B1120] via-[#0F172A] to-[#1E293B] text-gray-100' : 'from-[#F8FAFC] via-[#F1F5F9] to-[#E2E8F0] text-gray-900';
@@ -1704,8 +1736,17 @@ function MainApp({ user }: { user: firebase.User }) {
     const handleEditClientTx = (tx: ClientTransactionDzd) => {
         if (tx.linkedTxId) {
             const l = transactions.find(t => t.id === tx.linkedTxId);
-            if (l) openForm(l.type === 'buy' ? (l.currency === 'USDT' ? 'buy_usdt' : 'buy_eur') : 'sell_usdt', l); else setAlert("❌ Non modifiable.");
-        } else openClientTxModal(tx);
+            if (l) {
+                // Found linked USDT/EUR transaction - edit it
+                openForm(l.type === 'buy' ? (l.currency === 'USDT' ? 'buy_usdt' : 'buy_eur') : 'sell_usdt', l);
+            } else {
+                // Linked transaction not found (orphaned) - allow direct edit of client transaction
+                openClientTxModal(tx);
+            }
+        } else {
+            // Independent client transaction - edit directly
+            openClientTxModal(tx);
+        }
     };
     const handleDeleteClientTxClick = (tx: ClientTransactionDzd) => {
         if (tx.linkedTxId) { const l = transactions.find(t => t.id === tx.linkedTxId); if (l) setTxToDelete(l); else { setClientTxToDelete(tx); setAlert("⚠️ Transaction orpheline."); } }
@@ -2708,7 +2749,17 @@ function MainApp({ user }: { user: firebase.User }) {
                         <div className="relative">
                             <NumberInput
                                 value={suggestedProfitMargin}
-                                onChange={e => setSuggestedProfitMargin(e.target.value)}
+                                onChange={e => {
+                                    const newMargin = e.target.value;
+                                    setSuggestedProfitMargin(newMargin);
+
+                                    // Update selling price based on margin (with 2 decimal precision)
+                                    const marginNum = parseFloat(newMargin) || 0;
+                                    const avgBuyPrice = portfolioStats.usdt.avgBuy || 0;
+                                    const newSellingPrice = avgBuyPrice + marginNum;
+                                    // FIX: Round to 2 decimals
+                                    setSuggestedSellingPrice(newSellingPrice > 0 ? parseFloat(newSellingPrice.toFixed(2)).toString() : '');
+                                }}
                                 className={`${fieldBase} text-center text-2xl font-bold`}
                                 placeholder="2.00"
                             />
@@ -2716,16 +2767,63 @@ function MainApp({ user }: { user: firebase.User }) {
                         </div>
                         <p className={`text-xs mt-2 ${subtleText}`}>Cette marge est utilisée pour calculer le prix de vente suggéré.</p>
                     </div>
+
                     <div>
-                        <Label>Sauvegarde</Label>
-                        <Button onClick={handleBackup} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
-                            <DownloadCloudIcon className="w-5 h-5" /> Sauvegarder les Données (JSON)
-                        </Button>
-                        <p className={`text-xs mt-2 ${subtleText}`}>Télécharge une copie locale de toutes vos données.</p>
+                        <Label>سعر البيع (DZD)</Label>
+                        <div className="relative">
+                            <NumberInput
+                                value={suggestedSellingPrice}
+                                onChange={e => {
+                                    const newSellingPrice = e.target.value;
+                                    setSuggestedSellingPrice(newSellingPrice);
+
+                                    // Update margin based on selling price (with 2 decimal precision)
+                                    const sellingPriceNum = parseFloat(newSellingPrice) || 0;
+                                    const avgBuyPrice = portfolioStats.usdt.avgBuy || 0;
+                                    const newMargin = sellingPriceNum - avgBuyPrice;
+                                    // FIX: Round to 2 decimals
+                                    setSuggestedProfitMargin(newMargin >= 0 ? parseFloat(newMargin.toFixed(2)).toString() : '0');
+                                }}
+                                className={`${fieldBase} text-center text-2xl font-bold`}
+                                placeholder="0.00"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">DZD</span>
+                        </div>
+                        <p className={`text-xs mt-2 ${subtleText}`}>
+                            Prix moyen d'achat: {(portfolioStats.usdt.avgBuy || 0).toFixed(2)} DZD
+                        </p>
                     </div>
                 </DialogContent>
                 <DialogFooter>
-                    <Button onClick={() => setIsSettingsModalOpen(false)} className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl">Enregistrer</Button>
+                    <Button
+                        onClick={async () => {
+                            // Save to Firestore with 2 decimal precision
+                            try {
+                                const marginToSave = parseFloat(parseFloat(suggestedProfitMargin).toFixed(2)) || 2;
+                                const sellPriceToSave = parseFloat(parseFloat(suggestedSellingPrice).toFixed(2)) || 0;
+
+                                console.log('Saving settings:', { marginToSave, sellPriceToSave });
+
+                                // Use set with merge=true to create document if it doesn't exist
+                                await userDocRef.set({
+                                    suggestedProfitMargin: marginToSave,
+                                    suggestedSellingPrice: sellPriceToSave,
+                                    settingsUpdatedAt: Date.now()
+                                }, { merge: true });
+
+                                console.log('Settings saved successfully');
+                                setAlert('✅ Paramètres sauvegardés.');
+                                setIsSettingsModalOpen(false);
+                            } catch (e: any) {
+                                console.error('Error saving settings:', e);
+                                console.error('Error details:', e.message, e.code);
+                                setAlert('❌ Erreur: ' + (e.message || 'Erreur inconnue'));
+                            }
+                        }}
+                        className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl"
+                    >
+                        Enregistrer
+                    </Button>
                 </DialogFooter>
             </Dialog>
 

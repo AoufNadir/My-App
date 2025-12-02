@@ -121,14 +121,27 @@ export function PortfolioPage(props: PortfolioPageProps) {
 
   const heatmapData = useMemo(() => {
     const salesByDay = new Map<number, number>();
+
+    // Fix: Set start of day to 00:00:00.000
     const startDate = new Date(usdtReportYear, usdtReportMonth, 1);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Fix: Set end of day to 23:59:59.999 to include all transactions on the last day (e.g., November 30th)
     const endDate = new Date(usdtReportYear, usdtReportMonth + 1, 0);
+    endDate.setHours(23, 59, 59, 999);
+
+    const startTimestamp = startDate.getTime();
+    const endTimestamp = endDate.getTime();
 
     transactions.forEach(tx => {
-      if (tx.type === 'sell' && tx.currency === 'USDT' && tx.timestamp >= startDate.getTime() && tx.timestamp <= endDate.getTime()) {
-        const day = new Date(tx.timestamp).getDate();
+      // Include all sell transactions within the date range
+      if (tx.type === 'sell' && tx.currency === 'USDT' && tx.timestamp >= startTimestamp && tx.timestamp <= endTimestamp) {
+        const txDate = new Date(tx.timestamp);
+        const day = txDate.getDate();
         const currentProfit = salesByDay.get(day) || 0;
-        salesByDay.set(day, currentProfit + (tx.profit || 0));
+        // Defensive: ensure profit exists and is a number
+        const profit = (typeof tx.profit === 'number' && !isNaN(tx.profit)) ? tx.profit : 0;
+        salesByDay.set(day, currentProfit + profit);
       }
     });
 
@@ -187,22 +200,22 @@ export function PortfolioPage(props: PortfolioPageProps) {
             <StatCard cardBase={cardBase} subtleText={subtleText} title="PAM EUR" value={portfolioStats.eur.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass="text-gray-300" />
             <StatCard cardBase={cardBase} subtleText={subtleText} title="Solde Actuel USDT" value={portfolioStats.usdt.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="USDT" colorClass="text-sky-400" />
             <StatCard cardBase={cardBase} subtleText={subtleText} title="PAM USDT" value={portfolioStats.usdt.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass="text-gray-300" />
-            <StatCard
-              cardBase={cardBase}
-              subtleText={subtleText}
-              title="Prix Vente Suggéré"
-              value={(portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              currency="DZD"
-              colorClass="text-yellow-400"
-              action={
-                <button
-                  onClick={() => setIsSettingsModalOpen(true)}
-                  className={`text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 transition-colors ${isDark ? 'bg-slate-700 text-gray-300 hover:bg-slate-600' : 'bg-slate-100 text-gray-600 hover:bg-slate-200'}`}
-                >
-                  Marge: {suggestedProfitMargin} DA <PencilIcon className="w-3 h-3" />
-                </button>
-              }
-            />
+            <div
+              onClick={() => setIsSettingsModalOpen(true)}
+              className={`p-5 rounded-2xl shadow-sm border transition-all cursor-pointer hover:scale-[1.02] ${isDark ? 'bg-[#1E293B] border-[#334155] hover:border-yellow-500/50' : 'bg-white border-slate-200 hover:border-yellow-400/50'}`}
+            >
+              <div className={`flex items-center justify-between text-sm font-medium mb-2 ${subtleText}`}>
+                <span>Prix Vente Suggéré</span>
+                <PencilIcon className="w-4 h-4 opacity-50" />
+              </div>
+              <div className="mt-1 text-3xl font-bold">
+                <span className="text-yellow-400">{(portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className={`ml-2 text-lg font-normal ${subtleText}`}>DZD</span>
+              </div>
+              <div className={`text-xs mt-2 ${subtleText}`}>
+                Marge: {suggestedProfitMargin} DA
+              </div>
+            </div>
           </div>
         </Card>
 
