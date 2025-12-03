@@ -125,7 +125,7 @@ export function ManualClientPage({
                                     onEdit={() => {/* TODO: Implement edit transaction */ }}
                                     onDelete={() => onDeleteTransaction(tx.id)}
                                 >
-                                    <div className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
+                                    <div className="p-4 flex items-center justify-between transition-colors">
                                         <div>
                                             <div className="font-bold text-sm">
                                                 {tx.type === 'service' ? `Service: ${tx.serviceType || 'Autre'}` :
