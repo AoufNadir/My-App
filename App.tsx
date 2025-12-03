@@ -506,6 +506,72 @@ function MainApp({ user }: { user: firebase.User }) {
         }
     };
 
+    const handleUpdateAssetTransaction = async (txId: string, data: Omit<ManualAssetTransaction, 'id'>) => {
+        setIsSaving(true);
+        try {
+            const batch = db.batch();
+            const txRef = userDocRef.collection('actifTransactions').doc(txId);
+
+            // Get existing tx to check for linked treasury tx
+            const existingTxDoc = await txRef.get();
+            const existingTx = existingTxDoc.data() as ManualAssetTransaction;
+
+            // Ensure numeric amount
+            const rawPayload = {
+                ...data,
+                amount: Number(data.amount)
+            };
+            const payload = JSON.parse(JSON.stringify(rawPayload));
+
+            batch.update(txRef, payload);
+
+            // Handle linked treasury tx
+            if (existingTx?.linkedTreasuryTxId) {
+                const treasuryTxRef = userDocRef.collection('treasury_txs').doc(existingTx.linkedTreasuryTxId);
+
+                if (data.type === 'payment_received' && (data.paymentMethod === 'cash' || data.paymentMethod === 'baridi')) {
+                    const treasuryPayload = {
+                        timestamp: data.timestamp,
+                        date: data.date,
+                        time: data.time,
+                        source: data.paymentMethod === 'cash' ? 'Caisse' : 'BaridiMob',
+                        amount: Math.abs(Number(data.amount)),
+                        notes: `Paiement de ${manualAssetClients.find(c => c.id === data.clientId)?.fullName || 'Client'} - ${manualAssets.find(a => a.id === data.actifId)?.name || 'Actif'} (Modifié)`,
+                    };
+                    batch.update(treasuryTxRef, treasuryPayload);
+                } else {
+                    // If it's no longer a treasury-affecting transaction, delete the linked tx
+                    batch.delete(treasuryTxRef);
+                    batch.update(txRef, { linkedTreasuryTxId: firebase.firestore.FieldValue.delete() });
+                }
+            } else if (data.type === 'payment_received' && (data.paymentMethod === 'cash' || data.paymentMethod === 'baridi')) {
+                // It didn't have a linked tx, but now it should
+                const treasuryTxRef = userDocRef.collection('treasury_txs').doc();
+                const treasuryPayload = {
+                    timestamp: data.timestamp,
+                    date: data.date,
+                    time: data.time,
+                    type: 'Ajout',
+                    source: data.paymentMethod === 'cash' ? 'Caisse' : 'BaridiMob',
+                    amount: Math.abs(Number(data.amount)),
+                    notes: `Paiement de ${manualAssetClients.find(c => c.id === data.clientId)?.fullName || 'Client'} - ${manualAssets.find(a => a.id === data.actifId)?.name || 'Actif'}`,
+                    origin: 'manual_asset',
+                    linkedAssetTxId: txId
+                };
+                batch.set(treasuryTxRef, treasuryPayload);
+                batch.update(txRef, { linkedTreasuryTxId: treasuryTxRef.id });
+            }
+
+            await batch.commit();
+            setAlert('✅ Transaction mise à jour.');
+        } catch (e: any) {
+            console.error("Error updating transaction:", e);
+            setAlert(`❌ Erreur: ${e.message || 'Mise à jour échouée'}`);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     // Adjustment Modal
     const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
     const [adjustmentTab, setAdjustmentTab] = useState<'add' | 'subtract'>('add');
@@ -1984,6 +2050,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                 balance={assetClientBalances.get(`${selectedAssetId}_${selectedAssetClientId}`) || 0}
                                 onBack={() => setSelectedAssetClientId(null)}
                                 onAddTransaction={handleCreateAssetTransaction}
+                                onUpdateTransaction={handleUpdateAssetTransaction}
                                 onDeleteTransaction={handleDeleteAssetTransaction}
                                 isDark={isDark}
                                 cardBase={cardBase}

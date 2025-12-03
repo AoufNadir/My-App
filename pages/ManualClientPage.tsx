@@ -19,6 +19,7 @@ type ManualClientPageProps = {
     balance: number;
     onBack: () => void;
     onAddTransaction: (data: Omit<ManualAssetTransaction, 'id'>) => void;
+    onUpdateTransaction: (txId: string, data: Omit<ManualAssetTransaction, 'id'>) => void;
     onDeleteTransaction: (txId: string) => void;
     isDark: boolean;
     cardBase: string;
@@ -32,6 +33,7 @@ export function ManualClientPage({
     balance,
     onBack,
     onAddTransaction,
+    onUpdateTransaction,
     onDeleteTransaction,
     isDark,
     cardBase,
@@ -39,11 +41,25 @@ export function ManualClientPage({
     subtleText
 }: ManualClientPageProps) {
     const [isTxModalOpen, setIsTxModalOpen] = useState(false);
+    const [editingTx, setEditingTx] = useState<ManualAssetTransaction | null>(null);
     const [txType, setTxType] = useState<'service' | 'payment_received'>('service');
     const [amount, setAmount] = useState('');
     const [serviceType, setServiceType] = useState('');
     const [notes, setNotes] = useState('');
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'baridi' | 'credit'>('cash');
+
+    const openEditModal = (tx: ManualAssetTransaction) => {
+        setEditingTx(tx);
+        setTxType(tx.type as 'service' | 'payment_received');
+        setAmount(Math.abs(tx.amount).toString());
+        setNotes(tx.notes || '');
+        if (tx.type === 'service') {
+            setServiceType(tx.serviceType || '');
+        } else {
+            setPaymentMethod(tx.paymentMethod || 'cash');
+        }
+        setIsTxModalOpen(true);
+    };
 
     const handleSaveTx = () => {
         // Fix: Robust number parsing (handle spaces and commas)
@@ -67,18 +83,23 @@ export function ManualClientPage({
             clientId: client.id,
             type: txType,
             amount: finalAmount,
-            date: now.toLocaleDateString('fr-FR'),
-            time: now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-            timestamp: now.getTime(),
+            date: editingTx ? editingTx.date : now.toLocaleDateString('fr-FR'),
+            time: editingTx ? editingTx.time : now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+            timestamp: editingTx ? editingTx.timestamp : now.getTime(),
             notes: notes
         };
 
         if (txType === 'service') payload.serviceType = serviceType;
         if (txType !== 'service') payload.paymentMethod = paymentMethod;
 
-        onAddTransaction(payload);
+        if (editingTx) {
+            onUpdateTransaction(editingTx.id, payload);
+        } else {
+            onAddTransaction(payload);
+        }
 
         setIsTxModalOpen(false);
+        setEditingTx(null);
         setAmount('');
         setNotes('');
         setServiceType('');
@@ -112,7 +133,7 @@ export function ManualClientPage({
             <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
                 <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
                     <h3 className="font-bold text-lg">Historique</h3>
-                    <Button onClick={() => setIsTxModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl flex items-center gap-2">
+                    <Button onClick={() => { setEditingTx(null); setIsTxModalOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl flex items-center gap-2">
                         <PlusIcon className="w-4 h-4" /> Opération
                     </Button>
                 </div>
@@ -122,7 +143,7 @@ export function ManualClientPage({
                         transactions.map(tx => (
                             <div key={tx.id}>
                                 <SwipeableListItem
-                                    onEdit={() => {/* TODO: Implement edit transaction */ }}
+                                    onEdit={() => openEditModal(tx)}
                                     onDelete={() => onDeleteTransaction(tx.id)}
                                 >
                                     <div className="p-4 flex items-center justify-between transition-colors">
@@ -154,7 +175,7 @@ export function ManualClientPage({
             {/* New Transaction Modal */}
             <Dialog isOpen={isTxModalOpen} onClose={() => setIsTxModalOpen(false)} className={`${cardBase} max-w-md`}>
                 <DialogHeader onClose={() => setIsTxModalOpen(false)} isDark={isDark}>
-                    <DialogTitle>Nouvelle Opération</DialogTitle>
+                    <DialogTitle>{editingTx ? 'Modifier l\'Opération' : 'Nouvelle Opération'}</DialogTitle>
                 </DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
                     <div>
