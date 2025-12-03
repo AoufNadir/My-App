@@ -1591,16 +1591,33 @@ function MainApp({ user }: { user: firebase.User }) {
     const handleGlobalReset = async () => {
         setIsSaving(true);
         try {
-            const batch = db.batch();
             // Delete all collections
-            const collections = ['usdt_txs', 'treasury_txs', 'dzd_clients', 'dzd_client_txs', 'treasury_cards'];
+            const collections = ['usdt_txs', 'treasury_txs', 'dzd_clients', 'dzd_client_txs', 'treasury_cards', 'manual_assets', 'manual_asset_clients', 'actifTransactions'];
+
             for (const col of collections) {
                 const qs = await userDocRef.collection(col).get();
-                qs.forEach(doc => batch.delete(doc.ref));
+                // Delete in batches of 400 to avoid limit
+                let batch = db.batch();
+                let count = 0;
+
+                for (const doc of qs.docs) {
+                    batch.delete(doc.ref);
+                    count++;
+                    if (count >= 400) {
+                        await batch.commit();
+                        batch = db.batch();
+                        count = 0;
+                    }
+                }
+                if (count > 0) await batch.commit();
             }
-            await batch.commit();
+
+            // Reset settings in main doc
+            await userDocRef.set({ settingsUpdatedAt: Date.now() });
+
             setAlert('✅ Réinitialisation complète effectuée.');
             setIsResetModalOpen(false);
+            window.location.reload();
         } catch (e) {
             console.error(e);
             setAlert('❌ Erreur lors de la réinitialisation.');
@@ -1919,7 +1936,29 @@ function MainApp({ user }: { user: firebase.User }) {
                 <main className="py-6">
                     <AnimatePresence>{alert && (<MotionDiv initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="mb-4"><Alert className={`rounded-xl ${alert.includes('✅') || alert.includes('⚠️') ? (isDark ? 'bg-green-900/50 border-green-400/30 text-green-300' : 'bg-green-50 border-green-300 text-green-800') : (isDark ? 'bg-red-900/50 border-red-400/30 text-red-300' : 'bg-red-50 border-red-300 text-red-800')}`}><AlertDescription>{alert}</AlertDescription></Alert></MotionDiv>)}</AnimatePresence>
 
-                    {view === 'transactions' && <TransactionsPage {...{ cardBase, isDark, subtleText, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, treasuryTransactions, handleEditClientTx, handleDeleteClientTxClick, setTreasuryTxToDelete }} openWalletTransferModal={() => setIsWalletTransferModalOpen(true)} openTransferModal={() => setIsTransferModalOpen(true)} />}
+                    {view === 'transactions' && <TransactionsPage
+                        cardBase={cardBase}
+                        isDark={isDark}
+                        subtleText={subtleText}
+                        openAdjustmentModal={openAdjustmentModal}
+                        openForm={openForm}
+                        filterMode={filterMode}
+                        setFilterMode={setFilterMode}
+                        transactions={transactions}
+                        getRelativeDateLabel={getRelativeDateLabel}
+                        clientTransactionsDzd={clientTransactionsDzd}
+                        clientsDzd={clientsDzd}
+                        getClientFullName={getClientFullName}
+                        setTxToDelete={setTxToDelete}
+                        openDateFilterModal={openDateFilterModal}
+                        dateRange={dateRange}
+                        openWalletTransferModal={() => setIsWalletTransferModalOpen(true)}
+                        openTransferModal={() => setIsTransferModalOpen(true)}
+                        treasuryTransactions={treasuryTransactions}
+                        handleEditClientTx={handleEditClientTx}
+                        handleDeleteClientTxClick={handleDeleteClientTxClick}
+                        setTreasuryTxToDelete={setTreasuryTxToDelete}
+                    />}
 
                     {view === 'statistiques' && <PortfolioPage {...{ statsView, setStatsView, isDark, setIsSettingsModalOpen, cardBase, subtleText, portfolioStats, totalPortfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), suggestedProfitMargin, parseAndEvaluate, usdtReportMonth, setUsdtReportMonth, usdtReportYear, setUsdtReportYear, reportMonths: (y: number) => y === new Date().getFullYear() ? MONTHS_FR.slice(0, new Date().getMonth() + 1) : MONTHS_FR, reportYears: Array.from({ length: 3 }, (_, i) => 2024 + i), monthlyStats: { totalUsdtSoldMonth: 0, totalEurBoughtMonth: 0, realizedProfitMonth: 0, monthlyProfitMargin: 0 }, transactions, selectedHeatmapDay, setSelectedHeatmapDay, simMode, setSimMode, simBuyQty, setSimBuyQty, simBuyPrice, setSimBuyPrice, fieldBase, newPamFromDzdSimulator, simEurQty, setSimEurQty, simEurDzdPrice, setSimEurDzdPrice, simEurUsdtRate, setSimEurUsdtRate, newPamFromEurSimulator, handleExportUsdtReport, dzdDashboardStats: null, reportClient, setReportClient, clientsDzd, getClientFullName, reportMonth, setReportMonth, reportYear, setReportYear, handleExportClientReport }} />}
 
@@ -2792,6 +2831,17 @@ function MainApp({ user }: { user: firebase.User }) {
                         <p className={`text-xs mt-2 ${subtleText}`}>
                             Prix moyen d'achat: {(portfolioStats.usdt.avgBuy || 0).toFixed(2)} DZD
                         </p>
+                    </div>
+
+                    <div className="pt-4 border-t border-red-200 dark:border-red-900/30">
+                        <Label className="text-red-500">Zone de Danger</Label>
+                        <p className={`text-xs mb-3 ${subtleText}`}>Supprimer toutes les données et réinitialiser l'application.</p>
+                        <Button
+                            onClick={() => { setIsSettingsModalOpen(false); setIsResetModalOpen(true); }}
+                            className="w-full bg-red-100 hover:bg-red-200 text-red-600 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 font-bold py-3 rounded-xl border border-red-200 dark:border-red-900/50"
+                        >
+                            Réinitialiser l'application
+                        </Button>
                     </div>
                 </DialogContent>
                 <DialogFooter>
