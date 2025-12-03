@@ -1,7 +1,7 @@
 {
   "name": "copy-of-version-4.5-good-test",
   "private": true,
-  "version": "32.0.0",
+  "version": "33.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
