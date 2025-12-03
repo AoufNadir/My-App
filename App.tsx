@@ -1081,8 +1081,20 @@ function MainApp({ user }: { user: firebase.User }) {
             }
             setNotes(txToEdit.notes ?? '');
             const linkedDzdTx = clientTransactionsDzd.find(t => t.linkedTxId === txToEdit.id);
-            if (linkedDzdTx) { setLinkedClientId(linkedDzdTx.clientId); setPaymentMethod(linkedDzdTx.paymentMethod || 'Espèces'); }
-            if (txToEdit.paymentMethod) setPaymentMethod(txToEdit.paymentMethod);
+            let initialPaymentMethod = 'Espèces';
+            if (linkedDzdTx) {
+                setLinkedClientId(linkedDzdTx.clientId);
+                initialPaymentMethod = linkedDzdTx.paymentMethod || 'Espèces';
+            }
+            if (txToEdit.paymentMethod) {
+                initialPaymentMethod = txToEdit.paymentMethod;
+            }
+            setPaymentMethod(initialPaymentMethod as any);
+
+            // Initialize clientPaymentStatus based on paymentMethod
+            if (initialPaymentMethod === 'Crédit') setClientPaymentStatus('credit');
+            else if (initialPaymentMethod === 'BaridiMob') setClientPaymentStatus('baridi');
+            else setClientPaymentStatus('cash');
         } else {
             if (newMode === 'buy_eur' && portfolioStats.eur.avgBuy > 0) setBuyEurPrice(portfolioStats.eur.avgBuy.toFixed(2));
             // Initialize margin with suggested profit margin for new sell transactions
@@ -1780,7 +1792,7 @@ function MainApp({ user }: { user: firebase.User }) {
         }
     };
     const ClientLinker = ({ isEditing, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }: any) => {
-        if (isEditing) return null;
+
         return (
             <div className="pb-2 space-y-2">
                 <div>
