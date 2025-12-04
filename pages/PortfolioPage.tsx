@@ -195,11 +195,11 @@ export function PortfolioPage(props: PortfolioPageProps) {
         <Card className={`${cardBase} p-4 sm:p-6`}>
           <h2 className="font-bold text-lg mb-4 flex items-center gap-2"><BriefcaseIcon className="w-5 h-5" /> État Actuel du Portefeuille</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <StatCard cardBase={cardBase} subtleText={subtleText} title="Bénéfice/Perte Net" value={portfolioStats.usdt.totalProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass={portfolioStats.usdt.totalProfit >= 0 ? "text-green-400" : "text-red-400"} />
-            <StatCard cardBase={cardBase} subtleText={subtleText} title="Solde Actuel EUR" value={portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="EUR" colorClass="text-amber-400" />
-            <StatCard cardBase={cardBase} subtleText={subtleText} title="PAM EUR" value={portfolioStats.eur.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass="text-gray-300" />
-            <StatCard cardBase={cardBase} subtleText={subtleText} title="Solde Actuel USDT" value={portfolioStats.usdt.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="USDT" colorClass="text-sky-400" />
-            <StatCard cardBase={cardBase} subtleText={subtleText} title="PAM USDT" value={portfolioStats.usdt.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} currency="DZD" colorClass="text-gray-300" />
+            <StatCard cardBase={cardBase} subtleText={subtleText} title="Bénéfice/Perte Net" value={portfolioStats.usdt.totalProfit.toFixed(2)} currency="DZD" colorClass={portfolioStats.usdt.totalProfit >= 0 ? "text-green-400" : "text-red-400"} />
+            <StatCard cardBase={cardBase} subtleText={subtleText} title="Solde Actuel EUR" value={portfolioStats.eur.available.toFixed(2)} currency="EUR" colorClass="text-amber-400" />
+            <StatCard cardBase={cardBase} subtleText={subtleText} title="PAM EUR" value={portfolioStats.eur.avgBuy.toFixed(2)} currency="DZD" colorClass="text-gray-300" />
+            <StatCard cardBase={cardBase} subtleText={subtleText} title="Solde Actuel USDT" value={portfolioStats.usdt.available.toFixed(2)} currency="USDT" colorClass="text-sky-400" />
+            <StatCard cardBase={cardBase} subtleText={subtleText} title="PAM USDT" value={portfolioStats.usdt.avgBuy.toFixed(2)} currency="DZD" colorClass="text-gray-300" />
             <div
               onClick={() => setIsSettingsModalOpen(true)}
               className={`p-5 rounded-2xl shadow-sm border transition-all cursor-pointer hover:scale-[1.02] ${isDark ? 'bg-[#1E293B] border-[#334155] hover:border-yellow-500/50' : 'bg-white border-slate-200 hover:border-yellow-400/50'}`}
@@ -209,7 +209,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
                 <PencilIcon className="w-4 h-4 opacity-50" />
               </div>
               <div className="mt-1 text-3xl font-bold">
-                <span className="text-yellow-400">{(portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="text-yellow-400">{(portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toFixed(2)}</span>
                 <span className={`ml-2 text-lg font-normal ${subtleText}`}>DZD</span>
               </div>
               <div className={`text-xs mt-2 ${subtleText}`}>
@@ -230,20 +230,20 @@ export function PortfolioPage(props: PortfolioPageProps) {
             <div className="space-y-4">
               <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                 <Label className={subtleText}>Volume Acheté (Période)</Label>
-                <p className="text-xl font-bold text-sky-400">{calculatedStats.volUsdtBought.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</p>
+                <p className="text-xl font-bold text-sky-400">{calculatedStats.volUsdtBought.toFixed(2)} USDT</p>
               </div>
               <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                 <Label className={subtleText}>Volume Vendu (Période)</Label>
-                <p className="text-xl font-bold text-sky-400">{calculatedStats.volUsdtSold.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</p>
+                <p className="text-xl font-bold text-sky-400">{calculatedStats.volUsdtSold.toFixed(2)} USDT</p>
               </div>
               <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                 <Label className={subtleText}>Volume Acheté (Période)</Label>
-                <p className="text-xl font-bold text-amber-400">{calculatedStats.volEurBought.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR</p>
+                <p className="text-xl font-bold text-amber-400">{calculatedStats.volEurBought.toFixed(2)} EUR</p>
               </div>
               <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                 <Label className={subtleText}>Bénéfice Réalisé (Période)</Label>
                 <p className={`text-2xl font-bold ${calculatedStats.realizedProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {calculatedStats.realizedProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                  {calculatedStats.realizedProfit.toFixed(2)} DZD
                 </p>
               </div>
             </div>
@@ -253,7 +253,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
               <ProfitHeatmap />
               {selectedHeatmapDay && (
                 <p className={`text-center text-sm mt-2 p-2 rounded-md ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
-                  Bénéfice du {selectedHeatmapDay.day}/{usdtReportMonth + 1}/{usdtReportYear}: <span className="font-bold">{selectedHeatmapDay.profit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
+                  Bénéfice du {selectedHeatmapDay.day}/{usdtReportMonth + 1}/{usdtReportYear}: <span className="font-bold">{selectedHeatmapDay.profit.toFixed(2)} DZD</span>
                 </p>
               )}
             </div>
@@ -267,10 +267,10 @@ export function PortfolioPage(props: PortfolioPageProps) {
                     onClick={() => {
                       setSimMode('eur');
                       if (portfolioStats.eur.available > 0) {
-                        setSimEurQty(portfolioStats.eur.available.toString());
+                        setSimEurQty(Math.round(portfolioStats.eur.available).toString());
                       }
                       if (portfolioStats.eur.avgBuy > 0) {
-                        setSimEurDzdPrice(portfolioStats.eur.avgBuy.toFixed(2));
+                        setSimEurDzdPrice(Math.round(portfolioStats.eur.avgBuy).toString());
                       }
                     }}
                     className={`flex-1 py-1 text-sm rounded-full font-semibold transition-colors ${simMode === 'eur' ? 'bg-teal-500 text-white' : ''}`}
@@ -287,8 +287,8 @@ export function PortfolioPage(props: PortfolioPageProps) {
                     </div>
                     {newPamFromDzdSimulator !== null && (
                       <div className="text-center p-2 rounded-lg bg-teal-500/10 text-teal-300">
-                        <p>Nouveau PAM: <span className="font-bold">{newPamFromDzdSimulator.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</span></p>
-                        <p className="text-xs">Prix de Vente Suggéré: <span className="font-bold">{(newPamFromDzdSimulator + parseAndEvaluate(suggestedProfitMargin)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</span></p>
+                        <p>Nouveau PAM: <span className="font-bold">{newPamFromDzdSimulator.toFixed(2)} DZD</span></p>
+                        <p className="text-xs">Prix de Vente Suggéré: <span className="font-bold">{(newPamFromDzdSimulator + parseAndEvaluate(suggestedProfitMargin)).toFixed(2)} DZD</span></p>
                       </div>
                     )}
                   </div>
@@ -304,18 +304,18 @@ export function PortfolioPage(props: PortfolioPageProps) {
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                         <p className={subtleText}>PAM Actuel</p>
-                        <p className="font-bold">{portfolioStats.usdt.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</p>
+                        <p className="font-bold">{portfolioStats.usdt.avgBuy.toFixed(2)} DZD</p>
                       </div>
                       <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                         <p className={subtleText}>Prix Suggéré (+{suggestedProfitMargin} DA)</p>
-                        <p className="font-bold">{(portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</p>
+                        <p className="font-bold">{(portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toFixed(2)} DZD</p>
                       </div>
                     </div>
 
                     {newPamFromEurSimulator !== null && (
                       <div className="text-center p-2 rounded-lg bg-teal-500/10 text-teal-300">
-                        <p>Nouveau PAM: <span className="font-bold">{newPamFromEurSimulator.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</span></p>
-                        <p className="text-xs">Prix de Vente Suggéré: <span className="font-bold">{(newPamFromEurSimulator + parseAndEvaluate(suggestedProfitMargin)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</span></p>
+                        <p>Nouveau PAM: <span className="font-bold">{newPamFromEurSimulator.toFixed(2)} DZD</span></p>
+                        <p className="text-xs">Prix de Vente Suggéré: <span className="font-bold">{(newPamFromEurSimulator + parseAndEvaluate(suggestedProfitMargin)).toFixed(2)} DZD</span></p>
                       </div>
                     )}
                   </div>

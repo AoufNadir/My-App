@@ -76,7 +76,7 @@ export function TresoreriePage({
   const capitalTotal = safeCaisse + safeBaridi + safePortfolio + manualCardsTotal - positionNette;
 
   // Helper for formatting currency
-  const formatDZD = (amount: number) => amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatDZD = (amount: number) => amount.toFixed(2);
 
   const StatBox = ({ title, value, colorClass, icon, onEdit }: { title: string, value: string, colorClass: string, icon?: React.ReactNode, onEdit?: () => void }) => (
     <div className={`p-5 rounded-2xl shadow-sm border transition-all relative group ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'}`}>

@@ -162,7 +162,7 @@ export function ManualAssetPage({
                                         onEdit={() => openEditModal(client)}
                                         onDelete={() => onDeleteClient(client.id)}
                                     >
-                                        <div className={`p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer`} onClick={() => onSelectClient(client)}>
+                                        <div className={`p-4 flex items-center justify-between transition-colors cursor-pointer`} onClick={() => onSelectClient(client)} style={{ WebkitTapHighlightColor: 'transparent' }}>
                                             <div className="flex items-center gap-3">
                                                 <div className={`p-2.5 rounded-full ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
                                                     <UserIcon className="w-5 h-5" />

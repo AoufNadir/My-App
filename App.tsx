@@ -1785,11 +1785,12 @@ function MainApp({ user }: { user: firebase.User }) {
         // 1. Check if it's a CHILD transaction (linked to a Client Tx, USDT Tx, or Manual Asset)
         // If origin is 'client_tx', 'usdt_tx', or 'manual_asset', it's a child -> Prevent Delete
         // Fallback: if linkedTxId exists but no origin, assume it's a child (safe default for old data)
-        if (treasuryTxToDelete.origin === 'client_tx' || treasuryTxToDelete.origin === 'usdt_tx' || treasuryTxToDelete.origin === 'manual_asset' || (treasuryTxToDelete.linkedTxId && !treasuryTxToDelete.origin)) {
-            setAlert('⚠️ Impossible de supprimer : Cette transaction est liée. Supprimez la transaction d\'origine.');
-            setTreasuryTxToDelete(null);
-            return;
-        }
+        // Restriction removed as requested by user.
+        // if (treasuryTxToDelete.origin === 'client_tx' || treasuryTxToDelete.origin === 'usdt_tx' || treasuryTxToDelete.origin === 'manual_asset' || (treasuryTxToDelete.linkedTxId && !treasuryTxToDelete.origin)) {
+        //     setAlert('⚠️ Impossible de supprimer : Cette transaction est liée. Supprimez la transaction d\'origine.');
+        //     setTreasuryTxToDelete(null);
+        //     return;
+        // }
 
         setIsSaving(true);
         try {
@@ -2828,20 +2829,7 @@ function MainApp({ user }: { user: firebase.User }) {
                     <div><Label>Téléphone</Label><Input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className={fieldBase} /></div>
                     <div><Label>RedotPay ID</Label><Input value={clientRedotpayId} onChange={e => setClientRedotpayId(e.target.value)} className={fieldBase} /></div>
                     <div><Label>Binance Email</Label><Input value={clientBinanceEmail} onChange={e => setClientBinanceEmail(e.target.value)} className={fieldBase} /></div>
-                    {editingClient && (
-                        <div>
-                            <Label>Solde Client (Modifiable)</Label>
-                            <Input
-                                type="text"
-                                inputMode="decimal"
-                                value={clientBalanceInput}
-                                onChange={e => setClientBalanceInput(e.target.value)}
-                                className={`${fieldBase} font-bold ${parseAndEvaluate(clientBalanceInput) < 0 ? 'text-red-500' : 'text-green-500'}`}
-                                placeholder="0.00"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Modifiez la valeur pour ajuster le solde. (0 pour réinitialiser)</p>
-                        </div>
-                    )}
+
                     {!editingClient && <div><Label>Solde Initial (DZD)</Label><NumberInput value={initialBalance} onChange={e => setInitialBalance(e.target.value)} className={fieldBase} placeholder="0.00" /></div>}
                 </DialogContent>
                 <DialogFooter><Button onClick={handleSaveClient} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl">Sauvegarder</Button></DialogFooter>
@@ -3025,8 +3013,8 @@ function MainApp({ user }: { user: firebase.User }) {
                     <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
                 </DialogContent>
                 <DialogFooter>
-                    <Button onClick={() => setClientTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>Annuler</Button>
-                    <Button onClick={handleDeleteClientTx} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">Supprimer</Button>
+                    <Button onClick={() => setTreasuryTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>Annuler</Button>
+                    <Button onClick={handleDeleteTreasuryTxConfirm} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">Supprimer</Button>
                 </DialogFooter>
             </Dialog>
 

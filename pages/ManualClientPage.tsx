@@ -146,7 +146,7 @@ export function ManualClientPage({
                                     onEdit={() => openEditModal(tx)}
                                     onDelete={() => onDeleteTransaction(tx.id)}
                                 >
-                                    <div className="p-4 flex items-center justify-between transition-colors">
+                                    <div className="p-4 flex items-center justify-between transition-colors" style={{ WebkitTapHighlightColor: 'transparent' }}>
                                         <div>
                                             <div className="font-bold text-sm">
                                                 {tx.type === 'service' ? `Service: ${tx.serviceType || 'Autre'}` :
