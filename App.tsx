@@ -1401,6 +1401,21 @@ function MainApp({ user }: { user: firebase.User }) {
 
                 setAlert('✅ Client modifié.');
             } else {
+                // NEW: Validation for duplicate clients
+                const duplicateClient = clientsDzd.find(c => {
+                    if (data.fullName && c.fullName && c.fullName.toLowerCase() === data.fullName.toLowerCase()) return true;
+                    if (data.phone && c.phone && c.phone === data.phone) return true;
+                    if (data.redotpayId && c.redotpayId && c.redotpayId === data.redotpayId) return true;
+                    if (data.binanceEmail && c.binanceEmail && c.binanceEmail.toLowerCase() === data.binanceEmail.toLowerCase()) return true;
+                    return false;
+                });
+
+                if (duplicateClient) {
+                    setAlert('⚠️ Ce client existe déjà. Veuillez vérifier les informations.');
+                    setIsSaving(false);
+                    return;
+                }
+
                 const ref = await userDocRef.collection('dzd_clients').add(data);
                 const initBal = parseAndEvaluate(initialBalance);
                 if (initBal !== 0 && !isNaN(initBal)) {
