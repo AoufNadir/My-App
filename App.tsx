@@ -58,6 +58,10 @@ import 'firebase/compat/firestore';
 // Transaction Service
 import { applyTransactionDelete, applyTransactionUpdate } from './src/transactionService';
 
+// I18n
+import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
+import { GlobeIcon } from './components/icons/GlobeIcon';
+
 const MotionDiv = motion.div;
 
 declare const html2canvas: any;
@@ -80,6 +84,15 @@ const auth = firebase.auth();
 
 
 export default function App() {
+    return (
+        <LanguageProvider>
+            <AppInner />
+        </LanguageProvider>
+    );
+}
+
+function AppInner() {
+    const { t } = useLanguage();
     const [user, setUser] = useState<firebase.User | null>(null);
     const [authLoading, setAuthLoading] = useState(true);
 
@@ -96,7 +109,7 @@ export default function App() {
         const bgApp = isDark ? 'from-[#0B1120] via-[#0F172A] to-[#1E293B] text-gray-100' : 'from-[#F8FAFC] via-[#F1F5F9] to-[#E2E8F0] text-gray-900';
         return (
             <div className={`min-h-screen bg-gradient-to-br ${bgApp} flex items-center justify-center text-lg font-semibold`}>
-                Chargement de l'application...
+                {t('common.loading')}
             </div>
         );
     }
@@ -109,6 +122,7 @@ export default function App() {
 }
 
 function MainApp({ user }: { user: firebase.User }) {
+    const { t, language, setLanguage } = useLanguage();
     // ===== THEME =====
     const [theme, setTheme] = useState<'dark' | 'light'>(() => {
         const savedTheme = localStorage.getItem('usdt_theme');
@@ -152,7 +166,7 @@ function MainApp({ user }: { user: firebase.User }) {
     const [refreshKey, setRefreshKey] = useState(0);
     const handleRefresh = () => {
         setRefreshKey(prev => prev + 1);
-        setAlert('🔄 Actualisation des données en cours...');
+        setAlert('🔄 ' + t('common.refreshing'));
     };
 
     // ===== DATA =====
@@ -355,10 +369,10 @@ function MainApp({ user }: { user: firebase.User }) {
                 updatedAt: now,
                 archived: false
             });
-            setAlert('✅ Actif créé.');
+            setAlert('✅ ' + t('common.operationSuccess'));
         } catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('❌ ' + t('common.error'));
         } finally {
             setIsSaving(false);
         }
@@ -368,18 +382,18 @@ function MainApp({ user }: { user: firebase.User }) {
         // Check if asset has transactions
         const assetTxCount = manualAssetTransactions.filter(tx => tx.actifId === assetId).length;
         if (assetTxCount > 0) {
-            setAlert("⚠️ Impossible de supprimer : L'actif possède des transactions. Supprimez-les d'abord.");
+            setAlert("⚠️ " + t('common.cannotDeleteHasTransactions'));
             return;
         }
 
         setIsSaving(true);
         try {
             await userDocRef.collection('manual_assets').doc(assetId).delete();
-            setAlert('✅ Actif supprimé.');
+            setAlert('✅ ' + t('common.operationSuccess'));
             if (selectedAssetId === assetId) setSelectedAssetId(null);
         } catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('❌ ' + t('common.error'));
         } finally {
             setIsSaving(false);
         }
@@ -398,10 +412,10 @@ function MainApp({ user }: { user: firebase.User }) {
                 createdAt: now,
                 updatedAt: now
             });
-            setAlert('✅ Client ajouté.');
+            setAlert('✅ ' + t('common.operationSuccess'));
         } catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('❌ ' + t('common.error'));
         } finally {
             setIsSaving(false);
         }
@@ -411,18 +425,18 @@ function MainApp({ user }: { user: firebase.User }) {
         // Check balance
         const balance = assetClientBalances.get(`${assetId}_${clientId}`) || 0;
         if (Math.abs(balance) > 0.01) {
-            setAlert("⚠️ Impossible de supprimer : Le client possède un solde non nul. Régularisez-le d'abord.");
+            setAlert("⚠️ " + t('common.cannotDeleteHasBalance'));
             return;
         }
 
         setIsSaving(true);
         try {
             await userDocRef.collection('manual_asset_clients').doc(clientId).delete();
-            setAlert('✅ Client supprimé.');
+            setAlert('✅ ' + t('common.operationSuccess'));
             if (selectedAssetClientId === clientId) setSelectedAssetClientId(null);
         } catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('❌ ' + t('common.error'));
         } finally {
             setIsSaving(false);
         }
@@ -469,11 +483,11 @@ function MainApp({ user }: { user: firebase.User }) {
             }
 
             await batch.commit();
-            setAlert('✅ Transaction ajoutée.');
+            setAlert('✅ ' + t('common.transactionAdded'));
         } catch (e: any) {
             console.error("Error creating transaction:", e);
             console.error("Payload:", JSON.stringify({ ...data, amount: Number(data.amount) }));
-            setAlert(`❌ Erreur: ${e.message || 'Création échouée'}`);
+            setAlert(`❌ ${t('common.operationFailed')}`);
         } finally {
             setIsSaving(false);
         }
@@ -497,10 +511,10 @@ function MainApp({ user }: { user: firebase.User }) {
             }
 
             await batch.commit();
-            setAlert('✅ Transaction supprimée.');
+            setAlert('✅ ' + t('common.transactionDeleted'));
         } catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('❌ ' + t('common.error'));
         } finally {
             setIsSaving(false);
         }
@@ -563,10 +577,10 @@ function MainApp({ user }: { user: firebase.User }) {
             }
 
             await batch.commit();
-            setAlert('✅ Transaction mise à jour.');
+            setAlert('✅ ' + t('common.transactionUpdated'));
         } catch (e: any) {
             console.error("Error updating transaction:", e);
-            setAlert(`❌ Erreur: ${e.message || 'Mise à jour échouée'}`);
+            setAlert(`❌ ${t('common.operationFailed')}`);
         } finally {
             setIsSaving(false);
         }
@@ -706,10 +720,12 @@ function MainApp({ user }: { user: firebase.User }) {
     useEffect(() => { setSelectedHeatmapDay(null); }, [usdtReportMonth, usdtReportYear]);
     const [simBuyQty, setSimBuyQty] = useState('');
     const [simBuyPrice, setSimBuyPrice] = useState('');
-    const [simMode, setSimMode] = useState<'dzd' | 'eur'>('dzd');
+    const [simMode, setSimMode] = useState<'dzd' | 'eur' | 'sell_dzd'>('dzd');
     const [simEurQty, setSimEurQty] = useState('');
     const [simEurDzdPrice, setSimEurDzdPrice] = useState('');
     const [simEurUsdtRate, setSimEurUsdtRate] = useState('');
+    const [simSellUsdtQty, setSimSellUsdtQty] = useState('');
+    const [simSellDzdPrice, setSimSellDzdPrice] = useState('');
     const [clientSearchQuery, setClientSearchQuery] = useState('');
     const [clientSortMode, setClientSortMode] = useState<'all' | 'advances' | 'debts' | 'zero_balance'>('all');
     const [copiedValue, setCopiedValue] = useState<string | null>(null);
@@ -1068,8 +1084,8 @@ function MainApp({ user }: { user: firebase.User }) {
         yesterday.setDate(today.getDate() - 1);
         const parts = dateString.split('/');
         const txDate = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-        if (txDate.toDateString() === today.toDateString()) return `Aujourd'hui (${dateString})`;
-        if (txDate.toDateString() === yesterday.toDateString()) return `Hier (${dateString})`;
+        if (txDate.toDateString() === today.toDateString()) return `${t('transactions.today')} (${dateString})`;
+        if (txDate.toDateString() === yesterday.toDateString()) return `${t('transactions.yesterday')} (${dateString})`;
         return dateString;
     };
     const now = () => {
@@ -1520,8 +1536,8 @@ function MainApp({ user }: { user: firebase.User }) {
                 }
             }
             await batch.commit();
-            setAlert(editingTreasuryTx ? '✅ Ajustement mis à jour.' : '✅ Ajustement enregistré.'); setIsAdjustmentModalOpen(false);
-        } catch (error) { console.error(error); setAlert("❌ Erreur."); }
+            setAlert(editingTreasuryTx ? '✅ ' + t('common.transactionUpdated') : '✅ ' + t('common.operationSuccess')); setIsAdjustmentModalOpen(false);
+        } catch (error) { console.error(error); setAlert("❌ " + t('common.error')); }
     };
 
     const handleSwapSourceDest = () => {
@@ -1531,12 +1547,12 @@ function MainApp({ user }: { user: firebase.User }) {
 
     const handleWalletTransfer = async () => {
         const amount = parseAndEvaluate(walletTransferAmount);
-        if (amount <= 0 || isNaN(amount)) { setAlert("⚠️ Montant invalide."); return; }
-        if (walletTransferSource === walletTransferDest) { setAlert("⚠️ Source et destination identiques."); return; }
+        if (amount <= 0 || isNaN(amount)) { setAlert("⚠️ " + t('common.invalidAmount')); return; }
+        if (walletTransferSource === walletTransferDest) { setAlert("⚠️ " + t('common.sameSourceDest')); return; }
 
         const sourceBalance = walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
-        if (sourceBalance <= 0) { setAlert(`⚠️ Le solde de ${walletTransferSource} est vide (0).`); return; }
-        if (amount > sourceBalance) { setAlert(`⚠️ Solde ${walletTransferSource} insuffisant.`); return; }
+        if (sourceBalance <= 0) { setAlert(`⚠️ ${t('common.insufficientBalance')} (0).`); return; }
+        if (amount > sourceBalance) { setAlert(`⚠️ ${t('common.insufficientBalance')}.`); return; }
 
         const { date, time, timestamp } = now();
         try {
@@ -1550,9 +1566,9 @@ function MainApp({ user }: { user: firebase.User }) {
             batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp: timestamp + 1, date, time, type: 'Ajout', source: walletTransferDest, amount: amount, notes: note });
 
             await batch.commit();
-            setAlert('✅ Virement effectué.'); setIsWalletTransferModalOpen(false);
+            setAlert('✅ ' + t('common.operationSuccess')); setIsWalletTransferModalOpen(false);
             setWalletTransferAmount(''); setWalletTransferNotes('');
-        } catch (e) { console.error(e); setAlert('❌ Erreur.'); }
+        } catch (e) { console.error(e); setAlert('❌ ' + t('common.error')); }
     };
 
     const handleWalletTransferMaxClick = () => {
@@ -1560,7 +1576,7 @@ function MainApp({ user }: { user: firebase.User }) {
         if (sourceBalance > 0) {
             setWalletTransferAmount(sourceBalance.toFixed(2));
         } else {
-            setAlert(`⚠️ Le solde de ${walletTransferSource} est vide.`);
+            setAlert(`⚠️ ${t('common.insufficientBalance')}.`);
         }
     };
 
@@ -1609,7 +1625,7 @@ function MainApp({ user }: { user: firebase.User }) {
                     montant: amount, // Allow negative/positive as is
                     notes: clientTxNotes.trim(),
                 });
-                setAlert('✅ Transaction modifiée.');
+                setAlert('✅ ' + t('common.transactionUpdated'));
             } else {
                 // Create new
                 batch.set(userDocRef.collection('dzd_client_txs').doc(), {
@@ -1620,13 +1636,13 @@ function MainApp({ user }: { user: firebase.User }) {
                     notes: clientTxNotes.trim(),
                     paymentMethod: 'Crédit'
                 });
-                setAlert('✅ Transaction ajoutée.');
+                setAlert('✅ ' + t('common.transactionAdded'));
             }
 
             await batch.commit();
             setIsClientTxModalOpen(false);
             setEditingClientTx(null);
-        } catch (e) { console.error(e); setAlert('❌ Erreur.'); } finally { setIsSaving(false); }
+        } catch (e) { console.error(e); setAlert('❌ ' + t('common.error')); } finally { setIsSaving(false); }
     };
 
     const handleDeleteClientTx = async () => {
@@ -1634,7 +1650,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
         // 1. Check if it's a CHILD transaction (linked to an Adjustment)
         if (clientTxToDelete.origin === 'adjustment') {
-            setAlert('⚠️ Impossible de supprimer : Cette transaction est liée à un ajustement de trésorerie. Supprimez l\'ajustement.');
+            setAlert('⚠️ ' + t('common.cannotDeleteHasTransactions'));
             setClientTxToDelete(null);
             return;
         }
@@ -1645,9 +1661,9 @@ function MainApp({ user }: { user: firebase.User }) {
             const result = await applyTransactionDelete(clientTxToDelete.id, 'client_tx', userDocRef);
 
             if (result.success) {
-                setAlert('✅ Supprimé (et régularisé).');
+                setAlert('✅ ' + t('common.transactionDeleted'));
             } else {
-                setAlert(`❌ ${result.error || 'Erreur'}`);
+                setAlert(`❌ ${t('common.error')}`);
             }
         } catch (e) {
             console.error(e);
@@ -1677,8 +1693,8 @@ function MainApp({ user }: { user: firebase.User }) {
                 clientId: transferToClientId, timestamp: timestamp + 1, date, time, montant: -amt, type: 'Transfert Entrant', notes: transferNotes.trim() || `Transfert de ${fromC?.fullName}`
             });
 
-            await batch.commit(); setAlert('✅ Transfert effectué.'); setIsTransferModalOpen(false); setTransferAmount(''); setTransferFromClientId(''); setTransferToClientId(''); setTransferNotes('');
-        } catch (e) { setAlert('❌ Erreur.'); } finally { setIsSaving(false); }
+            await batch.commit(); setAlert('✅ ' + t('common.operationSuccess')); setIsTransferModalOpen(false); setTransferAmount(''); setTransferFromClientId(''); setTransferToClientId(''); setTransferNotes('');
+        } catch (e) { setAlert('❌ ' + t('common.error')); } finally { setIsSaving(false); }
     };
 
     const handleGlobalReset = async () => {
@@ -1708,12 +1724,12 @@ function MainApp({ user }: { user: firebase.User }) {
             // Reset settings in main doc
             await userDocRef.set({ settingsUpdatedAt: Date.now() });
 
-            setAlert('✅ Réinitialisation complète effectuée.');
+            setAlert('✅ ' + t('common.operationSuccess'));
             setIsResetModalOpen(false);
             window.location.reload();
         } catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de la réinitialisation.');
+            setAlert('❌ ' + t('common.operationFailed'));
         } finally {
             setIsSaving(false);
         }
@@ -1747,10 +1763,10 @@ function MainApp({ user }: { user: firebase.User }) {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            setAlert('✅ Sauvegarde téléchargée.');
+            setAlert('✅ ' + t('common.operationSuccess'));
         } catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de la sauvegarde.');
+            setAlert('❌ ' + t('common.operationFailed'));
         } finally {
             setIsSaving(false);
         }
@@ -1763,14 +1779,14 @@ function MainApp({ user }: { user: firebase.User }) {
         try {
             if (editingTreasuryCard) {
                 await userDocRef.collection('treasury_cards').doc(editingTreasuryCard.id).update({ name: treasuryCardName.trim(), value: val });
-                setAlert('✅ Carte mise à jour.');
+                setAlert('✅ ' + t('common.operationSuccess'));
             } else {
                 await userDocRef.collection('treasury_cards').add({ name: treasuryCardName.trim(), value: val });
-                setAlert('✅ Carte ajoutée.');
+                setAlert('✅ ' + t('common.operationSuccess'));
             }
             setIsTreasuryCardModalOpen(false);
             setTreasuryCardName(''); setTreasuryCardValue(''); setEditingTreasuryCard(null);
-        } catch (e) { setAlert('❌ Erreur.'); } finally { setIsSaving(false); }
+        } catch (e) { setAlert('❌ ' + t('common.error')); } finally { setIsSaving(false); }
     };
 
     const openTreasuryCardModal = (card: TreasuryCard | null = null) => {
@@ -1789,9 +1805,9 @@ function MainApp({ user }: { user: firebase.User }) {
         if (!treasuryCardToDelete) return;
         try {
             await userDocRef.collection('treasury_cards').doc(treasuryCardToDelete.id).delete();
-            setAlert('✅ Carte supprimée.');
+            setAlert('✅ ' + t('common.operationSuccess'));
             setTreasuryCardToDelete(null);
-        } catch (e) { setAlert('❌ Erreur.'); }
+        } catch (e) { setAlert('❌ ' + t('common.error')); }
     };
 
     const handleDeleteTreasuryTxConfirm = async () => {
@@ -1813,13 +1829,13 @@ function MainApp({ user }: { user: firebase.User }) {
             const result = await applyTransactionDelete(treasuryTxToDelete.id, 'treasury_tx', userDocRef);
 
             if (result.success) {
-                setAlert('✅ Transaction supprimée (et liens nettoyés).');
+                setAlert('✅ ' + t('common.transactionDeleted'));
             } else {
-                setAlert(`❌ ${result.error || 'Erreur'}`);
+                setAlert(`❌ ${t('common.error')}`);
             }
         } catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('❌ ' + t('common.error'));
         } finally {
             setIsSaving(false);
             setTreasuryTxToDelete(null);
@@ -1868,7 +1884,7 @@ function MainApp({ user }: { user: firebase.User }) {
         if (!client) { setClientToDelete(null); return; }
         const bal = clientBalances.get(client.id) || 0;
         if (Math.abs(bal) > 0.01) {
-            setAlert("⚠️ Impossible de supprimer : Le client possède un solde non nul. Veuillez le régulariser avant suppression.");
+            setAlert("⚠️ " + t('common.cannotDeleteHasBalance'));
         } else {
             setClientToDelete(client);
         }
@@ -1961,12 +1977,25 @@ function MainApp({ user }: { user: firebase.User }) {
                             <h1 className="text-xl sm:text-2xl font-bold tracking-tight">ProDigital</h1>
                         </div>
                         <div className="hidden sm:flex items-center gap-2 p-1 rounded-full border" style={{ borderColor: isDark ? '#334155' : '#CBD5E1' }}>
-                            <NavLink activeView={view} targetView="transactions" colorClass="bg-indigo-600">Transactions</NavLink>
-                            <NavLink activeView={view} targetView="statistiques" colorClass="bg-teal-600">Portefeuille</NavLink>
-                            <NavLink activeView={view} targetView="dzd" colorClass="bg-sky-600">Clients</NavLink>
-                            <NavLink activeView={view} targetView="tresorerie" colorClass="bg-emerald-600">Trésorerie</NavLink>
+                            <NavLink activeView={view} targetView="transactions" colorClass="bg-indigo-600">{t('nav.transactions')}</NavLink>
+                            <NavLink activeView={view} targetView="statistiques" colorClass="bg-teal-600">{t('nav.portfolio')}</NavLink>
+                            <NavLink activeView={view} targetView="dzd" colorClass="bg-sky-600">{t('nav.clients')}</NavLink>
+                            <NavLink activeView={view} targetView="tresorerie" colorClass="bg-emerald-600">{t('nav.treasury')}</NavLink>
                         </div>
                         <div className="flex items-center gap-1 sm:gap-2">
+                            {/* Language Switcher */}
+                            <div className="relative group">
+                                <Button className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}>
+                                    <GlobeIcon className="w-5 h-5" />
+                                    <span className="absolute -top-1 -right-1 text-[10px] font-bold bg-primary text-white px-1 rounded-full uppercase">{language}</span>
+                                </Button>
+                                <div className={`absolute right-0 mt-2 w-32 py-1 rounded-lg shadow-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'} hidden group-hover:block z-50`}>
+                                    <button onClick={() => setLanguage('fr')} className={`block w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 ${language === 'fr' ? 'font-bold text-sky-500' : ''} ${isDark ? 'hover:bg-white text-gray-300' : 'hover:bg-black text-gray-700'}`}>Français</button>
+                                    <button onClick={() => setLanguage('en')} className={`block w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 ${language === 'en' ? 'font-bold text-sky-500' : ''} ${isDark ? 'hover:bg-white text-gray-300' : 'hover:bg-black text-gray-700'}`}>English</button>
+                                    <button onClick={() => setLanguage('ar')} className={`block w-full text-right px-4 py-2 text-sm hover:bg-opacity-10 ${language === 'ar' ? 'font-bold text-sky-500' : ''} ${isDark ? 'hover:bg-white text-gray-300' : 'hover:bg-black text-gray-700'}`}>العربية</button>
+                                </div>
+                            </div>
+
                             {/* Notification Bell */}
                             <div className="relative">
                                 <Button
@@ -2018,10 +2047,10 @@ function MainApp({ user }: { user: firebase.User }) {
                                 </Button>
                             </div>
                             <div className="space-y-2">
-                                <MobileNavLink targetView="transactions" icon={<BriefcaseIcon className="w-6 h-6" />} colorClass="text-indigo-500">Transactions</MobileNavLink>
-                                <MobileNavLink targetView="statistiques" icon={<WalletIcon className="w-6 h-6" />} colorClass="text-teal-500">Portefeuille</MobileNavLink>
-                                <MobileNavLink targetView="dzd" icon={<UsersIcon className="w-6 h-6" />} colorClass="text-sky-500">Clients</MobileNavLink>
-                                <MobileNavLink targetView="tresorerie" icon={<LandmarkIcon className="w-6 h-6" />} colorClass="text-emerald-500">Trésorerie</MobileNavLink>
+                                <MobileNavLink targetView="transactions" icon={<BriefcaseIcon className="w-6 h-6" />} colorClass="text-indigo-500">{t('nav.transactions')}</MobileNavLink>
+                                <MobileNavLink targetView="statistiques" icon={<WalletIcon className="w-6 h-6" />} colorClass="text-teal-500">{t('nav.portfolio')}</MobileNavLink>
+                                <MobileNavLink targetView="dzd" icon={<UsersIcon className="w-6 h-6" />} colorClass="text-sky-500">{t('nav.clients')}</MobileNavLink>
+                                <MobileNavLink targetView="tresorerie" icon={<LandmarkIcon className="w-6 h-6" />} colorClass="text-emerald-500">{t('nav.treasury')}</MobileNavLink>
                             </div>
                         </MotionDiv>
                     )}
@@ -2054,7 +2083,7 @@ function MainApp({ user }: { user: firebase.User }) {
                         setTreasuryTxToDelete={setTreasuryTxToDelete}
                     />}
 
-                    {view === 'statistiques' && <PortfolioPage {...{ statsView, setStatsView, isDark, setIsSettingsModalOpen, cardBase, subtleText, portfolioStats, totalPortfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), suggestedProfitMargin, parseAndEvaluate, usdtReportMonth, setUsdtReportMonth, usdtReportYear, setUsdtReportYear, reportMonths: (y: number) => y === new Date().getFullYear() ? MONTHS_FR.slice(0, new Date().getMonth() + 1) : MONTHS_FR, reportYears: Array.from({ length: 3 }, (_, i) => 2024 + i), monthlyStats: { totalUsdtSoldMonth: 0, totalEurBoughtMonth: 0, realizedProfitMonth: 0, monthlyProfitMargin: 0 }, transactions, selectedHeatmapDay, setSelectedHeatmapDay, simMode, setSimMode, simBuyQty, setSimBuyQty, simBuyPrice, setSimBuyPrice, fieldBase, newPamFromDzdSimulator, simEurQty, setSimEurQty, simEurDzdPrice, setSimEurDzdPrice, simEurUsdtRate, setSimEurUsdtRate, newPamFromEurSimulator, handleExportUsdtReport, dzdDashboardStats: null, reportClient, setReportClient, clientsDzd, getClientFullName, reportMonth, setReportMonth, reportYear, setReportYear, handleExportClientReport }} />}
+                    {view === 'statistiques' && <PortfolioPage {...{ statsView, setStatsView, isDark, setIsSettingsModalOpen, cardBase, subtleText, portfolioStats, totalPortfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), suggestedProfitMargin, suggestedSellingPrice, parseAndEvaluate, usdtReportMonth, setUsdtReportMonth, usdtReportYear, setUsdtReportYear, reportMonths: (y: number) => y === new Date().getFullYear() ? (Array.isArray(t('common.months')) ? t('common.months') as any as string[] : []).slice(0, new Date().getMonth() + 1) : (Array.isArray(t('common.months')) ? t('common.months') as any as string[] : []), reportYears: Array.from({ length: 3 }, (_, i) => 2024 + i), monthlyStats: { totalUsdtSoldMonth: 0, totalEurBoughtMonth: 0, realizedProfitMonth: 0, monthlyProfitMargin: 0 }, transactions, selectedHeatmapDay, setSelectedHeatmapDay, simMode, setSimMode, simBuyQty, setSimBuyQty, simBuyPrice, setSimBuyPrice, fieldBase, newPamFromDzdSimulator, simEurQty, setSimEurQty, simEurDzdPrice, setSimEurDzdPrice, simEurUsdtRate, setSimEurUsdtRate, newPamFromEurSimulator, handleExportUsdtReport, dzdDashboardStats: null, reportClient, setReportClient, clientsDzd, getClientFullName, reportMonth, setReportMonth, reportYear, setReportYear, handleExportClientReport, simSellUsdtQty, setSimSellUsdtQty, simSellDzdPrice, setSimSellDzdPrice }} />}
 
                     {view === 'dzd' && <ClientsPage {...{ selectedClientId, setSelectedClientId, cardBase, fieldBase, isDark, subtleText, openClientModal, setIsTransferModalOpen, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances: clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete: handleClientDeleteRequest, selectedClient, selectedClientTransactions, transactions, handleExportClientReport, openClientTxModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick }} />}
 
@@ -2128,12 +2157,12 @@ function MainApp({ user }: { user: firebase.User }) {
 
             {/* 1. WALLET TRANSFER MODAL */}
             <Dialog isOpen={isWalletTransferModalOpen} onClose={() => setIsWalletTransferModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsWalletTransferModalOpen(false)} isDark={isDark}><DialogTitle>Virement Interne</DialogTitle></DialogHeader>
+                <DialogHeader onClose={() => setIsWalletTransferModalOpen(false)} isDark={isDark}><DialogTitle>{t('transactions.internalTransfer')}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-6">
 
                     {/* 1. AMOUNT (Top & Prominent) with MAX Button */}
                     <div className="relative pb-4 border-b border-gray-200 dark:border-gray-700">
-                        <Label className="text-center w-full block mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wider text-xs">Montant à transférer</Label>
+                        <Label className="text-center w-full block mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wider text-xs">{t('transactions.transferAmount')}</Label>
                         <div className="relative max-w-[240px] mx-auto">
                             <NumberInput
                                 value={walletTransferAmount}
@@ -2145,9 +2174,9 @@ function MainApp({ user }: { user: firebase.User }) {
                             <button
                                 onClick={handleWalletTransferMaxClick}
                                 className={`absolute left-2 top-1/2 -translate-y-1/2 text-xs font-bold px-2.5 py-1 rounded-md transition-all ${isDark ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-sky-500 text-white hover:bg-sky-600'} shadow-sm hover:shadow-md active:scale-95`}
-                                title="Montant maximum disponible"
+                                title={t('common.max')}
                             >
-                                MAX
+                                {t('common.max')}
                             </button>
                         </div>
                     </div>
@@ -2157,13 +2186,13 @@ function MainApp({ user }: { user: firebase.User }) {
                         <div className="flex items-center justify-between gap-4">
                             {/* Source */}
                             <div className="flex-1">
-                                <Label className="text-xs mb-1.5 text-gray-500">De (Source)</Label>
+                                <Label className="text-xs mb-1.5 text-gray-500">{t('transactions.from')} ({t('common.source')})</Label>
                                 <div className={`p-3 rounded-xl font-semibold text-sm border ${isDark ? 'bg-slate-800 border-slate-700 text-gray-200' : 'bg-white border-slate-200 text-gray-800'}`}>
                                     {walletTransferSource}
                                 </div>
                                 {/* Balance Display */}
                                 <p className={`text-xs mt-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    Solde: <span className="font-semibold">{(walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
+                                    {t('common.balance')}: <span className="font-semibold">{(walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
                                 </p>
                             </div>
 
@@ -2178,13 +2207,13 @@ function MainApp({ user }: { user: firebase.User }) {
 
                             {/* Destination */}
                             <div className="flex-1 text-right">
-                                <Label className="text-xs mb-1.5 text-gray-500">Vers (Destination)</Label>
+                                <Label className="text-xs mb-1.5 text-gray-500">{t('transactions.to')} ({t('common.destination')})</Label>
                                 <div className={`p-3 rounded-xl font-semibold text-sm border ${isDark ? 'bg-slate-800 border-slate-700 text-gray-200' : 'bg-white border-slate-200 text-gray-800'}`}>
                                     {walletTransferDest}
                                 </div>
                                 {/* Balance Display */}
                                 <p className={`text-xs mt-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    Solde: <span className="font-semibold">{(walletTransferDest === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
+                                    {t('common.balance')}: <span className="font-semibold">{(walletTransferDest === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
                                 </p>
                             </div>
                         </div>
@@ -2197,7 +2226,7 @@ function MainApp({ user }: { user: firebase.User }) {
                     </div>
 
                     {/* 3. Notes Section */}
-                    <div><Label>Notes (Optionnel)</Label><Input value={walletTransferNotes} onChange={e => setWalletTransferNotes(e.target.value)} className={fieldBase} placeholder="Ex: Alimentation caisse..." /></div>
+                    <div><Label>{t('common.notesOptional')}</Label><Input value={walletTransferNotes} onChange={e => setWalletTransferNotes(e.target.value)} className={fieldBase} placeholder="" /></div>
                 </DialogContent>
                 <DialogFooter>
                     {/* Enhanced Confirmation Button */}
@@ -2209,12 +2238,12 @@ function MainApp({ user }: { user: firebase.User }) {
                         {isSaving ? (
                             <>
                                 <RefreshCwIcon className="w-5 h-5 animate-spin" />
-                                Traitement...
+                                {t('common.processing')}
                             </>
                         ) : (
                             <>
                                 <ArrowRightLeftIcon className="w-5 h-5" />
-                                Confirmer le Transfert
+                                {t('transactions.confirmTransfer')}
                             </>
                         )}
                     </Button>
@@ -2223,25 +2252,25 @@ function MainApp({ user }: { user: firebase.User }) {
 
             {/* 2. CLIENT TX MODAL - Updated to use Select for Type d'Actif */}
             <Dialog isOpen={isClientTxModalOpen} onClose={() => setIsClientTxModalOpen(false)} className={`${cardBase} max-w-lg`}>
-                <DialogHeader onClose={() => setIsClientTxModalOpen(false)} isDark={isDark}><DialogTitle>{editingClientTx ? "Modifier l'Opération" : "Nouvelle Opération"}</DialogTitle></DialogHeader>
+                <DialogHeader onClose={() => setIsClientTxModalOpen(false)} isDark={isDark}><DialogTitle>{editingClientTx ? t('transactions.editOperation') : t('transactions.newOperation')}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
                     {/* SIMPLIFIED CLIENT TX MODAL CONTENT */}
 
                     {/* HIDE TYPE SELECTOR IF EDITING OR IF IT WAS PRE-SELECTED FROM DROPDOWN */}
                     {!editingClientTx && (clientTxType === 'Règlement Reçu' || clientTxType === 'Paiement Effectué') && (
-                        <div><Label>Type d'Opération</Label><Select id="tx_type_select" value={clientTxType} onChange={e => setClientTxType(e.target.value as any)} className={fieldBase} disabled={!!editingClientTx}><option>Règlement Reçu</option><option>Paiement Effectué</option><option>Vente USDT</option><option>Achat EUR</option></Select></div>
+                        <div><Label>{t('transactions.operationType')}</Label><Select id="tx_type_select" value={clientTxType} onChange={e => setClientTxType(e.target.value as any)} className={fieldBase} disabled={!!editingClientTx}><option value="Règlement Reçu">{t('transactions.paymentReceived')}</option><option value="Paiement Effectué">{t('transactions.paymentMade')}</option><option value="Vente USDT">{t('transactions.sellUsdt')}</option><option value="Achat EUR">{t('transactions.buyEur')}</option></Select></div>
                     )}
 
                     {/* REMOVED: Source Selector (Type d'Actif) */}
                     {/* REMOVED: Payment Status Selector (Statut du Paiement) */}
 
                     {clientTxType === 'Vente USDT' ? (
-                        <div className="space-y-4"><div><Label>Quantité USDT</Label><NumberInput value={clientTxUsdtAmount} onChange={e => setClientTxUsdtAmount(e.target.value)} className={fieldBase} /></div><div><Label>Prix de Vente</Label><NumberInput value={clientTxSellPrice} onChange={e => setClientTxSellPrice(e.target.value)} className={fieldBase} /></div></div>
+                        <div className="space-y-4"><div><Label>{t('portfolio.qtyUsdt')}</Label><NumberInput value={clientTxUsdtAmount} onChange={e => setClientTxUsdtAmount(e.target.value)} className={fieldBase} /></div><div><Label>{t('portfolio.sellingPriceDzd')}</Label><NumberInput value={clientTxSellPrice} onChange={e => setClientTxSellPrice(e.target.value)} className={fieldBase} /></div></div>
                     ) : clientTxType === 'Achat EUR' ? (
-                        <div className="space-y-4"><div><Label>Quantité EUR</Label><NumberInput value={clientTxEurAmount} onChange={e => setClientTxEurAmount(e.target.value)} className={fieldBase} /></div><div><Label>Prix d'Achat</Label><NumberInput value={clientTxEurPrice} onChange={e => setClientTxEurPrice(e.target.value)} className={fieldBase} /></div></div>
+                        <div className="space-y-4"><div><Label>{t('transactions.qtyEur')}</Label><NumberInput value={clientTxEurAmount} onChange={e => setClientTxEurAmount(e.target.value)} className={fieldBase} /></div><div><Label>{t('portfolio.buyPrice')}</Label><NumberInput value={clientTxEurPrice} onChange={e => setClientTxEurPrice(e.target.value)} className={fieldBase} /></div></div>
                     ) : (
                         <div>
-                            <Label>Montant (DZD)</Label>
+                            <Label>{t('transactions.amountDzd')}</Label>
                             <div className="relative">
                                 {/* ALLOW NEGATIVE VALUES: Use Input type="number" or NumberInput without restrictions if possible. 
                                     Our NumberInput might restrict? Let's check. 
@@ -2257,26 +2286,26 @@ function MainApp({ user }: { user: firebase.User }) {
                                     placeholder="+/- Montant"
                                 />
                             </div>
-                            <p className="text-xs mt-1 opacity-60">Entrez une valeur positive (Crédit) ou négative (Dette).</p>
+                            <p className="text-xs mt-1 opacity-60">{t('transactions.enterPositiveNegativeValue')}</p>
                         </div>
                     )}
-                    <div><Label>Notes (Optionnel)</Label><Input value={clientTxNotes} onChange={e => setClientTxNotes(e.target.value)} className={fieldBase} /></div>
+                    <div><Label>{t('common.notesOptional')}</Label><Input value={clientTxNotes} onChange={e => setClientTxNotes(e.target.value)} className={fieldBase} /></div>
                 </DialogContent>
-                <DialogFooter><Button onClick={handleSaveClientTx} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl">Sauvegarder</Button></DialogFooter>
+                <DialogFooter><Button onClick={handleSaveClientTx} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl">{t('common.save')}</Button></DialogFooter>
             </Dialog>
 
             {/* 3. TREASURY ADJUSTMENT MODAL */}
             <Dialog isOpen={isAdjustmentModalOpen} onClose={() => setIsAdjustmentModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsAdjustmentModalOpen(false)} isDark={isDark}><DialogTitle>{editingTreasuryTx ? "Modifier Ajustement" : "Ajustement Trésorerie"}</DialogTitle></DialogHeader>
+                <DialogHeader onClose={() => setIsAdjustmentModalOpen(false)} isDark={isDark}><DialogTitle>{editingTreasuryTx ? t('transactions.editAdjustment') : t('transactions.treasuryAdjustment')}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
                     <div className="grid grid-cols-2 gap-0 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl">
-                        <button onClick={() => setAdjustmentTab('add')} className={`py-2.5 rounded-lg font-bold text-sm transition-all ${adjustmentTab === 'add' ? 'bg-[#1E293B] text-white shadow-sm' : 'text-gray-500'}`}>Ajouter (+)</button>
-                        <button onClick={() => setAdjustmentTab('subtract')} className={`py-2.5 rounded-lg font-bold text-sm transition-all ${adjustmentTab === 'subtract' ? 'bg-[#1E293B] text-white shadow-sm' : 'text-gray-500'}`}>Retirer (-)</button>
+                        <button onClick={() => setAdjustmentTab('add')} className={`py-2.5 rounded-lg font-bold text-sm transition-all ${adjustmentTab === 'add' ? 'bg-[#1E293B] text-white shadow-sm' : 'text-gray-500'}`}>{t('transactions.addTo')}</button>
+                        <button onClick={() => setAdjustmentTab('subtract')} className={`py-2.5 rounded-lg font-bold text-sm transition-all ${adjustmentTab === 'subtract' ? 'bg-[#1E293B] text-white shadow-sm' : 'text-gray-500'}`}>{t('transactions.withdrawFrom')}</button>
                     </div>
-                    <div><Label>Type d'Actif</Label><Select value={adjustmentAsset} onChange={e => setAdjustmentAsset(e.target.value as any)} className={`${fieldBase} h-12 text-base`}><option value="DZD-Caisse">DZD - Caisse</option><option value="DZD-Baridi">DZD - BaridiMob</option><option value="USDT">USDT</option><option value="EUR">EUR</option></Select></div>
+                    <div><Label>{t('transactions.assetType')}</Label><Select value={adjustmentAsset} onChange={e => setAdjustmentAsset(e.target.value as any)} className={`${fieldBase} h-12 text-base`}><option value="DZD-Caisse">{t('common.dinar')} - {t('transactions.cash')}</option><option value="DZD-Baridi">{t('common.dinar')} - {t('transactions.baridi')}</option><option value="USDT">USDT</option><option value="EUR">EUR</option></Select></div>
 
                     <div className="relative">
-                        <Label>{adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR' ? 'Quantité' : 'Montant'}</Label>
+                        <Label>{adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR' ? t('transactions.quantity') : t('transactions.amount')}</Label>
                         <div className="relative">
                             <NumberInput
                                 value={adjustmentAmount}
@@ -2307,63 +2336,63 @@ function MainApp({ user }: { user: firebase.User }) {
                     </div>
 
                     {(adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR') && (
-                        <div><Label>Prix Unitaire (DZD)</Label><NumberInput value={adjustmentPrice} onChange={e => setAdjustmentPrice(e.target.value)} className={fieldBase} placeholder="Ex: 240.00" /></div>
+                        <div><Label>{t('transactions.unitPrice')}</Label><NumberInput value={adjustmentPrice} onChange={e => setAdjustmentPrice(e.target.value)} className={fieldBase} placeholder="Ex: 240.00" /></div>
                     )}
 
                     {/* CLIENT SELECTOR FOR DZD ADJUSTMENTS */}
                     {(adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && (
                         <div className="p-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
-                            <Label className="mb-1">Lier à un Client (Optionnel)</Label>
+                            <Label className="mb-1">{t('transactions.linkedClientOptional')}</Label>
                             <Select value={adjustmentClientId} onChange={e => setAdjustmentClientId(e.target.value)} className={fieldBase}>
-                                <option value="">-- Aucun / Sans client --</option>
+                                <option value="">-- {t('common.notes')} --</option>
                                 {clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}
                             </Select>
                             {adjustmentClientId && (
                                 <div className="flex justify-between items-center mt-1">
-                                    <p className="text-xs text-blue-400">Transaction client générée.</p>
+                                    <p className="text-xs text-blue-400">{t('transactions.clientTxGenerated')}</p>
                                     <p className={`text-xs font-bold ${subtleText}`}>
-                                        Solde: {(clientBalances.get(adjustmentClientId) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                                        {t('common.balance')}: {(clientBalances.get(adjustmentClientId) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {t('common.dinar')}
                                     </p>
                                 </div>
                             )}
                         </div>
                     )}
 
-                    <div><Label>Motif</Label><Input value={adjustmentNote} onChange={e => setAdjustmentNote(e.target.value)} className={fieldBase} placeholder="Ex: Alimentation, Frais..." /></div>
+                    <div><Label>{t('transactions.reason')}</Label><Input value={adjustmentNote} onChange={e => setAdjustmentNote(e.target.value)} className={fieldBase} placeholder="Ex: Alimentation, Frais..." /></div>
                 </DialogContent>
-                <DialogFooter><Button onClick={handleGlobalAdjustment} className={`w-full rounded-xl font-bold py-3.5 text-white text-lg shadow-lg transition-transform active:scale-95 ${adjustmentTab === 'add' ? 'bg-green-600' : 'bg-red-600'}`}>Confirmer</Button></DialogFooter>
+                <DialogFooter><Button onClick={handleGlobalAdjustment} className={`w-full rounded-xl font-bold py-3.5 text-white text-lg shadow-lg transition-transform active:scale-95 ${adjustmentTab === 'add' ? 'bg-green-600' : 'bg-red-600'}`}>{t('transactions.confirm')}</Button></DialogFooter>
             </Dialog>
 
             <Dialog isOpen={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)} className={`${cardBase} max-w-lg`}>
-                <DialogHeader onClose={() => setIsTransferModalOpen(false)} isDark={isDark}><DialogTitle>Transfert Client</DialogTitle></DialogHeader>
+                <DialogHeader onClose={() => setIsTransferModalOpen(false)} isDark={isDark}><DialogTitle>{t('transactions.clientTransfer')}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
-                    <div className="p-3 bg-sky-500/10 rounded-lg text-sm text-sky-600 dark:text-sky-400 mb-2">Transfert de dette/crédit entre deux clients.</div>
+                    <div className="p-3 bg-sky-500/10 rounded-lg text-sm text-sky-600 dark:text-sky-400 mb-2">{t('transactions.transferDebtCredit')}</div>
                     <div>
-                        <Label>De (Source)</Label>
+                        <Label>{t('transactions.from')}</Label>
                         <Select value={transferFromClientId} onChange={e => setTransferFromClientId(e.target.value)} className={fieldBase}>
-                            <option value="">-- Client --</option>
+                            <option value="">-- {t('transactions.filterClients')} --</option>
                             {clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}
                         </Select>
                         {transferFromClientId && (
                             <p className={`text-xs mt-1 ${subtleText}`}>
-                                Solde : {transferFromBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                                {t('common.balance')} : {transferFromBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {t('common.dinar')}
                             </p>
                         )}
                     </div>
                     <div>
-                        <Label>À (Destination)</Label>
+                        <Label>{t('transactions.to')}</Label>
                         <Select value={transferToClientId} onChange={e => setTransferToClientId(e.target.value)} className={fieldBase}>
-                            <option value="">-- Client --</option>
+                            <option value="">-- {t('transactions.filterClients')} --</option>
                             {clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}
                         </Select>
                         {transferToClientId && (
                             <p className={`text-xs mt-1 ${subtleText}`}>
-                                Solde : {transferToBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                                {t('common.balance')} : {transferToBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {t('common.dinar')}
                             </p>
                         )}
                     </div>
                     <div>
-                        <Label>Montant</Label>
+                        <Label>{t('transactions.amount')}</Label>
                         <div className="relative">
                             <NumberInput value={transferAmount} onChange={e => setTransferAmount(e.target.value)} className={fieldBase} />
                             {transferToClientId && (
@@ -2376,22 +2405,22 @@ function MainApp({ user }: { user: firebase.User }) {
                             )}
                         </div>
                     </div>
-                    <div><Label>Notes</Label><Input value={transferNotes} onChange={e => setTransferNotes(e.target.value)} className={fieldBase} /></div>
+                    <div><Label>{t('common.notes')}</Label><Input value={transferNotes} onChange={e => setTransferNotes(e.target.value)} className={fieldBase} /></div>
                 </DialogContent>
-                <DialogFooter><Button onClick={handleSaveTransfer} disabled={isSaving} className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl">Confirmer le Transfert</Button></DialogFooter>
+                <DialogFooter><Button onClick={handleSaveTransfer} disabled={isSaving} className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl">{t('transactions.confirmTransfer')}</Button></DialogFooter>
             </Dialog>
 
             {/* NEW: Treasury Balance Edit Modal */}
             <Dialog isOpen={isTreasuryBalanceEditModalOpen} onClose={() => setIsTreasuryBalanceEditModalOpen(false)} className={`${cardBase} max-w-sm`}>
                 <DialogHeader onClose={() => setIsTreasuryBalanceEditModalOpen(false)} isDark={isDark}>
-                    <DialogTitle>Modifier Solde {treasuryBalanceEditAsset}</DialogTitle>
+                    <DialogTitle>{t('transactions.editBalance')} {treasuryBalanceEditAsset}</DialogTitle>
                 </DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
                     <div className="p-3 bg-blue-500/10 rounded-lg text-sm text-blue-600 dark:text-blue-400 mb-2">
-                        Modifiez le solde directement. Une transaction d'ajustement sera créée automatiquement pour combler la différence.
+                        {t('transactions.editBalanceDesc')}
                     </div>
                     <div>
-                        <Label>Nouveau Solde (DZD)</Label>
+                        <Label>{t('transactions.newBalance')} ({t('common.dinar')})</Label>
                         <Input
                             type="text"
                             inputMode="decimal"
@@ -2401,40 +2430,40 @@ function MainApp({ user }: { user: firebase.User }) {
                         />
                     </div>
                     <div>
-                        <Label>Notes (Optionnel)</Label>
-                        <Input value={treasuryBalanceEditNotes} onChange={e => setTreasuryBalanceEditNotes(e.target.value)} className={fieldBase} placeholder="Raison de l'ajustement..." />
+                        <Label>{t('common.notesOptional')}</Label>
+                        <Input value={treasuryBalanceEditNotes} onChange={e => setTreasuryBalanceEditNotes(e.target.value)} className={fieldBase} placeholder={t('transactions.reason')} />
                     </div>
                 </DialogContent>
                 <DialogFooter>
-                    <Button onClick={handleSaveTreasuryBalanceEdit} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">Sauvegarder</Button>
+                    <Button onClick={handleSaveTreasuryBalanceEdit} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">{t('common.save')}</Button>
                 </DialogFooter>
             </Dialog>
 
 
 
             <Dialog isOpen={isDateFilterModalOpen} onClose={() => setIsDateFilterModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsDateFilterModalOpen(false)} isDark={isDark}><DialogTitle>Filtrer par Date</DialogTitle></DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4"><div><Label>Date début</Label><Input type="date" value={tempStartDate} onChange={e => setTempStartDate(e.target.value)} className={fieldBase} /></div><div><Label>Date fin</Label><Input type="date" value={tempEndDate} onChange={e => setTempEndDate(e.target.value)} className={fieldBase} /></div></DialogContent>
-                <DialogFooter><Button onClick={handleClearDateFilter} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>Effacer</Button><Button onClick={handleApplyDateFilter} className="w-full bg-sky-600 text-white">Appliquer</Button></DialogFooter>
+                <DialogHeader onClose={() => setIsDateFilterModalOpen(false)} isDark={isDark}><DialogTitle>{t('transactions.filterByDate')}</DialogTitle></DialogHeader>
+                <DialogContent className="px-6 pb-6 space-y-4"><div><Label>{t('transactions.startDate')}</Label><Input type="date" value={tempStartDate} onChange={e => setTempStartDate(e.target.value)} className={fieldBase} /></div><div><Label>{t('transactions.endDate')}</Label><Input type="date" value={tempEndDate} onChange={e => setTempEndDate(e.target.value)} className={fieldBase} /></div></DialogContent>
+                <DialogFooter><Button onClick={handleClearDateFilter} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>{t('transactions.clear')}</Button><Button onClick={handleApplyDateFilter} className="w-full bg-sky-600 text-white">{t('transactions.apply')}</Button></DialogFooter>
             </Dialog>
 
             <Dialog isOpen={mode !== null} onClose={closeForm} className={`${cardBase} max-w-lg`}>
-                <DialogHeader onClose={closeForm} isDark={isDark}><DialogTitle>{editingTx ? 'Modifier' : (mode === 'sell_usdt' ? 'Ajouter une Transaction' : 'Ajouter Transaction')}</DialogTitle></DialogHeader>
+                <DialogHeader onClose={closeForm} isDark={isDark}><DialogTitle>{editingTx ? t('common.edit') : (mode === 'sell_usdt' ? t('transactions.newTransaction') : t('transactions.newTransaction'))}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
                     {mode && (
                         <>
                             {mode.startsWith('buy') && !buyUsdtMode && mode !== 'buy_eur' && (
                                 <>
                                     <div className="text-center mb-6">
-                                        <h3 className="text-lg font-medium mb-1">Comment avez-vous acheté les USDT ?</h3>
-                                        <p className={`text-sm ${subtleText}`}>Sélectionnez la devise utilisée</p>
+                                        <h3 className="text-lg font-medium mb-1">{t('transactions.howDidYouBuy')}</h3>
+                                        <p className={`text-sm ${subtleText}`}>{t('transactions.selectCurrency')}</p>
                                     </div>
                                     <div className="space-y-3">
                                         <Button onClick={() => setBuyUsdtMode('with_dzd')} className="w-full bg-teal-600 hover:bg-teal-700 text-white py-4 rounded-xl font-bold shadow-md flex items-center justify-center">
-                                            Avec des Dinars (DZD)
+                                            {t('portfolio.buyWithDzd')} ({t('common.dinar')})
                                         </Button>
                                         <Button onClick={() => { setBuyUsdtMode('with_eur'); setEurDzdPrice(portfolioStats.eur.avgBuy.toFixed(2)); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold shadow-md flex items-center justify-center">
-                                            Avec des Euros (EUR)
+                                            {t('portfolio.buyWithEur')} (EUR)
                                         </Button>
                                     </div>
                                 </>
@@ -2446,7 +2475,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                     {buyUsdtMode === 'with_dzd' && (
                                         <>
                                             <div>
-                                                <Label>Quantité (USDT)</Label>
+                                                <Label>{t('transactions.qtyUsdt')}</Label>
                                                 <NumberInput
                                                     value={buyUsdtAmount}
                                                     onChange={e => {
@@ -2466,7 +2495,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                 />
                                             </div>
                                             <div>
-                                                <Label>Prix d'achat (DZD)</Label>
+                                                <Label>{t('transactions.buyPrice')} ({t('common.dinar')})</Label>
                                                 <NumberInput
                                                     value={buyUsdtPrice}
                                                     onChange={e => {
@@ -2486,7 +2515,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                 />
                                             </div>
                                             <div>
-                                                <Label>Montant Total (DZD)</Label>
+                                                <Label>{t('transactions.totalAmount')} ({t('common.dinar')})</Label>
                                                 <NumberInput
                                                     value={buyUsdtTotal}
                                                     onChange={e => {
@@ -2509,13 +2538,13 @@ function MainApp({ user }: { user: firebase.User }) {
                                                         }
                                                     }}
                                                     className={fieldBase}
-                                                    placeholder="Calculé automatiquement"
+                                                    placeholder={t('transactions.autoCalc')}
                                                 />
-                                                <p className={`text-xs mt-1 ${subtleText}`}>Calcul automatique : Quantité × Prix</p>
+                                                <p className={`text-xs mt-1 ${subtleText}`}>{t('transactions.autoCalc')}</p>
                                             </div>
                                             <ClientLinker {...{ isEditing: !!editingTx, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
                                             <div>
-                                                <Label>Notes (Optionnel)</Label>
+                                                <Label>{t('common.notesOptional')}</Label>
                                                 <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
                                             </div>
                                         </>
@@ -2525,7 +2554,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                     {buyUsdtMode === 'with_eur' && (
                                         <>
                                             <div>
-                                                <Label>Quantité (EUR)</Label>
+                                                <Label>{t('transactions.qtyEur')}</Label>
                                                 <div className="relative">
                                                     <NumberInput
                                                         value={buyEurForUsdtAmount}
@@ -2534,13 +2563,13 @@ function MainApp({ user }: { user: firebase.User }) {
                                                         }}
                                                         className={fieldBase}
                                                     />
-                                                    <button onClick={() => setBuyEurForUsdtAmount(portfolioStats.eur.available.toString())} className="absolute right-2 top-2 text-xs bg-blue-600 text-white px-2 py-1 rounded">Max</button>
+                                                    <button onClick={() => setBuyEurForUsdtAmount(portfolioStats.eur.available.toString())} className="absolute right-2 top-2 text-xs bg-blue-600 text-white px-2 py-1 rounded">{t('common.max')}</button>
                                                 </div>
-                                                <p className={`text-xs mt-1 ${subtleText}`}>Solde EUR disponible: {portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} EUR</p>
+                                                <p className={`text-xs mt-1 ${subtleText}`}>{t('portfolio.currentBalanceEur')}: {portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} EUR</p>
                                             </div>
 
                                             <div>
-                                                <Label>Prix d'achat EUR (DZD)</Label>
+                                                <Label>{t('portfolio.buyPriceEur')} ({t('common.dinar')})</Label>
                                                 <NumberInput
                                                     value={eurDzdPrice}
                                                     onChange={e => {
@@ -2548,10 +2577,10 @@ function MainApp({ user }: { user: firebase.User }) {
                                                     }}
                                                     className={fieldBase}
                                                 />
-                                                <p className={`text-xs mt-1 ${subtleText}`}>Basé sur votre PAM EUR actuel</p>
+                                                <p className={`text-xs mt-1 ${subtleText}`}>{t('transactions.basedOnPamEur')}</p>
                                             </div>
                                             <div>
-                                                <Label>Taux de change (EUR pour 1 USDT)</Label>
+                                                <Label>{t('portfolio.rateEurUsdt')}</Label>
                                                 <NumberInput
                                                     value={eurUsdtRate}
                                                     onChange={e => {
@@ -2574,14 +2603,14 @@ function MainApp({ user }: { user: firebase.User }) {
                                                     return (
                                                         <div className="p-3 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-xl space-y-2">
                                                             <div>
-                                                                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Quantité USDT à recevoir</p>
+                                                                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">{t('transactions.quantity')} USDT</p>
                                                                 <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">
                                                                     {usdtQty.toFixed(2)} USDT
                                                                 </p>
                                                             </div>
 
                                                             <div className="pt-2 border-t border-emerald-500/20">
-                                                                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Solde total après achat</p>
+                                                                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">{t('transactions.newBalance')}</p>
                                                                 <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
                                                                     {totalAfterPurchase.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT
                                                                 </p>
@@ -2592,7 +2621,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                 return null;
                                             })()}
 
-                                            <div><Label>Notes (Optionnel)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} /></div>
+                                            <div><Label>{t('common.notesOptional')}</Label><Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} /></div>
                                         </>
                                     )}
 
@@ -2600,7 +2629,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                     {mode === 'sell_usdt' && (
                                         <>
                                             <div>
-                                                <Label>Quantité (USDT)</Label>
+                                                <Label>{t('transactions.qtyUsdt')}</Label>
                                                 <div className="relative">
                                                     <NumberInput
                                                         value={sellAmount}
@@ -2624,13 +2653,13 @@ function MainApp({ user }: { user: firebase.User }) {
                                                         if (price > 0) {
                                                             setSellTotal((portfolioStats.usdt.available * price).toFixed(2));
                                                         }
-                                                    }} className="absolute right-2 top-2 text-xs bg-sky-600 text-white px-2 py-1 rounded">Max</button>
+                                                    }} className="absolute right-2 top-2 text-xs bg-sky-600 text-white px-2 py-1 rounded">{t('common.max')}</button>
                                                 </div>
-                                                <p className={`text-xs mt-1 ${subtleText}`}>Solde disponible: {portfolioStats.usdt.available.toLocaleString()} USDT</p>
+                                                <p className={`text-xs mt-1 ${subtleText}`}>{t('common.balance')}: {portfolioStats.usdt.available.toLocaleString()} USDT</p>
                                             </div>
 
                                             <div>
-                                                <Label>Montant Total (DZD)</Label>
+                                                <Label>{t('transactions.totalAmount')} ({t('common.dinar')})</Label>
                                                 <NumberInput
                                                     value={sellTotal}
                                                     onChange={e => {
@@ -2659,18 +2688,18 @@ function MainApp({ user }: { user: firebase.User }) {
 
                                             <div className={`p-3 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                                                 <div className="flex justify-between text-sm">
-                                                    <span className="text-gray-400">PAM Actuel:</span>
-                                                    <span className="font-bold">{portfolioStats.usdt.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
+                                                    <span className="text-gray-400">{t('portfolio.currentPam')}:</span>
+                                                    <span className="font-bold">{portfolioStats.usdt.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {t('common.dinar')}</span>
                                                 </div>
                                                 <div className="flex justify-between text-sm mt-1">
-                                                    <span className="text-yellow-500">Prix Suggéré (+{suggestedProfitMargin} DA):</span>
-                                                    <span className="font-bold text-yellow-500">{(portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
+                                                    <span className="text-yellow-500">{t('portfolio.suggestedPrice')} (+{suggestedProfitMargin} DA):</span>
+                                                    <span className="font-bold text-yellow-500">{(portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {t('common.dinar')}</span>
                                                 </div>
                                             </div>
 
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
-                                                    <Label>Prix de vente (DZD)</Label>
+                                                    <Label>{t('transactions.sellPrice')} ({t('common.dinar')})</Label>
                                                     <NumberInput
                                                         value={sellPrice}
                                                         onChange={e => {
@@ -2693,7 +2722,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                     />
                                                 </div>
                                                 <div>
-                                                    <Label>Marge (DZD)</Label>
+                                                    <Label>{t('portfolio.margin')} ({t('common.dinar')})</Label>
                                                     <NumberInput
                                                         value={profitPercent}
                                                         onChange={e => {
@@ -2716,7 +2745,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                 </div>
                                             </div>
                                             <ClientLinker {...{ isEditing: !!editingTx, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
-                                            <div><Label>Notes (Optionnel)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} /></div>
+                                            <div><Label>{t('common.notesOptional')}</Label><Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} /></div>
                                         </>
                                     )}
 
@@ -2724,7 +2753,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                     {mode === 'buy_eur' && (
                                         <div className="space-y-4">
                                             <div>
-                                                <Label>Quantité (EUR)</Label>
+                                                <Label>{t('transactions.qtyEur')}</Label>
                                                 <NumberInput
                                                     value={buyEurAmount}
                                                     onChange={e => {
@@ -2744,7 +2773,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                 />
                                             </div>
                                             <div>
-                                                <Label>Prix d'achat (DZD)</Label>
+                                                <Label>{t('portfolio.buyPriceEur')} ({t('common.dinar')})</Label>
                                                 <NumberInput
                                                     value={buyEurPrice}
                                                     onChange={e => {
@@ -2762,10 +2791,10 @@ function MainApp({ user }: { user: firebase.User }) {
                                                     }}
                                                     className={fieldBase}
                                                 />
-                                                <p className={`text-xs mt-1 ${subtleText}`}>Basé sur votre PAM EUR actuel.</p>
+                                                <p className={`text-xs mt-1 ${subtleText}`}>{t('transactions.basedOnPamEur')}</p>
                                             </div>
                                             <div>
-                                                <Label>Montant Total (DZD)</Label>
+                                                <Label>{t('transactions.totalAmount')} ({t('common.dinar')})</Label>
                                                 <NumberInput
                                                     value={buyEurTotal}
                                                     onChange={e => {
@@ -2788,13 +2817,13 @@ function MainApp({ user }: { user: firebase.User }) {
                                                         }
                                                     }}
                                                     className={fieldBase}
-                                                    placeholder="Calculé automatiquement"
+                                                    placeholder={t('transactions.autoCalc')}
                                                 />
-                                                <p className={`text-xs mt-1 ${subtleText}`}>Calcul automatique : Quantité × Prix</p>
+                                                <p className={`text-xs mt-1 ${subtleText}`}>{t('transactions.autoCalc')}</p>
                                             </div>
                                             <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
                                             <div>
-                                                <Label>Notes (Optionnel)</Label>
+                                                <Label>{t('common.notesOptional')}</Label>
                                                 <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
                                             </div>
                                         </div>
@@ -2804,16 +2833,16 @@ function MainApp({ user }: { user: firebase.User }) {
                                     {mode === 'buy_usdt' && !buyUsdtMode && (
                                         <div className="space-y-4">
                                             <div>
-                                                <Label>Quantité (USDT)</Label>
+                                                <Label>{t('transactions.qtyUsdt')}</Label>
                                                 <NumberInput value={buyUsdtAmount} onChange={e => setBuyUsdtAmount(e.target.value)} className={fieldBase} />
                                             </div>
                                             <div>
-                                                <Label>Prix d'achat (DZD)</Label>
+                                                <Label>{t('transactions.buyPrice')} ({t('common.dinar')})</Label>
                                                 <NumberInput value={buyUsdtPrice} onChange={e => setBuyUsdtPrice(e.target.value)} className={fieldBase} />
                                             </div>
                                             <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
                                             <div>
-                                                <Label>Notes (Optionnel)</Label>
+                                                <Label>{t('common.notesOptional')}</Label>
                                                 <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
                                             </div>
                                         </div>
@@ -2823,50 +2852,50 @@ function MainApp({ user }: { user: firebase.User }) {
                         </>
                     )}
                 </DialogContent>
-                <DialogFooter>{(mode !== 'buy_usdt' || buyUsdtMode) && <Button onClick={mode?.startsWith('buy') ? handleBuy : handleSell} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl">Confirmer</Button>}</DialogFooter>
+                <DialogFooter>{(mode !== 'buy_usdt' || buyUsdtMode) && <Button onClick={mode?.startsWith('buy') ? handleBuy : handleSell} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl">{t('transactions.confirm')}</Button>}</DialogFooter>
             </Dialog>
 
             <Dialog isOpen={txToDelete !== null} onClose={() => setTxToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>Supprimer la transaction ?</DialogTitle></DialogHeader>
+                <DialogHeader isDark={isDark}><DialogTitle>{t('transactions.deleteTransaction')}</DialogTitle></DialogHeader>
                 <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">Êtes-vous sûr de vouloir supprimer cette transaction ?</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
+                    <p className="text-sm opacity-80">{t('transactions.confirmDeleteTx')}</p>
+                    <p className="text-xs text-red-500 font-bold mt-2">{t('transactions.irreversibleAction')}</p>
                 </DialogContent>
                 <DialogFooter>
-                    <Button onClick={() => setTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>Annuler</Button>
-                    <Button onClick={handleDeleteConfirm} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">Supprimer</Button>
+                    <Button onClick={() => setTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
+                    <Button onClick={handleDeleteConfirm} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{t('common.delete')}</Button>
                 </DialogFooter>
             </Dialog>
             <Dialog isOpen={isClientModalOpen} onClose={() => setIsClientModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsClientModalOpen(false)} isDark={isDark}><DialogTitle>{editingClient ? 'Modifier Client' : 'Nouveau Client'}</DialogTitle></DialogHeader>
+                <DialogHeader onClose={() => setIsClientModalOpen(false)} isDark={isDark}><DialogTitle>{editingClient ? t('transactions.editClient') : t('transactions.newClient')}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
-                    <div><Label>Nom complet</Label><Input value={clientFullName} onChange={e => setClientFullName(e.target.value)} className={fieldBase} /></div>
-                    <div><Label>Téléphone</Label><Input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className={fieldBase} /></div>
+                    <div><Label>{t('transactions.fullName')}</Label><Input value={clientFullName} onChange={e => setClientFullName(e.target.value)} className={fieldBase} /></div>
+                    <div><Label>{t('transactions.phone')}</Label><Input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className={fieldBase} /></div>
                     <div><Label>RedotPay ID</Label><Input value={clientRedotpayId} onChange={e => setClientRedotpayId(e.target.value)} className={fieldBase} /></div>
                     <div><Label>Binance Email</Label><Input value={clientBinanceEmail} onChange={e => setClientBinanceEmail(e.target.value)} className={fieldBase} /></div>
 
-                    {!editingClient && <div><Label>Solde Initial (DZD)</Label><NumberInput value={initialBalance} onChange={e => setInitialBalance(e.target.value)} className={fieldBase} placeholder="0.00" /></div>}
+                    {!editingClient && <div><Label>{t('transactions.initialBalance')} ({t('common.dinar')})</Label><NumberInput value={initialBalance} onChange={e => setInitialBalance(e.target.value)} className={fieldBase} placeholder="0.00" /></div>}
                 </DialogContent>
-                <DialogFooter><Button onClick={handleSaveClient} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl">Sauvegarder</Button></DialogFooter>
+                <DialogFooter><Button onClick={handleSaveClient} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl">{t('common.save')}</Button></DialogFooter>
             </Dialog>
 
             <Dialog isOpen={clientToDelete !== null} onClose={() => setClientToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>Supprimer le Client ?</DialogTitle></DialogHeader>
+                <DialogHeader isDark={isDark}><DialogTitle>{t('common.confirmDelete')}</DialogTitle></DialogHeader>
                 <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">Voulez-vous vraiment supprimer ce client et tout son historique ?</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
+                    <p className="text-sm opacity-80">{t('transactions.confirmDeleteClient')}</p>
+                    <p className="text-xs text-red-500 font-bold mt-2">{t('transactions.irreversibleAction')}</p>
                 </DialogContent>
                 <DialogFooter>
-                    <Button onClick={() => setClientToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>Annuler</Button>
-                    <Button onClick={handleDeleteClient} className="w-full bg-red-600 text-white font-bold py-3 rounded-xl">Oui, supprimer</Button>
+                    <Button onClick={() => setClientToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
+                    <Button onClick={handleDeleteClient} className="w-full bg-red-600 text-white font-bold py-3 rounded-xl">{t('transactions.confirmDelete')}</Button>
                 </DialogFooter>
             </Dialog>
 
             <Dialog isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} className={`${cardBase} max-w-sm`}>
-                <DialogHeader onClose={() => setIsSettingsModalOpen(false)} isDark={isDark}><DialogTitle>Paramètres</DialogTitle></DialogHeader>
+                <DialogHeader onClose={() => setIsSettingsModalOpen(false)} isDark={isDark}><DialogTitle>{t('common.settings')}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
                     <div>
-                        <Label>Marge Bénéficiaire (DZD)</Label>
+                        <Label>{t('portfolio.margin')} ({t('common.dinar')})</Label>
                         <div className="relative">
                             <NumberInput
                                 value={suggestedProfitMargin}
@@ -2884,13 +2913,13 @@ function MainApp({ user }: { user: firebase.User }) {
                                 className={`${fieldBase} text-center text-2xl font-bold`}
                                 placeholder="2.00"
                             />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">DZD</span>
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">{t('common.dinar')}</span>
                         </div>
                         <p className={`text-xs mt-2 ${subtleText}`}>Cette marge est utilisée pour calculer le prix de vente suggéré.</p>
                     </div>
 
                     <div>
-                        <Label>سعر البيع (DZD)</Label>
+                        <Label>{t('transactions.sellPrice')} ({t('common.dinar')})</Label>
                         <div className="relative">
                             <NumberInput
                                 value={suggestedSellingPrice}
@@ -2908,21 +2937,21 @@ function MainApp({ user }: { user: firebase.User }) {
                                 className={`${fieldBase} text-center text-2xl font-bold`}
                                 placeholder="0.00"
                             />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">DZD</span>
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">{t('common.dinar')}</span>
                         </div>
                         <p className={`text-xs mt-2 ${subtleText}`}>
-                            Prix moyen d'achat: {(portfolioStats.usdt.avgBuy || 0).toFixed(2)} DZD
+                            {t('portfolio.avgBuyPriceUsdt')}: {(portfolioStats.usdt.avgBuy || 0).toFixed(2)} {t('common.dinar')}
                         </p>
                     </div>
 
                     <div className="pt-4 border-t border-red-200 dark:border-red-900/30">
-                        <Label className="text-red-500">Zone de Danger</Label>
-                        <p className={`text-xs mb-3 ${subtleText}`}>Supprimer toutes les données et réinitialiser l'application.</p>
+                        <Label className="text-red-500">{t('common.dangerZone')}</Label>
+                        <p className={`text-xs mb-3 ${subtleText}`}>{t('common.deleteAllData')}</p>
                         <Button
                             onClick={() => { setIsSettingsModalOpen(false); setIsResetModalOpen(true); }}
                             className="w-full bg-red-100 hover:bg-red-200 text-red-600 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 font-bold py-3 rounded-xl border border-red-200 dark:border-red-900/50"
                         >
-                            Réinitialiser l'application
+                            {t('common.resetApp')}
                         </Button>
                     </div>
                 </DialogContent>
@@ -2944,47 +2973,47 @@ function MainApp({ user }: { user: firebase.User }) {
                                 }, { merge: true });
 
                                 console.log('Settings saved successfully');
-                                setAlert('✅ Paramètres sauvegardés.');
+                                setAlert('✅ ' + t('common.settingsSaved'));
                                 setIsSettingsModalOpen(false);
                             } catch (e: any) {
                                 console.error('Error saving settings:', e);
                                 console.error('Error details:', e.message, e.code);
-                                setAlert('❌ Erreur: ' + (e.message || 'Erreur inconnue'));
+                                setAlert('❌ ' + t('common.error') + ': ' + (e.message || 'Erreur inconnue'));
                             }
                         }}
                         className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl"
                     >
-                        Enregistrer
+                        {t('common.save')}
                     </Button>
                 </DialogFooter>
             </Dialog>
 
             {/* RESET CONFIRMATION MODAL */}
             <Dialog isOpen={isResetModalOpen} onClose={() => setIsResetModalOpen(false)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>Réinitialisation Globale</DialogTitle></DialogHeader>
+                <DialogHeader isDark={isDark}><DialogTitle>{t('common.resetConfirmTitle')}</DialogTitle></DialogHeader>
                 <DialogContent className="p-6">
-                    <p className="text-red-500 font-bold mb-2">ATTENTION : Cette action est irréversible.</p>
-                    <p>Vous êtes sur le point de supprimer TOUTES les données de l'application (Transactions, Clients, Trésorerie, etc.).</p>
-                    <p className="mt-2">Voulez-vous vraiment recommencer à zéro ?</p>
+                    <p className="text-red-500 font-bold mb-2">{t('common.resetWarning')}</p>
+                    <p>{t('common.resetConfirmBody')}</p>
+                    <p className="mt-2">{t('common.areYouSure')}</p>
                 </DialogContent>
                 <DialogFooter>
-                    <Button onClick={() => setIsResetModalOpen(false)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>Annuler</Button>
-                    <Button onClick={handleGlobalReset} className="w-full bg-red-600 text-white font-bold py-3 rounded-xl">OUI, TOUT EFFACER</Button>
+                    <Button onClick={() => setIsResetModalOpen(false)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
+                    <Button onClick={handleGlobalReset} className="w-full bg-red-600 text-white font-bold py-3 rounded-xl">{t('common.resetYes')}</Button>
                 </DialogFooter>
             </Dialog>
 
             {/* NEW: CREATE MANUAL ASSET MODAL */}
             <Dialog isOpen={isCreateAssetModalOpen} onClose={() => setIsCreateAssetModalOpen(false)} className={`${cardBase} max-w-md`}>
                 <DialogHeader onClose={() => setIsCreateAssetModalOpen(false)} isDark={isDark}>
-                    <DialogTitle>Nouvel Actif Manuel</DialogTitle>
+                    <DialogTitle>{t('transactions.newManualAsset')}</DialogTitle>
                 </DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
                     <div>
-                        <Label>Nom de l'actif</Label>
+                        <Label>{t('transactions.assetName')}</Label>
                         <Input value={newAssetName} onChange={e => setNewAssetName(e.target.value)} className={fieldBase} placeholder="Ex: Impression, Conception..." />
                     </div>
                     <div>
-                        <Label>Description (Optionnel)</Label>
+                        <Label>{t('transactions.descriptionOptional')}</Label>
                         <Input value={newAssetDescription} onChange={e => setNewAssetDescription(e.target.value)} className={fieldBase} />
                     </div>
                 </DialogContent>
@@ -2994,42 +3023,42 @@ function MainApp({ user }: { user: firebase.User }) {
                         setIsCreateAssetModalOpen(false);
                         setNewAssetName('');
                         setNewAssetDescription('');
-                    }} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">Créer</Button>
+                    }} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">{t('transactions.create')}</Button>
                 </DialogFooter>
             </Dialog>
 
             {/* TREASURY CARD MODAL */}
             <Dialog isOpen={isTreasuryCardModalOpen} onClose={() => setIsTreasuryCardModalOpen(false)} className={`${cardBase} max-w-sm`}>
-                <DialogHeader onClose={() => setIsTreasuryCardModalOpen(false)} isDark={isDark}><DialogTitle>{editingTreasuryCard ? 'Modifier Carte' : 'Ajouter une Carte'}</DialogTitle></DialogHeader>
+                <DialogHeader onClose={() => setIsTreasuryCardModalOpen(false)} isDark={isDark}><DialogTitle>{editingTreasuryCard ? t('transactions.editCard') : t('transactions.addCard')}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
-                    <div><Label>Nom de la carte / Source</Label><Input value={treasuryCardName} onChange={e => setTreasuryCardName(e.target.value)} className={fieldBase} placeholder="Ex: Coffre Fort" /></div>
-                    <div><Label>Valeur (DZD)</Label><NumberInput value={treasuryCardValue} onChange={e => setTreasuryCardValue(e.target.value)} className={fieldBase} placeholder="0.00" /></div>
+                    <div><Label>{t('transactions.cardNameSource')}</Label><Input value={treasuryCardName} onChange={e => setTreasuryCardName(e.target.value)} className={fieldBase} placeholder="Ex: Coffre Fort" /></div>
+                    <div><Label>{t('transactions.valueDzd')}</Label><NumberInput value={treasuryCardValue} onChange={e => setTreasuryCardValue(e.target.value)} className={fieldBase} placeholder="0.00" /></div>
                 </DialogContent>
-                <DialogFooter><Button onClick={handleSaveTreasuryCard} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl">{editingTreasuryCard ? 'Mettre à jour' : 'Ajouter'}</Button></DialogFooter>
+                <DialogFooter><Button onClick={handleSaveTreasuryCard} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl">{editingTreasuryCard ? t('transactions.update') : t('transactions.add')}</Button></DialogFooter>
             </Dialog>
 
             {/* DELETE TREASURY CARD CONFIRMATION */}
             <Dialog isOpen={treasuryCardToDelete !== null} onClose={() => setTreasuryCardToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>Supprimer cette carte ?</DialogTitle></DialogHeader>
+                <DialogHeader isDark={isDark}><DialogTitle>{t('common.confirmDelete')}</DialogTitle></DialogHeader>
                 <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">Voulez-vous vraiment supprimer cette carte de trésorerie ?</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
+                    <p className="text-sm opacity-80">{t('common.areYouSure')}</p>
+                    <p className="text-xs text-red-500 font-bold mt-2">{t('transactions.irreversibleAction')}</p>
                 </DialogContent>
                 <DialogFooter>
-                    <Button onClick={() => setTreasuryCardToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>Annuler</Button>
-                    <Button onClick={handleDeleteTreasuryCard} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">Supprimer</Button>
+                    <Button onClick={() => setTreasuryCardToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
+                    <Button onClick={handleDeleteTreasuryCard} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{t('common.delete')}</Button>
                 </DialogFooter>
             </Dialog>
 
             <Dialog isOpen={treasuryTxToDelete !== null} onClose={() => setTreasuryTxToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>Supprimer Transaction ?</DialogTitle></DialogHeader>
+                <DialogHeader isDark={isDark}><DialogTitle>{t('transactions.deleteTransaction')}</DialogTitle></DialogHeader>
                 <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">Voulez-vous vraiment supprimer cette transaction de trésorerie ?</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
+                    <p className="text-sm opacity-80">{t('transactions.confirmDeleteTx')}</p>
+                    <p className="text-xs text-red-500 font-bold mt-2">{t('transactions.irreversibleAction')}</p>
                 </DialogContent>
                 <DialogFooter>
-                    <Button onClick={() => setTreasuryTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>Annuler</Button>
-                    <Button onClick={handleDeleteTreasuryTxConfirm} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">Supprimer</Button>
+                    <Button onClick={() => setTreasuryTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
+                    <Button onClick={handleDeleteTreasuryTxConfirm} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{t('common.delete')}</Button>
                 </DialogFooter>
             </Dialog>
 
@@ -3037,7 +3066,7 @@ function MainApp({ user }: { user: firebase.User }) {
             {/* CLIENT SUMMARY MODAL */}
             <Dialog isOpen={summaryClient !== null} onClose={() => setSummaryClient(null)} className={`${cardBase} max-w-md`}>
                 <DialogHeader onClose={() => setSummaryClient(null)} isDark={isDark}>
-                    <DialogTitle>Détails Client</DialogTitle>
+                    <DialogTitle>{t('transactions.clientDetails')}</DialogTitle>
                 </DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
                     {summaryClient && (() => {
@@ -3056,11 +3085,11 @@ function MainApp({ user }: { user: firebase.User }) {
                                 const linked = transactions.find(t => t.id === tx.linkedTxId);
                                 if (linked) {
                                     if (linked.type === 'sell') {
-                                        type = 'Vente USDT';
-                                        details = `${linked.quantity} USDT à ${linked.sell} DZD`;
+                                        type = t('transactions.sellUsdt');
+                                        details = `${linked.quantity} USDT @ ${linked.sell} ${t('common.dinar')}`;
                                     } else if (linked.type === 'buy') {
-                                        type = `Achat ${linked.currency}`;
-                                        details = `${linked.quantity} ${linked.currency} à ${linked.price} DZD`;
+                                        type = `${t('transactions.buy')} ${linked.currency}`;
+                                        details = `${linked.quantity} ${linked.currency} @ ${linked.price} ${t('common.dinar')}`;
                                     }
                                 }
                             } else if (tx.type.includes('Transfert')) {
@@ -3072,7 +3101,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
                         const handleShare = async () => {
                             const modalContent = document.querySelector('[data-client-summary]');
-                            if (!modalContent) { setAlert('❌ Erreur.'); return; }
+                            if (!modalContent) { setAlert('❌ ' + t('common.error')); return; }
 
                             try {
                                 const canvas = await html2canvas(modalContent as HTMLElement, {
@@ -3081,7 +3110,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                 });
 
                                 canvas.toBlob(async (blob) => {
-                                    if (!blob) { setAlert('❌ Erreur.'); return; }
+                                    if (!blob) { setAlert('❌ ' + t('common.error')); return; }
 
                                     const file = new File([blob], `releve_${summaryClient.phone || 'client'}.png`, { type: 'image/png' });
 
@@ -3089,12 +3118,12 @@ function MainApp({ user }: { user: firebase.User }) {
                                         try {
                                             await navigator.share({
                                                 files: [file],
-                                                title: 'Relevé Client',
-                                                text: `Relevé de ${getClientFullName(summaryClient)}`
+                                                title: t('transactions.clientStatement'),
+                                                text: `${t('transactions.statementOf')} ${getClientFullName(summaryClient)}`
                                             });
                                         } catch (e) {
                                             console.error(e);
-                                            setAlert('❌ Partage annulé.');
+                                            setAlert('❌ ' + t('transactions.shareCancelled'));
                                         }
                                     } else {
                                         // Fallback: download image
@@ -3106,12 +3135,12 @@ function MainApp({ user }: { user: firebase.User }) {
                                         a.click();
                                         document.body.removeChild(a);
                                         URL.revokeObjectURL(url);
-                                        setAlert('✅ Image téléchargée.');
+                                        setAlert('✅ ' + t('transactions.imageDownloaded'));
                                     }
                                 }, 'image/png');
                             } catch (e) {
                                 console.error(e);
-                                setAlert('❌ Erreur lors de la capture.');
+                                setAlert('❌ ' + t('transactions.captureError'));
                             }
                         };
 
@@ -3120,18 +3149,18 @@ function MainApp({ user }: { user: firebase.User }) {
                                 <div className="space-y-5">
                                     <div className={`text-center p-4 rounded-2xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                                         <h3 className="text-xl font-bold mb-1">{getClientFullName(summaryClient)}</h3>
-                                        <p className={`text-sm ${subtleText} mb-3`}>{summaryClient.phone || 'Pas de numéro'}</p>
+                                        <p className={`text-sm ${subtleText} mb-3`}>{summaryClient.phone || t('transactions.noPhone')}</p>
                                         <div className="flex flex-col items-center justify-center">
-                                            <span className={`text-xs uppercase tracking-wider font-semibold ${subtleText}`}>Solde Actuel</span>
+                                            <span className={`text-xs uppercase tracking-wider font-semibold ${subtleText}`}>{t('transactions.currentBalance')}</span>
                                             <span className={`text-3xl font-bold ${bal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                {bal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-lg text-gray-400">DZD</span>
+                                                {bal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-lg text-gray-400">{t('common.dinar')}</span>
                                             </span>
                                         </div>
                                     </div>
 
                                     <div>
                                         <h4 className="font-bold mb-3 text-sm uppercase tracking-wider opacity-70 flex items-center gap-2">
-                                            <RefreshCwIcon className="w-4 h-4" /> Dernières Transactions
+                                            <RefreshCwIcon className="w-4 h-4" /> {t('transactions.recentTransactions')}
                                         </h4>
                                         <div className={`rounded-xl overflow-hidden border ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
                                             {lastTxs.length > 0 ? (
@@ -3155,15 +3184,15 @@ function MainApp({ user }: { user: firebase.User }) {
                                                     })}
                                                 </div>
                                             ) : (
-                                                <p className="p-6 text-center text-sm opacity-50">Aucune transaction récente.</p>
+                                                <p className="p-6 text-center text-sm opacity-50">{t('transactions.noRecentTransactions')}</p>
                                             )}
                                         </div>
                                     </div>
 
                                     <div className="flex gap-3 pt-2">
-                                        <Button onClick={() => setSummaryClient(null)} className={`flex-1 py-3 rounded-xl font-semibold ${isDark ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-200 hover:bg-slate-300'}`}>Fermer</Button>
+                                        <Button onClick={() => setSummaryClient(null)} className={`flex-1 py-3 rounded-xl font-semibold ${isDark ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-200 hover:bg-slate-300'}`}>{t('transactions.close')}</Button>
                                         <Button onClick={handleShare} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20">
-                                            <ShareIcon className="w-4 h-4" /> Envoyer
+                                            <ShareIcon className="w-4 h-4" /> {t('transactions.send')}
                                         </Button>
                                     </div>
                                 </div>

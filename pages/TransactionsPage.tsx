@@ -18,6 +18,7 @@ import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
 import { UsersIcon } from '../components/icons/UsersIcon';
 import { ChevronRightIcon } from '../components/icons/ChevronRightIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
+import { useLanguage } from '../src/contexts/LanguageContext';
 
 type TransactionsPageProps = {
   cardBase: string;
@@ -83,6 +84,7 @@ export function TransactionsPage({
   handleDeleteClientTxClick,
   setTreasuryTxToDelete
 }: TransactionsPageProps) {
+  const { t } = useLanguage();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // 1. UNIFY TRANSACTIONS
@@ -94,7 +96,7 @@ export function TransactionsPage({
       const isBuy = tx.type === 'buy' || tx.type === 'Ajout Manuel';
       const isSell = tx.type === 'sell' || tx.type === 'Retrait Manuel';
 
-      let typeLabel = tx.type === 'buy' ? `Achat ${tx.currency}` : tx.type === 'sell' ? `Vente ${tx.currency}` : tx.type;
+      let typeLabel = tx.type === 'buy' ? `${t('transactions.buy')} ${tx.currency}` : tx.type === 'sell' ? `${t('transactions.sell')} ${tx.currency}` : tx.type;
       let amountLabel = `${tx.quantity.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${tx.currency}`;
       let amountColor = isBuy ? 'text-green-400' : 'text-red-400';
       let icon = isBuy ? <ArrowDownLeftIcon className="w-5 h-5" /> : <ArrowUpRightIcon className="w-5 h-5" />;
@@ -163,8 +165,8 @@ export function TransactionsPage({
 
     // C. Treasury Transactions
     treasuryTransactions?.forEach(tx => {
-      let typeLabel = tx.type === 'Ajout' ? 'Entrée Caisse' : 'Sortie Caisse';
-      if (tx.source && tx.notes?.includes('Virement')) typeLabel = 'Virement Interne';
+      let typeLabel = tx.type === 'Ajout' ? t('transactions.entry') : t('transactions.exit');
+      if (tx.source && tx.notes?.includes('Virement')) typeLabel = t('transactions.internalTransfer');
 
       let amountLabel = `${tx.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD`;
       let amountColor = tx.type === 'Ajout' ? 'text-green-400' : 'text-red-400';
@@ -188,7 +190,7 @@ export function TransactionsPage({
     });
 
     return all.sort((a, b) => b.timestamp - a.timestamp);
-  }, [transactions, clientTransactionsDzd, treasuryTransactions, clientsDzd, isDark, getClientFullName]);
+  }, [transactions, clientTransactionsDzd, treasuryTransactions, clientsDzd, isDark, getClientFullName, t]);
 
   // 2. FILTERING
   const filteredTransactions = useMemo(() => {
@@ -223,12 +225,12 @@ export function TransactionsPage({
   }, [filteredTransactions]);
 
   const txFilterLabels: { [key in typeof filterMode]: string } = {
-    all: 'Tout',
-    buy: 'Achats',
-    sell: 'Ventes',
-    adjustments: 'Ajustements',
-    clients: 'Clients',
-    treasury: 'Trésorerie'
+    all: t('transactions.filterAll'),
+    buy: t('transactions.filterBuy'),
+    sell: t('transactions.filterSell'),
+    adjustments: t('transactions.filterAdjustments'),
+    clients: t('transactions.filterClients'),
+    treasury: t('transactions.filterTreasury')
   };
 
   return (
@@ -241,13 +243,13 @@ export function TransactionsPage({
           className="w-full py-4 rounded-xl shadow-lg font-bold text-lg text-white flex items-center justify-center gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all transform hover:scale-[1.01]"
         >
           <PencilIcon className="w-5 h-5" />
-          Nouvelle Transaction
+          {t('transactions.newTransaction')}
         </Button>
       </div>
 
       <Card className={cardBase}>
         <CardHeader className="flex flex-row items-center justify-between p-4">
-          <h2 className="font-bold text-lg">Historique des Transactions</h2>
+          <h2 className="font-bold text-lg">{t('transactions.history')}</h2>
           <div className="flex items-center gap-2">
             <Button
               onClick={openDateFilterModal}
@@ -262,11 +264,11 @@ export function TransactionsPage({
                 <span>{txFilterLabels[filterMode]}</span>
               </Button>
             }>
-              <DropdownItem onClick={() => setFilterMode('all')} isActive={filterMode === 'all'}>Tout</DropdownItem>
-              <DropdownItem onClick={() => setFilterMode('buy')} isActive={filterMode === 'buy'}>Achats (Crypto)</DropdownItem>
-              <DropdownItem onClick={() => setFilterMode('sell')} isActive={filterMode === 'sell'}>Ventes (Crypto)</DropdownItem>
-              <DropdownItem onClick={() => setFilterMode('clients')} isActive={filterMode === 'clients'}>Clients</DropdownItem>
-              <DropdownItem onClick={() => setFilterMode('treasury')} isActive={filterMode === 'treasury'}>Trésorerie</DropdownItem>
+              <DropdownItem onClick={() => setFilterMode('all')} isActive={filterMode === 'all'}>{t('transactions.filterAll')}</DropdownItem>
+              <DropdownItem onClick={() => setFilterMode('buy')} isActive={filterMode === 'buy'}>{t('transactions.filterBuy')} (Crypto)</DropdownItem>
+              <DropdownItem onClick={() => setFilterMode('sell')} isActive={filterMode === 'sell'}>{t('transactions.filterSell')} (Crypto)</DropdownItem>
+              <DropdownItem onClick={() => setFilterMode('clients')} isActive={filterMode === 'clients'}>{t('transactions.filterClients')}</DropdownItem>
+              <DropdownItem onClick={() => setFilterMode('treasury')} isActive={filterMode === 'treasury'}>{t('transactions.filterTreasury')}</DropdownItem>
             </Dropdown>
           </div>
         </CardHeader>
@@ -316,7 +318,7 @@ export function TransactionsPage({
                 );
               })
             ) : (
-              <p className={`text-center py-8 ${subtleText}`}>Aucune transaction pour ce filtre.</p>
+              <p className={`text-center py-8 ${subtleText}`}>{t('transactions.noTransactions')}</p>
             )}
           </div>
         </CardContent>
@@ -325,25 +327,25 @@ export function TransactionsPage({
       {/* Transaction Type Selection Modal */}
       <Dialog isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} className={`${cardBase} max-w-sm`}>
         <DialogHeader onClose={() => setIsMenuOpen(false)} isDark={isDark}>
-          <DialogTitle>Nouvelle Transaction</DialogTitle>
+          <DialogTitle>{t('transactions.newTransaction')}</DialogTitle>
         </DialogHeader>
         <DialogContent className="grid grid-cols-1 gap-3 p-6 pt-0">
           <div className="grid grid-cols-2 gap-3 mb-2">
             <Button onClick={() => { setIsMenuOpen(false); openForm('buy_usdt'); }} className="bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold shadow-sm flex flex-col items-center gap-1 h-24 justify-center">
               <ArrowDownLeftIcon className="w-6 h-6" />
-              <span>Achat USDT</span>
+              <span>{t('transactions.buyUsdt')}</span>
             </Button>
             <Button onClick={() => { setIsMenuOpen(false); openForm('sell_usdt'); }} className="bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold shadow-sm flex flex-col items-center gap-1 h-24 justify-center">
               <ArrowUpRightIcon className="w-6 h-6" />
-              <span>Vente USDT</span>
+              <span>{t('transactions.sellUsdt')}</span>
             </Button>
           </div>
           <Button onClick={() => { setIsMenuOpen(false); openForm('buy_eur'); }} className="bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold text-lg shadow-sm mb-4">
-            Acheter EUR
+            {t('transactions.buyEur')}
           </Button>
 
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4 pb-2">
-            <p className="text-center text-xs font-bold uppercase tracking-wider opacity-50 mb-3">Actions Financières</p>
+            <p className="text-center text-xs font-bold uppercase tracking-wider opacity-50 mb-3">{t('transactions.financialActions')}</p>
 
             <div className="grid grid-cols-1 gap-3">
               {/* Virement Interne Button */}
@@ -352,8 +354,8 @@ export function TransactionsPage({
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-lg ${isDark ? 'bg-indigo-500/20' : 'bg-indigo-100'}`}><RefreshCwIcon className="w-5 h-5" /></div>
                   <div className="text-left">
-                    <div className="text-sm font-bold">Virement Interne</div>
-                    <div className="text-[10px] opacity-70">Entre Caisse et BaridiMob</div>
+                    <div className="text-sm font-bold">{t('transactions.internalTransfer')}</div>
+                    <div className="text-[10px] opacity-70">{t('transactions.caisseAndBaridi')}</div>
                   </div>
                 </div>
                 <ChevronRightIcon className="w-4 h-4 opacity-50" />
@@ -365,8 +367,8 @@ export function TransactionsPage({
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-lg ${isDark ? 'bg-sky-500/20' : 'bg-sky-100'}`}><UsersIcon className="w-5 h-5" /></div>
                   <div className="text-left">
-                    <div className="text-sm font-bold">Virement Clients</div>
-                    <div className="text-[10px] opacity-70">Transférer dette/crédit</div>
+                    <div className="text-sm font-bold">{t('transactions.clientTransfer')}</div>
+                    <div className="text-[10px] opacity-70">{t('transactions.transferDebtCredit')}</div>
                   </div>
                 </div>
                 <ChevronRightIcon className="w-4 h-4 opacity-50" />
@@ -379,8 +381,8 @@ export function TransactionsPage({
               <div className="flex items-center gap-3">
                 <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-600' : 'bg-white'}`}><BriefcaseIcon className="w-5 h-5" /></div>
                 <div className="text-left">
-                  <div className="text-sm font-bold">Ajustement Trésorerie</div>
-                  <div className="text-[10px] opacity-70">Entrée/Sortie Manuelle</div>
+                  <div className="text-sm font-bold">{t('transactions.treasuryAdjustment')}</div>
+                  <div className="text-[10px] opacity-70">{t('transactions.manualEntryExit')}</div>
                 </div>
               </div>
               <ChevronRightIcon className="w-4 h-4 opacity-50" />
