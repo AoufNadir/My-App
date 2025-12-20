@@ -6,7 +6,8 @@ const ASSETS_TO_CACHE = [
   'https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
   '/manifest.json',
-  '/icon.svg'
+  '/icon.svg',
+  '/logo.jpg'
 ];
 
 // Install event: cache static assets
@@ -52,7 +53,7 @@ self.addEventListener('fetch', (event) => {
       if (cachedResponse) {
         return cachedResponse;
       }
-      
+
       // Otherwise, fetch from network, cache it, and return it
       return fetch(event.request).then((networkResponse) => {
         // Check if we received a valid response before caching
@@ -60,7 +61,7 @@ self.addEventListener('fetch', (event) => {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             // Only cache GET requests to avoid caching form submissions etc.
-            if(event.request.method === 'GET') {
+            if (event.request.method === 'GET') {
               cache.put(event.request, responseToCache);
             }
           });

@@ -108,8 +108,8 @@ export function Auth() {
   const inputClass = "bg-[#1E293B] border-none text-white text-sm rounded-xl h-12 px-4 w-full placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 transition-all";
   const labelClass = "block text-xs font-medium text-gray-400 mb-1.5 ml-1";
   const primaryBtnClass = `w-full h-12 rounded-xl font-bold text-sm text-white shadow-lg transition-all transform active:scale-95 ${isLoading || !isFormValid
-      ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-      : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20'
+    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+    : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20'
     }`;
   const googleBtnClass = "w-full h-12 rounded-xl border border-gray-700 text-gray-300 font-medium text-sm flex items-center justify-center hover:bg-gray-800 transition-all";
 
@@ -123,7 +123,7 @@ export function Auth() {
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
             <div className="relative w-16 h-16 rounded-2xl bg-[#0F172A] border border-gray-800 flex items-center justify-center shadow-2xl">
-              <img src="/assets/icon.svg" alt="Pro Digital" className="w-10 h-10 object-contain" />
+              <img src="/logo.jpg" alt="Zumra" className="w-10 h-10 object-contain rounded-full" />
             </div>
           </div>
           <div className="text-center">
