@@ -774,6 +774,57 @@ function MainApp({ user }: { user: firebase.User }) {
         setIsTreasuryBalanceEditModalOpen(true);
     };
 
+    // Portfolio Balance Edit Modal
+    const [isPortfolioBalanceEditModalOpen, setIsPortfolioBalanceEditModalOpen] = useState(false);
+    const [portfolioBalanceEditAsset, setPortfolioBalanceEditAsset] = useState<'USDT' | 'EUR'>('USDT');
+    const [portfolioBalanceEditValue, setPortfolioBalanceEditValue] = useState('');
+    const [portfolioBalanceEditNotes, setPortfolioBalanceEditNotes] = useState('');
+
+    const openPortfolioBalanceEditModal = (asset: 'USDT' | 'EUR') => {
+        setPortfolioBalanceEditAsset(asset);
+        const currentBalance = asset === 'EUR' ? portfolioStats.eur.available : portfolioStats.usdt.available;
+        setPortfolioBalanceEditValue(currentBalance.toString());
+        setPortfolioBalanceEditNotes('');
+        setIsPortfolioBalanceEditModalOpen(true);
+    };
+
+    const handleSavePortfolioBalanceEdit = async () => {
+        const newValue = parseAndEvaluate(portfolioBalanceEditValue);
+        if (isNaN(newValue)) { setAlert('⚠️ Valeur invalide.'); return; }
+
+        const currentBalance = portfolioBalanceEditAsset === 'EUR' ? portfolioStats.eur.available : portfolioStats.usdt.available;
+        const diff = newValue - currentBalance;
+
+        if (diff === 0) { setIsPortfolioBalanceEditModalOpen(false); return; }
+
+        setIsSaving(true);
+        try {
+            const { date, time, timestamp } = now();
+            const type = diff > 0 ? 'Ajout Manuel' : 'Retrait Manuel';
+            const quantity = Math.abs(diff);
+
+            // Create USdt/Eur Transaction
+            await userDocRef.collection('usdt_txs').add({
+                timestamp, date, time,
+                type,
+                currency: portfolioBalanceEditAsset,
+                quantity,
+                price: 0,
+                notes: portfolioBalanceEditNotes.trim() || `Ajustement manuel du solde (${diff > 0 ? '+' : ''}${diff.toFixed(2)} ${portfolioBalanceEditAsset})`
+            });
+
+            setAlert('✅ ' + t('common.operationSuccess'));
+            setIsPortfolioBalanceEditModalOpen(false);
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ ' + t('common.error'));
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+
+
     const handleSaveTreasuryBalanceEdit = async () => {
         const newValue = parseAndEvaluate(treasuryBalanceEditValue);
         if (isNaN(newValue)) { setAlert('⚠️ Valeur invalide.'); return; }
@@ -2083,7 +2134,7 @@ function MainApp({ user }: { user: firebase.User }) {
                         setTreasuryTxToDelete={setTreasuryTxToDelete}
                     />}
 
-                    {view === 'statistiques' && <PortfolioPage {...{ statsView, setStatsView, isDark, setIsSettingsModalOpen, cardBase, subtleText, portfolioStats, totalPortfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), suggestedProfitMargin, suggestedSellingPrice, parseAndEvaluate, usdtReportMonth, setUsdtReportMonth, usdtReportYear, setUsdtReportYear, reportMonths: (y: number) => y === new Date().getFullYear() ? (Array.isArray(t('common.months')) ? t('common.months') as any as string[] : []).slice(0, new Date().getMonth() + 1) : (Array.isArray(t('common.months')) ? t('common.months') as any as string[] : []), reportYears: Array.from({ length: 3 }, (_, i) => 2024 + i), monthlyStats: { totalUsdtSoldMonth: 0, totalEurBoughtMonth: 0, realizedProfitMonth: 0, monthlyProfitMargin: 0 }, transactions, selectedHeatmapDay, setSelectedHeatmapDay, simMode, setSimMode, simBuyQty, setSimBuyQty, simBuyPrice, setSimBuyPrice, fieldBase, newPamFromDzdSimulator, simEurQty, setSimEurQty, simEurDzdPrice, setSimEurDzdPrice, simEurUsdtRate, setSimEurUsdtRate, newPamFromEurSimulator, handleExportUsdtReport, dzdDashboardStats: null, reportClient, setReportClient, clientsDzd, getClientFullName, reportMonth, setReportMonth, reportYear, setReportYear, handleExportClientReport, simSellUsdtQty, setSimSellUsdtQty, simSellDzdPrice, setSimSellDzdPrice }} />}
+                    {view === 'statistiques' && <PortfolioPage {...{ statsView, setStatsView, isDark, setIsSettingsModalOpen, cardBase, subtleText, portfolioStats, totalPortfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy), suggestedProfitMargin, suggestedSellingPrice, parseAndEvaluate, usdtReportMonth, setUsdtReportMonth, usdtReportYear, setUsdtReportYear, reportMonths: (y: number) => y === new Date().getFullYear() ? (Array.isArray(t('common.months')) ? t('common.months') as any as string[] : []).slice(0, new Date().getMonth() + 1) : (Array.isArray(t('common.months')) ? t('common.months') as any as string[] : []), reportYears: Array.from({ length: 3 }, (_, i) => 2024 + i), monthlyStats: { totalUsdtSoldMonth: 0, totalEurBoughtMonth: 0, realizedProfitMonth: 0, monthlyProfitMargin: 0 }, transactions, selectedHeatmapDay, setSelectedHeatmapDay, simMode, setSimMode, simBuyQty, setSimBuyQty, simBuyPrice, setSimBuyPrice, fieldBase, newPamFromDzdSimulator, simEurQty, setSimEurQty, simEurDzdPrice, setSimEurDzdPrice, simEurUsdtRate, setSimEurUsdtRate, newPamFromEurSimulator, handleExportUsdtReport, dzdDashboardStats: null, reportClient, setReportClient, clientsDzd, getClientFullName, reportMonth, setReportMonth, reportYear, setReportYear, handleExportClientReport, simSellUsdtQty, setSimSellUsdtQty, simSellDzdPrice, setSimSellDzdPrice, openPortfolioBalanceEditModal }} />}
 
                     {view === 'dzd' && <ClientsPage {...{ selectedClientId, setSelectedClientId, cardBase, fieldBase, isDark, subtleText, openClientModal, setIsTransferModalOpen, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances: clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete: handleClientDeleteRequest, selectedClient, selectedClientTransactions, transactions, handleExportClientReport, openClientTxModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick }} />}
 
@@ -2438,6 +2489,37 @@ function MainApp({ user }: { user: firebase.User }) {
                     <Button onClick={handleSaveTreasuryBalanceEdit} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">{t('common.save')}</Button>
                 </DialogFooter>
             </Dialog>
+
+            {/* NEW: Portfolio Balance Edit Modal */}
+            <Dialog isOpen={isPortfolioBalanceEditModalOpen} onClose={() => setIsPortfolioBalanceEditModalOpen(false)} className={`${cardBase} max-w-sm`}>
+                <DialogHeader onClose={() => setIsPortfolioBalanceEditModalOpen(false)} isDark={isDark}>
+                    <DialogTitle>{t('transactions.editBalance')} {portfolioBalanceEditAsset}</DialogTitle>
+                </DialogHeader>
+                <DialogContent className="px-6 pb-6 space-y-4">
+                    <div className="p-3 bg-blue-500/10 rounded-lg text-sm text-blue-600 dark:text-blue-400 mb-2">
+                        {t('transactions.editBalanceDesc')}
+                    </div>
+                    <div>
+                        <Label>{t('transactions.newBalance')} ({portfolioBalanceEditAsset})</Label>
+                        <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={portfolioBalanceEditValue}
+                            onChange={e => setPortfolioBalanceEditValue(e.target.value)}
+                            className={`${fieldBase} text-2xl font-bold text-center`}
+                        />
+                    </div>
+                    <div>
+                        <Label>{t('common.notesOptional')}</Label>
+                        <Input value={portfolioBalanceEditNotes} onChange={e => setPortfolioBalanceEditNotes(e.target.value)} className={fieldBase} placeholder={t('transactions.reason')} />
+                    </div>
+                </DialogContent>
+                <DialogFooter>
+                    <Button onClick={handleSavePortfolioBalanceEdit} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">{t('common.save')}</Button>
+                </DialogFooter>
+            </Dialog>
+
+
 
 
 

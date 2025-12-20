@@ -65,6 +65,7 @@ type PortfolioPageProps = {
   setSimSellUsdtQty?: (val: string) => void;
   simSellDzdPrice?: string;
   setSimSellDzdPrice?: (val: string) => void;
+  openPortfolioBalanceEditModal?: (asset: 'USDT' | 'EUR') => void;
 };
 
 export function PortfolioPage(props: PortfolioPageProps) {
@@ -76,16 +77,46 @@ export function PortfolioPage(props: PortfolioPageProps) {
     setSimBuyQty, simBuyPrice, setSimBuyPrice, fieldBase, newPamFromDzdSimulator,
     simEurQty, setSimEurQty, simEurDzdPrice, setSimEurDzdPrice, simEurUsdtRate, setSimEurUsdtRate,
     newPamFromEurSimulator, handleExportUsdtReport, simSellUsdtQty, setSimSellUsdtQty, simSellDzdPrice, setSimSellDzdPrice,
-    dzdDashboardStats, reportClient, setReportClient, clientsDzd, getClientFullName, reportMonth, setReportMonth, reportYear, setReportYear, handleExportClientReport
+    dzdDashboardStats, reportClient, setReportClient, clientsDzd, getClientFullName, reportMonth, setReportMonth, reportYear, setReportYear, handleExportClientReport,
+    openPortfolioBalanceEditModal
   } = props;
 
   const { t } = useLanguage();
 
-  const StatCard = ({ title, value, currency, icon, colorClass, cardBase, subtleText, action }: { title: string, value: string, currency?: string, icon?: React.ReactNode, colorClass: string, cardBase: string, subtleText: string, action?: React.ReactNode }) => (
-    <div className={`p-5 rounded-2xl shadow-sm border transition-all ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'}`}>
+  const StatCard = ({ title, value, currency, icon, colorClass, cardBase, subtleText, action, onEdit }: { title: string, value: string, currency?: string, icon?: React.ReactNode, colorClass: string, cardBase: string, subtleText: string, action?: React.ReactNode, onEdit?: () => void }) => (
+    <div
+      className={`group relative p-5 rounded-2xl shadow-sm border transition-all ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'} ${onEdit ? 'cursor-pointer' : ''}`}
+      onClick={() => {
+        // For mobile: clicking the card triggers the edit if plain click
+        if (onEdit && window.innerWidth < 640) onEdit();
+      }}
+    >
       <div className={`flex items-center justify-between text-sm font-medium mb-2 ${subtleText}`}>
         <span>{title}</span>
         {icon || action}
+        {onEdit && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            className="absolute top-4 right-4 p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity block sm:hidden sm:group-hover:block"
+            style={{ display: 'none' }} // Hidden by default, handled by classes
+          >
+            <PencilIcon className="w-4 h-4" />
+          </button>
+        )}
+        {/* Simplified Icon Logic: Use opacity on desktop, maybe always visible on mobile if desired, or simplified */}
+        {onEdit && (
+          <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              className={`p-2 rounded-full ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
+            >
+              <PencilIcon className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
       <div className="mt-1 text-3xl font-bold">
         <span className={colorClass}>{value}</span>
@@ -217,34 +248,46 @@ export function PortfolioPage(props: PortfolioPageProps) {
           <h2 className="font-bold text-lg mb-4 flex items-center gap-2"><BriefcaseIcon className="w-5 h-5" /> {t('portfolio.currentStatus')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <StatCard cardBase={cardBase} subtleText={subtleText} title={t('portfolio.netProfitLoss')} value={portfolioStats.usdt.totalProfit.toFixed(2)} currency="DZD" colorClass={portfolioStats.usdt.totalProfit >= 0 ? "text-green-400" : "text-red-400"} />
-            <StatCard cardBase={cardBase} subtleText={subtleText} title={t('portfolio.currentBalanceEur')} value={portfolioStats.eur.available.toFixed(2)} currency="EUR" colorClass="text-amber-400" />
+            <StatCard
+              cardBase={cardBase}
+              subtleText={subtleText}
+              title={t('portfolio.currentBalanceEur')}
+              value={portfolioStats.eur.available.toFixed(2)}
+              currency="EUR"
+              colorClass="text-amber-400"
+              onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('EUR') : undefined}
+            />
             <StatCard cardBase={cardBase} subtleText={subtleText} title={t('portfolio.avgBuyPriceEur')} value={portfolioStats.eur.avgBuy.toFixed(2)} currency="DZD" colorClass="text-gray-300" />
-            <StatCard cardBase={cardBase} subtleText={subtleText} title={t('portfolio.currentBalanceUsdt')} value={portfolioStats.usdt.available.toFixed(2)} currency="USDT" colorClass="text-sky-400" />
+            <StatCard
+              cardBase={cardBase}
+              subtleText={subtleText}
+              title={t('portfolio.currentBalanceUsdt')}
+              value={portfolioStats.usdt.available.toFixed(2)}
+              currency="USDT"
+              colorClass="text-sky-400"
+              onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('USDT') : undefined}
+            />
             <StatCard cardBase={cardBase} subtleText={subtleText} title={t('portfolio.avgBuyPriceUsdt')} value={portfolioStats.usdt.avgBuy.toFixed(2)} currency="DZD" colorClass="text-gray-300" />
-            <div
-              onClick={() => setIsSettingsModalOpen(true)}
-              className={`p-5 rounded-2xl shadow-sm border transition-all cursor-pointer hover:scale-[1.02] ${isDark ? 'bg-[#1E293B] border-[#334155] hover:border-yellow-500/50' : 'bg-white border-slate-200 hover:border-yellow-400/50'}`}
+            <StatCard
+              cardBase={cardBase}
+              subtleText={subtleText}
+              title={t('portfolio.suggestedSellPrice')}
+              value={suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0
+                ? parseFloat(suggestedSellingPrice).toFixed(2)
+                : (portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toFixed(2)
+              }
+              currency="DZD"
+              colorClass="text-yellow-400"
+              className={`${isDark ? 'hover:border-yellow-500/50' : 'hover:border-yellow-400/50'} hover:scale-[1.02]`}
+              onEdit={() => setIsSettingsModalOpen(true)}
             >
-              <div className={`flex items-center justify-between text-sm font-medium mb-2 ${subtleText}`}>
-                <span>{t('portfolio.suggestedSellPrice')}</span>
-                <PencilIcon className="w-4 h-4 opacity-50" />
-              </div>
-              <div className="mt-1 text-3xl font-bold">
-                <span className="text-yellow-400">
-                  {suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0
-                    ? parseFloat(suggestedSellingPrice).toFixed(2)
-                    : (portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toFixed(2)
-                  }
-                </span>
-                <span className={`ml-2 text-lg font-normal ${subtleText}`}>DZD</span>
-              </div>
               <div className={`text-xs mt-2 ${subtleText}`}>
                 {t('portfolio.margin')}: {suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0
                   ? (parseFloat(suggestedSellingPrice) - portfolioStats.usdt.avgBuy).toFixed(2)
                   : suggestedProfitMargin
                 } DA
               </div>
-            </div>
+            </StatCard>
           </div>
         </Card>
 
@@ -290,8 +333,8 @@ export function PortfolioPage(props: PortfolioPageProps) {
             <div>
               <h3 className="font-semibold mb-2">{t('portfolio.pamSimulator')}</h3>
               <div className="p-3 rounded-xl" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }}>
-                <div className="flex items-center gap-2 mb-4 p-1 rounded-full border" style={{ borderColor: isDark ? '#334155' : '#CBD5E1' }}>
-                  <button onClick={() => setSimMode('dzd')} className={`flex-1 py-1 text-sm rounded-full font-semibold transition-colors ${simMode === 'dzd' ? 'bg-teal-500 text-white' : ''}`}>{t('portfolio.buyWithDzd')}</button>
+                <div className="flex items-stretch gap-2 mb-4 p-1 rounded-2xl border" style={{ borderColor: isDark ? '#334155' : '#CBD5E1' }}>
+                  <button onClick={() => setSimMode('dzd')} className={`flex-1 py-2 text-xs sm:text-sm rounded-xl font-semibold transition-colors flex items-center justify-center ${simMode === 'dzd' ? 'bg-teal-500 text-white' : ''}`}>{t('portfolio.buyWithDzd')}</button>
                   <button
                     onClick={() => {
                       setSimMode('eur');
@@ -302,59 +345,112 @@ export function PortfolioPage(props: PortfolioPageProps) {
                         setSimEurDzdPrice(Math.round(portfolioStats.eur.avgBuy).toString());
                       }
                     }}
-                    className={`flex-1 py-1 text-sm rounded-full font-semibold transition-colors ${simMode === 'eur' ? 'bg-teal-500 text-white' : ''}`}
+                    className={`flex-1 py-2 text-xs sm:text-sm rounded-xl font-semibold transition-colors flex items-center justify-center ${simMode === 'eur' ? 'bg-teal-500 text-white' : ''}`}
                   >
                     {t('portfolio.buyWithEur')}
                   </button>
-                  <button onClick={() => setSimMode('sell_dzd')} className={`flex-1 py-1 text-sm rounded-full font-semibold transition-colors ${simMode === 'sell_dzd' ? 'bg-teal-500 text-white' : ''}`}>{t('portfolio.sellUsdt')}</button>
+                  <button
+                    onClick={() => {
+                      setSimMode('sell_dzd');
+                      // Auto-fill Quantity with available USDT
+                      if (portfolioStats.usdt.available > 0 && setSimSellUsdtQty) {
+                        setSimSellUsdtQty(portfolioStats.usdt.available.toString());
+                      }
+
+                      // Auto-fill Price with Suggested Sell Price
+                      let priceToSet = 0;
+                      if (suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0) {
+                        priceToSet = parseFloat(suggestedSellingPrice);
+                      } else {
+                        priceToSet = portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin);
+                      }
+
+                      if (priceToSet > 0 && setSimSellDzdPrice) {
+                        setSimSellDzdPrice(priceToSet.toFixed(2));
+                      }
+                    }}
+                    className={`flex-1 py-1 text-xs sm:text-sm rounded-xl font-semibold transition-colors flex items-center justify-center ${simMode === 'sell_dzd' ? 'bg-teal-500 text-white' : ''}`}
+                  >
+                    {t('portfolio.sellUsdt')}
+                  </button>
                 </div>
 
                 {simMode === 'dzd' && (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div><Label>{t('portfolio.qtyUsdt')}</Label><NumberInput value={simBuyQty} onChange={e => setSimBuyQty(e.target.value)} className={fieldBase} placeholder="1000" /></div>
-                      <div><Label>{t('portfolio.buyPrice')}</Label><NumberInput value={simBuyPrice} onChange={e => setSimBuyPrice(e.target.value)} className={fieldBase} placeholder="240.50" /></div>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                      <div className="flex flex-col">
+                        <Label className="h-10 flex items-end pb-1 text-xs sm:text-sm leading-tight">{t('portfolio.qtyUsdt')}</Label>
+                        <NumberInput value={simBuyQty} onChange={e => setSimBuyQty(e.target.value)} className={`${fieldBase} h-10`} placeholder="1000" />
+                      </div>
+                      <div className="flex flex-col">
+                        <Label className="h-10 flex items-end pb-1 text-xs sm:text-sm leading-tight">{t('portfolio.buyPrice')}</Label>
+                        <NumberInput value={simBuyPrice} onChange={e => setSimBuyPrice(e.target.value)} className={`${fieldBase} h-10`} placeholder="240.50" />
+                      </div>
                     </div>
                     {newPamFromDzdSimulator !== null && (
-                      <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                        <p className={subtleText}>{t('portfolio.newPam')}</p>
-                        <p className="font-bold text-lg">{newPamFromDzdSimulator.toFixed(2)} DZD</p>
-                        <p className={`text-xs mt-1 ${subtleText}`}>{t('portfolio.suggestedSellPrice')}: <span className="font-bold">{(newPamFromDzdSimulator + parseAndEvaluate(suggestedProfitMargin)).toFixed(2)} DZD</span></p>
+                      <div className={`p-3 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                        <div className="flex justify-between items-center">
+                          <span className={subtleText}>{t('portfolio.newPam')}</span>
+                          <span className="font-bold text-lg text-teal-400">{newPamFromDzdSimulator.toFixed(2)} DZD</span>
+                        </div>
+                        <div className={`text-xs mt-1 text-right ${subtleText}`}>{t('portfolio.suggestedSellPrice')}: <span className="font-bold text-amber-400">{(newPamFromDzdSimulator + parseAndEvaluate(suggestedProfitMargin)).toFixed(2)} DZD</span></div>
                       </div>
-                    )}  </div>
+                    )}
+                  </div>
                 )}
 
                 {simMode === 'eur' && (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-3">
-                      <div><Label>{t('portfolio.qtyEurToSpend')}</Label><NumberInput value={simEurQty} onChange={e => setSimEurQty(e.target.value)} className={fieldBase} placeholder="1000" /></div>
-                      <div><Label>{t('portfolio.buyPriceEur')}</Label><NumberInput value={simEurDzdPrice} onChange={e => setSimEurDzdPrice(e.target.value)} className={fieldBase} placeholder="242.00" /></div>
-                      <div><Label>{t('portfolio.rateEurUsdt')}</Label><NumberInput value={simEurUsdtRate} onChange={e => setSimEurUsdtRate(e.target.value)} className={fieldBase} placeholder="1.08" /></div>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                      <div className="flex flex-col">
+                        <Label className="h-10 flex items-end pb-1 text-[10px] sm:text-sm leading-tight break-words">{t('portfolio.qtyEurToSpend')}</Label>
+                        <NumberInput value={simEurQty} onChange={e => setSimEurQty(e.target.value)} className={`${fieldBase} h-10 text-center px-1`} placeholder="1000" />
+                      </div>
+                      <div className="flex flex-col">
+                        <Label className="h-10 flex items-end pb-1 text-[10px] sm:text-sm leading-tight break-words">{t('portfolio.buyPriceEur')}</Label>
+                        <NumberInput value={simEurDzdPrice} onChange={e => setSimEurDzdPrice(e.target.value)} className={`${fieldBase} h-10 text-center px-1`} placeholder="242.00" />
+                      </div>
+                      <div className="flex flex-col">
+                        <Label className="h-10 flex items-end pb-1 text-[10px] sm:text-sm leading-tight break-words">{t('portfolio.rateEurUsdt')}</Label>
+                        <NumberInput value={simEurUsdtRate} onChange={e => setSimEurUsdtRate(e.target.value)} className={`${fieldBase} h-10 text-center px-1`} placeholder="1.08" />
+                      </div>
                     </div>
                     {newPamFromEurSimulator !== null && (
-                      <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                        <p className={subtleText}>{t('portfolio.newPam')}</p>
-                        <p className="font-bold text-lg">{newPamFromEurSimulator.toFixed(2)} DZD</p>
+                      <div className={`p-3 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                        <div className="flex justify-between items-center">
+                          <span className={subtleText}>{t('portfolio.newPam')}</span>
+                          <span className="font-bold text-lg text-teal-400">{newPamFromEurSimulator.toFixed(2)} DZD</span>
+                        </div>
                       </div>
                     )}
                   </div>
                 )}
                 {simMode === 'sell_dzd' && (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div><Label>{t('portfolio.qtyUsdt')}</Label><NumberInput value={simSellUsdtQty || ''} onChange={e => setSimSellUsdtQty && setSimSellUsdtQty(e.target.value)} className={fieldBase} placeholder="1000" /></div>
-                      <div><Label>{t('portfolio.sellingPriceDzd')}</Label><NumberInput value={simSellDzdPrice || ''} onChange={e => setSimSellDzdPrice && setSimSellDzdPrice(e.target.value)} className={fieldBase} placeholder="242.00" /></div>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                      <div className="flex flex-col">
+                        <Label className="h-10 flex items-end pb-1 text-xs sm:text-sm leading-tight">{t('portfolio.qtyUsdt')}</Label>
+                        <NumberInput value={simSellUsdtQty || ''} onChange={e => setSimSellUsdtQty && setSimSellUsdtQty(e.target.value)} className={`${fieldBase} h-10`} placeholder="1000" />
+                      </div>
+                      <div className="flex flex-col">
+                        <Label className="h-10 flex items-end pb-1 text-xs sm:text-sm leading-tight">{t('portfolio.sellingPriceDzd')}</Label>
+                        <NumberInput value={simSellDzdPrice || ''} onChange={e => setSimSellDzdPrice && setSimSellDzdPrice(e.target.value)} className={`${fieldBase} h-10`} placeholder="242.00" />
+                      </div>
                     </div>
 
-                    <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'} mb-2`}>
-                      <p className={subtleText}>{t('portfolio.currentPam')}</p>
-                      <p className="font-bold">{portfolioStats.usdt.avgBuy.toFixed(2)} DZD</p>
+                    <div className={`p-3 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                      <div className="flex justify-between items-center">
+                        <span className={subtleText}>{t('portfolio.currentPam')}</span>
+                        <span className="font-bold">{portfolioStats.usdt.avgBuy.toFixed(2)} DZD</span>
+                      </div>
                     </div>
 
                     {simSellResult && (
-                      <div className={`text-center p-3 rounded-lg ${simSellResult.isProfitable ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-                        <p>{simSellResult.isProfitable ? t('portfolio.expectedProfit') : t('portfolio.expectedLoss')}: <span className="font-bold text-lg">{Math.abs(simSellResult.profit).toFixed(2)} DZD</span></p>
-                        <p className="font-bold mt-1 text-sm uppercase tracking-wider">{simSellResult.isProfitable ? t('portfolio.profitableSale') : t('portfolio.unprofitableSale')}</p>
+                      <div className={`text-center p-3 rounded-lg border ${simSellResult.isProfitable ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                        <p className="text-xs uppercase tracking-widest mb-1 opacity-70">{simSellResult.isProfitable ? t('portfolio.profitableSale') : t('portfolio.unprofitableSale')}</p>
+                        <div className="text-2xl font-bold">
+                          {simSellResult.isProfitable ? '+' : '-'}{Math.abs(simSellResult.profit).toFixed(2)} <span className="text-sm font-normal">DZD</span>
+                        </div>
                       </div>
                     )}
                   </div>
