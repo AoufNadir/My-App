@@ -1522,16 +1522,9 @@ function MainApp({ user }: { user: firebase.User }) {
         if (amountNum <= 0 || isNaN(amountNum)) { setAlert("⚠️ Montant invalide."); return; }
 
         if (adjustmentTab === 'subtract') {
-            if (adjustmentAsset === 'USDT' && amountNum > portfolioStats.usdt.available) { setAlert("⚠️ Solde USDT insuffisant."); return; }
-            if (adjustmentAsset === 'EUR' && amountNum > portfolioStats.eur.available) { setAlert("⚠️ Solde EUR insuffisant."); return; }
-            if (adjustmentAsset === 'DZD-Caisse') {
-                if (treasuryStats.caisse <= 0) { setAlert("⚠️ La Caisse est vide (0 DZD)."); return; }
-                if (amountNum > treasuryStats.caisse) { setAlert("⚠️ Solde Caisse insuffisant."); return; }
-            }
-            if (adjustmentAsset === 'DZD-Baridi') {
-                if (treasuryStats.baridi <= 0) { setAlert("⚠️ BaridiMob est vide (0 DZD)."); return; }
-                if (amountNum > treasuryStats.baridi) { setAlert("⚠️ Solde Baridi insuffisant."); return; }
-            }
+            if (adjustmentAsset === 'USDT' && amountNum > (portfolioStats?.usdt?.available || 0)) { setAlert("⚠️ Solde USDT insuffisant."); return; }
+            if (adjustmentAsset === 'EUR' && amountNum > (portfolioStats?.eur?.available || 0)) { setAlert("⚠️ Solde EUR insuffisant."); return; }
+            // DZD checks removed to allow manual corrections (overdraft/correction)
         }
 
         const { date, time, timestamp } = now();
@@ -2296,8 +2289,8 @@ function MainApp({ user }: { user: firebase.User }) {
                             walletTransferSource === walletTransferDest
                         }
                         className={`w-full font-bold py-3 rounded-xl shadow-md transition-all ${(isSaving || !walletTransferAmount || parseFloat(walletTransferAmount) <= 0 || parseFloat(walletTransferAmount) > (walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi) || walletTransferSource === walletTransferDest)
-                                ? 'bg-gray-400 cursor-not-allowed opacity-70'
-                                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                            ? 'bg-gray-400 cursor-not-allowed opacity-70'
+                            : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                             }`}
                     >
                         {isSaving ? t('common.processing') : t('transactions.confirmTransfer')}
@@ -2349,17 +2342,42 @@ function MainApp({ user }: { user: firebase.User }) {
                 <DialogFooter><Button onClick={handleSaveClientTx} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl">{t('common.save')}</Button></DialogFooter>
             </Dialog>
 
-            {/* 3. TREASURY ADJUSTMENT MODAL */}
-            <Dialog isOpen={isAdjustmentModalOpen} onClose={() => setIsAdjustmentModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsAdjustmentModalOpen(false)} isDark={isDark}><DialogTitle>{editingTreasuryTx ? t('transactions.editAdjustment') : t('transactions.treasuryAdjustment')}</DialogTitle></DialogHeader>
+            {/* 3. TREASURY ADJUSTMENT MODAL REDESIGNED */}
+            <Dialog isOpen={isAdjustmentModalOpen} onClose={() => setIsAdjustmentModalOpen(false)} className={`${cardBase} max-w-sm`}>
+                <DialogHeader onClose={() => setIsAdjustmentModalOpen(false)} isDark={isDark}>
+                    <DialogTitle>{editingTreasuryTx ? t('transactions.editAdjustment') : 'Ajustement Trésorerie'}</DialogTitle>
+                </DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
-                    <div className="grid grid-cols-2 gap-0 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl">
-                        <button onClick={() => setAdjustmentTab('add')} className={`py-2.5 rounded-lg font-bold text-sm transition-all ${adjustmentTab === 'add' ? 'bg-[#1E293B] text-white shadow-sm' : 'text-gray-500'}`}>{t('transactions.addTo')}</button>
-                        <button onClick={() => setAdjustmentTab('subtract')} className={`py-2.5 rounded-lg font-bold text-sm transition-all ${adjustmentTab === 'subtract' ? 'bg-[#1E293B] text-white shadow-sm' : 'text-gray-500'}`}>{t('transactions.withdrawFrom')}</button>
-                    </div>
-                    <div><Label>{t('transactions.assetType')}</Label><Select value={adjustmentAsset} onChange={e => setAdjustmentAsset(e.target.value as any)} className={`${fieldBase} h-12 text-base`}><option value="DZD-Caisse">{t('common.dinar')} - {t('transactions.cash')}</option><option value="DZD-Baridi">{t('common.dinar')} - {t('transactions.baridi')}</option><option value="USDT">USDT</option><option value="EUR">EUR</option></Select></div>
 
-                    <div className="relative">
+                    {/* 1. Mode Toggle (Ajouter / Retirer) */}
+                    <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                        <button
+                            onClick={() => setAdjustmentTab('add')}
+                            className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all ${adjustmentTab === 'add' ? 'bg-green-600 text-white shadow' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                        >
+                            Ajouter (+)
+                        </button>
+                        <button
+                            onClick={() => setAdjustmentTab('subtract')}
+                            className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all ${adjustmentTab === 'subtract' ? 'bg-red-600 text-white shadow' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                        >
+                            Retirer (-)
+                        </button>
+                    </div>
+
+                    {/* 2. Type d'Actif */}
+                    <div>
+                        <Label>{t('transactions.assetType')}</Label>
+                        <Select value={adjustmentAsset} onChange={e => setAdjustmentAsset(e.target.value as any)} className={fieldBase}>
+                            <option value="DZD-Caisse">DZD - Caisse</option>
+                            <option value="DZD-Baridi">DZD - Baridi</option>
+                            <option value="USDT">USDT</option>
+                            <option value="EUR">EUR</option>
+                        </Select>
+                    </div>
+
+                    {/* 3. Montant (+ MAX button if Client Selected) */}
+                    <div>
                         <Label>{adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR' ? t('transactions.quantity') : t('transactions.amount')}</Label>
                         <div className="relative">
                             <NumberInput
@@ -2368,54 +2386,93 @@ function MainApp({ user }: { user: firebase.User }) {
                                 className={fieldBase}
                                 placeholder="0.00"
                             />
-                            {/* MAX BUTTON */}
-                            {(adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && (
-                                (adjustmentTab === 'subtract') || (adjustmentTab === 'add' && adjustmentClientId)
-                            ) && (
-                                    <button
-                                        onClick={() => {
-                                            if (adjustmentTab === 'subtract') {
-                                                const bal = adjustmentAsset === 'DZD-Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
-                                                setAdjustmentAmount(bal.toString());
-                                            } else if (adjustmentTab === 'add' && adjustmentClientId) {
-                                                const clientBal = Math.abs(clientBalances.get(adjustmentClientId) || 0);
-                                                setAdjustmentAmount(clientBal.toString());
-                                            }
-                                        }}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 transition-colors"
-                                    >
-                                        MAX
-                                    </button>
-                                )}
+                            {/* MAX BUTTON - ALWAYS VISIBLE, logic depends on Asset Type */}
+                            <button
+                                onClick={() => {
+                                    // LOGIC 1: Caisse / Baridi -> Client Balance
+                                    if (adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') {
+                                        if (adjustmentClientId) {
+                                            const clientBal = clientBalances.get(adjustmentClientId) || 0;
+                                            setAdjustmentAmount(Math.abs(clientBal).toString());
+                                        }
+                                    }
+                                    // LOGIC 2: USDT / EUR -> Available Balance
+                                    else if (adjustmentAsset === 'USDT') {
+                                        setAdjustmentAmount((portfolioStats?.usdt?.available || 0).toString());
+                                    }
+                                    else if (adjustmentAsset === 'EUR') {
+                                        setAdjustmentAmount((portfolioStats?.eur?.available || 0).toString());
+                                    }
+                                }}
+                                disabled={
+                                    (adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && !adjustmentClientId
+                                }
+                                className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded transition-colors font-bold ${((adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && !adjustmentClientId)
+                                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-slate-700 dark:text-slate-500' // Disabled Style
+                                    : (isDark ? 'bg-slate-600 text-gray-200 hover:bg-slate-500' : 'bg-slate-200 text-gray-700 hover:bg-slate-300') // Enabled Style
+                                    }`}
+                                title={
+                                    (adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && !adjustmentClientId
+                                        ? "Sélectionnez un client"
+                                        : "Utiliser le solde disponible"
+                                }
+                            >
+                                MAX
+                            </button>
                         </div>
                     </div>
 
+                    {/* 4. Prix Unitaire (Visible only if USDT/EUR) */}
                     {(adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR') && (
-                        <div><Label>{t('transactions.unitPrice')}</Label><NumberInput value={adjustmentPrice} onChange={e => setAdjustmentPrice(e.target.value)} className={fieldBase} placeholder="Ex: 240.00" /></div>
-                    )}
-
-                    {/* CLIENT SELECTOR FOR DZD ADJUSTMENTS */}
-                    {(adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && (
-                        <div className="p-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
-                            <Label className="mb-1">{t('transactions.linkedClientOptional')}</Label>
-                            <Select value={adjustmentClientId} onChange={e => setAdjustmentClientId(e.target.value)} className={fieldBase}>
-                                <option value="">-- {t('common.notes')} --</option>
-                                {clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}
-                            </Select>
-                            {adjustmentClientId && (
-                                <div className="flex justify-between items-center mt-1">
-                                    <p className="text-xs text-blue-400">{t('transactions.clientTxGenerated')}</p>
-                                    <p className={`text-xs font-bold ${subtleText}`}>
-                                        {t('common.balance')}: {(clientBalances.get(adjustmentClientId) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {t('common.dinar')}
-                                    </p>
-                                </div>
-                            )}
+                        <div>
+                            <Label>{t('transactions.unitPrice')}</Label>
+                            <NumberInput value={adjustmentPrice} onChange={e => setAdjustmentPrice(e.target.value)} className={fieldBase} placeholder="Ex: 240.00" />
                         </div>
                     )}
 
-                    <div><Label>{t('transactions.reason')}</Label><Input value={adjustmentNote} onChange={e => setAdjustmentNote(e.target.value)} className={fieldBase} placeholder="Ex: Alimentation, Frais..." /></div>
+                    {/* 5. Client Lié (Visible only if DZD) */}
+                    {(adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && (
+                        <div>
+                            <div className="flex justify-between">
+                                <Label>{t('transactions.linkedClientOptional')}</Label>
+                                <span className="text-xs text-gray-400">Optionnel</span>
+                            </div>
+                            <Select value={adjustmentClientId} onChange={e => setAdjustmentClientId(e.target.value)} className={fieldBase}>
+                                <option value="">Aucun client</option>
+                                {clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}
+                            </Select>
+                        </div>
+                    )}
+
+                    {/* 6. Motif */}
+                    <div>
+                        <Label>{t('transactions.reason')}</Label>
+                        <Input value={adjustmentNote} onChange={e => setAdjustmentNote(e.target.value)} className={fieldBase} placeholder="Ex: Alimentation, Frais..." />
+                    </div>
+
                 </DialogContent>
-                <DialogFooter><Button onClick={handleGlobalAdjustment} className={`w-full rounded-xl font-bold py-3.5 text-white text-lg shadow-lg transition-transform active:scale-95 ${adjustmentTab === 'add' ? 'bg-green-600' : 'bg-red-600'}`}>{t('transactions.confirm')}</Button></DialogFooter>
+                <DialogFooter>
+                    <Button
+                        onClick={handleGlobalAdjustment}
+                        disabled={
+                            isSaving ||
+                            !adjustmentAmount || parseFloat(adjustmentAmount) <= 0 ||
+                            (adjustmentTab === 'subtract' && (
+                                adjustmentAsset === 'USDT' ? parseFloat(adjustmentAmount) > (portfolioStats?.usdt?.available || 0) :
+                                    adjustmentAsset === 'EUR' ? parseFloat(adjustmentAmount) > (portfolioStats?.eur?.available || 0) : false
+                            ))
+                        }
+                        className={`w-full font-bold py-3 rounded-xl shadow-md transition-all ${(isSaving || !adjustmentAmount || parseFloat(adjustmentAmount) <= 0 || (adjustmentTab === 'subtract' && (
+                                adjustmentAsset === 'USDT' ? parseFloat(adjustmentAmount) > (portfolioStats?.usdt?.available || 0) :
+                                    adjustmentAsset === 'EUR' ? parseFloat(adjustmentAmount) > (portfolioStats?.eur?.available || 0) : false
+                            )))
+                                ? 'bg-gray-400 cursor-not-allowed opacity-70'
+                                : (adjustmentTab === 'add' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white')
+                            }`}
+                    >
+                        {isSaving ? t('common.processing') : 'Confirmer'}
+                    </Button>
+                </DialogFooter>
             </Dialog>
 
             <Dialog isOpen={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)} className={`${cardBase} max-w-lg`}>
