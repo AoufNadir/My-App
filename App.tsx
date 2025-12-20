@@ -2206,97 +2206,101 @@ function MainApp({ user }: { user: firebase.User }) {
 
             {/* MODALS */}
 
-            {/* 1. WALLET TRANSFER MODAL */}
-            <Dialog isOpen={isWalletTransferModalOpen} onClose={() => setIsWalletTransferModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsWalletTransferModalOpen(false)} isDark={isDark}><DialogTitle>{t('transactions.internalTransfer')}</DialogTitle></DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-6">
+            {/* 1. WALLET TRANSFER MODAL REDESIGNED */}
+            <Dialog isOpen={isWalletTransferModalOpen} onClose={() => setIsWalletTransferModalOpen(false)} className={`${cardBase} max-w-sm`}>
+                <DialogHeader onClose={() => setIsWalletTransferModalOpen(false)} isDark={isDark}>
+                    <DialogTitle>{t('transactions.internalTransfer')}</DialogTitle>
+                    <p className={`text-sm ${subtleText} mt-1 font-normal`}>Transfert entre comptes internes</p>
+                </DialogHeader>
+                <DialogContent className="px-6 pb-6 space-y-4">
 
-                    {/* 1. AMOUNT (Top & Prominent) with MAX Button */}
-                    <div className="relative pb-4 border-b border-gray-200 dark:border-gray-700">
-                        <Label className="text-center w-full block mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wider text-xs">{t('transactions.transferAmount')}</Label>
-                        <div className="relative max-w-[240px] mx-auto">
+                    {/* 1. Amount Field (Top) */}
+                    <div>
+                        <Label>{t('transactions.amount')} (DZD)</Label>
+                        <div className="relative">
                             <NumberInput
                                 value={walletTransferAmount}
                                 onChange={e => setWalletTransferAmount(e.target.value)}
-                                className={`${fieldBase} text-center text-3xl font-bold h-16 bg-transparent border-b-2 border-sky-500/30 focus:border-sky-500 rounded-none px-12`}
+                                className={fieldBase}
                                 placeholder="0.00"
                             />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">DZD</span>
                             <button
                                 onClick={handleWalletTransferMaxClick}
-                                className={`absolute left-2 top-1/2 -translate-y-1/2 text-xs font-bold px-2.5 py-1 rounded-md transition-all ${isDark ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-sky-500 text-white hover:bg-sky-600'} shadow-sm hover:shadow-md active:scale-95`}
-                                title={t('common.max')}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-sky-600 text-white px-2 py-1 rounded hover:bg-sky-700 transition-colors font-bold"
                             >
-                                {t('common.max')}
+                                MAX
                             </button>
                         </div>
                     </div>
 
-                    {/* 2. SOURCE -> DESTINATION (Swappable Row) with Balances */}
-                    <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/50 relative">
-                        <div className="flex items-center justify-between gap-4">
-                            {/* Source */}
-                            <div className="flex-1">
-                                <Label className="text-xs mb-1.5 text-gray-500">{t('transactions.from')} ({t('common.source')})</Label>
-                                <div className={`p-3 rounded-xl font-semibold text-sm border ${isDark ? 'bg-slate-800 border-slate-700 text-gray-200' : 'bg-white border-slate-200 text-gray-800'}`}>
-                                    {walletTransferSource}
-                                </div>
-                                {/* Balance Display */}
-                                <p className={`text-xs mt-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    {t('common.balance')}: <span className="font-semibold">{(walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
-                                </p>
-                            </div>
-
-                            {/* Swap Button - Enhanced */}
-                            <button
-                                onClick={handleSwapSourceDest}
-                                className={`p-3 rounded-full shadow-lg border-2 transition-all duration-200 hover:scale-110 hover:shadow-xl active:scale-95 z-10 ${isDark ? 'bg-gradient-to-br from-slate-700 to-slate-800 border-sky-500/50 text-sky-400 hover:border-sky-400' : 'bg-gradient-to-br from-white to-gray-50 border-sky-400/50 text-sky-600 hover:border-sky-500'}`}
-                                title="Inverser Source et Destination"
-                            >
-                                <ArrowRightLeftIcon className="w-6 h-6" />
-                            </button>
-
-                            {/* Destination */}
-                            <div className="flex-1 text-right">
-                                <Label className="text-xs mb-1.5 text-gray-500">{t('transactions.to')} ({t('common.destination')})</Label>
-                                <div className={`p-3 rounded-xl font-semibold text-sm border ${isDark ? 'bg-slate-800 border-slate-700 text-gray-200' : 'bg-white border-slate-200 text-gray-800'}`}>
-                                    {walletTransferDest}
-                                </div>
-                                {/* Balance Display */}
-                                <p className={`text-xs mt-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    {t('common.balance')}: <span className="font-semibold">{(walletTransferDest === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Hidden Selects for Logic (Controlled by the UI above) */}
-                        <div className="hidden">
-                            <Select value={walletTransferSource} onChange={e => setWalletTransferSource(e.target.value as any)}><option value="Caisse">Caisse</option><option value="BaridiMob">BaridiMob</option></Select>
-                            <Select value={walletTransferDest} onChange={e => setWalletTransferDest(e.target.value as any)}><option value="BaridiMob">BaridiMob</option><option value="Caisse">Caisse</option></Select>
-                        </div>
+                    {/* 2. Source Account (De) */}
+                    <div>
+                        <Label>{t('transactions.from')} ({t('common.source')})</Label>
+                        <Select
+                            value={walletTransferSource}
+                            onChange={e => setWalletTransferSource(e.target.value as any)}
+                            className={fieldBase}
+                        >
+                            <option value="Caisse">Caisse — Solde: {treasuryStats.caisse.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</option>
+                            <option value="BaridiMob">BaridiMob — Solde: {treasuryStats.baridi.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</option>
+                        </Select>
                     </div>
 
-                    {/* 3. Notes Section */}
-                    <div><Label>{t('common.notesOptional')}</Label><Input value={walletTransferNotes} onChange={e => setWalletTransferNotes(e.target.value)} className={fieldBase} placeholder="" /></div>
+                    {/* 3. Swap Button (Centered) */}
+                    <div className="flex justify-center -my-2 z-10 relative">
+                        <button
+                            onClick={handleSwapSourceDest}
+                            className={`p-2 rounded-full border shadow-sm transition-all hover:scale-110 active:scale-95 ${isDark ? 'bg-slate-800 border-slate-600 text-sky-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-sky-600 hover:bg-slate-50'}`}
+                            title="Inverser Source et Destination"
+                        >
+                            <ArrowRightLeftIcon className="w-4 h-4 rotate-90 sm:rotate-0" />
+                        </button>
+                    </div>
+
+                    {/* 4. Destination Account (Vers) */}
+                    <div>
+                        <Label>{t('transactions.to')} ({t('common.destination')})</Label>
+                        <Select
+                            value={walletTransferDest}
+                            onChange={e => setWalletTransferDest(e.target.value as any)}
+                            className={fieldBase}
+                        >
+                            <option value="BaridiMob">BaridiMob — Solde: {treasuryStats.baridi.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</option>
+                            <option value="Caisse">Caisse — Solde: {treasuryStats.caisse.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</option>
+                        </Select>
+                        {walletTransferSource === walletTransferDest && (
+                            <p className="text-xs text-red-500 mt-1">⚠️ Impossible de sélectionner le même compte.</p>
+                        )}
+                    </div>
+
+                    {/* 5. Notes Field */}
+                    <div>
+                        <Label>{t('common.notesOptional')}</Label>
+                        <Input
+                            value={walletTransferNotes}
+                            onChange={e => setWalletTransferNotes(e.target.value)}
+                            className={fieldBase}
+                            placeholder="Note..."
+                        />
+                    </div>
+
                 </DialogContent>
                 <DialogFooter>
-                    {/* Enhanced Confirmation Button */}
                     <Button
                         onClick={handleWalletTransfer}
-                        disabled={isSaving}
-                        className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold py-4 rounded-xl shadow-xl shadow-indigo-500/30 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        disabled={
+                            isSaving ||
+                            !walletTransferAmount ||
+                            parseFloat(walletTransferAmount) <= 0 ||
+                            parseFloat(walletTransferAmount) > (walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi) ||
+                            walletTransferSource === walletTransferDest
+                        }
+                        className={`w-full font-bold py-3 rounded-xl shadow-md transition-all ${(isSaving || !walletTransferAmount || parseFloat(walletTransferAmount) <= 0 || parseFloat(walletTransferAmount) > (walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi) || walletTransferSource === walletTransferDest)
+                                ? 'bg-gray-400 cursor-not-allowed opacity-70'
+                                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                            }`}
                     >
-                        {isSaving ? (
-                            <>
-                                <RefreshCwIcon className="w-5 h-5 animate-spin" />
-                                {t('common.processing')}
-                            </>
-                        ) : (
-                            <>
-                                <ArrowRightLeftIcon className="w-5 h-5" />
-                                {t('transactions.confirmTransfer')}
-                            </>
-                        )}
+                        {isSaving ? t('common.processing') : t('transactions.confirmTransfer')}
                     </Button>
                 </DialogFooter>
             </Dialog>
