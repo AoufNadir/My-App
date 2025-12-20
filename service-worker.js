@@ -1,13 +1,13 @@
-const CACHE_NAME = 'prodigital-cache-v1';
+const CACHE_NAME = 'prodigital-cache-v5';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   'https://cdn.tailwindcss.com',
   'https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
-  '/manifest.json',
-  '/icon.svg',
-  '/logo.jpg'
+  '/manifest.webmanifest',
+  '/logo.png',
+  '/pwa-icon.png'
 ];
 
 // Install event: cache static assets

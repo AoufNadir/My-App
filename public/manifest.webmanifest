@@ -4,14 +4,15 @@
   "description": "A web application to track USDT and DZD transactions, manage clients and investors, and view statistics.",
   "icons": [
     {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
+      "src": "/pwa-icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "start_url": ".",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#0F172A",
+  "theme_color": "#0B1120",
   "background_color": "#0B1120"
 }

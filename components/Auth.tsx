@@ -123,7 +123,7 @@ export function Auth() {
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
             <div className="relative w-16 h-16 rounded-2xl bg-[#0F172A] border border-gray-800 flex items-center justify-center shadow-2xl">
-              <img src="/logo.jpg" alt="Zumra" className="w-10 h-10 object-contain rounded-full" />
+              <img src="/logo.png" alt="Zumra" className="w-full h-full object-cover" />
             </div>
           </div>
           <div className="text-center">

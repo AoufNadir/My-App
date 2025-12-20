@@ -105,11 +105,10 @@ function AppInner() {
     }, []);
 
     if (authLoading) {
-        const isDark = document.documentElement.classList.contains('dark');
-        const bgApp = isDark ? 'from-[#0B1120] via-[#0F172A] to-[#1E293B] text-gray-100' : 'from-[#F8FAFC] via-[#F1F5F9] to-[#E2E8F0] text-gray-900';
+        // Force dark background to match Auth page and PWA Splash
         return (
-            <div className={`min-h-screen bg-gradient-to-br ${bgApp} flex items-center justify-center text-lg font-semibold`}>
-                {t('common.loading')}
+            <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
+                <img src="/logo.png" alt="Loading..." className="w-24 h-24 object-contain animate-pulse" />
             </div>
         );
     }
@@ -2463,11 +2462,11 @@ function MainApp({ user }: { user: firebase.User }) {
                             ))
                         }
                         className={`w-full font-bold py-3 rounded-xl shadow-md transition-all ${(isSaving || !adjustmentAmount || parseFloat(adjustmentAmount) <= 0 || (adjustmentTab === 'subtract' && (
-                                adjustmentAsset === 'USDT' ? parseFloat(adjustmentAmount) > (portfolioStats?.usdt?.available || 0) :
-                                    adjustmentAsset === 'EUR' ? parseFloat(adjustmentAmount) > (portfolioStats?.eur?.available || 0) : false
-                            )))
-                                ? 'bg-gray-400 cursor-not-allowed opacity-70'
-                                : (adjustmentTab === 'add' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white')
+                            adjustmentAsset === 'USDT' ? parseFloat(adjustmentAmount) > (portfolioStats?.usdt?.available || 0) :
+                                adjustmentAsset === 'EUR' ? parseFloat(adjustmentAmount) > (portfolioStats?.eur?.available || 0) : false
+                        )))
+                            ? 'bg-gray-400 cursor-not-allowed opacity-70'
+                            : (adjustmentTab === 'add' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white')
                             }`}
                     >
                         {isSaving ? t('common.processing') : 'Confirmer'}
