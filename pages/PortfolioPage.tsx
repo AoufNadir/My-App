@@ -83,9 +83,9 @@ export function PortfolioPage(props: PortfolioPageProps) {
 
   const { t } = useLanguage();
 
-  const StatCard = ({ title, value, currency, icon, colorClass, cardBase, subtleText, action, onEdit }: { title: string, value: string, currency?: string, icon?: React.ReactNode, colorClass: string, cardBase: string, subtleText: string, action?: React.ReactNode, onEdit?: () => void }) => (
+  const StatCard = ({ title, value, currency, icon, colorClass, cardBase, subtleText, action, onEdit, children, className }: { title: string, value: string, currency?: string, icon?: React.ReactNode, colorClass: string, cardBase: string, subtleText: string, action?: React.ReactNode, onEdit?: () => void, children?: React.ReactNode, className?: string }) => (
     <div
-      className={`group relative p-5 rounded-2xl shadow-sm border transition-all ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'} ${onEdit ? 'cursor-pointer' : ''}`}
+      className={`group relative p-5 rounded-2xl shadow-sm border transition-all ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'} ${onEdit ? 'cursor-pointer' : ''} ${className || ''}`}
       onClick={() => {
         // For mobile: clicking the card triggers the edit if plain click
         if (onEdit && window.innerWidth < 640) onEdit();
@@ -95,20 +95,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
         <span>{title}</span>
         {icon || action}
         {onEdit && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
-            className="absolute top-4 right-4 p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity block sm:hidden sm:group-hover:block"
-            style={{ display: 'none' }} // Hidden by default, handled by classes
-          >
-            <PencilIcon className="w-4 h-4" />
-          </button>
-        )}
-        {/* Simplified Icon Logic: Use opacity on desktop, maybe always visible on mobile if desired, or simplified */}
-        {onEdit && (
-          <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block">
             <button
               onClick={(e) => { e.stopPropagation(); onEdit(); }}
               className={`p-2 rounded-full ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
@@ -122,6 +109,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
         <span className={colorClass}>{value}</span>
         {currency && <span className={`ml-2 text-lg font-normal ${subtleText}`}>{currency}</span>}
       </div>
+      {children}
     </div>
   );
 
