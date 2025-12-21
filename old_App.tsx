@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardHeader, CardContent } from './components/ui/Card';
 import { Label } from './components/ui/Label';
@@ -166,7 +166,7 @@ function MainApp({ user }: { user: firebase.User }) {
     const [refreshKey, setRefreshKey] = useState(0);
     const handleRefresh = () => {
         setRefreshKey(prev => prev + 1);
-        setAlert('🔄 ' + t('common.refreshing'));
+        setAlert('­ƒöä ' + t('common.refreshing'));
     };
 
     // ===== DATA =====
@@ -208,7 +208,7 @@ function MainApp({ user }: { user: firebase.User }) {
     const [sellTotal, setSellTotal] = useState('');
     const [profitPercent, setProfitPercent] = useState('');
     const [sellAmountError, setSellAmountError] = useState('');
-    const [paymentMethod, setPaymentMethod] = useState<'Espèces' | 'BaridiMob' | 'Crédit'>('Espèces');
+    const [paymentMethod, setPaymentMethod] = useState<'Esp├¿ces' | 'BaridiMob' | 'Cr├®dit'>('Esp├¿ces');
 
     const [alert, setAlert] = useState('');
 
@@ -222,7 +222,7 @@ function MainApp({ user }: { user: firebase.User }) {
     const [editingTx, setEditingTx] = useState<Tx | null>(null);
     const [txToDelete, setTxToDelete] = useState<Tx | null>(null);
     const [suggestedProfitMargin, setSuggestedProfitMargin] = useState('2');
-    const [suggestedSellingPrice, setSuggestedSellingPrice] = useState(''); // NEW: سعر البيع المقترح
+    const [suggestedSellingPrice, setSuggestedSellingPrice] = useState(''); // NEW: Ï│Ï╣Ï▒ Ïº┘äÏ¿┘èÏ╣ Ïº┘ä┘à┘éÏ¬Ï▒Ï¡
     const [linkedClientId, setLinkedClientId] = useState('none');
 
     // ===== NOTIFICATION SYSTEM =====
@@ -369,10 +369,10 @@ function MainApp({ user }: { user: firebase.User }) {
                 updatedAt: now,
                 archived: false
             });
-            setAlert('✅ ' + t('common.operationSuccess'));
+            setAlert('Ô£à ' + t('common.operationSuccess'));
         } catch (e) {
             console.error(e);
-            setAlert('❌ ' + t('common.error'));
+            setAlert('ÔØî ' + t('common.error'));
         } finally {
             setIsSaving(false);
         }
@@ -382,18 +382,18 @@ function MainApp({ user }: { user: firebase.User }) {
         // Check if asset has transactions
         const assetTxCount = manualAssetTransactions.filter(tx => tx.actifId === assetId).length;
         if (assetTxCount > 0) {
-            setAlert("⚠️ " + t('common.cannotDeleteHasTransactions'));
+            setAlert("ÔÜá´©Å " + t('common.cannotDeleteHasTransactions'));
             return;
         }
 
         setIsSaving(true);
         try {
             await userDocRef.collection('manual_assets').doc(assetId).delete();
-            setAlert('✅ ' + t('common.operationSuccess'));
+            setAlert('Ô£à ' + t('common.operationSuccess'));
             if (selectedAssetId === assetId) setSelectedAssetId(null);
         } catch (e) {
             console.error(e);
-            setAlert('❌ ' + t('common.error'));
+            setAlert('ÔØî ' + t('common.error'));
         } finally {
             setIsSaving(false);
         }
@@ -412,10 +412,10 @@ function MainApp({ user }: { user: firebase.User }) {
                 createdAt: now,
                 updatedAt: now
             });
-            setAlert('✅ ' + t('common.operationSuccess'));
+            setAlert('Ô£à ' + t('common.operationSuccess'));
         } catch (e) {
             console.error(e);
-            setAlert('❌ ' + t('common.error'));
+            setAlert('ÔØî ' + t('common.error'));
         } finally {
             setIsSaving(false);
         }
@@ -425,18 +425,18 @@ function MainApp({ user }: { user: firebase.User }) {
         // Check balance
         const balance = assetClientBalances.get(`${assetId}_${clientId}`) || 0;
         if (Math.abs(balance) > 0.01) {
-            setAlert("⚠️ " + t('common.cannotDeleteHasBalance'));
+            setAlert("ÔÜá´©Å " + t('common.cannotDeleteHasBalance'));
             return;
         }
 
         setIsSaving(true);
         try {
             await userDocRef.collection('manual_asset_clients').doc(clientId).delete();
-            setAlert('✅ ' + t('common.operationSuccess'));
+            setAlert('Ô£à ' + t('common.operationSuccess'));
             if (selectedAssetClientId === clientId) setSelectedAssetClientId(null);
         } catch (e) {
             console.error(e);
-            setAlert('❌ ' + t('common.error'));
+            setAlert('ÔØî ' + t('common.error'));
         } finally {
             setIsSaving(false);
         }
@@ -483,11 +483,11 @@ function MainApp({ user }: { user: firebase.User }) {
             }
 
             await batch.commit();
-            setAlert('✅ ' + t('common.transactionAdded'));
+            setAlert('Ô£à ' + t('common.transactionAdded'));
         } catch (e: any) {
             console.error("Error creating transaction:", e);
             console.error("Payload:", JSON.stringify({ ...data, amount: Number(data.amount) }));
-            setAlert(`❌ ${t('common.operationFailed')}`);
+            setAlert(`ÔØî ${t('common.operationFailed')}`);
         } finally {
             setIsSaving(false);
         }
@@ -511,10 +511,10 @@ function MainApp({ user }: { user: firebase.User }) {
             }
 
             await batch.commit();
-            setAlert('✅ ' + t('common.transactionDeleted'));
+            setAlert('Ô£à ' + t('common.transactionDeleted'));
         } catch (e) {
             console.error(e);
-            setAlert('❌ ' + t('common.error'));
+            setAlert('ÔØî ' + t('common.error'));
         } finally {
             setIsSaving(false);
         }
@@ -550,7 +550,7 @@ function MainApp({ user }: { user: firebase.User }) {
                         time: data.time,
                         source: data.paymentMethod === 'cash' ? 'Caisse' : 'BaridiMob',
                         amount: Math.abs(Number(data.amount)),
-                        notes: `Paiement de ${manualAssetClients.find(c => c.id === data.clientId)?.fullName || 'Client'} - ${manualAssets.find(a => a.id === data.actifId)?.name || 'Actif'} (Modifié)`,
+                        notes: `Paiement de ${manualAssetClients.find(c => c.id === data.clientId)?.fullName || 'Client'} - ${manualAssets.find(a => a.id === data.actifId)?.name || 'Actif'} (Modifi├®)`,
                     };
                     batch.update(treasuryTxRef, treasuryPayload);
                 } else {
@@ -577,10 +577,10 @@ function MainApp({ user }: { user: firebase.User }) {
             }
 
             await batch.commit();
-            setAlert('✅ ' + t('common.transactionUpdated'));
+            setAlert('Ô£à ' + t('common.transactionUpdated'));
         } catch (e: any) {
             console.error("Error updating transaction:", e);
-            setAlert(`❌ ${t('common.operationFailed')}`);
+            setAlert(`ÔØî ${t('common.operationFailed')}`);
         } finally {
             setIsSaving(false);
         }
@@ -632,13 +632,13 @@ function MainApp({ user }: { user: firebase.User }) {
         clientsDzd.forEach(c => balances.set(c.id, 0));
 
         clientTransactionsDzd.forEach(tx => {
-            // ALWAYS include Settlement transactions (Règlement Reçu / Paiement Effectué) as they directly affect balance
-            if (tx.type === 'Règlement Reçu' || tx.type === 'Paiement Effectué') {
+            // ALWAYS include Settlement transactions (R├¿glement Re├ºu / Paiement Effectu├®) as they directly affect balance
+            if (tx.type === 'R├¿glement Re├ºu' || tx.type === 'Paiement Effectu├®') {
                 const current = balances.get(tx.clientId) || 0;
                 balances.set(tx.clientId, current + tx.montant);
             }
             // For Sales/Purchases (Vente USDT / Achat EUR), only include if it's a Credit transaction
-            else if (!tx.paymentMethod || tx.paymentMethod === 'Crédit') {
+            else if (!tx.paymentMethod || tx.paymentMethod === 'Cr├®dit') {
                 const current = balances.get(tx.clientId) || 0;
                 balances.set(tx.clientId, current + tx.montant);
             }
@@ -679,7 +679,7 @@ function MainApp({ user }: { user: firebase.User }) {
     const [editingClientTx, setEditingClientTx] = useState<ClientTransactionDzd | null>(null);
     const [clientTxToDelete, setClientTxToDelete] = useState<ClientTransactionDzd | null>(null);
     const [clientTxAmount, setClientTxAmount] = useState('');
-    const [clientTxType, setClientTxType] = useState<ClientTransactionDzd['type'] | 'Achat EUR'>('Règlement Reçu');
+    const [clientTxType, setClientTxType] = useState<ClientTransactionDzd['type'] | 'Achat EUR'>('R├¿glement Re├ºu');
     const [clientTxNotes, setClientTxNotes] = useState('');
     const [clientTxUsdtAmount, setClientTxUsdtAmount] = useState('');
     const [clientTxSellPrice, setClientTxSellPrice] = useState('');
@@ -695,7 +695,7 @@ function MainApp({ user }: { user: firebase.User }) {
     const [walletTransferNotes, setWalletTransferNotes] = useState('');
 
     const [isSettlementModalOpen, setIsSettlementModalOpen] = useState(false);
-    const [settlementType, setSettlementType] = useState<'reçu' | 'effectué' | null>(null);
+    const [settlementType, setSettlementType] = useState<'re├ºu' | 'effectu├®' | null>(null);
     const [settlementClientId, setSettlementClientId] = useState('');
     const [settlementAmount, setSettlementAmount] = useState('');
     const [settlementNotes, setSettlementNotes] = useState('');
@@ -790,7 +790,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
     const handleSavePortfolioBalanceEdit = async () => {
         const newValue = parseAndEvaluate(portfolioBalanceEditValue);
-        if (isNaN(newValue)) { setAlert('⚠️ Valeur invalide.'); return; }
+        if (isNaN(newValue)) { setAlert('ÔÜá´©Å Valeur invalide.'); return; }
 
         const currentBalance = portfolioBalanceEditAsset === 'EUR' ? portfolioStats.eur.available : portfolioStats.usdt.available;
         const diff = newValue - currentBalance;
@@ -813,11 +813,11 @@ function MainApp({ user }: { user: firebase.User }) {
                 notes: portfolioBalanceEditNotes.trim() || `Ajustement manuel du solde (${diff > 0 ? '+' : ''}${diff.toFixed(2)} ${portfolioBalanceEditAsset})`
             });
 
-            setAlert('✅ ' + t('common.operationSuccess'));
+            setAlert('Ô£à ' + t('common.operationSuccess'));
             setIsPortfolioBalanceEditModalOpen(false);
         } catch (e) {
             console.error(e);
-            setAlert('❌ ' + t('common.error'));
+            setAlert('ÔØî ' + t('common.error'));
         } finally {
             setIsSaving(false);
         }
@@ -827,7 +827,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
     const handleSaveTreasuryBalanceEdit = async () => {
         const newValue = parseAndEvaluate(treasuryBalanceEditValue);
-        if (isNaN(newValue)) { setAlert('⚠️ Valeur invalide.'); return; }
+        if (isNaN(newValue)) { setAlert('ÔÜá´©Å Valeur invalide.'); return; }
 
         const currentBalance = treasuryBalanceEditAsset === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
         const diff = newValue - currentBalance;
@@ -853,11 +853,11 @@ function MainApp({ user }: { user: firebase.User }) {
             });
 
             await batch.commit();
-            setAlert('✅ Solde ajusté avec succès.');
+            setAlert('Ô£à Solde ajust├® avec succ├¿s.');
             setIsTreasuryBalanceEditModalOpen(false);
         } catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de l\'ajustement.');
+            setAlert('ÔØî Erreur lors de l\'ajustement.');
         } finally {
             setIsSaving(false);
         }
@@ -900,10 +900,10 @@ function MainApp({ user }: { user: firebase.User }) {
                 }
             }
 
-            setAlert('✅ Client mis à jour.');
+            setAlert('Ô£à Client mis ├á jour.');
         } catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('ÔØî Erreur.');
         } finally {
             setIsSaving(false);
         }
@@ -984,7 +984,7 @@ function MainApp({ user }: { user: firebase.User }) {
                     type: 'client_debt_critical',
                     priority: 1,
                     title: 'Dette Cliente Critique',
-                    message: `Alerte : le client ${client.fullName || client.nom} a une dette depuis ${daysSinceDebt} jours – montant : ${Math.abs(balance).toFixed(2)} DZD`,
+                    message: `Alerte : le client ${client.fullName || client.nom} a une dette depuis ${daysSinceDebt} jours ÔÇô montant : ${Math.abs(balance).toFixed(2)} DZD`,
                     timestamp: Date.now(),
                     read: false,
                     color: 'red',
@@ -1021,7 +1021,7 @@ function MainApp({ user }: { user: firebase.User }) {
                 type: 'low_cash',
                 priority: 2,
                 title: 'Solde Caisse Faible',
-                message: `Alerte : le solde Caisse est inférieur à 100 000.00 DZD (actuel: ${caisseBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD)`,
+                message: `Alerte : le solde Caisse est inf├®rieur ├á 100 000.00 DZD (actuel: ${caisseBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD)`,
                 timestamp: Date.now(),
                 read: false,
                 color: 'orange',
@@ -1050,8 +1050,8 @@ function MainApp({ user }: { user: firebase.User }) {
                     priority: 2,
                     title: isIncrease ? 'PAM en Hausse' : 'PAM en Baisse',
                     message: isIncrease
-                        ? `Le PAM a augmenté de +${variation.toFixed(2)} DA`
-                        : `Le PAM a diminué de ${variation.toFixed(2)} DA`,
+                        ? `Le PAM a augment├® de +${variation.toFixed(2)} DA`
+                        : `Le PAM a diminu├® de ${variation.toFixed(2)} DA`,
                     timestamp: Date.now(),
                     read: false,
                     color: isIncrease ? 'blue' : 'red',
@@ -1086,8 +1086,8 @@ function MainApp({ user }: { user: firebase.User }) {
                 id: `daily_profit_${today}`,
                 type: 'profit_loss',
                 priority: 3,
-                title: 'Gros Bénéfice Journalier',
-                message: `Le bénéfice du jour dépasse +5000.00 DZD (actuel: +${todayProfit.toFixed(2)} DZD)`,
+                title: 'Gros B├®n├®fice Journalier',
+                message: `Le b├®n├®fice du jour d├®passe +5000.00 DZD (actuel: +${todayProfit.toFixed(2)} DZD)`,
                 timestamp: Date.now(),
                 read: false,
                 color: 'green',
@@ -1098,8 +1098,8 @@ function MainApp({ user }: { user: firebase.User }) {
                 id: `daily_loss_${today}`,
                 type: 'profit_loss',
                 priority: 1,
-                title: 'Grosse Perte Journalière',
-                message: `La perte du jour dépasse -5000.00 DZD (actuel: ${todayProfit.toFixed(2)} DZD)`,
+                title: 'Grosse Perte Journali├¿re',
+                message: `La perte du jour d├®passe -5000.00 DZD (actuel: ${todayProfit.toFixed(2)} DZD)`,
                 timestamp: Date.now(),
                 read: false,
                 color: 'red',
@@ -1170,7 +1170,7 @@ function MainApp({ user }: { user: firebase.User }) {
     }, [transferToClientId, clientTransactionsDzd]);
 
     const isFormValid = useMemo(() => {
-        if (paymentMethod === 'Crédit' && (!linkedClientId || linkedClientId === 'none')) return false;
+        if (paymentMethod === 'Cr├®dit' && (!linkedClientId || linkedClientId === 'none')) return false;
         if (mode === 'buy_usdt') {
             if (buyUsdtMode === 'with_dzd') return parseAndEvaluate(buyUsdtAmount) > 0 && parseAndEvaluate(buyUsdtPrice) > 0;
             if (buyUsdtMode === 'with_eur') return parseAndEvaluate(buyEurForUsdtAmount) > 0 && parseAndEvaluate(eurDzdPrice) > 0 && parseAndEvaluate(eurUsdtRate) > 0 && parseAndEvaluate(buyEurForUsdtAmount) <= portfolioStats.eur.available;
@@ -1192,7 +1192,7 @@ function MainApp({ user }: { user: firebase.User }) {
         setAlert(''); setSellAmountError(''); setLinkedClientId('none');
         setBuyUsdtMode(null); setBuyEurForUsdtAmount(''); setEurDzdPrice(''); setEurUsdtRate('');
         setBuyUsdtMode(null); setBuyEurForUsdtAmount(''); setEurDzdPrice(''); setEurUsdtRate('');
-        setBuyUsdtTotal(''); setBuyEurTotal(''); setPaymentMethod('Espèces'); setClientPaymentStatus('cash');
+        setBuyUsdtTotal(''); setBuyEurTotal(''); setPaymentMethod('Esp├¿ces'); setClientPaymentStatus('cash');
         setEditingTx(txToEdit); setMode(newMode); setIsTotalManual(false);
         if (txToEdit) {
             if (txToEdit.type === 'buy') {
@@ -1214,10 +1214,10 @@ function MainApp({ user }: { user: firebase.User }) {
             }
             setNotes(txToEdit.notes ?? '');
             const linkedDzdTx = clientTransactionsDzd.find(t => t.linkedTxId === txToEdit.id);
-            let initialPaymentMethod = 'Espèces';
+            let initialPaymentMethod = 'Esp├¿ces';
             if (linkedDzdTx) {
                 setLinkedClientId(linkedDzdTx.clientId);
-                initialPaymentMethod = linkedDzdTx.paymentMethod || 'Espèces';
+                initialPaymentMethod = linkedDzdTx.paymentMethod || 'Esp├¿ces';
             }
             if (txToEdit.paymentMethod) {
                 initialPaymentMethod = txToEdit.paymentMethod;
@@ -1225,7 +1225,7 @@ function MainApp({ user }: { user: firebase.User }) {
             setPaymentMethod(initialPaymentMethod as any);
 
             // Initialize clientPaymentStatus based on paymentMethod
-            if (initialPaymentMethod === 'Crédit') setClientPaymentStatus('credit');
+            if (initialPaymentMethod === 'Cr├®dit') setClientPaymentStatus('credit');
             else if (initialPaymentMethod === 'BaridiMob') setClientPaymentStatus('baridi');
             else setClientPaymentStatus('cash');
         } else {
@@ -1295,7 +1295,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
                 // 3. Re-create Client Tx if Credit
                 if (linkedClientId && linkedClientId !== 'none' && clientPaymentStatus === 'credit') {
-                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: totalCost, type: 'Règlement Reçu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`, linkedTxId: editingTx.id, paymentMethod: 'Crédit' });
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: totalCost, type: 'R├¿glement Re├ºu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`, linkedTxId: editingTx.id, paymentMethod: 'Cr├®dit' });
                 }
 
                 // 4. Re-create Treasury Tx if NOT Credit (NEW)
@@ -1303,7 +1303,7 @@ function MainApp({ user }: { user: firebase.User }) {
                     const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: 'Retrait', source, amount: totalCost, notes: `Achat ${quantity.toFixed(2)} ${currency}`, linkedTxId: editingTx.id });
                 }
-                setAlert('✅ Transaction mise à jour.');
+                setAlert('Ô£à Transaction mise ├á jour.');
             } else {
                 const ref = userDocRef.collection('usdt_txs').doc();
                 batch.set(ref, { timestamp, type: 'buy', quantity, price, total: totalCost, date, time, notes: notes.trim(), currency, paymentMethod: clientPaymentStatus });
@@ -1317,12 +1317,12 @@ function MainApp({ user }: { user: firebase.User }) {
 
                 // CLIENT LOGIC: Only if Credit
                 if (linkedClientId && linkedClientId !== 'none' && clientPaymentStatus === 'credit') {
-                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: totalCost, type: 'Règlement Reçu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`, linkedTxId: ref.id, paymentMethod: 'Crédit' });
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: totalCost, type: 'R├¿glement Re├ºu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`, linkedTxId: ref.id, paymentMethod: 'Cr├®dit' });
                 }
-                setAlert('✅ Transaction ajoutée.');
+                setAlert('Ô£à Transaction ajout├®e.');
             }
             await batch.commit(); closeForm();
-        } catch (error) { console.error(error); setAlert('❌ Erreur.'); } finally { setIsSaving(false); }
+        } catch (error) { console.error(error); setAlert('ÔØî Erreur.'); } finally { setIsSaving(false); }
     };
 
     const handleSell = async () => {
@@ -1362,7 +1362,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
                 // 3. Re-create Client Tx if Credit
                 if (linkedClientId && linkedClientId !== 'none' && clientPaymentStatus === 'credit') {
-                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`, linkedTxId: editingTx.id, paymentMethod: 'Crédit' });
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`, linkedTxId: editingTx.id, paymentMethod: 'Cr├®dit' });
                 }
 
                 // 4. Re-create Treasury Tx if NOT Credit (NEW)
@@ -1370,7 +1370,7 @@ function MainApp({ user }: { user: firebase.User }) {
                     const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp, date, time, type: 'Ajout', source, amount: totalRevenue, notes: `Vente ${quantity.toFixed(2)} USDT`, linkedTxId: editingTx.id });
                 }
-                setAlert('✅ Transaction mise à jour.');
+                setAlert('Ô£à Transaction mise ├á jour.');
             } else {
                 const ref = userDocRef.collection('usdt_txs').doc();
                 batch.set(ref, { timestamp, type: 'sell', quantity, sell, profit, date, time, notes: notes.trim(), currency: 'USDT', paymentMethod: clientPaymentStatus });
@@ -1384,12 +1384,12 @@ function MainApp({ user }: { user: firebase.User }) {
 
                 // CLIENT LOGIC: Only if Credit
                 if (linkedClientId && linkedClientId !== 'none' && clientPaymentStatus === 'credit') {
-                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`, linkedTxId: ref.id, paymentMethod: 'Crédit' });
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), { clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue, type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`, linkedTxId: ref.id, paymentMethod: 'Cr├®dit' });
                 }
-                setAlert('✅ Transaction ajoutée.');
+                setAlert('Ô£à Transaction ajout├®e.');
             }
             await batch.commit(); closeForm();
-        } catch (error) { console.error(error); setAlert('❌ Erreur.'); } finally { setIsSaving(false); }
+        } catch (error) { console.error(error); setAlert('ÔØî Erreur.'); } finally { setIsSaving(false); }
     };
     const handleDeleteConfirm = async () => {
         if (!txToDelete?.id) return;
@@ -1400,13 +1400,13 @@ function MainApp({ user }: { user: firebase.User }) {
             const result = await applyTransactionDelete(txToDelete.id, 'usdt_tx', userDocRef);
 
             if (result.success) {
-                setAlert('✅ Supprimé.');
+                setAlert('Ô£à Supprim├®.');
             } else {
-                setAlert(`❌ ${result.error || 'Erreur lors de la suppression.'}`);
+                setAlert(`ÔØî ${result.error || 'Erreur lors de la suppression.'}`);
             }
         } catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('ÔØî Erreur.');
         } finally {
             setIsSaving(false);
             setTxToDelete(null);
@@ -1434,7 +1434,7 @@ function MainApp({ user }: { user: firebase.User }) {
     };
 
     const handleSaveClient = async () => {
-        if (!clientFullName.trim()) { setAlert('⚠️ Nom requis.'); return; }
+        if (!clientFullName.trim()) { setAlert('ÔÜá´©Å Nom requis.'); return; }
         setIsSaving(true);
         try {
             const data: any = {
@@ -1461,12 +1461,12 @@ function MainApp({ user }: { user: firebase.User }) {
                         timestamp, date, time,
                         montant: diff,
                         type: 'Ajustement Solde',
-                        notes: 'Mise à jour manuelle du solde',
-                        paymentMethod: 'Crédit'
+                        notes: 'Mise ├á jour manuelle du solde',
+                        paymentMethod: 'Cr├®dit'
                     });
                 }
 
-                setAlert('✅ Client modifié.');
+                setAlert('Ô£à Client modifi├®.');
             } else {
                 // NEW: Validation for duplicate clients
                 const duplicateClient = clientsDzd.find(c => {
@@ -1478,7 +1478,7 @@ function MainApp({ user }: { user: firebase.User }) {
                 });
 
                 if (duplicateClient) {
-                    setAlert('⚠️ Ce client existe déjà. Veuillez vérifier les informations.');
+                    setAlert('ÔÜá´©Å Ce client existe d├®j├á. Veuillez v├®rifier les informations.');
                     setIsSaving(false);
                     return;
                 }
@@ -1489,13 +1489,13 @@ function MainApp({ user }: { user: firebase.User }) {
                     const { date, time, timestamp } = now();
                     await userDocRef.collection('dzd_client_txs').add({
                         clientId: ref.id, timestamp, date, time,
-                        type: 'Solde Initial', montant: initBal, notes: 'Solde initial', paymentMethod: 'Crédit'
+                        type: 'Solde Initial', montant: initBal, notes: 'Solde initial', paymentMethod: 'Cr├®dit'
                     });
                 }
-                setAlert('✅ Client ajouté.');
+                setAlert('Ô£à Client ajout├®.');
             }
             setIsClientModalOpen(false);
-        } catch (e) { console.error(e); setAlert('❌ Erreur.'); } finally { setIsSaving(false); }
+        } catch (e) { console.error(e); setAlert('ÔØî Erreur.'); } finally { setIsSaving(false); }
     };
 
     const handleDeleteClient = async () => {
@@ -1504,27 +1504,34 @@ function MainApp({ user }: { user: firebase.User }) {
         // NEW: Check Balance Restriction
         const bal = clientBalances.get(clientToDelete.id) || 0;
         if (Math.abs(bal) > 0.01) {
-            setAlert("⚠️ Impossible de supprimer : Le client possède un solde non nul. Veuillez le régulariser avant suppression.");
+            setAlert("ÔÜá´©Å Impossible de supprimer : Le client poss├¿de un solde non nul. Veuillez le r├®gulariser avant suppression.");
             setClientToDelete(null);
             return;
         }
 
         try {
             await userDocRef.collection('dzd_clients').doc(clientToDelete.id).delete();
-            setAlert('✅ Client supprimé.');
+            setAlert('Ô£à Client supprim├®.');
             setClientToDelete(null);
             if (selectedClientId === clientToDelete.id) setSelectedClientId(null);
-        } catch (e) { setAlert('❌ Erreur.'); }
+        } catch (e) { setAlert('ÔØî Erreur.'); }
     };
 
     const handleGlobalAdjustment = async () => {
         const amountNum = parseAndEvaluate(adjustmentAmount);
-        if (amountNum <= 0 || isNaN(amountNum)) { setAlert("⚠️ Montant invalide."); return; }
+        if (amountNum <= 0 || isNaN(amountNum)) { setAlert("ÔÜá´©Å Montant invalide."); return; }
 
         if (adjustmentTab === 'subtract') {
-            if (adjustmentAsset === 'USDT' && amountNum > (portfolioStats?.usdt?.available || 0)) { setAlert("⚠️ Solde USDT insuffisant."); return; }
-            if (adjustmentAsset === 'EUR' && amountNum > (portfolioStats?.eur?.available || 0)) { setAlert("⚠️ Solde EUR insuffisant."); return; }
-            // DZD checks removed to allow manual corrections (overdraft/correction)
+            if (adjustmentAsset === 'USDT' && amountNum > portfolioStats.usdt.available) { setAlert("ÔÜá´©Å Solde USDT insuffisant."); return; }
+            if (adjustmentAsset === 'EUR' && amountNum > portfolioStats.eur.available) { setAlert("ÔÜá´©Å Solde EUR insuffisant."); return; }
+            if (adjustmentAsset === 'DZD-Caisse') {
+                if (treasuryStats.caisse <= 0) { setAlert("ÔÜá´©Å La Caisse est vide (0 DZD)."); return; }
+                if (amountNum > treasuryStats.caisse) { setAlert("ÔÜá´©Å Solde Caisse insuffisant."); return; }
+            }
+            if (adjustmentAsset === 'DZD-Baridi') {
+                if (treasuryStats.baridi <= 0) { setAlert("ÔÜá´©Å BaridiMob est vide (0 DZD)."); return; }
+                if (amountNum > treasuryStats.baridi) { setAlert("ÔÜá´©Å Solde Baridi insuffisant."); return; }
+            }
         }
 
         const { date, time, timestamp } = now();
@@ -1550,7 +1557,7 @@ function MainApp({ user }: { user: firebase.User }) {
                 // Treasury Adjustment
                 const type = adjustmentTab === 'add' ? 'Ajout' : 'Retrait';
                 const source = adjustmentAsset === 'DZD-Caisse' ? 'Caisse' : 'BaridiMob';
-                const note = adjustmentNote || 'Ajustement Trésorerie';
+                const note = adjustmentNote || 'Ajustement Tr├®sorerie';
 
                 if (editingTreasuryTx) {
                     batch.update(userDocRef.collection('treasury_txs').doc(editingTreasuryTx.id), {
@@ -1565,7 +1572,7 @@ function MainApp({ user }: { user: firebase.User }) {
                     if (adjustmentClientId) {
                         const client = clientsDzd.find(c => c.id === adjustmentClientId);
                         if (client) {
-                            const clientTxType = adjustmentTab === 'add' ? 'Règlement Reçu' : 'Paiement Effectué';
+                            const clientTxType = adjustmentTab === 'add' ? 'R├¿glement Re├ºu' : 'Paiement Effectu├®';
                             const clientAmount = adjustmentTab === 'add' ? amountNum : -amountNum;
 
                             batch.set(userDocRef.collection('dzd_client_txs').doc(), {
@@ -1580,8 +1587,8 @@ function MainApp({ user }: { user: firebase.User }) {
                 }
             }
             await batch.commit();
-            setAlert(editingTreasuryTx ? '✅ ' + t('common.transactionUpdated') : '✅ ' + t('common.operationSuccess')); setIsAdjustmentModalOpen(false);
-        } catch (error) { console.error(error); setAlert("❌ " + t('common.error')); }
+            setAlert(editingTreasuryTx ? 'Ô£à ' + t('common.transactionUpdated') : 'Ô£à ' + t('common.operationSuccess')); setIsAdjustmentModalOpen(false);
+        } catch (error) { console.error(error); setAlert("ÔØî " + t('common.error')); }
     };
 
     const handleSwapSourceDest = () => {
@@ -1591,12 +1598,12 @@ function MainApp({ user }: { user: firebase.User }) {
 
     const handleWalletTransfer = async () => {
         const amount = parseAndEvaluate(walletTransferAmount);
-        if (amount <= 0 || isNaN(amount)) { setAlert("⚠️ " + t('common.invalidAmount')); return; }
-        if (walletTransferSource === walletTransferDest) { setAlert("⚠️ " + t('common.sameSourceDest')); return; }
+        if (amount <= 0 || isNaN(amount)) { setAlert("ÔÜá´©Å " + t('common.invalidAmount')); return; }
+        if (walletTransferSource === walletTransferDest) { setAlert("ÔÜá´©Å " + t('common.sameSourceDest')); return; }
 
         const sourceBalance = walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
-        if (sourceBalance <= 0) { setAlert(`⚠️ ${t('common.insufficientBalance')} (0).`); return; }
-        if (amount > sourceBalance) { setAlert(`⚠️ ${t('common.insufficientBalance')}.`); return; }
+        if (sourceBalance <= 0) { setAlert(`ÔÜá´©Å ${t('common.insufficientBalance')} (0).`); return; }
+        if (amount > sourceBalance) { setAlert(`ÔÜá´©Å ${t('common.insufficientBalance')}.`); return; }
 
         const { date, time, timestamp } = now();
         try {
@@ -1610,9 +1617,9 @@ function MainApp({ user }: { user: firebase.User }) {
             batch.set(userDocRef.collection('treasury_txs').doc(), { timestamp: timestamp + 1, date, time, type: 'Ajout', source: walletTransferDest, amount: amount, notes: note });
 
             await batch.commit();
-            setAlert('✅ ' + t('common.operationSuccess')); setIsWalletTransferModalOpen(false);
+            setAlert('Ô£à ' + t('common.operationSuccess')); setIsWalletTransferModalOpen(false);
             setWalletTransferAmount(''); setWalletTransferNotes('');
-        } catch (e) { console.error(e); setAlert('❌ ' + t('common.error')); }
+        } catch (e) { console.error(e); setAlert('ÔØî ' + t('common.error')); }
     };
 
     const handleWalletTransferMaxClick = () => {
@@ -1620,7 +1627,7 @@ function MainApp({ user }: { user: firebase.User }) {
         if (sourceBalance > 0) {
             setWalletTransferAmount(sourceBalance.toFixed(2));
         } else {
-            setAlert(`⚠️ ${t('common.insufficientBalance')}.`);
+            setAlert(`ÔÜá´©Å ${t('common.insufficientBalance')}.`);
         }
     };
 
@@ -1632,16 +1639,16 @@ function MainApp({ user }: { user: firebase.User }) {
             setClientTxNotes(tx.notes || '');
             setClientTxSource('');
             // Initialize payment status from existing transaction
-            if (tx.paymentMethod === 'Crédit' || !tx.paymentMethod) {
+            if (tx.paymentMethod === 'Cr├®dit' || !tx.paymentMethod) {
                 setClientPaymentStatus('credit');
-            } else if (tx.paymentMethod === 'Espèces') {
+            } else if (tx.paymentMethod === 'Esp├¿ces') {
                 setClientPaymentStatus('cash');
             } else if (tx.paymentMethod === 'BaridiMob') {
                 setClientPaymentStatus('baridi');
             }
         } else {
             setClientTxAmount('');
-            setClientTxType(presetType || 'Règlement Reçu');
+            setClientTxType(presetType || 'R├¿glement Re├ºu');
             setClientTxNotes('');
             setClientTxSource('');
             setClientPaymentStatus('credit');
@@ -1652,11 +1659,11 @@ function MainApp({ user }: { user: firebase.User }) {
 
     const handleSaveClientTx = async () => {
         const targetClientId = linkedClientId !== 'none' ? linkedClientId : selectedClientId;
-        if (!targetClientId || targetClientId === 'none') { setAlert('⚠️ Veuillez sélectionner un client.'); return; }
+        if (!targetClientId || targetClientId === 'none') { setAlert('ÔÜá´©Å Veuillez s├®lectionner un client.'); return; }
 
         // SIMPLIFIED LOGIC: Just save Amount and Notes. No auto-calc, no restrictions.
         const amount = parseAndEvaluate(clientTxAmount);
-        if (isNaN(amount)) { setAlert('⚠️ Montant invalide.'); return; }
+        if (isNaN(amount)) { setAlert('ÔÜá´©Å Montant invalide.'); return; }
 
         setIsSaving(true);
         try {
@@ -1669,7 +1676,7 @@ function MainApp({ user }: { user: firebase.User }) {
                     montant: amount, // Allow negative/positive as is
                     notes: clientTxNotes.trim(),
                 });
-                setAlert('✅ ' + t('common.transactionUpdated'));
+                setAlert('Ô£à ' + t('common.transactionUpdated'));
             } else {
                 // Create new
                 batch.set(userDocRef.collection('dzd_client_txs').doc(), {
@@ -1678,15 +1685,15 @@ function MainApp({ user }: { user: firebase.User }) {
                     montant: amount,
                     type: clientTxType,
                     notes: clientTxNotes.trim(),
-                    paymentMethod: 'Crédit'
+                    paymentMethod: 'Cr├®dit'
                 });
-                setAlert('✅ ' + t('common.transactionAdded'));
+                setAlert('Ô£à ' + t('common.transactionAdded'));
             }
 
             await batch.commit();
             setIsClientTxModalOpen(false);
             setEditingClientTx(null);
-        } catch (e) { console.error(e); setAlert('❌ ' + t('common.error')); } finally { setIsSaving(false); }
+        } catch (e) { console.error(e); setAlert('ÔØî ' + t('common.error')); } finally { setIsSaving(false); }
     };
 
     const handleDeleteClientTx = async () => {
@@ -1694,7 +1701,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
         // 1. Check if it's a CHILD transaction (linked to an Adjustment)
         if (clientTxToDelete.origin === 'adjustment') {
-            setAlert('⚠️ ' + t('common.cannotDeleteHasTransactions'));
+            setAlert('ÔÜá´©Å ' + t('common.cannotDeleteHasTransactions'));
             setClientTxToDelete(null);
             return;
         }
@@ -1705,13 +1712,13 @@ function MainApp({ user }: { user: firebase.User }) {
             const result = await applyTransactionDelete(clientTxToDelete.id, 'client_tx', userDocRef);
 
             if (result.success) {
-                setAlert('✅ ' + t('common.transactionDeleted'));
+                setAlert('Ô£à ' + t('common.transactionDeleted'));
             } else {
-                setAlert(`❌ ${t('common.error')}`);
+                setAlert(`ÔØî ${t('common.error')}`);
             }
         } catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('ÔØî Erreur.');
         } finally {
             setIsSaving(false);
             setClientTxToDelete(null);
@@ -1721,7 +1728,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
 
     const handleSaveTransfer = async () => {
-        const amt = parseAndEvaluate(transferAmount); if (amt <= 0 || !transferFromClientId || !transferToClientId || transferFromClientId === transferToClientId) { setAlert('⚠️ Erreur.'); return; }
+        const amt = parseAndEvaluate(transferAmount); if (amt <= 0 || !transferFromClientId || !transferToClientId || transferFromClientId === transferToClientId) { setAlert('ÔÜá´©Å Erreur.'); return; }
         setIsSaving(true);
         try {
             const { date, time, timestamp } = now(); const batch = db.batch();
@@ -1732,13 +1739,13 @@ function MainApp({ user }: { user: firebase.User }) {
                 clientId: transferFromClientId, timestamp, date, time, montant: amt, type: 'Transfert Sortant', notes: transferNotes.trim() || `Transfert vers ${toC?.fullName}`
             });
 
-            // Destination (À) receives benefit -> Debit (-amt)
+            // Destination (├Ç) receives benefit -> Debit (-amt)
             batch.set(userDocRef.collection('dzd_client_txs').doc(), {
                 clientId: transferToClientId, timestamp: timestamp + 1, date, time, montant: -amt, type: 'Transfert Entrant', notes: transferNotes.trim() || `Transfert de ${fromC?.fullName}`
             });
 
-            await batch.commit(); setAlert('✅ ' + t('common.operationSuccess')); setIsTransferModalOpen(false); setTransferAmount(''); setTransferFromClientId(''); setTransferToClientId(''); setTransferNotes('');
-        } catch (e) { setAlert('❌ ' + t('common.error')); } finally { setIsSaving(false); }
+            await batch.commit(); setAlert('Ô£à ' + t('common.operationSuccess')); setIsTransferModalOpen(false); setTransferAmount(''); setTransferFromClientId(''); setTransferToClientId(''); setTransferNotes('');
+        } catch (e) { setAlert('ÔØî ' + t('common.error')); } finally { setIsSaving(false); }
     };
 
     const handleGlobalReset = async () => {
@@ -1768,12 +1775,12 @@ function MainApp({ user }: { user: firebase.User }) {
             // Reset settings in main doc
             await userDocRef.set({ settingsUpdatedAt: Date.now() });
 
-            setAlert('✅ ' + t('common.operationSuccess'));
+            setAlert('Ô£à ' + t('common.operationSuccess'));
             setIsResetModalOpen(false);
             window.location.reload();
         } catch (e) {
             console.error(e);
-            setAlert('❌ ' + t('common.operationFailed'));
+            setAlert('ÔØî ' + t('common.operationFailed'));
         } finally {
             setIsSaving(false);
         }
@@ -1807,10 +1814,10 @@ function MainApp({ user }: { user: firebase.User }) {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            setAlert('✅ ' + t('common.operationSuccess'));
+            setAlert('Ô£à ' + t('common.operationSuccess'));
         } catch (e) {
             console.error(e);
-            setAlert('❌ ' + t('common.operationFailed'));
+            setAlert('ÔØî ' + t('common.operationFailed'));
         } finally {
             setIsSaving(false);
         }
@@ -1818,19 +1825,19 @@ function MainApp({ user }: { user: firebase.User }) {
 
     const handleSaveTreasuryCard = async () => {
         const val = parseAndEvaluate(treasuryCardValue);
-        if (!treasuryCardName.trim() || val < 0 || isNaN(val)) { setAlert('⚠️ Nom ou valeur invalide.'); return; }
+        if (!treasuryCardName.trim() || val < 0 || isNaN(val)) { setAlert('ÔÜá´©Å Nom ou valeur invalide.'); return; }
         setIsSaving(true);
         try {
             if (editingTreasuryCard) {
                 await userDocRef.collection('treasury_cards').doc(editingTreasuryCard.id).update({ name: treasuryCardName.trim(), value: val });
-                setAlert('✅ ' + t('common.operationSuccess'));
+                setAlert('Ô£à ' + t('common.operationSuccess'));
             } else {
                 await userDocRef.collection('treasury_cards').add({ name: treasuryCardName.trim(), value: val });
-                setAlert('✅ ' + t('common.operationSuccess'));
+                setAlert('Ô£à ' + t('common.operationSuccess'));
             }
             setIsTreasuryCardModalOpen(false);
             setTreasuryCardName(''); setTreasuryCardValue(''); setEditingTreasuryCard(null);
-        } catch (e) { setAlert('❌ ' + t('common.error')); } finally { setIsSaving(false); }
+        } catch (e) { setAlert('ÔØî ' + t('common.error')); } finally { setIsSaving(false); }
     };
 
     const openTreasuryCardModal = (card: TreasuryCard | null = null) => {
@@ -1849,9 +1856,9 @@ function MainApp({ user }: { user: firebase.User }) {
         if (!treasuryCardToDelete) return;
         try {
             await userDocRef.collection('treasury_cards').doc(treasuryCardToDelete.id).delete();
-            setAlert('✅ ' + t('common.operationSuccess'));
+            setAlert('Ô£à ' + t('common.operationSuccess'));
             setTreasuryCardToDelete(null);
-        } catch (e) { setAlert('❌ ' + t('common.error')); }
+        } catch (e) { setAlert('ÔØî ' + t('common.error')); }
     };
 
     const handleDeleteTreasuryTxConfirm = async () => {
@@ -1862,7 +1869,7 @@ function MainApp({ user }: { user: firebase.User }) {
         // Fallback: if linkedTxId exists but no origin, assume it's a child (safe default for old data)
         // Restriction removed as requested by user.
         // if (treasuryTxToDelete.origin === 'client_tx' || treasuryTxToDelete.origin === 'usdt_tx' || treasuryTxToDelete.origin === 'manual_asset' || (treasuryTxToDelete.linkedTxId && !treasuryTxToDelete.origin)) {
-        //     setAlert('⚠️ Impossible de supprimer : Cette transaction est liée. Supprimez la transaction d\'origine.');
+        //     setAlert('ÔÜá´©Å Impossible de supprimer : Cette transaction est li├®e. Supprimez la transaction d\'origine.');
         //     setTreasuryTxToDelete(null);
         //     return;
         // }
@@ -1873,13 +1880,13 @@ function MainApp({ user }: { user: firebase.User }) {
             const result = await applyTransactionDelete(treasuryTxToDelete.id, 'treasury_tx', userDocRef);
 
             if (result.success) {
-                setAlert('✅ ' + t('common.transactionDeleted'));
+                setAlert('Ô£à ' + t('common.transactionDeleted'));
             } else {
-                setAlert(`❌ ${t('common.error')}`);
+                setAlert(`ÔØî ${t('common.error')}`);
             }
         } catch (e) {
             console.error(e);
-            setAlert('❌ ' + t('common.error'));
+            setAlert('ÔØî ' + t('common.error'));
         } finally {
             setIsSaving(false);
             setTreasuryTxToDelete(null);
@@ -1920,7 +1927,7 @@ function MainApp({ user }: { user: firebase.User }) {
         }
     };
     const handleDeleteClientTxClick = (tx: ClientTransactionDzd) => {
-        if (tx.linkedTxId) { const l = transactions.find(t => t.id === tx.linkedTxId); if (l) setTxToDelete(l); else { setClientTxToDelete(tx); setAlert("⚠️ Transaction orpheline."); } }
+        if (tx.linkedTxId) { const l = transactions.find(t => t.id === tx.linkedTxId); if (l) setTxToDelete(l); else { setClientTxToDelete(tx); setAlert("ÔÜá´©Å Transaction orpheline."); } }
         else setClientTxToDelete(tx);
     };
 
@@ -1928,7 +1935,7 @@ function MainApp({ user }: { user: firebase.User }) {
         if (!client) { setClientToDelete(null); return; }
         const bal = clientBalances.get(client.id) || 0;
         if (Math.abs(bal) > 0.01) {
-            setAlert("⚠️ " + t('common.cannotDeleteHasBalance'));
+            setAlert("ÔÜá´©Å " + t('common.cannotDeleteHasBalance'));
         } else {
             setClientToDelete(client);
         }
@@ -1938,7 +1945,7 @@ function MainApp({ user }: { user: firebase.User }) {
         return (
             <div className="pb-2 space-y-2">
                 <div>
-                    <Label htmlFor="link_client_buy">Lier à un client DZD (Optionnel)</Label>
+                    <Label htmlFor="link_client_buy">Lier ├á un client DZD (Optionnel)</Label>
                     <div className="flex items-center gap-2">
                         <Select id="link_client_buy" value={linkedClientId} onChange={(e: any) => setLinkedClientId(e.target.value)} className={`${fieldBase} focus:ring-amber-400 rounded-xl flex-grow`}>
                             <option value="none">Aucun / Sans client</option>
@@ -1953,9 +1960,9 @@ function MainApp({ user }: { user: firebase.User }) {
                     <div>
                         <Label>Statut du Paiement Client</Label>
                         <div className="grid grid-cols-3 gap-2">
-                            <button type="button" onClick={() => setClientPaymentStatus('credit')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'credit' ? (isDark ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-amber-100 border-amber-500 text-amber-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Crédit</button>
-                            <button type="button" onClick={() => setClientPaymentStatus('baridi')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'baridi' ? (isDark ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-blue-100 border-blue-500 text-blue-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Réglé Baridi</button>
-                            <button type="button" onClick={() => setClientPaymentStatus('cash')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'cash' ? (isDark ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-green-100 border-green-500 text-green-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Réglé Cash</button>
+                            <button type="button" onClick={() => setClientPaymentStatus('credit')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'credit' ? (isDark ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-amber-100 border-amber-500 text-amber-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>Cr├®dit</button>
+                            <button type="button" onClick={() => setClientPaymentStatus('baridi')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'baridi' ? (isDark ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-blue-100 border-blue-500 text-blue-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>R├®gl├® Baridi</button>
+                            <button type="button" onClick={() => setClientPaymentStatus('cash')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${clientPaymentStatus === 'cash' ? (isDark ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-green-100 border-green-500 text-green-700') : (isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}`}>R├®gl├® Cash</button>
                         </div>
                     </div>
                 )}
@@ -1979,7 +1986,7 @@ function MainApp({ user }: { user: firebase.User }) {
     const handleExportClientReport = (cId: string, m: number, y: number) => { /* ... */ };
     const handleExportUsdtReport = () => { /* ... */ };
     const openDateFilterModal = () => { setTempStartDate(dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''); setTempEndDate(dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''); setIsDateFilterModalOpen(true); };
-    const handleApplyDateFilter = () => { if (tempStartDate && tempEndDate) { const s = new Date(tempStartDate); s.setHours(0, 0, 0, 0); const e = new Date(tempEndDate); e.setHours(23, 59, 59, 999); setDateRange({ start: s, end: e }); setIsDateFilterModalOpen(false); } else setAlert('⚠️ Dates incomplètes.'); };
+    const handleApplyDateFilter = () => { if (tempStartDate && tempEndDate) { const s = new Date(tempStartDate); s.setHours(0, 0, 0, 0); const e = new Date(tempEndDate); e.setHours(23, 59, 59, 999); setDateRange({ start: s, end: e }); setIsDateFilterModalOpen(false); } else setAlert('ÔÜá´©Å Dates incompl├¿tes.'); };
     const handleClearDateFilter = () => { setDateRange({ start: null, end: null }); setIsDateFilterModalOpen(false); };
 
     const newPamFromDzdSimulator = useMemo(() => {
@@ -2034,9 +2041,9 @@ function MainApp({ user }: { user: firebase.User }) {
                                     <span className="absolute -top-1 -right-1 text-[10px] font-bold bg-primary text-white px-1 rounded-full uppercase">{language}</span>
                                 </Button>
                                 <div className={`absolute right-0 mt-2 w-32 py-1 rounded-lg shadow-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'} hidden group-hover:block z-50`}>
-                                    <button onClick={() => setLanguage('fr')} className={`block w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 ${language === 'fr' ? 'font-bold text-sky-500' : ''} ${isDark ? 'hover:bg-white text-gray-300' : 'hover:bg-black text-gray-700'}`}>Français</button>
+                                    <button onClick={() => setLanguage('fr')} className={`block w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 ${language === 'fr' ? 'font-bold text-sky-500' : ''} ${isDark ? 'hover:bg-white text-gray-300' : 'hover:bg-black text-gray-700'}`}>Fran├ºais</button>
                                     <button onClick={() => setLanguage('en')} className={`block w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 ${language === 'en' ? 'font-bold text-sky-500' : ''} ${isDark ? 'hover:bg-white text-gray-300' : 'hover:bg-black text-gray-700'}`}>English</button>
-                                    <button onClick={() => setLanguage('ar')} className={`block w-full text-right px-4 py-2 text-sm hover:bg-opacity-10 ${language === 'ar' ? 'font-bold text-sky-500' : ''} ${isDark ? 'hover:bg-white text-gray-300' : 'hover:bg-black text-gray-700'}`}>العربية</button>
+                                    <button onClick={() => setLanguage('ar')} className={`block w-full text-right px-4 py-2 text-sm hover:bg-opacity-10 ${language === 'ar' ? 'font-bold text-sky-500' : ''} ${isDark ? 'hover:bg-white text-gray-300' : 'hover:bg-black text-gray-700'}`}>Ïº┘äÏ╣Ï▒Ï¿┘èÏ®</button>
                                 </div>
                             </div>
 
@@ -2101,7 +2108,7 @@ function MainApp({ user }: { user: firebase.User }) {
                 </AnimatePresence>
 
                 <main className="py-6">
-                    <AnimatePresence>{alert && (<MotionDiv initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="mb-4"><Alert className={`rounded-xl ${alert.includes('✅') || alert.includes('⚠️') ? (isDark ? 'bg-green-900/50 border-green-400/30 text-green-300' : 'bg-green-50 border-green-300 text-green-800') : (isDark ? 'bg-red-900/50 border-red-400/30 text-red-300' : 'bg-red-50 border-red-300 text-red-800')}`}><AlertDescription>{alert}</AlertDescription></Alert></MotionDiv>)}</AnimatePresence>
+                    <AnimatePresence>{alert && (<MotionDiv initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="mb-4"><Alert className={`rounded-xl ${alert.includes('Ô£à') || alert.includes('ÔÜá´©Å') ? (isDark ? 'bg-green-900/50 border-green-400/30 text-green-300' : 'bg-green-50 border-green-300 text-green-800') : (isDark ? 'bg-red-900/50 border-red-400/30 text-red-300' : 'bg-red-50 border-red-300 text-red-800')}`}><AlertDescription>{alert}</AlertDescription></Alert></MotionDiv>)}</AnimatePresence>
 
                     {view === 'transactions' && <TransactionsPage
                         cardBase={cardBase}
@@ -2199,101 +2206,97 @@ function MainApp({ user }: { user: firebase.User }) {
 
             {/* MODALS */}
 
-            {/* 1. WALLET TRANSFER MODAL REDESIGNED */}
-            <Dialog isOpen={isWalletTransferModalOpen} onClose={() => setIsWalletTransferModalOpen(false)} className={`${cardBase} max-w-sm`}>
-                <DialogHeader onClose={() => setIsWalletTransferModalOpen(false)} isDark={isDark}>
-                    <DialogTitle>{t('transactions.internalTransfer')}</DialogTitle>
-                    <p className={`text-sm ${subtleText} mt-1 font-normal`}>Transfert entre comptes internes</p>
-                </DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
+            {/* 1. WALLET TRANSFER MODAL */}
+            <Dialog isOpen={isWalletTransferModalOpen} onClose={() => setIsWalletTransferModalOpen(false)} className={`${cardBase} max-w-md`}>
+                <DialogHeader onClose={() => setIsWalletTransferModalOpen(false)} isDark={isDark}><DialogTitle>{t('transactions.internalTransfer')}</DialogTitle></DialogHeader>
+                <DialogContent className="px-6 pb-6 space-y-6">
 
-                    {/* 1. Amount Field (Top) */}
-                    <div>
-                        <Label>{t('transactions.amount')} (DZD)</Label>
-                        <div className="relative">
+                    {/* 1. AMOUNT (Top & Prominent) with MAX Button */}
+                    <div className="relative pb-4 border-b border-gray-200 dark:border-gray-700">
+                        <Label className="text-center w-full block mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wider text-xs">{t('transactions.transferAmount')}</Label>
+                        <div className="relative max-w-[240px] mx-auto">
                             <NumberInput
                                 value={walletTransferAmount}
                                 onChange={e => setWalletTransferAmount(e.target.value)}
-                                className={fieldBase}
+                                className={`${fieldBase} text-center text-3xl font-bold h-16 bg-transparent border-b-2 border-sky-500/30 focus:border-sky-500 rounded-none px-12`}
                                 placeholder="0.00"
                             />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">DZD</span>
                             <button
                                 onClick={handleWalletTransferMaxClick}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-sky-600 text-white px-2 py-1 rounded hover:bg-sky-700 transition-colors font-bold"
+                                className={`absolute left-2 top-1/2 -translate-y-1/2 text-xs font-bold px-2.5 py-1 rounded-md transition-all ${isDark ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-sky-500 text-white hover:bg-sky-600'} shadow-sm hover:shadow-md active:scale-95`}
+                                title={t('common.max')}
                             >
-                                MAX
+                                {t('common.max')}
                             </button>
                         </div>
                     </div>
 
-                    {/* 2. Source Account (De) */}
-                    <div>
-                        <Label>{t('transactions.from')} ({t('common.source')})</Label>
-                        <Select
-                            value={walletTransferSource}
-                            onChange={e => setWalletTransferSource(e.target.value as any)}
-                            className={fieldBase}
-                        >
-                            <option value="Caisse">Caisse — Solde: {treasuryStats.caisse.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</option>
-                            <option value="BaridiMob">BaridiMob — Solde: {treasuryStats.baridi.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</option>
-                        </Select>
+                    {/* 2. SOURCE -> DESTINATION (Swappable Row) with Balances */}
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/50 relative">
+                        <div className="flex items-center justify-between gap-4">
+                            {/* Source */}
+                            <div className="flex-1">
+                                <Label className="text-xs mb-1.5 text-gray-500">{t('transactions.from')} ({t('common.source')})</Label>
+                                <div className={`p-3 rounded-xl font-semibold text-sm border ${isDark ? 'bg-slate-800 border-slate-700 text-gray-200' : 'bg-white border-slate-200 text-gray-800'}`}>
+                                    {walletTransferSource}
+                                </div>
+                                {/* Balance Display */}
+                                <p className={`text-xs mt-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {t('common.balance')}: <span className="font-semibold">{(walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
+                                </p>
+                            </div>
+
+                            {/* Swap Button - Enhanced */}
+                            <button
+                                onClick={handleSwapSourceDest}
+                                className={`p-3 rounded-full shadow-lg border-2 transition-all duration-200 hover:scale-110 hover:shadow-xl active:scale-95 z-10 ${isDark ? 'bg-gradient-to-br from-slate-700 to-slate-800 border-sky-500/50 text-sky-400 hover:border-sky-400' : 'bg-gradient-to-br from-white to-gray-50 border-sky-400/50 text-sky-600 hover:border-sky-500'}`}
+                                title="Inverser Source et Destination"
+                            >
+                                <ArrowRightLeftIcon className="w-6 h-6" />
+                            </button>
+
+                            {/* Destination */}
+                            <div className="flex-1 text-right">
+                                <Label className="text-xs mb-1.5 text-gray-500">{t('transactions.to')} ({t('common.destination')})</Label>
+                                <div className={`p-3 rounded-xl font-semibold text-sm border ${isDark ? 'bg-slate-800 border-slate-700 text-gray-200' : 'bg-white border-slate-200 text-gray-800'}`}>
+                                    {walletTransferDest}
+                                </div>
+                                {/* Balance Display */}
+                                <p className={`text-xs mt-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {t('common.balance')}: <span className="font-semibold">{(walletTransferDest === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</span>
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Hidden Selects for Logic (Controlled by the UI above) */}
+                        <div className="hidden">
+                            <Select value={walletTransferSource} onChange={e => setWalletTransferSource(e.target.value as any)}><option value="Caisse">Caisse</option><option value="BaridiMob">BaridiMob</option></Select>
+                            <Select value={walletTransferDest} onChange={e => setWalletTransferDest(e.target.value as any)}><option value="BaridiMob">BaridiMob</option><option value="Caisse">Caisse</option></Select>
+                        </div>
                     </div>
 
-                    {/* 3. Swap Button (Centered) */}
-                    <div className="flex justify-center -my-2 z-10 relative">
-                        <button
-                            onClick={handleSwapSourceDest}
-                            className={`p-2 rounded-full border shadow-sm transition-all hover:scale-110 active:scale-95 ${isDark ? 'bg-slate-800 border-slate-600 text-sky-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-sky-600 hover:bg-slate-50'}`}
-                            title="Inverser Source et Destination"
-                        >
-                            <ArrowRightLeftIcon className="w-4 h-4 rotate-90 sm:rotate-0" />
-                        </button>
-                    </div>
-
-                    {/* 4. Destination Account (Vers) */}
-                    <div>
-                        <Label>{t('transactions.to')} ({t('common.destination')})</Label>
-                        <Select
-                            value={walletTransferDest}
-                            onChange={e => setWalletTransferDest(e.target.value as any)}
-                            className={fieldBase}
-                        >
-                            <option value="BaridiMob">BaridiMob — Solde: {treasuryStats.baridi.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</option>
-                            <option value="Caisse">Caisse — Solde: {treasuryStats.caisse.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</option>
-                        </Select>
-                        {walletTransferSource === walletTransferDest && (
-                            <p className="text-xs text-red-500 mt-1">⚠️ Impossible de sélectionner le même compte.</p>
-                        )}
-                    </div>
-
-                    {/* 5. Notes Field */}
-                    <div>
-                        <Label>{t('common.notesOptional')}</Label>
-                        <Input
-                            value={walletTransferNotes}
-                            onChange={e => setWalletTransferNotes(e.target.value)}
-                            className={fieldBase}
-                            placeholder="Note..."
-                        />
-                    </div>
-
+                    {/* 3. Notes Section */}
+                    <div><Label>{t('common.notesOptional')}</Label><Input value={walletTransferNotes} onChange={e => setWalletTransferNotes(e.target.value)} className={fieldBase} placeholder="" /></div>
                 </DialogContent>
                 <DialogFooter>
+                    {/* Enhanced Confirmation Button */}
                     <Button
                         onClick={handleWalletTransfer}
-                        disabled={
-                            isSaving ||
-                            !walletTransferAmount ||
-                            parseFloat(walletTransferAmount) <= 0 ||
-                            parseFloat(walletTransferAmount) > (walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi) ||
-                            walletTransferSource === walletTransferDest
-                        }
-                        className={`w-full font-bold py-3 rounded-xl shadow-md transition-all ${(isSaving || !walletTransferAmount || parseFloat(walletTransferAmount) <= 0 || parseFloat(walletTransferAmount) > (walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi) || walletTransferSource === walletTransferDest)
-                            ? 'bg-gray-400 cursor-not-allowed opacity-70'
-                            : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                            }`}
+                        disabled={isSaving}
+                        className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold py-4 rounded-xl shadow-xl shadow-indigo-500/30 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
-                        {isSaving ? t('common.processing') : t('transactions.confirmTransfer')}
+                        {isSaving ? (
+                            <>
+                                <RefreshCwIcon className="w-5 h-5 animate-spin" />
+                                {t('common.processing')}
+                            </>
+                        ) : (
+                            <>
+                                <ArrowRightLeftIcon className="w-5 h-5" />
+                                {t('transactions.confirmTransfer')}
+                            </>
+                        )}
                     </Button>
                 </DialogFooter>
             </Dialog>
@@ -2305,8 +2308,8 @@ function MainApp({ user }: { user: firebase.User }) {
                     {/* SIMPLIFIED CLIENT TX MODAL CONTENT */}
 
                     {/* HIDE TYPE SELECTOR IF EDITING OR IF IT WAS PRE-SELECTED FROM DROPDOWN */}
-                    {!editingClientTx && (clientTxType === 'Règlement Reçu' || clientTxType === 'Paiement Effectué') && (
-                        <div><Label>{t('transactions.operationType')}</Label><Select id="tx_type_select" value={clientTxType} onChange={e => setClientTxType(e.target.value as any)} className={fieldBase} disabled={!!editingClientTx}><option value="Règlement Reçu">{t('transactions.paymentReceived')}</option><option value="Paiement Effectué">{t('transactions.paymentMade')}</option><option value="Vente USDT">{t('transactions.sellUsdt')}</option><option value="Achat EUR">{t('transactions.buyEur')}</option></Select></div>
+                    {!editingClientTx && (clientTxType === 'R├¿glement Re├ºu' || clientTxType === 'Paiement Effectu├®') && (
+                        <div><Label>{t('transactions.operationType')}</Label><Select id="tx_type_select" value={clientTxType} onChange={e => setClientTxType(e.target.value as any)} className={fieldBase} disabled={!!editingClientTx}><option value="R├¿glement Re├ºu">{t('transactions.paymentReceived')}</option><option value="Paiement Effectu├®">{t('transactions.paymentMade')}</option><option value="Vente USDT">{t('transactions.sellUsdt')}</option><option value="Achat EUR">{t('transactions.buyEur')}</option></Select></div>
                     )}
 
                     {/* REMOVED: Source Selector (Type d'Actif) */}
@@ -2323,7 +2326,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                 {/* ALLOW NEGATIVE VALUES: Use Input type="number" or NumberInput without restrictions if possible. 
                                     Our NumberInput might restrict? Let's check. 
                                     If NumberInput restricts, use standard Input. 
-                                    User said: "يقبل القيم الموجبة والسالبة دون أي قيود"
+                                    User said: "┘è┘éÏ¿┘ä Ïº┘ä┘é┘è┘à Ïº┘ä┘à┘êÏ¼Ï¿Ï® ┘êÏº┘äÏ│Ïº┘äÏ¿Ï® Ï»┘ê┘å Ïú┘è ┘é┘è┘êÏ»"
                                 */}
                                 <Input
                                     type="text"
@@ -2342,42 +2345,17 @@ function MainApp({ user }: { user: firebase.User }) {
                 <DialogFooter><Button onClick={handleSaveClientTx} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl">{t('common.save')}</Button></DialogFooter>
             </Dialog>
 
-            {/* 3. TREASURY ADJUSTMENT MODAL REDESIGNED */}
-            <Dialog isOpen={isAdjustmentModalOpen} onClose={() => setIsAdjustmentModalOpen(false)} className={`${cardBase} max-w-sm`}>
-                <DialogHeader onClose={() => setIsAdjustmentModalOpen(false)} isDark={isDark}>
-                    <DialogTitle>{editingTreasuryTx ? t('transactions.editAdjustment') : 'Ajustement Trésorerie'}</DialogTitle>
-                </DialogHeader>
+            {/* 3. TREASURY ADJUSTMENT MODAL */}
+            <Dialog isOpen={isAdjustmentModalOpen} onClose={() => setIsAdjustmentModalOpen(false)} className={`${cardBase} max-w-md`}>
+                <DialogHeader onClose={() => setIsAdjustmentModalOpen(false)} isDark={isDark}><DialogTitle>{editingTreasuryTx ? t('transactions.editAdjustment') : t('transactions.treasuryAdjustment')}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
-
-                    {/* 1. Mode Toggle (Ajouter / Retirer) */}
-                    <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
-                        <button
-                            onClick={() => setAdjustmentTab('add')}
-                            className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all ${adjustmentTab === 'add' ? 'bg-green-600 text-white shadow' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                        >
-                            Ajouter (+)
-                        </button>
-                        <button
-                            onClick={() => setAdjustmentTab('subtract')}
-                            className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all ${adjustmentTab === 'subtract' ? 'bg-red-600 text-white shadow' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                        >
-                            Retirer (-)
-                        </button>
+                    <div className="grid grid-cols-2 gap-0 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl">
+                        <button onClick={() => setAdjustmentTab('add')} className={`py-2.5 rounded-lg font-bold text-sm transition-all ${adjustmentTab === 'add' ? 'bg-[#1E293B] text-white shadow-sm' : 'text-gray-500'}`}>{t('transactions.addTo')}</button>
+                        <button onClick={() => setAdjustmentTab('subtract')} className={`py-2.5 rounded-lg font-bold text-sm transition-all ${adjustmentTab === 'subtract' ? 'bg-[#1E293B] text-white shadow-sm' : 'text-gray-500'}`}>{t('transactions.withdrawFrom')}</button>
                     </div>
+                    <div><Label>{t('transactions.assetType')}</Label><Select value={adjustmentAsset} onChange={e => setAdjustmentAsset(e.target.value as any)} className={`${fieldBase} h-12 text-base`}><option value="DZD-Caisse">{t('common.dinar')} - {t('transactions.cash')}</option><option value="DZD-Baridi">{t('common.dinar')} - {t('transactions.baridi')}</option><option value="USDT">USDT</option><option value="EUR">EUR</option></Select></div>
 
-                    {/* 2. Type d'Actif */}
-                    <div>
-                        <Label>{t('transactions.assetType')}</Label>
-                        <Select value={adjustmentAsset} onChange={e => setAdjustmentAsset(e.target.value as any)} className={fieldBase}>
-                            <option value="DZD-Caisse">DZD - Caisse</option>
-                            <option value="DZD-Baridi">DZD - Baridi</option>
-                            <option value="USDT">USDT</option>
-                            <option value="EUR">EUR</option>
-                        </Select>
-                    </div>
-
-                    {/* 3. Montant (+ MAX button if Client Selected) */}
-                    <div>
+                    <div className="relative">
                         <Label>{adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR' ? t('transactions.quantity') : t('transactions.amount')}</Label>
                         <div className="relative">
                             <NumberInput
@@ -2386,93 +2364,54 @@ function MainApp({ user }: { user: firebase.User }) {
                                 className={fieldBase}
                                 placeholder="0.00"
                             />
-                            {/* MAX BUTTON - ALWAYS VISIBLE, logic depends on Asset Type */}
-                            <button
-                                onClick={() => {
-                                    // LOGIC 1: Caisse / Baridi -> Client Balance
-                                    if (adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') {
-                                        if (adjustmentClientId) {
-                                            const clientBal = clientBalances.get(adjustmentClientId) || 0;
-                                            setAdjustmentAmount(Math.abs(clientBal).toString());
-                                        }
-                                    }
-                                    // LOGIC 2: USDT / EUR -> Available Balance
-                                    else if (adjustmentAsset === 'USDT') {
-                                        setAdjustmentAmount((portfolioStats?.usdt?.available || 0).toString());
-                                    }
-                                    else if (adjustmentAsset === 'EUR') {
-                                        setAdjustmentAmount((portfolioStats?.eur?.available || 0).toString());
-                                    }
-                                }}
-                                disabled={
-                                    (adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && !adjustmentClientId
-                                }
-                                className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded transition-colors font-bold ${((adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && !adjustmentClientId)
-                                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-slate-700 dark:text-slate-500' // Disabled Style
-                                    : (isDark ? 'bg-slate-600 text-gray-200 hover:bg-slate-500' : 'bg-slate-200 text-gray-700 hover:bg-slate-300') // Enabled Style
-                                    }`}
-                                title={
-                                    (adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && !adjustmentClientId
-                                        ? "Sélectionnez un client"
-                                        : "Utiliser le solde disponible"
-                                }
-                            >
-                                MAX
-                            </button>
+                            {/* MAX BUTTON */}
+                            {(adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && (
+                                (adjustmentTab === 'subtract') || (adjustmentTab === 'add' && adjustmentClientId)
+                            ) && (
+                                    <button
+                                        onClick={() => {
+                                            if (adjustmentTab === 'subtract') {
+                                                const bal = adjustmentAsset === 'DZD-Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+                                                setAdjustmentAmount(bal.toString());
+                                            } else if (adjustmentTab === 'add' && adjustmentClientId) {
+                                                const clientBal = Math.abs(clientBalances.get(adjustmentClientId) || 0);
+                                                setAdjustmentAmount(clientBal.toString());
+                                            }
+                                        }}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 transition-colors"
+                                    >
+                                        MAX
+                                    </button>
+                                )}
                         </div>
                     </div>
 
-                    {/* 4. Prix Unitaire (Visible only if USDT/EUR) */}
                     {(adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR') && (
-                        <div>
-                            <Label>{t('transactions.unitPrice')}</Label>
-                            <NumberInput value={adjustmentPrice} onChange={e => setAdjustmentPrice(e.target.value)} className={fieldBase} placeholder="Ex: 240.00" />
-                        </div>
+                        <div><Label>{t('transactions.unitPrice')}</Label><NumberInput value={adjustmentPrice} onChange={e => setAdjustmentPrice(e.target.value)} className={fieldBase} placeholder="Ex: 240.00" /></div>
                     )}
 
-                    {/* 5. Client Lié (Visible only if DZD) */}
+                    {/* CLIENT SELECTOR FOR DZD ADJUSTMENTS */}
                     {(adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && (
-                        <div>
-                            <div className="flex justify-between">
-                                <Label>{t('transactions.linkedClientOptional')}</Label>
-                                <span className="text-xs text-gray-400">Optionnel</span>
-                            </div>
+                        <div className="p-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                            <Label className="mb-1">{t('transactions.linkedClientOptional')}</Label>
                             <Select value={adjustmentClientId} onChange={e => setAdjustmentClientId(e.target.value)} className={fieldBase}>
-                                <option value="">Aucun client</option>
+                                <option value="">-- {t('common.notes')} --</option>
                                 {clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}
                             </Select>
+                            {adjustmentClientId && (
+                                <div className="flex justify-between items-center mt-1">
+                                    <p className="text-xs text-blue-400">{t('transactions.clientTxGenerated')}</p>
+                                    <p className={`text-xs font-bold ${subtleText}`}>
+                                        {t('common.balance')}: {(clientBalances.get(adjustmentClientId) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {t('common.dinar')}
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     )}
 
-                    {/* 6. Motif */}
-                    <div>
-                        <Label>{t('transactions.reason')}</Label>
-                        <Input value={adjustmentNote} onChange={e => setAdjustmentNote(e.target.value)} className={fieldBase} placeholder="Ex: Alimentation, Frais..." />
-                    </div>
-
+                    <div><Label>{t('transactions.reason')}</Label><Input value={adjustmentNote} onChange={e => setAdjustmentNote(e.target.value)} className={fieldBase} placeholder="Ex: Alimentation, Frais..." /></div>
                 </DialogContent>
-                <DialogFooter>
-                    <Button
-                        onClick={handleGlobalAdjustment}
-                        disabled={
-                            isSaving ||
-                            !adjustmentAmount || parseFloat(adjustmentAmount) <= 0 ||
-                            (adjustmentTab === 'subtract' && (
-                                adjustmentAsset === 'USDT' ? parseFloat(adjustmentAmount) > (portfolioStats?.usdt?.available || 0) :
-                                    adjustmentAsset === 'EUR' ? parseFloat(adjustmentAmount) > (portfolioStats?.eur?.available || 0) : false
-                            ))
-                        }
-                        className={`w-full font-bold py-3 rounded-xl shadow-md transition-all ${(isSaving || !adjustmentAmount || parseFloat(adjustmentAmount) <= 0 || (adjustmentTab === 'subtract' && (
-                                adjustmentAsset === 'USDT' ? parseFloat(adjustmentAmount) > (portfolioStats?.usdt?.available || 0) :
-                                    adjustmentAsset === 'EUR' ? parseFloat(adjustmentAmount) > (portfolioStats?.eur?.available || 0) : false
-                            )))
-                                ? 'bg-gray-400 cursor-not-allowed opacity-70'
-                                : (adjustmentTab === 'add' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white')
-                            }`}
-                    >
-                        {isSaving ? t('common.processing') : 'Confirmer'}
-                    </Button>
-                </DialogFooter>
+                <DialogFooter><Button onClick={handleGlobalAdjustment} className={`w-full rounded-xl font-bold py-3.5 text-white text-lg shadow-lg transition-transform active:scale-95 ${adjustmentTab === 'add' ? 'bg-green-600' : 'bg-red-600'}`}>{t('transactions.confirm')}</Button></DialogFooter>
             </Dialog>
 
             <Dialog isOpen={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)} className={`${cardBase} max-w-lg`}>
@@ -3058,7 +2997,7 @@ function MainApp({ user }: { user: firebase.User }) {
                             />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">{t('common.dinar')}</span>
                         </div>
-                        <p className={`text-xs mt-2 ${subtleText}`}>Cette marge est utilisée pour calculer le prix de vente suggéré.</p>
+                        <p className={`text-xs mt-2 ${subtleText}`}>Cette marge est utilis├®e pour calculer le prix de vente sugg├®r├®.</p>
                     </div>
 
                     <div>
@@ -3116,12 +3055,12 @@ function MainApp({ user }: { user: firebase.User }) {
                                 }, { merge: true });
 
                                 console.log('Settings saved successfully');
-                                setAlert('✅ ' + t('common.settingsSaved'));
+                                setAlert('Ô£à ' + t('common.settingsSaved'));
                                 setIsSettingsModalOpen(false);
                             } catch (e: any) {
                                 console.error('Error saving settings:', e);
                                 console.error('Error details:', e.message, e.code);
-                                setAlert('❌ ' + t('common.error') + ': ' + (e.message || 'Erreur inconnue'));
+                                setAlert('ÔØî ' + t('common.error') + ': ' + (e.message || 'Erreur inconnue'));
                             }
                         }}
                         className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl"
@@ -3244,7 +3183,7 @@ function MainApp({ user }: { user: firebase.User }) {
 
                         const handleShare = async () => {
                             const modalContent = document.querySelector('[data-client-summary]');
-                            if (!modalContent) { setAlert('❌ ' + t('common.error')); return; }
+                            if (!modalContent) { setAlert('ÔØî ' + t('common.error')); return; }
 
                             try {
                                 const canvas = await html2canvas(modalContent as HTMLElement, {
@@ -3253,7 +3192,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                 });
 
                                 canvas.toBlob(async (blob) => {
-                                    if (!blob) { setAlert('❌ ' + t('common.error')); return; }
+                                    if (!blob) { setAlert('ÔØî ' + t('common.error')); return; }
 
                                     const file = new File([blob], `releve_${summaryClient.phone || 'client'}.png`, { type: 'image/png' });
 
@@ -3266,7 +3205,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                             });
                                         } catch (e) {
                                             console.error(e);
-                                            setAlert('❌ ' + t('transactions.shareCancelled'));
+                                            setAlert('ÔØî ' + t('transactions.shareCancelled'));
                                         }
                                     } else {
                                         // Fallback: download image
@@ -3278,12 +3217,12 @@ function MainApp({ user }: { user: firebase.User }) {
                                         a.click();
                                         document.body.removeChild(a);
                                         URL.revokeObjectURL(url);
-                                        setAlert('✅ ' + t('transactions.imageDownloaded'));
+                                        setAlert('Ô£à ' + t('transactions.imageDownloaded'));
                                     }
                                 }, 'image/png');
                             } catch (e) {
                                 console.error(e);
-                                setAlert('❌ ' + t('transactions.captureError'));
+                                setAlert('ÔØî ' + t('transactions.captureError'));
                             }
                         };
 
@@ -3320,7 +3259,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                                 </div>
                                                                 <div className="space-y-0.5 text-xs">
                                                                     {details && <div className={isDark ? 'text-gray-300' : 'text-gray-700'}>{details}</div>}
-                                                                    <div className={subtleText}>{tx.date} à {tx.time}</div>
+                                                                    <div className={subtleText}>{tx.date} ├á {tx.time}</div>
                                                                 </div>
                                                             </div>
                                                         );
