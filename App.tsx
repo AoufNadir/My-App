@@ -46,6 +46,7 @@ import { ClientsPage } from './pages/ClientsPage';
 import { TresoreriePage } from './pages/TresoreriePage';
 import { ManualAssetPage } from './pages/ManualAssetPage';
 import { ManualClientPage } from './pages/ManualClientPage';
+import { DashboardPage } from './pages/DashboardPage'; // NEW
 import { NumberInput } from './components/ui/NumberInput';
 import { ReportModal } from './components/ReportModal';
 import { BellIcon } from './components/icons/BellIcon';
@@ -61,6 +62,7 @@ import { applyTransactionDelete, applyTransactionUpdate } from './src/transactio
 // I18n
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { GlobeIcon } from './components/icons/GlobeIcon';
+import { LayoutDashboardIcon } from './src/components/icons/LayoutDashboardIcon';
 
 const MotionDiv = motion.div;
 
@@ -230,9 +232,9 @@ function MainApp({ user }: { user: firebase.User }) {
     const [lastPamValue, setLastPamValue] = useState<number | null>(null);
     const [lastCheckDate, setLastCheckDate] = useState<string>('');
 
-    const [view, setView] = useState<'transactions' | 'statistiques' | 'dzd' | 'tresorerie'>(() => {
+    const [view, setView] = useState<'dashboard' | 'transactions' | 'statistiques' | 'dzd' | 'tresorerie'>(() => {
         const savedView = localStorage.getItem('app_view');
-        return (savedView === 'transactions' || savedView === 'statistiques' || savedView === 'dzd' || savedView === 'tresorerie') ? savedView : 'transactions';
+        return (savedView === 'dashboard' || savedView === 'transactions' || savedView === 'statistiques' || savedView === 'dzd' || savedView === 'tresorerie') ? savedView : 'dashboard';
     });
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [statsView, setStatsView] = useState<'usdt' | 'clients'>('usdt');
@@ -1129,13 +1131,17 @@ function MainApp({ user }: { user: firebase.User }) {
 
 
     const getRelativeDateLabel = (dateString: string) => {
+        if (!dateString) return '';
         const today = new Date();
         const yesterday = new Date();
         yesterday.setDate(today.getDate() - 1);
         const parts = dateString.split('/');
-        const txDate = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-        if (txDate.toDateString() === today.toDateString()) return `${t('transactions.today')} (${dateString})`;
-        if (txDate.toDateString() === yesterday.toDateString()) return `${t('transactions.yesterday')} (${dateString})`;
+        // Safe date parsing
+        if (parts.length >= 3) {
+            const txDate = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+            if (txDate.toDateString() === today.toDateString()) return `${t('transactions.today')} (${dateString})`;
+            if (txDate.toDateString() === yesterday.toDateString()) return `${t('transactions.yesterday')} (${dateString})`;
+        }
         return dateString;
     };
     const now = () => {
@@ -2010,6 +2016,44 @@ function MainApp({ user }: { user: firebase.User }) {
         return totalCost / totalQty;
     }, [simEurQty, simEurDzdPrice, simEurUsdtRate, portfolioStats.usdt]);
 
+    // Dashboard Stats Calculations
+    const finalTotalDzd = useMemo(() => {
+        return (treasuryStats?.caisse || 0) + (treasuryStats?.baridi || 0);
+    }, [treasuryStats]);
+
+    const { monthlyProfit, profitChange } = useMemo(() => {
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonth = lastMonthDate.getMonth();
+        const lastMonthYear = lastMonthDate.getFullYear();
+
+        const currentMonthProfit = transactions
+            .filter(t => {
+                if (!t.date) return false;
+                // Assuming date format "DD/MM/YYYY" as per app standard
+                const parts = t.date.split('/');
+                if (parts.length !== 3) return false;
+                const tDate = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+                return t.type === 'sell' && tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear;
+            })
+            .reduce((sum, t) => sum + (t.profit || 0), 0);
+
+        const lastMonthProfit = transactions
+            .filter(t => {
+                if (!t.date) return false;
+                const parts = t.date.split('/');
+                if (parts.length !== 3) return false;
+                const tDate = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+                return t.type === 'sell' && tDate.getMonth() === lastMonth && tDate.getFullYear() === lastMonthYear;
+            })
+            .reduce((sum, t) => sum + (t.profit || 0), 0);
+
+        const diff = lastMonthProfit > 0 ? ((currentMonthProfit - lastMonthProfit) / lastMonthProfit) * 100 : 0;
+        return { monthlyProfit: currentMonthProfit, profitChange: diff };
+    }, [transactions]);
+
     return (
         <div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
             <div className="max-w-4xl mx-auto px-2 sm:px-4 pb-24">
@@ -2101,6 +2145,54 @@ function MainApp({ user }: { user: firebase.User }) {
 
                 <main className="py-6">
                     <AnimatePresence>{alert && (<MotionDiv initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="mb-4"><Alert className={`rounded-xl ${alert.includes('✅') || alert.includes('⚠️') ? (isDark ? 'bg-green-900/50 border-green-400/30 text-green-300' : 'bg-green-50 border-green-300 text-green-800') : (isDark ? 'bg-red-900/50 border-red-400/30 text-red-300' : 'bg-red-50 border-red-300 text-red-800')}`}><AlertDescription>{alert}</AlertDescription></Alert></MotionDiv>)}</AnimatePresence>
+
+                    {view === 'dashboard' && (
+                        <DashboardPage
+                            isDark={isDark}
+                            totalBalanceDzd={finalTotalDzd}
+                            totalBalanceUsdt={portfolioStats.usdt.available}
+                            totalBalanceEur={portfolioStats.eur.available}
+                            totalProfitMonth={monthlyProfit}
+                            profitTrendDiff={profitChange}
+                            userName={user.displayName || 'Utilisateur'}
+                            dailyProfits={useMemo(() => {
+                                const result = [];
+                                const today = new Date();
+                                for (let i = 29; i >= 0; i--) {
+                                    const d = new Date();
+                                    d.setDate(today.getDate() - i);
+                                    const dateStr = d.toLocaleDateString('fr-FR');
+                                    const dayProfit = transactions
+                                        .filter(t => t.type === 'sell' && t.date === dateStr)
+                                        .reduce((sum, t) => sum + (t.profit || 0), 0);
+                                    result.push({ date: dateStr.slice(0, 5), profit: dayProfit });
+                                }
+                                return result;
+                            }, [transactions])}
+                            assetAllocation={useMemo(() => {
+                                // Market Value: Using avgBuy as current rate proxy
+                                const dzdVal = finalTotalDzd;
+                                const usdtVal = portfolioStats.usdt.available * (portfolioStats.usdt.avgBuy || 0);
+                                const eurVal = portfolioStats.eur.available * (portfolioStats.eur.avgBuy || 0);
+                                return [
+                                    { name: 'DZD', value: dzdVal, color: '#3B82F6' },
+                                    { name: 'USDT', value: usdtVal, color: '#10B981' },
+                                    { name: 'EUR', value: eurVal, color: '#6366F1' }
+                                ];
+                            }, [finalTotalDzd, portfolioStats])}
+                            onAction={(action) => {
+                                if (action === 'buy_usdt') openForm('buy_usdt');
+                                else if (action === 'sell_usdt') openForm('sell_usdt');
+                                else if (action === 'add_client') {
+                                    setEditingClient(null);
+                                    setClientFullName(''); setClientPhone(''); setInitialBalance(''); setClientRedotpayId(''); setClientBinanceEmail(''); setClientBalanceInput('');
+                                    setIsClientModalOpen(true);
+                                }
+                                else if (action === 'treasury') setView('tresorerie');
+                                else if (action === 'portfolio') setView('statistiques');
+                            }}
+                        />
+                    )}
 
                     {view === 'transactions' && <TransactionsPage
                         cardBase={cardBase}
