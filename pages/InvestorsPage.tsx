@@ -17,6 +17,9 @@ interface InvestorsPageProps {
     onAddInvestor: () => void;
     onEditInvestor: (investor: Investor) => void;
     onDeleteInvestor: (investor: Investor) => void;
+    globalNetProfit: number;
+    managerFeePercentage: string;
+    setManagerFeePercentage: (val: string) => void;
 }
 
 export const InvestorsPage: React.FC<InvestorsPageProps> = ({
@@ -27,18 +30,62 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({
     onOpenInvestor,
     onAddInvestor,
     onEditInvestor,
-    onDeleteInvestor
+    onDeleteInvestor,
+    globalNetProfit,
+    managerFeePercentage,
+    setManagerFeePercentage
 }) => {
 
     const stats = useMemo(() => {
         const totalCapital = investors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0);
-        const totalProfitDistributed = investors.reduce((sum, inv) => sum + inv.totalProfit, 0);
-        const totalAvailable = investors.reduce((sum, inv) => sum + inv.availableProfit, 0);
-        return { totalCapital, totalProfitDistributed, totalAvailable };
-    }, [investors]);
+        const mgrFeePercent = parseFloat(managerFeePercentage) || 0;
+        const managerFee = globalNetProfit * (mgrFeePercent / 100);
+        const investorPool = globalNetProfit - managerFee;
+
+        // Derived: Total Profit allocated to investors based on (Capital / TotalCapital) * Pool
+        const totalProfitDistributed = investors.reduce((sum, inv) => {
+            if (totalCapital === 0) return sum;
+            const share = inv.capitalInvested / totalCapital;
+            return sum + (investorPool * share);
+        }, 0);
+
+        const totalAvailable = investors.reduce((sum, inv) => {
+            if (totalCapital === 0) return sum;
+            const share = inv.capitalInvested / totalCapital;
+            const profitShare = investorPool * share;
+            return sum + (profitShare - inv.withdrawnProfit);
+        }, 0);
+
+        return { totalCapital, totalProfitDistributed, totalAvailable, investorPool };
+    }, [investors, globalNetProfit, managerFeePercentage]);
 
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+
+
+
+
+            {/* Manager Fee Config (Admin Only visually) */}
+            <Card className={`${cardBase} border-l-4 border-l-purple-500`}>
+                <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                        <h3 className="font-bold text-lg">Configuration Commission Gérant</h3>
+                        <p className={`text-sm ${subtleText}`}>Pourcentage prélevé sur le bénéfice net avant distribution.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="relative w-32">
+                            <input
+                                type="number"
+                                value={managerFeePercentage}
+                                onChange={(e) => setManagerFeePercentage(e.target.value)}
+                                className="w-full pl-3 pr-8 py-2 rounded-lg border bg-transparent font-bold text-right"
+                                placeholder="20"
+                            />
+                            <span className="absolute right-3 top-2 opacity-50">%</span>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* Global Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -52,7 +99,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({
                 </Card>
                 <Card className={`${cardBase} bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border-emerald-500/20`}>
                     <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                        <p className={`text-sm font-medium ${subtleText} mb-1`}>Bénéfices Distribués</p>
+                        <p className={`text-sm font-medium ${subtleText} mb-1`}>Part Bénéfices (Globale)</p>
                         <p className="text-2xl font-bold text-emerald-500">
                             {stats.totalProfitDistributed.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
                         </p>
@@ -60,7 +107,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({
                 </Card>
                 <Card className={`${cardBase} bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/20`}>
                     <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                        <p className={`text-sm font-medium ${subtleText} mb-1`}>Pending Profit Pool</p>
+                        <p className={`text-sm font-medium ${subtleText} mb-1`}>Bénéfices Disponibles</p>
                         <p className="text-2xl font-bold text-amber-500">
                             {stats.totalAvailable.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
                         </p>
@@ -111,7 +158,9 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({
                                             <div>
                                                 <h3 className="font-bold text-base">{investor.name}</h3>
                                                 <p className={`text-xs ${subtleText}`}>
-                                                    Part: <span className="font-semibold text-indigo-500">{(investor.sharePercentage * 100).toFixed(2)}%</span>
+                                                    Part: <span className="font-semibold text-indigo-500">
+                                                        {stats.totalCapital > 0 ? ((investor.capitalInvested / stats.totalCapital) * 100).toFixed(2) : '0.00'}%
+                                                    </span>
                                                     {' • '}
                                                     Entrée: {new Date(investor.entryDate).toLocaleDateString('fr-FR')}
                                                 </p>
@@ -122,7 +171,12 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({
                                             <div>
                                                 <p className="font-bold text-sm">{investor.capitalInvested.toLocaleString('fr-FR')} DZD</p>
                                                 <p className="text-xs text-emerald-500 font-medium">
-                                                    +{investor.availableProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                                                    {(() => {
+                                                        const share = stats.totalCapital > 0 ? (investor.capitalInvested / stats.totalCapital) : 0;
+                                                        const profit = stats.investorPool * share;
+                                                        const avail = profit - investor.withdrawnProfit;
+                                                        return `+${avail.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD`;
+                                                    })()}
                                                 </p>
                                             </div>
                                             <ChevronRightIcon className={`w-5 h-5 ${subtleText} group-hover:text-indigo-500 transition-colors`} />

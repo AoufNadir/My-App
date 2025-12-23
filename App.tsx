@@ -9,7 +9,7 @@ import { Select } from './components/ui/Select';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './components/ui/Dialog';
 
-import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction } from './types';
+import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction } from './types';
 import { MONTHS_FR } from './constants';
 
 import { AlertTriangleIcon } from './components/icons/AlertTriangleIcon';
@@ -46,6 +46,9 @@ import { ClientsPage } from './pages/ClientsPage';
 import { TresoreriePage } from './pages/TresoreriePage';
 import { ManualAssetPage } from './pages/ManualAssetPage';
 import { ManualClientPage } from './pages/ManualClientPage';
+import { InvestorsPage } from './pages/InvestorsPage';
+import { InvestorDetailsPage } from './pages/InvestorDetailsPage';
+import { InvestorDashboardPage } from './pages/InvestorDashboardPage';
 import { NumberInput } from './components/ui/NumberInput';
 import { ReportModal } from './components/ReportModal';
 import { BellIcon } from './components/icons/BellIcon';
@@ -231,9 +234,9 @@ function MainApp({ user }: { user: firebase.User }) {
     const [lastPamValue, setLastPamValue] = useState<number | null>(null);
     const [lastCheckDate, setLastCheckDate] = useState<string>('');
 
-    const [view, setView] = useState<'transactions' | 'statistiques' | 'dzd' | 'tresorerie'>(() => {
+    const [view, setView] = useState<'transactions' | 'statistiques' | 'dzd' | 'tresorerie' | 'investors'>(() => {
         const savedView = localStorage.getItem('app_view');
-        return (savedView === 'transactions' || savedView === 'statistiques' || savedView === 'dzd' || savedView === 'tresorerie') ? savedView : 'transactions';
+        return (savedView === 'transactions' || savedView === 'statistiques' || savedView === 'dzd' || savedView === 'tresorerie' || savedView === 'investors') ? savedView : 'transactions';
     });
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [statsView, setStatsView] = useState<'usdt' | 'clients'>('usdt');
@@ -306,7 +309,57 @@ function MainApp({ user }: { user: firebase.User }) {
             setManualAssetTransactions(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as ManualAssetTransaction[]);
         });
         return () => unsubscribe();
+        return () => unsubscribe();
     }, [userDocRef, refreshKey]);
+
+    // ===== INVESTORS DATA =====
+    const [investors, setInvestors] = useState<Investor[]>([]);
+    const [investorTransactions, setInvestorTransactions] = useState<InvestorTransaction[]>([]);
+    const [managerFeePercentage, setManagerFeePercentage] = useState<string>("20"); // Default 20%
+
+    useEffect(() => {
+        const unsubscribe = userDocRef.collection('investors').onSnapshot((snapshot: firebase.firestore.QuerySnapshot) => {
+            setInvestors(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Investor[]);
+        });
+        return () => unsubscribe();
+    }, [userDocRef, refreshKey]);
+
+    useEffect(() => {
+        const unsubscribe = userDocRef.collection('investor_transactions').onSnapshot((snapshot: firebase.firestore.QuerySnapshot) => {
+            setInvestorTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as InvestorTransaction[]);
+        });
+        return () => unsubscribe();
+    }, [userDocRef, refreshKey]);
+
+    // ===== INVESTOR UI STATE =====
+    const [selectedInvestorId, setSelectedInvestorId] = useState<string | null>(null);
+    const [isInvestorModalOpen, setIsInvestorModalOpen] = useState(false);
+    const [editingInvestor, setEditingInvestor] = useState<Investor | null>(null);
+    const [investorToDelete, setInvestorToDelete] = useState<Investor | null>(null);
+    const [investorTxToDelete, setInvestorTxToDelete] = useState<InvestorTransaction | null>(null);
+    // Transaction Modals State
+    const [isInvestorTxModalOpen, setIsInvestorTxModalOpen] = useState(false);
+    const [investorTxType, setInvestorTxType] = useState<InvestorTransaction['type']>('deposit_capital');
+    const [investorTxAmount, setInvestorTxAmount] = useState('');
+    const [investorTxNotes, setInvestorTxNotes] = useState('');
+
+    // ===== ROUTING FOR INVESTOR DASHBOARD =====
+    // Simple check for URL path
+    const [isInvestorRoute, setIsInvestorRoute] = useState(false);
+    const [investorIdFromUrl, setInvestorIdFromUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        const path = window.location.pathname;
+        if (path.startsWith('/investor')) {
+            setIsInvestorRoute(true);
+            const params = new URLSearchParams(window.location.search);
+            setInvestorIdFromUrl(params.get('id'));
+        } else {
+            setIsInvestorRoute(false);
+        }
+    }, []);
+
+
 
     // Load Settings from Firestore (profit margin + selling price)
     useEffect(() => {
@@ -1933,6 +1986,175 @@ function MainApp({ user }: { user: firebase.User }) {
             setClientToDelete(client);
         }
     };
+
+    // ===== INVESTOR HANDLERS =====
+
+    // 1. Create / Update Investor
+    const handleSaveInvestor = async (name: string, initialCapitalStr: string, notes: string) => {
+        const initialCapital = parseAndEvaluate(initialCapitalStr);
+        // Share percentage is now derived, not manual.
+
+        if (!name.trim()) { setAlert("⚠️ Nom invalide."); return; }
+        if (isNaN(initialCapital) || initialCapital < 0) { setAlert("⚠️ Capital invalide."); return; }
+
+        setIsSaving(true);
+        try {
+            const batch = db.batch();
+            const { date, time, timestamp } = now();
+            // const shareDecimal = sharePercent / 100; // Removed as sharePercentage is now dummy/derived
+
+            if (editingInvestor) {
+                // Update
+                batch.update(userDocRef.collection('investors').doc(editingInvestor.id), {
+                    name, notes
+                });
+                setInvestors(prev => prev.map(inv => inv.id === editingInvestor.id ? { ...inv, name, notes } : inv));
+            } else {
+                // Create
+                const newInvestorRef = userDocRef.collection('investors').doc();
+                const investorData: Investor = {
+                    id: newInvestorRef.id,
+                    name,
+                    entryDate: new Date().toISOString(),
+                    capitalInvested: initialCapital,
+                    initialCapital: initialCapital,
+                    sharePercentage: 0, // Ignored / Derived
+                    totalProfit: 0,
+                    withdrawnProfit: 0,
+                    availableProfit: 0,
+                    isActive: true,
+                    notes
+                };
+                batch.set(newInvestorRef, investorData);
+
+                // Create Initial Deposit Transaction
+                if (initialCapital > 0) {
+                    batch.set(userDocRef.collection('investor_transactions').doc(), {
+                        investorId: newInvestorRef.id,
+                        type: 'deposit_capital',
+                        amount: initialCapital,
+                        date, time, timestamp,
+                        notes: 'Capital Initial'
+                    });
+                    setInvestorTransactions(prev => [...prev, {
+                        id: 'temp-' + Date.now(),
+                        investorId: newInvestorRef.id,
+                        type: 'deposit_capital',
+                        amount: initialCapital,
+                        date, time, timestamp,
+                        notes: 'Capital Initial'
+                    } as InvestorTransaction]);
+                }
+                setInvestors(prev => [...prev, investorData]);
+            }
+            await batch.commit();
+            setAlert("✅ Investisseur enregistré.");
+            setIsInvestorModalOpen(false);
+            setEditingInvestor(null);
+        } catch (e) { console.error(e); setAlert("❌ Erreur."); } finally { setIsSaving(false); }
+    };
+
+    // 2. Delete Investor
+    const handleDeleteInvestor = async () => {
+        if (!investorToDelete) return;
+        setIsSaving(true);
+        try {
+            // Check conflicts? For now force delete
+            await userDocRef.collection('investors').doc(investorToDelete.id).delete();
+            // TODO: Delete transactions?
+            setAlert("✅ Investisseur supprimé.");
+            setInvestorToDelete(null);
+            if (selectedInvestorId === investorToDelete.id) setSelectedInvestorId(null);
+        } catch (e) { setAlert("❌ Erreur."); } finally { setIsSaving(false); }
+    };
+
+    // 3. Investor Transactions (Deposit/Withdraw Capital/Profit)
+    const handleInvestorTransaction = async () => {
+        const amount = parseAndEvaluate(investorTxAmount);
+        if (isNaN(amount) || amount <= 0) { setAlert("⚠️ Montant invalide."); return; }
+        if (!selectedInvestorId) return;
+
+        const investor = investors.find(i => i.id === selectedInvestorId);
+        if (!investor) return;
+
+        // Check balances allowed?
+        if (investorTxType === 'withdraw_profit' && amount > investor.availableProfit) {
+            setAlert("⚠️ Profit disponible insuffisant."); return;
+        }
+        // withdraw_capital check? (Optional rule)
+
+        setIsSaving(true);
+        try {
+            const { date, time, timestamp } = now();
+            const batch = db.batch();
+
+            // Create Transaction
+            batch.set(userDocRef.collection('investor_transactions').doc(), {
+                investorId: selectedInvestorId,
+                type: investorTxType,
+                amount, date, time, timestamp,
+                notes: investorTxNotes
+            });
+
+            // Update Investor Stats
+            const updateData: any = {};
+            if (investorTxType === 'deposit_capital') {
+                updateData.capitalInvested = investor.capitalInvested + amount;
+            } else if (investorTxType === 'withdraw_capital') {
+                updateData.capitalInvested = investor.capitalInvested - amount;
+            } else if (investorTxType === 'profit_distribution') {
+                updateData.totalProfit = investor.totalProfit + amount;
+                updateData.availableProfit = investor.availableProfit + amount;
+            } else if (investorTxType === 'withdraw_profit') {
+                updateData.availableProfit = investor.availableProfit - amount;
+                updateData.withdrawnProfit = investor.withdrawnProfit + amount;
+            }
+
+            batch.update(userDocRef.collection('investors').doc(selectedInvestorId), updateData);
+
+            await batch.commit();
+            setAlert("✅ Transaction enregistrée.");
+            setIsInvestorTxModalOpen(false);
+            setInvestorTxAmount('');
+            setInvestorTxNotes('');
+        } catch (e) { console.error(e); setAlert("❌ Erreur."); } finally { setIsSaving(false); }
+    };
+
+    // 4. Delete Investor Transaction
+    const handleDeleteInvestorTx = async () => {
+        if (!investorTxToDelete) return;
+        setIsSaving(true);
+        try {
+            // Revert stats logic
+            const investor = investors.find(i => i.id === investorTxToDelete.investorId);
+            if (investor) {
+                const batch = db.batch();
+
+                // Revert logic
+                const amount = investorTxToDelete.amount;
+                const type = investorTxToDelete.type;
+                const updateData: any = {};
+
+                if (type === 'deposit_capital') updateData.capitalInvested = investor.capitalInvested - amount;
+                else if (type === 'withdraw_capital') updateData.capitalInvested = investor.capitalInvested + amount;
+                else if (type === 'profit_distribution') {
+                    updateData.totalProfit = investor.totalProfit - amount;
+                    updateData.availableProfit = investor.availableProfit - amount;
+                } else if (type === 'withdraw_profit') {
+                    updateData.availableProfit = investor.availableProfit + amount;
+                    updateData.withdrawnProfit = investor.withdrawnProfit - amount;
+                }
+
+                batch.update(userDocRef.collection('investors').doc(investor.id), updateData);
+                batch.delete(userDocRef.collection('investor_transactions').doc(investorTxToDelete.id));
+
+                await batch.commit();
+                setAlert("✅ Transaction supprimée.");
+            }
+            setInvestorTxToDelete(null);
+        } catch (e) { setAlert("❌ Erreur."); } finally { setIsSaving(false); }
+    };
+
     const ClientLinker = ({ isEditing, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }: any) => {
 
         return (
@@ -2011,6 +2233,33 @@ function MainApp({ user }: { user: firebase.User }) {
         return totalCost / totalQty;
     }, [simEurQty, simEurDzdPrice, simEurUsdtRate, portfolioStats.usdt]);
 
+    if (isInvestorRoute) {
+        // Find the investor
+        // For demo purposes, if no ID is provided, pick the first one or show error
+        const investor = investors.find(i => i.id === investorIdFromUrl) || investors[0];
+
+        if (!investor) {
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500">
+                    {investors.length === 0 ? "Chargement des données investisseur..." : "Investisseur non trouvé."}
+                </div>
+            );
+        }
+
+        // Filter transactions for this investor
+        const myTransactions = investorTransactions.filter(tx => tx.investorId === investor.id);
+
+        const totalCapital = investors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0);
+        return <InvestorDashboardPage
+            investor={investor}
+            transactions={myTransactions}
+            isDark={isDark}
+            globalNetProfit={portfolioStats.usdt.totalProfit}
+            managerFeePercentage={Number(managerFeePercentage)}
+            totalCapital={totalCapital}
+        />;
+    }
+
     return (
         <div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
             <div className="max-w-4xl mx-auto px-2 sm:px-4 pb-24">
@@ -2025,6 +2274,7 @@ function MainApp({ user }: { user: firebase.User }) {
                             <NavLink activeView={view} targetView="statistiques" colorClass="bg-teal-600">{t('nav.portfolio')}</NavLink>
                             <NavLink activeView={view} targetView="dzd" colorClass="bg-sky-600">{t('nav.clients')}</NavLink>
                             <NavLink activeView={view} targetView="tresorerie" colorClass="bg-emerald-600">{t('nav.treasury')}</NavLink>
+                            <NavLink activeView={view} targetView="investors" colorClass="bg-purple-600">Investisseurs</NavLink>
                         </div>
                         <div className="flex items-center gap-1 sm:gap-2">
                             {/* Language Switcher */}
@@ -2095,6 +2345,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                 <MobileNavLink targetView="statistiques" icon={<WalletIcon className="w-6 h-6" />} colorClass="text-teal-500">{t('nav.portfolio')}</MobileNavLink>
                                 <MobileNavLink targetView="dzd" icon={<UsersIcon className="w-6 h-6" />} colorClass="text-sky-500">{t('nav.clients')}</MobileNavLink>
                                 <MobileNavLink targetView="tresorerie" icon={<LandmarkIcon className="w-6 h-6" />} colorClass="text-emerald-500">{t('nav.treasury')}</MobileNavLink>
+                                <MobileNavLink targetView="investors" icon={<UsersIcon className="w-6 h-6" />} colorClass="text-purple-500">Investisseurs</MobileNavLink>
                             </div>
                         </MotionDiv>
                     )}
@@ -2185,6 +2436,42 @@ function MainApp({ user }: { user: firebase.User }) {
                             />
                         )
                     )}
+
+                    {view === 'investors' && (
+                        selectedInvestorId ? (
+                            <InvestorDetailsPage
+                                investor={investors.find(i => i.id === selectedInvestorId)!}
+                                transactions={investorTransactions.filter(tx => tx.investorId === selectedInvestorId)}
+                                onBack={() => setSelectedInvestorId(null)}
+                                onAddCapital={() => { setInvestorTxType('deposit_capital'); setIsInvestorTxModalOpen(true); }}
+                                onWithdrawCapital={() => { setInvestorTxType('withdraw_capital'); setIsInvestorTxModalOpen(true); }}
+                                onWithdrawProfit={() => { setInvestorTxType('withdraw_profit'); setIsInvestorTxModalOpen(true); }}
+                                onEdit={() => { setEditingInvestor(investors.find(i => i.id === selectedInvestorId) || null); setIsInvestorModalOpen(true); }}
+                                onDelete={() => { setInvestorToDelete(investors.find(i => i.id === selectedInvestorId) || null); }}
+                                onDeleteTransaction={(tx) => { setInvestorTxToDelete(tx); }}
+                                isDark={isDark}
+                                cardBase={cardBase}
+                                subtleText={subtleText}
+                                globalNetProfit={portfolioStats.usdt.totalProfit}
+                                managerFeePercentage={Number(managerFeePercentage)}
+                                totalCapital={investors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0)}
+                            />
+                        ) : (
+                            <InvestorsPage
+                                isDark={isDark}
+                                cardBase={cardBase}
+                                subtleText={subtleText}
+                                investors={investors}
+                                onOpenInvestor={(inv) => setSelectedInvestorId(inv.id)}
+                                onAddInvestor={() => { setEditingInvestor(null); setIsInvestorModalOpen(true); }}
+                                onEditInvestor={(inv) => { setEditingInvestor(inv); setIsInvestorModalOpen(true); }}
+                                onDeleteInvestor={(inv) => { setInvestorToDelete(inv); }}
+                                globalNetProfit={portfolioStats.usdt.totalProfit}
+                                managerFeePercentage={managerFeePercentage}
+                                setManagerFeePercentage={setManagerFeePercentage}
+                            />
+                        )
+                    )}
                 </main>
                 {/* Mobile Nav */}
                 <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 p-2 backdrop-blur-md bg-opacity-50">
@@ -2193,6 +2480,7 @@ function MainApp({ user }: { user: firebase.User }) {
                         <NavLink activeView={view} targetView="statistiques" colorClass="bg-teal-600"><WalletIcon className="w-5 h-5 mx-auto" /></NavLink>
                         <NavLink activeView={view} targetView="dzd" colorClass="bg-sky-600"><UsersIcon className="w-5 h-5 mx-auto" /></NavLink>
                         <NavLink activeView={view} targetView="tresorerie" colorClass="bg-emerald-600"><LandmarkIcon className="w-5 h-5 mx-auto" /></NavLink>
+                        <NavLink activeView={view} targetView="investors" colorClass="bg-purple-600"><UsersIcon className="w-5 h-5 mx-auto" /></NavLink>
                     </div>
                 </div>
             </div>
@@ -2463,11 +2751,11 @@ function MainApp({ user }: { user: firebase.User }) {
                             ))
                         }
                         className={`w-full font-bold py-3 rounded-xl shadow-md transition-all ${(isSaving || !adjustmentAmount || parseFloat(adjustmentAmount) <= 0 || (adjustmentTab === 'subtract' && (
-                                adjustmentAsset === 'USDT' ? parseFloat(adjustmentAmount) > (portfolioStats?.usdt?.available || 0) :
-                                    adjustmentAsset === 'EUR' ? parseFloat(adjustmentAmount) > (portfolioStats?.eur?.available || 0) : false
-                            )))
-                                ? 'bg-gray-400 cursor-not-allowed opacity-70'
-                                : (adjustmentTab === 'add' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white')
+                            adjustmentAsset === 'USDT' ? parseFloat(adjustmentAmount) > (portfolioStats?.usdt?.available || 0) :
+                                adjustmentAsset === 'EUR' ? parseFloat(adjustmentAmount) > (portfolioStats?.eur?.available || 0) : false
+                        )))
+                            ? 'bg-gray-400 cursor-not-allowed opacity-70'
+                            : (adjustmentTab === 'add' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white')
                             }`}
                     >
                         {isSaving ? t('common.processing') : 'Confirmer'}
@@ -3343,6 +3631,94 @@ function MainApp({ user }: { user: firebase.User }) {
                         );
                     })()}
                 </DialogContent>
+            </Dialog>
+
+            {/* INVESTOR CREATION / EDIT MODAL */}
+            <Dialog isOpen={isInvestorModalOpen} onClose={() => setIsInvestorModalOpen(false)} className={`${cardBase} max-w-md`}>
+                <DialogHeader onClose={() => setIsInvestorModalOpen(false)} isDark={isDark}>
+                    <DialogTitle>{editingInvestor ? "Modifier Investisseur" : "Nouvel Investisseur"}</DialogTitle>
+                </DialogHeader>
+                <DialogContent className="px-6 pb-6 space-y-4">
+                    <form onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        handleSaveInvestor(
+                            formData.get('name') as string,
+                            formData.get('initialCapital') as string,
+                            formData.get('notes') as string
+                        );
+                    }}>
+                        <div>
+                            <Label>Nom Complet</Label>
+                            <Input name="name" defaultValue={editingInvestor?.name} className={fieldBase} placeholder="Nom de l'investisseur" required />
+                        </div>
+                        {!editingInvestor && (
+                            <div>
+                                <Label>Capital Initial (DZD)</Label>
+                                <NumberInput name="initialCapital" className={fieldBase} placeholder="0.00" />
+                            </div>
+                        )}
+                        {/* Share Percentage Removed - Auto Calculated */}
+                        <div>
+                            <Label>Notes (Optionnel)</Label>
+                            <Input name="notes" defaultValue={editingInvestor?.notes} className={fieldBase} placeholder="Notes..." />
+                        </div>
+                        <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl mt-4">
+                            {editingInvestor ? "Mettre à jour" : "Créer Investisseur"}
+                        </Button>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* INVESTOR TRANSACTION MODAL */}
+            <Dialog isOpen={isInvestorTxModalOpen} onClose={() => setIsInvestorTxModalOpen(false)} className={`${cardBase} max-w-md`}>
+                <DialogHeader onClose={() => setIsInvestorTxModalOpen(false)} isDark={isDark}>
+                    <DialogTitle>
+                        {investorTxType === 'deposit_capital' ? 'Dépôt Capital' :
+                            investorTxType === 'withdraw_capital' ? 'Retrait Capital' :
+                                investorTxType === 'profit_distribution' ? 'Distribution Profit' : 'Retrait Profit'}
+                    </DialogTitle>
+                </DialogHeader>
+                <DialogContent className="px-6 pb-6 space-y-4">
+                    <div>
+                        <Label>Montant (DZD)</Label>
+                        <NumberInput value={investorTxAmount} onChange={e => setInvestorTxAmount(e.target.value)} className={fieldBase} placeholder="0.00" />
+                    </div>
+                    <div>
+                        <Label>Notes</Label>
+                        <Input value={investorTxNotes} onChange={e => setInvestorTxNotes(e.target.value)} className={fieldBase} />
+                    </div>
+                </DialogContent>
+                <DialogFooter>
+                    <Button onClick={handleInvestorTransaction} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">
+                        Confirmer
+                    </Button>
+                </DialogFooter>
+            </Dialog>
+
+            {/* INVESTOR DELETE CONFIRMATION */}
+            <Dialog isOpen={investorToDelete !== null} onClose={() => setInvestorToDelete(null)} className={cardBase}>
+                <DialogHeader isDark={isDark}><DialogTitle>{t('common.confirmDelete')}</DialogTitle></DialogHeader>
+                <DialogContent className="p-6">
+                    <p className="text-sm opacity-80">Êtes-vous sûr de vouloir supprimer cet investisseur ?</p>
+                    <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
+                </DialogContent>
+                <DialogFooter>
+                    <Button onClick={() => setInvestorToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
+                    <Button onClick={handleDeleteInvestor} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{t('common.delete')}</Button>
+                </DialogFooter>
+            </Dialog>
+
+            {/* INVESTOR TRANSACTION DELETE CONFIRMATION */}
+            <Dialog isOpen={investorTxToDelete !== null} onClose={() => setInvestorTxToDelete(null)} className={cardBase}>
+                <DialogHeader isDark={isDark}><DialogTitle>{t('common.confirmDelete')}</DialogTitle></DialogHeader>
+                <DialogContent className="p-6">
+                    <p className="text-sm opacity-80">Êtes-vous sûr de vouloir supprimer cette transaction ?</p>
+                </DialogContent>
+                <DialogFooter>
+                    <Button onClick={() => setInvestorTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
+                    <Button onClick={handleDeleteInvestorTx} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{t('common.delete')}</Button>
+                </DialogFooter>
             </Dialog>
 
         </div>

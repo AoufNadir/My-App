@@ -14,6 +14,34 @@ export interface Tx {
   paymentMethod?: 'Espèces' | 'BaridiMob' | 'Crédit';
 }
 
+export interface Investor {
+  id: string;
+  name: string;
+  entryDate: string; // ISO Date
+  capitalInvested: number;
+  initialCapital: number;
+  sharePercentage: number;
+  totalProfit: number;
+  withdrawnProfit: number;
+  availableProfit: number;
+  isActive: boolean;
+  notes?: string;
+  email?: string;
+  phone?: string;
+  password?: string; // For simple auth simulation if needed
+}
+
+export interface InvestorTransaction {
+  id: string;
+  investorId: string;
+  type: 'deposit_capital' | 'withdraw_capital' | 'profit_distribution' | 'withdraw_profit';
+  amount: number;
+  date: string;
+  time: string;
+  timestamp: number;
+  notes?: string;
+}
+
 export interface ClientDzd {
   id: string;
   fullName: string;

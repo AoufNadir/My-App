@@ -11,6 +11,7 @@ import { TrashIcon } from '../components/icons/TrashIcon';
 import { PencilIcon } from '../components/icons/PencilIcon';
 
 import { SwipeableListItem } from '../components/ui/SwipeableListItem';
+import { LayoutDashboardIcon } from '../components/icons/LayoutDashboardIcon';
 
 interface InvestorDetailsPageProps {
     investor: Investor;
@@ -25,6 +26,9 @@ interface InvestorDetailsPageProps {
     isDark: boolean;
     cardBase: string;
     subtleText: string;
+    globalNetProfit: number;
+    managerFeePercentage: number;
+    totalCapital: number;
 }
 
 export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({
@@ -39,9 +43,21 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({
     onDeleteTransaction,
     isDark,
     cardBase,
-    subtleText
+    subtleText,
+    globalNetProfit,
+    managerFeePercentage,
+    totalCapital
 }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
+
+    // Derived State
+    const share = totalCapital > 0 ? (investor.capitalInvested / totalCapital) : 0;
+    const mgrFee = globalNetProfit * (managerFeePercentage / 100);
+    const pool = globalNetProfit - mgrFee;
+
+    const currentTotalProfit = pool * share;
+    const currentAvailable = currentTotalProfit - investor.withdrawnProfit;
+
 
     return (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
@@ -58,6 +74,9 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({
                     </p>
                 </div>
                 <div className="ml-auto flex gap-2">
+                    <Button onClick={() => window.open(`/investor?id=${investor.id}`, '_blank')} className={`p-2 rounded-lg ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-gray-50'} border border-gray-200 dark:border-gray-700`} title="Voir le Tableau de Bord">
+                        <LayoutDashboardIcon className="w-5 h-5 text-indigo-500" />
+                    </Button>
                     <Button onClick={onEdit} className={`p-2 rounded-lg ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-gray-50'} border border-gray-200 dark:border-gray-700`}>
                         <PencilIcon className="w-5 h-5 text-blue-500" />
                     </Button>
@@ -93,7 +112,7 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({
                     <CardContent className="p-4">
                         <p className={`text-sm font-medium ${subtleText}`}>Bénéfices Disponibles</p>
                         <h2 className="text-2xl font-bold text-emerald-500 mt-1">
-                            {investor.availableProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                            {currentAvailable.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
                         </h2>
                         <div className="flex gap-2 mt-4">
                             <Button onClick={onWithdrawProfit} className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2">
@@ -110,7 +129,7 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({
                     <CardContent className="p-4 text-center">
                         <p className={`text-xs ${subtleText}`}>Total Gagné</p>
                         <p className="text-lg font-bold text-green-500">
-                            +{investor.totalProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                            +{currentTotalProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
                         </p>
                     </CardContent>
                 </Card>

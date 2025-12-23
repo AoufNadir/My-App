@@ -1,10 +1,7 @@
-const CACHE_NAME = 'prodigital-cache-v5';
+const CACHE_NAME = 'prodigital-cache-v6';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
-  'https://cdn.tailwindcss.com',
-  'https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap',
-  'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
   '/manifest.webmanifest',
   '/logo.png',
   '/pwa-icon.png'
@@ -61,7 +58,8 @@ self.addEventListener('fetch', (event) => {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             // Only cache GET requests to avoid caching form submissions etc.
-            if (event.request.method === 'GET') {
+            // Also ensure we only cache http/https requests (excludes chrome-extension:// etc.)
+            if (event.request.method === 'GET' && event.request.url.startsWith('http')) {
               cache.put(event.request, responseToCache);
             }
           });
