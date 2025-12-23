@@ -348,6 +348,19 @@ function MainApp({ user }: { user: firebase.User }) {
     const [isInvestorRoute, setIsInvestorRoute] = useState(false);
     const [investorIdFromUrl, setInvestorIdFromUrl] = useState<string | null>(null);
 
+    // ===== DERIVED INVESTOR DATA (SSoT) =====
+    // Calculate withdrawnProfit from transactions to ensure Single Source of Truth
+    // This fixes the "Double Counting" bug by ignoring the stored field.
+    const derivedInvestors = useMemo(() => {
+        return investors.map(inv => {
+            const withdrawn = investorTransactions
+                .filter(tx => tx.investorId === inv.id && tx.type === 'withdraw_profit')
+                .reduce((sum, tx) => sum + (tx.amount || 0), 0);
+
+            return { ...inv, withdrawnProfit: withdrawn };
+        });
+    }, [investors, investorTransactions]);
+
     useEffect(() => {
         const path = window.location.pathname;
         if (path.startsWith('/investor')) {
@@ -1990,7 +2003,7 @@ function MainApp({ user }: { user: firebase.User }) {
     // ===== INVESTOR HANDLERS =====
 
     // 1. Create / Update Investor
-    const handleSaveInvestor = async (name: string, initialCapitalStr: string, notes: string) => {
+    const handleSaveInvestor = async (name: string, initialCapitalStr: string, notes: string, isManager: boolean) => {
         const initialCapital = parseAndEvaluate(initialCapitalStr);
         // Share percentage is now derived, not manual.
 
@@ -2006,9 +2019,9 @@ function MainApp({ user }: { user: firebase.User }) {
             if (editingInvestor) {
                 // Update
                 batch.update(userDocRef.collection('investors').doc(editingInvestor.id), {
-                    name, notes
+                    name, notes, isManager
                 });
-                setInvestors(prev => prev.map(inv => inv.id === editingInvestor.id ? { ...inv, name, notes } : inv));
+                setInvestors(prev => prev.map(inv => inv.id === editingInvestor.id ? { ...inv, name, notes, isManager } : inv));
             } else {
                 // Create
                 const newInvestorRef = userDocRef.collection('investors').doc();
@@ -2023,7 +2036,8 @@ function MainApp({ user }: { user: firebase.User }) {
                     withdrawnProfit: 0,
                     availableProfit: 0,
                     isActive: true,
-                    notes
+                    notes,
+                    isManager
                 };
                 batch.set(newInvestorRef, investorData);
 
@@ -2069,27 +2083,59 @@ function MainApp({ user }: { user: firebase.User }) {
     };
 
     // 3. Investor Transactions (Deposit/Withdraw Capital/Profit)
+    // 3. Investor Transactions (Deposit/Withdraw Capital/Profit)
     const handleInvestorTransaction = async () => {
         const amount = parseAndEvaluate(investorTxAmount);
         if (isNaN(amount) || amount <= 0) { setAlert("⚠️ Montant invalide."); return; }
         if (!selectedInvestorId) return;
 
-        const investor = investors.find(i => i.id === selectedInvestorId);
+        // Use derivedInvestors to check balance against REAL withdrawn amount
+        const investor = derivedInvestors.find(i => i.id === selectedInvestorId);
         if (!investor) return;
 
-        // Check balances allowed?
-        if (investorTxType === 'withdraw_profit' && amount > investor.availableProfit) {
-            setAlert("⚠️ Profit disponible insuffisant."); return;
+        // --- DERIVED CALCULATIONS FOR VALIDATION ---
+        // 1. Total Capital
+        const totalCapital = investors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0);
+        // 2. Manager Fee & Pool
+        const mgrFeePercent = parseFloat(managerFeePercentage) || 0;
+        const globalNetProfit = portfolioStats.usdt.totalProfit; // DZD
+        const managerFee = globalNetProfit * (mgrFeePercent / 100);
+        const profitPool = globalNetProfit - managerFee;
+        // 3. Investor Share & Available
+        const share = totalCapital > 0 ? (investor.capitalInvested / totalCapital) : 0;
+        const calculatedTotalProfit = profitPool * share;
+        const calculatedAvailable = calculatedTotalProfit - investor.withdrawnProfit;
+
+        // --- VALIDATION ---
+        if (investorTxType === 'withdraw_profit') {
+            if (amount > calculatedAvailable) {
+                setAlert(`⚠️ Profit disponible insuffisant (Max: ${calculatedAvailable.toFixed(2)} DZD).`);
+                return;
+            }
+            if (amount > treasuryStats.caisse) {
+                setAlert(`⚠️ Trésorerie insuffisante (Caisse: ${treasuryStats.caisse.toFixed(2)} DZD).`);
+                return;
+            }
         }
-        // withdraw_capital check? (Optional rule)
+        if (investorTxType === 'withdraw_capital') {
+            if (amount > investor.capitalInvested) {
+                setAlert("⚠️ Capital insuffisant."); return;
+            }
+            // Optional: Check treasury if returning capital requires cash out (usually yes)
+            if (amount > treasuryStats.caisse) {
+                setAlert(`⚠️ Trésorerie insuffisante pour ce retrait de capital.`);
+                return;
+            }
+        }
 
         setIsSaving(true);
         try {
             const { date, time, timestamp } = now();
             const batch = db.batch();
 
-            // Create Transaction
-            batch.set(userDocRef.collection('investor_transactions').doc(), {
+            // Create Investor Transaction
+            const txRef = userDocRef.collection('investor_transactions').doc();
+            batch.set(txRef, {
                 investorId: selectedInvestorId,
                 type: investorTxType,
                 amount, date, time, timestamp,
@@ -2097,26 +2143,53 @@ function MainApp({ user }: { user: firebase.User }) {
             });
 
             // Update Investor Stats
+            // IMPORTANT: For profit withdrawal, ONLY update withdrawnProfit. Do NOT store derived stats.
             const updateData: any = {};
             if (investorTxType === 'deposit_capital') {
                 updateData.capitalInvested = investor.capitalInvested + amount;
+                updateData.initialCapital = investor.capitalInvested + amount; // Sync (simple model)
+                // Add to Treasury (Deposit = Cash In)
+                const treasuryTxRef = userDocRef.collection('treasury_txs').doc();
+                batch.set(treasuryTxRef, {
+                    timestamp, date, time, type: 'Ajout', source: 'Caisse', amount,
+                    notes: `Apport Capital: ${investor.name}`, origin: 'investor_deposit', linkedTxId: txRef.id
+                });
             } else if (investorTxType === 'withdraw_capital') {
                 updateData.capitalInvested = investor.capitalInvested - amount;
+                // Remove from Treasury (Withdrawal = Cash Out)
+                const treasuryTxRef = userDocRef.collection('treasury_txs').doc();
+                batch.set(treasuryTxRef, {
+                    timestamp, date, time, type: 'Retrait', source: 'Caisse', amount,
+                    notes: `Retrait Capital: ${investor.name}`, origin: 'investor_withdraw', linkedTxId: txRef.id
+                });
             } else if (investorTxType === 'profit_distribution') {
-                updateData.totalProfit = investor.totalProfit + amount;
-                updateData.availableProfit = investor.availableProfit + amount;
+                // Legacy / Manual Distribution - Should typically use withdraw_profit now
+                updateData.totalProfit = investor.totalProfit + amount; // Legacy support
             } else if (investorTxType === 'withdraw_profit') {
-                updateData.availableProfit = investor.availableProfit - amount;
-                updateData.withdrawnProfit = investor.withdrawnProfit + amount;
+                // SSoT: We DO NOT update withdrawnProfit here anymore.
+                // We rely on the transaction created above.
+
+                // Remove from Treasury
+                const treasuryTxRef = userDocRef.collection('treasury_txs').doc();
+                batch.set(treasuryTxRef, {
+                    timestamp, date, time, type: 'Retrait', source: 'Caisse', amount,
+                    notes: `Retrait Bénéfices: ${investor.name}`, origin: 'investor_profit_withdraw', linkedTxId: txRef.id
+                });
             }
 
-            batch.update(userDocRef.collection('investors').doc(selectedInvestorId), updateData);
+            if (Object.keys(updateData).length > 0) {
+                batch.update(userDocRef.collection('investors').doc(selectedInvestorId), updateData);
+            }
 
             await batch.commit();
             setAlert("✅ Transaction enregistrée.");
             setIsInvestorTxModalOpen(false);
             setInvestorTxAmount('');
             setInvestorTxNotes('');
+            // Optimistic update
+            if (investorTxType === 'withdraw_profit') {
+                setInvestors(prev => prev.map(inv => inv.id === selectedInvestorId ? { ...inv, withdrawnProfit: inv.withdrawnProfit + amount } : inv));
+            }
         } catch (e) { console.error(e); setAlert("❌ Erreur."); } finally { setIsSaving(false); }
     };
 
@@ -2236,12 +2309,12 @@ function MainApp({ user }: { user: firebase.User }) {
     if (isInvestorRoute) {
         // Find the investor
         // For demo purposes, if no ID is provided, pick the first one or show error
-        const investor = investors.find(i => i.id === investorIdFromUrl) || investors[0];
+        const investor = derivedInvestors.find(i => i.id === investorIdFromUrl) || derivedInvestors[0];
 
         if (!investor) {
             return (
                 <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500">
-                    {investors.length === 0 ? "Chargement des données investisseur..." : "Investisseur non trouvé."}
+                    {derivedInvestors.length === 0 ? "Chargement des données investisseur..." : "Investisseur non trouvé."}
                 </div>
             );
         }
@@ -2249,7 +2322,7 @@ function MainApp({ user }: { user: firebase.User }) {
         // Filter transactions for this investor
         const myTransactions = investorTransactions.filter(tx => tx.investorId === investor.id);
 
-        const totalCapital = investors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0);
+        const totalCapital = derivedInvestors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0);
         return <InvestorDashboardPage
             investor={investor}
             transactions={myTransactions}
@@ -2461,7 +2534,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                 isDark={isDark}
                                 cardBase={cardBase}
                                 subtleText={subtleText}
-                                investors={investors}
+                                investors={derivedInvestors}
                                 onOpenInvestor={(inv) => setSelectedInvestorId(inv.id)}
                                 onAddInvestor={() => { setEditingInvestor(null); setIsInvestorModalOpen(true); }}
                                 onEditInvestor={(inv) => { setEditingInvestor(inv); setIsInvestorModalOpen(true); }}
@@ -3645,7 +3718,8 @@ function MainApp({ user }: { user: firebase.User }) {
                         handleSaveInvestor(
                             formData.get('name') as string,
                             formData.get('initialCapital') as string,
-                            formData.get('notes') as string
+                            formData.get('notes') as string,
+                            formData.get('isManager') === 'on'
                         );
                     }}>
                         <div>
@@ -3663,6 +3737,20 @@ function MainApp({ user }: { user: firebase.User }) {
                             <Label>Notes (Optionnel)</Label>
                             <Input name="notes" defaultValue={editingInvestor?.notes} className={fieldBase} placeholder="Notes..." />
                         </div>
+
+                        <div className="flex items-center gap-2 mt-4 p-3 rounded-lg border border-indigo-100 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-900/10">
+                            <input
+                                type="checkbox"
+                                name="isManager"
+                                id="isManager"
+                                defaultChecked={editingInvestor?.isManager}
+                                className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
+                            />
+                            <label htmlFor="isManager" className="text-sm font-medium cursor-pointer select-none">
+                                Cet investisseur est le Gérant
+                            </label>
+                        </div>
+
                         <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl mt-4">
                             {editingInvestor ? "Mettre à jour" : "Créer Investisseur"}
                         </Button>
@@ -3671,30 +3759,57 @@ function MainApp({ user }: { user: firebase.User }) {
             </Dialog>
 
             {/* INVESTOR TRANSACTION MODAL */}
-            <Dialog isOpen={isInvestorTxModalOpen} onClose={() => setIsInvestorTxModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsInvestorTxModalOpen(false)} isDark={isDark}>
-                    <DialogTitle>
-                        {investorTxType === 'deposit_capital' ? 'Dépôt Capital' :
-                            investorTxType === 'withdraw_capital' ? 'Retrait Capital' :
-                                investorTxType === 'profit_distribution' ? 'Distribution Profit' : 'Retrait Profit'}
-                    </DialogTitle>
-                </DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    <div>
-                        <Label>Montant (DZD)</Label>
-                        <NumberInput value={investorTxAmount} onChange={e => setInvestorTxAmount(e.target.value)} className={fieldBase} placeholder="0.00" />
-                    </div>
-                    <div>
-                        <Label>Notes</Label>
-                        <Input value={investorTxNotes} onChange={e => setInvestorTxNotes(e.target.value)} className={fieldBase} />
-                    </div>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={handleInvestorTransaction} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">
-                        Confirmer
-                    </Button>
-                </DialogFooter>
-            </Dialog>
+            {(() => {
+                const selectedInv = derivedInvestors.find(i => i.id === selectedInvestorId);
+                let availableProfit = 0;
+                let showAvailability = false;
+
+                if (isInvestorTxModalOpen && selectedInv && investorTxType === 'withdraw_profit') {
+                    showAvailability = true;
+                    const totalCapital = derivedInvestors.reduce((sum, inv) => sum + (inv.capitalInvested || 0), 0);
+                    const managerProfit = portfolioStats.usdt.totalProfit * (Number(managerFeePercentage) / 100);
+                    const distributableProfit = portfolioStats.usdt.totalProfit - managerProfit;
+                    const share = totalCapital > 0 ? selectedInv.capitalInvested / totalCapital : 0;
+                    const totalInvProfit = distributableProfit * share;
+                    availableProfit = totalInvProfit - (selectedInv.withdrawnProfit || 0);
+                }
+
+                return (
+                    <Dialog isOpen={isInvestorTxModalOpen} onClose={() => setIsInvestorTxModalOpen(false)} className={`${cardBase} max-w-md`}>
+                        <DialogHeader onClose={() => setIsInvestorTxModalOpen(false)} isDark={isDark}>
+                            <DialogTitle>
+                                {investorTxType === 'deposit_capital' ? 'Dépôt Capital' :
+                                    investorTxType === 'withdraw_capital' ? 'Retrait Capital' :
+                                        investorTxType === 'profit_distribution' ? 'Distribution Profit' : 'Retrait Profit'}
+                            </DialogTitle>
+                        </DialogHeader>
+                        <DialogContent className="px-6 pb-6 space-y-4">
+                            <div>
+                                <Label>Montant (DZD)</Label>
+                                <NumberInput value={investorTxAmount} onChange={e => setInvestorTxAmount(e.target.value)} className={fieldBase} placeholder="0.00" />
+                                {showAvailability && (
+                                    <div className={`text-xs mt-1 text-right ${availableProfit > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                        Disponible: {availableProfit.toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD
+                                    </div>
+                                )}
+                            </div>
+                            <div>
+                                <Label>Notes</Label>
+                                <Input value={investorTxNotes} onChange={e => setInvestorTxNotes(e.target.value)} className={fieldBase} />
+                            </div>
+                        </DialogContent>
+                        <DialogFooter>
+                            <Button
+                                onClick={handleInvestorTransaction}
+                                disabled={showAvailability && availableProfit <= 0}
+                                className={`w-full text-white font-bold py-3 rounded-xl ${showAvailability && availableProfit <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                            >
+                                Confirmer
+                            </Button>
+                        </DialogFooter>
+                    </Dialog>
+                );
+            })()}
 
             {/* INVESTOR DELETE CONFIRMATION */}
             <Dialog isOpen={investorToDelete !== null} onClose={() => setInvestorToDelete(null)} className={cardBase}>

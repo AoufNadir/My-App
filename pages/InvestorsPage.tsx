@@ -156,7 +156,14 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({
                                                 {investor.name.charAt(0).toUpperCase()}
                                             </div>
                                             <div>
-                                                <h3 className="font-bold text-base">{investor.name}</h3>
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="font-bold text-base">{investor.name}</h3>
+                                                    {investor.isManager && (
+                                                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${isDark ? 'bg-purple-900/30 text-purple-300 border-purple-500/30' : 'bg-purple-100 text-purple-700 border-purple-200'}`}>
+                                                            Gérant
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className={`text-xs ${subtleText}`}>
                                                     Part: <span className="font-semibold text-indigo-500">
                                                         {stats.totalCapital > 0 ? ((investor.capitalInvested / stats.totalCapital) * 100).toFixed(2) : '0.00'}%

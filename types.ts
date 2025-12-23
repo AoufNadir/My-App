@@ -29,6 +29,7 @@ export interface Investor {
   email?: string;
   phone?: string;
   password?: string; // For simple auth simulation if needed
+  isManager?: boolean;
 }
 
 export interface InvestorTransaction {
