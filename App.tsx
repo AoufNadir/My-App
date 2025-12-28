@@ -1387,7 +1387,20 @@ function MainApp({ user }: { user: firebase.User }) {
                 }
                 setAlert('✅ Transaction ajoutée.');
             }
-            await batch.commit(); closeForm();
+            await batch.commit();
+
+            // Redirect if client linked
+            const finalLinkedClientId = linkedClientId;
+            closeForm();
+
+            if (finalLinkedClientId && finalLinkedClientId !== 'none') {
+                setTimeout(() => {
+                    setSelectedClientId(finalLinkedClientId);
+                    setView('dzd');
+                    setClientSearchQuery('');
+                }, 100);
+            }
+
         } catch (error) { console.error(error); setAlert('❌ Erreur.'); } finally { setIsSaving(false); }
     };
 
@@ -1454,7 +1467,20 @@ function MainApp({ user }: { user: firebase.User }) {
                 }
                 setAlert('✅ Transaction ajoutée.');
             }
-            await batch.commit(); closeForm();
+            await batch.commit();
+
+            // Redirect if client linked
+            const finalLinkedClientId = linkedClientId;
+            closeForm();
+
+            if (finalLinkedClientId && finalLinkedClientId !== 'none') {
+                setTimeout(() => {
+                    setSelectedClientId(finalLinkedClientId);
+                    setView('dzd');
+                    setClientSearchQuery('');
+                }, 100);
+            }
+
         } catch (error) { console.error(error); setAlert('❌ Erreur.'); } finally { setIsSaving(false); }
     };
     const handleDeleteConfirm = async () => {
@@ -2519,8 +2545,6 @@ function MainApp({ user }: { user: firebase.User }) {
                                 onAddCapital={() => { setInvestorTxType('deposit_capital'); setIsInvestorTxModalOpen(true); }}
                                 onWithdrawCapital={() => { setInvestorTxType('withdraw_capital'); setIsInvestorTxModalOpen(true); }}
                                 onWithdrawProfit={() => { setInvestorTxType('withdraw_profit'); setIsInvestorTxModalOpen(true); }}
-                                onEdit={() => { setEditingInvestor(investors.find(i => i.id === selectedInvestorId) || null); setIsInvestorModalOpen(true); }}
-                                onDelete={() => { setInvestorToDelete(investors.find(i => i.id === selectedInvestorId) || null); }}
                                 onDeleteTransaction={(tx) => { setInvestorTxToDelete(tx); }}
                                 isDark={isDark}
                                 cardBase={cardBase}

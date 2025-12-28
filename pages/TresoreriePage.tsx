@@ -59,43 +59,21 @@ export function TresoreriePage({
 }: TresoreriePageProps) {
 
   // Formula requested: Capital Total = Crypto + Caisse + BaridiMob + Cartes de Trésorerie (Simple) - (Avances Totales - Dettes Totales)
-
   const dettesAbs = Math.abs(totalDettes);
-
-  // Ensure all values are numbers
   const safeCaisse = Number(caisseBalance) || 0;
   const safeBaridi = Number(baridiBalance) || 0;
   const safePortfolio = Number(portfolioValue) || 0;
-
   const manualCardsTotal = treasuryCards.reduce((acc, card) => acc + (Number(card.value) || 0), 0);
-
-  // Position Nette = Avance - Dettes
   const positionNette = totalAvances - dettesAbs;
-
-  // Capital Total = Assets - (Avances - Dettes)
   const capitalTotal = safeCaisse + safeBaridi + safePortfolio + manualCardsTotal - positionNette;
-
-  // Helper for formatting currency
   const formatDZD = (amount: number) => amount.toFixed(2);
 
-  const StatBox = ({ title, value, colorClass, icon, onEdit }: { title: string, value: string, colorClass: string, icon?: React.ReactNode, onEdit?: () => void }) => (
-    <div className={`p-5 rounded-2xl shadow-sm border transition-all relative group ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'}`}>
-      <div className={`flex items-center justify-between text-sm font-medium mb-2 ${subtleText}`}>
-        <span>{title}</span>
-        <div className="flex items-center gap-2">
-          {onEdit && (
-            <button onClick={onEdit} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-gray-500">
-              <PencilIcon className="w-3.5 h-3.5" />
-            </button>
-          )}
-          {icon}
-        </div>
-      </div>
-      <div className={`text-2xl font-bold ${colorClass}`}>
-        {value} <span className={`text-sm font-normal ${subtleText}`}>DZD</span>
-      </div>
-    </div>
-  );
+  // State for mobile interaction
+  const [activeCardId, setActiveCardId] = React.useState<string | null>(null);
+
+  const handleCardClick = (id?: string) => {
+    if (id) setActiveCardId(prev => prev === id ? null : id);
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -119,24 +97,36 @@ export function TresoreriePage({
           title="Valeur du Stock (Crypto)"
           value={formatDZD(portfolioValue)}
           colorClass="text-teal-400"
+          subtleText={subtleText}
+          isDark={isDark}
           icon={<SparklesIcon className="w-4 h-4 text-teal-500" />}
         />
 
         {/* Row 2: Liquidités (2 Columns) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <StatBox
+            id="caisse"
             title="Caisse (Espèces)"
             value={formatDZD(caisseBalance)}
             colorClass="text-teal-400"
+            subtleText={subtleText}
+            isDark={isDark}
             icon={<WalletIcon className="w-4 h-4 text-teal-500" />}
             onEdit={() => openTreasuryBalanceEditModal('Caisse')}
+            isActive={activeCardId === 'caisse'}
+            onToggle={() => handleCardClick('caisse')}
           />
           <StatBox
+            id="baridi"
             title="BaridiMob"
             value={formatDZD(baridiBalance)}
             colorClass="text-blue-400"
+            subtleText={subtleText}
+            isDark={isDark}
             icon={<div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-500">CCP</div>}
             onEdit={() => openTreasuryBalanceEditModal('BaridiMob')}
+            isActive={activeCardId === 'baridi'}
+            onToggle={() => handleCardClick('baridi')}
           />
         </div>
 
@@ -146,12 +136,16 @@ export function TresoreriePage({
             title="Dettes Totales (À Payer)"
             value={formatDZD(dettesAbs)}
             colorClass="text-red-400"
+            subtleText={subtleText}
+            isDark={isDark}
             icon={<ArrowRightLeftIcon className="w-4 h-4 text-red-500 rotate-45" />}
           />
           <StatBox
             title="Avances Totales (À Recevoir)"
             value={formatDZD(totalAvances)}
             colorClass="text-green-400"
+            subtleText={subtleText}
+            isDark={isDark}
             icon={<ArrowRightLeftIcon className="w-4 h-4 text-green-500 -rotate-45" />}
           />
         </div>
@@ -267,3 +261,53 @@ export function TresoreriePage({
     </motion.div>
   );
 }
+
+// Helper Component defined OUTSIDE to avoid re-renders
+const StatBox = ({
+  title,
+  value,
+  colorClass,
+  icon,
+  onEdit,
+  id,
+  subtleText,
+  isDark,
+  isActive,
+  onToggle
+}: {
+  title: string,
+  value: string,
+  colorClass: string,
+  icon?: React.ReactNode,
+  onEdit?: () => void,
+  id?: string,
+  subtleText: string,
+  isDark: boolean,
+  isActive?: boolean,
+  onToggle?: () => void
+}) => {
+  return (
+    <div
+      onClick={onToggle}
+      className={`p-5 rounded-2xl shadow-sm border transition-all relative group ${onToggle ? 'cursor-pointer' : ''} ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'} ${isActive ? 'ring-2 ring-indigo-500/50' : ''}`}
+    >
+      <div className={`flex items-center justify-between text-sm font-medium mb-2 ${subtleText}`}>
+        <span>{title}</span>
+        <div className="flex items-center gap-2">
+          {onEdit && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              className={`transition-all p-1.5 rounded text-gray-500 hover:bg-slate-200 dark:hover:bg-slate-700 ${isActive ? 'opacity-100 bg-slate-100 dark:bg-slate-800' : 'opacity-0 group-hover:opacity-100'}`}
+            >
+              <PencilIcon className="w-4 h-4" />
+            </button>
+          )}
+          {icon}
+        </div>
+      </div>
+      <div className={`text-2xl font-bold ${colorClass}`}>
+        {value} <span className={`text-sm font-normal ${subtleText}`}>DZD</span>
+      </div>
+    </div>
+  );
+};

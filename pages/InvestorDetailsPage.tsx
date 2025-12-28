@@ -7,11 +7,7 @@ import { Investor, InvestorTransaction } from '../types';
 import { PlusIcon } from '../components/icons/PlusIcon';
 import { MinusIcon } from '../components/icons/MinusIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
-import { TrashIcon } from '../components/icons/TrashIcon';
-import { PencilIcon } from '../components/icons/PencilIcon';
-
 import { SwipeableListItem } from '../components/ui/SwipeableListItem';
-import { LayoutDashboardIcon } from '../components/icons/LayoutDashboardIcon';
 
 interface InvestorDetailsPageProps {
     investor: Investor;
@@ -20,8 +16,6 @@ interface InvestorDetailsPageProps {
     onAddCapital: () => void;
     onWithdrawCapital: () => void;
     onWithdrawProfit: () => void;
-    onEdit: () => void;
-    onDelete: () => void;
     onDeleteTransaction: (tx: InvestorTransaction) => void;
     isDark: boolean;
     cardBase: string;
@@ -38,8 +32,6 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({
     onAddCapital,
     onWithdrawCapital,
     onWithdrawProfit,
-    onEdit,
-    onDelete,
     onDeleteTransaction,
     isDark,
     cardBase,
@@ -73,49 +65,44 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({
                         Investisseur depuis le {new Date(investor.entryDate).toLocaleDateString('fr-FR')}
                     </p>
                 </div>
-                <div className="ml-auto flex gap-2">
-                    <Button onClick={() => window.open(`/investor?id=${investor.id}`, '_blank')} className={`p-2 rounded-lg ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-gray-50'} border border-gray-200 dark:border-gray-700`} title="Voir le Tableau de Bord">
-                        <LayoutDashboardIcon className="w-5 h-5 text-indigo-500" />
-                    </Button>
-                    <Button onClick={onEdit} className={`p-2 rounded-lg ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-gray-50'} border border-gray-200 dark:border-gray-700`}>
-                        <PencilIcon className="w-5 h-5 text-blue-500" />
-                    </Button>
-                    <Button onClick={onDelete} className={`p-2 rounded-lg ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-gray-50'} border border-gray-200 dark:border-gray-700`}>
-                        <TrashIcon className="w-5 h-5 text-red-500" />
-                    </Button>
-                </div>
             </div>
 
             {/* Main Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Card className={`${cardBase} border-l-4 border-l-indigo-500`}>
-                    <CardContent className="p-4">
-                        <p className={`text-sm font-medium ${subtleText}`}>Capital Investi</p>
-                        <div className="flex items-end gap-2 mt-1">
-                            <h2 className="text-2xl font-bold">{investor.capitalInvested.toLocaleString('fr-FR')} DZD</h2>
-                            <span className="text-sm font-semibold text-indigo-500 mb-1">
-                                ({(investor.sharePercentage * 100).toFixed(2)}%)
-                            </span>
+                <Card className={`${cardBase} border-l-4 border-l-indigo-500 h-full min-h-[220px]`}>
+                    <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full gap-4">
+                        <div className="flex flex-col items-center gap-2">
+                            <p className={`text-sm font-medium ${subtleText} uppercase tracking-wider opacity-70`}>Capital Investi</p>
+                            <div className="flex flex-col items-center">
+                                <h2 className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
+                                    {investor.capitalInvested.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} <span className="text-lg text-gray-400 font-normal">DZD</span>
+                                </h2>
+                                <span className="text-xs font-bold text-indigo-500/80 bg-indigo-50 dark:bg-indigo-900/20 px-2 py-0.5 rounded-full mt-1">
+                                    {(investor.sharePercentage * 100).toFixed(2)}% du fond
+                                </span>
+                            </div>
                         </div>
-                        <div className="flex gap-2 mt-4">
-                            <Button onClick={onAddCapital} className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2">
+                        <div className="flex gap-2 w-full mt-2">
+                            <Button onClick={onAddCapital} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95">
                                 <PlusIcon className="w-4 h-4" /> Ajouter
                             </Button>
-                            <Button onClick={onWithdrawCapital} className="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-lg text-sm font-bold flex items-center justify-center gap-2">
+                            <Button onClick={onWithdrawCapital} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-transform active:scale-95">
                                 <MinusIcon className="w-4 h-4" /> Retirer
                             </Button>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className={`${cardBase} border-l-4 border-l-emerald-500`}>
-                    <CardContent className="p-4">
-                        <p className={`text-sm font-medium ${subtleText}`}>Bénéfices Disponibles</p>
-                        <h2 className="text-2xl font-bold text-emerald-500 mt-1">
-                            {currentAvailable.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
-                        </h2>
-                        <div className="flex gap-2 mt-4">
-                            <Button onClick={onWithdrawProfit} className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2">
+                <Card className={`${cardBase} border-l-4 border-l-emerald-500 h-full min-h-[220px]`}>
+                    <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full gap-4">
+                        <div className="flex flex-col items-center gap-2">
+                            <p className={`text-sm font-medium ${subtleText} uppercase tracking-wider opacity-70`}>Bénéfices Disponibles</p>
+                            <h2 className="text-3xl font-bold text-emerald-500">
+                                {currentAvailable.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-lg text-gray-400 font-normal">DZD</span>
+                            </h2>
+                        </div>
+                        <div className="flex gap-2 w-full mt-2">
+                            <Button onClick={onWithdrawProfit} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-transform active:scale-95">
                                 <WalletIcon className="w-4 h-4" /> Retirer Bénéfices
                             </Button>
                         </div>
@@ -125,19 +112,19 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({
 
             {/* Secondary Stats */}
             <div className="grid grid-cols-2 gap-4">
-                <Card className={cardBase}>
-                    <CardContent className="p-4 text-center">
-                        <p className={`text-xs ${subtleText}`}>Total Gagné</p>
+                <Card className={`${cardBase} h-full min-h-[100px]`}>
+                    <CardContent className="p-4 flex flex-col items-center justify-center text-center h-full gap-1">
+                        <p className={`text-xs font-medium ${subtleText} opacity-70`}>Total Gagné</p>
                         <p className="text-lg font-bold text-green-500">
-                            +{currentTotalProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                            +{currentTotalProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD
                         </p>
                     </CardContent>
                 </Card>
-                <Card className={cardBase}>
-                    <CardContent className="p-4 text-center">
-                        <p className={`text-xs ${subtleText}`}>Total Retiré</p>
+                <Card className={`${cardBase} h-full min-h-[100px]`}>
+                    <CardContent className="p-4 flex flex-col items-center justify-center text-center h-full gap-1">
+                        <p className={`text-xs font-medium ${subtleText} opacity-70`}>Total Retiré</p>
                         <p className="text-lg font-bold text-orange-500">
-                            -{investor.withdrawnProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                            -{investor.withdrawnProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD
                         </p>
                     </CardContent>
                 </Card>
@@ -168,41 +155,42 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({
                                 <p className="p-8 text-center text-sm opacity-50">Aucune transaction.</p>
                             ) : (
                                 transactions.map((tx) => (
-                                    <SwipeableListItem
-                                        key={tx.id}
-                                        onDelete={() => onDeleteTransaction(tx)}
-                                    >
-                                        <div className={`p-4 flex items-center justify-between w-full ${isDark ? 'bg-[#111827]' : 'bg-white'}`}>
-                                            <div className="flex items-center gap-3">
-                                                <div className={`p-2 rounded-full ${tx.type === 'profit_distribution' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
-                                                    tx.type === 'withdraw_profit' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
-                                                        tx.type === 'deposit_capital' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
-                                                            'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                                                    }`}>
-                                                    {tx.type === 'profit_distribution' && <PlusIcon className="w-4 h-4" />}
-                                                    {tx.type === 'withdraw_profit' && <WalletIcon className="w-4 h-4" />}
-                                                    {tx.type === 'deposit_capital' && <PlusIcon className="w-4 h-4" />}
-                                                    {tx.type === 'withdraw_capital' && <MinusIcon className="w-4 h-4" />}
+                                    <React.Fragment key={tx.id}>
+                                        <SwipeableListItem
+                                            onDelete={() => onDeleteTransaction(tx)}
+                                        >
+                                            <div className={`p-4 flex items-center justify-between w-full ${isDark ? 'bg-[#111827]' : 'bg-white'}`}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-2 rounded-full ${tx.type === 'profit_distribution' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
+                                                        tx.type === 'withdraw_profit' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
+                                                            tx.type === 'deposit_capital' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                                'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                                                        }`}>
+                                                        {tx.type === 'profit_distribution' && <PlusIcon className="w-4 h-4" />}
+                                                        {tx.type === 'withdraw_profit' && <WalletIcon className="w-4 h-4" />}
+                                                        {tx.type === 'deposit_capital' && <PlusIcon className="w-4 h-4" />}
+                                                        {tx.type === 'withdraw_capital' && <MinusIcon className="w-4 h-4" />}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-sm">
+                                                            {tx.type === 'profit_distribution' ? 'Distribution de Profit' :
+                                                                tx.type === 'withdraw_profit' ? 'Retrait de Bénéfices' :
+                                                                    tx.type === 'deposit_capital' ? 'Ajout de Capital' : 'Retrait de Capital'}
+                                                        </p>
+                                                        <p className={`text-xs ${subtleText} opacity-70`}>{tx.date} à {tx.time}</p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="font-bold text-sm">
-                                                        {tx.type === 'profit_distribution' ? 'Distribution de Profit' :
-                                                            tx.type === 'withdraw_profit' ? 'Retrait de Bénéfices' :
-                                                                tx.type === 'deposit_capital' ? 'Ajout de Capital' : 'Retrait de Capital'}
+                                                <div className="text-right">
+                                                    <p className={`font-bold ${tx.type === 'profit_distribution' || tx.type === 'deposit_capital' ? 'text-green-500' : 'text-red-500'
+                                                        }`}>
+                                                        {tx.type === 'profit_distribution' || tx.type === 'deposit_capital' ? '+' : '-'}
+                                                        {tx.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD
                                                     </p>
-                                                    <p className={`text-xs ${subtleText}`}>{tx.date} à {tx.time}</p>
+                                                    {tx.notes && <p className={`text-xs ${subtleText}`}>{tx.notes}</p>}
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className={`font-bold ${tx.type === 'profit_distribution' || tx.type === 'deposit_capital' ? 'text-green-500' : 'text-red-500'
-                                                    }`}>
-                                                    {tx.type === 'profit_distribution' || tx.type === 'deposit_capital' ? '+' : '-'}
-                                                    {tx.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
-                                                </p>
-                                                {tx.notes && <p className={`text-xs ${subtleText}`}>{tx.notes}</p>}
-                                            </div>
-                                        </div>
-                                    </SwipeableListItem>
+                                        </SwipeableListItem>
+                                    </React.Fragment>
                                 ))
                             )}
                         </div>
@@ -221,7 +209,6 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({
                     {/* Add charts or more stats here later */}
                 </div>
             )}
-
         </motion.div>
     );
 };

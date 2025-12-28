@@ -56,7 +56,9 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({
             return sum + (profitShare - inv.withdrawnProfit);
         }, 0);
 
-        return { totalCapital, totalProfitDistributed, totalAvailable, investorPool };
+        const totalWithdrawn = investors.reduce((sum, inv) => sum + inv.withdrawnProfit, 0);
+
+        return { totalCapital, totalProfitDistributed, totalAvailable, investorPool, managerFee, totalWithdrawn };
     }, [investors, globalNetProfit, managerFeePercentage]);
 
     return (
@@ -65,64 +67,76 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({
 
 
 
-            {/* Manager Fee Config (Admin Only visually) */}
-            <Card className={`${cardBase} border-l-4 border-l-purple-500`}>
-                <CardContent className="p-4 flex items-center justify-between">
-                    <div>
-                        <h3 className="font-bold text-lg">Configuration Commission Gérant</h3>
-                        <p className={`text-sm ${subtleText}`}>Pourcentage prélevé sur le bénéfice net avant distribution.</p>
+            {/* Manager Fee Config (Compact Settings Card - Vertically Centered) */}
+            {/* Manager Fee Config (Horizontal Layout - Vertically Centered) */}
+            <Card className={`${cardBase} border border-white/5 bg-slate-900/60 backdrop-blur-sm min-h-[100px] flex flex-col justify-center`}>
+                <CardContent className="w-full flex items-center justify-between p-4 px-6">
+                    <div className="flex flex-col justify-center">
+                        <h3 className="font-medium text-sm text-slate-300">Commission Gérant</h3>
+                        <p className="text-xs font-bold text-purple-400 mt-1">
+                            Prélèvement : {stats.managerFee.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD
+                        </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <div className="relative w-32">
-                            <input
-                                type="number"
-                                value={managerFeePercentage}
-                                onChange={(e) => setManagerFeePercentage(e.target.value)}
-                                className="w-full pl-3 pr-8 py-2 rounded-lg border bg-transparent font-bold text-right"
-                                placeholder="20"
-                            />
-                            <span className="absolute right-3 top-2 opacity-50">%</span>
-                        </div>
+                    <div className="flex items-center gap-2 bg-slate-800 rounded-lg border border-white/10 px-3 py-2">
+                        <input
+                            type="number"
+                            value={managerFeePercentage}
+                            onChange={(e) => setManagerFeePercentage(e.target.value)}
+                            className="w-12 bg-transparent font-bold text-right text-sm text-white outline-none"
+                            placeholder="20"
+                        />
+                        <span className="text-sm text-gray-500 font-medium">%</span>
                     </div>
                 </CardContent>
             </Card>
 
             {/* Global Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Card className={`${cardBase} bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/20`}>
-                    <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                        <p className={`text-sm font-medium ${subtleText} mb-1`}>Capital Total Investi</p>
+            <div className={`grid grid-cols-1 ${stats.totalWithdrawn > 0 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-4`}>
+                <Card className={`${cardBase} bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/20 h-full min-h-[120px] sm:min-h-[140px]`}>
+                    <CardContent className="h-full flex flex-col justify-center items-center text-center gap-2 p-6">
+                        <p className={`text-sm font-medium ${subtleText} uppercase tracking-wider opacity-70`}>Capital Total</p>
                         <p className="text-2xl font-bold text-indigo-500">
-                            {stats.totalCapital.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                            {stats.totalCapital.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-sm text-gray-400 font-normal">DZD</span>
                         </p>
                     </CardContent>
                 </Card>
-                <Card className={`${cardBase} bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border-emerald-500/20`}>
-                    <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                        <p className={`text-sm font-medium ${subtleText} mb-1`}>Part Bénéfices (Globale)</p>
+
+                <Card className={`${cardBase} bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border-emerald-500/20 h-full min-h-[120px] sm:min-h-[140px]`}>
+                    <CardContent className="h-full flex flex-col justify-center items-center text-center gap-2 p-6">
+                        <p className={`text-sm font-medium ${subtleText} uppercase tracking-wider opacity-70`}>Part Bénéfices (Globale)</p>
                         <p className="text-2xl font-bold text-emerald-500">
-                            {stats.totalProfitDistributed.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+                            {stats.totalProfitDistributed.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-sm text-gray-400 font-normal">DZD</span>
                         </p>
+                        {stats.totalWithdrawn === 0 && (
+                            <p className="text-[10px] text-gray-400 font-medium">Aucun retrait effectué</p>
+                        )}
                     </CardContent>
                 </Card>
-                <Card className={`${cardBase} bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/20`}>
-                    <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                        <p className={`text-sm font-medium ${subtleText} mb-1`}>Bénéfices Disponibles</p>
-                        <p className="text-2xl font-bold text-amber-500">
-                            {stats.totalAvailable.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
-                        </p>
-                    </CardContent>
-                </Card>
+
+                {stats.totalWithdrawn > 0 && (
+                    <Card className={`${cardBase} bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/20 h-full min-h-[120px] sm:min-h-[140px]`}>
+                        <CardContent className="h-full flex flex-col justify-center items-center text-center gap-2 p-6">
+                            <p className={`text-sm font-medium ${subtleText} uppercase tracking-wider opacity-70`}>Bénéfices Disp. (Après Retraits)</p>
+                            <p className="text-2xl font-bold text-amber-500">
+                                {stats.totalAvailable.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-sm text-gray-400 font-normal">DZD</span>
+                            </p>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
 
             {/* Action Button */}
-            <Button
-                onClick={onAddInvestor}
-                className="w-full py-4 rounded-xl shadow-lg font-bold text-lg text-white flex items-center justify-center gap-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 transition-all transform hover:scale-[1.01]"
-            >
-                <PlusIcon className="w-6 h-6" />
-                Nouvel Investisseur
-            </Button>
+            {/* Floating Action Button (FAB) for New Investor */}
+            <div className="fixed bottom-24 right-4 z-50">
+                <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={onAddInvestor}
+                    className="w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl flex items-center justify-center transition-colors focus:outline-none"
+                >
+                    <PlusIcon className="w-8 h-8" />
+                </motion.button>
+            </div>
 
             {/* Investors List */}
             <Card className={cardBase}>
@@ -142,54 +156,55 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({
                     ) : (
                         <div className="divide-y divide-gray-100 dark:divide-gray-800">
                             {investors.map((investor) => (
-                                <SwipeableListItem
-                                    key={investor.id}
-                                    onEdit={() => onEditInvestor(investor)}
-                                    onDelete={() => onDeleteInvestor(investor)}
-                                >
-                                    <div
-                                        onClick={() => onOpenInvestor(investor)}
-                                        className={`p-4 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer flex items-center justify-between group w-full ${isDark ? 'bg-[#111827]' : 'bg-white'}`}
+                                <React.Fragment key={investor.id}>
+                                    <SwipeableListItem
+                                        onEdit={() => onEditInvestor(investor)}
+                                        onDelete={() => onDeleteInvestor(investor)}
                                     >
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${isDark ? 'bg-indigo-900/50 text-indigo-300' : 'bg-indigo-100 text-indigo-600'}`}>
-                                                {investor.name.charAt(0).toUpperCase()}
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <h3 className="font-bold text-base">{investor.name}</h3>
-                                                    {investor.isManager && (
-                                                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${isDark ? 'bg-purple-900/30 text-purple-300 border-purple-500/30' : 'bg-purple-100 text-purple-700 border-purple-200'}`}>
-                                                            Gérant
-                                                        </span>
-                                                    )}
+                                        <div
+                                            onClick={() => onOpenInvestor(investor)}
+                                            className={`p-4 transition-colors cursor-pointer flex items-center justify-between group w-full ${isDark ? 'bg-[#111827] hover:bg-white/5' : 'bg-white hover:bg-gray-50'}`}
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${isDark ? 'bg-indigo-900/50 text-indigo-300' : 'bg-indigo-100 text-indigo-600'}`}>
+                                                    {investor.name.charAt(0).toUpperCase()}
                                                 </div>
-                                                <p className={`text-xs ${subtleText}`}>
-                                                    Part: <span className="font-semibold text-indigo-500">
-                                                        {stats.totalCapital > 0 ? ((investor.capitalInvested / stats.totalCapital) * 100).toFixed(2) : '0.00'}%
-                                                    </span>
-                                                    {' • '}
-                                                    Entrée: {new Date(investor.entryDate).toLocaleDateString('fr-FR')}
-                                                </p>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <h3 className="font-bold text-base">{investor.name}</h3>
+                                                        {investor.isManager && (
+                                                            <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${isDark ? 'bg-purple-900/30 text-purple-300 border-purple-500/30' : 'bg-purple-100 text-purple-700 border-purple-200'}`}>
+                                                                Gérant
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className={`text-xs ${subtleText}`}>
+                                                        Part: <span className="font-semibold text-indigo-500">
+                                                            {stats.totalCapital > 0 ? ((investor.capitalInvested / stats.totalCapital) * 100).toFixed(2) : '0.00'}%
+                                                        </span>
+                                                        {' • '}
+                                                        Entrée: {new Date(investor.entryDate).toLocaleDateString('fr-FR')}
+                                                    </p>
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <div className="flex items-center gap-4 text-right">
-                                            <div>
-                                                <p className="font-bold text-sm">{investor.capitalInvested.toLocaleString('fr-FR')} DZD</p>
-                                                <p className="text-xs text-emerald-500 font-medium">
-                                                    {(() => {
-                                                        const share = stats.totalCapital > 0 ? (investor.capitalInvested / stats.totalCapital) : 0;
-                                                        const profit = stats.investorPool * share;
-                                                        const avail = profit - investor.withdrawnProfit;
-                                                        return `+${avail.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD`;
-                                                    })()}
-                                                </p>
+                                            <div className="flex items-center gap-4 text-right">
+                                                <div>
+                                                    <p className="font-bold text-sm text-right">{investor.capitalInvested.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</p>
+                                                    <p className="text-xs text-emerald-500 font-medium text-right">
+                                                        {(() => {
+                                                            const share = stats.totalCapital > 0 ? (investor.capitalInvested / stats.totalCapital) : 0;
+                                                            const profit = stats.investorPool * share;
+                                                            const avail = profit - investor.withdrawnProfit;
+                                                            return `+${avail.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD`;
+                                                        })()}
+                                                    </p>
+                                                </div>
+                                                <ChevronRightIcon className={`w-5 h-5 ${subtleText} group-hover:text-indigo-500 transition-colors`} />
                                             </div>
-                                            <ChevronRightIcon className={`w-5 h-5 ${subtleText} group-hover:text-indigo-500 transition-colors`} />
                                         </div>
-                                    </div>
-                                </SwipeableListItem>
+                                    </SwipeableListItem>
+                                </React.Fragment>
                             ))}
                         </div>
                     )}
