@@ -65,9 +65,9 @@ import { applyTransactionDelete, applyTransactionUpdate } from './src/transactio
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { GlobeIcon } from './components/icons/GlobeIcon';
 
-const MotionDiv = motion.div;
+import * as htmlToImage from 'html-to-image';
 
-declare const html2canvas: any;
+const MotionDiv = motion.div;
 
 // ===== FIREBASE SETUP =====
 const firebaseConfig = {
@@ -1235,22 +1235,48 @@ function MainApp({ user }: { user: firebase.User }) {
         return getClientBalance(transferToClientId);
     }, [transferToClientId, clientTransactionsDzd]);
 
-    const isFormValid = useMemo(() => {
-        if (paymentMethod === 'Crédit' && (!linkedClientId || linkedClientId === 'none')) return false;
+    const formValidation = useMemo(() => {
+        const errors: Record<string, string> = {};
+        let isValid = true;
+
+        const addError = (field: string, msg: string) => {
+            errors[field] = msg;
+            isValid = false;
+        };
+
         if (mode === 'buy_usdt') {
-            if (buyUsdtMode === 'with_dzd') return parseAndEvaluate(buyUsdtAmount) > 0 && parseAndEvaluate(buyUsdtPrice) > 0;
-            if (buyUsdtMode === 'with_eur') return parseAndEvaluate(buyEurForUsdtAmount) > 0 && parseAndEvaluate(eurDzdPrice) > 0 && parseAndEvaluate(eurUsdtRate) > 0 && parseAndEvaluate(buyEurForUsdtAmount) <= portfolioStats.eur.available;
-            return false;
-        }
-        if (mode === 'buy_eur') return parseAndEvaluate(buyEurAmount) > 0 && parseAndEvaluate(buyEurPrice) > 0;
-        if (mode === 'sell_usdt') {
+            if (buyUsdtMode === 'with_dzd') {
+                if (parseAndEvaluate(buyUsdtAmount) <= 0) addError('buyUsdtAmount', 'Veuillez entrer la quantité');
+                if (parseAndEvaluate(buyUsdtPrice) <= 0) addError('buyUsdtPrice', 'Veuillez entrer le prix');
+                if (parseAndEvaluate(buyUsdtTotal) <= 0) addError('buyUsdtTotal', 'Montant total invalide');
+                if (!linkedClientId || linkedClientId === '' || linkedClientId === 'none') addError('linkedClientId', 'Veuillez sélectionner un client');
+            } else if (buyUsdtMode === 'with_eur') {
+                if (parseAndEvaluate(buyEurForUsdtAmount) <= 0) addError('buyEurForUsdtAmount', 'Quantité requise');
+                if (parseAndEvaluate(eurDzdPrice) <= 0) addError('eurDzdPrice', 'Prix requis');
+                if (parseAndEvaluate(eurUsdtRate) <= 0) addError('eurUsdtRate', 'Taux requis');
+                if (parseAndEvaluate(buyEurForUsdtAmount) > portfolioStats.eur.available) addError('buyEurForUsdtAmount', 'Solde insuffisant');
+            }
+        } else if (mode === 'buy_eur') {
+            if (parseAndEvaluate(buyEurAmount) <= 0) addError('buyEurAmount', 'Quantité requise');
+            if (parseAndEvaluate(buyEurPrice) <= 0) addError('buyEurPrice', 'Prix requis');
+            if (parseAndEvaluate(buyEurTotal) <= 0) addError('buyEurTotal', 'Montant total invalide');
+            if (!linkedClientId || linkedClientId === '' || linkedClientId === 'none') addError('linkedClientId', 'Veuillez sélectionner un client');
+        } else if (mode === 'sell_usdt') {
             const amt = parseAndEvaluate(sellAmount);
-            const prc = parseAndEvaluate(sellPrice);
+            if (amt <= 0) addError('sellAmount', 'Quantité requise');
+            if (parseAndEvaluate(sellPrice) <= 0) addError('sellPrice', 'Prix requis');
+            if (parseAndEvaluate(sellTotal) <= 0) addError('sellTotal', 'Montant total invalide');
             const avail = portfolioStats.usdt.available + (editingTx?.type === 'sell' ? editingTx.quantity : 0);
-            return amt > 0 && prc > 0 && amt <= avail;
+            if (amt > avail) addError('sellAmount', 'Solde insuffisant');
+            if (!linkedClientId || linkedClientId === '' || linkedClientId === 'none') addError('linkedClientId', 'Veuillez sélectionner un client');
         }
-        return false;
-    }, [mode, buyUsdtMode, buyUsdtAmount, buyUsdtPrice, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, sellAmount, sellPrice, portfolioStats.eur.available, portfolioStats.usdt.available, editingTx, paymentMethod, linkedClientId]);
+
+        if (paymentMethod === 'Crédit' && (!linkedClientId || linkedClientId === 'none')) {
+            addError('linkedClientId', 'Client requis pour crédit');
+        }
+
+        return { isValid, errors };
+    }, [mode, buyUsdtMode, buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, portfolioStats.eur.available, portfolioStats.usdt.available, editingTx, paymentMethod, linkedClientId]);
 
     const openForm = (newMode: 'buy_usdt' | 'sell_usdt' | 'buy_eur', txToEdit: Tx | null = null) => {
         setBuyUsdtAmount(''); setBuyUsdtPrice(''); setBuyEurAmount(''); setBuyEurPrice('');
@@ -1308,7 +1334,7 @@ function MainApp({ user }: { user: firebase.User }) {
     const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setIsTotalManual(false); };
 
     const handleBuy = async () => {
-        if (!isFormValid || isSaving) return;
+        if (!formValidation.isValid || isSaving) return;
         setIsSaving(true); setAlert('');
         try {
             const batch = db.batch();
@@ -1405,7 +1431,7 @@ function MainApp({ user }: { user: firebase.User }) {
     };
 
     const handleSell = async () => {
-        if (!isFormValid || isSaving) return;
+        if (!formValidation.isValid || isSaving) return;
         setIsSaving(true); setAlert('');
         try {
             let quantity = parseAndEvaluate(sellAmount);
@@ -2254,14 +2280,19 @@ function MainApp({ user }: { user: firebase.User }) {
         } catch (e) { setAlert("❌ Erreur."); } finally { setIsSaving(false); }
     };
 
-    const ClientLinker = ({ isEditing, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }: any) => {
+    const ClientLinker = ({ isEditing, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus, errorMessage, hasError }: any) => {
 
         return (
             <div className="pb-2 space-y-2">
                 <div>
-                    <Label htmlFor="link_client_buy">Lier à un client DZD (Optionnel)</Label>
+                    <Label htmlFor="link_client_buy">Lier à un client DZD</Label>
                     <div className="flex items-center gap-2">
-                        <Select id="link_client_buy" value={linkedClientId} onChange={(e: any) => setLinkedClientId(e.target.value)} className={`${fieldBase} focus:ring-amber-400 rounded-xl flex-grow`}>
+                        <Select
+                            id="link_client_buy"
+                            value={linkedClientId}
+                            onChange={(e: any) => setLinkedClientId(e.target.value)}
+                            className={`${fieldBase} focus:ring-amber-400 rounded-xl flex-grow ${hasError ? 'border-red-500 ring-1 ring-red-500' : ''}`}
+                        >
                             <option value="none">Aucun / Sans client</option>
                             {clientsDzd.map((c: any) => (<option key={c.id} value={c.id}>{c.fullName || c.nom}</option>))}
                         </Select>
@@ -2269,6 +2300,7 @@ function MainApp({ user }: { user: firebase.User }) {
                             <PlusIcon className="w-5 h-5" />
                         </Button>
                     </div>
+                    {errorMessage && <p className="text-red-500 text-xs mt-1">{errorMessage}</p>}
                 </div>
                 {linkedClientId && linkedClientId !== 'none' && (
                     <div>
@@ -3019,8 +3051,9 @@ function MainApp({ user }: { user: firebase.User }) {
                                                             }
                                                         }
                                                     }}
-                                                    className={fieldBase}
+                                                    className={`${fieldBase} ${formValidation.errors['buyUsdtAmount'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                                 />
+                                                {formValidation.errors['buyUsdtAmount'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['buyUsdtAmount']}</p>}
                                             </div>
                                             <div>
                                                 <Label>{t('transactions.buyPrice')} ({t('common.dinar')})</Label>
@@ -3039,8 +3072,9 @@ function MainApp({ user }: { user: firebase.User }) {
                                                             }
                                                         }
                                                     }}
-                                                    className={fieldBase}
+                                                    className={`${fieldBase} ${formValidation.errors['buyUsdtPrice'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                                 />
+                                                {formValidation.errors['buyUsdtPrice'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['buyUsdtPrice']}</p>}
                                             </div>
                                             <div>
                                                 <Label>{t('transactions.totalAmount')} ({t('common.dinar')})</Label>
@@ -3065,12 +3099,17 @@ function MainApp({ user }: { user: firebase.User }) {
                                                             if (qty > 0 && price > 0) setBuyUsdtTotal((qty * price).toFixed(2));
                                                         }
                                                     }}
-                                                    className={fieldBase}
+                                                    className={`${fieldBase} ${formValidation.errors['buyUsdtTotal'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                                     placeholder={t('transactions.autoCalc')}
                                                 />
+                                                {formValidation.errors['buyUsdtTotal'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['buyUsdtTotal']}</p>}
                                                 <p className={`text-xs mt-1 ${subtleText}`}>{t('transactions.autoCalc')}</p>
                                             </div>
-                                            <ClientLinker {...{ isEditing: !!editingTx, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
+                                            <ClientLinker
+                                                {...{ isEditing: !!editingTx, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }}
+                                                errorMessage={formValidation.errors['linkedClientId']}
+                                                hasError={!!formValidation.errors['linkedClientId']}
+                                            />
                                             <div>
                                                 <Label>{t('common.notesOptional')}</Label>
                                                 <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
@@ -3089,8 +3128,9 @@ function MainApp({ user }: { user: firebase.User }) {
                                                         onChange={e => {
                                                             setBuyEurForUsdtAmount(e.target.value);
                                                         }}
-                                                        className={fieldBase}
+                                                        className={`${fieldBase} ${formValidation.errors['buyEurForUsdtAmount'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                                     />
+                                                    {formValidation.errors['buyEurForUsdtAmount'] && <p className="text-red-500 text-xs mt-1 absolute -bottom-5 left-0">{formValidation.errors['buyEurForUsdtAmount']}</p>}
                                                     <button onClick={() => setBuyEurForUsdtAmount(portfolioStats.eur.available.toString())} className="absolute right-2 top-2 text-xs bg-blue-600 text-white px-2 py-1 rounded">{t('common.max')}</button>
                                                 </div>
                                                 <p className={`text-xs mt-1 ${subtleText}`}>{t('portfolio.currentBalanceEur')}: {portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} EUR</p>
@@ -3106,6 +3146,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                     className={fieldBase}
                                                 />
                                                 <p className={`text-xs mt-1 ${subtleText}`}>{t('transactions.basedOnPamEur')}</p>
+                                                {formValidation.errors['eurDzdPrice'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['eurDzdPrice']}</p>}
                                             </div>
                                             <div>
                                                 <Label>{t('portfolio.rateEurUsdt')}</Label>
@@ -3114,9 +3155,10 @@ function MainApp({ user }: { user: firebase.User }) {
                                                     onChange={e => {
                                                         setEurUsdtRate(e.target.value);
                                                     }}
-                                                    className={fieldBase}
+                                                    className={`${fieldBase} ${formValidation.errors['eurUsdtRate'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                                     placeholder="Ex: 0.92"
                                                 />
+                                                {formValidation.errors['eurUsdtRate'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['eurUsdtRate']}</p>}
                                             </div>
 
                                             {/* Calculated USDT Quantity Message */}
@@ -3184,6 +3226,7 @@ function MainApp({ user }: { user: firebase.User }) {
                                                     }} className="absolute right-2 top-2 text-xs bg-sky-600 text-white px-2 py-1 rounded">{t('common.max')}</button>
                                                 </div>
                                                 <p className={`text-xs mt-1 ${subtleText}`}>{t('common.balance')}: {portfolioStats.usdt.available.toLocaleString()} USDT</p>
+                                                {formValidation.errors['sellAmount'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['sellAmount']}</p>}
                                             </div>
 
                                             <div>
@@ -3209,9 +3252,10 @@ function MainApp({ user }: { user: firebase.User }) {
                                                             if (qty > 0 && price > 0) setSellTotal((qty * price).toFixed(2));
                                                         }
                                                     }}
-                                                    className={fieldBase}
+                                                    className={`${fieldBase} ${formValidation.errors['sellTotal'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                                     placeholder="0.00"
                                                 />
+                                                {formValidation.errors['sellTotal'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['sellTotal']}</p>}
                                             </div>
 
                                             <div className={`p-3 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
@@ -3246,8 +3290,9 @@ function MainApp({ user }: { user: firebase.User }) {
                                                                 setProfitPercent(margin.toFixed(2));
                                                             }
                                                         }}
-                                                        className={fieldBase}
+                                                        className={`${fieldBase} ${formValidation.errors['sellPrice'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                                     />
+                                                    {formValidation.errors['sellPrice'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['sellPrice']}</p>}
                                                 </div>
                                                 <div>
                                                     <Label>{t('portfolio.margin')} ({t('common.dinar')})</Label>
@@ -3272,7 +3317,11 @@ function MainApp({ user }: { user: firebase.User }) {
                                                     />
                                                 </div>
                                             </div>
-                                            <ClientLinker {...{ isEditing: !!editingTx, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
+                                            <ClientLinker
+                                                {...{ isEditing: !!editingTx, linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }}
+                                                errorMessage={formValidation.errors['linkedClientId']}
+                                                hasError={!!formValidation.errors['linkedClientId']}
+                                            />
                                             <div><Label>{t('common.notesOptional')}</Label><Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} /></div>
                                         </>
                                     )}
@@ -3297,8 +3346,9 @@ function MainApp({ user }: { user: firebase.User }) {
                                                             }
                                                         }
                                                     }}
-                                                    className={fieldBase}
+                                                    className={`${fieldBase} ${formValidation.errors['buyEurAmount'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                                 />
+                                                {formValidation.errors['buyEurAmount'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['buyEurAmount']}</p>}
                                             </div>
                                             <div>
                                                 <Label>{t('portfolio.buyPriceEur')} ({t('common.dinar')})</Label>
@@ -3317,8 +3367,9 @@ function MainApp({ user }: { user: firebase.User }) {
                                                             }
                                                         }
                                                     }}
-                                                    className={fieldBase}
+                                                    className={`${fieldBase} ${formValidation.errors['buyEurPrice'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                                 />
+                                                {formValidation.errors['buyEurPrice'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['buyEurPrice']}</p>}
                                                 <p className={`text-xs mt-1 ${subtleText}`}>{t('transactions.basedOnPamEur')}</p>
                                             </div>
                                             <div>
@@ -3344,12 +3395,17 @@ function MainApp({ user }: { user: firebase.User }) {
                                                             if (qty > 0 && price > 0) setBuyEurTotal((qty * price).toFixed(2));
                                                         }
                                                     }}
-                                                    className={fieldBase}
+                                                    className={`${fieldBase} ${formValidation.errors['buyEurTotal'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                                     placeholder={t('transactions.autoCalc')}
                                                 />
+                                                {formValidation.errors['buyEurTotal'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['buyEurTotal']}</p>}
                                                 <p className={`text-xs mt-1 ${subtleText}`}>{t('transactions.autoCalc')}</p>
                                             </div>
-                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
+                                            <ClientLinker
+                                                {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }}
+                                                errorMessage={formValidation.errors['linkedClientId']}
+                                                hasError={!!formValidation.errors['linkedClientId']}
+                                            />
                                             <div>
                                                 <Label>{t('common.notesOptional')}</Label>
                                                 <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
@@ -3379,8 +3435,39 @@ function MainApp({ user }: { user: firebase.User }) {
                             )}
                         </>
                     )}
+                    {/* Validation Alert */}
+                    {!formValidation.isValid && (
+                        <div className="mx-6 mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
+                                <span className="text-red-500 font-bold">!</span>
+                            </div>
+                            <p className="text-sm text-red-500 font-medium">
+                                {t('transactions.fillAllFields') || "Veuillez remplir correctement tous les champs obligatoires."}
+                            </p>
+                        </div>
+                    )}
                 </DialogContent>
-                <DialogFooter>{(mode !== 'buy_usdt' || buyUsdtMode) && <Button onClick={mode?.startsWith('buy') ? handleBuy : handleSell} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl">{t('transactions.confirm')}</Button>}</DialogFooter>
+                <DialogFooter>
+                    {(mode !== 'buy_usdt' || buyUsdtMode) && (
+                        <div className="flex gap-3 w-full">
+                            <Button onClick={closeForm} className={`flex-1 ${isDark ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-200 hover:bg-slate-300'} text-slate-800 dark:text-slate-200 py-3 rounded-xl font-bold`}>{t('common.cancel')}</Button>
+                            <Button
+                                onClick={mode?.startsWith('buy') ? handleBuy : handleSell}
+                                disabled={!formValidation.isValid || isSaving}
+                                className={`flex-1 py-3 rounded-xl font-bold text-white shadow-lg shadow-blue-500/20 transition-all ${!formValidation.isValid || isSaving ? 'bg-slate-400 cursor-not-allowed opacity-70' : 'bg-blue-600 hover:bg-blue-700 hover:shadow-blue-500/40 hover:-translate-y-0.5'}`}
+                            >
+                                {isSaving ? (
+                                    <div className="flex items-center justify-center gap-2">
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <span>{t('common.processing')}</span>
+                                    </div>
+                                ) : (
+                                    t('transactions.confirm')
+                                )}
+                            </Button>
+                        </div>
+                    )}
+                </DialogFooter>
             </Dialog>
 
             <Dialog isOpen={txToDelete !== null} onClose={() => setTxToDelete(null)} className={cardBase}>
@@ -3632,43 +3719,54 @@ function MainApp({ user }: { user: firebase.User }) {
                             if (!modalContent) { setAlert('❌ ' + t('common.error')); return; }
 
                             try {
-                                const canvas = await html2canvas(modalContent as HTMLElement, {
+                                // Feedback that it started
+                                // setAlert('⏳ ' + t('common.generatingImage')); 
+
+                                // Wait a tiny bit to ensure rendering
+                                await new Promise(resolve => setTimeout(resolve, 500));
+
+                                const blob = await htmlToImage.toBlob(modalContent as HTMLElement, {
                                     backgroundColor: isDark ? '#111827' : '#ffffff',
-                                    scale: 2
+                                    style: {
+                                        transform: 'scale(1)', // reset legacy transforms if any
+                                    }
                                 });
 
-                                canvas.toBlob(async (blob) => {
-                                    if (!blob) { setAlert('❌ ' + t('common.error')); return; }
+                                if (!blob) { setAlert('❌ ' + t('common.error')); return; }
 
-                                    const file = new File([blob], `releve_${summaryClient.phone || 'client'}.png`, { type: 'image/png' });
+                                const file = new File([blob], `releve_${summaryClient.phone || 'client'}.png`, { type: 'image/png' });
 
-                                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                                        try {
-                                            await navigator.share({
-                                                files: [file],
-                                                title: t('transactions.clientStatement'),
-                                                text: `${t('transactions.statementOf')} ${getClientFullName(summaryClient)}`
-                                            });
-                                        } catch (e) {
-                                            console.error(e);
+                                // Helper to check if sharing files is supported
+                                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                                    try {
+                                        await navigator.share({
+                                            files: [file],
+                                            title: t('transactions.clientStatement'),
+                                            text: `${t('transactions.statementOf')} ${getClientFullName(summaryClient)}`
+                                        });
+                                        // Success
+                                    } catch (e: any) {
+                                        console.error("Share failed", e);
+                                        // Don't error alert if user just cancelled
+                                        if (e.name !== 'AbortError') {
                                             setAlert('❌ ' + t('transactions.shareCancelled'));
                                         }
-                                    } else {
-                                        // Fallback: download image
-                                        const url = URL.createObjectURL(blob);
-                                        const a = document.createElement('a');
-                                        a.href = url;
-                                        a.download = `releve_${summaryClient.phone || 'client'}.png`;
-                                        document.body.appendChild(a);
-                                        a.click();
-                                        document.body.removeChild(a);
-                                        URL.revokeObjectURL(url);
-                                        setAlert('✅ ' + t('transactions.imageDownloaded'));
                                     }
-                                }, 'image/png');
-                            } catch (e) {
+                                } else {
+                                    // Fallback: download image
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `releve_${summaryClient.phone || 'client'}.png`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                    setAlert('✅ ' + t('transactions.imageDownloaded'));
+                                }
+                            } catch (e: any) {
                                 console.error(e);
-                                setAlert('❌ ' + t('transactions.captureError'));
+                                setAlert('❌ ' + t('transactions.captureError') + (e.message ? `: ${e.message}` : ''));
                             }
                         };
 
