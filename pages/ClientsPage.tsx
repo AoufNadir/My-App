@@ -18,6 +18,7 @@ import { PencilIcon } from '../components/icons/PencilIcon';
 import { Trash2Icon } from '../components/icons/Trash2Icon';
 import { CopyIcon } from '../components/icons/CopyIcon';
 import { CheckIcon } from '../components/icons/CheckIcon';
+import { ShareIcon } from '../components/icons/ShareIcon';
 import { SwipeableListItem } from '../components/ui/SwipeableListItem';
 
 type ClientsPageProps = {
@@ -137,6 +138,7 @@ export function ClientsPage(props: ClientsPageProps) {
             <h2 className="font-bold text-xl truncate">{getClientFullName(selectedClient)}</h2>
             <p className={`text-sm ${subtleText}`}>Solde: <span className={`font-bold ${selectedClientBalance >= 0 ? 'text-green-400' : 'text-red-400'}`}>{selectedClientBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD</span></p>
           </div>
+          <Button onClick={() => handleTouchStart(selectedClient)} className={`p-2 rounded-full ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} aria-label="Partager"><ShareIcon className="w-5 h-5" /></Button>
           <Button onClick={() => openClientModal(selectedClient)} className={`p-2 rounded-full ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} aria-label="Modifier le client"><PencilIcon className="w-5 h-5" /></Button>
         </div>
 
