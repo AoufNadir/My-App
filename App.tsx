@@ -3261,11 +3261,11 @@ function MainApp({ user }: { user: firebase.User }) {
                                             <div className={`p-3 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                                                 <div className="flex justify-between text-sm">
                                                     <span className="text-gray-400">{t('portfolio.currentPam')}:</span>
-                                                    <span className="font-bold">{portfolioStats.usdt.avgBuy.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {t('common.dinar')}</span>
+                                                    <span className="font-bold">{portfolioStats.usdt.avgBuy.toFixed(2)} {t('common.dinar')}</span>
                                                 </div>
                                                 <div className="flex justify-between text-sm mt-1">
-                                                    <span className="text-yellow-500">{t('portfolio.suggestedPrice')} (+{suggestedProfitMargin} DA):</span>
-                                                    <span className="font-bold text-yellow-500">{(portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {t('common.dinar')}</span>
+                                                    <span className="text-yellow-500">{t('portfolio.suggestedPrice')} (+{(suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0 ? (parseFloat(suggestedSellingPrice) - portfolioStats.usdt.avgBuy).toFixed(2) : suggestedProfitMargin)} DA):</span>
+                                                    <span className="font-bold text-yellow-500">{(suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0 ? parseFloat(suggestedSellingPrice) : (portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin))).toFixed(2)} {t('common.dinar')}</span>
                                                 </div>
                                             </div>
 
