@@ -1,8 +1,8 @@
 
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Card, CardHeader, CardContent } from '../../../components/ui/Card';
-import { InvestorTransaction } from '../../../types';
+import { Card, CardHeader, CardContent } from '../ui/Card';
+import { InvestorTransaction } from '../../types';
 
 interface InvestorPerformanceChartProps {
     transactions: InvestorTransaction[];

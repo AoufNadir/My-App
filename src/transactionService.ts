@@ -1,5 +1,4 @@
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/firestore';
+import type { FirestoreDocumentReference } from './firebase';
 
 type TransactionType = 'usdt_tx' | 'client_tx' | 'treasury_tx' | 'asset_tx';
 
@@ -16,7 +15,7 @@ interface LinkedTransaction {
  */
 export async function findLinkedTransactions(
     transactionId: string,
-    userDocRef: firebase.firestore.DocumentReference
+    userDocRef: FirestoreDocumentReference
 ): Promise<LinkedTransaction[]> {
     const linked: LinkedTransaction[] = [];
 
@@ -51,6 +50,21 @@ export async function findLinkedTransactions(
             });
         });
 
+        // Search USDT/EUR Transactions for linkedTxId (used by conversion helper rows)
+        const usdtTxQuery = await userDocRef
+            .collection('usdt_txs')
+            .where('linkedTxId', '==', transactionId)
+            .get();
+
+        usdtTxQuery.forEach(doc => {
+            linked.push({
+                id: doc.id,
+                collection: 'usdt_txs',
+                type: 'usdt_tx',
+                data: doc.data()
+            });
+        });
+
         // Search Asset Transactions for linkedTreasuryTxId
         const assetTxQuery = await userDocRef
             .collection('actifTransactions')
@@ -80,7 +94,7 @@ export async function findLinkedTransactions(
 export async function applyTransactionDelete(
     transactionId: string,
     transactionType: TransactionType,
-    userDocRef: firebase.firestore.DocumentReference
+    userDocRef: FirestoreDocumentReference
 ): Promise<{ success: boolean; error?: string }> {
     try {
         const batch = userDocRef.firestore.batch();
@@ -130,6 +144,52 @@ export async function applyTransactionDelete(
             batch.delete(userDocRef.collection(linkedTx.collection).doc(linkedTx.id));
         }
 
+        // Backward compatibility:
+        // Older "buy USDT with EUR" flows created an extra EUR withdrawal row
+        // without linkedTxId. If no linked USDT row was found, try to remove it safely.
+        if (transactionType === 'usdt_tx') {
+            const hasLinkedUsdtChild = linkedTxs.some(tx => tx.collection === 'usdt_txs');
+            if (!hasLinkedUsdtChild) {
+                const mainTxDoc = await userDocRef.collection('usdt_txs').doc(transactionId).get();
+                const mainTxData = mainTxDoc.data() as any;
+
+                if (
+                    mainTxData &&
+                    mainTxData.type === 'buy' &&
+                    mainTxData.currency === 'USDT' &&
+                    typeof mainTxData.timestamp === 'number'
+                ) {
+                    const expectedNote = `Achat de ${Number(mainTxData.quantity || 0).toFixed(2)} USDT`;
+                    const nearTxQuery = await userDocRef
+                        .collection('usdt_txs')
+                        .where('timestamp', '>=', mainTxData.timestamp - 120000)
+                        .where('timestamp', '<=', mainTxData.timestamp)
+                        .get();
+
+                    const candidates = nearTxQuery.docs
+                        .filter(doc => {
+                            if (doc.id === transactionId) return false;
+                            const data = doc.data() as any;
+                            return (
+                                !data.linkedTxId &&
+                                data.type === 'Retrait Manuel' &&
+                                data.currency === 'EUR' &&
+                                data.notes === expectedNote
+                            );
+                        })
+                        .sort((a, b) => {
+                            const aTs = Number((a.data() as any).timestamp || 0);
+                            const bTs = Number((b.data() as any).timestamp || 0);
+                            return bTs - aTs;
+                        });
+
+                    if (candidates.length === 1) {
+                        batch.delete(candidates[0].ref);
+                    }
+                }
+            }
+        }
+
         // For asset transactions, also check for linkedTreasuryTxId field
         if (transactionType === 'asset_tx') {
             const assetTxDoc = await userDocRef.collection('actifTransactions').doc(transactionId).get();
@@ -164,7 +224,7 @@ export async function applyTransactionUpdate(
     transactionId: string,
     transactionType: TransactionType,
     newData: any,
-    userDocRef: firebase.firestore.DocumentReference
+    userDocRef: FirestoreDocumentReference
 ): Promise<{ success: boolean; error?: string }> {
     try {
         const batch = userDocRef.firestore.batch();
@@ -195,14 +255,15 @@ export async function applyTransactionUpdate(
         if (transactionType === 'usdt_tx') {
             const { timestamp, date, time, paymentMethod, quantity, price, total, sell } = newData;
             const linkedClientId = newData.linkedClientId;
+            const resolvedPaymentMethod = paymentMethod || 'Crédit';
 
             // Determine if we need a treasury or client transaction
             if (newData.type === 'buy') {
                 const totalCost = total || (quantity * price);
 
                 // Treasury Transaction (if Cash or Baridi)
-                if (paymentMethod === 'Espèces' || paymentMethod === 'BaridiMob') {
-                    const source = paymentMethod === 'BaridiMob' ? 'BaridiMob' : 'Caisse';
+                if (resolvedPaymentMethod === 'Espèces' || resolvedPaymentMethod === 'BaridiMob') {
+                    const source = resolvedPaymentMethod === 'BaridiMob' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp,
                         date,
@@ -216,8 +277,8 @@ export async function applyTransactionUpdate(
                     });
                 }
 
-                // Client Transaction (if Credit)
-                if (paymentMethod === 'Crédit' && linkedClientId && linkedClientId !== 'none') {
+                // Client transaction is always stored for history.
+                if (linkedClientId && linkedClientId !== 'none') {
                     batch.set(userDocRef.collection('dzd_client_txs').doc(), {
                         clientId: linkedClientId,
                         timestamp,
@@ -227,15 +288,16 @@ export async function applyTransactionUpdate(
                         type: 'Règlement Reçu',
                         notes: `Financement achat de ${quantity.toFixed(2)} ${newData.currency}`,
                         linkedTxId: transactionId,
-                        paymentMethod: 'Crédit'
+                        paymentMethod: resolvedPaymentMethod,
+                        affectsBalance: resolvedPaymentMethod === 'Crédit'
                     });
                 }
             } else if (newData.type === 'sell') {
                 const totalRevenue = newData.totalRevenue || (quantity * sell);
 
                 // Treasury Transaction (if Cash or Baridi)
-                if (paymentMethod === 'Espèces' || paymentMethod === 'BaridiMob') {
-                    const source = paymentMethod === 'BaridiMob' ? 'BaridiMob' : 'Caisse';
+                if (resolvedPaymentMethod === 'Espèces' || resolvedPaymentMethod === 'BaridiMob') {
+                    const source = resolvedPaymentMethod === 'BaridiMob' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp,
                         date,
@@ -249,8 +311,8 @@ export async function applyTransactionUpdate(
                     });
                 }
 
-                // Client Transaction (if Credit)
-                if (paymentMethod === 'Crédit' && linkedClientId && linkedClientId !== 'none') {
+                // Client transaction is always stored for history.
+                if (linkedClientId && linkedClientId !== 'none') {
                     batch.set(userDocRef.collection('dzd_client_txs').doc(), {
                         clientId: linkedClientId,
                         timestamp,
@@ -260,7 +322,8 @@ export async function applyTransactionUpdate(
                         type: 'Vente USDT',
                         notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`,
                         linkedTxId: transactionId,
-                        paymentMethod: 'Crédit'
+                        paymentMethod: resolvedPaymentMethod,
+                        affectsBalance: resolvedPaymentMethod === 'Crédit'
                     });
                 }
             }

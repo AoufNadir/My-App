@@ -1,4 +1,4 @@
-const CACHE_NAME = 'prodigital-cache-v6';
+const CACHE_NAME = 'prodigital-cache-v8';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -35,11 +35,39 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch event: serve from cache, fall back to network. For Firebase, always go to network.
+// Fetch event: serve from cache, fall back to network. 
 self.addEventListener('fetch', (event) => {
-  // Always go to network for Firebase Auth and Firestore requests to ensure live data
-  if (event.request.url.includes('firestore.googleapis.com') || event.request.url.includes('google.com/identitytoolkit')) {
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  const url = new URL(event.request.url);
+
+  // Always go to network for Firebase/Google APIs.
+  // These endpoints are dynamic and should not be served from app cache.
+  if (
+    url.hostname === 'firestore.googleapis.com' ||
+    url.hostname === 'identitytoolkit.googleapis.com' ||
+    url.hostname === 'securetoken.googleapis.com' ||
+    url.hostname === 'firebaseinstallations.googleapis.com'
+  ) {
     event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // Network-first for index.html so users get latest hashed assets after deployment.
+  if (url.pathname === '/' || url.pathname === '/index.html' || url.pathname.endsWith('/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const clonedResponse = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, clonedResponse);
+          });
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
     return;
   }
 

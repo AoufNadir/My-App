@@ -1,6 +1,6 @@
 import React from 'react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/Card';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface AssetAllocationChartProps {

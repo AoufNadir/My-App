@@ -1,11 +1,11 @@
 
 import React from 'react';
-import { Button } from '../../../components/ui/Button';
-import { ArrowDownLeftIcon } from '../../../components/icons/ArrowDownLeftIcon';
-import { ArrowUpRightIcon } from '../../../components/icons/ArrowUpRightIcon';
-import { PlusCircleIcon } from '../../../components/icons/PlusCircleIcon';
-import { BriefcaseIcon } from '../../../components/icons/BriefcaseIcon';
-import { CalendarIcon } from '../../../components/icons/CalendarIcon';
+import { Button } from '../ui/Button';
+import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
+import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
+import { PlusCircleIcon } from '../icons/PlusCircleIcon';
+import { BriefcaseIcon } from '../icons/BriefcaseIcon';
+import { CalendarIcon } from '../icons/CalendarIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface QuickActionsProps {

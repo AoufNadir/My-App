@@ -1,6 +1,6 @@
 import React from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Area, AreaChart } from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/Card';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface ProfitHistoryChartProps {

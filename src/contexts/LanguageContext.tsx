@@ -30,9 +30,12 @@ export const LanguageProvider = ({ children }: LanguageProviderProps) => {
     const [direction, setDirection] = useState<Direction>('ltr');
 
     useEffect(() => {
-        const savedLang = localStorage.getItem('app_language') as Language;
+        const savedLang = (localStorage.getItem('app_language') || localStorage.getItem('language')) as Language;
         if (savedLang && ['fr', 'en', 'ar'].includes(savedLang)) {
             setLanguage(savedLang);
+        } else {
+            document.documentElement.dir = 'ltr';
+            document.documentElement.lang = 'fr';
         }
     }, []);
 
@@ -43,6 +46,7 @@ export const LanguageProvider = ({ children }: LanguageProviderProps) => {
         document.documentElement.dir = dir;
         document.documentElement.lang = lang;
         localStorage.setItem('app_language', lang);
+        localStorage.setItem('language', lang);
     };
 
     const t = (key: string): string => {
