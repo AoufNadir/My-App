@@ -1,10 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Card } from '../components/ui/Card';
+import { UnifiedTitle } from '../components/ui/UnifiedTitle';
 import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
-import { PencilIcon } from '../components/icons/PencilIcon';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Tx, ClientDzd, ClientTransactionDzd } from '../types';
+import { PortfolioStatCard } from '../components/portfolio/PortfolioStatCard';
 
 type PortfolioPageProps = {
   statsView: 'usdt' | 'clients';
@@ -62,61 +63,6 @@ type PortfolioPageProps = {
   openPortfolioBalanceEditModal?: (asset: 'USDT' | 'EUR') => void;
 };
 
-type StatCardProps = {
-  title: string;
-  value: string;
-  currency?: string;
-  colorClass: string;
-  subtleText: string;
-  onEdit?: () => void;
-  children?: React.ReactNode;
-  className?: string;
-  isDark: boolean;
-};
-
-const StatCard = ({
-  title,
-  value,
-  currency,
-  colorClass,
-  subtleText,
-  onEdit,
-  children,
-  className,
-  isDark
-}: StatCardProps) => {
-  const [isTouched, setIsTouched] = React.useState(false);
-
-  return (
-    <div
-      className={`group relative p-5 rounded-2xl shadow-sm border transition-all ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'} ${onEdit ? 'cursor-pointer' : ''} ${className || ''}`}
-      onClick={() => {
-        if (onEdit) setIsTouched(true);
-      }}
-      onMouseLeave={() => setIsTouched(false)}
-    >
-      <div className={`flex items-center justify-between text-sm font-medium mb-2 ${subtleText}`}>
-        <span>{title}</span>
-        {onEdit && (
-          <div className={`absolute top-3 right-3 transition-opacity duration-200 ${isTouched ? 'opacity-100 pointer-events-auto' : 'opacity-100 pointer-events-auto sm:opacity-0 sm:pointer-events-none sm:group-hover:opacity-100 sm:group-hover:pointer-events-auto'}`}>
-            <button
-              onClick={(e) => { e.stopPropagation(); onEdit(); }}
-              className={`p-2 rounded-full ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-slate-300 ring-1 ring-slate-500/50' : 'bg-slate-100 hover:bg-slate-200 text-slate-600 ring-1 ring-slate-200'} shadow-lg`}
-            >
-              <PencilIcon className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-      </div>
-      <div className="mt-1 text-3xl font-bold">
-        <span className={colorClass}>{value}</span>
-        {currency && <span className={`ml-2 text-lg font-normal ${subtleText}`}>{currency}</span>}
-      </div>
-      {children}
-    </div>
-  );
-};
-
 export function PortfolioPage(props: PortfolioPageProps) {
   const {
     isDark,
@@ -137,10 +83,18 @@ export function PortfolioPage(props: PortfolioPageProps) {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="space-y-4">
         <Card className={`${cardBase} p-4 sm:p-6`}>
-          <h2 className="font-bold text-lg mb-4 flex items-center gap-2"><BriefcaseIcon className="w-5 h-5" /> {t('portfolio.currentStatus')}</h2>
+          <UnifiedTitle
+            as="h2"
+            isDark={isDark}
+            variant="section"
+            className="mb-4"
+            icon={<BriefcaseIcon className="w-4 h-4" />}
+          >
+            {t('portfolio.currentStatus')}
+          </UnifiedTitle>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <StatCard isDark={isDark} subtleText={subtleText} title={t('portfolio.netProfitLoss')} value={portfolioStats.usdt.totalProfit.toFixed(2)} currency="DZD" colorClass={portfolioStats.usdt.totalProfit >= 0 ? "text-green-400" : "text-red-400"} />
-            <StatCard
+            <PortfolioStatCard isDark={isDark} subtleText={subtleText} title={t('portfolio.netProfitLoss')} value={portfolioStats.usdt.totalProfit.toFixed(2)} currency="DZD" colorClass={portfolioStats.usdt.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'} />
+            <PortfolioStatCard
               isDark={isDark}
               subtleText={subtleText}
               title={t('portfolio.currentBalanceEur')}
@@ -149,8 +103,8 @@ export function PortfolioPage(props: PortfolioPageProps) {
               colorClass="text-amber-400"
               onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('EUR') : undefined}
             />
-            <StatCard isDark={isDark} subtleText={subtleText} title={t('portfolio.avgBuyPriceEur')} value={portfolioStats.eur.avgBuy.toFixed(2)} currency="DZD" colorClass="text-gray-300" />
-            <StatCard
+            <PortfolioStatCard isDark={isDark} subtleText={subtleText} title={t('portfolio.avgBuyPriceEur')} value={portfolioStats.eur.avgBuy.toFixed(2)} currency="DZD" colorClass="text-gray-300" />
+            <PortfolioStatCard
               isDark={isDark}
               subtleText={subtleText}
               title={t('portfolio.currentBalanceUsdt')}
@@ -159,8 +113,8 @@ export function PortfolioPage(props: PortfolioPageProps) {
               colorClass="text-sky-400"
               onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('USDT') : undefined}
             />
-            <StatCard isDark={isDark} subtleText={subtleText} title={t('portfolio.avgBuyPriceUsdt')} value={portfolioStats.usdt.avgBuy.toFixed(2)} currency="DZD" colorClass="text-gray-300" />
-            <StatCard
+            <PortfolioStatCard isDark={isDark} subtleText={subtleText} title={t('portfolio.avgBuyPriceUsdt')} value={portfolioStats.usdt.avgBuy.toFixed(2)} currency="DZD" colorClass="text-gray-300" />
+            <PortfolioStatCard
               isDark={isDark}
               subtleText={subtleText}
               title={t('portfolio.suggestedSellPrice')}
@@ -179,7 +133,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
                   : suggestedProfitMargin
                 } DA
               </div>
-            </StatCard>
+            </PortfolioStatCard>
           </div>
         </Card>
       </div>

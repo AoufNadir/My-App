@@ -3,7 +3,7 @@ import { db, type AppUser } from '../firebase';
 import {
     Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard,
     ManualAsset, ManualAssetClient, ManualAssetTransaction,
-    Investor, InvestorTransaction, Notification
+    Investor, InvestorTransaction
 } from '../types';
 
 export function useAppData(user: AppUser, refreshKey: number) {

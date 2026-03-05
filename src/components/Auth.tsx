@@ -5,6 +5,8 @@ import { Input } from './ui/Input';
 import { Button } from './ui/Button';
 import { Label } from './ui/Label';
 import { Alert, AlertDescription } from './ui/Alert';
+import { UnifiedTitle } from './ui/UnifiedTitle';
+import { UserIcon } from './icons/UserIcon';
 import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
@@ -133,9 +135,15 @@ export function Auth() {
             </div>
           </div>
           <div className="text-center">
-            <h1 className="text-2xl font-bold tracking-tight text-white mb-1">
+            <UnifiedTitle
+              as="h1"
+              isDark={true}
+              variant="page"
+              className="justify-center text-white mb-1"
+              icon={<UserIcon className="w-4 h-4" />}
+            >
               {isLogin ? 'Se connecter' : 'Créer un compte'}
-            </h1>
+            </UnifiedTitle>
             {/* Subtitle removed on mobile to save space, maybe keep minimal text if needed */}
           </div>
         </div>
@@ -236,3 +244,4 @@ export function Auth() {
     </div>
   );
 }
+

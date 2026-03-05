@@ -64,6 +64,7 @@ export interface ClientTransactionDzd {
   type: 'Règlement Reçu' | 'Paiement Effectué' | 'Vente USDT' | 'Achat EUR' | 'Solde Initial' | 'Transfert Entrant' | 'Transfert Sortant' | 'Ajustement Solde';
   notes?: string;
   linkedTxId?: string; // ID of the USDT/EUR transaction if applicable
+  linkRole?: 'primary' | 'dzd_receiver';
   paymentMethod?: 'Espèces' | 'BaridiMob' | 'Crédit';
   affectsBalance?: boolean; // false = history-only row that should not alter client balance
   origin?: 'adjustment';
@@ -80,7 +81,7 @@ export interface TreasuryTx {
   asset?: string;
   amount: number;
   notes?: string;
-  linkedTxId?: string;
+  linkedTxId?: string; // ID of the USDT/EUR transaction if applicable
   origin?: 'manual_asset' | 'client_tx' | 'usdt_tx' | 'balance_edit'; // Source of the transaction
   linkedAssetTxId?: string; // Link back to actifTransactions
 }
@@ -136,6 +137,18 @@ export interface ManualAssetTransaction {
   linkedTreasuryTxId?: string; // Link to treasury_txs (when payment_received with cash/baridi)
 }
 
+export interface OverdueDebtClient {
+  clientId: string;
+  fullName: string;
+  phone?: string;
+  overdueAmount: number;
+  daysOverdue: number;
+  oldestUnpaidTimestamp: number;
+  oldestUnpaidDate: string;
+  lastPaymentTimestamp: number | null;
+  balance: number;
+}
+
 export interface Notification {
   id: string;
   title: string;
@@ -163,3 +176,6 @@ export interface PortfolioStats {
     available: number;
   };
 }
+
+
+

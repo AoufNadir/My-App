@@ -53,6 +53,7 @@ export function useTransactionHandlers({
     const [eurDzdPrice, setEurDzdPrice] = useState('');
     const [eurUsdtRate, setEurUsdtRate] = useState('');
     const [linkedClientId, setLinkedClientId] = useState('none');
+    const [linkedClientDzdId, setLinkedClientDzdId] = useState('none');
     const [clientPaymentStatus, setClientPaymentStatus] = useState<'credit' | 'baridi' | 'cash'>('cash');
     const [notes, setNotes] = useState('');
     const [profitPercent, setProfitPercent] = useState('');
@@ -99,6 +100,10 @@ export function useTransactionHandlers({
                 if (parseAndEvaluate(buyUsdtPrice) <= 0) addError('buyUsdtPrice', 'Veuillez entrer le prix');
                 if (parseAndEvaluate(buyUsdtTotal) <= 0) addError('buyUsdtTotal', 'Montant total invalide');
                 if (!linkedClientId || linkedClientId === '' || linkedClientId === 'none') addError('linkedClientId', 'Veuillez sélectionner un client');
+                if (clientPaymentStatus === 'cash') {
+                    if (!linkedClientDzdId || linkedClientDzdId === '' || linkedClientDzdId === 'none') addError('linkedClientDzdId', 'Veuillez selectionner un client DZD');
+                    if (linkedClientDzdId === linkedClientId) addError('linkedClientDzdId', 'Le client DZD doit etre different du client principal');
+                }
             } else if (buyUsdtMode === 'with_eur') {
                 if (parseAndEvaluate(buyEurForUsdtAmount) <= 0) addError('buyEurForUsdtAmount', 'Quantité requise');
                 if (parseAndEvaluate(eurDzdPrice) <= 0) addError('eurDzdPrice', 'Prix requis');
@@ -110,6 +115,10 @@ export function useTransactionHandlers({
             if (parseAndEvaluate(buyEurPrice) <= 0) addError('buyEurPrice', 'Prix requis');
             if (parseAndEvaluate(buyEurTotal) <= 0) addError('buyEurTotal', 'Montant total invalide');
             if (!linkedClientId || linkedClientId === '' || linkedClientId === 'none') addError('linkedClientId', 'Veuillez sélectionner un client');
+                if (clientPaymentStatus === 'cash') {
+                    if (!linkedClientDzdId || linkedClientDzdId === '' || linkedClientDzdId === 'none') addError('linkedClientDzdId', 'Veuillez selectionner un client DZD');
+                    if (linkedClientDzdId === linkedClientId) addError('linkedClientDzdId', 'Le client DZD doit etre different du client principal');
+                }
         } else if (mode === 'sell_usdt') {
             const amt = parseAndEvaluate(sellAmount);
             if (amt <= 0) addError('sellAmount', 'Quantité requise');
@@ -118,10 +127,14 @@ export function useTransactionHandlers({
             const avail = portfolioStats.usdt.available + (editingTx?.type === 'sell' ? editingTx.quantity : 0);
             if (amt > avail) addError('sellAmount', 'Solde insuffisant');
             if (!linkedClientId || linkedClientId === '' || linkedClientId === 'none') addError('linkedClientId', 'Veuillez sélectionner un client');
+                if (clientPaymentStatus === 'cash') {
+                    if (!linkedClientDzdId || linkedClientDzdId === '' || linkedClientDzdId === 'none') addError('linkedClientDzdId', 'Veuillez selectionner un client DZD');
+                    if (linkedClientDzdId === linkedClientId) addError('linkedClientDzdId', 'Le client DZD doit etre different du client principal');
+                }
         }
 
         return { isValid, errors };
-    }, [mode, buyUsdtMode, buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, portfolioStats, editingTx, linkedClientId, transactions]);
+    }, [mode, buyUsdtMode, buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, portfolioStats, editingTx, linkedClientId, linkedClientDzdId, clientPaymentStatus, transactions]);
 
     const openForm = (newMode: 'buy_usdt' | 'sell_usdt' | 'buy_eur', txToEdit: Tx | null = null) => {
         setBuyUsdtAmount(''); setBuyUsdtPrice(''); setBuyEurAmount(''); setBuyEurPrice('');
@@ -130,6 +143,7 @@ export function useTransactionHandlers({
         setBuyUsdtTotal(''); setBuyEurTotal(''); setClientPaymentStatus('cash');
         setEditingTx(txToEdit); setMode(newMode); setIsTotalManual(false);
         setLinkedClientId('none');
+        setLinkedClientDzdId('none');
 
         if (txToEdit) {
             if (txToEdit.type === 'buy') {
@@ -179,13 +193,16 @@ export function useTransactionHandlers({
                 }
             }
             setNotes(txToEdit.notes ?? '');
-            const linkedDzdTx = clientTransactionsDzd.find(t => t.linkedTxId === txToEdit.id);
-            if (linkedDzdTx) {
-                setLinkedClientId(linkedDzdTx.clientId);
-                if (linkedDzdTx.paymentMethod === 'Crédit') setClientPaymentStatus('credit');
-                else if (linkedDzdTx.paymentMethod === 'BaridiMob') setClientPaymentStatus('baridi');
+            const linkedDzdTxs = clientTransactionsDzd.filter(t => t.linkedTxId === txToEdit.id);
+            const primaryLinkedTx = linkedDzdTxs.find(t => t.linkRole !== 'dzd_receiver') || linkedDzdTxs[0];
+            const linkedDzdCollectorTx = linkedDzdTxs.find(t => t.linkRole === 'dzd_receiver');
+            if (primaryLinkedTx) {
+                setLinkedClientId(primaryLinkedTx.clientId);
+                if (primaryLinkedTx.paymentMethod === 'Crédit') setClientPaymentStatus('credit');
+                else if (primaryLinkedTx.paymentMethod === 'BaridiMob') setClientPaymentStatus('baridi');
                 else setClientPaymentStatus('cash');
             }
+            if (linkedDzdCollectorTx) setLinkedClientDzdId(linkedDzdCollectorTx.clientId);
         } else {
             if (newMode === 'buy_eur' && portfolioStats.eur.avgBuy > 0) setBuyEurPrice(portfolioStats.eur.avgBuy.toFixed(2));
             if (newMode === 'sell_usdt') {
@@ -200,7 +217,7 @@ export function useTransactionHandlers({
         }
     };
 
-    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setIsTotalManual(false); };
+    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setLinkedClientDzdId('none'); setIsTotalManual(false); };
 
     const handleBuy = async () => {
         if (!formValidation.isValid || isSaving) return;
@@ -240,6 +257,7 @@ export function useTransactionHandlers({
             totalCost = Math.round(totalCost);
 
             const { date, time, timestamp } = now();
+            const shouldLinkCashToDzdClient = clientPaymentStatus === 'cash' && linkedClientDzdId !== 'none';
             const createLinkedEurConversionTx = () => {
                 if (mode !== 'buy_usdt' || buyUsdtMode !== 'with_eur' || eurSpentForConversion <= 0) return;
                 batch.set(userDocRef.collection('usdt_txs').doc(), {
@@ -277,12 +295,24 @@ export function useTransactionHandlers({
                         clientId: linkedClientId, timestamp, date, time, montant: totalCost,
                         type: 'Règlement Reçu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`,
                         linkedTxId: editingTx.id,
+                        linkRole: 'primary',
                         paymentMethod: paymentMethodByStatus[clientPaymentStatus],
                         affectsBalance: affectsClientBalance(clientPaymentStatus)
                     });
                 }
 
-                if (buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit') {
+                if (shouldLinkCashToDzdClient) {
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), {
+                        clientId: linkedClientDzdId, timestamp: timestamp + 1, date, time, montant: totalCost,
+                        type: 'Ajustement Solde', notes: `Avance DZD liee a achat de ${quantity.toFixed(2)} ${currency}`,
+                        linkedTxId: editingTx.id,
+                        linkRole: 'dzd_receiver',
+                        paymentMethod: paymentMethodByStatus['credit'],
+                        affectsBalance: true
+                    });
+                }
+
+                if (buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit' && !shouldLinkCashToDzdClient) {
                     const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp, date, time, type: 'Retrait', source, amount: totalCost,
@@ -298,7 +328,7 @@ export function useTransactionHandlers({
 
                 createLinkedEurConversionTx();
 
-                if (buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit') {
+                if (buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit' && !shouldLinkCashToDzdClient) {
                     const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp, date, time, type: 'Retrait', source, amount: totalCost,
@@ -311,8 +341,20 @@ export function useTransactionHandlers({
                         clientId: linkedClientId, timestamp, date, time, montant: totalCost,
                         type: 'Règlement Reçu', notes: `Financement achat de ${quantity.toFixed(2)} ${currency}`,
                         linkedTxId: mainTxRef.id,
+                        linkRole: 'primary',
                         paymentMethod: paymentMethodByStatus[clientPaymentStatus],
                         affectsBalance: affectsClientBalance(clientPaymentStatus)
+                    });
+                }
+
+                if (shouldLinkCashToDzdClient) {
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), {
+                        clientId: linkedClientDzdId, timestamp: timestamp + 1, date, time, montant: totalCost,
+                        type: 'Ajustement Solde', notes: `Avance DZD liee a achat de ${quantity.toFixed(2)} ${currency}`,
+                        linkedTxId: mainTxRef.id,
+                        linkRole: 'dzd_receiver',
+                        paymentMethod: paymentMethodByStatus['credit'],
+                        affectsBalance: true
                     });
                 }
                 setAlert('✅ Transaction ajoutée.');
@@ -349,6 +391,7 @@ export function useTransactionHandlers({
             totalRevenue = Math.round(totalRevenue);
 
             const { date, time, timestamp } = now();
+            const shouldLinkCashToDzdClient = clientPaymentStatus === 'cash' && linkedClientDzdId !== 'none';
             const batch = db.batch();
 
             if (editingTx) {
@@ -369,12 +412,24 @@ export function useTransactionHandlers({
                         clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue,
                         type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`,
                         linkedTxId: editingTx.id,
+                        linkRole: 'primary',
                         paymentMethod: paymentMethodByStatus[clientPaymentStatus],
                         affectsBalance: affectsClientBalance(clientPaymentStatus)
                     });
                 }
 
-                if (clientPaymentStatus !== 'credit') {
+                if (shouldLinkCashToDzdClient) {
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), {
+                        clientId: linkedClientDzdId, timestamp: timestamp + 1, date, time, montant: -totalRevenue,
+                        type: 'Ajustement Solde', notes: `Dette DZD liee a vente de ${quantity.toFixed(2)} USDT`,
+                        linkedTxId: editingTx.id,
+                        linkRole: 'dzd_receiver',
+                        paymentMethod: paymentMethodByStatus['credit'],
+                        affectsBalance: true
+                    });
+                }
+
+                if (clientPaymentStatus !== 'credit' && !shouldLinkCashToDzdClient) {
                     const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp, date, time, type: 'Ajout', source, amount: totalRevenue,
@@ -389,7 +444,7 @@ export function useTransactionHandlers({
                     date, time, notes: notes.trim(), currency: 'USDT', clientPaymentStatus: clientPaymentStatus
                 });
 
-                if (clientPaymentStatus !== 'credit') {
+                if (clientPaymentStatus !== 'credit' && !shouldLinkCashToDzdClient) {
                     const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp, date, time, type: 'Ajout', source, amount: totalRevenue,
@@ -402,8 +457,20 @@ export function useTransactionHandlers({
                         clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue,
                         type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`,
                         linkedTxId: ref.id,
+                        linkRole: 'primary',
                         paymentMethod: paymentMethodByStatus[clientPaymentStatus],
                         affectsBalance: affectsClientBalance(clientPaymentStatus)
+                    });
+                }
+
+                if (shouldLinkCashToDzdClient) {
+                    batch.set(userDocRef.collection('dzd_client_txs').doc(), {
+                        clientId: linkedClientDzdId, timestamp: timestamp + 1, date, time, montant: -totalRevenue,
+                        type: 'Ajustement Solde', notes: `Dette DZD liee a vente de ${quantity.toFixed(2)} USDT`,
+                        linkedTxId: ref.id,
+                        linkRole: 'dzd_receiver',
+                        paymentMethod: paymentMethodByStatus['credit'],
+                        affectsBalance: true
                     });
                 }
                 setAlert('✅ Transaction ajoutée.');
@@ -424,7 +491,6 @@ export function useTransactionHandlers({
             setIsSaving(false);
         }
     };
-
     const handleGlobalAdjustment = async () => {
         const amountNum = parseAndEvaluate(adjustmentAmount);
         if (isNaN(amountNum) || amountNum <= 0) {
@@ -625,7 +691,7 @@ export function useTransactionHandlers({
         sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal,
         buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount,
         eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate,
-        linkedClientId, setLinkedClientId, clientPaymentStatus, setClientPaymentStatus,
+        linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus,
         notes, setNotes, profitPercent, setProfitPercent,
         isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab,
         adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount,
@@ -640,3 +706,20 @@ export function useTransactionHandlers({
         transferFromBalance, transferToBalance
     };
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

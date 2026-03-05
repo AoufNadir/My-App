@@ -1,15 +1,6 @@
-
 import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
-import { Card, CardHeader, CardContent } from './components/ui/Card';
-import { Label } from './components/ui/Label';
-import { Input } from './components/ui/Input';
-import { Button } from './components/ui/Button';
-import { Alert, AlertDescription } from './components/ui/Alert';
-import { Select } from './components/ui/Select';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './components/ui/Dialog';
 
-import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction, Notification } from './types';
+import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction } from './types';
 import { useLanguage } from './contexts/LanguageContext';
 import { signOut } from 'firebase/auth';
 import { auth, db, fieldValueDelete, type AppUser } from './firebase';
@@ -19,35 +10,36 @@ import { Trash2Icon } from './components/icons/Trash2Icon';
 import { ArrowDownIcon } from './components/icons/ArrowDownIcon';
 import { UserIcon } from './components/icons/UserIcon';
 import { PlusCircleIcon } from './components/icons/PlusCircleIcon';
-import { LogOutIcon } from './components/icons/LogOutIcon';
-import { MenuIcon } from './components/icons/MenuIcon';
 import { MinusIcon } from './components/icons/MinusIcon';
 import { DownloadCloudIcon } from './components/icons/DownloadCloudIcon';
-import { SunIcon } from './components/icons/SunIcon';
-import { MoonIcon } from './components/icons/MoonIcon';
 import { CopyIcon } from './components/icons/CopyIcon';
 import { CheckIcon } from './components/icons/CheckIcon';
 import { CameraIcon } from './components/icons/CameraIcon';
 import { ArrowRightLeftIcon } from './components/icons/ArrowRightLeftIcon';
-import { ShareIcon } from './components/icons/ShareIcon';
-import { RefreshCwIcon } from './components/icons/RefreshCwIcon';
 import { RotateCcwIcon } from './components/icons/RotateCcwIcon';
-import { GlobeIcon } from './components/icons/GlobeIcon';
-import { BellIcon } from './components/icons/BellIcon';
-import { MagnifyingGlassIcon } from './components/icons/MagnifyingGlassIcon';
-import { NotificationPanel } from './components/NotificationPanel';
 
-import { NumberInput } from './components/ui/NumberInput';
-import { ClientLinker } from './components/main/ClientLinker';
-import { AppDesktopNav, AppMobileMenuNav, AppBottomNav } from './components/main/AppNavigation';
+import { AppMobileMenuNav, AppBottomNav } from './components/main/AppNavigation';
+import { MainTransactionDialog } from './components/main/MainTransactionDialog';
+import { MainClientSummaryDialog } from './components/main/MainClientSummaryDialog';
+import { MainInvestorDialogs } from './components/main/MainInvestorDialogs';
+import { MainUtilityDialogs } from './components/main/MainUtilityDialogs';
+import { MainClientOperationsDialogs } from './components/main/MainClientOperationsDialogs';
+import { MainClientCrudDialogs } from './components/main/MainClientCrudDialogs';
+import { MainHeaderBar } from './components/main/MainHeaderBar';
+import { MainContentArea } from './components/main/MainContentArea';
+import { MainTransferAndFilterDialogs } from './components/main/MainTransferAndFilterDialogs';
+import {
+    GlobalSearchDialog,
+    WalletTransferDialog
+} from './components/main/MainDialogs';
 // Custom Hooks
 import { useAppData } from './hooks/useAppData';
 import { useSettings } from './hooks/useSettings';
-import { useNotifications } from './hooks/useNotifications';
 import { useTransactionHandlers } from './hooks/useTransactionHandlers';
 import { useClientHandlers } from './hooks/useClientHandlers';
 import { useAssetHandlers } from './hooks/useAssetHandlers';
 import { useInvestorHandlers } from './hooks/useInvestorHandlers';
+import { useOverdueDebtClients } from './hooks/useOverdueDebtClients';
 
 // Shared Utils
 import { now, parseAndEvaluate } from './utils';
@@ -56,8 +48,6 @@ import { now, parseAndEvaluate } from './utils';
 import { TransactionModal } from './components/modals/TransactionModal';
 import { ClientModal } from './components/modals/ClientModal';
 import { AdjustmentModal } from './components/modals/AdjustmentModal';
-
-const MotionDiv = motion.div;
 
 const TransactionsPage = React.lazy(() =>
     import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage }))
@@ -128,7 +118,7 @@ export default function MainApp({ user }: { user: AppUser }) {
     };
 
     // --- 1. CORE DATA & SETTINGS ---
-    const { t, language, setLanguage } = useLanguage();
+    const { t } = useLanguage();
     const [refreshKey, setRefreshKey] = useState(0);
     const [alert, setAlert] = useState('');
     const [selectedClientId, setSelectedClientId] = useState<string | null>(() => localStorage.getItem('selected_client_id'));
@@ -271,7 +261,7 @@ export default function MainApp({ user }: { user: AppUser }) {
         sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal,
         buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount,
         eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate,
-        linkedClientId, setLinkedClientId, clientPaymentStatus, setClientPaymentStatus,
+        linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus,
         notes, setNotes, profitPercent, setProfitPercent,
         isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab,
         adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount,
@@ -323,19 +313,11 @@ export default function MainApp({ user }: { user: AppUser }) {
         handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, handleCreateAssetTransaction
     } = useAssetHandlers(userDocRef, manualAssets, manualAssetClients, assetClientBalances, setAlert);
 
-    const {
-        notifications, unreadCount, markAsRead, markAllAsRead
-    } = useNotifications({
-        transactions, clientsDzd, clientBalances, clientTransactionsDzd,
-        treasuryStats, portfolioStats, t
-    });
-
     // --- 3. LOCAL UI STATE ---
     const [view, setView] = useState(() => localStorage.getItem('app_view') || 'transactions');
     const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isTreasuryCardModalOpen, setIsTreasuryCardModalOpen] = useState(false);
@@ -429,6 +411,13 @@ export default function MainApp({ user }: { user: AppUser }) {
 
     const selectedClient = clientsDzd.find(c => c.id === selectedClientId) || null;
     const selectedClientTransactions = clientTransactionsDzd.filter(tx => tx.clientId === selectedClientId).sort((a, b) => b.timestamp - a.timestamp);
+    const overdueDebtClients = useOverdueDebtClients({
+        clients: clientsDzd,
+        clientTransactions: clientTransactionsDzd,
+        clientBalances,
+        getClientFullName,
+        minDays: 7
+    });
 
     const newPamFromDzdSimulator = useMemo(() => {
         const qty = parseAndEvaluate(simBuyQty);
@@ -500,11 +489,14 @@ export default function MainApp({ user }: { user: AppUser }) {
             clientNameById.set(client.id, getClientFullName(client));
         });
 
-        const linkedClientByTxId = new Map<string, string>();
+        const linkedClientByTxId = new Map<string, { clientId: string; isSecondary: boolean; timestamp: number }>();
         clientTransactionsDzd.forEach((tx) => {
-            if (!tx.linkedTxId) return;
-            const existingTs = linkedClientByTxId.get(tx.linkedTxId);
-            if (!existingTs) linkedClientByTxId.set(tx.linkedTxId, tx.clientId);
+            if (!tx.linkedTxId || !tx.clientId) return;
+            const isSecondary = tx.linkRole === 'dzd_receiver';
+            const existing = linkedClientByTxId.get(tx.linkedTxId);
+            if (!existing || (existing.isSecondary && !isSecondary) || (existing.isSecondary === isSecondary && tx.timestamp > existing.timestamp)) {
+                linkedClientByTxId.set(tx.linkedTxId, { clientId: tx.clientId, isSecondary, timestamp: tx.timestamp });
+            }
         });
 
         const clientResults: GlobalSearchResult[] = clientsDzd
@@ -529,7 +521,7 @@ export default function MainApp({ user }: { user: AppUser }) {
         const txResults: GlobalSearchResult[] = [];
 
         transactions.forEach((tx) => {
-            const linkedClientId = tx.id ? linkedClientByTxId.get(tx.id) : undefined;
+            const linkedClientId = tx.id ? linkedClientByTxId.get(tx.id)?.clientId : undefined;
             const linkedClientName = linkedClientId ? (clientNameById.get(linkedClientId) || '') : '';
             const haystack = [
                 tx.type,
@@ -1038,7 +1030,7 @@ export default function MainApp({ user }: { user: AppUser }) {
     const reportMonthNames = useMemo(() => {
         const months = Array.isArray(t('common.months')) ? t('common.months') as any as string[] : [];
         return months;
-    }, [t, language]);
+    }, [t]);
 
     const portfolioPageProps = useMemo(() => ({
         statsView,
@@ -1129,12 +1121,13 @@ export default function MainApp({ user }: { user: AppUser }) {
         copiedValue,
         handleCopy,
         handleEditClientTx,
-        handleDeleteClientTxClick
+        handleDeleteClientTxClick,
+        overdueDebtClients
     }), [
         selectedClientId, cardBase, fieldBase, isDark, subtleText, clientSearchQuery, clientSortMode,
         filteredClientsDzd, clientBalances, selectedClient, selectedClientTransactions, transactions, copiedValue,
         openClientModal, handleTouchStart, handleTouchEnd, handleExportClientReport, openClientTxModal,
-        handleCopy, handleEditClientTx, handleDeleteClientTxClick
+        handleCopy, handleEditClientTx, handleDeleteClientTxClick, overdueDebtClients
     ]);
 
     if (isInvestorRoute) {
@@ -1162,1803 +1155,118 @@ export default function MainApp({ user }: { user: AppUser }) {
         );
     }
 
+    const navLabels = { transactions: t('nav.transactions') as string, portfolio: t('nav.portfolio') as string, analytics: t('nav.analytics') as string, clients: t('nav.clients') as string, treasury: t('nav.treasury') as string, investors: 'Investisseurs' };
+    const mainContentProps = { alert, alertClass, cardBase, subtleText, t, isDark, dailyOverview, PageLoadingFallback, view, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, setIsWalletTransferModalOpen, setIsTransferModalOpen, treasuryTransactions, handleEditClientTx, handleDeleteClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, ClientsPage, clientsPageProps, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, setEditingInvestor, setIsInvestorModalOpen, setInvestorToDelete, setManagerFeePercentage };
+    const walletTransferDialogProps = {
+        isOpen: isWalletTransferModalOpen, onClose: () => setIsWalletTransferModalOpen(false), cardBase, isDark, subtleText, fieldBase,
+        amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSource,
+        destination: walletTransferDest, setDestination: setWalletTransferDest, notes: walletTransferNotes, setNotes: setWalletTransferNotes,
+        onMax: handleWalletTransferMaxClick, onSwap: handleSwapSourceDest, onConfirm: handleWalletTransfer, isInvalid: isWalletTransferInvalid,
+        isSaving, caisseBalance: treasuryStats.caisse, baridiBalance: treasuryStats.baridi, title: t('transactions.internalTransfer'),
+        subtitle: 'Transfert entre comptes internes', amountLabel: t('transactions.amount'), fromLabel: t('transactions.from'),
+        toLabel: t('transactions.to'), sourceLabel: t('common.source'), destinationLabel: t('common.destination'),
+        notesOptionalLabel: t('common.notesOptional'), sameAccountErrorText: 'Impossible de selectionner le meme compte.',
+        processingText: t('common.processing'), confirmText: t('transactions.confirmTransfer')
+    };
+    const clientTransferDialogProps = {
+        isOpen: isTransferModalOpen, onClose: () => setIsTransferModalOpen(false), cardBase, isDark, subtleText, fieldBase,
+        fromClientId: transferFromClientId, setFromClientId: setTransferFromClientId, toClientId: transferToClientId, setToClientId: setTransferToClientId,
+        amount: transferAmount, setAmount: setTransferAmount, notes: transferNotes, setNotes: setTransferNotes, onSave: handleSaveTransfer,
+        isSaving, clients: clientsDzd.map(c => ({ id: c.id, label: getClientFullName(c) })), fromBalance: transferFromBalance,
+        toBalance: transferToBalance, onMaxFrom: () => setTransferAmount(Math.abs(transferFromBalance).toString()),
+        title: t('transactions.clientTransfer'), infoText: t('transactions.transferDebtCredit'), fromLabel: t('transactions.from'),
+        toLabel: t('transactions.to'), amountLabel: t('transactions.amount'), notesLabel: t('common.notes'),
+        filterClientsLabel: t('transactions.filterClients'), balanceLabel: t('common.balance'), dinarLabel: t('common.dinar'),
+        confirmLabel: t('transactions.confirmTransfer')
+    };
+    const treasuryBalanceEditDialogProps = {
+        isOpen: isTreasuryBalanceEditModalOpen, onClose: () => setIsTreasuryBalanceEditModalOpen(false), cardBase, isDark, fieldBase,
+        asset: treasuryBalanceEditAsset, value: treasuryBalanceEditValue, notes: treasuryBalanceEditNotes, setNotes: setTreasuryBalanceEditNotes,
+        onSave: handleSaveTreasuryBalanceEdit, titlePrefix: t('transactions.editBalance'), descriptionText: t('transactions.editBalanceDesc'),
+        newBalanceLabel: t('transactions.newBalance'), dinarLabel: t('common.dinar'), notesOptionalLabel: t('common.notesOptional'),
+        reasonPlaceholder: t('transactions.reason'), saveLabel: t('common.save'),
+        onValueChange: (value: string) => {
+            const normalized = value.replace(',', '.').trim();
+            if (normalized === '') { setTreasuryBalanceEditValue(''); return; }
+            if (/^\d+$/.test(normalized)) setTreasuryBalanceEditValue(normalized);
+        },
+        onValueBlur: () => {
+            const parsed = parseAndEvaluate(treasuryBalanceEditValue);
+            if (!isNaN(parsed)) setTreasuryBalanceEditValue(Math.round(parsed).toString());
+        }
+    };
+    const portfolioBalanceEditDialogProps = {
+        isOpen: isPortfolioBalanceEditModalOpen, onClose: () => setIsPortfolioBalanceEditModalOpen(false), cardBase, isDark, fieldBase,
+        asset: portfolioBalanceEditAsset, value: portfolioBalanceEditValue, notes: portfolioBalanceEditNotes, setNotes: setPortfolioBalanceEditNotes,
+        onSave: handleSavePortfolioBalanceEdit, isSaving, titlePrefix: t('transactions.editBalance'), descriptionText: t('transactions.editBalanceDesc'),
+        newBalanceLabel: t('transactions.newBalance'), notesOptionalLabel: t('common.notesOptional'), reasonPlaceholder: t('transactions.reason'),
+        saveLabel: t('common.save'), savingLabel: t('common.saving'),
+        onValueChange: (value: string) => {
+            const normalized = value.replace(',', '.').trim();
+            if (normalized === '') { setPortfolioBalanceEditValue(''); return; }
+            if (/^\d+(\.\d{0,2})?$/.test(normalized)) setPortfolioBalanceEditValue(normalized);
+        },
+        onValueBlur: () => {
+            const parsed = parseAndEvaluate(portfolioBalanceEditValue);
+            if (!isNaN(parsed)) setPortfolioBalanceEditValue(Number(parsed).toFixed(2));
+        }
+    };
+    const dateFilterDialogProps = {
+        isOpen: isDateFilterModalOpen, onClose: () => setIsDateFilterModalOpen(false), cardBase, isDark, fieldBase,
+        startDate: tempStartDate, setStartDate: setTempStartDate, endDate: tempEndDate, setEndDate: setTempEndDate,
+        onClear: handleClearDateFilter, onApply: handleApplyDateFilter, title: t('transactions.filterByDate'),
+        startLabel: t('transactions.startDate'), endLabel: t('transactions.endDate'), clearLabel: t('transactions.clear'),
+        applyLabel: t('transactions.apply')
+    };
+
     return (
         <div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
             <div className="max-w-4xl mx-auto px-2 sm:px-4 pb-24">
-                <header className="sticky top-0 z-40 py-4 backdrop-blur-md bg-opacity-50">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <div className="sm:hidden"><Button onClick={() => setIsMobileMenuOpen(true)} className={`p-2 rounded-full ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}><MenuIcon className="w-6 h-6" /></Button></div>
-                            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">ProDigital</h1>
-                        </div>
-                        <AppDesktopNav
-                            view={view}
-                            isDark={isDark}
-                            onSelect={setView}
-                            labels={{
-                                transactions: t('nav.transactions') as string,
-                                portfolio: t('nav.portfolio') as string,
-                                analytics: t('nav.analytics') as string,
-                                clients: t('nav.clients') as string,
-                                treasury: t('nav.treasury') as string,
-                                investors: 'Investisseurs'
-                            }}
-                        />
-                        <div className="flex items-center gap-1 sm:gap-2">
-                            <Button
-                                onClick={handleOpenGlobalSearch}
-                                className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}
-                                title={`${t('common.globalSearch')} (Ctrl+K)`}
-                            >
-                                <MagnifyingGlassIcon className="w-5 h-5" />
-                            </Button>
-                            {/* Language Switcher */}
-                            <div className="relative group">
-                                <Button className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}>
-                                    <GlobeIcon className="w-5 h-5" />
-                                    <span className="absolute -top-1 -right-1 text-[10px] font-bold bg-primary text-white px-1 rounded-full uppercase">{language}</span>
-                                </Button>
-                                <div className={`absolute right-0 mt-2 w-32 py-1 rounded-lg shadow-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'} hidden group-hover:block z-50`}>
-                                    <button onClick={() => setLanguage('fr')} className={`block w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 ${language === 'fr' ? 'font-bold text-sky-500' : ''} ${isDark ? 'hover:bg-white text-gray-300' : 'hover:bg-black text-gray-700'}`}>Français</button>
-                                    <button onClick={() => setLanguage('en')} className={`block w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 ${language === 'en' ? 'font-bold text-sky-500' : ''} ${isDark ? 'hover:bg-white text-gray-300' : 'hover:bg-black text-gray-700'}`}>English</button>
-                                    <button onClick={() => setLanguage('ar')} className={`block w-full text-right px-4 py-2 text-sm hover:bg-opacity-10 ${language === 'ar' ? 'font-bold text-sky-500' : ''} ${isDark ? 'hover:bg-white text-gray-300' : 'hover:bg-black text-gray-700'}`}>العربية</button>
-                                </div>
-                            </div>
+                <MainHeaderBar {...{ isDark, view, setView, t, setIsMobileMenuOpen, handleOpenGlobalSearch, setTheme, onSignOut: () => signOut(auth) }} />
+                <AppMobileMenuNav view={view} isDark={isDark} onSelect={setView} isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} labels={navLabels} />
 
-                            {/* Notification Bell */}
-                            <div className="relative">
-                                <Button
-                                    onClick={() => setIsNotificationPanelOpen(!isNotificationPanelOpen)}
-                                    className={`p-2 rounded-full transition-colors relative ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}
-                                >
-                                    <BellIcon className="w-5 h-5" />
-                                    {unreadCount > 0 && (
-                                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                                            {unreadCount}
-                                        </span>
-                                    )}
-                                </Button>
+                <MainContentArea {...mainContentProps} />
 
-                                {/* Notification Panel */}
-                                {isNotificationPanelOpen && (
-                                    <NotificationPanel
-                                        notifications={notifications}
-                                        onClose={() => setIsNotificationPanelOpen(false)}
-                                        onMarkAsRead={markAsRead}
-                                        onMarkAllAsRead={markAllAsRead}
-                                        isDark={isDark}
-                                    />
-                                )}
-                            </div>
+                <AppBottomNav view={view} isDark={isDark} onSelect={setView} labels={navLabels} />
 
-                            <Button onClick={() => setTheme(isDark ? 'light' : 'dark')} className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}>{isDark ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}</Button>
-                            <Button onClick={() => signOut(auth)} className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}><LogOutIcon className="w-5 h-5" /></Button>
-                        </div>
-                    </div>
-                </header>
-
-                <AppMobileMenuNav
-                    view={view}
-                    isDark={isDark}
-                    onSelect={setView}
-                    isOpen={isMobileMenuOpen}
-                    onClose={() => setIsMobileMenuOpen(false)}
-                    labels={{
-                        transactions: t('nav.transactions') as string,
-                        portfolio: t('nav.portfolio') as string,
-                        analytics: t('nav.analytics') as string,
-                        clients: t('nav.clients') as string,
-                        treasury: t('nav.treasury') as string,
-                        investors: 'Investisseurs'
-                    }}
-                />
-
-                <main className="py-6">
-                    <AnimatePresence>{alert && (<MotionDiv initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="mb-4"><Alert className={`rounded-xl ${alertClass}`}><AlertDescription>{alert}</AlertDescription></Alert></MotionDiv>)}</AnimatePresence>
-
-                    <Card className={`${cardBase} p-4 mb-4`}>
-                        <div className="flex items-center justify-between mb-3">
-                            <h2 className="font-bold text-base">{t('common.dailyOverview')}</h2>
-                            <span className={`text-xs ${subtleText}`}>{now().date}</span>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            <div className={`rounded-xl p-3 ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                                <p className={`text-xs ${subtleText}`}>{t('common.caisseBalance')}</p>
-                                <p className="text-lg font-bold text-emerald-400">{dailyOverview.caisse.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                            </div>
-                            <div className={`rounded-xl p-3 ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                                <p className={`text-xs ${subtleText}`}>{t('common.baridiBalance')}</p>
-                                <p className="text-lg font-bold text-sky-400">{dailyOverview.baridi.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                            </div>
-                            <div className={`rounded-xl p-3 ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                                <p className={`text-xs ${subtleText}`}>{t('common.activeClientsToday')}</p>
-                                <p className="text-lg font-bold text-indigo-400">{dailyOverview.activeClients}</p>
-                            </div>
-                            <div className={`rounded-xl p-3 ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                                <p className={`text-xs ${subtleText}`}>{t('common.todayProfit')}</p>
-                                <p className={`text-lg font-bold ${dailyOverview.todayProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {dailyOverview.todayProfit >= 0 ? '+' : ''}{dailyOverview.todayProfit.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </p>
-                                <p className={`text-[11px] ${subtleText}`}>{dailyOverview.todayUsdtSold.toFixed(2)} USDT</p>
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Suspense fallback={<PageLoadingFallback isDark={isDark} text={t('common.loading')} />}>
-                    {view === 'transactions' && <TransactionsPage
-                        cardBase={cardBase}
-                        isDark={isDark}
-                        subtleText={subtleText}
-                        openAdjustmentModal={openAdjustmentModal}
-                        openForm={openForm}
-                        filterMode={filterMode}
-                        setFilterMode={setFilterMode}
-                        transactions={transactions}
-                        getRelativeDateLabel={getRelativeDateLabel}
-                        clientTransactionsDzd={clientTransactionsDzd}
-                        clientsDzd={clientsDzd}
-                        getClientFullName={getClientFullName}
-                        setTxToDelete={setTxToDelete}
-                        openDateFilterModal={openDateFilterModal}
-                        dateRange={dateRange}
-                        setDateRange={setDateRange}
-                        openWalletTransferModal={() => setIsWalletTransferModalOpen(true)}
-                        openTransferModal={() => setIsTransferModalOpen(true)}
-                        treasuryTransactions={treasuryTransactions}
-                        handleEditClientTx={handleEditClientTx}
-                        handleDeleteClientTxClick={handleDeleteClientTxClick}
-                        setTreasuryTxToDelete={setTreasuryTxToDelete}
-                    />}
-
-                    {view === 'statistiques' && <PortfolioPage {...portfolioPageProps} />}
-
-                    {view === 'analytics' && <AnalyticsPage {...portfolioPageProps} />}
-
-                    {view === 'dzd' && <ClientsPage {...clientsPageProps} />}
-
-                    {view === 'tresorerie' && (
-                        selectedAssetClientId ? (
-                            <ManualClientPage
-                                client={manualAssetClients.find(c => c.id === selectedAssetClientId)!}
-                                transactions={manualAssetTransactions.filter(tx => tx.clientId === selectedAssetClientId)}
-                                balance={assetClientBalances.get(`${selectedAssetId}_${selectedAssetClientId}`) || 0}
-                                onBack={() => setSelectedAssetClientId(null)}
-                                onAddTransaction={handleCreateAssetTransaction}
-                                onUpdateTransaction={handleUpdateAssetTransaction}
-                                onDeleteTransaction={handleDeleteAssetTransaction}
-                                isDark={isDark}
-                                cardBase={cardBase}
-                                fieldBase={fieldBase}
-                                subtleText={subtleText}
-                            />
-                        ) : selectedAssetId ? (
-                            <ManualAssetPage
-                                asset={manualAssets.find(a => a.id === selectedAssetId)!}
-                                clients={manualAssetClients.filter(c => c.assetId === selectedAssetId)}
-                                clientBalances={assetClientBalances}
-                                onBack={() => setSelectedAssetId(null)}
-                                onSelectClient={(client) => setSelectedAssetClientId(client.id)}
-                                onCreateClient={(fullName, phone, email, notes) => {
-                                    handleCreateAssetClient(selectedAssetId, { fullName, phone, email, notes });
-                                }}
-                                onUpdateClient={(clientId, data) => {
-                                    handleUpdateAssetClient(clientId, data);
-                                }}
-                                onDeleteClient={handleDeleteAssetClient}
-                                isDark={isDark}
-                                cardBase={cardBase}
-                                fieldBase={fieldBase}
-                                subtleText={subtleText}
-                            />
-                        ) : (
-                            <TresoreriePage
-                                {...{
-                                    isDark, cardBase, subtleText,
-                                    caisseBalance: treasuryStats.caisse,
-                                    baridiBalance: treasuryStats.baridi,
-                                    totalDettes: totals.totalDettes,
-                                    totalAvances: totals.totalAvances,
-                                    portfolioValue: (portfolioStats.usdt.available * (portfolioStats.usdt.avgBuy || 0) + portfolioStats.eur.available * (portfolioStats.eur.avgBuy || 0)),
-                                    openTreasuryModal: () => openTreasuryCardModal(),
-                                    treasuryCards,
-                                    openTreasuryCardModal,
-                                    setTreasuryCardToDelete,
-                                    openTreasuryBalanceEditModal,
-                                    openPortfolioBalanceEditModal,
-                                    openAdjustmentModal: openAdjustmentModal,
-                                    treasuryTransactions,
-                                    setTreasuryTxToDelete,
-                                    manualAssets,
-                                    manualAssetClients,
-                                    assetBalances,
-                                    assetClientBalances,
-                                    onSelectAsset: setSelectedAssetId,
-                                    onAddManualAsset: () => setIsCreateAssetModalOpen(true),
-                                    onDeleteManualAsset: (id: string) => handleDeleteAsset(id, manualAssetTransactions.filter(tx => tx.actifId === id).length),
-                                    onOpenManualAsset: (asset: ManualAsset) => setSelectedAssetId(asset.id),
-                                    onOpenCreateManualAsset: () => setIsCreateAssetModalOpen(true)
-                                }}
-                            />
-                        )
-                    )}
-
-                    {view === 'investors' && (
-                        selectedInvestorId ? (
-                            <InvestorDetailsPage
-                                investor={derivedInvestors.find(i => i.id === selectedInvestorId)!}
-                                transactions={investorTransactions.filter(tx => tx.investorId === selectedInvestorId)}
-                                onBack={() => setSelectedInvestorId(null)}
-                                onAddCapital={() => { setInvestorTxType('deposit_capital'); setIsInvestorTxModalOpen(true); }}
-                                onWithdrawCapital={() => { setInvestorTxType('withdraw_capital'); setIsInvestorTxModalOpen(true); }}
-                                onWithdrawProfit={() => { setInvestorTxType('withdraw_profit'); setIsInvestorTxModalOpen(true); }}
-                                onReinvestProfit={() => {
-                                    const inv = derivedInvestors.find(i => i.id === selectedInvestorId);
-                                    if (inv) {
-                                        setReinvestInput((inv.availableProfit || 0).toFixed(2));
-                                        setIsReinvestModalOpen(true);
-                                    }
-                                }}
-                                onDeleteTransaction={(tx) => { setInvestorTxToDelete(tx); }}
-                                isDark={isDark}
-                                cardBase={cardBase}
-                                subtleText={subtleText}
-                                globalNetProfit={portfolioStats.usdt.totalProfit}
-                                managerFeePercentage={Number(managerFeePercentage)}
-                                totalCapital={derivedInvestors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0)}
-                            />
-                        ) : (
-                            <InvestorsPage
-                                isDark={isDark}
-                                cardBase={cardBase}
-                                subtleText={subtleText}
-                                investors={derivedInvestors}
-                                onOpenInvestor={(inv) => setSelectedInvestorId(inv.id)}
-                                onAddInvestor={() => { setEditingInvestor(null); setIsInvestorModalOpen(true); }}
-                                onEditInvestor={(inv) => { setEditingInvestor(inv); setIsInvestorModalOpen(true); }}
-                                onDeleteInvestor={(inv) => { setInvestorToDelete(inv); }}
-                                globalNetProfit={portfolioStats.usdt.totalProfit}
-                                managerFeePercentage={managerFeePercentage}
-                                setManagerFeePercentage={setManagerFeePercentage}
-                            />
-                        )
-                    )}
-                    </Suspense>
-                </main>
-                <AppBottomNav
-                    view={view}
-                    isDark={isDark}
-                    onSelect={setView}
-                    labels={{
-                        transactions: t('nav.transactions') as string,
-                        portfolio: t('nav.portfolio') as string,
-                        analytics: t('nav.analytics') as string,
-                        clients: t('nav.clients') as string,
-                        treasury: t('nav.treasury') as string,
-                        investors: 'Investisseurs'
-                    }}
-                />
-
-                <Dialog isOpen={isGlobalSearchOpen} onClose={closeGlobalSearch} className={`${cardBase} max-w-2xl`}>
-                    <DialogHeader onClose={closeGlobalSearch} isDark={isDark}>
-                        <DialogTitle>{t('common.globalSearch')}</DialogTitle>
-                    </DialogHeader>
-                    <DialogContent className="px-6 pb-6 space-y-3">
-                        <Input
-                            value={globalSearchQuery}
-                            onChange={(e) => setGlobalSearchQuery(e.target.value)}
-                            className={fieldBase}
-                            placeholder={t('common.searchPlaceholder')}
-                            autoFocus
-                        />
-                        <div className={`rounded-xl border max-h-[50vh] overflow-y-auto ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-                            {!globalSearchQuery.trim() ? (
-                                <p className={`p-4 text-sm ${subtleText}`}>Ctrl+K</p>
-                            ) : globalSearchResults.length === 0 ? (
-                                <p className={`p-4 text-sm ${subtleText}`}>{t('common.noResults')}</p>
-                            ) : (
-                                <div className="divide-y" style={{ borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }}>
-                                    {globalSearchResults.map((result) => (
-                                        <button
-                                            key={result.id}
-                                            onClick={() => handleSelectGlobalSearchResult(result)}
-                                            className={`w-full text-left p-3 transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`}
-                                        >
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="min-w-0">
-                                                    <p className="font-semibold truncate">{result.title}</p>
-                                                    <p className={`text-xs mt-0.5 ${subtleText} truncate`}>{result.subtitle || '-'}</p>
-                                                </div>
-                                                <span className={`text-[10px] px-2 py-1 rounded-full uppercase tracking-wide ${result.kind === 'client' ? (isDark ? 'bg-sky-900/50 text-sky-300' : 'bg-sky-100 text-sky-700') : (isDark ? 'bg-indigo-900/50 text-indigo-300' : 'bg-indigo-100 text-indigo-700')}`}>
-                                                    {result.kind === 'client' ? t('nav.clients') : t('nav.transactions')}
-                                                </span>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </DialogContent>
-                </Dialog>
+                <GlobalSearchDialog {...{ isOpen: isGlobalSearchOpen, onClose: closeGlobalSearch, cardBase, isDark, fieldBase, subtleText, query: globalSearchQuery, setQuery: setGlobalSearchQuery, results: globalSearchResults, onSelectResult: handleSelectGlobalSearchResult, title: t('common.globalSearch'), placeholder: t('common.searchPlaceholder'), noResultsText: t('common.noResults'), clientsText: t('nav.clients'), transactionsText: t('nav.transactions') }} />
             </div>
 
             {/* MODALS */}
 
             {/* 1. WALLET TRANSFER MODAL REDESIGNED */}
-            <Dialog isOpen={isWalletTransferModalOpen} onClose={() => setIsWalletTransferModalOpen(false)} className={`${cardBase} max-w-sm`}>
-                <DialogHeader onClose={() => setIsWalletTransferModalOpen(false)} isDark={isDark}>
-                    <DialogTitle>{t('transactions.internalTransfer')}</DialogTitle>
-                    <p className={`text-sm ${subtleText} mt-1 font-normal`}>Transfert entre comptes internes</p>
-                </DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
+            <WalletTransferDialog {...walletTransferDialogProps} />
+            <MainClientOperationsDialogs {...{ isClientTxModalOpen, setIsClientTxModalOpen, cardBase, isDark, editingClientTx, t, clientTxType, setClientTxType, fieldBase, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, clientTxAmount, setClientTxAmount, clientTxNotes, setClientTxNotes, handleSaveClientTx, selectedClientId, isAdjustmentModalOpen, setIsAdjustmentModalOpen, editingTreasuryTx, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentClientId, clientBalances, portfolioStats, clientsDzd, getClientFullName, setAdjustmentClientId, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, handleGlobalAdjustment, isSaving }} />
+            <MainTransferAndFilterDialogs
+                clientTransferProps={clientTransferDialogProps}
+                treasuryBalanceEditProps={treasuryBalanceEditDialogProps}
+                portfolioBalanceEditProps={portfolioBalanceEditDialogProps}
+                dateFilterProps={dateFilterDialogProps}
+            />
 
-                    {/* 1. Amount Field (Top) */}
-                    <div>
-                        <Label>{t('transactions.amount')} (DZD)</Label>
-                        <div className="relative">
-                            <NumberInput
-                                value={walletTransferAmount}
-                                onChange={e => setWalletTransferAmount(e.target.value)}
-                                className={fieldBase}
-                                placeholder="0.00"
-                            />
-                            <button
-                                onClick={handleWalletTransferMaxClick}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-sky-600 text-white px-2 py-1 rounded hover:bg-sky-700 transition-colors font-bold"
-                            >
-                                MAX
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* 2. Source Account (De) */}
-                    <div>
-                        <Label>{t('transactions.from')} ({t('common.source')})</Label>
-                        <Select
-                            value={walletTransferSource}
-                            onChange={e => setWalletTransferSource(e.target.value as any)}
-                            className={fieldBase}
-                        >
-                            <option value="Caisse">Caisse — Solde: {treasuryStats.caisse.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</option>
-                            <option value="BaridiMob">BaridiMob — Solde: {treasuryStats.baridi.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</option>
-                        </Select>
-                    </div>
-
-                    {/* 3. Swap Button (Centered) */}
-                    <div className="flex justify-center -my-2 z-10 relative">
-                        <button
-                            onClick={handleSwapSourceDest}
-                            className={`p-2 rounded-full border shadow-sm transition-all hover:scale-110 active:scale-95 ${isDark ? 'bg-slate-800 border-slate-600 text-sky-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-sky-600 hover:bg-slate-50'}`}
-                            title="Inverser Source et Destination"
-                        >
-                            <ArrowRightLeftIcon className="w-4 h-4 rotate-90 sm:rotate-0" />
-                        </button>
-                    </div>
-
-                    {/* 4. Destination Account (Vers) */}
-                    <div>
-                        <Label>{t('transactions.to')} ({t('common.destination')})</Label>
-                        <Select
-                            value={walletTransferDest}
-                            onChange={e => setWalletTransferDest(e.target.value as any)}
-                            className={fieldBase}
-                        >
-                            <option value="BaridiMob">BaridiMob — Solde: {treasuryStats.baridi.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</option>
-                            <option value="Caisse">Caisse — Solde: {treasuryStats.caisse.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD</option>
-                        </Select>
-                        {walletTransferSource === walletTransferDest && (
-                            <p className="text-xs text-red-500 mt-1">⚠️ Impossible de sélectionner le même compte.</p>
-                        )}
-                    </div>
-
-                    {/* 5. Notes Field */}
-                    <div>
-                        <Label>{t('common.notesOptional')}</Label>
-                        <Input
-                            value={walletTransferNotes}
-                            onChange={e => setWalletTransferNotes(e.target.value)}
-                            className={fieldBase}
-                            placeholder="Note..."
-                        />
-                    </div>
-
-                </DialogContent>
-                <DialogFooter>
-                    <Button
-                        onClick={handleWalletTransfer}
-                        disabled={isWalletTransferInvalid}
-                        className={`w-full font-bold py-3 rounded-xl shadow-md transition-all ${isWalletTransferInvalid
-                            ? 'bg-gray-400 cursor-not-allowed opacity-70'
-                            : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                            }`}
-                    >
-                        {isSaving ? t('common.processing') : t('transactions.confirmTransfer')}
-                    </Button>
-                </DialogFooter>
-            </Dialog>
-
-            {/* 2. CLIENT TX MODAL - Updated to use Select for Type d'Actif */}
-            <Dialog isOpen={isClientTxModalOpen} onClose={() => setIsClientTxModalOpen(false)} className={`${cardBase} max-w-lg`}>
-                <DialogHeader onClose={() => setIsClientTxModalOpen(false)} isDark={isDark}><DialogTitle>{editingClientTx ? t('transactions.editOperation') : t('transactions.newOperation')}</DialogTitle></DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    {/* SIMPLIFIED CLIENT TX MODAL CONTENT */}
-
-                    {/* HIDE TYPE SELECTOR IF EDITING OR IF IT WAS PRE-SELECTED FROM DROPDOWN */}
-                    {!editingClientTx && (clientTxType === 'Règlement Reçu' || clientTxType === 'Paiement Effectué') && (
-                        <div><Label>{t('transactions.operationType')}</Label><Select id="tx_type_select" value={clientTxType} onChange={e => setClientTxType(e.target.value as any)} className={fieldBase} disabled={!!editingClientTx}><option value="Règlement Reçu">{t('transactions.paymentReceived')}</option><option value="Paiement Effectué">{t('transactions.paymentMade')}</option></Select></div>
-                    )}
-
-                    {/* REMOVED: Source Selector (Type d'Actif) */}
-                    {/* REMOVED: Payment Status Selector (Statut du Paiement) */}
-
-                    {clientTxType === 'Vente USDT' ? (
-                        <div className="space-y-4"><div><Label>{t('portfolio.qtyUsdt')}</Label><NumberInput value={clientTxUsdtAmount} onChange={e => setClientTxUsdtAmount(e.target.value)} className={fieldBase} /></div><div><Label>{t('portfolio.sellingPriceDzd')}</Label><NumberInput value={clientTxSellPrice} onChange={e => setClientTxSellPrice(e.target.value)} className={fieldBase} /></div></div>
-                    ) : clientTxType === 'Achat EUR' ? (
-                        <div className="space-y-4"><div><Label>{t('transactions.qtyEur')}</Label><NumberInput value={clientTxEurAmount} onChange={e => setClientTxEurAmount(e.target.value)} className={fieldBase} /></div><div><Label>{t('portfolio.buyPrice')}</Label><NumberInput value={clientTxEurPrice} onChange={e => setClientTxEurPrice(e.target.value)} className={fieldBase} /></div></div>
-                    ) : (
-                        <div>
-                            <Label>{t('transactions.amountDzd')}</Label>
-                            <div className="relative">
-                                {/* ALLOW NEGATIVE VALUES: Use Input type="number" or NumberInput without restrictions if possible. 
-                                    Our NumberInput might restrict? Let's check. 
-                                    If NumberInput restricts, use standard Input. 
-                                    User said: "يقبل القيم الموجبة والسالبة دون أي قيود"
-                                */}
-                                <Input
-                                    type="text"
-                                    inputMode="decimal"
-                                    value={clientTxAmount}
-                                    onChange={e => setClientTxAmount(e.target.value)}
-                                    className={fieldBase}
-                                    placeholder="+/- Montant"
-                                />
-                            </div>
-                            <p className="text-xs mt-1 opacity-60">{t('transactions.enterPositiveNegativeValue')}</p>
-                        </div>
-                    )}
-                    <div><Label>{t('common.notesOptional')}</Label><Input value={clientTxNotes} onChange={e => setClientTxNotes(e.target.value)} className={fieldBase} /></div>
-                </DialogContent>
-                <DialogFooter><Button onClick={() => handleSaveClientTx(selectedClientId)} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl">{t('common.save')}</Button></DialogFooter>
-            </Dialog>
-
-            {/* 3. TREASURY ADJUSTMENT MODAL REDESIGNED */}
-            <Dialog isOpen={isAdjustmentModalOpen} onClose={() => setIsAdjustmentModalOpen(false)} className={`${cardBase} max-w-sm`}>
-                <DialogHeader onClose={() => setIsAdjustmentModalOpen(false)} isDark={isDark}>
-                    <DialogTitle>{editingTreasuryTx ? t('transactions.editAdjustment') : 'Ajustement Trésorerie'}</DialogTitle>
-                </DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-
-                    {/* 1. Mode Toggle (Ajouter / Retirer) */}
-                    <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
-                        <button
-                            onClick={() => setAdjustmentTab('add')}
-                            className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all ${adjustmentTab === 'add' ? 'bg-green-600 text-white shadow' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                        >
-                            Ajouter (+)
-                        </button>
-                        <button
-                            onClick={() => setAdjustmentTab('subtract')}
-                            className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all ${adjustmentTab === 'subtract' ? 'bg-red-600 text-white shadow' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                        >
-                            Retirer (-)
-                        </button>
-                    </div>
-
-                    {/* 2. Type d'Actif */}
-                    <div>
-                        <Label>{t('transactions.assetType')}</Label>
-                        <Select value={adjustmentAsset} onChange={e => setAdjustmentAsset(e.target.value as any)} className={fieldBase}>
-                            <option value="DZD-Caisse">DZD - Caisse</option>
-                            <option value="DZD-Baridi">DZD - Baridi</option>
-                            <option value="USDT">USDT</option>
-                            <option value="EUR">EUR</option>
-                        </Select>
-                    </div>
-
-                    {/* 3. Montant (+ MAX button if Client Selected) */}
-                    <div>
-                        <Label>{adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR' ? t('transactions.quantity') : t('transactions.amount')}</Label>
-                        <div className="relative">
-                            <NumberInput
-                                value={adjustmentAmount}
-                                onChange={e => setAdjustmentAmount(e.target.value)}
-                                className={fieldBase}
-                                placeholder="0.00"
-                            />
-                            {/* MAX BUTTON - ALWAYS VISIBLE, logic depends on Asset Type */}
-                            <button
-                                onClick={() => {
-                                    // LOGIC 1: Caisse / Baridi -> Client Balance
-                                    if (adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') {
-                                        if (adjustmentClientId) {
-                                            const clientBal = clientBalances.get(adjustmentClientId) || 0;
-                                            setAdjustmentAmount(Math.abs(clientBal).toString());
-                                        }
-                                    }
-                                    // LOGIC 2: USDT / EUR -> Available Balance
-                                    else if (adjustmentAsset === 'USDT') {
-                                        setAdjustmentAmount((portfolioStats?.usdt?.available || 0).toString());
-                                    }
-                                    else if (adjustmentAsset === 'EUR') {
-                                        setAdjustmentAmount((portfolioStats?.eur?.available || 0).toString());
-                                    }
-                                }}
-                                disabled={
-                                    (adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && !adjustmentClientId
-                                }
-                                className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded transition-colors font-bold ${((adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && !adjustmentClientId)
-                                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-slate-700 dark:text-slate-500' // Disabled Style
-                                    : (isDark ? 'bg-slate-600 text-gray-200 hover:bg-slate-500' : 'bg-slate-200 text-gray-700 hover:bg-slate-300') // Enabled Style
-                                    }`}
-                                title={
-                                    (adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && !adjustmentClientId
-                                        ? "Sélectionnez un client"
-                                        : "Utiliser le solde disponible"
-                                }
-                            >
-                                MAX
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* 4. Prix Unitaire (Visible only if USDT/EUR) */}
-                    {(adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR') && (
-                        <div>
-                            <Label>{t('transactions.unitPrice')}</Label>
-                            <NumberInput value={adjustmentPrice} onChange={e => setAdjustmentPrice(e.target.value)} className={fieldBase} placeholder="Ex: 240.00" />
-                        </div>
-                    )}
-
-                    {/* 5. Client Lié (Visible only if DZD) */}
-                    {(adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') && (
-                        <div>
-                            <div className="flex justify-between">
-                                <Label>{t('transactions.linkedClientOptional')}</Label>
-                                <span className="text-xs text-gray-400">Optionnel</span>
-                            </div>
-                            <Select value={adjustmentClientId} onChange={e => setAdjustmentClientId(e.target.value)} className={fieldBase}>
-                                <option value="">Aucun client</option>
-                                {clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}
-                            </Select>
-                        </div>
-                    )}
-
-                    {/* 6. Motif */}
-                    <div>
-                        <Label>{t('transactions.reason')}</Label>
-                        <Input value={adjustmentNote} onChange={e => setAdjustmentNote(e.target.value)} className={fieldBase} placeholder="Ex: Alimentation, Frais..." />
-                    </div>
-
-                </DialogContent>
-                <DialogFooter>
-                    <Button
-                        onClick={handleGlobalAdjustment}
-                        disabled={
-                            isSaving ||
-                            !adjustmentAmount || parseFloat(adjustmentAmount) <= 0 ||
-                            (adjustmentTab === 'subtract' && (
-                                adjustmentAsset === 'USDT' ? parseFloat(adjustmentAmount) > (portfolioStats?.usdt?.available || 0) :
-                                    adjustmentAsset === 'EUR' ? parseFloat(adjustmentAmount) > (portfolioStats?.eur?.available || 0) : false
-                            ))
-                        }
-                        className={`w-full font-bold py-3 rounded-xl shadow-md transition-all ${(isSaving || !adjustmentAmount || parseFloat(adjustmentAmount) <= 0 || (adjustmentTab === 'subtract' && (
-                            adjustmentAsset === 'USDT' ? parseFloat(adjustmentAmount) > (portfolioStats?.usdt?.available || 0) :
-                                adjustmentAsset === 'EUR' ? parseFloat(adjustmentAmount) > (portfolioStats?.eur?.available || 0) : false
-                        )))
-                            ? 'bg-gray-400 cursor-not-allowed opacity-70'
-                            : (adjustmentTab === 'add' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white')
-                            }`}
-                    >
-                        {isSaving ? t('common.processing') : 'Confirmer'}
-                    </Button>
-                </DialogFooter>
-            </Dialog>
-
-            <Dialog isOpen={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)} className={`${cardBase} max-w-lg`}>
-                <DialogHeader onClose={() => setIsTransferModalOpen(false)} isDark={isDark}><DialogTitle>{t('transactions.clientTransfer')}</DialogTitle></DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    <div className="p-3 bg-sky-500/10 rounded-lg text-sm text-sky-600 dark:text-sky-400 mb-2">{t('transactions.transferDebtCredit')}</div>
-                    <div>
-                        <Label>{t('transactions.from')}</Label>
-                        <Select value={transferFromClientId} onChange={e => setTransferFromClientId(e.target.value)} className={fieldBase}>
-                            <option value="">-- {t('transactions.filterClients')} --</option>
-                            {clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}
-                        </Select>
-                        {transferFromClientId && (
-                            <p className={`text-xs mt-1 ${subtleText}`}>
-                                {t('common.balance')} : {transferFromBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {t('common.dinar')}
-                            </p>
-                        )}
-                    </div>
-                    <div>
-                        <Label>{t('transactions.to')}</Label>
-                        <Select value={transferToClientId} onChange={e => setTransferToClientId(e.target.value)} className={fieldBase}>
-                            <option value="">-- {t('transactions.filterClients')} --</option>
-                            {clientsDzd.map(c => <option key={c.id} value={c.id}>{getClientFullName(c)}</option>)}
-                        </Select>
-                        {transferToClientId && (
-                            <p className={`text-xs mt-1 ${subtleText}`}>
-                                {t('common.balance')} : {transferToBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {t('common.dinar')}
-                            </p>
-                        )}
-                    </div>
-                    <div>
-                        <Label>{t('transactions.amount')}</Label>
-                        <div className="relative">
-                            <NumberInput value={transferAmount} onChange={e => setTransferAmount(e.target.value)} className={fieldBase} />
-                            {transferFromClientId && (
-                                <button
-                                    onClick={() => setTransferAmount(Math.abs(transferFromBalance).toString())}
-                                    className="absolute right-2 top-2 text-xs bg-sky-600 text-white px-2 py-1 rounded hover:bg-sky-700 transition-colors"
-                                >
-                                    Max
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                    <div><Label>{t('common.notes')}</Label><Input value={transferNotes} onChange={e => setTransferNotes(e.target.value)} className={fieldBase} /></div>
-                </DialogContent>
-                <DialogFooter><Button onClick={handleSaveTransfer} disabled={isSaving} className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl">{t('transactions.confirmTransfer')}</Button></DialogFooter>
-            </Dialog>
-
-            {/* NEW: Treasury Balance Edit Modal */}
-            <Dialog isOpen={isTreasuryBalanceEditModalOpen} onClose={() => setIsTreasuryBalanceEditModalOpen(false)} className={`${cardBase} max-w-sm`}>
-                <DialogHeader onClose={() => setIsTreasuryBalanceEditModalOpen(false)} isDark={isDark}>
-                    <DialogTitle>{t('transactions.editBalance')} {treasuryBalanceEditAsset}</DialogTitle>
-                </DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    <div className="p-3 bg-blue-500/10 rounded-lg text-sm text-blue-600 dark:text-blue-400 mb-2">
-                        {t('transactions.editBalanceDesc')}
-                    </div>
-                    <div>
-                        <Label>{t('transactions.newBalance')} ({t('common.dinar')})</Label>
-                        <Input
-                            type="text"
-                            inputMode="numeric"
-                            value={treasuryBalanceEditValue}
-                            onChange={e => {
-                                const normalized = e.target.value.replace(',', '.').trim();
-                                if (normalized === '') {
-                                    setTreasuryBalanceEditValue('');
-                                    return;
-                                }
-                                if (/^\d+$/.test(normalized)) {
-                                    setTreasuryBalanceEditValue(normalized);
-                                }
-                            }}
-                            onBlur={() => {
-                                const parsed = parseAndEvaluate(treasuryBalanceEditValue);
-                                if (!isNaN(parsed)) {
-                                    setTreasuryBalanceEditValue(Math.round(parsed).toString());
-                                }
-                            }}
-                            className={`${fieldBase} text-2xl font-bold text-center`}
-                        />
-                    </div>
-                    <div>
-                        <Label>{t('common.notesOptional')}</Label>
-                        <Input value={treasuryBalanceEditNotes} onChange={e => setTreasuryBalanceEditNotes(e.target.value)} className={fieldBase} placeholder={t('transactions.reason')} />
-                    </div>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={handleSaveTreasuryBalanceEdit} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">{t('common.save')}</Button>
-                </DialogFooter>
-            </Dialog>
-
-            {/* NEW: Portfolio Balance Edit Modal */}
-            <Dialog isOpen={isPortfolioBalanceEditModalOpen} onClose={() => setIsPortfolioBalanceEditModalOpen(false)} className={`${cardBase} max-w-sm`}>
-                <DialogHeader onClose={() => setIsPortfolioBalanceEditModalOpen(false)} isDark={isDark}>
-                    <DialogTitle>{t('transactions.editBalance')} {portfolioBalanceEditAsset}</DialogTitle>
-                </DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    <div className="p-3 bg-blue-500/10 rounded-lg text-sm text-blue-600 dark:text-blue-400 mb-2">
-                        {t('transactions.editBalanceDesc')}
-                    </div>
-                    <div>
-                        <Label>{t('transactions.newBalance')} ({portfolioBalanceEditAsset})</Label>
-                        <Input
-                            type="text"
-                            inputMode="decimal"
-                            value={portfolioBalanceEditValue}
-                            onChange={e => {
-                                const normalized = e.target.value.replace(',', '.').trim();
-                                if (normalized === '') {
-                                    setPortfolioBalanceEditValue('');
-                                    return;
-                                }
-                                if (/^\d+(\.\d{0,2})?$/.test(normalized)) {
-                                    setPortfolioBalanceEditValue(normalized);
-                                }
-                            }}
-                            onBlur={() => {
-                                const parsed = parseAndEvaluate(portfolioBalanceEditValue);
-                                if (!isNaN(parsed)) {
-                                    setPortfolioBalanceEditValue(Number(parsed).toFixed(2));
-                                }
-                            }}
-                            className={`${fieldBase} text-2xl font-bold text-center`}
-                        />
-                    </div>
-                    <div>
-                        <Label>{t('common.notesOptional')}</Label>
-                        <Input value={portfolioBalanceEditNotes} onChange={e => setPortfolioBalanceEditNotes(e.target.value)} className={fieldBase} placeholder={t('transactions.reason')} />
-                    </div>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={handleSavePortfolioBalanceEdit} disabled={isSaving} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">{isSaving ? t('common.saving') : t('common.save')}</Button>
-                </DialogFooter>
-            </Dialog>
-
-
-
-
-
-            <Dialog isOpen={isDateFilterModalOpen} onClose={() => setIsDateFilterModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsDateFilterModalOpen(false)} isDark={isDark}><DialogTitle>{t('transactions.filterByDate')}</DialogTitle></DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4"><div><Label>{t('transactions.startDate')}</Label><Input type="date" value={tempStartDate} onChange={e => setTempStartDate(e.target.value)} className={fieldBase} /></div><div><Label>{t('transactions.endDate')}</Label><Input type="date" value={tempEndDate} onChange={e => setTempEndDate(e.target.value)} className={fieldBase} /></div></DialogContent>
-                <DialogFooter><Button onClick={handleClearDateFilter} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>{t('transactions.clear')}</Button><Button onClick={handleApplyDateFilter} className="w-full bg-sky-600 text-white">{t('transactions.apply')}</Button></DialogFooter>
-            </Dialog>
-
-            <Dialog isOpen={mode !== null} onClose={closeForm} className={`${cardBase} max-w-lg`}>
-                <DialogHeader onClose={closeForm} isDark={isDark}><DialogTitle>{editingTx ? t('common.edit') : (mode === 'sell_usdt' ? t('transactions.newTransaction') : t('transactions.newTransaction'))}</DialogTitle></DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    {mode && (
-                        <>
-                            {mode.startsWith('buy') && !buyUsdtMode && mode !== 'buy_eur' && (
-                                <>
-                                    <div className="text-center mb-6">
-                                        <h3 className="text-lg font-medium mb-1">{t('transactions.howDidYouBuy')}</h3>
-                                        <p className={`text-sm ${subtleText}`}>{t('transactions.selectCurrency')}</p>
-                                    </div>
-                                    <div className="space-y-3">
-                                        <Button onClick={() => setBuyUsdtMode('with_dzd')} className="w-full bg-teal-600 hover:bg-teal-700 text-white py-4 rounded-xl font-bold shadow-md flex items-center justify-center">
-                                            {t('portfolio.buyWithDzd')} ({t('common.dinar')})
-                                        </Button>
-                                        <Button onClick={() => { setBuyUsdtMode('with_eur'); setEurDzdPrice(portfolioStats.eur.avgBuy.toFixed(2)); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold shadow-md flex items-center justify-center">
-                                            {t('portfolio.buyWithEur')} (EUR)
-                                        </Button>
-                                    </div>
-                                </>
-                            )}
-                            {(buyUsdtMode || mode === 'buy_eur' || mode === 'sell_usdt') && (
-                                <div className="space-y-3">
-
-                                    {/* CASE 0: Buy USDT with DZD - REDESIGNED */}
-                                    {buyUsdtMode === 'with_dzd' && (
-                                        <>
-                                            <div>
-                                                <Label>{t('transactions.qtyUsdt')}</Label>
-                                                <NumberInput
-                                                    value={buyUsdtAmount}
-                                                    onChange={e => {
-                                                        setBuyUsdtAmount(e.target.value);
-                                                        // Auto-calculate total when quantity changes ONLY IF NOT MANUAL
-                                                        if (!isTotalManual) {
-                                                            const qty = parseAndEvaluate(e.target.value);
-                                                            const price = parseAndEvaluate(buyUsdtPrice);
-                                                            if (qty > 0 && price > 0) {
-                                                                setBuyUsdtTotal((qty * price).toFixed(0));
-                                                            } else if (qty === 0 || e.target.value === '') {
-                                                                setBuyUsdtTotal('');
-                                                            }
-                                                        }
-                                                    }}
-                                                    onBlur={() => {
-                                                        const qty = parseAndEvaluate(buyUsdtAmount);
-                                                        if (!isNaN(qty) && qty > 0) {
-                                                            setBuyUsdtAmount(qty.toFixed(2));
-                                                        }
-                                                    }}
-                                                    className={`${fieldBase} ${formValidation.errors['buyUsdtAmount'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                                                />
-                                                {formValidation.errors['buyUsdtAmount'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['buyUsdtAmount']}</p>}
-                                            </div>
-                                            <div>
-                                                <Label>{t('transactions.buyPrice')} ({t('common.dinar')})</Label>
-                                                <NumberInput
-                                                    value={buyUsdtPrice}
-                                                    onChange={e => {
-                                                        setBuyUsdtPrice(e.target.value);
-                                                        // Auto-calculate total when price changes ONLY IF NOT MANUAL
-                                                        if (!isTotalManual) {
-                                                            const qty = parseAndEvaluate(buyUsdtAmount);
-                                                            const price = parseAndEvaluate(e.target.value);
-                                                            if (qty > 0 && price > 0) {
-                                                                setBuyUsdtTotal((qty * price).toFixed(0));
-                                                            } else if (price === 0 || e.target.value === '') {
-                                                                setBuyUsdtTotal('');
-                                                            }
-                                                        }
-                                                    }}
-                                                    className={`${fieldBase} ${formValidation.errors['buyUsdtPrice'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                                                />
-                                                {formValidation.errors['buyUsdtPrice'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['buyUsdtPrice']}</p>}
-                                            </div>
-                                            <div>
-                                                <Label>{t('transactions.totalAmount')} ({t('common.dinar')})</Label>
-                                                <NumberInput
-                                                    value={buyUsdtTotal}
-                                                    onChange={e => {
-                                                        const val = e.target.value;
-                                                        setBuyUsdtTotal(val);
-                                                        if (val) {
-                                                            setIsTotalManual(true);
-                                                            // Bidirectional: Calculate Quantity from Total
-                                                            const total = parseAndEvaluate(val);
-                                                            const price = parseAndEvaluate(buyUsdtPrice);
-                                                            if (total > 0 && price > 0) {
-                                                                setBuyUsdtAmount((total / price).toFixed(2));
-                                                            }
-                                                        } else {
-                                                            setIsTotalManual(false);
-                                                            // Immediate auto-calc when cleared
-                                                            const qty = parseAndEvaluate(buyUsdtAmount);
-                                                            const price = parseAndEvaluate(buyUsdtPrice);
-                                                            if (qty > 0 && price > 0) setBuyUsdtTotal((qty * price).toFixed(0));
-                                                        }
-                                                    }}
-                                                    onBlur={() => {
-                                                        const total = parseAndEvaluate(buyUsdtTotal);
-                                                        if (!isNaN(total) && total > 0) {
-                                                            setBuyUsdtTotal(Math.round(total).toString());
-                                                        }
-                                                    }}
-                                                    className={`${fieldBase} ${formValidation.errors['buyUsdtTotal'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                                                    placeholder={t('transactions.autoCalc')}
-                                                />
-                                                {formValidation.errors['buyUsdtTotal'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['buyUsdtTotal']}</p>}
-                                                <p className={`text-xs mt-1 ${subtleText}`}>{t('transactions.autoCalc')}</p>
-                                            </div>
-                                            <ClientLinker
-                                                {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }}
-                                                errorMessage={formValidation.errors['linkedClientId']}
-                                                hasError={!!formValidation.errors['linkedClientId']}
-                                            />
-                                            <div>
-                                                <Label>{t('common.notesOptional')}</Label>
-                                                <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
-                                            </div>
-                                        </>
-                                    )}
-
-                                    {/* CASE 1: Buy USDT with EUR (Layout requested by user) */}
-                                    {buyUsdtMode === 'with_eur' && (
-                                        <>
-                                            <div>
-                                                <Label>{t('transactions.qtyEur')}</Label>
-                                                <div className="relative">
-                                                    <NumberInput
-                                                        value={buyEurForUsdtAmount}
-                                                        onChange={e => {
-                                                            setBuyEurForUsdtAmount(e.target.value);
-                                                        }}
-                                                        className={`${fieldBase} ${formValidation.errors['buyEurForUsdtAmount'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                                                    />
-                                                    {formValidation.errors['buyEurForUsdtAmount'] && <p className="text-red-500 text-xs mt-1 absolute -bottom-5 left-0">{formValidation.errors['buyEurForUsdtAmount']}</p>}
-                                                    <button onClick={() => setBuyEurForUsdtAmount(portfolioStats.eur.available.toString())} className="absolute right-2 top-2 text-xs bg-blue-600 text-white px-2 py-1 rounded">{t('common.max')}</button>
-                                                </div>
-                                                <p className={`text-xs mt-1 ${subtleText}`}>{t('portfolio.currentBalanceEur')}: {portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} EUR</p>
-                                            </div>
-
-                                            <div>
-                                                <Label>{t('portfolio.buyPriceEur')} ({t('common.dinar')})</Label>
-                                                <NumberInput
-                                                    value={eurDzdPrice}
-                                                    onChange={e => {
-                                                        setEurDzdPrice(e.target.value);
-                                                    }}
-                                                    className={fieldBase}
-                                                />
-                                                <p className={`text-xs mt-1 ${subtleText}`}>{t('transactions.basedOnPamEur')}</p>
-                                                {formValidation.errors['eurDzdPrice'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['eurDzdPrice']}</p>}
-                                            </div>
-                                            <div>
-                                                <Label>{t('portfolio.rateEurUsdt')}</Label>
-                                                <NumberInput
-                                                    value={eurUsdtRate}
-                                                    onChange={e => {
-                                                        setEurUsdtRate(e.target.value);
-                                                    }}
-                                                    className={`${fieldBase} ${formValidation.errors['eurUsdtRate'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                                                    placeholder="Ex: 0.92"
-                                                />
-                                                {formValidation.errors['eurUsdtRate'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['eurUsdtRate']}</p>}
-                                            </div>
-
-                                            {/* Calculated USDT Quantity Message */}
-                                            {(() => {
-                                                const eurQty = parseAndEvaluate(buyEurForUsdtAmount);
-                                                const rate = parseAndEvaluate(eurUsdtRate);
-                                                const usdtQty = (eurQty > 0 && rate > 0) ? (eurQty / rate) : 0;
-                                                const currentUsdtBalance = portfolioStats.usdt.available;
-                                                const totalAfterPurchase = currentUsdtBalance + usdtQty;
-
-                                                if (usdtQty > 0) {
-                                                    return (
-                                                        <div className="p-3 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-xl space-y-2">
-                                                            <div>
-                                                                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">{t('transactions.quantity')} USDT</p>
-                                                                <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">
-                                                                    {usdtQty.toFixed(2)} USDT
-                                                                </p>
-                                                            </div>
-
-                                                            <div className="pt-2 border-t border-emerald-500/20">
-                                                                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">{t('transactions.newBalance')}</p>
-                                                                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
-                                                                    {totalAfterPurchase.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                }
-                                                return null;
-                                            })()}
-
-                                            <div><Label>{t('common.notesOptional')}</Label><Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} /></div>
-                                        </>
-                                    )}
-
-                                    {/* CASE 2: Sell USDT */}
-                                    {mode === 'sell_usdt' && (
-                                        <>
-                                            <div>
-                                                <Label>{t('transactions.qtyUsdt')}</Label>
-                                                <div className="relative">
-                                                    <NumberInput
-                                                        value={sellAmount}
-                                                        onChange={e => {
-                                                            setSellAmount(e.target.value);
-                                                            // Calculate total when quantity changes ONLY IF NOT MANUAL
-                                                            if (!isTotalManual) {
-                                                                const qty = parseAndEvaluate(e.target.value);
-                                                                const price = parseAndEvaluate(sellPrice);
-                                                                if (qty > 0 && price > 0) {
-                                                                    setSellTotal((qty * price).toFixed(0));
-                                                                }
-                                                            }
-                                                        }}
-                                                        onBlur={() => {
-                                                            const qty = parseAndEvaluate(sellAmount);
-                                                            if (!isNaN(qty) && qty > 0) {
-                                                                setSellAmount(qty.toFixed(2));
-                                                            }
-                                                        }}
-                                                        className={fieldBase}
-                                                        placeholder="0.00"
-                                                    />
-                                                    <button onClick={() => {
-                                                        setSellAmount(portfolioStats.usdt.available.toFixed(2));
-                                                        const price = parseAndEvaluate(sellPrice);
-                                                        if (price > 0) {
-                                                            setSellTotal((portfolioStats.usdt.available * price).toFixed(0));
-                                                        }
-                                                    }} className="absolute right-2 top-2 text-xs bg-sky-600 text-white px-2 py-1 rounded">{t('common.max')}</button>
-                                                </div>
-                                                <p className={`text-xs mt-1 ${subtleText}`}>{t('common.balance')}: {portfolioStats.usdt.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</p>
-                                                {formValidation.errors['sellAmount'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['sellAmount']}</p>}
-                                            </div>
-
-                                            <div>
-                                                <Label>{t('transactions.totalAmount')} ({t('common.dinar')})</Label>
-                                                <NumberInput
-                                                    value={sellTotal}
-                                                    onChange={e => {
-                                                        const val = e.target.value;
-                                                        setSellTotal(val);
-                                                        if (val) {
-                                                            setIsTotalManual(true);
-                                                            // Bidirectional: Calculate Quantity from Total
-                                                            const total = parseAndEvaluate(val);
-                                                            const price = parseAndEvaluate(sellPrice);
-                                                            if (total > 0 && price > 0) {
-                                                                setSellAmount((total / price).toFixed(2));
-                                                            }
-                                                        } else {
-                                                            setIsTotalManual(false);
-                                                            // Immediate auto-calc when cleared
-                                                            const qty = parseAndEvaluate(sellAmount);
-                                                            const price = parseAndEvaluate(sellPrice);
-                                                            if (qty > 0 && price > 0) setSellTotal((qty * price).toFixed(0));
-                                                        }
-                                                    }}
-                                                    onBlur={() => {
-                                                        const total = parseAndEvaluate(sellTotal);
-                                                        if (!isNaN(total) && total > 0) {
-                                                            setSellTotal(Math.round(total).toString());
-                                                        }
-                                                    }}
-                                                    className={`${fieldBase} ${formValidation.errors['sellTotal'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                                                    placeholder="0.00"
-                                                />
-                                                {formValidation.errors['sellTotal'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['sellTotal']}</p>}
-                                            </div>
-
-                                            <div className={`p-3 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                                                <div className="flex justify-between text-sm">
-                                                    <span className="text-gray-400">{t('portfolio.currentPam')}:</span>
-                                                    <span className="font-bold">{portfolioStats.usdt.avgBuy.toFixed(2)} {t('common.dinar')}</span>
-                                                </div>
-                                                <div
-                                                    className="flex justify-between text-sm mt-1 cursor-pointer hover:opacity-80 transition-opacity"
-                                                    onClick={() => {
-                                                        const price = suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0
-                                                            ? parseFloat(suggestedSellingPrice)
-                                                            : (portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin));
-                                                        setSellPrice(price.toFixed(2));
-                                                        setProfitPercent((price - portfolioStats.usdt.avgBuy).toFixed(2));
-                                                        // Update total if not manual
-                                                        const qty = parseAndEvaluate(sellAmount);
-                                                        if (!isTotalManual && qty > 0) {
-                                                            setSellTotal((qty * price).toFixed(0));
-                                                        }
-                                                    }}
-                                                >
-                                                    <span className="text-yellow-500">{t('portfolio.suggestedPrice')} (+{(suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0 ? (parseFloat(suggestedSellingPrice) - portfolioStats.usdt.avgBuy).toFixed(2) : suggestedProfitMargin)} DA):</span>
-                                                    <span className="font-bold text-yellow-500 underline decoration-dotted underline-offset-2">{(suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0 ? parseFloat(suggestedSellingPrice) : (portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin))).toFixed(2)} {t('common.dinar')}</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <Label>{t('transactions.sellPrice')} ({t('common.dinar')})</Label>
-                                                    <NumberInput
-                                                        value={sellPrice}
-                                                        onChange={e => {
-                                                            setSellPrice(e.target.value);
-                                                            const price = parseAndEvaluate(e.target.value);
-                                                            const qty = parseAndEvaluate(sellAmount);
-
-                                                            // Update total when price changes ONLY IF NOT MANUAL
-                                                            if (!isTotalManual && qty > 0 && price > 0) {
-                                                                setSellTotal((qty * price).toFixed(0));
-                                                            }
-
-                                                            // Update margin when price changes
-                                                            if (portfolioStats.usdt.avgBuy > 0 && price > 0) {
-                                                                const margin = price - portfolioStats.usdt.avgBuy;
-                                                                setProfitPercent(margin.toFixed(2));
-                                                            }
-                                                        }}
-                                                        className={`${fieldBase} ${formValidation.errors['sellPrice'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                                                    />
-                                                    {formValidation.errors['sellPrice'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['sellPrice']}</p>}
-                                                </div>
-                                                <div>
-                                                    <Label>{t('portfolio.margin')} ({t('common.dinar')})</Label>
-                                                    <NumberInput
-                                                        value={profitPercent}
-                                                        onChange={e => {
-                                                            setProfitPercent(e.target.value);
-                                                            const margin = parseAndEvaluate(e.target.value);
-                                                            if (margin >= 0 && portfolioStats.usdt.avgBuy > 0) {
-                                                                const newPrice = portfolioStats.usdt.avgBuy + margin;
-                                                                setSellPrice(newPrice.toFixed(2));
-
-                                                                // Update total based on new price ONLY IF NOT MANUAL
-                                                                const qty = parseAndEvaluate(sellAmount);
-                                                                if (!isTotalManual && qty > 0) {
-                                                                    setSellTotal((qty * newPrice).toFixed(0));
-                                                                }
-                                                            }
-                                                        }}
-                                                        className={fieldBase}
-                                                        placeholder="DZD"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <ClientLinker
-                                                {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }}
-                                                errorMessage={formValidation.errors['linkedClientId']}
-                                                hasError={!!formValidation.errors['linkedClientId']}
-                                            />
-                                            <div><Label>{t('common.notesOptional')}</Label><Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} /></div>
-                                        </>
-                                    )}
-
-                                    {/* CASE 3: Buy EUR (Standard) - REDESIGNED */}
-                                    {mode === 'buy_eur' && (
-                                        <div className="space-y-4">
-                                            <div>
-                                                <Label>{t('transactions.qtyEur')}</Label>
-                                                <NumberInput
-                                                    value={buyEurAmount}
-                                                    onChange={e => {
-                                                        setBuyEurAmount(e.target.value);
-                                                        // Auto-calculate total when quantity changes ONLY IF NOT MANUAL
-                                                        if (!isTotalManual) {
-                                                            const qty = parseAndEvaluate(e.target.value);
-                                                            const price = parseAndEvaluate(buyEurPrice);
-                                                            if (qty > 0 && price > 0) {
-                                                                setBuyEurTotal((qty * price).toFixed(0));
-                                                            } else if (qty === 0 || e.target.value === '') {
-                                                                setBuyEurTotal('');
-                                                            }
-                                                        }
-                                                    }}
-                                                    className={`${fieldBase} ${formValidation.errors['buyEurAmount'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                                                />
-                                                {formValidation.errors['buyEurAmount'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['buyEurAmount']}</p>}
-                                            </div>
-                                            <div>
-                                                <Label>{t('portfolio.buyPriceEur')} ({t('common.dinar')})</Label>
-                                                <NumberInput
-                                                    value={buyEurPrice}
-                                                    onChange={e => {
-                                                        setBuyEurPrice(e.target.value);
-                                                        // Auto-calculate total when price changes ONLY IF NOT MANUAL
-                                                        if (!isTotalManual) {
-                                                            const qty = parseAndEvaluate(buyEurAmount);
-                                                            const price = parseAndEvaluate(e.target.value);
-                                                            if (qty > 0 && price > 0) {
-                                                                setBuyEurTotal((qty * price).toFixed(0));
-                                                            } else if (price === 0 || e.target.value === '') {
-                                                                setBuyEurTotal('');
-                                                            }
-                                                        }
-                                                    }}
-                                                    className={`${fieldBase} ${formValidation.errors['buyEurPrice'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                                                />
-                                                {formValidation.errors['buyEurPrice'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['buyEurPrice']}</p>}
-                                                <p className={`text-xs mt-1 ${subtleText}`}>{t('transactions.basedOnPamEur')}</p>
-                                            </div>
-                                            <div>
-                                                <Label>{t('transactions.totalAmount')} ({t('common.dinar')})</Label>
-                                                <NumberInput
-                                                    value={buyEurTotal}
-                                                    onChange={e => {
-                                                        const val = e.target.value;
-                                                        setBuyEurTotal(val);
-                                                        if (val) {
-                                                            setIsTotalManual(true);
-                                                            // Bidirectional: Calculate Quantity from Total
-                                                            const total = parseAndEvaluate(val);
-                                                            const price = parseAndEvaluate(buyEurPrice);
-                                                            if (total > 0 && price > 0) {
-                                                                setBuyEurAmount((total / price).toFixed(2));
-                                                            }
-                                                        } else {
-                                                            setIsTotalManual(false);
-                                                            // Immediate auto-calc when cleared
-                                                            const qty = parseAndEvaluate(buyEurAmount);
-                                                            const price = parseAndEvaluate(buyEurPrice);
-                                                            if (qty > 0 && price > 0) setBuyEurTotal((qty * price).toFixed(0));
-                                                        }
-                                                    }}
-                                                    onBlur={() => {
-                                                        const total = parseAndEvaluate(buyEurTotal);
-                                                        if (!isNaN(total) && total > 0) {
-                                                            setBuyEurTotal(Math.round(total).toString());
-                                                        }
-                                                    }}
-                                                    className={`${fieldBase} ${formValidation.errors['buyEurTotal'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                                                    placeholder={t('transactions.autoCalc')}
-                                                />
-                                                {formValidation.errors['buyEurTotal'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['buyEurTotal']}</p>}
-                                                <p className={`text-xs mt-1 ${subtleText}`}>{t('transactions.autoCalc')}</p>
-                                            </div>
-                                            <ClientLinker
-                                                {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }}
-                                                errorMessage={formValidation.errors['linkedClientId']}
-                                                hasError={!!formValidation.errors['linkedClientId']}
-                                            />
-                                            <div>
-                                                <Label>{t('common.notesOptional')}</Label>
-                                                <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* CASE 4: Buy USDT (Standard) */}
-                                    {mode === 'buy_usdt' && !buyUsdtMode && (
-                                        <div className="space-y-4">
-                                            <div>
-                                                <Label>{t('transactions.qtyUsdt')}</Label>
-                                                <NumberInput value={buyUsdtAmount} onChange={e => setBuyUsdtAmount(e.target.value)} className={fieldBase} />
-                                            </div>
-                                            <div>
-                                                <Label>{t('transactions.buyPrice')} ({t('common.dinar')})</Label>
-                                                <NumberInput value={buyUsdtPrice} onChange={e => setBuyUsdtPrice(e.target.value)} className={fieldBase} />
-                                            </div>
-                                            <ClientLinker {...{ linkedClientId, setLinkedClientId, openClientModal, clientsDzd, fieldBase, isDark, clientPaymentStatus, setClientPaymentStatus }} />
-                                            <div>
-                                                <Label>{t('common.notesOptional')}</Label>
-                                                <Input value={notes} onChange={e => setNotes(e.target.value)} className={fieldBase} />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </>
-                    )}
-                    {/* Validation Alert */}
-                    {!formValidation.isValid && (
-                        <div className="mx-6 mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
-                                <span className="text-red-500 font-bold">!</span>
-                            </div>
-                            <p className="text-sm text-red-500 font-medium">
-                                {t('common.fillAllFields') || "Veuillez remplir correctement tous les champs obligatoires."}
-                            </p>
-                        </div>
-                    )}
-                </DialogContent>
-                <DialogFooter>
-                    {(mode !== 'buy_usdt' || buyUsdtMode) && (
-                        <div className="flex gap-3 w-full">
-                            <Button onClick={closeForm} className={`flex-1 ${isDark ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-200 hover:bg-slate-300'} text-slate-800 dark:text-slate-200 py-3 rounded-xl font-bold`}>{t('common.cancel')}</Button>
-                            <Button
-                                onClick={mode?.startsWith('buy') ? handleBuy : handleSell}
-                                disabled={!formValidation.isValid || isSaving}
-                                className={`flex-1 py-3 rounded-xl font-bold text-white shadow-lg shadow-blue-500/20 transition-all ${!formValidation.isValid || isSaving ? 'bg-slate-400 cursor-not-allowed opacity-70' : 'bg-blue-600 hover:bg-blue-700 hover:shadow-blue-500/40 hover:-translate-y-0.5'}`}
-                            >
-                                {isSaving ? (
-                                    <div className="flex items-center justify-center gap-2">
-                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        <span>{t('common.processing')}</span>
-                                    </div>
-                                ) : (
-                                    t('transactions.confirm')
-                                )}
-                            </Button>
-                        </div>
-                    )}
-                </DialogFooter>
-            </Dialog>
-
-            <Dialog isOpen={txToDelete !== null} onClose={() => setTxToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>{t('transactions.deleteTransaction')}</DialogTitle></DialogHeader>
-                <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">{t('transactions.confirmDeleteTx')}</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">{t('transactions.irreversibleAction')}</p>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => setTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
-                    <Button onClick={handleDeleteConfirm} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{t('common.delete')}</Button>
-                </DialogFooter>
-            </Dialog>
-            <Dialog isOpen={clientTxToDelete !== null} onClose={() => setClientTxToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>{t('transactions.deleteTransaction')}</DialogTitle></DialogHeader>
-                <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">{t('transactions.confirmDeleteTx')}</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">{t('transactions.irreversibleAction')}</p>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => setClientTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
-                    <Button onClick={handleDeleteClientTxConfirm} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{t('common.delete')}</Button>
-                </DialogFooter>
-            </Dialog>
-            <Dialog isOpen={isClientModalOpen} onClose={() => setIsClientModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsClientModalOpen(false)} isDark={isDark}><DialogTitle>{editingClient ? t('transactions.editClient') : t('transactions.newClient')}</DialogTitle></DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    <div><Label>{t('transactions.fullName')}</Label><Input value={clientFullName} onChange={e => setClientFullName(e.target.value)} className={fieldBase} /></div>
-                    <div><Label>{t('transactions.phone')}</Label><Input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className={fieldBase} /></div>
-                    <div><Label>RedotPay ID</Label><Input value={clientRedotpayId} onChange={e => setClientRedotpayId(e.target.value)} className={fieldBase} /></div>
-                    <div><Label>Binance Email</Label><Input value={clientBinanceEmail} onChange={e => setClientBinanceEmail(e.target.value)} className={fieldBase} /></div>
-
-                    {!editingClient && <div><Label>{t('transactions.initialBalance')} ({t('common.dinar')})</Label><NumberInput value={initialBalance} onChange={e => setInitialBalance(e.target.value)} className={fieldBase} placeholder="0.00" /></div>}
-                </DialogContent>
-                <DialogFooter><Button onClick={handleSaveClient} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl">{t('common.save')}</Button></DialogFooter>
-            </Dialog>
-
-            <Dialog isOpen={clientToDelete !== null} onClose={() => setClientToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>{t('common.confirmDelete')}</DialogTitle></DialogHeader>
-                <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">{t('transactions.confirmDeleteClient')}</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">{t('transactions.irreversibleAction')}</p>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => setClientToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
-                    <Button onClick={handleDeleteClient} className="w-full bg-red-600 text-white font-bold py-3 rounded-xl">{t('transactions.confirmDelete')}</Button>
-                </DialogFooter>
-            </Dialog>
-
-            <Dialog isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} className={`${cardBase} max-w-sm`}>
-                <DialogHeader onClose={() => setIsSettingsModalOpen(false)} isDark={isDark}><DialogTitle>{t('common.settings')}</DialogTitle></DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    <div>
-                        <Label>{t('portfolio.margin')} ({t('common.dinar')})</Label>
-                        <div className="relative">
-                            <NumberInput
-                                value={suggestedProfitMargin}
-                                onChange={e => {
-                                    const newMargin = e.target.value;
-                                    setSuggestedProfitMargin(newMargin);
-
-                                    // Update selling price based on margin (with 2 decimal precision)
-                                    const marginNum = parseFloat(newMargin) || 0;
-                                    const avgBuyPrice = portfolioStats.usdt.avgBuy || 0;
-                                    const newSellingPrice = avgBuyPrice + marginNum;
-                                    // FIX: Round to 2 decimals
-                                    setSuggestedSellingPrice(newSellingPrice > 0 ? parseFloat(newSellingPrice.toFixed(2)).toString() : '');
-                                }}
-                                className={`${fieldBase} text-center text-2xl font-bold`}
-                                placeholder="2.00"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">{t('common.dinar')}</span>
-                        </div>
-                        <p className={`text-xs mt-2 ${subtleText}`}>Cette marge est utilisée pour calculer le prix de vente suggéré.</p>
-                    </div>
-
-                    <div>
-                        <Label>{t('transactions.sellPrice')} ({t('common.dinar')})</Label>
-                        <div className="relative">
-                            <NumberInput
-                                value={suggestedSellingPrice}
-                                onChange={e => {
-                                    const newSellingPrice = e.target.value;
-                                    setSuggestedSellingPrice(newSellingPrice);
-
-                                    // Update margin based on selling price (with 2 decimal precision)
-                                    const sellingPriceNum = parseFloat(newSellingPrice) || 0;
-                                    const avgBuyPrice = portfolioStats.usdt.avgBuy || 0;
-                                    const newMargin = sellingPriceNum - avgBuyPrice;
-                                    // FIX: Round to 2 decimals
-                                    setSuggestedProfitMargin(newMargin >= 0 ? parseFloat(newMargin.toFixed(2)).toString() : '0');
-                                }}
-                                className={`${fieldBase} text-center text-2xl font-bold`}
-                                placeholder="0.00"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">{t('common.dinar')}</span>
-                        </div>
-                        <p className={`text-xs mt-2 ${subtleText}`}>
-                            {t('portfolio.avgBuyPriceUsdt')}: {(portfolioStats.usdt.avgBuy || 0).toFixed(2)} {t('common.dinar')}
-                        </p>
-                    </div>
-
-                    <div className="pt-4 border-t border-red-200 dark:border-red-900/30">
-                        <Label className="text-red-500">{t('common.dangerZone')}</Label>
-                        <p className={`text-xs mb-3 ${subtleText}`}>{t('common.deleteAllData')}</p>
-                        <Button
-                            onClick={() => { setIsSettingsModalOpen(false); setIsResetModalOpen(true); }}
-                            className="w-full bg-red-100 hover:bg-red-200 text-red-600 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 font-bold py-3 rounded-xl border border-red-200 dark:border-red-900/50"
-                        >
-                            {t('common.resetApp')}
-                        </Button>
-                    </div>
-                </DialogContent>
-                <DialogFooter>
-                    <Button
-                        onClick={async () => {
-                            // Save to Firestore with 2 decimal precision
-                            try {
-                                const marginToSave = parseFloat(parseFloat(suggestedProfitMargin).toFixed(2)) || 2;
-                                const sellPriceToSave = parseFloat(parseFloat(suggestedSellingPrice).toFixed(2)) || 0;
-
-                                console.log('Saving settings:', { marginToSave, sellPriceToSave });
-
-                                // Use set with merge=true to create document if it doesn't exist
-                                await userDocRef.set({
-                                    suggestedProfitMargin: marginToSave,
-                                    suggestedSellingPrice: sellPriceToSave,
-                                    settingsUpdatedAt: Date.now()
-                                }, { merge: true });
-
-                                console.log('Settings saved successfully');
-                                setAlert('✅ ' + t('common.settingsSaved'));
-                                setIsSettingsModalOpen(false);
-                            } catch (e: any) {
-                                console.error('Error saving settings:', e);
-                                console.error('Error details:', e.message, e.code);
-                                setAlert('❌ ' + t('common.error') + ': ' + (e.message || 'Erreur inconnue'));
-                            }
-                        }}
-                        className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl"
-                    >
-                        {t('common.save')}
-                    </Button>
-                </DialogFooter>
-            </Dialog>
-
-            {/* RESET CONFIRMATION MODAL */}
-            <Dialog isOpen={isResetModalOpen} onClose={() => setIsResetModalOpen(false)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>{t('common.resetConfirmTitle')}</DialogTitle></DialogHeader>
-                <DialogContent className="p-6">
-                    <p className="text-red-500 font-bold mb-2">{t('common.resetWarning')}</p>
-                    <p>{t('common.resetConfirmBody')}</p>
-                    <p className="mt-2">{t('common.areYouSure')}</p>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => setIsResetModalOpen(false)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
-                    <Button onClick={handleGlobalReset} className="w-full bg-red-600 text-white font-bold py-3 rounded-xl">{t('common.resetYes')}</Button>
-                </DialogFooter>
-            </Dialog>
-
-            {/* NEW: CREATE MANUAL ASSET MODAL */}
-            <Dialog isOpen={isCreateAssetModalOpen} onClose={() => setIsCreateAssetModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsCreateAssetModalOpen(false)} isDark={isDark}>
-                    <DialogTitle>{t('transactions.newManualAsset')}</DialogTitle>
-                </DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    <div>
-                        <Label>{t('transactions.assetName')}</Label>
-                        <Input value={newAssetName} onChange={e => setNewAssetName(e.target.value)} className={fieldBase} placeholder="Ex: Impression, Conception..." />
-                    </div>
-                    <div>
-                        <Label>{t('transactions.descriptionOptional')}</Label>
-                        <Input value={newAssetDescription} onChange={e => setNewAssetDescription(e.target.value)} className={fieldBase} />
-                    </div>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => {
-                        handleCreateAsset();
-                    }} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">{t('transactions.create')}</Button>
-                </DialogFooter>
-            </Dialog>
-
-            {/* TREASURY CARD MODAL */}
-            <Dialog isOpen={isTreasuryCardModalOpen} onClose={() => setIsTreasuryCardModalOpen(false)} className={`${cardBase} max-w-sm`}>
-                <DialogHeader onClose={() => setIsTreasuryCardModalOpen(false)} isDark={isDark}><DialogTitle>{editingTreasuryCard ? t('transactions.editCard') : t('transactions.addCard')}</DialogTitle></DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    <div><Label>{t('transactions.cardNameSource')}</Label><Input value={treasuryCardName} onChange={e => setTreasuryCardName(e.target.value)} className={fieldBase} placeholder="Ex: Coffre Fort" /></div>
-                    <div><Label>{t('transactions.valueDzd')}</Label><NumberInput value={treasuryCardValue} onChange={e => setTreasuryCardValue(e.target.value)} className={fieldBase} placeholder="0.00" /></div>
-                </DialogContent>
-                <DialogFooter><Button onClick={handleSaveTreasuryCard} disabled={isSaving} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl">{isSaving ? t('common.saving') : (editingTreasuryCard ? t('transactions.update') : t('transactions.add'))}</Button></DialogFooter>
-            </Dialog>
-
-            {/* DELETE TREASURY CARD CONFIRMATION */}
-            <Dialog isOpen={treasuryCardToDelete !== null} onClose={() => setTreasuryCardToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>{t('common.confirmDelete')}</DialogTitle></DialogHeader>
-                <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">{t('common.areYouSure')}</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">{t('transactions.irreversibleAction')}</p>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => setTreasuryCardToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
-                    <Button onClick={handleDeleteTreasuryCard} disabled={isSaving} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{isSaving ? t('common.deleting') : t('common.delete')}</Button>
-                </DialogFooter>
-            </Dialog>
-
-            <Dialog isOpen={treasuryTxToDelete !== null} onClose={() => setTreasuryTxToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>{t('transactions.deleteTransaction')}</DialogTitle></DialogHeader>
-                <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">{t('transactions.confirmDeleteTx')}</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">{t('transactions.irreversibleAction')}</p>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => setTreasuryTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
-                    <Button onClick={handleDeleteTreasuryTxConfirm} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{t('common.delete')}</Button>
-                </DialogFooter>
-            </Dialog>
-
+            <MainTransactionDialog {...{ mode, editingTx, closeForm, cardBase, isDark, t, subtleText, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, suggestedSellingPrice, suggestedProfitMargin, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, handleBuy, handleSell, isSaving }} />
+            <MainClientCrudDialogs {...{ txToDelete, setTxToDelete, cardBase, isDark, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, initialBalance, setInitialBalance, fieldBase, handleSaveClient, clientToDelete, setClientToDelete, handleDeleteClient }} />
+            <MainUtilityDialogs {...{ isSettingsModalOpen, setIsSettingsModalOpen, cardBase, isDark, t, suggestedProfitMargin, setSuggestedProfitMargin, suggestedSellingPrice, setSuggestedSellingPrice, portfolioStats, fieldBase, subtleText, setIsResetModalOpen, userDocRef, setAlert, isResetModalOpen, handleGlobalReset, isCreateAssetModalOpen, setIsCreateAssetModalOpen, newAssetName, setNewAssetName, newAssetDescription, setNewAssetDescription, handleCreateAsset, isTreasuryCardModalOpen, setIsTreasuryCardModalOpen, editingTreasuryCard, treasuryCardName, setTreasuryCardName, treasuryCardValue, setTreasuryCardValue, handleSaveTreasuryCard, isSaving, treasuryCardToDelete, setTreasuryCardToDelete, handleDeleteTreasuryCard, treasuryTxToDelete, setTreasuryTxToDelete, handleDeleteTreasuryTxConfirm }} />
             {/* CLIENT SUMMARY MODAL */}
             {/* CLIENT SUMMARY MODAL */}
-            <Dialog isOpen={summaryClient !== null} onClose={() => setSummaryClient(null)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setSummaryClient(null)} isDark={isDark}>
-                    <DialogTitle>{t('transactions.clientDetails')}</DialogTitle>
-                </DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    {summaryClient && (() => {
-                        const bal = clientBalances.get(summaryClient.id) || 0;
-                        const lastTxs = clientTransactionsDzd
-                            .filter(t => t.clientId === summaryClient.id)
-                            .sort((a, b) => b.timestamp - a.timestamp)
-                            .slice(0, 5);
-
-                        const getTxDetails = (tx: ClientTransactionDzd) => {
-                            let type: string = tx.type;
-                            let details = '';
-                            let method = tx.paymentMethod || '';
-
-                            if (tx.linkedTxId) {
-                                const linked = transactions.find(t => t.id === tx.linkedTxId);
-                                if (linked) {
-                                    if (linked.type === 'sell') {
-                                        type = t('transactions.sellUsdt');
-                                        details = `${linked.quantity} USDT @ ${linked.sell} ${t('common.dinar')}`;
-                                    } else if (linked.type === 'buy') {
-                                        type = `${t('transactions.buy')} ${linked.currency}`;
-                                        details = `${linked.quantity} ${linked.currency} @ ${linked.price} ${t('common.dinar')}`;
-                                    }
-                                }
-                            } else if (tx.type.includes('Transfert')) {
-                                details = tx.notes || '';
-                            }
-
-                            return { type, details, method, notes: tx.notes };
-                        };
-
-                        const handleShare = async () => {
-                            const modalContent = document.querySelector('[data-client-summary]');
-                            if (!modalContent) { setAlert('❌ ' + t('common.error')); return; }
-
-                            try {
-                                // Feedback that it started
-                                // setAlert('⏳ ' + t('common.generatingImage')); 
-
-                                // Wait a tiny bit to ensure rendering
-                                await new Promise(resolve => setTimeout(resolve, 500));
-
-                                const { toBlob } = await import('html-to-image');
-                                const blob = await toBlob(modalContent as HTMLElement, {
-                                    backgroundColor: isDark ? '#111827' : '#ffffff',
-                                    style: {
-                                        transform: 'scale(1)', // reset legacy transforms if any
-                                    }
-                                });
-
-                                if (!blob) { setAlert('❌ ' + t('common.error')); return; }
-
-                                const file = new File([blob], `releve_${summaryClient.phone || 'client'}.png`, { type: 'image/png' });
-
-                                // Helper to check if sharing files is supported
-                                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                                    try {
-                                        await navigator.share({
-                                            files: [file],
-                                            title: t('transactions.clientStatement'),
-                                            text: `${t('transactions.statementOf')} ${getClientFullName(summaryClient)}`
-                                        });
-                                        // Success
-                                    } catch (e: any) {
-                                        console.error("Share failed", e);
-                                        // Don't error alert if user just cancelled
-                                        if (e.name !== 'AbortError') {
-                                            setAlert('❌ ' + t('transactions.shareCancelled'));
-                                        }
-                                    }
-                                } else {
-                                    // Fallback: download image
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = `releve_${summaryClient.phone || 'client'}.png`;
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    document.body.removeChild(a);
-                                    URL.revokeObjectURL(url);
-                                    setAlert('✅ ' + t('transactions.imageDownloaded'));
-                                }
-                            } catch (e: any) {
-                                console.error(e);
-                                setAlert('❌ ' + t('transactions.captureError') + (e.message ? `: ${e.message}` : ''));
-                            }
-                        };
-
-                        return (
-                            <div data-client-summary>
-                                <div className="space-y-5">
-                                    <div className={`text-center p-4 rounded-2xl ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                                        <h3 className="text-xl font-bold mb-1">{getClientFullName(summaryClient)}</h3>
-                                        <p className={`text-sm ${subtleText} mb-3`}>{summaryClient.phone || t('transactions.noPhone')}</p>
-                                        <div className="flex flex-col items-center justify-center">
-                                            <span className={`text-xs uppercase tracking-wider font-semibold ${subtleText}`}>{t('transactions.currentBalance')}</span>
-                                            <span className={`text-3xl font-bold ${bal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                {bal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-lg text-gray-400">{t('common.dinar')}</span>
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <h4 className="font-bold mb-3 text-sm uppercase tracking-wider opacity-70 flex items-center gap-2">
-                                            <RefreshCwIcon className="w-4 h-4" /> {t('transactions.recentTransactions')}
-                                        </h4>
-                                        <div className={`rounded-xl overflow-hidden border ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-                                            {lastTxs.length > 0 ? (
-                                                <div className="divide-y" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-                                                    {lastTxs.map(tx => {
-                                                        const { type, details, method } = getTxDetails(tx);
-                                                        return (
-                                                            <div key={tx.id} className={`p-3.5 ${isDark ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
-                                                                <div className="flex justify-between items-start mb-1">
-                                                                    <div className="font-bold text-sm">{type}</div>
-                                                                    <div className={`font-bold text-sm ${tx.montant > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                                        {tx.montant > 0 ? '+' : ''}{tx.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD
-                                                                    </div>
-                                                                </div>
-                                                                <div className="space-y-0.5 text-xs">
-                                                                    {details && <div className={isDark ? 'text-gray-300' : 'text-gray-700'}>{details}</div>}
-                                                                    <div className={subtleText}>{tx.date} à {tx.time}</div>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            ) : (
-                                                <p className="p-6 text-center text-sm opacity-50">{t('transactions.noRecentTransactions')}</p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex gap-3 pt-2">
-                                        <Button onClick={() => setSummaryClient(null)} className={`flex-1 py-3 rounded-xl font-semibold ${isDark ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-200 hover:bg-slate-300'}`}>{t('transactions.close')}</Button>
-                                        <Button onClick={handleShare} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20">
-                                            <ShareIcon className="w-4 h-4" /> {t('transactions.send')}
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })()}
-                </DialogContent>
-            </Dialog>
-
-            {/* INVESTOR CREATION / EDIT MODAL */}
-            <Dialog isOpen={isInvestorModalOpen} onClose={() => setIsInvestorModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsInvestorModalOpen(false)} isDark={isDark}>
-                    <DialogTitle>{editingInvestor ? "Modifier Investisseur" : "Nouvel Investisseur"}</DialogTitle>
-                </DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    <form onSubmit={(e) => {
-                        e.preventDefault();
-                        handleSaveInvestor();
-                    }}>
-                        <div>
-                            <Label>Nom Complet</Label>
-                            <Input value={investorName} onChange={e => setInvestorName(e.target.value)} className={fieldBase} placeholder="Nom de l'investisseur" required />
-                        </div>
-                        {!editingInvestor && (
-                            <div>
-                                <Label>Capital Initial (DZD)</Label>
-                                <NumberInput value={investorInitialCapital} onChange={e => setInvestorInitialCapital(e.target.value)} className={fieldBase} placeholder="0.00" />
-                            </div>
-                        )}
-                        {/* Share Percentage Removed - Auto Calculated */}
-                        <div>
-                            <Label>Notes (Optionnel)</Label>
-                            <Input value={investorNotes} onChange={e => setInvestorNotes(e.target.value)} className={fieldBase} placeholder="Notes..." />
-                        </div>
-
-                        <div className="flex items-center gap-2 mt-4 p-3 rounded-lg border border-indigo-100 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-900/10">
-                            <input
-                                type="checkbox"
-                                id="isManager"
-                                checked={isManager}
-                                onChange={e => setIsManager(e.target.checked)}
-                                className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
-                            />
-                            <label htmlFor="isManager" className="text-sm font-medium cursor-pointer select-none">
-                                Cet investisseur est le Gérant
-                            </label>
-                        </div>
-
-                        <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl mt-4">
-                            {editingInvestor ? "Mettre à jour" : "Créer Investisseur"}
-                        </Button>
-                    </form>
-                </DialogContent>
-            </Dialog>
-
-            {/* INVESTOR TRANSACTION MODAL */}
-            {(() => {
-                const selectedInv = derivedInvestors.find(i => i.id === selectedInvestorId);
-                let availableProfit = 0;
-                let showAvailability = false;
-
-                if (isInvestorTxModalOpen && selectedInv && investorTxType === 'withdraw_profit') {
-                    showAvailability = true;
-                    availableProfit = selectedInv.availableProfit || 0;
-                }
-
-                return (
-                    <Dialog isOpen={isInvestorTxModalOpen} onClose={() => setIsInvestorTxModalOpen(false)} className={`${cardBase} max-w-md`}>
-                        <DialogHeader onClose={() => setIsInvestorTxModalOpen(false)} isDark={isDark}>
-                            <DialogTitle>
-                                {investorTxType === 'deposit_capital' ? 'Dépôt Capital' :
-                                    investorTxType === 'withdraw_capital' ? 'Retrait Capital' :
-                                        investorTxType === 'profit_distribution' ? 'Distribution Profit' : 'Retrait Profit'}
-                            </DialogTitle>
-                        </DialogHeader>
-                        <DialogContent className="px-6 pb-6 space-y-4">
-                            <div>
-                                <Label>Montant (DZD)</Label>
-                                <NumberInput value={investorTxAmount} onChange={e => setInvestorTxAmount(e.target.value)} className={fieldBase} placeholder="0.00" />
-                                {showAvailability && (
-                                    <div className={`text-xs mt-1 text-right ${availableProfit > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                        Disponible: {availableProfit.toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD
-                                    </div>
-                                )}
-                            </div>
-                            <div>
-                                <Label>Notes</Label>
-                                <Input value={investorTxNotes} onChange={e => setInvestorTxNotes(e.target.value)} className={fieldBase} />
-                            </div>
-                        </DialogContent>
-                        <DialogFooter>
-                            <Button
-                                onClick={handleInvestorTransaction}
-                                disabled={showAvailability && availableProfit <= 0}
-                                className={`w-full text-white font-bold py-3 rounded-xl ${showAvailability && availableProfit <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
-                            >
-                                Confirmer
-                            </Button>
-                        </DialogFooter>
-                    </Dialog>
-                );
-            })()}
-
-            {/* INVESTOR DELETE CONFIRMATION */}
-            <Dialog isOpen={investorToDelete !== null} onClose={() => setInvestorToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>{t('common.confirmDelete')}</DialogTitle></DialogHeader>
-                <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">Êtes-vous sûr de vouloir supprimer cet investisseur ?</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => setInvestorToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
-                    <Button onClick={() => handleDeleteInvestor(investorToDelete?.id)} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{t('common.delete')}</Button>
-                </DialogFooter>
-            </Dialog>
-
-            {/* INVESTOR TRANSACTION DELETE CONFIRMATION */}
-            <Dialog isOpen={investorTxToDelete !== null} onClose={() => setInvestorTxToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>{t('common.confirmDelete')}</DialogTitle></DialogHeader>
-                <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">Êtes-vous sûr de vouloir supprimer cette transaction ?</p>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => setInvestorTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
-                    <Button onClick={handleDeleteInvestorTx} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{t('common.delete')}</Button>
-                </DialogFooter>
-            </Dialog>
-
-            {/* REINVEST PROFIT MODAL */}
-            {isReinvestModalOpen && (
-                <Dialog isOpen={isReinvestModalOpen} onClose={() => setIsReinvestModalOpen(false)} className={`${cardBase} max-w-md`}>
-                    <DialogHeader onClose={() => setIsReinvestModalOpen(false)} isDark={isDark}>
-                        <DialogTitle>Réinvestir les bénéfices</DialogTitle>
-                    </DialogHeader>
-                    <DialogContent className="px-6 pb-6 space-y-4">
-                        <div>
-                            <Label>Montant à réinvestir (DZD)</Label>
-                            <NumberInput
-                                value={reinvestInput}
-                                onChange={e => setReinvestInput(e.target.value)}
-                                className={`${fieldBase} text-xl font-bold text-center h-14`}
-                                placeholder="0.00"
-                            />
-                            <div className="flex justify-between items-center mt-2 px-1">
-                                <span className={`text-xs ${subtleText}`}>Disponible:</span>
-                                <span className="text-xs font-bold text-indigo-500">
-                                    {(derivedInvestors.find(i => i.id === selectedInvestorId)?.availableProfit || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD
-                                </span>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 mt-4">
-                            <button
-                                onClick={() => {
-                                    const avail = derivedInvestors.find(i => i.id === selectedInvestorId)?.availableProfit || 0;
-                                    setReinvestInput(avail.toFixed(2));
-                                }}
-                                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all ${isDark ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}`}
-                            >
-                                Tout Réinvestir
-                            </button>
-                            <button
-                                onClick={() => {
-                                    const avail = (derivedInvestors.find(i => i.id === selectedInvestorId)?.availableProfit || 0) / 2;
-                                    setReinvestInput(avail.toFixed(2));
-                                }}
-                                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all ${isDark ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}
-                            >
-                                Moitié (50%)
-                            </button>
-                        </div>
-                    </DialogContent>
-                    <DialogFooter>
-                        <div className="flex gap-3 w-full">
-                            <Button onClick={() => setIsReinvestModalOpen(false)} className={`flex-1 ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>Annuler</Button>
-                            <Button
-                                onClick={() => {
-                                    const amt = parseFloat(reinvestInput);
-                                    if (!isNaN(amt) && amt > 0) {
-                                        handleReinvestProfit(selectedInvestorId!, amt);
-                                        setIsReinvestModalOpen(false);
-                                    } else {
-                                        setAlert("⚠️ Montant invalide.");
-                                    }
-                                }}
-                                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
-                            >
-                                Confirmer
-                            </Button>
-                        </div>
-                    </DialogFooter>
-                </Dialog>
-            )}
+            <MainClientSummaryDialog {...{ summaryClient, setSummaryClient, cardBase, isDark, t, subtleText, clientBalances, clientTransactionsDzd, transactions, setAlert, getClientFullName }} />
+            <MainInvestorDialogs {...{ isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, handleSaveInvestor, investorName, setInvestorName, fieldBase, investorInitialCapital, setInvestorInitialCapital, investorNotes, setInvestorNotes, isManager, setIsManager, derivedInvestors, selectedInvestorId, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorTxType, investorTxAmount, setInvestorTxAmount, subtleText, investorTxNotes, setInvestorTxNotes, handleInvestorTransaction, cardBase, isDark, t, investorToDelete, setInvestorToDelete, handleDeleteInvestor, investorTxToDelete, setInvestorTxToDelete, handleDeleteInvestorTx, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, handleReinvestProfit, setAlert }} />
 
         </div>
     );
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

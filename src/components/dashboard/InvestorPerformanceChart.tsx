@@ -1,7 +1,8 @@
-
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card, CardHeader, CardContent } from '../ui/Card';
+import { UnifiedTitle } from '../ui/UnifiedTitle';
+import { TrendingUpIcon } from '../icons/TrendingUpIcon';
 import { InvestorTransaction } from '../../types';
 
 interface InvestorPerformanceChartProps {
@@ -60,7 +61,14 @@ export const InvestorPerformanceChart: React.FC<InvestorPerformanceChartProps> =
     return (
         <Card className={`${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'} border shadow-sm`}>
             <CardHeader className="p-4 pb-0">
-                <h3 className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Évolution de la Valeur</h3>
+                <UnifiedTitle
+                    as="h3"
+                    isDark={isDark}
+                    variant="section"
+                    icon={<TrendingUpIcon className="w-4 h-4" />}
+                >
+                    Evolution de la Valeur
+                </UnifiedTitle>
             </CardHeader>
             <CardContent className="p-4 h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
