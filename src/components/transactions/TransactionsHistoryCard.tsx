@@ -120,9 +120,9 @@ export function TransactionsHistoryCard({
             )}
           >
             <DropdownItem onClick={() => setFilterMode('all')} isActive={filterMode === 'all'}>{t('transactions.filterAll')}</DropdownItem>
-            <DropdownItem onClick={() => setFilterMode('buy')} isActive={filterMode === 'buy'}>{t('transactions.filterBuy')} (Crypto)</DropdownItem>
-            <DropdownItem onClick={() => setFilterMode('sell')} isActive={filterMode === 'sell'}>{t('transactions.filterSell')} (Crypto)</DropdownItem>
-            <DropdownItem onClick={() => setFilterMode('adjustments')} isActive={filterMode === 'adjustments'}>{t('transactions.filterAdjustments')} (Crypto)</DropdownItem>
+            <DropdownItem onClick={() => setFilterMode('buy')} isActive={filterMode === 'buy'}>{t('transactions.filterBuy')}</DropdownItem>
+            <DropdownItem onClick={() => setFilterMode('sell')} isActive={filterMode === 'sell'}>{t('transactions.filterSell')}</DropdownItem>
+            <DropdownItem onClick={() => setFilterMode('adjustments')} isActive={filterMode === 'adjustments'}>{t('transactions.filterAdjustments')}</DropdownItem>
             <DropdownItem onClick={() => setFilterMode('clients')} isActive={filterMode === 'clients'}>{t('transactions.filterClients')}</DropdownItem>
             <DropdownItem onClick={() => setFilterMode('treasury')} isActive={filterMode === 'treasury'}>{t('transactions.filterTreasury')}</DropdownItem>
           </Dropdown>

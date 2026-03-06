@@ -63,10 +63,39 @@ export function MainTransactionDialog({
     setBuyEurPrice,
     buyEurTotal,
     setBuyEurTotal,
+    clientBalances,
     handleBuy,
     handleSell,
     isSaving
 }: MainTransactionDialogProps) {
+    const hasPrimaryClient = Boolean(linkedClientId && linkedClientId !== 'none');
+    const selectedClientTotal = hasPrimaryClient
+        ? Math.abs(Number(clientBalances?.get?.(linkedClientId) || 0))
+        : 0;
+    const selectedClientTotalLabel = Number(selectedClientTotal.toFixed(2)).toString();
+
+    const applyClientMaxToBuyTotal = () => {
+        if (!hasPrimaryClient || selectedClientTotal <= 0) return;
+        setBuyUsdtTotal(selectedClientTotalLabel);
+        setIsTotalManual(true);
+
+        const price = parseAndEvaluate(buyUsdtPrice);
+        if (price > 0) {
+            setBuyUsdtAmount((selectedClientTotal / price).toFixed(2));
+        }
+    };
+
+    const applyClientMaxToSellTotal = () => {
+        if (!hasPrimaryClient || selectedClientTotal <= 0) return;
+        setSellTotal(selectedClientTotalLabel);
+        setIsTotalManual(true);
+
+        const price = parseAndEvaluate(sellPrice);
+        if (price > 0) {
+            setSellAmount((selectedClientTotal / price).toFixed(2));
+        }
+    };
+
     return (
             <Dialog isOpen={mode !== null} onClose={closeForm} className={`${cardBase} max-w-lg`}>
                 <DialogHeader onClose={closeForm} isDark={isDark}><DialogTitle>{editingTx ? t('common.edit') : (mode === 'sell_usdt' ? t('transactions.newTransaction') : t('transactions.newTransaction'))}</DialogTitle></DialogHeader>
@@ -153,36 +182,49 @@ export function MainTransactionDialog({
                                             </div>
                                             <div>
                                                 <Label>{t('transactions.totalAmount')} ({t('common.dinar')})</Label>
-                                                <NumberInput
-                                                    value={buyUsdtTotal}
-                                                    onChange={e => {
-                                                        const val = e.target.value;
-                                                        setBuyUsdtTotal(val);
-                                                        if (val) {
-                                                            setIsTotalManual(true);
-                                                            // Bidirectional: Calculate Quantity from Total
-                                                            const total = parseAndEvaluate(val);
-                                                            const price = parseAndEvaluate(buyUsdtPrice);
-                                                            if (total > 0 && price > 0) {
-                                                                setBuyUsdtAmount((total / price).toFixed(2));
+                                                <div className="relative">
+                                                    <NumberInput
+                                                        value={buyUsdtTotal}
+                                                        onChange={e => {
+                                                            const val = e.target.value;
+                                                            setBuyUsdtTotal(val);
+                                                            if (val) {
+                                                                setIsTotalManual(true);
+                                                                // Bidirectional: Calculate Quantity from Total
+                                                                const total = parseAndEvaluate(val);
+                                                                const price = parseAndEvaluate(buyUsdtPrice);
+                                                                if (total > 0 && price > 0) {
+                                                                    setBuyUsdtAmount((total / price).toFixed(2));
+                                                                }
+                                                            } else {
+                                                                setIsTotalManual(false);
+                                                                // Immediate auto-calc when cleared
+                                                                const qty = parseAndEvaluate(buyUsdtAmount);
+                                                                const price = parseAndEvaluate(buyUsdtPrice);
+                                                                if (qty > 0 && price > 0) setBuyUsdtTotal((qty * price).toFixed(0));
                                                             }
-                                                        } else {
-                                                            setIsTotalManual(false);
-                                                            // Immediate auto-calc when cleared
-                                                            const qty = parseAndEvaluate(buyUsdtAmount);
-                                                            const price = parseAndEvaluate(buyUsdtPrice);
-                                                            if (qty > 0 && price > 0) setBuyUsdtTotal((qty * price).toFixed(0));
-                                                        }
-                                                    }}
-                                                    onBlur={() => {
-                                                        const total = parseAndEvaluate(buyUsdtTotal);
-                                                        if (!isNaN(total) && total > 0) {
-                                                            setBuyUsdtTotal(Math.round(total).toString());
-                                                        }
-                                                    }}
-                                                    className={`${fieldBase} ${formValidation.errors['buyUsdtTotal'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                                                    placeholder={t('transactions.autoCalc')}
-                                                />
+                                                        }}
+                                                        onBlur={() => {
+                                                            const total = parseAndEvaluate(buyUsdtTotal);
+                                                            if (!isNaN(total) && total > 0) {
+                                                                setBuyUsdtTotal(Math.round(total).toString());
+                                                            }
+                                                        }}
+                                                        className={`${fieldBase} ${formValidation.errors['buyUsdtTotal'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
+                                                        placeholder={t('transactions.autoCalc')}
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={applyClientMaxToBuyTotal}
+                                                        disabled={!hasPrimaryClient || selectedClientTotal <= 0}
+                                                        className={`absolute right-2 top-2 text-xs px-2 py-1 rounded font-bold transition-colors ${!hasPrimaryClient || selectedClientTotal <= 0
+                                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-slate-700 dark:text-slate-500'
+                                                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                                            }`}
+                                                    >
+                                                        {t('common.max')}
+                                                    </button>
+                                                </div>
                                                 {formValidation.errors['buyUsdtTotal'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['buyUsdtTotal']}</p>}
                                                 <p className={`text-xs mt-1 ${subtleText}`}>{t('transactions.autoCalc')}</p>
                                             </div>
@@ -320,36 +362,49 @@ export function MainTransactionDialog({
 
                                             <div>
                                                 <Label>{t('transactions.totalAmount')} ({t('common.dinar')})</Label>
-                                                <NumberInput
-                                                    value={sellTotal}
-                                                    onChange={e => {
-                                                        const val = e.target.value;
-                                                        setSellTotal(val);
-                                                        if (val) {
-                                                            setIsTotalManual(true);
-                                                            // Bidirectional: Calculate Quantity from Total
-                                                            const total = parseAndEvaluate(val);
-                                                            const price = parseAndEvaluate(sellPrice);
-                                                            if (total > 0 && price > 0) {
-                                                                setSellAmount((total / price).toFixed(2));
+                                                <div className="relative">
+                                                    <NumberInput
+                                                        value={sellTotal}
+                                                        onChange={e => {
+                                                            const val = e.target.value;
+                                                            setSellTotal(val);
+                                                            if (val) {
+                                                                setIsTotalManual(true);
+                                                                // Bidirectional: Calculate Quantity from Total
+                                                                const total = parseAndEvaluate(val);
+                                                                const price = parseAndEvaluate(sellPrice);
+                                                                if (total > 0 && price > 0) {
+                                                                    setSellAmount((total / price).toFixed(2));
+                                                                }
+                                                            } else {
+                                                                setIsTotalManual(false);
+                                                                // Immediate auto-calc when cleared
+                                                                const qty = parseAndEvaluate(sellAmount);
+                                                                const price = parseAndEvaluate(sellPrice);
+                                                                if (qty > 0 && price > 0) setSellTotal((qty * price).toFixed(0));
                                                             }
-                                                        } else {
-                                                            setIsTotalManual(false);
-                                                            // Immediate auto-calc when cleared
-                                                            const qty = parseAndEvaluate(sellAmount);
-                                                            const price = parseAndEvaluate(sellPrice);
-                                                            if (qty > 0 && price > 0) setSellTotal((qty * price).toFixed(0));
-                                                        }
-                                                    }}
-                                                    onBlur={() => {
-                                                        const total = parseAndEvaluate(sellTotal);
-                                                        if (!isNaN(total) && total > 0) {
-                                                            setSellTotal(Math.round(total).toString());
-                                                        }
-                                                    }}
-                                                    className={`${fieldBase} ${formValidation.errors['sellTotal'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
-                                                    placeholder="0.00"
-                                                />
+                                                        }}
+                                                        onBlur={() => {
+                                                            const total = parseAndEvaluate(sellTotal);
+                                                            if (!isNaN(total) && total > 0) {
+                                                                setSellTotal(Math.round(total).toString());
+                                                            }
+                                                        }}
+                                                        className={`${fieldBase} ${formValidation.errors['sellTotal'] ? 'border-red-500 ring-1 ring-red-500' : ''}`}
+                                                        placeholder="0.00"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={applyClientMaxToSellTotal}
+                                                        disabled={!hasPrimaryClient || selectedClientTotal <= 0}
+                                                        className={`absolute right-2 top-2 text-xs px-2 py-1 rounded font-bold transition-colors ${!hasPrimaryClient || selectedClientTotal <= 0
+                                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-slate-700 dark:text-slate-500'
+                                                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                                            }`}
+                                                    >
+                                                        {t('common.max')}
+                                                    </button>
+                                                </div>
                                                 {formValidation.errors['sellTotal'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['sellTotal']}</p>}
                                             </div>
 

@@ -6,6 +6,11 @@ import { UsersIcon } from '../icons/UsersIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { formatDzd, formatNumber } from '../../pages/shared/pageFormat';
 import {
+  getClientOperationLabel,
+  getPortfolioOperationLabel,
+  getTreasuryOperationLabel
+} from '../../utils/transactionTerminology';
+import {
   DisplayRawTx,
   DisplayTx,
   SavedTransactionFilter,
@@ -179,18 +184,14 @@ export function useTransactionsViewModel({
 
     transactions.forEach((tx) => {
       const isBuy = tx.type === 'buy' || tx.type === 'Ajout Manuel';
-      const typeLabel = tx.type === 'buy'
-        ? `${t('transactions.buy')} ${tx.currency}`
-        : tx.type === 'sell'
-          ? `${t('transactions.sell')} ${tx.currency}`
-          : tx.type;
+      const typeLabel = getPortfolioOperationLabel(tx.type, tx.currency);
 
       const txClientCandidates = tx.id ? clientTransactionsDzd.filter((clientTx) => clientTx.linkedTxId === tx.id) : [];
       const txClient = txClientCandidates.find((clientTx) => clientTx.linkRole !== 'dzd_receiver') || txClientCandidates[0];
       const client = txClient ? clientsDzd.find((c) => c.id === txClient.clientId) : undefined;
       let details = client ? getClientFullName(client) : (tx.notes || '');
       if (tx.price && (tx.type === 'Ajout Manuel' || tx.type === 'Retrait Manuel')) {
-        details = `${details} â€¢ Prix: ${formatDzdAmount(tx.price)}`;
+        details = `${details} - Prix: ${formatDzdAmount(tx.price)}`;
       }
 
       all.push({
@@ -233,7 +234,7 @@ export function useTransactionsViewModel({
         timestamp: tx.timestamp,
         date: tx.date,
         time: tx.time,
-        typeLabel: tx.type,
+        typeLabel: getClientOperationLabel(tx.type),
         amountLabel: formatDzdAmount(Math.abs(tx.montant)),
         amountColor: isTransfer ? 'text-blue-400' : (isPositive ? 'text-green-400' : 'text-red-400'),
         icon: (
@@ -241,7 +242,7 @@ export function useTransactionsViewModel({
             {icon}
           </div>
         ),
-        details: `${clientName} ${tx.notes ? `â€¢ ${tx.notes}` : ''}`,
+        details: `${clientName} ${tx.notes ? `- ${tx.notes}` : ''}`,
         category: 'client',
         rawTx: tx,
         sourceType: 'client_tx'
@@ -260,10 +261,9 @@ export function useTransactionsViewModel({
       const sourceLabel = isTransfer
         ? `${transferFrom} -> ${transferTo}`
         : (txData.source || txData.asset || 'N/A');
-      let typeLabel = isEntry ? t('transactions.entry') : t('transactions.exit');
-      if (isTransfer) {
-        typeLabel = t('transactions.internalTransfer');
-      }
+      const typeLabel = isTransfer
+        ? 'Virement Interne (Caisse <-> Baridi)'
+        : getTreasuryOperationLabel(tx.type);
 
       all.push({
         id: `treasury_${tx.id}`,
@@ -329,4 +329,5 @@ export function useTransactionsViewModel({
     handleDeleteDisplayTx
   };
 }
+
 

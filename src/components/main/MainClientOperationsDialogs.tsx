@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/Dialog';
 import { Label } from '../ui/Label';
 import { Input } from '../ui/Input';
@@ -6,6 +7,69 @@ import { Select } from '../ui/Select';
 import { NumberInput } from '../ui/NumberInput';
 
 type MainClientOperationsDialogsProps = Record<string, any>;
+
+const normalizeCardName = (value: string) => value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+const formatCardValue = (value: number) => Number(value.toFixed(2)).toString();
+
+const resolveAdjustmentAutoPrice = (
+    asset: string,
+    treasuryCards: Array<{ name?: string; value?: number }>,
+    portfolioStats: any
+) => {
+    if (asset !== 'USDT' && asset !== 'EUR') {
+        return { value: '', sourceLabel: '', sourceType: 'none' as const };
+    }
+
+    const currency = asset;
+    const cardCandidates = [
+        `pma ${currency.toLowerCase()}`,
+        `pam ${currency.toLowerCase()}`,
+        `${currency.toLowerCase()} pma`,
+        `${currency.toLowerCase()} pam`
+    ];
+
+    const matchedCard = (treasuryCards || []).find((card) => {
+        const normalizedName = normalizeCardName(card?.name || '');
+        return cardCandidates.some((candidate) =>
+            normalizedName === candidate || normalizedName.includes(candidate)
+        );
+    });
+
+    const rawCardValue = Number(matchedCard?.value || 0);
+    if (rawCardValue > 0) {
+        return {
+            value: formatCardValue(rawCardValue),
+            sourceLabel: matchedCard?.name || `PMA ${currency}`,
+            sourceType: 'card' as const
+        };
+    }
+
+    const fallbackValue = Number(
+        currency === 'USDT'
+            ? (portfolioStats?.usdt?.avgBuy || 0)
+            : (portfolioStats?.eur?.avgBuy || 0)
+    );
+
+    if (fallbackValue > 0) {
+        return {
+            value: formatCardValue(fallbackValue),
+            sourceLabel: `PAM ${currency} portefeuille`,
+            sourceType: 'portfolio' as const
+        };
+    }
+
+    return {
+        value: '',
+        sourceLabel: `Carte PMA/PAM ${currency} introuvable`,
+        sourceType: 'missing' as const
+    };
+};
 
 export function MainClientOperationsDialogs({
     isClientTxModalOpen,
@@ -50,9 +114,53 @@ export function MainClientOperationsDialogs({
     setAdjustmentPrice,
     adjustmentNote,
     setAdjustmentNote,
+    treasuryCards,
     handleGlobalAdjustment,
     isSaving
 }: MainClientOperationsDialogsProps) {
+    const lastAutoPriceRef = useRef('');
+
+    const adjustmentAuto = useMemo(
+        () => resolveAdjustmentAutoPrice(adjustmentAsset, treasuryCards || [], portfolioStats),
+        [adjustmentAsset, treasuryCards, portfolioStats]
+    );
+
+    const handleAdjustmentAssetChange = (value: string) => {
+        setAdjustmentAsset(value);
+
+        if (editingTreasuryTx) return;
+
+        const nextAuto = resolveAdjustmentAutoPrice(value, treasuryCards || [], portfolioStats);
+        setAdjustmentPrice(nextAuto.value);
+        lastAutoPriceRef.current = nextAuto.value;
+    };
+
+    useEffect(() => {
+        if (!isAdjustmentModalOpen || editingTreasuryTx) return;
+
+        if (adjustmentAsset !== 'USDT' && adjustmentAsset !== 'EUR') {
+            if (adjustmentPrice === lastAutoPriceRef.current && adjustmentPrice !== '') {
+                setAdjustmentPrice('');
+            }
+            lastAutoPriceRef.current = '';
+            return;
+        }
+
+        if (!adjustmentPrice || adjustmentPrice === lastAutoPriceRef.current) {
+            if (adjustmentPrice !== adjustmentAuto.value) {
+                setAdjustmentPrice(adjustmentAuto.value);
+            }
+        }
+        lastAutoPriceRef.current = adjustmentAuto.value;
+    }, [
+        isAdjustmentModalOpen,
+        editingTreasuryTx,
+        adjustmentAsset,
+        adjustmentAuto.value,
+        adjustmentPrice,
+        setAdjustmentPrice
+    ]);
+
     return (
         <>
             {/* 2. CLIENT TX MODAL - Updated to use Select for Type d'Actif */}
@@ -125,7 +233,7 @@ export function MainClientOperationsDialogs({
                     {/* 2. Type d'Actif */}
                     <div>
                         <Label>{t('transactions.assetType')}</Label>
-                        <Select value={adjustmentAsset} onChange={e => setAdjustmentAsset(e.target.value as any)} className={fieldBase}>
+                        <Select value={adjustmentAsset} onChange={e => handleAdjustmentAssetChange(e.target.value as any)} className={fieldBase}>
                             <option value="DZD-Caisse">DZD - Caisse</option>
                             <option value="DZD-Baridi">DZD - Baridi</option>
                             <option value="USDT">USDT</option>
@@ -184,6 +292,11 @@ export function MainClientOperationsDialogs({
                         <div>
                             <Label>{t('transactions.unitPrice')}</Label>
                             <NumberInput value={adjustmentPrice} onChange={e => setAdjustmentPrice(e.target.value)} className={fieldBase} placeholder="Ex: 240.00" />
+                            <p className={`text-xs mt-1 ${adjustmentAuto.sourceType === 'missing' ? 'text-amber-500' : 'opacity-70'}`}>
+                                {adjustmentAuto.sourceType === 'missing'
+                                    ? adjustmentAuto.sourceLabel
+                                    : `Auto: ${adjustmentAuto.sourceLabel}`}
+                            </p>
                         </div>
                     )}
 

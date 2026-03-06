@@ -595,6 +595,7 @@ export function useTransactionHandlers({
     const openAdjustmentModal = (type: 'add' | 'subtract' = 'add', txToEdit: TreasuryTx | null = null) => {
         setAdjustmentTab(type);
         setEditingTreasuryTx(txToEdit);
+        setAdjustmentPrice('');
         if (txToEdit) {
             setAdjustmentAmount(txToEdit.amount.toString());
             setAdjustmentAsset(txToEdit.source === 'Caisse' ? 'DZD-Caisse' : 'DZD-Baridi');

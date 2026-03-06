@@ -1,4 +1,8 @@
 import type { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, Tx } from '../types';
+import {
+  getClientOperationLabel,
+  getPortfolioOperationLabel
+} from './transactionTerminology';
 
 type PortfolioSnapshot = {
   usdt: { available: number; avgBuy: number; totalProfit: number };
@@ -96,6 +100,7 @@ function reportShell(opts: {
   title: string;
   subtitle: string;
   bodyHtml: string;
+  pageSize?: 'A4' | 'A4 landscape';
 }): ReportPayload {
   const generatedAt = new Date().toLocaleString(FR_LOCALE, {
     day: '2-digit',
@@ -229,7 +234,9 @@ function reportShell(opts: {
     .table-wrap {
       border: 1px solid var(--line);
       border-radius: 10px;
-      overflow: hidden;
+      overflow-x: auto;
+      overflow-y: visible;
+      -webkit-overflow-scrolling: touch;
     }
     table {
       width: 100%;
@@ -281,8 +288,37 @@ function reportShell(opts: {
       border-top: 1px solid var(--line);
       padding-top: 10px;
     }
+    @media (max-width: 900px) {
+      body {
+        padding: 10px;
+        font-size: 12px;
+      }
+      .toolbar,
+      .report {
+        max-width: 100%;
+      }
+      .header {
+        padding: 14px;
+      }
+      .title {
+        font-size: 22px;
+      }
+      .body {
+        padding: 12px;
+      }
+      .cards {
+        grid-template-columns: 1fr;
+      }
+      th, td {
+        font-size: 11px;
+        padding: 6px 7px;
+      }
+      .table-wrap table {
+        min-width: 760px;
+      }
+    }
     @page {
-      size: A4;
+      size: ${opts.pageSize || 'A4'};
       margin: 12mm;
     }
     @media print {
@@ -309,7 +345,22 @@ function reportShell(opts: {
         display: none !important;
       }
       .table-wrap {
-        overflow: visible;
+        overflow: visible !important;
+      }
+      .table-wrap table {
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: fixed;
+      }
+      .table-wrap th,
+      .table-wrap td {
+        font-size: 10px;
+        padding: 5px 6px;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      .table-wrap .num {
+        white-space: normal;
       }
       tr, td, th {
         page-break-inside: avoid;
@@ -431,7 +482,7 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
       return a.clientName.localeCompare(b.clientName, 'fr');
     });
 
-  const topRows = rankedRows.slice(0, 10);
+  const topRows = rankedRows;
 
   const sortedPeriodTxs = [...periodTxs].sort((a, b) => b.timestamp - a.timestamp);
   const periodClientRows = input.clientTransactions
@@ -445,11 +496,11 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
             <tr>
               <th>#</th>
               <th>Client</th>
-              <th class="num">Achat USDT</th>
-              <th class="num">Vente USDT</th>
-              <th class="num">Volume Total</th>
-              <th class="num">Profit Realise</th>
-              <th class="num">Operations</th>
+              <th class="num">Achats USDT</th>
+              <th class="num">Ventes USDT</th>
+              <th class="num">Volume</th>
+              <th class="num">Profit</th>
+              <th class="num">Ops</th>
             </tr>
           </thead>
           <tbody>
@@ -492,11 +543,7 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
               .map((row) => {
                 const linkedClientId = row.id ? linkedClientMap.get(row.id)?.clientId : undefined;
                 const clientName = linkedClientId ? (clientNameById.get(linkedClientId) || 'Client inconnu') : 'Non lie';
-                const typeLabel = row.type === 'buy'
-                  ? `Achat ${row.currency}`
-                  : row.type === 'sell'
-                    ? `Vente ${row.currency}`
-                    : `${row.type} ${row.currency}`;
+                const typeLabel = getPortfolioOperationLabel(row.type, row.currency);
                 const unitPrice = row.type === 'sell'
                   ? Number(row.sell || 0)
                   : Number(row.price || 0);
@@ -539,11 +586,12 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
               .map((row) => {
                 const clientName = clientNameById.get(row.clientId) || 'Client inconnu';
                 const amount = Number(row.montant || 0);
+                const label = getClientOperationLabel(row.type);
                 return `
                   <tr>
                     <td>${escapeHtml(formatDateTime(row.timestamp))}</td>
                     <td>${escapeHtml(clientName)}</td>
-                    <td>${escapeHtml(row.type)}</td>
+                    <td>${escapeHtml(label)}</td>
                     <td class="num ${amount >= 0 ? 'good' : 'bad'}">${amount >= 0 ? '+' : ''}${formatNumber(amount)}</td>
                     <td>${escapeHtml(row.notes || '-')}</td>
                   </tr>`;
@@ -576,8 +624,8 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
         </div>
       </div>
       <div style="margin-top: 10px;">
-        <span class="pill">Achats: ${buyCount}</span>
-        <span class="pill">Ventes: ${sellCount}</span>
+        <span class="pill">Achats Portefeuille: ${buyCount}</span>
+        <span class="pill">Ventes Client: ${sellCount}</span>
         <span class="pill">Transactions total: ${periodTxs.length}</span>
       </div>
     </section>
@@ -602,7 +650,7 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
     </section>
 
     <section class="section">
-      <h2 class="section-title">Top Clients du Mois</h2>
+      <h2 class="section-title">Top Clients du Mois (${topRows.length})</h2>
       ${rankingTable}
     </section>
 
@@ -621,7 +669,8 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
     fileName: `rapport_mensuel_${input.year}_${String(input.month + 1).padStart(2, '0')}.pdf`,
     title: 'Rapport Mensuel',
     subtitle: `${input.monthLabel} ${input.year}`,
-    bodyHtml
+    bodyHtml,
+    pageSize: 'A4 landscape'
   });
 }
 
@@ -672,13 +721,14 @@ export function buildClientPdfReport(input: ClientReportInput): ReportPayload | 
               .map((row) => {
                 const linked = row.linkedTxId ? txById.get(row.linkedTxId) : undefined;
                 const linkedDetails = linked
-                  ? `${linked.type === 'sell' ? 'Vente' : 'Achat'} ${linked.currency} - ${formatNumber(linked.quantity)} @ ${formatNumber(Number(linked.type === 'sell' ? (linked.sell || 0) : (linked.price || 0)))}`
+                  ? `${getPortfolioOperationLabel(linked.type, linked.currency)} - ${formatNumber(linked.quantity)} @ ${formatNumber(Number(linked.type === 'sell' ? (linked.sell || 0) : (linked.price || 0)))}`
                   : '-';
                 const amount = Number(row.montant || 0);
+                const label = getClientOperationLabel(row.type);
                 return `
                   <tr>
                     <td>${escapeHtml(formatDateTime(row.timestamp))}</td>
-                    <td>${escapeHtml(row.type)}</td>
+                    <td>${escapeHtml(label)}</td>
                     <td class="num ${amount >= 0 ? 'good' : 'bad'}">${amount >= 0 ? '+' : ''}${formatNumber(amount)} DZD</td>
                     <td>${escapeHtml(linkedDetails)}</td>
                     <td>${escapeHtml(row.notes || '-')}</td>
@@ -732,7 +782,7 @@ export function buildClientPdfReport(input: ClientReportInput): ReportPayload | 
     </section>
 
     <section class="section">
-      <h2 class="section-title">Historique de la Periode</h2>
+      <h2 class="section-title">Journal des Operations (Periode)</h2>
       ${historyHtml}
     </section>
   `;
@@ -839,7 +889,7 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
     </section>
 
     <section class="section">
-      <h2 class="section-title">Historique des Transactions</h2>
+      <h2 class="section-title">Journal des Operations</h2>
       ${historyHtml}
     </section>
   `;
@@ -858,6 +908,21 @@ export function openPdfPrintWindow(report: ReportPayload): boolean {
     /android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent || '') ||
     (typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 900px)').matches);
 
+  if (isMobile) {
+    try {
+      const htmlBlob = new Blob([report.html], { type: 'text/html;charset=utf-8' });
+      const htmlUrl = URL.createObjectURL(htmlBlob);
+      const mobileWin = window.open(htmlUrl, '_blank');
+      if (mobileWin) {
+        window.setTimeout(() => URL.revokeObjectURL(htmlUrl), 120000);
+        return true;
+      }
+      URL.revokeObjectURL(htmlUrl);
+    } catch (error) {
+      console.error('Mobile PDF open failed:', error);
+    }
+  }
+
   try {
     const win = window.open('', '_blank');
     if (win) {
@@ -866,7 +931,7 @@ export function openPdfPrintWindow(report: ReportPayload): boolean {
       win.document.close();
 
       if (isMobile) {
-        // Mobile: no auto-print. User taps "Enregistrer PDF" in the opened page.
+        // Mobile fallback: still no auto-print.
         return true;
       }
 
