@@ -9,6 +9,7 @@ import { UsersIcon } from '../icons/UsersIcon';
 import { FileSpreadsheetIcon } from '../icons/FileSpreadsheetIcon';
 import { RefreshCwIcon } from '../icons/RefreshCwIcon';
 import { TrendingUpIcon } from '../icons/TrendingUpIcon';
+import type { ClientDzd } from '../../types';
 import {
   AnalyticsSimMode,
   CalculatedStats,
@@ -28,6 +29,16 @@ type AnalyticsReportCardProps = {
   setUsdtReportYear: (year: number) => void;
   reportMonths: (year: number) => string[];
   reportYears: number[];
+  reportClient: string;
+  setReportClient: (id: string) => void;
+  reportMonth: number;
+  setReportMonth: (month: number) => void;
+  reportYear: number;
+  setReportYear: (year: number) => void;
+  clientsDzd: ClientDzd[];
+  getClientFullName: (client: ClientDzd) => string;
+  handleExportUsdtReport: () => void;
+  handleExportClientReport: (clientId: string, month: number, year: number) => void;
   calculatedStats: CalculatedStats;
   monthlyClientRanking: MonthlyClientRanking;
   heatmapData: Map<number, number>;
@@ -70,6 +81,16 @@ export function AnalyticsReportCard({
   setUsdtReportYear,
   reportMonths,
   reportYears,
+  reportClient,
+  setReportClient,
+  reportMonth,
+  setReportMonth,
+  reportYear,
+  setReportYear,
+  clientsDzd,
+  getClientFullName,
+  handleExportUsdtReport,
+  handleExportClientReport,
   calculatedStats,
   monthlyClientRanking,
   heatmapData,
@@ -101,6 +122,7 @@ export function AnalyticsReportCard({
 }: AnalyticsReportCardProps) {
   const [isHeatmapVisible, setIsHeatmapVisible] = useState(true);
   const [isClientRankingVisible, setIsClientRankingVisible] = useState(true);
+  const sortedClients = [...clientsDzd].sort((a, b) => getClientFullName(a).localeCompare(getClientFullName(b), 'fr'));
 
   const topProfitableRows = [...monthlyClientRanking.rankedRows]
     .filter((row) => row.sellCount > 0)
@@ -167,6 +189,63 @@ export function AnalyticsReportCard({
         <div className="grid grid-cols-2 gap-4">
           <div><Label>{t('portfolio.month')}</Label><Select value={usdtReportMonth} onChange={e => setUsdtReportMonth(Number(e.target.value))} className={fieldBase}>{reportMonths(usdtReportYear).map((m, i) => <option key={m} value={i}>{m}</option>)}</Select></div>
           <div><Label>{t('portfolio.year')}</Label><Select value={usdtReportYear} onChange={e => setUsdtReportYear(Number(e.target.value))} className={fieldBase}>{reportYears.map(y => <option key={y} value={y}>{y}</option>)}</Select></div>
+        </div>
+
+        <div className={`p-3 sm:p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+          <UnifiedTitle
+            as="h3"
+            isDark={isDark}
+            variant="section"
+            className="mb-3"
+            icon={<FileSpreadsheetIcon className="w-4 h-4" />}
+          >
+            Rapports PDF
+          </UnifiedTitle>
+
+          <button
+            type="button"
+            onClick={handleExportUsdtReport}
+            className="w-full px-3 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-sm"
+          >
+            Exporter Rapport Mensuel PDF
+          </button>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+            <div>
+              <Label>Client</Label>
+              <Select value={reportClient} onChange={e => setReportClient(e.target.value)} className={fieldBase}>
+                <option value="">Selectionner un client</option>
+                {sortedClients.map(client => (
+                  <option key={client.id} value={client.id}>{getClientFullName(client)}</option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label>{t('portfolio.month')}</Label>
+              <Select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))} className={fieldBase}>
+                {reportMonths(reportYear).map((monthName, index) => (
+                  <option key={monthName} value={index}>{monthName}</option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label>{t('portfolio.year')}</Label>
+              <Select value={reportYear} onChange={e => setReportYear(Number(e.target.value))} className={fieldBase}>
+                {reportYears.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => handleExportClientReport(reportClient, reportMonth, reportYear)}
+            disabled={!reportClient}
+            className={`w-full mt-3 px-3 py-2.5 rounded-xl text-white font-semibold text-sm ${reportClient ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-500 cursor-not-allowed opacity-60'}`}
+          >
+            Exporter Releve Client PDF
+          </button>
         </div>
 
         <div className="space-y-4">

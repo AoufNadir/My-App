@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button';
 import { UnifiedTitle } from '../components/ui/UnifiedTitle';
 import { ArrowLeftIcon } from '../components/icons/ArrowLeftIcon';
 import { UserIcon } from '../components/icons/UserIcon';
+import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
 import { Investor, InvestorTransaction } from '../types';
 import { InvestorDetailsContent } from '../components/investor-details/InvestorDetailsContent';
 
@@ -16,6 +17,7 @@ interface InvestorDetailsPageProps {
   onWithdrawProfit: () => void;
   onReinvestProfit: () => void;
   onDeleteTransaction: (tx: InvestorTransaction) => void;
+  onExportReport: () => void;
   isDark: boolean;
   cardBase: string;
   subtleText: string;
@@ -33,6 +35,7 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({
   onWithdrawProfit,
   onReinvestProfit,
   onDeleteTransaction,
+  onExportReport,
   isDark,
   cardBase,
   subtleText
@@ -46,7 +49,8 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({
 
   return (
     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 justify-between">
+        <div className="flex items-center gap-4">
         <Button onClick={onBack} className={`p-2 rounded-full ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}>
           <ArrowLeftIcon className="w-6 h-6" />
         </Button>
@@ -63,6 +67,14 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({
             Investisseur depuis le {new Date(investor.entryDate).toLocaleDateString('fr-FR')}
           </p>
         </div>
+        </div>
+        <Button
+          onClick={onExportReport}
+          className="px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-sm flex items-center gap-2"
+        >
+          <DownloadCloudIcon className="w-4 h-4" />
+          PDF
+        </Button>
       </div>
 
       <InvestorDetailsContent

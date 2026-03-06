@@ -90,7 +90,8 @@ export function MainContentArea({
     setEditingInvestor,
     setIsInvestorModalOpen,
     setInvestorToDelete,
-    setManagerFeePercentage
+    setManagerFeePercentage,
+    handleExportInvestorReport
 }: MainContentAreaProps) {
     return (
                 <main className="py-6">
@@ -246,6 +247,7 @@ export function MainContentArea({
                                     }
                                 }}
                                 onDeleteTransaction={(tx) => { setInvestorTxToDelete(tx); }}
+                                onExportReport={() => handleExportInvestorReport(selectedInvestorId)}
                                 isDark={isDark}
                                 cardBase={cardBase}
                                 subtleText={subtleText}
