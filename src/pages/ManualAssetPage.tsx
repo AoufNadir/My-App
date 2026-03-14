@@ -1,14 +1,16 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ManualAsset, ManualAssetClient } from '../types';
+import { ManualAsset, ManualAssetClient, ManualAssetTransaction } from '../types';
 import { ManualAssetClientsPanel } from '../components/manual-asset/ManualAssetClientsPanel';
 import { ManualAssetClientDialogs } from '../components/manual-asset/ManualAssetClientDialogs';
 import { ManualAssetHeaderStats } from '../components/manual-asset/ManualAssetHeaderStats';
+import { ManualAssetReportsSection } from '../components/manual-asset/ManualAssetReportsSection';
 import { useManualAssetClientManager } from '../hooks/useManualAssetClientManager';
 
 type ManualAssetPageProps = {
   asset: ManualAsset;
   clients: ManualAssetClient[];
+  assetTransactions: ManualAssetTransaction[];
   clientBalances: Map<string, number>;
   onBack: () => void;
   onSelectClient: (client: ManualAssetClient) => void;
@@ -24,6 +26,7 @@ type ManualAssetPageProps = {
 export function ManualAssetPage({
   asset,
   clients,
+  assetTransactions,
   clientBalances,
   onBack,
   onSelectClient,
@@ -72,6 +75,17 @@ export function ManualAssetPage({
         onBack={onBack}
         isDark={isDark}
         subtleText={subtleText}
+      />
+
+      <ManualAssetReportsSection
+        assetId={asset.id}
+        assetName={asset.name}
+        clients={clients}
+        assetTransactions={assetTransactions}
+        clientBalances={clientBalances}
+        isDark={isDark}
+        subtleText={subtleText}
+        fieldBase={fieldBase}
       />
 
       <ManualAssetClientsPanel

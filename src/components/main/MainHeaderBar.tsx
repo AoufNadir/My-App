@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Button } from '../ui/Button';
 import { MenuIcon } from '../icons/MenuIcon';
 import { LogOutIcon } from '../icons/LogOutIcon';
@@ -8,15 +9,16 @@ import { AppDesktopNav } from './AppNavigation';
 
 type MainHeaderBarProps = Record<string, any>;
 
-export function MainHeaderBar({
+function MainHeaderBarComponent({
     isDark,
     view,
     setView,
-    t,
+    globalSearchTitle,
     setIsMobileMenuOpen,
     handleOpenGlobalSearch,
     setTheme,
-    onSignOut
+    onSignOut,
+    labels
 }: MainHeaderBarProps) {
     return (
         <header className="sticky top-0 z-40 py-4 backdrop-blur-md bg-opacity-50">
@@ -36,21 +38,14 @@ export function MainHeaderBar({
                     view={view}
                     isDark={isDark}
                     onSelect={setView}
-                    labels={{
-                        transactions: t('nav.transactions') as string,
-                        portfolio: t('nav.portfolio') as string,
-                        analytics: t('nav.analytics') as string,
-                        clients: t('nav.clients') as string,
-                        treasury: t('nav.treasury') as string,
-                        investors: 'Investisseurs'
-                    }}
+                    labels={labels}
                 />
 
                 <div className="flex items-center gap-1 sm:gap-2">
                     <Button
                         onClick={handleOpenGlobalSearch}
                         className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}
-                        title={`${t('common.globalSearch')} (Ctrl+K)`}
+                        title={`${globalSearchTitle} (Ctrl+K)`}
                     >
                         <MagnifyingGlassIcon className="w-5 h-5" />
                     </Button>
@@ -67,3 +62,12 @@ export function MainHeaderBar({
         </header>
     );
 }
+
+const areMainHeaderBarPropsEqual = (prev: MainHeaderBarProps, next: MainHeaderBarProps) => (
+    prev.isDark === next.isDark
+    && prev.view === next.view
+    && prev.globalSearchTitle === next.globalSearchTitle
+    && prev.labels === next.labels
+);
+
+export const MainHeaderBar = memo(MainHeaderBarComponent, areMainHeaderBarPropsEqual);

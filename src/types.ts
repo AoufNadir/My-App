@@ -61,7 +61,7 @@ export interface ClientTransactionDzd {
   date: string;
   time: string;
   montant: number; // Positive = Credit (Advance), Negative = Debt
-  type: 'Règlement Reçu' | 'Paiement Effectué' | 'Vente USDT' | 'Achat EUR' | 'Solde Initial' | 'Transfert Entrant' | 'Transfert Sortant' | 'Ajustement Solde';
+  type: 'Règlement Reçu' | 'Paiement Effectué' | 'Vente USDT' | 'Vente EUR' | 'Achat EUR' | 'Solde Initial' | 'Transfert Entrant' | 'Transfert Sortant' | 'Ajustement Solde';
   notes?: string;
   linkedTxId?: string; // ID of the USDT/EUR transaction if applicable
   linkRole?: 'primary' | 'dzd_receiver';
@@ -90,6 +90,7 @@ export interface TreasuryCard {
   id: string;
   name: string;
   value: number;
+  notes?: string;
 }
 
 // ===== Manual Assets System =====

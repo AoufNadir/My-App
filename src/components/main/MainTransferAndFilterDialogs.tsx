@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react';
+import { memo, type ComponentProps } from 'react';
 import {
     ClientTransferDialog,
     TreasuryBalanceEditDialog,
@@ -13,7 +13,7 @@ type MainTransferAndFilterDialogsProps = {
     dateFilterProps: ComponentProps<typeof DateFilterDialog>;
 };
 
-export function MainTransferAndFilterDialogs({
+function MainTransferAndFilterDialogsComponent({
     clientTransferProps,
     treasuryBalanceEditProps,
     portfolioBalanceEditProps,
@@ -28,3 +28,18 @@ export function MainTransferAndFilterDialogs({
         </>
     );
 }
+
+const areMainTransferAndFilterDialogsPropsEqual = (
+    prev: MainTransferAndFilterDialogsProps,
+    next: MainTransferAndFilterDialogsProps
+) => (
+    prev.clientTransferProps === next.clientTransferProps
+    && prev.treasuryBalanceEditProps === next.treasuryBalanceEditProps
+    && prev.portfolioBalanceEditProps === next.portfolioBalanceEditProps
+    && prev.dateFilterProps === next.dateFilterProps
+);
+
+export const MainTransferAndFilterDialogs = memo(
+    MainTransferAndFilterDialogsComponent,
+    areMainTransferAndFilterDialogsPropsEqual
+);

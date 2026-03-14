@@ -6,8 +6,15 @@ import {
     Investor, InvestorTransaction
 } from '../types';
 
-export function useAppData(user: AppUser, refreshKey: number) {
+type UseAppDataOptions = {
+    subscribeManualAssets?: boolean;
+    subscribeInvestors?: boolean;
+};
+
+export function useAppData(user: AppUser, refreshKey: number, options: UseAppDataOptions = {}) {
     const userDocRef = useMemo(() => db.collection('users').doc(user.uid), [user.uid]);
+    const subscribeManualAssets = options.subscribeManualAssets ?? true;
+    const subscribeInvestors = options.subscribeInvestors ?? true;
 
     // Data State
     const [transactions, setTransactions] = useState<Tx[]>([]);
@@ -54,31 +61,41 @@ export function useAppData(user: AppUser, refreshKey: number) {
             setTreasuryCards(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TreasuryCard[]);
         });
 
-        const unsubManualAssets = userDocRef.collection('manual_assets').orderBy('createdAt', 'desc').onSnapshot(snap => {
-            setManualAssets(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ManualAsset[]);
-        });
+        const unsubManualAssets = subscribeManualAssets
+            ? userDocRef.collection('manual_assets').orderBy('createdAt', 'desc').onSnapshot(snap => {
+                setManualAssets(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ManualAsset[]);
+            })
+            : () => undefined;
 
-        const unsubManualClients = userDocRef.collection('manual_asset_clients').orderBy('fullName', 'asc').onSnapshot(snap => {
-            setManualAssetClients(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ManualAssetClient[]);
-        });
+        const unsubManualClients = subscribeManualAssets
+            ? userDocRef.collection('manual_asset_clients').orderBy('fullName', 'asc').onSnapshot(snap => {
+                setManualAssetClients(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ManualAssetClient[]);
+            })
+            : () => undefined;
 
-        const unsubManualTxs = userDocRef.collection('actifTransactions').orderBy('timestamp', 'desc').onSnapshot(snap => {
-            setManualAssetTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ManualAssetTransaction[]);
-        });
+        const unsubManualTxs = subscribeManualAssets
+            ? userDocRef.collection('actifTransactions').orderBy('timestamp', 'desc').onSnapshot(snap => {
+                setManualAssetTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ManualAssetTransaction[]);
+            })
+            : () => undefined;
 
-        const unsubInvestors = userDocRef.collection('investors').onSnapshot(snap => {
-            setInvestors(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Investor[]);
-        });
+        const unsubInvestors = subscribeInvestors
+            ? userDocRef.collection('investors').onSnapshot(snap => {
+                setInvestors(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Investor[]);
+            })
+            : () => undefined;
 
-        const unsubInvestorTxs = userDocRef.collection('investor_transactions').onSnapshot(snap => {
-            setInvestorTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as InvestorTransaction[]);
-        });
+        const unsubInvestorTxs = subscribeInvestors
+            ? userDocRef.collection('investor_transactions').onSnapshot(snap => {
+                setInvestorTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as InvestorTransaction[]);
+            })
+            : () => undefined;
 
         return () => {
             unsubTxs(); unsubClients(); unsubClientTxs(); unsubTreasuryTxs(); unsubTreasuryCards();
             unsubManualAssets(); unsubManualClients(); unsubManualTxs(); unsubInvestors(); unsubInvestorTxs();
         };
-    }, [userDocRef, refreshKey]);
+    }, [userDocRef, refreshKey, subscribeManualAssets, subscribeInvestors]);
 
     // Derived Calculations
     const portfolioStats = useMemo(() => {

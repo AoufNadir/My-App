@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '../ui/Button';
 import { MainNavLink } from './MainNavLink';
@@ -31,7 +31,7 @@ type MobileMenuNavProps = NavSharedProps & {
   onClose: () => void;
 };
 
-export function AppDesktopNav({ view, isDark, onSelect, labels }: NavSharedProps) {
+function AppDesktopNavComponent({ view, isDark, onSelect, labels }: NavSharedProps) {
   return (
     <div className="hidden sm:flex items-center gap-2 p-1 rounded-full border" style={{ borderColor: isDark ? '#334155' : '#CBD5E1' }}>
       <MainNavLink activeView={view} isDark={isDark} onSelect={onSelect} targetView="transactions" colorClass="bg-indigo-600">{labels.transactions}</MainNavLink>
@@ -44,7 +44,7 @@ export function AppDesktopNav({ view, isDark, onSelect, labels }: NavSharedProps
   );
 }
 
-export function AppMobileMenuNav({ view, isDark, onSelect, labels, isOpen, onClose }: MobileMenuNavProps) {
+function AppMobileMenuNavComponent({ view, isDark, onSelect, labels, isOpen, onClose }: MobileMenuNavProps) {
   return (
     <AnimatePresence>
       {isOpen && (
@@ -73,7 +73,7 @@ export function AppMobileMenuNav({ view, isDark, onSelect, labels, isOpen, onClo
   );
 }
 
-export function AppBottomNav({ view, isDark, onSelect, labels }: NavSharedProps) {
+function AppBottomNavComponent({ view, isDark, onSelect, labels }: NavSharedProps) {
   return (
     <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 p-2 backdrop-blur-md bg-opacity-50">
       <div className="max-w-4xl mx-auto flex items-center justify-around gap-2 p-1 rounded-full border" style={{ borderColor: isDark ? '#334155' : '#CBD5E1', background: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(241, 245, 249, 0.8)' }}>
@@ -87,3 +87,18 @@ export function AppBottomNav({ view, isDark, onSelect, labels }: NavSharedProps)
     </div>
   );
 }
+
+const areNavSharedPropsEqual = (prev: NavSharedProps, next: NavSharedProps) => (
+  prev.view === next.view
+  && prev.isDark === next.isDark
+  && prev.labels === next.labels
+);
+
+const areMobileMenuNavPropsEqual = (prev: MobileMenuNavProps, next: MobileMenuNavProps) => (
+  areNavSharedPropsEqual(prev, next)
+  && prev.isOpen === next.isOpen
+);
+
+export const AppDesktopNav = memo(AppDesktopNavComponent, areNavSharedPropsEqual);
+export const AppMobileMenuNav = memo(AppMobileMenuNavComponent, areMobileMenuNavPropsEqual);
+export const AppBottomNav = memo(AppBottomNavComponent, areNavSharedPropsEqual);

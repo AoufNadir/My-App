@@ -36,6 +36,7 @@ export function getClientOperationLabel(type: string): string {
   if (normalized.includes('reglement') && normalized.includes('recu')) return 'Encaissement Client';
   if (normalized.includes('paiement') && normalized.includes('effect')) return 'Decaissement Client';
   if (normalized === 'vente usdt') return 'Vente USDT au Client';
+  if (normalized === 'vente eur') return 'Vente EUR au Client';
   if (normalized === 'achat eur') return 'Achat EUR (Portefeuille)';
   if (normalized === 'solde initial') return 'Solde Initial Client';
   if (normalized === 'transfert entrant') return 'Transfert Recu (Clients)';

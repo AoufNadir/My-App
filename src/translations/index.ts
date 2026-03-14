@@ -73,6 +73,7 @@ export const translations = {
             buyUsdt: 'Achat USDT',
             sellUsdt: 'Vente USDT',
             buyEur: 'Acheter EUR',
+            sellEur: 'Vente EUR',
             financialActions: 'Actions Financières',
             internalTransfer: 'Virement Interne (Caisse <-> Baridi)',
 

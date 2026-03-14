@@ -1,12 +1,18 @@
 import { useState } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
-import { ClientDzd, ClientTransactionDzd } from '../types';
+import { ClientDzd, ClientTransactionDzd, TreasuryTx } from '../types';
 import { now, parseAndEvaluate } from '../utils';
+
+type ClientDeleteMode = 'history' | 'blocked';
+
+const CLIENT_DELETE_EPSILON = 0.01;
 
 export function useClientHandlers(
     userDocRef: FirestoreDocumentReference,
     clientsDzd: ClientDzd[],
+    clientTransactionsDzd: ClientTransactionDzd[],
     clientBalances: Map<string, number>,
+    treasuryTransactions: TreasuryTx[],
     setAlert: (msg: string) => void
 ) {
     const [isSaving, setIsSaving] = useState(false);
@@ -15,6 +21,7 @@ export function useClientHandlers(
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
     const [editingClient, setEditingClient] = useState<ClientDzd | null>(null);
     const [clientToDelete, setClientToDelete] = useState<ClientDzd | null>(null);
+    const [clientDeleteMode, setClientDeleteMode] = useState<ClientDeleteMode | null>(null);
 
     const [clientFullName, setClientFullName] = useState('');
     const [clientPhone, setClientPhone] = useState('');
@@ -49,8 +56,13 @@ export function useClientHandlers(
         setEditingClient(null);
     };
 
+    const closeClientDeleteDialog = () => {
+        setClientToDelete(null);
+        setClientDeleteMode(null);
+    };
+
     const handleSaveClient = async () => {
-        if (!clientFullName.trim()) { setAlert('⚠️ Nom requis.'); return; }
+        if (!clientFullName.trim()) { setAlert('âš ï¸ Nom requis.'); return; }
         setIsSaving(true);
         try {
             const data: any = {
@@ -70,16 +82,16 @@ export function useClientHandlers(
                     await userDocRef.collection('dzd_client_txs').add({
                         clientId: editingClient.id, timestamp, date, time,
                         montant: newBal - currentBal, type: 'Ajustement Solde',
-                        notes: 'Mise à jour manuelle du solde', paymentMethod: 'Crédit'
+                        notes: 'Mise Ã  jour manuelle du solde', paymentMethod: 'CrÃ©dit'
                     });
                 }
-                setAlert('✅ Client modifié.');
+                setAlert('âœ… Client modifiÃ©.');
             } else {
                 const duplicate = clientsDzd.find(c =>
                     (data.fullName && c.fullName?.toLowerCase() === data.fullName.toLowerCase()) ||
                     (data.phone && c.phone === data.phone)
                 );
-                if (duplicate) { setAlert('⚠️ Ce client existe déjà.'); setIsSaving(false); return; }
+                if (duplicate) { setAlert('âš ï¸ Ce client existe dÃ©jÃ .'); setIsSaving(false); return; }
 
                 const ref = await userDocRef.collection('dzd_clients').add(data);
                 const initBal = parseAndEvaluate(initialBalance);
@@ -87,36 +99,141 @@ export function useClientHandlers(
                     const { date, time, timestamp } = now();
                     await userDocRef.collection('dzd_client_txs').add({
                         clientId: ref.id, timestamp, date, time,
-                        type: 'Solde Initial', montant: initBal, notes: 'Solde initial', paymentMethod: 'Crédit'
+                        type: 'Solde Initial', montant: initBal, notes: 'Solde initial', paymentMethod: 'CrÃ©dit'
                     });
                 }
-                setAlert('✅ Client ajouté.');
+                setAlert('âœ… Client ajoutÃ©.');
             }
             closeClientModal();
             return true;
         } catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('âŒ Erreur.');
             return false;
         } finally {
             setIsSaving(false);
         }
     };
 
-    const handleDeleteClient = async (clientId: string) => {
-        const bal = clientBalances.get(clientId) || 0;
-        if (Math.abs(bal) > 0.01) {
-            setAlert("⚠️ Impossible de supprimer : Solde non nul.");
-            return;
+    const findTransferCounterpart = (tx: ClientTransactionDzd) => {
+        if (tx.type !== 'Transfert Sortant' && tx.type !== 'Transfert Entrant') return null;
+
+        const counterpartType = tx.type === 'Transfert Sortant' ? 'Transfert Entrant' : 'Transfert Sortant';
+        const counterpartAmount = -tx.montant;
+        const candidates = clientTransactionsDzd.filter((candidate) =>
+            candidate.id !== tx.id
+            && candidate.clientId !== tx.clientId
+            && candidate.type === counterpartType
+            && candidate.date === tx.date
+            && candidate.time === tx.time
+            && Math.abs(candidate.montant - counterpartAmount) <= CLIENT_DELETE_EPSILON
+            && Math.abs(candidate.timestamp - tx.timestamp) <= 1
+        );
+
+        if (candidates.length === 0) return null;
+
+        return [...candidates].sort(
+            (left, right) => Math.abs(left.timestamp - tx.timestamp) - Math.abs(right.timestamp - tx.timestamp)
+        )[0];
+    };
+
+    const commitDeleteRefs = async (deleteRefs: Array<{ collection: string; id: string }>) => {
+        let batch = db.batch();
+        let operationsCount = 0;
+
+        for (const refInfo of deleteRefs) {
+            batch.delete(userDocRef.collection(refInfo.collection).doc(refInfo.id));
+            operationsCount += 1;
+
+            if (operationsCount >= 400) {
+                await batch.commit();
+                batch = db.batch();
+                operationsCount = 0;
+            }
         }
+
+        if (operationsCount > 0) {
+            await batch.commit();
+        }
+    };
+
+    const requestClientDelete = async (client: ClientDzd | null) => {
+        if (!client || isSaving) return false;
+
+        const balance = clientBalances.get(client.id) || 0;
+        if (Math.abs(balance) > CLIENT_DELETE_EPSILON) {
+            setClientToDelete(client);
+            setClientDeleteMode('blocked');
+            return false;
+        }
+
+        const clientHistory = clientTransactionsDzd.filter((tx) => tx.clientId === client.id);
+        if (clientHistory.length === 0) {
+            setIsSaving(true);
+            try {
+                await userDocRef.collection('dzd_clients').doc(client.id).delete();
+                setAlert('Client supprime avec succes.');
+                closeClientDeleteDialog();
+                return true;
+            } catch (e) {
+                console.error(e);
+                setAlert('Erreur lors de la suppression du client.');
+                return false;
+            } finally {
+                setIsSaving(false);
+            }
+        }
+
+        setClientToDelete(client);
+        setClientDeleteMode('history');
+        return false;
+    };
+
+    const handleDeleteClient = async () => {
+        if (!clientToDelete || clientDeleteMode !== 'history' || isSaving) return false;
+
+        setIsSaving(true);
         try {
-            await userDocRef.collection('dzd_clients').doc(clientId).delete();
-            setAlert('✅ Client supprimé.');
-            setClientToDelete(null);
+            const clientTxIdsToDelete = new Set<string>();
+            const treasuryTxIdsToDelete = new Set<string>();
+            const treasuryTxIds = new Set(treasuryTransactions.map((tx) => tx.id));
+            const clientHistory = clientTransactionsDzd.filter((tx) => tx.clientId === clientToDelete.id);
+
+            for (const tx of clientHistory) {
+                clientTxIdsToDelete.add(tx.id);
+
+                const transferCounterpart = findTransferCounterpart(tx);
+                if (transferCounterpart) {
+                    clientTxIdsToDelete.add(transferCounterpart.id);
+                }
+
+                if (tx.linkedTxId && treasuryTxIds.has(tx.linkedTxId)) {
+                    treasuryTxIdsToDelete.add(tx.linkedTxId);
+                }
+            }
+
+            for (const treasuryTx of treasuryTransactions) {
+                if (treasuryTx.linkedTxId && clientTxIdsToDelete.has(treasuryTx.linkedTxId)) {
+                    treasuryTxIdsToDelete.add(treasuryTx.id);
+                }
+            }
+
+            const deleteRefs: Array<{ collection: string; id: string }> = [
+                { collection: 'dzd_clients', id: clientToDelete.id },
+                ...Array.from(clientTxIdsToDelete, (id) => ({ collection: 'dzd_client_txs', id })),
+                ...Array.from(treasuryTxIdsToDelete, (id) => ({ collection: 'treasury_txs', id }))
+            ];
+
+            await commitDeleteRefs(deleteRefs);
+            setAlert('Client et historique supprimes avec succes.');
+            closeClientDeleteDialog();
             return true;
         } catch (e) {
-            setAlert('❌ Erreur.');
+            console.error(e);
+            setAlert('Erreur lors de la suppression de l historique du client.');
             return false;
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -125,7 +242,7 @@ export function useClientHandlers(
     const [editingClientTx, setEditingClientTx] = useState<ClientTransactionDzd | null>(null);
     const [clientTxToDelete, setClientTxToDelete] = useState<ClientTransactionDzd | null>(null);
     const [clientTxAmount, setClientTxAmount] = useState('');
-    const [clientTxType, setClientTxType] = useState('Règlement Reçu');
+    const [clientTxType, setClientTxType] = useState('RÃ¨glement ReÃ§u');
     const [clientTxNotes, setClientTxNotes] = useState('');
     const [clientTxSource, setClientTxSource] = useState('Caisse');
     const [clientPaymentStatus, setClientPaymentStatus] = useState<'credit' | 'cash' | 'baridi'>('credit');
@@ -144,8 +261,8 @@ export function useClientHandlers(
             setClientTxType(tx.type);
             setClientTxNotes(tx.notes || '');
             setClientTxSource(tx.paymentMethod === 'BaridiMob' ? 'BaridiMob' : 'Caisse');
-            if (tx.paymentMethod === 'Crédit' || !tx.paymentMethod) setClientPaymentStatus('credit');
-            else if (tx.paymentMethod === 'Espèces') setClientPaymentStatus('cash');
+            if (tx.paymentMethod === 'CrÃ©dit' || !tx.paymentMethod) setClientPaymentStatus('credit');
+            else if (tx.paymentMethod === 'EspÃ¨ces') setClientPaymentStatus('cash');
             else if (tx.paymentMethod === 'BaridiMob') setClientPaymentStatus('baridi');
 
             setClientTxUsdtAmount('');
@@ -154,7 +271,7 @@ export function useClientHandlers(
             setClientTxEurPrice('');
         } else {
             setClientTxAmount('');
-            setClientTxType(presetType || 'Règlement Reçu');
+            setClientTxType(presetType || 'RÃ¨glement ReÃ§u');
             setClientTxNotes('');
             setClientTxSource('Caisse');
             setClientPaymentStatus('credit');
@@ -170,16 +287,16 @@ export function useClientHandlers(
 
     const handleSaveClientTx = async (selectedClientId: string | null) => {
         const targetClientId = linkedClientId !== 'none' ? linkedClientId : selectedClientId;
-        if (!targetClientId || targetClientId === 'none') { setAlert('⚠️ Veuillez sélectionner un client.'); return; }
+        if (!targetClientId || targetClientId === 'none') { setAlert('âš ï¸ Veuillez sÃ©lectionner un client.'); return; }
         const amount = parseAndEvaluate(clientTxAmount);
-        if (isNaN(amount)) { setAlert('⚠️ Montant invalide.'); return; }
+        if (isNaN(amount)) { setAlert('âš ï¸ Montant invalide.'); return; }
 
         setIsSaving(true);
         try {
             const { date, time, timestamp } = now();
             const batch = db.batch();
-            const paymentMethodMap = { credit: 'Crédit', cash: 'Espèces', baridi: 'BaridiMob' };
-            const montant = (clientTxType === 'Règlement Reçu') ? amount : -amount;
+            const paymentMethodMap = { credit: 'CrÃ©dit', cash: 'EspÃ¨ces', baridi: 'BaridiMob' };
+            const montant = (clientTxType === 'RÃ¨glement ReÃ§u') ? amount : -amount;
             const paymentMethod = paymentMethodMap[clientPaymentStatus];
 
             if (editingClientTx) {
@@ -193,7 +310,7 @@ export function useClientHandlers(
                         batch.delete(treasuryRef);
                         batch.update(userDocRef.collection('dzd_client_txs').doc(editingClientTx.id), { linkedTxId: fieldValueDelete() });
                     } else {
-                        const tType = (clientTxType === 'Règlement Reçu') ? 'Ajout' : 'Retrait';
+                        const tType = (clientTxType === 'RÃ¨glement ReÃ§u') ? 'Ajout' : 'Retrait';
                         batch.update(treasuryRef, {
                             amount, type: tType, source: clientPaymentStatus === 'cash' ? 'Caisse' : 'BaridiMob',
                             notes: `Client: ${clientFullName} - ${clientTxNotes.trim()}`, date, time, timestamp
@@ -201,7 +318,7 @@ export function useClientHandlers(
                     }
                 } else if (clientPaymentStatus !== 'credit') {
                     const treasuryRef = userDocRef.collection('treasury_txs').doc();
-                    const tType = (clientTxType === 'Règlement Reçu') ? 'Ajout' : 'Retrait';
+                    const tType = (clientTxType === 'RÃ¨glement ReÃ§u') ? 'Ajout' : 'Retrait';
                     batch.set(treasuryRef, {
                         timestamp, date, time, type: tType, source: clientPaymentStatus === 'cash' ? 'Caisse' : 'BaridiMob',
                         amount, notes: `Client: ${clientFullName} - ${clientTxNotes.trim()}`, linkedTxId: editingClientTx.id, origin: 'client_tx'
@@ -209,7 +326,7 @@ export function useClientHandlers(
                     batch.update(userDocRef.collection('dzd_client_txs').doc(editingClientTx.id), { linkedTxId: treasuryRef.id });
                 }
 
-                setAlert('✅ Transaction mise à jour.');
+                setAlert('âœ… Transaction mise Ã  jour.');
             } else {
                 const clientTxRef = userDocRef.collection('dzd_client_txs').doc();
                 batch.set(clientTxRef, {
@@ -220,43 +337,43 @@ export function useClientHandlers(
 
                 if (clientPaymentStatus !== 'credit') {
                     const treasuryRef = userDocRef.collection('treasury_txs').doc();
-                    const tType = (clientTxType === 'Règlement Reçu') ? 'Ajout' : 'Retrait';
+                    const tType = (clientTxType === 'RÃ¨glement ReÃ§u') ? 'Ajout' : 'Retrait';
                     batch.set(treasuryRef, {
                         timestamp, date, time, type: tType, source: clientPaymentStatus === 'cash' ? 'Caisse' : 'BaridiMob',
                         amount, notes: `Client: ${clientFullName} - ${clientTxNotes.trim()}`, linkedTxId: clientTxRef.id, origin: 'client_tx'
                     });
                     batch.update(clientTxRef, { linkedTxId: treasuryRef.id });
                 }
-                setAlert('✅ Transaction ajoutée.');
+                setAlert('âœ… Transaction ajoutÃ©e.');
             }
             await batch.commit();
             setIsClientTxModalOpen(false);
             setEditingClientTx(null);
             return true;
-        } catch (e) { setAlert('❌ Erreur.'); return false; } finally { setIsSaving(false); }
+        } catch (e) { setAlert('âŒ Erreur.'); return false; } finally { setIsSaving(false); }
     };
 
     const handleDeleteClientTx = async (applyTransactionDelete: Function) => {
         if (!clientTxToDelete) return;
         if (clientTxToDelete.origin === 'adjustment') {
-            setAlert('⚠️ Impossible de supprimer : Transaction liée à un ajustement.');
+            setAlert('âš ï¸ Impossible de supprimer : Transaction liÃ©e Ã  un ajustement.');
             setClientTxToDelete(null);
             return;
         }
         setIsSaving(true);
         try {
             const result = await applyTransactionDelete(clientTxToDelete.id, 'client_tx', userDocRef);
-            if (result.success) setAlert('✅ Supprimé.');
-            else setAlert('❌ Erreur.');
-        } catch (e) { setAlert('❌ Erreur.'); } finally { setIsSaving(false); setClientTxToDelete(null); }
+            if (result.success) setAlert('âœ… SupprimÃ©.');
+            else setAlert('âŒ Erreur.');
+        } catch (e) { setAlert('âŒ Erreur.'); } finally { setIsSaving(false); setClientTxToDelete(null); }
     };
 
     return {
-        isSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, setClientToDelete,
+        isSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode,
         clientFullName, setClientFullName, clientPhone, setClientPhone,
         initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId,
         clientBinanceEmail, setClientBinanceEmail, clientBalanceInput, setClientBalanceInput,
-        openClientModal, closeClientModal, handleSaveClient, handleDeleteClient,
+        openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient,
         isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx,
         clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount,
         clientTxType, setClientTxType, clientTxNotes, setClientTxNotes,

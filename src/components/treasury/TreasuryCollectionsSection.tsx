@@ -81,6 +81,12 @@ export function TreasuryCollectionsSection({
                 <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   {formatDzd(Number(card.value) || 0, { min: 2, max: 2 })}
                 </div>
+                <div className={`mt-4 rounded-xl border p-3 ${isDark ? 'border-slate-700 bg-slate-950/40' : 'border-slate-200 bg-slate-50'}`}>
+                  <p className={`text-[11px] font-semibold uppercase tracking-[0.24em] ${subtleText}`}>Notes</p>
+                  <p className={`mt-2 text-sm leading-6 whitespace-pre-line ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                    {card.notes?.trim() || 'Aucune note pour cette carte.'}
+                  </p>
+                </div>
               </div>
             ))}
           </div>

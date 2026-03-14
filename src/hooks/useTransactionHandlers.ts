@@ -15,14 +15,18 @@ interface HandlerProps {
     treasuryStats: { caisse: number; baridi: number };
     suggestedProfitMargin: string;
     suggestedSellingPrice: string;
+    suggestedSellingPriceEur: string;
     setAlert: (msg: string) => void;
     setSelectedClientId: (id: string | null) => void;
     setView: (view: 'transactions' | 'dzd' | 'tresorerie' | 'statistiques' | 'tresorerie' | 'investors') => void;
 }
 
+type TransactionFormMode = 'buy_usdt' | 'sell_usdt' | 'buy_eur' | 'sell_eur';
+type PortfolioCurrency = 'USDT' | 'EUR';
+
 export function useTransactionHandlers({
     userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, treasuryStats,
-    suggestedProfitMargin, suggestedSellingPrice,
+    suggestedProfitMargin, suggestedSellingPrice, suggestedSellingPriceEur,
     setAlert, setSelectedClientId, setView
 }: HandlerProps) {
     const [isSaving, setIsSaving] = useState(false);
@@ -34,7 +38,7 @@ export function useTransactionHandlers({
     const affectsClientBalance = (status: 'credit' | 'baridi' | 'cash') => status === 'credit';
 
     // Modal State
-    const [mode, setMode] = useState<'buy_usdt' | 'sell_usdt' | 'buy_eur' | null>(null);
+    const [mode, setMode] = useState<TransactionFormMode | null>(null);
     const [editingTx, setEditingTx] = useState<Tx | null>(null);
     const [isTotalManual, setIsTotalManual] = useState(false);
 
@@ -66,6 +70,10 @@ export function useTransactionHandlers({
     const [adjustmentNote, setAdjustmentNote] = useState('');
     const [adjustmentClientId, setAdjustmentClientId] = useState('');
     const [editingTreasuryTx, setEditingTreasuryTx] = useState<TreasuryTx | null>(null);
+
+    const getPortfolioAssetStats = (currency: PortfolioCurrency) => (
+        currency === 'USDT' ? portfolioStats.usdt : portfolioStats.eur
+    );
 
     const usdtFromEurCalc = useMemo(() => {
         const eurQty = parseAndEvaluate(buyEurForUsdtAmount);
@@ -100,9 +108,8 @@ export function useTransactionHandlers({
                 if (parseAndEvaluate(buyUsdtPrice) <= 0) addError('buyUsdtPrice', 'Veuillez entrer le prix');
                 if (parseAndEvaluate(buyUsdtTotal) <= 0) addError('buyUsdtTotal', 'Montant total invalide');
                 if (!linkedClientId || linkedClientId === '' || linkedClientId === 'none') addError('linkedClientId', 'Veuillez sélectionner un client');
-                if (clientPaymentStatus === 'cash') {
-                    if (!linkedClientDzdId || linkedClientDzdId === '' || linkedClientDzdId === 'none') addError('linkedClientDzdId', 'Veuillez selectionner un client DZD');
-                    if (linkedClientDzdId === linkedClientId) addError('linkedClientDzdId', 'Le client DZD doit etre different du client principal');
+                if (clientPaymentStatus === 'cash' && linkedClientDzdId && linkedClientDzdId !== 'none' && linkedClientDzdId === linkedClientId) {
+                    addError('linkedClientDzdId', 'Le client DZD doit etre different du client principal');
                 }
             } else if (buyUsdtMode === 'with_eur') {
                 if (parseAndEvaluate(buyEurForUsdtAmount) <= 0) addError('buyEurForUsdtAmount', 'Quantité requise');
@@ -115,28 +122,27 @@ export function useTransactionHandlers({
             if (parseAndEvaluate(buyEurPrice) <= 0) addError('buyEurPrice', 'Prix requis');
             if (parseAndEvaluate(buyEurTotal) <= 0) addError('buyEurTotal', 'Montant total invalide');
             if (!linkedClientId || linkedClientId === '' || linkedClientId === 'none') addError('linkedClientId', 'Veuillez sélectionner un client');
-                if (clientPaymentStatus === 'cash') {
-                    if (!linkedClientDzdId || linkedClientDzdId === '' || linkedClientDzdId === 'none') addError('linkedClientDzdId', 'Veuillez selectionner un client DZD');
-                    if (linkedClientDzdId === linkedClientId) addError('linkedClientDzdId', 'Le client DZD doit etre different du client principal');
-                }
-        } else if (mode === 'sell_usdt') {
+            if (clientPaymentStatus === 'cash' && linkedClientDzdId && linkedClientDzdId !== 'none' && linkedClientDzdId === linkedClientId) {
+                addError('linkedClientDzdId', 'Le client DZD doit etre different du client principal');
+            }
+        } else if (mode === 'sell_usdt' || mode === 'sell_eur') {
             const amt = parseAndEvaluate(sellAmount);
+            const sellCurrency: PortfolioCurrency = mode === 'sell_eur' ? 'EUR' : 'USDT';
             if (amt <= 0) addError('sellAmount', 'Quantité requise');
             if (parseAndEvaluate(sellPrice) <= 0) addError('sellPrice', 'Prix requis');
             if (parseAndEvaluate(sellTotal) <= 0) addError('sellTotal', 'Montant total invalide');
-            const avail = portfolioStats.usdt.available + (editingTx?.type === 'sell' ? editingTx.quantity : 0);
+            const avail = getPortfolioAssetStats(sellCurrency).available + (editingTx?.type === 'sell' ? editingTx.quantity : 0);
             if (amt > avail) addError('sellAmount', 'Solde insuffisant');
             if (!linkedClientId || linkedClientId === '' || linkedClientId === 'none') addError('linkedClientId', 'Veuillez sélectionner un client');
-                if (clientPaymentStatus === 'cash') {
-                    if (!linkedClientDzdId || linkedClientDzdId === '' || linkedClientDzdId === 'none') addError('linkedClientDzdId', 'Veuillez selectionner un client DZD');
-                    if (linkedClientDzdId === linkedClientId) addError('linkedClientDzdId', 'Le client DZD doit etre different du client principal');
-                }
+            if (clientPaymentStatus === 'cash' && linkedClientDzdId && linkedClientDzdId !== 'none' && linkedClientDzdId === linkedClientId) {
+                addError('linkedClientDzdId', 'Le client DZD doit etre different du client principal');
+            }
         }
 
         return { isValid, errors };
     }, [mode, buyUsdtMode, buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, portfolioStats, editingTx, linkedClientId, linkedClientDzdId, clientPaymentStatus, transactions]);
 
-    const openForm = (newMode: 'buy_usdt' | 'sell_usdt' | 'buy_eur', txToEdit: Tx | null = null) => {
+    const openForm = (newMode: TransactionFormMode, txToEdit: Tx | null = null) => {
         setBuyUsdtAmount(''); setBuyUsdtPrice(''); setBuyEurAmount(''); setBuyEurPrice('');
         setSellAmount(''); setSellPrice(''); setSellTotal(''); setProfitPercent(''); setNotes('');
         setBuyUsdtMode(null); setBuyEurForUsdtAmount(''); setEurDzdPrice(''); setEurUsdtRate('');
@@ -182,13 +188,15 @@ export function useTransactionHandlers({
                     setBuyEurTotal((existingTotal > 0 ? Math.round(existingTotal) : fallbackTotal).toString());
                 }
             } else {
+                const sellCurrency: PortfolioCurrency = txToEdit.currency === 'EUR' ? 'EUR' : 'USDT';
+                const sellAssetStats = getPortfolioAssetStats(sellCurrency);
                 setSellAmount(Number(txToEdit.quantity || 0).toFixed(2));
                 setSellPrice((txToEdit.sell ?? 0).toString());
                 const existingTotal = Number(txToEdit.total || 0);
                 const fallbackTotal = Math.round((txToEdit.quantity || 0) * (txToEdit.sell || 0));
                 setSellTotal((existingTotal > 0 ? Math.round(existingTotal) : fallbackTotal).toString());
-                if (portfolioStats.usdt.avgBuy > 0 && txToEdit.sell) {
-                    const margin = txToEdit.sell - portfolioStats.usdt.avgBuy;
+                if (sellAssetStats.avgBuy > 0 && txToEdit.sell) {
+                    const margin = txToEdit.sell - sellAssetStats.avgBuy;
                     setProfitPercent(margin.toFixed(2));
                 }
             }
@@ -205,12 +213,17 @@ export function useTransactionHandlers({
             if (linkedDzdCollectorTx) setLinkedClientDzdId(linkedDzdCollectorTx.clientId);
         } else {
             if (newMode === 'buy_eur' && portfolioStats.eur.avgBuy > 0) setBuyEurPrice(portfolioStats.eur.avgBuy.toFixed(2));
-            if (newMode === 'sell_usdt') {
+            if (newMode === 'sell_usdt' || newMode === 'sell_eur') {
+                const sellCurrency: PortfolioCurrency = newMode === 'sell_eur' ? 'EUR' : 'USDT';
+                const sellAssetStats = getPortfolioAssetStats(sellCurrency);
+                const configuredSuggestedPrice = sellCurrency === 'EUR'
+                    ? suggestedSellingPriceEur
+                    : suggestedSellingPrice;
                 setProfitPercent(suggestedProfitMargin);
-                let suggestedPrice = portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin);
-                if (suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0) {
-                    suggestedPrice = parseFloat(suggestedSellingPrice);
-                    setProfitPercent((suggestedPrice - portfolioStats.usdt.avgBuy).toFixed(2));
+                let suggestedPrice = sellAssetStats.avgBuy + parseAndEvaluate(suggestedProfitMargin);
+                if (configuredSuggestedPrice && parseFloat(configuredSuggestedPrice) > 0) {
+                    suggestedPrice = parseFloat(configuredSuggestedPrice);
+                    setProfitPercent((suggestedPrice - sellAssetStats.avgBuy).toFixed(2));
                 }
                 setSellPrice(suggestedPrice.toFixed(2));
             }
@@ -380,9 +393,12 @@ export function useTransactionHandlers({
         if (!formValidation.isValid || isSaving) return;
         setIsSaving(true);
         try {
+            const sellCurrency: PortfolioCurrency = mode === 'sell_eur' ? 'EUR' : 'USDT';
+            const clientTxType = sellCurrency === 'EUR' ? 'Vente EUR' : 'Vente USDT';
+            const sellAssetStats = getPortfolioAssetStats(sellCurrency);
             const quantity = Number(parseAndEvaluate(sellAmount).toFixed(2));
             const sell = parseAndEvaluate(sellPrice);
-            const avg = portfolioStats.usdt.avgBuy;
+            const avg = sellAssetStats.avgBuy;
             const profit = Number(((sell - avg) * quantity).toFixed(2));
             const totalInput = parseAndEvaluate(sellTotal);
 
@@ -398,7 +414,7 @@ export function useTransactionHandlers({
                 batch.update(userDocRef.collection('usdt_txs').doc(editingTx.id), {
                     quantity, sell, profit, notes: notes.trim(),
                     price: fieldValueDelete(), total: fieldValueDelete(),
-                    currency: 'USDT', clientPaymentStatus: clientPaymentStatus
+                    currency: sellCurrency, clientPaymentStatus: clientPaymentStatus
                 });
 
                 const qsClient = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', editingTx.id).get();
@@ -410,7 +426,7 @@ export function useTransactionHandlers({
                 if (linkedClientId !== 'none') {
                     batch.set(userDocRef.collection('dzd_client_txs').doc(), {
                         clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue,
-                        type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`,
+                        type: clientTxType, notes: `Vente de ${quantity.toFixed(2)} ${sellCurrency} @ ${sell.toFixed(2)}`,
                         linkedTxId: editingTx.id,
                         linkRole: 'primary',
                         paymentMethod: paymentMethodByStatus[clientPaymentStatus],
@@ -421,7 +437,7 @@ export function useTransactionHandlers({
                 if (shouldLinkCashToDzdClient) {
                     batch.set(userDocRef.collection('dzd_client_txs').doc(), {
                         clientId: linkedClientDzdId, timestamp: timestamp + 1, date, time, montant: -totalRevenue,
-                        type: 'Ajustement Solde', notes: `Dette DZD liee a vente de ${quantity.toFixed(2)} USDT`,
+                        type: 'Ajustement Solde', notes: `Dette DZD liee a vente de ${quantity.toFixed(2)} ${sellCurrency}`,
                         linkedTxId: editingTx.id,
                         linkRole: 'dzd_receiver',
                         paymentMethod: paymentMethodByStatus['credit'],
@@ -433,7 +449,7 @@ export function useTransactionHandlers({
                     const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp, date, time, type: 'Ajout', source, amount: totalRevenue,
-                        notes: `Vente ${quantity.toFixed(2)} USDT`, linkedTxId: editingTx.id
+                        notes: `Vente ${quantity.toFixed(2)} ${sellCurrency}`, linkedTxId: editingTx.id
                     });
                 }
                 setAlert('✅ Transaction mise à jour.');
@@ -441,21 +457,21 @@ export function useTransactionHandlers({
                 const ref = userDocRef.collection('usdt_txs').doc();
                 batch.set(ref, {
                     timestamp, type: 'sell', quantity, sell, profit,
-                    date, time, notes: notes.trim(), currency: 'USDT', clientPaymentStatus: clientPaymentStatus
+                    date, time, notes: notes.trim(), currency: sellCurrency, clientPaymentStatus: clientPaymentStatus
                 });
 
                 if (clientPaymentStatus !== 'credit' && !shouldLinkCashToDzdClient) {
                     const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp, date, time, type: 'Ajout', source, amount: totalRevenue,
-                        notes: `Vente ${quantity.toFixed(2)} USDT`, linkedTxId: ref.id
+                        notes: `Vente ${quantity.toFixed(2)} ${sellCurrency}`, linkedTxId: ref.id
                     });
                 }
 
                 if (linkedClientId !== 'none') {
                     batch.set(userDocRef.collection('dzd_client_txs').doc(), {
                         clientId: linkedClientId, timestamp, date, time, montant: -totalRevenue,
-                        type: 'Vente USDT', notes: `Vente de ${quantity.toFixed(2)} USDT @ ${sell.toFixed(2)}`,
+                        type: clientTxType, notes: `Vente de ${quantity.toFixed(2)} ${sellCurrency} @ ${sell.toFixed(2)}`,
                         linkedTxId: ref.id,
                         linkRole: 'primary',
                         paymentMethod: paymentMethodByStatus[clientPaymentStatus],
@@ -466,7 +482,7 @@ export function useTransactionHandlers({
                 if (shouldLinkCashToDzdClient) {
                     batch.set(userDocRef.collection('dzd_client_txs').doc(), {
                         clientId: linkedClientDzdId, timestamp: timestamp + 1, date, time, montant: -totalRevenue,
-                        type: 'Ajustement Solde', notes: `Dette DZD liee a vente de ${quantity.toFixed(2)} USDT`,
+                        type: 'Ajustement Solde', notes: `Dette DZD liee a vente de ${quantity.toFixed(2)} ${sellCurrency}`,
                         linkedTxId: ref.id,
                         linkRole: 'dzd_receiver',
                         paymentMethod: paymentMethodByStatus['credit'],

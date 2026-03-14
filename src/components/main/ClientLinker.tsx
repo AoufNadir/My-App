@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
@@ -32,7 +32,7 @@ const getClientName = (client: ClientDzd) => {
 
 const normalizeText = (value: string) => value.toLowerCase().trim();
 
-export function ClientLinker({
+function ClientLinkerComponent({
     linkedClientId,
     setLinkedClientId,
     linkedClientDzdId,
@@ -149,7 +149,7 @@ export function ClientLinker({
 
             {showLinkedDzdClient && (
                 <div>
-                    <Label htmlFor="link_client_dzd_cash">Lier a un client DZD</Label>
+                    <Label htmlFor="link_client_dzd_cash">Lier a un client DZD (optionnel)</Label>
                     <Input
                         value={linkedDzdClientSearch}
                         onChange={(e) => setLinkedDzdClientSearch(e.target.value)}
@@ -162,7 +162,7 @@ export function ClientLinker({
                         onChange={(e) => setLinkedClientDzdId(e.target.value)}
                         className={`${fieldBase} focus:ring-amber-400 rounded-xl ${hasErrorDzd ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                     >
-                        <option value="none">Choisir un client DZD</option>
+                        <option value="none">Aucun / Enregistrer dans Caisse</option>
                         {filteredDzdClients.map((client) => (
                             <option key={client.id} value={client.id}>
                                 {getClientName(client)}
@@ -173,8 +173,28 @@ export function ClientLinker({
                         )}
                     </Select>
                     {errorMessageDzd && <p className="text-red-500 text-xs mt-1">{errorMessageDzd}</p>}
+                    {!errorMessageDzd && (
+                        <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Si vous laissez ce champ vide, le montant sera enregistre dans Caisse (Especes).
+                        </p>
+                    )}
                 </div>
             )}
         </div>
     );
 }
+
+const areClientLinkerPropsEqual = (prev: ClientLinkerProps, next: ClientLinkerProps) => (
+    prev.linkedClientId === next.linkedClientId
+    && prev.linkedClientDzdId === next.linkedClientDzdId
+    && prev.clientsDzd === next.clientsDzd
+    && prev.fieldBase === next.fieldBase
+    && prev.isDark === next.isDark
+    && prev.clientPaymentStatus === next.clientPaymentStatus
+    && prev.errorMessage === next.errorMessage
+    && prev.hasError === next.hasError
+    && prev.errorMessageDzd === next.errorMessageDzd
+    && prev.hasErrorDzd === next.hasErrorDzd
+);
+
+export const ClientLinker = memo(ClientLinkerComponent, areClientLinkerPropsEqual);

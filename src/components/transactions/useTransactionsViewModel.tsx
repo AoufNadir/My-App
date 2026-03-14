@@ -44,7 +44,7 @@ type UseTransactionsViewModelParams = {
   clientsDzd: ClientDzd[];
   treasuryTransactions: TreasuryTx[];
   getClientFullName: (client: ClientDzd) => string;
-  openForm: (newMode: 'buy_usdt' | 'sell_usdt' | 'buy_eur', txToEdit?: Tx | null) => void;
+  openForm: (newMode: 'buy_usdt' | 'sell_usdt' | 'buy_eur' | 'sell_eur', txToEdit?: Tx | null) => void;
   openAdjustmentModal: (type: 'add' | 'subtract', txToEdit?: TreasuryTx | null) => void;
   setTxToDelete: (tx: Tx | null) => void;
   handleEditClientTx?: (tx: ClientTransactionDzd) => void;
@@ -147,7 +147,7 @@ export function useTransactionsViewModel({
       const rawTx = tx.rawTx as Tx;
       const mode = rawTx.type === 'buy'
         ? (rawTx.currency === 'USDT' ? 'buy_usdt' : 'buy_eur')
-        : 'sell_usdt';
+        : (rawTx.currency === 'USDT' ? 'sell_usdt' : 'sell_eur');
       openForm(mode, rawTx);
       return;
     }
@@ -179,6 +179,31 @@ export function useTransactionsViewModel({
     }
   };
 
+  const clientsById = useMemo(() => {
+    const map = new Map<string, ClientDzd>();
+    for (const client of clientsDzd) {
+      map.set(client.id, client);
+    }
+    return map;
+  }, [clientsDzd]);
+
+  const linkedClientTxsByTransactionId = useMemo(() => {
+    const map = new Map<string, ClientTransactionDzd[]>();
+
+    for (const clientTx of clientTransactionsDzd) {
+      if (!clientTx.linkedTxId) continue;
+
+      const existing = map.get(clientTx.linkedTxId);
+      if (existing) {
+        existing.push(clientTx);
+      } else {
+        map.set(clientTx.linkedTxId, [clientTx]);
+      }
+    }
+
+    return map;
+  }, [clientTransactionsDzd]);
+
   const unifiedTransactions = useMemo(() => {
     const all: DisplayTx[] = [];
 
@@ -186,9 +211,9 @@ export function useTransactionsViewModel({
       const isBuy = tx.type === 'buy' || tx.type === 'Ajout Manuel';
       const typeLabel = getPortfolioOperationLabel(tx.type, tx.currency);
 
-      const txClientCandidates = tx.id ? clientTransactionsDzd.filter((clientTx) => clientTx.linkedTxId === tx.id) : [];
+      const txClientCandidates = tx.id ? (linkedClientTxsByTransactionId.get(tx.id) || []) : [];
       const txClient = txClientCandidates.find((clientTx) => clientTx.linkRole !== 'dzd_receiver') || txClientCandidates[0];
-      const client = txClient ? clientsDzd.find((c) => c.id === txClient.clientId) : undefined;
+      const client = txClient ? clientsById.get(txClient.clientId) : undefined;
       let details = client ? getClientFullName(client) : (tx.notes || '');
       if (tx.price && (tx.type === 'Ajout Manuel' || tx.type === 'Retrait Manuel')) {
         details = `${details} - Prix: ${formatDzdAmount(tx.price)}`;
@@ -218,7 +243,7 @@ export function useTransactionsViewModel({
     clientTransactionsDzd.forEach((tx) => {
       if (tx.linkedTxId) return;
 
-      const client = clientsDzd.find((c) => c.id === tx.clientId);
+      const client = clientsById.get(tx.clientId);
       const clientName = client ? getClientFullName(client) : 'Client Inconnu';
       const isPositive = tx.montant > 0;
       const isTransfer = tx.type === 'Transfert Entrant' || tx.type === 'Transfert Sortant';
@@ -287,7 +312,15 @@ export function useTransactionsViewModel({
     });
 
     return all.sort((a, b) => b.timestamp - a.timestamp);
-  }, [transactions, clientTransactionsDzd, treasuryTransactions, clientsDzd, isDark, getClientFullName, t]);
+  }, [
+    transactions,
+    clientTransactionsDzd,
+    treasuryTransactions,
+    linkedClientTxsByTransactionId,
+    clientsById,
+    isDark,
+    getClientFullName
+  ]);
 
   const filteredTransactions = useMemo(() => {
     return unifiedTransactions.filter((tx) => {

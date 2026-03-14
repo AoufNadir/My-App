@@ -18,16 +18,17 @@ type DialogProps = {
 
 const Dialog = ({ isOpen, onClose, children, className }: DialogProps) => {
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
+    if (!isOpen) {
+      return;
     }
+
+    document.body.style.overflow = 'hidden';
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
       }
     };
+
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.body.style.overflow = 'unset';

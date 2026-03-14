@@ -14,7 +14,7 @@ type TransactionsPageProps = {
   isDark: boolean;
   subtleText: string;
   openAdjustmentModal: (type: 'add' | 'subtract', txToEdit?: TreasuryTx | null) => void;
-  openForm: (newMode: 'buy_usdt' | 'sell_usdt' | 'buy_eur', txToEdit?: Tx | null) => void;
+  openForm: (newMode: 'buy_usdt' | 'sell_usdt' | 'buy_eur' | 'sell_eur', txToEdit?: Tx | null) => void;
   filterMode: TransactionFilterMode;
   setFilterMode: (mode: TransactionFilterMode) => void;
   transactions: Tx[];

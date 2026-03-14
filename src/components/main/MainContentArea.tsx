@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Suspense, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '../ui/Card';
 import { Alert, AlertDescription } from '../ui/Alert';
@@ -11,7 +11,124 @@ type MainContentAreaProps = Record<string, any>;
 
 const MotionDiv = motion.div;
 
-export function MainContentArea({
+const getDateTimestamp = (value: Date | null | undefined) => value?.getTime?.() ?? null;
+
+const areDailyOverviewsEqual = (prev: any, next: any) => (
+    prev?.caisse === next?.caisse
+    && prev?.baridi === next?.baridi
+    && prev?.activeClients === next?.activeClients
+    && prev?.todayProfit === next?.todayProfit
+    && prev?.todayUsdtSold === next?.todayUsdtSold
+);
+
+const arePortfolioPagePropsEqual = (prev: any, next: any) => (
+    prev?.statsView === next?.statsView
+    && prev?.isDark === next?.isDark
+    && prev?.cardBase === next?.cardBase
+    && prev?.subtleText === next?.subtleText
+    && prev?.portfolioStats === next?.portfolioStats
+    && prev?.totalPortfolioValue === next?.totalPortfolioValue
+    && prev?.suggestedProfitMargin === next?.suggestedProfitMargin
+    && prev?.suggestedSellingPrice === next?.suggestedSellingPrice
+    && prev?.usdtReportMonth === next?.usdtReportMonth
+    && prev?.usdtReportYear === next?.usdtReportYear
+    && prev?.transactions === next?.transactions
+    && prev?.selectedHeatmapDay === next?.selectedHeatmapDay
+    && prev?.simMode === next?.simMode
+    && prev?.simBuyQty === next?.simBuyQty
+    && prev?.simBuyPrice === next?.simBuyPrice
+    && prev?.fieldBase === next?.fieldBase
+    && prev?.newPamFromDzdSimulator === next?.newPamFromDzdSimulator
+    && prev?.simEurQty === next?.simEurQty
+    && prev?.simEurDzdPrice === next?.simEurDzdPrice
+    && prev?.simEurUsdtRate === next?.simEurUsdtRate
+    && prev?.newPamFromEurSimulator === next?.newPamFromEurSimulator
+    && prev?.reportClient === next?.reportClient
+    && prev?.clientsDzd === next?.clientsDzd
+    && prev?.clientTransactionsDzd === next?.clientTransactionsDzd
+    && prev?.reportMonth === next?.reportMonth
+    && prev?.reportYear === next?.reportYear
+    && prev?.simSellUsdtQty === next?.simSellUsdtQty
+    && prev?.simSellDzdPrice === next?.simSellDzdPrice
+);
+
+const areClientsPagePropsEqual = (prev: any, next: any) => (
+    prev?.selectedClientId === next?.selectedClientId
+    && prev?.cardBase === next?.cardBase
+    && prev?.fieldBase === next?.fieldBase
+    && prev?.isDark === next?.isDark
+    && prev?.subtleText === next?.subtleText
+    && prev?.clientSearchQuery === next?.clientSearchQuery
+    && prev?.clientSortMode === next?.clientSortMode
+    && prev?.filteredClientsDzd === next?.filteredClientsDzd
+    && prev?.clientBalances === next?.clientBalances
+    && prev?.selectedClient === next?.selectedClient
+    && prev?.selectedClientTransactions === next?.selectedClientTransactions
+    && prev?.transactions === next?.transactions
+    && prev?.copiedValue === next?.copiedValue
+    && prev?.overdueDebtClients === next?.overdueDebtClients
+);
+
+const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainContentAreaProps) => {
+    if (
+        prev.alert !== next.alert
+        || prev.alertClass !== next.alertClass
+        || prev.cardBase !== next.cardBase
+        || prev.subtleText !== next.subtleText
+        || prev.t !== next.t
+        || prev.isDark !== next.isDark
+        || prev.view !== next.view
+        || prev.PageLoadingFallback !== next.PageLoadingFallback
+        || !areDailyOverviewsEqual(prev.dailyOverview, next.dailyOverview)
+    ) {
+        return false;
+    }
+
+    switch (next.view) {
+        case 'transactions':
+            return (
+                prev.filterMode === next.filterMode
+                && getDateTimestamp(prev.dateRange?.start) === getDateTimestamp(next.dateRange?.start)
+                && getDateTimestamp(prev.dateRange?.end) === getDateTimestamp(next.dateRange?.end)
+                && prev.transactions === next.transactions
+                && prev.clientTransactionsDzd === next.clientTransactionsDzd
+                && prev.clientsDzd === next.clientsDzd
+                && prev.treasuryTransactions === next.treasuryTransactions
+            );
+        case 'statistiques':
+        case 'analytics':
+            return arePortfolioPagePropsEqual(prev.portfolioPageProps, next.portfolioPageProps);
+        case 'dzd':
+            return areClientsPagePropsEqual(prev.clientsPageProps, next.clientsPageProps);
+        case 'tresorerie':
+            return (
+                prev.selectedAssetClientId === next.selectedAssetClientId
+                && prev.manualAssetClients === next.manualAssetClients
+                && prev.manualAssetTransactions === next.manualAssetTransactions
+                && prev.assetClientBalances === next.assetClientBalances
+                && prev.selectedAssetId === next.selectedAssetId
+                && prev.fieldBase === next.fieldBase
+                && prev.manualAssets === next.manualAssets
+                && prev.treasuryStats === next.treasuryStats
+                && prev.totals === next.totals
+                && prev.portfolioStats === next.portfolioStats
+                && prev.treasuryCards === next.treasuryCards
+                && prev.assetBalances === next.assetBalances
+            );
+        case 'investors':
+            return (
+                prev.selectedInvestorId === next.selectedInvestorId
+                && prev.derivedInvestors === next.derivedInvestors
+                && prev.investorTransactions === next.investorTransactions
+                && prev.managerFeePercentage === next.managerFeePercentage
+                && prev.portfolioStats === next.portfolioStats
+            );
+        default:
+            return true;
+    }
+};
+
+function MainContentAreaComponent({
     alert,
     alertClass,
     cardBase,
@@ -183,6 +300,7 @@ export function MainContentArea({
                             <ManualAssetPage
                                 asset={manualAssets.find(a => a.id === selectedAssetId)!}
                                 clients={manualAssetClients.filter(c => c.assetId === selectedAssetId)}
+                                assetTransactions={manualAssetTransactions.filter(tx => tx.actifId === selectedAssetId)}
                                 clientBalances={assetClientBalances}
                                 onBack={() => setSelectedAssetId(null)}
                                 onSelectClient={(client) => setSelectedAssetClientId(client.id)}
@@ -275,3 +393,5 @@ export function MainContentArea({
                 </main>
     );
 }
+
+export const MainContentArea = memo(MainContentAreaComponent, areMainContentAreaPropsEqual);

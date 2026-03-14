@@ -14,6 +14,7 @@ export function MainTransactionDialog({
     mode,
     editingTx,
     closeForm,
+    openForm,
     cardBase,
     isDark,
     t,
@@ -54,6 +55,7 @@ export function MainTransactionDialog({
     sellTotal,
     setSellTotal,
     suggestedSellingPrice,
+    suggestedSellingPriceEur,
     suggestedProfitMargin,
     profitPercent,
     setProfitPercent,
@@ -73,6 +75,30 @@ export function MainTransactionDialog({
         ? Math.abs(Number(clientBalances?.get?.(linkedClientId) || 0))
         : 0;
     const selectedClientTotalLabel = Number(selectedClientTotal.toFixed(2)).toString();
+    const isSellMode = mode === 'sell_usdt' || mode === 'sell_eur';
+    const isBuyMode = mode === 'buy_usdt' || mode === 'buy_eur';
+    const activeCurrency = mode === 'buy_eur' || mode === 'sell_eur' ? 'EUR' : 'USDT';
+    const activeStats = activeCurrency === 'EUR' ? portfolioStats.eur : portfolioStats.usdt;
+    const activeSuggestedSellingPrice = activeCurrency === 'EUR' ? suggestedSellingPriceEur : suggestedSellingPrice;
+    const sellSuggestedPrice = activeSuggestedSellingPrice && parseFloat(activeSuggestedSellingPrice) > 0
+        ? parseFloat(activeSuggestedSellingPrice)
+        : (activeStats.avgBuy + parseAndEvaluate(suggestedProfitMargin));
+    const switchOperation = (operation: 'buy' | 'sell') => {
+        if (editingTx) return;
+        if (operation === 'buy') {
+            openForm(activeCurrency === 'EUR' ? 'buy_eur' : 'buy_usdt');
+            return;
+        }
+        openForm(activeCurrency === 'EUR' ? 'sell_eur' : 'sell_usdt');
+    };
+    const switchCurrency = (currency: 'USDT' | 'EUR') => {
+        if (editingTx) return;
+        if (isSellMode) {
+            openForm(currency === 'EUR' ? 'sell_eur' : 'sell_usdt');
+            return;
+        }
+        openForm(currency === 'EUR' ? 'buy_eur' : 'buy_usdt');
+    };
 
     const applyClientMaxToBuyTotal = () => {
         if (!hasPrimaryClient || selectedClientTotal <= 0) return;
@@ -96,13 +122,73 @@ export function MainTransactionDialog({
         }
     };
 
+    const applySellBalanceMax = () => {
+        setSellAmount(activeStats.available.toFixed(2));
+        const price = parseAndEvaluate(sellPrice);
+        if (price > 0) {
+            setSellTotal((activeStats.available * price).toFixed(0));
+        }
+    };
+
     return (
             <Dialog isOpen={mode !== null} onClose={closeForm} className={`${cardBase} max-w-lg`}>
-                <DialogHeader onClose={closeForm} isDark={isDark}><DialogTitle>{editingTx ? t('common.edit') : (mode === 'sell_usdt' ? t('transactions.newTransaction') : t('transactions.newTransaction'))}</DialogTitle></DialogHeader>
+                <DialogHeader onClose={closeForm} isDark={isDark}><DialogTitle>{editingTx ? t('common.edit') : t('transactions.newTransaction')}</DialogTitle></DialogHeader>
                 <DialogContent className="px-6 pb-6 space-y-4">
                     {mode && (
                         <>
-                            {mode.startsWith('buy') && !buyUsdtMode && mode !== 'buy_eur' && (
+                            <div className="space-y-3">
+                                <div className={`rounded-2xl border p-3 ${isDark ? 'border-slate-700 bg-slate-800/60' : 'border-slate-200 bg-slate-50'}`}>
+                                    <div className="grid grid-cols-2 gap-2 mb-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => switchOperation('buy')}
+                                            disabled={!!editingTx}
+                                            className={`py-2 rounded-xl text-sm font-bold transition-all ${isBuyMode ? 'bg-emerald-600 text-white' : (isDark ? 'bg-slate-900 text-slate-300' : 'bg-white text-slate-600')} ${editingTx ? 'cursor-not-allowed opacity-70' : ''}`}
+                                        >
+                                            {t('transactions.buy')}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => switchOperation('sell')}
+                                            disabled={!!editingTx}
+                                            className={`py-2 rounded-xl text-sm font-bold transition-all ${isSellMode ? 'bg-rose-600 text-white' : (isDark ? 'bg-slate-900 text-slate-300' : 'bg-white text-slate-600')} ${editingTx ? 'cursor-not-allowed opacity-70' : ''}`}
+                                        >
+                                            {t('transactions.sell')}
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => switchCurrency('USDT')}
+                                            disabled={!!editingTx}
+                                            className={`py-2 rounded-xl text-sm font-bold transition-all ${activeCurrency === 'USDT' ? 'bg-sky-600 text-white' : (isDark ? 'bg-slate-900 text-slate-300' : 'bg-white text-slate-600')} ${editingTx ? 'cursor-not-allowed opacity-70' : ''}`}
+                                        >
+                                            USDT
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => switchCurrency('EUR')}
+                                            disabled={!!editingTx}
+                                            className={`py-2 rounded-xl text-sm font-bold transition-all ${activeCurrency === 'EUR' ? 'bg-amber-600 text-white' : (isDark ? 'bg-slate-900 text-slate-300' : 'bg-white text-slate-600')} ${editingTx ? 'cursor-not-allowed opacity-70' : ''}`}
+                                        >
+                                            EUR
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className={`grid grid-cols-2 gap-3 rounded-2xl border p-3 ${isDark ? 'border-slate-700 bg-slate-900/40' : 'border-slate-200 bg-white'}`}>
+                                    <div>
+                                        <p className={`text-xs uppercase tracking-wide ${subtleText}`}>{t('common.balance')}</p>
+                                        <p className="text-lg font-bold">{activeStats.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeCurrency}</p>
+                                    </div>
+                                    <div>
+                                        <p className={`text-xs uppercase tracking-wide ${subtleText}`}>{t('portfolio.currentPam')}</p>
+                                        <p className="text-lg font-bold">{activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {mode === 'buy_usdt' && !buyUsdtMode && (
                                 <>
                                     <div className="text-center mb-6">
                                         <UnifiedTitle
@@ -126,7 +212,7 @@ export function MainTransactionDialog({
                                     </div>
                                 </>
                             )}
-                            {(buyUsdtMode || mode === 'buy_eur' || mode === 'sell_usdt') && (
+                            {(buyUsdtMode || mode === 'buy_eur' || mode === 'sell_usdt' || mode === 'sell_eur') && (
                                 <div className="space-y-3">
 
                                     {/* CASE 0: Buy USDT with DZD - REDESIGNED */}
@@ -320,11 +406,11 @@ export function MainTransactionDialog({
                                         </>
                                     )}
 
-                                    {/* CASE 2: Sell USDT */}
-                                    {mode === 'sell_usdt' && (
+                                    {/* CASE 2: Sell Asset */}
+                                    {isSellMode && (
                                         <>
                                             <div>
-                                                <Label>{t('transactions.qtyUsdt')}</Label>
+                                                <Label>{activeCurrency === 'EUR' ? t('transactions.qtyEur') : t('transactions.qtyUsdt')}</Label>
                                                 <div className="relative">
                                                     <NumberInput
                                                         value={sellAmount}
@@ -348,15 +434,9 @@ export function MainTransactionDialog({
                                                         className={fieldBase}
                                                         placeholder="0.00"
                                                     />
-                                                    <button onClick={() => {
-                                                        setSellAmount(portfolioStats.usdt.available.toFixed(2));
-                                                        const price = parseAndEvaluate(sellPrice);
-                                                        if (price > 0) {
-                                                            setSellTotal((portfolioStats.usdt.available * price).toFixed(0));
-                                                        }
-                                                    }} className="absolute right-2 top-2 text-xs bg-sky-600 text-white px-2 py-1 rounded">{t('common.max')}</button>
+                                                    <button onClick={applySellBalanceMax} className="absolute right-2 top-2 text-xs bg-sky-600 text-white px-2 py-1 rounded">{t('common.max')}</button>
                                                 </div>
-                                                <p className={`text-xs mt-1 ${subtleText}`}>{t('common.balance')}: {portfolioStats.usdt.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</p>
+                                                <p className={`text-xs mt-1 ${subtleText}`}>{t('common.balance')}: {activeStats.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeCurrency}</p>
                                                 {formValidation.errors['sellAmount'] && <p className="text-red-500 text-xs mt-1">{formValidation.errors['sellAmount']}</p>}
                                             </div>
 
@@ -411,16 +491,14 @@ export function MainTransactionDialog({
                                             <div className={`p-3 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                                                 <div className="flex justify-between text-sm">
                                                     <span className="text-gray-400">{t('portfolio.currentPam')}:</span>
-                                                    <span className="font-bold">{portfolioStats.usdt.avgBuy.toFixed(2)} {t('common.dinar')}</span>
+                                                    <span className="font-bold">{activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span>
                                                 </div>
                                                 <div
                                                     className="flex justify-between text-sm mt-1 cursor-pointer hover:opacity-80 transition-opacity"
                                                     onClick={() => {
-                                                        const price = suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0
-                                                            ? parseFloat(suggestedSellingPrice)
-                                                            : (portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin));
+                                                        const price = sellSuggestedPrice;
                                                         setSellPrice(price.toFixed(2));
-                                                        setProfitPercent((price - portfolioStats.usdt.avgBuy).toFixed(2));
+                                                        setProfitPercent((price - activeStats.avgBuy).toFixed(2));
                                                         // Update total if not manual
                                                         const qty = parseAndEvaluate(sellAmount);
                                                         if (!isTotalManual && qty > 0) {
@@ -428,8 +506,8 @@ export function MainTransactionDialog({
                                                         }
                                                     }}
                                                 >
-                                                    <span className="text-yellow-500">{t('portfolio.suggestedPrice')} (+{(suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0 ? (parseFloat(suggestedSellingPrice) - portfolioStats.usdt.avgBuy).toFixed(2) : suggestedProfitMargin)} DA):</span>
-                                                    <span className="font-bold text-yellow-500 underline decoration-dotted underline-offset-2">{(suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0 ? parseFloat(suggestedSellingPrice) : (portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin))).toFixed(2)} {t('common.dinar')}</span>
+                                                    <span className="text-yellow-500">{t('portfolio.suggestedPrice')} (+{(sellSuggestedPrice - activeStats.avgBuy).toFixed(2)} DA):</span>
+                                                    <span className="font-bold text-yellow-500 underline decoration-dotted underline-offset-2">{sellSuggestedPrice.toFixed(2)} {t('common.dinar')}</span>
                                                 </div>
                                             </div>
 
@@ -449,8 +527,8 @@ export function MainTransactionDialog({
                                                             }
 
                                                             // Update margin when price changes
-                                                            if (portfolioStats.usdt.avgBuy > 0 && price > 0) {
-                                                                const margin = price - portfolioStats.usdt.avgBuy;
+                                                            if (activeStats.avgBuy > 0 && price > 0) {
+                                                                const margin = price - activeStats.avgBuy;
                                                                 setProfitPercent(margin.toFixed(2));
                                                             }
                                                         }}
@@ -465,8 +543,8 @@ export function MainTransactionDialog({
                                                         onChange={e => {
                                                             setProfitPercent(e.target.value);
                                                             const margin = parseAndEvaluate(e.target.value);
-                                                            if (margin >= 0 && portfolioStats.usdt.avgBuy > 0) {
-                                                                const newPrice = portfolioStats.usdt.avgBuy + margin;
+                                                            if (margin >= 0 && activeStats.avgBuy > 0) {
+                                                                const newPrice = activeStats.avgBuy + margin;
                                                                 setSellPrice(newPrice.toFixed(2));
 
                                                                 // Update total based on new price ONLY IF NOT MANUAL

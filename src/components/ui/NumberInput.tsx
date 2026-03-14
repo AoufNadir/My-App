@@ -1,10 +1,5 @@
-
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useDeferredValue, useMemo } from 'react';
 import { Input } from './Input';
-
-// Using a const for motion.div to resolve TypeScript type inference issues.
-const MotionDiv = motion.div;
 
 /**
  * Safely evaluates a mathematical expression string without using `eval()`.
@@ -42,44 +37,35 @@ const evaluateExpression = (expr: string): { success: boolean; value?: number; e
 
 
 export const NumberInput = ({ value, onChange, className, ...props }: { value: string, onChange: (e: React.ChangeEvent<HTMLInputElement>) => void } & React.InputHTMLAttributes<HTMLInputElement>) => {
-    const [result, setResult] = useState<{ value?: number; error?: string } | null>(null);
-
-    useEffect(() => {
-        if (value) {
-            const evalResult = evaluateExpression(value);
-            if (evalResult.success && evalResult.value !== undefined) {
-                // Avoid showing result if it's the same as the input
-                if (evalResult.value.toString() !== value.replace(/,/g, '.')) {
-                    setResult({ value: evalResult.value });
-                } else {
-                    setResult(null);
-                }
-            } else {
-                setResult({ error: evalResult.error });
-            }
-        } else {
-            setResult(null);
+    const deferredValue = useDeferredValue(value);
+    const result = useMemo(() => {
+        if (!deferredValue) {
+            return null;
         }
-    }, [value]);
+
+        const evalResult = evaluateExpression(deferredValue);
+        if (!evalResult.success) {
+            return { error: evalResult.error };
+        }
+
+        if (evalResult.value !== undefined && evalResult.value.toString() !== deferredValue.replace(/,/g, '.')) {
+            return { value: evalResult.value };
+        }
+
+        return null;
+    }, [deferredValue]);
 
     return (
         <div className="relative">
             <Input value={value} onChange={onChange} {...props} className={className} />
-            <AnimatePresence>
-                {result && (
-                    <MotionDiv
-                        initial={{ opacity: 0, y: -5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -5 }}
-                        className="absolute right-2 bottom-[-18px] text-xs"
-                    >
-                        {result.error && <span className="text-red-500">{result.error}</span>}
-                        {result.value !== undefined && !result.error && (
-                            <span className="text-gray-400">= {result.value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        )}
-                    </MotionDiv>
-                )}
-            </AnimatePresence>
+            {result && (
+                <div className="absolute right-2 bottom-[-18px] text-xs">
+                    {result.error && <span className="text-red-500">{result.error}</span>}
+                    {result.value !== undefined && !result.error && (
+                        <span className="text-gray-400">= {result.value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

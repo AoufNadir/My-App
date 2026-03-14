@@ -4,6 +4,7 @@ import type { FirestoreDocumentReference } from '../firebase';
 export function useSettings(userDocRef: FirestoreDocumentReference) {
     const [suggestedProfitMargin, setSuggestedProfitMargin] = useState(() => localStorage.getItem('suggestedProfitMargin') || '2');
     const [suggestedSellingPrice, setSuggestedSellingPrice] = useState(() => localStorage.getItem('suggestedSellingPrice') || '');
+    const [suggestedSellingPriceEur, setSuggestedSellingPriceEur] = useState(() => localStorage.getItem('suggestedSellingPriceEur') || '');
     const [managerFeePercentage, setManagerFeePercentage] = useState(() => localStorage.getItem('managerFeePercentage') || "20");
     const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
 
@@ -14,6 +15,10 @@ export function useSettings(userDocRef: FirestoreDocumentReference) {
     useEffect(() => {
         localStorage.setItem('suggestedSellingPrice', suggestedSellingPrice);
     }, [suggestedSellingPrice]);
+
+    useEffect(() => {
+        localStorage.setItem('suggestedSellingPriceEur', suggestedSellingPriceEur);
+    }, [suggestedSellingPriceEur]);
 
     useEffect(() => {
         localStorage.setItem('managerFeePercentage', managerFeePercentage);
@@ -30,6 +35,9 @@ export function useSettings(userDocRef: FirestoreDocumentReference) {
                     }
                     if (data?.suggestedSellingPrice !== undefined) {
                         setSuggestedSellingPrice(parseFloat(data.suggestedSellingPrice).toFixed(2));
+                    }
+                    if (data?.suggestedSellingPriceEur !== undefined) {
+                        setSuggestedSellingPriceEur(parseFloat(data.suggestedSellingPriceEur).toFixed(2));
                     }
                     if (data?.managerFeePercentage !== undefined) {
                         setManagerFeePercentage(data.managerFeePercentage.toString());
@@ -74,6 +82,7 @@ export function useSettings(userDocRef: FirestoreDocumentReference) {
     return {
         suggestedProfitMargin, setSuggestedProfitMargin,
         suggestedSellingPrice, setSuggestedSellingPrice,
+        suggestedSellingPriceEur, setSuggestedSellingPriceEur,
         managerFeePercentage, setManagerFeePercentage,
         isSettingsLoaded,
         theme, setTheme, isDark

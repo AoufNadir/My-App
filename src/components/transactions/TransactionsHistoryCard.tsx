@@ -1,3 +1,4 @@
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Dropdown, DropdownItem } from '../ui/Dropdown';
@@ -53,6 +54,55 @@ export function TransactionsHistoryCard({
   onDeleteDisplayTx,
   formatDzdAmount
 }: TransactionsHistoryCardProps) {
+  const INITIAL_VISIBLE_TRANSACTIONS = 120;
+  const LOAD_MORE_TRANSACTIONS = 120;
+  const [visibleTransactionCount, setVisibleTransactionCount] = useState(INITIAL_VISIBLE_TRANSACTIONS);
+
+  useEffect(() => {
+    setVisibleTransactionCount(INITIAL_VISIBLE_TRANSACTIONS);
+  }, [groupedTransactions]);
+
+  const dateGroups = useMemo(
+    () => Object.entries(groupedTransactions),
+    [groupedTransactions]
+  );
+
+  const {
+    visibleDateGroups,
+    hiddenTransactionCount,
+    totalTransactionCount
+  } = useMemo(() => {
+    let remaining = visibleTransactionCount;
+    let hidden = 0;
+    let total = 0;
+    const visibleGroups: Array<[string, DisplayTx[]]> = [];
+
+    for (const [date, txs] of dateGroups) {
+      total += txs.length;
+
+      if (remaining <= 0) {
+        hidden += txs.length;
+        continue;
+      }
+
+      if (txs.length <= remaining) {
+        visibleGroups.push([date, txs]);
+        remaining -= txs.length;
+        continue;
+      }
+
+      visibleGroups.push([date, txs.slice(0, remaining)]);
+      hidden += txs.length - remaining;
+      remaining = 0;
+    }
+
+    return {
+      visibleDateGroups: visibleGroups,
+      hiddenTransactionCount: hidden,
+      totalTransactionCount: total
+    };
+  }, [dateGroups, visibleTransactionCount]);
+
   return (
     <Card className={cardBase}>
       <CardHeader className="flex flex-row items-center justify-between p-4">
@@ -131,9 +181,8 @@ export function TransactionsHistoryCard({
 
       <CardContent className="p-0">
         <div className="space-y-4 pb-4">
-          {Object.keys(groupedTransactions).length > 0 ? (
-            Object.keys(groupedTransactions).map((date) => {
-              const txsOnDate = groupedTransactions[date] || [];
+          {visibleDateGroups.length > 0 ? (
+            visibleDateGroups.map(([date, txsOnDate]) => {
               return (
                 <div key={date}>
                   <h3 className={`font-semibold text-sm mb-2 px-4 ${subtleText}`}>{getRelativeDateLabel(date)}</h3>
@@ -173,6 +222,19 @@ export function TransactionsHistoryCard({
             })
           ) : (
             <p className={`text-center py-8 ${subtleText}`}>{t('transactions.noTransactions')}</p>
+          )}
+          {hiddenTransactionCount > 0 && (
+            <div className="px-4 pt-2">
+              <Button
+                onClick={() => setVisibleTransactionCount((prev) => prev + LOAD_MORE_TRANSACTIONS)}
+                className={`w-full rounded-xl px-4 py-3 font-semibold ${isDark ? 'bg-slate-700 text-slate-100 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+              >
+                Afficher plus ({Math.min(hiddenTransactionCount, LOAD_MORE_TRANSACTIONS)})
+              </Button>
+              <p className={`mt-2 text-center text-xs ${subtleText}`}>
+                {totalTransactionCount - hiddenTransactionCount} / {totalTransactionCount}
+              </p>
+            </div>
           )}
         </div>
       </CardContent>
