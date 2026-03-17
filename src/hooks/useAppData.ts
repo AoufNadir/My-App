@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { db, type AppUser } from '../firebase';
+import { db } from '../firebase';
+import type { AppUser } from '../firebaseAuth';
 import {
     Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard,
     ManualAsset, ManualAssetClient, ManualAssetTransaction,
@@ -9,12 +10,14 @@ import {
 type UseAppDataOptions = {
     subscribeManualAssets?: boolean;
     subscribeInvestors?: boolean;
+    subscribeTreasuryCards?: boolean;
 };
 
 export function useAppData(user: AppUser, refreshKey: number, options: UseAppDataOptions = {}) {
     const userDocRef = useMemo(() => db.collection('users').doc(user.uid), [user.uid]);
     const subscribeManualAssets = options.subscribeManualAssets ?? true;
     const subscribeInvestors = options.subscribeInvestors ?? true;
+    const subscribeTreasuryCards = options.subscribeTreasuryCards ?? true;
 
     // Data State
     const [transactions, setTransactions] = useState<Tx[]>([]);
@@ -57,9 +60,15 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             setTreasuryTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TreasuryTx[]);
         });
 
-        const unsubTreasuryCards = userDocRef.collection('treasury_cards').onSnapshot(snap => {
-            setTreasuryCards(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TreasuryCard[]);
-        });
+        if (!subscribeTreasuryCards) {
+            setTreasuryCards([]);
+        }
+
+        const unsubTreasuryCards = subscribeTreasuryCards
+            ? userDocRef.collection('treasury_cards').onSnapshot(snap => {
+                setTreasuryCards(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TreasuryCard[]);
+            })
+            : () => undefined;
 
         const unsubManualAssets = subscribeManualAssets
             ? userDocRef.collection('manual_assets').orderBy('createdAt', 'desc').onSnapshot(snap => {
@@ -95,7 +104,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             unsubTxs(); unsubClients(); unsubClientTxs(); unsubTreasuryTxs(); unsubTreasuryCards();
             unsubManualAssets(); unsubManualClients(); unsubManualTxs(); unsubInvestors(); unsubInvestorTxs();
         };
-    }, [userDocRef, refreshKey, subscribeManualAssets, subscribeInvestors]);
+    }, [userDocRef, refreshKey, subscribeManualAssets, subscribeInvestors, subscribeTreasuryCards]);
 
     // Derived Calculations
     const portfolioStats = useMemo(() => {

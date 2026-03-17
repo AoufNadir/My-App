@@ -197,7 +197,7 @@ export function TransactionsHistoryCard({
                           onDelete={() => onDeleteDisplayTx(tx)}
                           disableSwipe={false}
                         >
-                          <div className={`flex items-center gap-3 py-3 px-4 ${isDark ? 'bg-[#111827]' : 'bg-white'}`}>
+                          <div className={`flex items-center gap-3 py-3 px-4 ${isDark ? 'bg-[#111827]' : 'bg-white'}`} style={{ contentVisibility: 'auto', containIntrinsicSize: '84px' }}>
                             {tx.icon}
 
                             <div className="flex-grow min-w-0">

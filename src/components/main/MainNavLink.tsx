@@ -1,4 +1,4 @@
-import React, { type ReactNode } from 'react';
+import React, { useRef, type ReactNode } from 'react';
 
 type MainNavLinkProps = {
     activeView: string;
@@ -6,6 +6,8 @@ type MainNavLinkProps = {
     colorClass: string;
     isDark: boolean;
     onSelect: (view: string) => void;
+    className?: string;
+    fillWidth?: boolean;
     children: ReactNode;
 };
 
@@ -15,15 +17,47 @@ export function MainNavLink({
     colorClass,
     isDark,
     onSelect,
+    className = '',
+    fillWidth = true,
     children,
 }: MainNavLinkProps) {
+    const ignoreNextClickRef = useRef(false);
+
+    const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+        ignoreNextClickRef.current = event.pointerType !== 'mouse';
+    };
+
+    const handlePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+        if (event.pointerType === 'mouse') return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.blur();
+        onSelect(targetView);
+    };
+
+    const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (ignoreNextClickRef.current) {
+            ignoreNextClickRef.current = false;
+            return;
+        }
+
+        event.currentTarget.blur();
+        onSelect(targetView);
+    };
+
     return (
         <button
-            onClick={() => onSelect(targetView)}
-            className={`flex-1 text-center font-semibold tracking-wider uppercase py-2.5 px-4 rounded-lg transition-colors text-sm ${activeView === targetView ? `${colorClass} text-white shadow-md` : `${isDark ? 'text-gray-400 hover:bg-white/5' : 'text-gray-600 hover:bg-black/5'}`}`}
+            type="button"
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onClick={handleClick}
+            className={`${fillWidth ? 'flex-1 py-2.5 px-4' : 'flex-none'} inline-flex items-center justify-center text-center font-semibold tracking-wider uppercase rounded-lg transition-colors text-sm ${activeView === targetView ? `${colorClass} text-white shadow-md` : `${isDark ? 'text-gray-400 hover:bg-white/5' : 'text-gray-600 hover:bg-black/5'}`} ${className}`}
         >
             {children}
         </button>
     );
 }
-

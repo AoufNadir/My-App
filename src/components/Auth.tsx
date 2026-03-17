@@ -14,7 +14,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
 } from 'firebase/auth';
-import { auth } from '../firebase';
+import { auth } from '../firebaseAuth';
 
 // Minimal Eye Icons
 const EyeIcon = ({ className }: { className?: string }) => (

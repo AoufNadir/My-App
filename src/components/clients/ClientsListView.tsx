@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Input } from '../ui/Input';
@@ -60,6 +61,21 @@ export function ClientsListView({
   setSelectedClientId,
   overdueDebtClients
 }: ClientsListViewProps) {
+  const INITIAL_VISIBLE_CLIENTS = 80;
+  const LOAD_MORE_CLIENTS = 80;
+  const [visibleClientCount, setVisibleClientCount] = useState(INITIAL_VISIBLE_CLIENTS);
+
+  useEffect(() => {
+    setVisibleClientCount(INITIAL_VISIBLE_CLIENTS);
+  }, [filteredClientsDzd]);
+
+  const visibleClients = useMemo(
+    () => filteredClientsDzd.slice(0, visibleClientCount),
+    [filteredClientsDzd, visibleClientCount]
+  );
+
+  const hiddenClientCount = Math.max(0, filteredClientsDzd.length - visibleClientCount);
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       {overdueDebtClients.length > 0 && (
@@ -140,7 +156,7 @@ export function ClientsListView({
         <CardContent className="p-0">
           {filteredClientsDzd.length > 0 ? (
             <div className="divide-y" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-              {filteredClientsDzd.map((client) => {
+              {visibleClients.map((client) => {
                 const balance = clientBalances.get(client.id) || 0;
                 return (
                   <SwipeableListItem
@@ -153,6 +169,7 @@ export function ClientsListView({
                       onTouchEnd={handleTouchEnd}
                       onContextMenu={(e) => { e.preventDefault(); handleTouchStart(client); }}
                       className={`flex items-center gap-3 p-4 cursor-pointer w-full relative z-10 ${isDark ? 'bg-[#111827]' : 'bg-white'}`}
+                      style={{ contentVisibility: 'auto', containIntrinsicSize: '88px' }}
                       onClick={() => setSelectedClientId(client.id)}
                     >
                       <div className={`p-2 rounded-full flex-shrink-0 ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
@@ -176,6 +193,19 @@ export function ClientsListView({
             <p className={`text-center py-8 ${subtleText}`}>Aucun client trouve.</p>
           )}
         </CardContent>
+        {hiddenClientCount > 0 && (
+          <CardContent className="px-4 pb-4 pt-3">
+            <Button
+              onClick={() => setVisibleClientCount((prev) => prev + LOAD_MORE_CLIENTS)}
+              className={`w-full rounded-xl px-4 py-3 font-semibold ${isDark ? 'bg-slate-700 text-slate-100 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+            >
+              Afficher plus ({Math.min(hiddenClientCount, LOAD_MORE_CLIENTS)})
+            </Button>
+            <p className={`mt-2 text-center text-xs ${subtleText}`}>
+              {visibleClients.length} / {filteredClientsDzd.length}
+            </p>
+          </CardContent>
+        )}
       </Card>
     </motion.div>
   );

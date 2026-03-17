@@ -7,6 +7,7 @@ import { BriefcaseIcon } from '../icons/BriefcaseIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { ArrowUpIcon } from '../icons/ArrowUpIcon';
 import { UsersIcon } from '../icons/UsersIcon';
+import { UserIcon } from '../icons/UserIcon';
 import { LandmarkIcon } from '../icons/LandmarkIcon';
 import { XIcon } from '../icons/XIcon';
 
@@ -65,7 +66,7 @@ function AppMobileMenuNavComponent({ view, isDark, onSelect, labels, isOpen, onC
             <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} isDark={isDark} targetView="analytics" icon={<ArrowUpIcon className="w-6 h-6" />} colorClass="text-amber-500">{labels.analytics}</MobileNavLink>
             <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} isDark={isDark} targetView="dzd" icon={<UsersIcon className="w-6 h-6" />} colorClass="text-sky-500">{labels.clients}</MobileNavLink>
             <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} isDark={isDark} targetView="tresorerie" icon={<LandmarkIcon className="w-6 h-6" />} colorClass="text-emerald-500">{labels.treasury}</MobileNavLink>
-            <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} isDark={isDark} targetView="investors" icon={<UsersIcon className="w-6 h-6" />} colorClass="text-purple-500">{labels.investors}</MobileNavLink>
+            <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} isDark={isDark} targetView="investors" icon={<UserIcon className="w-6 h-6" />} colorClass="text-purple-500">{labels.investors}</MobileNavLink>
           </div>
         </motion.div>
       )}
@@ -74,15 +75,18 @@ function AppMobileMenuNavComponent({ view, isDark, onSelect, labels, isOpen, onC
 }
 
 function AppBottomNavComponent({ view, isDark, onSelect, labels }: NavSharedProps) {
+  const mobileNavItemClassName = 'h-10 w-10 shrink-0 rounded-2xl p-0 touch-manipulation select-none [webkit-tap-highlight-color:transparent]';
+  const mobileIconClassName = 'h-[17px] w-[17px]';
+
   return (
-    <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 p-2 backdrop-blur-md bg-opacity-50">
-      <div className="max-w-4xl mx-auto flex items-center justify-around gap-2 p-1 rounded-full border" style={{ borderColor: isDark ? '#334155' : '#CBD5E1', background: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(241, 245, 249, 0.8)' }}>
-        <MainNavLink activeView={view} isDark={isDark} onSelect={onSelect} targetView="transactions" colorClass="bg-indigo-600"><BriefcaseIcon className="w-5 h-5 mx-auto" /></MainNavLink>
-        <MainNavLink activeView={view} isDark={isDark} onSelect={onSelect} targetView="statistiques" colorClass="bg-teal-600"><WalletIcon className="w-5 h-5 mx-auto" /></MainNavLink>
-        <MainNavLink activeView={view} isDark={isDark} onSelect={onSelect} targetView="analytics" colorClass="bg-amber-600"><ArrowUpIcon className="w-5 h-5 mx-auto" /></MainNavLink>
-        <MainNavLink activeView={view} isDark={isDark} onSelect={onSelect} targetView="dzd" colorClass="bg-sky-600"><UsersIcon className="w-5 h-5 mx-auto" /></MainNavLink>
-        <MainNavLink activeView={view} isDark={isDark} onSelect={onSelect} targetView="tresorerie" colorClass="bg-emerald-600"><LandmarkIcon className="w-5 h-5 mx-auto" /></MainNavLink>
-        <MainNavLink activeView={view} isDark={isDark} onSelect={onSelect} targetView="investors" colorClass="bg-purple-600"><UsersIcon className="w-5 h-5 mx-auto" /></MainNavLink>
+    <div className="pointer-events-none sm:hidden fixed left-1/2 bottom-4 z-[45] w-[calc(100vw-2rem)] max-w-[22rem] -translate-x-1/2 transform-gpu [will-change:transform]">
+      <div className="pointer-events-auto isolate mx-auto flex w-full items-center justify-between rounded-[1.6rem] border px-3 py-1.5 shadow-[0_14px_30px_rgba(15,23,42,0.22)]" style={{ borderColor: isDark ? '#334155' : '#CBD5E1', background: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(241, 245, 249, 0.98)' }}>
+        <MainNavLink activeView={view} isDark={isDark} onSelect={onSelect} targetView="transactions" colorClass="bg-indigo-600" className={mobileNavItemClassName} fillWidth={false}><BriefcaseIcon className={mobileIconClassName} /></MainNavLink>
+        <MainNavLink activeView={view} isDark={isDark} onSelect={onSelect} targetView="statistiques" colorClass="bg-teal-600" className={mobileNavItemClassName} fillWidth={false}><WalletIcon className={mobileIconClassName} /></MainNavLink>
+        <MainNavLink activeView={view} isDark={isDark} onSelect={onSelect} targetView="analytics" colorClass="bg-amber-600" className={mobileNavItemClassName} fillWidth={false}><ArrowUpIcon className={mobileIconClassName} /></MainNavLink>
+        <MainNavLink activeView={view} isDark={isDark} onSelect={onSelect} targetView="dzd" colorClass="bg-sky-600" className={mobileNavItemClassName} fillWidth={false}><UsersIcon className={mobileIconClassName} /></MainNavLink>
+        <MainNavLink activeView={view} isDark={isDark} onSelect={onSelect} targetView="tresorerie" colorClass="bg-emerald-600" className={mobileNavItemClassName} fillWidth={false}><LandmarkIcon className={mobileIconClassName} /></MainNavLink>
+        <MainNavLink activeView={view} isDark={isDark} onSelect={onSelect} targetView="investors" colorClass="bg-purple-600" className={mobileNavItemClassName} fillWidth={false}><UserIcon className={mobileIconClassName} /></MainNavLink>
       </div>
     </div>
   );

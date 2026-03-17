@@ -22,6 +22,19 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       host: '0.0.0.0',
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            react: ['react', 'react-dom'],
+            firebaseAuth: ['firebase/app', 'firebase/auth'],
+            firebaseFirestore: ['firebase/firestore'],
+            motion: ['framer-motion'],
+            charts: ['recharts']
+          }
+        }
+      }
+    },
     plugins: [react(), tailwindcss()],
     define: {
       'process.env.API_KEY': JSON.stringify(geminiApiKey),

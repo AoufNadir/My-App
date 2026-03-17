@@ -1,8 +1,11 @@
+import React, { useState } from 'react';
 import { LandmarkIcon } from '../icons/LandmarkIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { ArrowRightLeftIcon } from '../icons/ArrowRightLeftIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { PencilIcon } from '../icons/PencilIcon';
+import { EyeIcon } from '../icons/EyeIcon';
+import { EyeOffIcon } from '../icons/EyeOffIcon';
 import { formatDzd } from '../../pages/shared/pageFormat';
 
 type StatBoxProps = {
@@ -81,12 +84,26 @@ export function TreasurySummarySection({
   onToggleCard,
   openTreasuryBalanceEditModal
 }: TreasurySummarySectionProps) {
+  const [isCapitalVisible, setIsCapitalVisible] = useState(true);
+
   return (
     <>
       <div className={`p-6 rounded-2xl shadow-md border relative overflow-hidden ${isDark ? 'bg-gradient-to-br from-indigo-900/40 to-[#1E293B] border-indigo-500/30' : 'bg-gradient-to-br from-indigo-50 to-white border-indigo-100'}`}>
         <div className="relative z-10">
-          <p className={`text-sm font-semibold uppercase tracking-wider mb-1 ${isDark ? 'text-indigo-300' : 'text-indigo-600'}`}>Capital Total (Estime)</p>
-          <h1 className={`text-4xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{formatDzd(capitalTotal, { min: 2, max: 2 })}</h1>
+          <div className="mb-2 flex items-start justify-between gap-4">
+            <p className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-indigo-300' : 'text-indigo-600'}`}>Capital Total (Estime)</p>
+            <button
+              type="button"
+              onClick={() => setIsCapitalVisible((prev) => !prev)}
+              aria-label={isCapitalVisible ? 'Masquer le capital total' : 'Afficher le capital total'}
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors ${isDark ? 'border-indigo-400/20 bg-white/5 text-indigo-200 hover:bg-white/10' : 'border-indigo-200 bg-white/80 text-indigo-600 hover:bg-white'}`}
+            >
+              {isCapitalVisible ? <EyeIcon className="h-5 w-5" /> : <EyeOffIcon className="h-5 w-5" />}
+            </button>
+          </div>
+          <h1 className={`text-4xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            {isCapitalVisible ? formatDzd(capitalTotal, { min: 2, max: 2 }) : '******'}
+          </h1>
         </div>
         <LandmarkIcon className={`absolute right-4 bottom-4 w-24 h-24 opacity-5 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
       </div>

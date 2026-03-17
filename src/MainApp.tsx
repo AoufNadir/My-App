@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction } from './types';
 import { useLanguage } from './contexts/LanguageContext';
 import { signOut } from 'firebase/auth';
-import { auth, db, fieldValueDelete, type AppUser } from './firebase';
+import { auth, type AppUser } from './firebaseAuth';
+import { db, fieldValueDelete } from './firebase';
 
 import { AlertTriangleIcon } from './components/icons/AlertTriangleIcon';
 import { Trash2Icon } from './components/icons/Trash2Icon';
@@ -19,41 +20,22 @@ import { ArrowRightLeftIcon } from './components/icons/ArrowRightLeftIcon';
 import { RotateCcwIcon } from './components/icons/RotateCcwIcon';
 
 import { AppMobileMenuNav, AppBottomNav } from './components/main/AppNavigation';
-import { MainTransactionDialog } from './components/main/MainTransactionDialog';
-import { MainClientSummaryDialog } from './components/main/MainClientSummaryDialog';
-import { MainInvestorDialogs } from './components/main/MainInvestorDialogs';
-import { MainUtilityDialogs } from './components/main/MainUtilityDialogs';
-import { MainClientOperationsDialogs } from './components/main/MainClientOperationsDialogs';
-import { MainClientCrudDialogs } from './components/main/MainClientCrudDialogs';
 import { MainHeaderBar } from './components/main/MainHeaderBar';
 import { MainContentArea } from './components/main/MainContentArea';
-import { MainTransferAndFilterDialogs } from './components/main/MainTransferAndFilterDialogs';
-import {
-    GlobalSearchDialog,
-    WalletTransferDialog
-} from './components/main/MainDialogs';
 // Custom Hooks
 import { useAppData } from './hooks/useAppData';
 import { useSettings } from './hooks/useSettings';
 import { useTransactionHandlers } from './hooks/useTransactionHandlers';
 import { useClientHandlers } from './hooks/useClientHandlers';
 import { useAssetHandlers } from './hooks/useAssetHandlers';
+import { useGlobalSearch } from './hooks/useGlobalSearch';
 import { useInvestorHandlers } from './hooks/useInvestorHandlers';
+import { useMainNavigation } from './hooks/useMainNavigation';
 import { useOverdueDebtClients } from './hooks/useOverdueDebtClients';
+import { useReportExports } from './hooks/useReportExports';
 
 // Shared Utils
 import { now, parseAndEvaluate } from './utils';
-import {
-    buildClientPdfReport,
-    buildInvestorPdfReport,
-    buildMonthlyPdfReport,
-    openPdfPrintWindow
-} from './utils/pdfReports';
-
-// Modals
-import { TransactionModal } from './components/modals/TransactionModal';
-import { ClientModal } from './components/modals/ClientModal';
-import { AdjustmentModal } from './components/modals/AdjustmentModal';
 
 const TransactionsPage = React.lazy(() =>
     import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage }))
@@ -85,6 +67,39 @@ const InvestorDetailsPage = React.lazy(() =>
 const InvestorDashboardPage = React.lazy(() =>
     import('./pages/InvestorDashboardPage').then((module) => ({ default: module.InvestorDashboardPage }))
 );
+const GlobalSearchDialog = React.lazy(() =>
+    import('./components/main/MainDialogs').then((module) => ({ default: module.GlobalSearchDialog }))
+);
+const WalletTransferDialog = React.lazy(() =>
+    import('./components/main/MainDialogs').then((module) => ({ default: module.WalletTransferDialog }))
+);
+const MainTransferAndFilterDialogs = React.lazy(() =>
+    import('./components/main/MainTransferAndFilterDialogs').then((module) => ({ default: module.MainTransferAndFilterDialogs }))
+);
+const MainTransactionDialog = React.lazy(() =>
+    import('./components/main/MainTransactionDialog').then((module) => ({ default: module.MainTransactionDialog }))
+);
+const MainClientSummaryDialog = React.lazy(() =>
+    import('./components/main/MainClientSummaryDialog').then((module) => ({ default: module.MainClientSummaryDialog }))
+);
+const MainInvestorDialogs = React.lazy(() =>
+    import('./components/main/MainInvestorDialogs').then((module) => ({ default: module.MainInvestorDialogs }))
+);
+const MainUtilityDialogs = React.lazy(() =>
+    import('./components/main/MainUtilityDialogs').then((module) => ({ default: module.MainUtilityDialogs }))
+);
+const MainClientOperationsDialogs = React.lazy(() =>
+    import('./components/main/MainClientOperationsDialogs').then((module) => ({ default: module.MainClientOperationsDialogs }))
+);
+const MainClientCrudDialogs = React.lazy(() =>
+    import('./components/main/MainClientCrudDialogs').then((module) => ({ default: module.MainClientCrudDialogs }))
+);
+
+const loadPdfReports = () => import('./utils/pdfReports');
+
+function getClientDisplayName(client: ClientDzd) {
+    return client.fullName || (client.prenom ? `${client.nom} ${client.prenom}` : client.nom);
+}
 
 function PageLoadingFallback({ isDark, text }: { isDark: boolean; text: string }) {
     return (
@@ -93,14 +108,6 @@ function PageLoadingFallback({ isDark, text }: { isDark: boolean; text: string }
         </div>
     );
 }
-
-type GlobalSearchResult =
-    | { id: string; kind: 'client'; title: string; subtitle: string; clientId: string; timestamp: number }
-    | { id: string; kind: 'transaction'; title: string; subtitle: string; timestamp: number };
-
-
-
-
 
 export default function MainApp({ user }: { user: AppUser }) {
     // PWA Install Prompt
@@ -127,18 +134,21 @@ export default function MainApp({ user }: { user: AppUser }) {
     const { t } = useLanguage();
     const [refreshKey, setRefreshKey] = useState(0);
     const [alert, setAlert] = useState('');
-    const [selectedClientId, setSelectedClientId] = useState<string | null>(() => localStorage.getItem('selected_client_id'));
-    const [view, setView] = useState(() => localStorage.getItem('app_view') || 'transactions');
-    const [isInvestorRoute, setIsInvestorRoute] = useState(() => typeof window !== 'undefined' && window.location.pathname.startsWith('/investor'));
-    const [investorIdFromUrl, setInvestorIdFromUrl] = useState<string | null>(() => {
-        if (typeof window === 'undefined') return null;
-        return new URLSearchParams(window.location.search).get('id');
-    });
+    const {
+        investorIdFromUrl,
+        isInvestorRoute,
+        navigateToView,
+        selectedClientId,
+        setSelectedClientId,
+        setView,
+        view
+    } = useMainNavigation();
     const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
     const [selectedAssetClientId, setSelectedAssetClientId] = useState<string | null>(null);
 
     const shouldSubscribeManualAssets = view === 'tresorerie' || selectedAssetId !== null || selectedAssetClientId !== null;
     const shouldSubscribeInvestors = view === 'investors' || isInvestorRoute;
+    const shouldSubscribeTreasuryCards = view === 'tresorerie' || view === 'transactions';
 
     // 1.1 App Data (Provides userDocRef)
     const {
@@ -147,7 +157,8 @@ export default function MainApp({ user }: { user: AppUser }) {
         assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded
     } = useAppData(user, refreshKey, {
         subscribeManualAssets: shouldSubscribeManualAssets,
-        subscribeInvestors: shouldSubscribeInvestors
+        subscribeInvestors: shouldSubscribeInvestors,
+        subscribeTreasuryCards: shouldSubscribeTreasuryCards
     });
 
     // 1.2 Settings
@@ -337,8 +348,6 @@ export default function MainApp({ user }: { user: AppUser }) {
     } = useAssetHandlers(userDocRef, manualAssets, manualAssetClients, assetClientBalances, setAlert);
 
     // --- 3. LOCAL UI STATE ---
-    const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
-    const [globalSearchQuery, setGlobalSearchQuery] = useState('');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -382,19 +391,61 @@ export default function MainApp({ user }: { user: AppUser }) {
     const [simSellUsdtQty, setSimSellUsdtQty] = useState('');
     const [simSellDzdPrice, setSimSellDzdPrice] = useState('');
 
-    const [usdtReportMonth, setUsdtReportMonth] = useState(new Date().getMonth());
-    const [usdtReportYear, setUsdtReportYear] = useState(new Date().getFullYear());
-    const [reportClient, setReportClient] = useState('');
-    const [reportMonth, setReportMonth] = useState(new Date().getMonth());
-    const [reportYear, setReportYear] = useState(new Date().getFullYear());
-
     const [copiedValue, setCopiedValue] = useState<string | null>(null);
     const [summaryClient, setSummaryClient] = useState<ClientDzd | null>(null);
     const [treasuryTxToDelete, setTreasuryTxToDelete] = useState<TreasuryTx | null>(null);
     const touchTimer = useRef<any>(null);
 
     // --- 4. DERIVATIONS ---
-    const getClientFullName = (c: ClientDzd) => c.fullName || (c.prenom ? `${c.nom} ${c.prenom}` : c.nom);
+    const getClientFullName = getClientDisplayName;
+    const {
+        closeGlobalSearch,
+        globalSearchQuery,
+        globalSearchResults,
+        handleOpenGlobalSearch,
+        handleSelectGlobalSearchResult,
+        isGlobalSearchOpen,
+        setGlobalSearchQuery
+    } = useGlobalSearch({
+        clientTransactionsDzd,
+        clientsDzd,
+        getClientFullName,
+        setDateRange,
+        setFilterMode,
+        setSelectedClientId,
+        setView,
+        t,
+        transactions,
+        treasuryTransactions
+    });
+    const {
+        handleExportClientReport,
+        handleExportInvestorReport,
+        handleExportUsdtReport,
+        reportClient,
+        reportMonth,
+        reportMonthNames,
+        reportYear,
+        setReportClient,
+        setReportMonth,
+        setReportYear,
+        setUsdtReportMonth,
+        setUsdtReportYear,
+        usdtReportMonth,
+        usdtReportYear
+    } = useReportExports({
+        clientBalances,
+        clientTransactionsDzd,
+        clientsDzd,
+        derivedInvestors,
+        getClientFullName,
+        investorTransactions,
+        loadPdfReports,
+        portfolioStats,
+        setAlert,
+        t,
+        transactions
+    });
     const transferFromBalance = useMemo(() => clientBalances.get(transferFromClientId) || 0, [clientBalances, transferFromClientId]);
     const transferToBalance = useMemo(() => clientBalances.get(transferToClientId) || 0, [clientBalances, transferToClientId]);
 
@@ -403,8 +454,9 @@ export default function MainApp({ user }: { user: AppUser }) {
     const filteredClientsDzd = useMemo(() => {
         if (!shouldComputeClientDerivations) return clientsDzd;
         let list = [...clientsDzd];
-        if (clientSearchQuery) {
-            list = list.filter(c => getClientFullName(c).toLowerCase().includes(clientSearchQuery.toLowerCase()) || (c.phone && c.phone.includes(clientSearchQuery)));
+        const normalizedQuery = clientSearchQuery.trim().toLowerCase();
+        if (normalizedQuery) {
+            list = list.filter(c => getClientDisplayName(c).toLowerCase().includes(normalizedQuery) || (c.phone && c.phone.includes(normalizedQuery)));
         }
         const ZERO_EPSILON = 0.005;
         if (clientSortMode === 'advances') {
@@ -415,7 +467,7 @@ export default function MainApp({ user }: { user: AppUser }) {
             list = list.filter(c => Math.abs(clientBalances.get(c.id) || 0) <= ZERO_EPSILON);
         }
         if (clientSortMode === 'zero_balance') {
-            list.sort((a, b) => getClientFullName(a).localeCompare(getClientFullName(b)));
+            list.sort((a, b) => getClientDisplayName(a).localeCompare(getClientDisplayName(b)));
         } else {
             list.sort((a, b) => {
                 const aBalance = clientBalances.get(a.id) || 0;
@@ -424,7 +476,7 @@ export default function MainApp({ user }: { user: AppUser }) {
                 if (Math.abs(byMagnitude) > ZERO_EPSILON) return byMagnitude;
                 const byValue = bBalance - aBalance;
                 if (Math.abs(byValue) > ZERO_EPSILON) return byValue;
-                return getClientFullName(a).localeCompare(getClientFullName(b));
+                return getClientDisplayName(a).localeCompare(getClientDisplayName(b));
             });
         }
         return list;
@@ -444,7 +496,7 @@ export default function MainApp({ user }: { user: AppUser }) {
         clients: shouldComputeClientDerivations ? clientsDzd : [],
         clientTransactions: shouldComputeClientDerivations ? clientTransactionsDzd : [],
         clientBalances,
-        getClientFullName,
+        getClientFullName: getClientDisplayName,
         minDays: 7
     });
 
@@ -507,42 +559,7 @@ export default function MainApp({ user }: { user: AppUser }) {
         };
     }, [transactions, clientTransactionsDzd, treasuryStats]);
 
-    const globalSearchResults = useMemo<GlobalSearchResult[]>(() => {
-        const q = globalSearchQuery.trim().toLowerCase();
-        if (!q) return [];
-
-        const latestClientActivity = new Map<string, number>();
-        clientTransactionsDzd.forEach((tx) => {
-            const prev = latestClientActivity.get(tx.clientId) || 0;
-            if (tx.timestamp > prev) latestClientActivity.set(tx.clientId, tx.timestamp);
-        });
-
-        const clientNameById = new Map<string, string>();
-        clientsDzd.forEach((client) => {
-            clientNameById.set(client.id, getClientFullName(client));
-        });
-
-        const linkedClientByTxId = new Map<string, { clientId: string; isSecondary: boolean; timestamp: number }>();
-        clientTransactionsDzd.forEach((tx) => {
-            if (!tx.linkedTxId || !tx.clientId) return;
-            const isSecondary = tx.linkRole === 'dzd_receiver';
-            const existing = linkedClientByTxId.get(tx.linkedTxId);
-            if (!existing || (existing.isSecondary && !isSecondary) || (existing.isSecondary === isSecondary && tx.timestamp > existing.timestamp)) {
-                linkedClientByTxId.set(tx.linkedTxId, { clientId: tx.clientId, isSecondary, timestamp: tx.timestamp });
-            }
-        });
-
-        const clientResults: GlobalSearchResult[] = clientsDzd
-            .filter((client) => {
-                const haystack = [
-                    getClientFullName(client),
-                    client.phone || '',
-                    client.redotpayId || '',
-                    client.binanceEmail || ''
-                ].join(' ').toLowerCase();
-                return haystack.includes(q);
-            })
-            .map((client) => ({
+    /* Legacy global search logic moved to useGlobalSearch.
                 id: `search_client_${client.id}`,
                 kind: 'client' as const,
                 title: getClientFullName(client),
@@ -626,7 +643,9 @@ export default function MainApp({ user }: { user: AppUser }) {
         return [...clientResults, ...txResults]
             .sort((a, b) => b.timestamp - a.timestamp)
             .slice(0, 20);
-    }, [globalSearchQuery, clientsDzd, clientTransactionsDzd, transactions, treasuryTransactions, getClientFullName, t]);
+    }, [deferredGlobalSearchQuery, clientsDzd, clientTransactionsDzd, transactions, treasuryTransactions, t]);
+
+    */
 
     // --- 5. UI HANDLERS ---
     const handleTouchStart = (c: ClientDzd) => { touchTimer.current = setTimeout(() => setSummaryClient(c), 800); };
@@ -652,12 +671,24 @@ export default function MainApp({ user }: { user: AppUser }) {
         setIsPortfolioBalanceEditModalOpen(true);
     };
     const getRelativeDateLabel = (dateStr: string) => dateStr === now().date ? t('transactions.today') : dateStr;
+    /* Legacy navigation/search handlers moved to hooks.
+    const navigateToView = (nextView: string) => {
+        if (nextView === view) return;
+        startTransition(() => {
+            setView(nextView);
+        });
+    };
     const closeGlobalSearch = () => { setIsGlobalSearchOpen(false); setGlobalSearchQuery(''); };
-    const handleOpenGlobalSearch = () => { setIsGlobalSearchOpen(true); };
+    const handleOpenGlobalSearch = () => {
+        void import('./components/main/MainDialogs');
+        setIsGlobalSearchOpen(true);
+    };
     const handleSelectGlobalSearchResult = (result: GlobalSearchResult) => {
         if (result.kind === 'client') {
             setSelectedClientId(result.clientId);
-            setView('dzd');
+            startTransition(() => {
+                setView('dzd');
+            });
             closeGlobalSearch();
             return;
         }
@@ -665,12 +696,15 @@ export default function MainApp({ user }: { user: AppUser }) {
         dayStart.setHours(0, 0, 0, 0);
         const dayEnd = new Date(result.timestamp);
         dayEnd.setHours(23, 59, 59, 999);
-        setView('transactions');
-        setFilterMode('all');
-        setDateRange({ start: dayStart, end: dayEnd });
+        startTransition(() => {
+            setView('transactions');
+            setFilterMode('all');
+            setDateRange({ start: dayStart, end: dayEnd });
+        });
         closeGlobalSearch();
     };
 
+    */
     const handleSaveTreasuryBalanceEdit = async () => {
         const parsedNewVal = parseAndEvaluate(treasuryBalanceEditValue);
         if (isNaN(parsedNewVal) || parsedNewVal < 0) { setAlert(t('common.invalidAmount')); return; }
@@ -811,12 +845,14 @@ export default function MainApp({ user }: { user: AppUser }) {
         || walletTransferAmountValue > walletTransferSourceBalance
         || walletTransferSource === walletTransferDest;
 
-    const handleExportClientReport = (cId: string, m: number, y: number) => {
+    /* Legacy report export handlers moved to useReportExports.
+    const handleExportClientReport = async (cId: string, m: number, y: number) => {
         if (!cId) {
             setAlert("⚠️ Selectionnez un client.");
             return;
         }
         const monthLabels = Array.isArray(t('common.months')) ? (t('common.months') as any as string[]) : [];
+        const { buildClientPdfReport, openPdfPrintWindow } = await loadPdfReports();
         const report = buildClientPdfReport({
             clientId: cId,
             month: m,
@@ -844,8 +880,9 @@ export default function MainApp({ user }: { user: AppUser }) {
             ? "✅ Rapport client ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
             : "✅ Rapport client pret. Enregistrez en PDF depuis l'impression.");
     };
-    const handleExportUsdtReport = () => {
+    const handleExportUsdtReport = async () => {
         const monthLabels = Array.isArray(t('common.months')) ? (t('common.months') as any as string[]) : [];
+        const { buildMonthlyPdfReport, openPdfPrintWindow } = await loadPdfReports();
         const report = buildMonthlyPdfReport({
             month: usdtReportMonth,
             year: usdtReportYear,
@@ -866,13 +903,14 @@ export default function MainApp({ user }: { user: AppUser }) {
             ? "✅ Rapport mensuel ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
             : "✅ Rapport mensuel pret. Enregistrez en PDF depuis l'impression.");
     };
-    const handleExportInvestorReport = (investorId: string) => {
+    const handleExportInvestorReport = async (investorId: string) => {
         const investor = derivedInvestors.find((item) => item.id === investorId);
         if (!investor) {
             setAlert("❌ Investisseur introuvable.");
             return;
         }
 
+        const { buildInvestorPdfReport, openPdfPrintWindow } = await loadPdfReports();
         const report = buildInvestorPdfReport({
             investor,
             investorTransactions: investorTransactions.filter((tx) => tx.investorId === investorId)
@@ -887,6 +925,7 @@ export default function MainApp({ user }: { user: AppUser }) {
             ? "✅ Rapport investisseur ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
             : "✅ Rapport investisseur pret. Enregistrez en PDF depuis l'impression.");
     };
+    */
     const handleSaveTreasuryCard = async () => {
         const name = treasuryCardName.trim();
         const value = parseAndEvaluate(treasuryCardValue);
@@ -1123,6 +1162,7 @@ export default function MainApp({ user }: { user: AppUser }) {
             ? (isDark ? 'bg-red-900/50 border-red-400/30 text-red-300' : 'bg-red-50 border-red-300 text-red-800')
             : (isDark ? 'bg-sky-900/40 border-sky-400/30 text-sky-300' : 'bg-sky-50 border-sky-300 text-sky-800');
 
+    /* Legacy persisted navigation/search effects moved to hooks.
     useEffect(() => {
         const p = window.location.pathname;
         if (p.startsWith('/investor')) { setIsInvestorRoute(true); const s = new URLSearchParams(window.location.search); setInvestorIdFromUrl(s.get('id')); }
@@ -1147,6 +1187,7 @@ export default function MainApp({ user }: { user: AppUser }) {
         return months;
     }, [t]);
 
+    */
     const portfolioPageProps = useMemo(() => ({
         statsView,
         setStatsView,
@@ -1340,54 +1381,97 @@ export default function MainApp({ user }: { user: AppUser }) {
         startLabel: t('transactions.startDate'), endLabel: t('transactions.endDate'), clearLabel: t('transactions.clear'),
         applyLabel: t('transactions.apply')
     }), [isDateFilterModalOpen, cardBase, isDark, fieldBase, tempStartDate, tempEndDate, handleClearDateFilter, handleApplyDateFilter, t]);
+    const isClientOperationsOpen = isClientTxModalOpen || isAdjustmentModalOpen;
+    const isTransferAndFilterDialogsOpen = isTransferModalOpen || isTreasuryBalanceEditModalOpen || isPortfolioBalanceEditModalOpen || isDateFilterModalOpen;
+    const isTransactionDialogOpen = mode !== null;
+    const isClientCrudDialogsOpen = Boolean(txToDelete || clientTxToDelete || isClientModalOpen || clientToDelete);
+    const isUtilityDialogsOpen = isSettingsModalOpen || isResetModalOpen || isCreateAssetModalOpen || isTreasuryCardModalOpen || treasuryCardToDelete !== null || treasuryTxToDelete !== null;
+    const isClientSummaryOpen = summaryClient !== null;
+    const isInvestorDialogsOpen = isInvestorModalOpen || investorToDelete !== null || isInvestorTxModalOpen || investorTxToDelete !== null || isReinvestModalOpen;
 
     return (
         <div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
             <div className="max-w-4xl mx-auto px-2 sm:px-4 pb-24">
-                <MainHeaderBar {...{ isDark, view, setView, globalSearchTitle: t('common.globalSearch'), setIsMobileMenuOpen, handleOpenGlobalSearch, setTheme, onSignOut: () => signOut(auth), labels: navLabels }} />
-                <AppMobileMenuNav view={view} isDark={isDark} onSelect={setView} isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} labels={navLabels} />
+                <MainHeaderBar {...{ isDark, view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), setIsMobileMenuOpen, handleOpenGlobalSearch, setTheme, onSignOut: () => signOut(auth), labels: navLabels }} />
+                <AppMobileMenuNav view={view} isDark={isDark} onSelect={navigateToView} isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} labels={navLabels} />
 
                 <MainContentArea {...mainContentProps} />
 
-                <AppBottomNav view={view} isDark={isDark} onSelect={setView} labels={navLabels} />
+                <AppBottomNav view={view} isDark={isDark} onSelect={navigateToView} labels={navLabels} />
 
-                <GlobalSearchDialog {...{ isOpen: isGlobalSearchOpen, onClose: closeGlobalSearch, cardBase, isDark, fieldBase, subtleText, query: globalSearchQuery, setQuery: setGlobalSearchQuery, results: globalSearchResults, onSelectResult: handleSelectGlobalSearchResult, title: t('common.globalSearch'), placeholder: t('common.searchPlaceholder'), noResultsText: t('common.noResults'), clientsText: t('nav.clients'), transactionsText: t('nav.transactions') }} />
+                {isGlobalSearchOpen && (
+                    <Suspense fallback={null}>
+                        <GlobalSearchDialog {...{ isOpen: isGlobalSearchOpen, onClose: closeGlobalSearch, cardBase, isDark, fieldBase, subtleText, query: globalSearchQuery, setQuery: setGlobalSearchQuery, results: globalSearchResults, onSelectResult: handleSelectGlobalSearchResult, title: t('common.globalSearch'), placeholder: t('common.searchPlaceholder'), noResultsText: t('common.noResults'), clientsText: t('nav.clients'), transactionsText: t('nav.transactions') }} />
+                    </Suspense>
+                )}
             </div>
 
             {/* MODALS */}
 
             {/* 1. WALLET TRANSFER MODAL REDESIGNED */}
-            <WalletTransferDialog {...walletTransferDialogProps} />
-            <MainClientOperationsDialogs {...{ isClientTxModalOpen, setIsClientTxModalOpen, cardBase, isDark, editingClientTx, t, clientTxType, setClientTxType, fieldBase, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, clientTxAmount, setClientTxAmount, clientTxNotes, setClientTxNotes, handleSaveClientTx, selectedClientId, isAdjustmentModalOpen, setIsAdjustmentModalOpen, editingTreasuryTx, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentClientId, clientBalances, portfolioStats, treasuryStats, clientsDzd, getClientFullName, setAdjustmentClientId, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, treasuryCards, handleGlobalAdjustment, isSaving }} />
-            <MainTransferAndFilterDialogs
-                clientTransferProps={clientTransferDialogProps}
-                treasuryBalanceEditProps={treasuryBalanceEditDialogProps}
-                portfolioBalanceEditProps={portfolioBalanceEditDialogProps}
-                dateFilterProps={dateFilterDialogProps}
-            />
+            {isWalletTransferModalOpen && (
+                <Suspense fallback={null}>
+                    <WalletTransferDialog {...walletTransferDialogProps} />
+                </Suspense>
+            )}
+            {isClientOperationsOpen && (
+                <Suspense fallback={null}>
+                    <MainClientOperationsDialogs {...{ isClientTxModalOpen, setIsClientTxModalOpen, cardBase, isDark, editingClientTx, t, clientTxType, setClientTxType, fieldBase, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, clientTxAmount, setClientTxAmount, clientTxNotes, setClientTxNotes, handleSaveClientTx, selectedClientId, isAdjustmentModalOpen, setIsAdjustmentModalOpen, editingTreasuryTx, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentClientId, clientBalances, portfolioStats, treasuryStats, clientsDzd, getClientFullName, setAdjustmentClientId, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, treasuryCards, handleGlobalAdjustment, isSaving }} />
+                </Suspense>
+            )}
+            {isTransferAndFilterDialogsOpen && (
+                <Suspense fallback={null}>
+                    <MainTransferAndFilterDialogs
+                        clientTransferProps={clientTransferDialogProps}
+                        treasuryBalanceEditProps={treasuryBalanceEditDialogProps}
+                        portfolioBalanceEditProps={portfolioBalanceEditDialogProps}
+                        dateFilterProps={dateFilterDialogProps}
+                    />
+                </Suspense>
+            )}
 
-            <MainTransactionDialog {...{ mode, editingTx, closeForm, openForm, cardBase, isDark, t, subtleText, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, suggestedSellingPrice, suggestedSellingPriceEur, suggestedProfitMargin, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving }} />
-            <MainClientCrudDialogs {...{ txToDelete, setTxToDelete, cardBase, isDark, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, initialBalance, setInitialBalance, fieldBase, handleSaveClient, clientToDelete, clientDeleteMode, setClientToDelete: handleClientDeleteRequest, handleDeleteClient }} />
-            <MainUtilityDialogs {...{ isSettingsModalOpen, setIsSettingsModalOpen, cardBase, isDark, t, suggestedProfitMargin, setSuggestedProfitMargin, suggestedSellingPrice, setSuggestedSellingPrice, suggestedSellingPriceEur, setSuggestedSellingPriceEur, portfolioStats, fieldBase, subtleText, setIsResetModalOpen, userDocRef, setAlert, isResetModalOpen, handleGlobalReset, isCreateAssetModalOpen, setIsCreateAssetModalOpen, newAssetName, setNewAssetName, newAssetDescription, setNewAssetDescription, handleCreateAsset, isTreasuryCardModalOpen, setIsTreasuryCardModalOpen, editingTreasuryCard, treasuryCardName, setTreasuryCardName, treasuryCardValue, setTreasuryCardValue, treasuryCardNotes, setTreasuryCardNotes, handleSaveTreasuryCard, isSaving, treasuryCardToDelete, setTreasuryCardToDelete, handleDeleteTreasuryCard, treasuryTxToDelete, setTreasuryTxToDelete, handleDeleteTreasuryTxConfirm }} />
+            {isTransactionDialogOpen && (
+                <Suspense fallback={null}>
+                    <MainTransactionDialog {...{ mode, editingTx, closeForm, openForm, cardBase, isDark, t, subtleText, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, suggestedSellingPrice, suggestedSellingPriceEur, suggestedProfitMargin, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving }} />
+                </Suspense>
+            )}
+            {isClientCrudDialogsOpen && (
+                <Suspense fallback={null}>
+                    <MainClientCrudDialogs {...{ txToDelete, setTxToDelete, cardBase, isDark, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, initialBalance, setInitialBalance, fieldBase, handleSaveClient, clientToDelete, clientDeleteMode, setClientToDelete: handleClientDeleteRequest, handleDeleteClient }} />
+                </Suspense>
+            )}
+            {isUtilityDialogsOpen && (
+                <Suspense fallback={null}>
+                    <MainUtilityDialogs {...{ isSettingsModalOpen, setIsSettingsModalOpen, cardBase, isDark, t, suggestedProfitMargin, setSuggestedProfitMargin, suggestedSellingPrice, setSuggestedSellingPrice, suggestedSellingPriceEur, setSuggestedSellingPriceEur, portfolioStats, fieldBase, subtleText, setIsResetModalOpen, userDocRef, setAlert, isResetModalOpen, handleGlobalReset, isCreateAssetModalOpen, setIsCreateAssetModalOpen, newAssetName, setNewAssetName, newAssetDescription, setNewAssetDescription, handleCreateAsset, isTreasuryCardModalOpen, setIsTreasuryCardModalOpen, editingTreasuryCard, treasuryCardName, setTreasuryCardName, treasuryCardValue, setTreasuryCardValue, treasuryCardNotes, setTreasuryCardNotes, handleSaveTreasuryCard, isSaving, treasuryCardToDelete, setTreasuryCardToDelete, handleDeleteTreasuryCard, treasuryTxToDelete, setTreasuryTxToDelete, handleDeleteTreasuryTxConfirm }} />
+                </Suspense>
+            )}
             {/* CLIENT SUMMARY MODAL */}
             {/* CLIENT SUMMARY MODAL */}
-            <MainClientSummaryDialog {...{
-                summaryClient,
-                setSummaryClient,
-                cardBase,
-                isDark,
-                t,
-                subtleText,
-                clientBalances,
-                clientTransactionsDzd,
-                transactions,
-                setAlert,
-                getClientFullName,
-                handleExportClientReport,
-                reportMonth,
-                reportYear
-            }} />
-            <MainInvestorDialogs {...{ isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, handleSaveInvestor, investorName, setInvestorName, fieldBase, investorInitialCapital, setInvestorInitialCapital, investorNotes, setInvestorNotes, isManager, setIsManager, derivedInvestors, selectedInvestorId, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorTxType, investorTxAmount, setInvestorTxAmount, subtleText, investorTxNotes, setInvestorTxNotes, handleInvestorTransaction, cardBase, isDark, t, investorToDelete, setInvestorToDelete, handleDeleteInvestor, investorTxToDelete, setInvestorTxToDelete, handleDeleteInvestorTx, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, handleReinvestProfit, setAlert }} />
+            {isClientSummaryOpen && (
+                <Suspense fallback={null}>
+                    <MainClientSummaryDialog {...{
+                        summaryClient,
+                        setSummaryClient,
+                        cardBase,
+                        isDark,
+                        t,
+                        subtleText,
+                        clientBalances,
+                        clientTransactionsDzd,
+                        transactions,
+                        setAlert,
+                        getClientFullName,
+                        handleExportClientReport,
+                        reportMonth,
+                        reportYear
+                    }} />
+                </Suspense>
+            )}
+            {isInvestorDialogsOpen && (
+                <Suspense fallback={null}>
+                    <MainInvestorDialogs {...{ isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, handleSaveInvestor, investorName, setInvestorName, fieldBase, investorInitialCapital, setInvestorInitialCapital, investorNotes, setInvestorNotes, isManager, setIsManager, derivedInvestors, selectedInvestorId, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorTxType, investorTxAmount, setInvestorTxAmount, subtleText, investorTxNotes, setInvestorTxNotes, handleInvestorTransaction, cardBase, isDark, t, investorToDelete, setInvestorToDelete, handleDeleteInvestor, investorTxToDelete, setInvestorTxToDelete, handleDeleteInvestorTx, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, handleReinvestProfit, setAlert }} />
+                </Suspense>
+            )}
 
         </div>
     );

@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -88,7 +89,51 @@ export function ClientDetailsView({
   handleEditClientTx,
   handleDeleteClientTxClick
 }: ClientDetailsViewProps) {
+  const INITIAL_VISIBLE_TRANSACTIONS = 120;
+  const LOAD_MORE_TRANSACTIONS = 120;
+  const [visibleTransactionCount, setVisibleTransactionCount] = useState(INITIAL_VISIBLE_TRANSACTIONS);
   const dates = Object.keys(groupedHistory);
+  const linkedTransactionsById = useMemo(
+    () => new Map(transactions.map((tx) => [tx.id, tx])),
+    [transactions]
+  );
+
+  useEffect(() => {
+    setVisibleTransactionCount(INITIAL_VISIBLE_TRANSACTIONS);
+  }, [groupedHistory]);
+
+  const { visibleDateGroups, hiddenTransactionCount, totalTransactionCount } = useMemo(() => {
+    let remaining = visibleTransactionCount;
+    let hidden = 0;
+    let total = 0;
+    const visibleGroups: Array<[string, ClientTransactionDzd[]]> = [];
+
+    for (const date of dates) {
+      const txs = groupedHistory[date] || [];
+      total += txs.length;
+
+      if (remaining <= 0) {
+        hidden += txs.length;
+        continue;
+      }
+
+      if (txs.length <= remaining) {
+        visibleGroups.push([date, txs]);
+        remaining -= txs.length;
+        continue;
+      }
+
+      visibleGroups.push([date, txs.slice(0, remaining)]);
+      hidden += txs.length - remaining;
+      remaining = 0;
+    }
+
+    return {
+      visibleDateGroups: visibleGroups,
+      hiddenTransactionCount: hidden,
+      totalTransactionCount: total
+    };
+  }, [dates, groupedHistory, visibleTransactionCount]);
 
   return (
     <motion.div initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}>
@@ -166,15 +211,15 @@ export function ClientDetailsView({
         <CardContent className="p-0">
           {dates.length > 0 ? (
             <div className="pb-4">
-              {dates.map((date) => (
+              {visibleDateGroups.map(([date, txsForDate]) => (
                 <div key={date}>
                   <div className={`sticky top-0 z-10 px-4 py-2 text-xs font-bold uppercase tracking-wider ${isDark ? 'bg-[#111827]/95 text-gray-400 backdrop-blur-sm' : 'bg-gray-50/95 text-gray-500 backdrop-blur-sm'}`}>
                     {getRelativeFrDateLabel(date)} <span className="font-normal normal-case opacity-70 ml-1">({date})</span>
                   </div>
 
                   <div className="divide-y" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-                    {groupedHistory[date].map((tx) => {
-                      const linkedUsdtTx = tx.linkedTxId ? transactions.find((t) => t.id === tx.linkedTxId) : null;
+                    {txsForDate.map((tx) => {
+                      const linkedUsdtTx = tx.linkedTxId ? (linkedTransactionsById.get(tx.linkedTxId) || null) : null;
                       const isCredit = tx.montant > 0;
 
                       let typeLabel = tx.type;
@@ -194,7 +239,7 @@ export function ClientDetailsView({
                           onEdit={() => handleEditClientTx(tx)}
                           onDelete={() => handleDeleteClientTxClick(tx)}
                         >
-                          <div className={`flex items-start gap-3 w-full py-3 px-4 ${isDark ? 'bg-[#111827]' : 'bg-white'}`}>
+                          <div className={`flex items-start gap-3 w-full py-3 px-4 ${isDark ? 'bg-[#111827]' : 'bg-white'}`} style={{ contentVisibility: 'auto', containIntrinsicSize: '104px' }}>
                             <div className="flex-shrink-0 pt-1">
                               <div className={`p-2 rounded-full ${isCredit ? (isDark ? 'bg-green-500/10 text-green-400' : 'bg-green-100 text-green-600') : (isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-100 text-red-600')}`}>
                                 {isCredit ? <ArrowDownIcon className="w-5 h-5" /> : <ArrowUpIcon className="w-5 h-5" />}
@@ -228,6 +273,19 @@ export function ClientDetailsView({
                   </div>
                 </div>
               ))}
+              {hiddenTransactionCount > 0 && (
+                <div className="px-4 pt-4">
+                  <Button
+                    onClick={() => setVisibleTransactionCount((prev) => prev + LOAD_MORE_TRANSACTIONS)}
+                    className={`w-full rounded-xl px-4 py-3 font-semibold ${isDark ? 'bg-slate-700 text-slate-100 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                  >
+                    Afficher plus ({Math.min(hiddenTransactionCount, LOAD_MORE_TRANSACTIONS)})
+                  </Button>
+                  <p className={`mt-2 text-center text-xs ${subtleText}`}>
+                    {totalTransactionCount - hiddenTransactionCount} / {totalTransactionCount}
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <p className={`text-center py-8 ${subtleText}`}>Aucune transaction pour ce client.</p>
