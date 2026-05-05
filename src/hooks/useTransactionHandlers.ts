@@ -329,7 +329,7 @@ export function useTransactionHandlers({
                     const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp, date, time, type: 'Retrait', source, amount: totalCost,
-                        notes: `Achat ${quantity.toFixed(2)} ${currency}`, linkedTxId: editingTx.id
+                        notes: `Achat ${quantity.toFixed(2)} ${currency}`, linkedTxId: editingTx.id, origin: 'usdt_tx' as const
                     });
                 }
                 setAlert('✅ Transaction mise à jour.');
@@ -345,7 +345,7 @@ export function useTransactionHandlers({
                     const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp, date, time, type: 'Retrait', source, amount: totalCost,
-                        notes: `Achat ${quantity.toFixed(2)} ${currency}`, linkedTxId: mainTxRef.id
+                        notes: `Achat ${quantity.toFixed(2)} ${currency}`, linkedTxId: mainTxRef.id, origin: 'usdt_tx' as const
                     });
                 }
 
@@ -449,7 +449,7 @@ export function useTransactionHandlers({
                     const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp, date, time, type: 'Ajout', source, amount: totalRevenue,
-                        notes: `Vente ${quantity.toFixed(2)} ${sellCurrency}`, linkedTxId: editingTx.id
+                        notes: `Vente ${quantity.toFixed(2)} ${sellCurrency}`, linkedTxId: editingTx.id, origin: 'usdt_tx' as const
                     });
                 }
                 setAlert('✅ Transaction mise à jour.');
@@ -464,7 +464,7 @@ export function useTransactionHandlers({
                     const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp, date, time, type: 'Ajout', source, amount: totalRevenue,
-                        notes: `Vente ${quantity.toFixed(2)} ${sellCurrency}`, linkedTxId: ref.id
+                        notes: `Vente ${quantity.toFixed(2)} ${sellCurrency}`, linkedTxId: ref.id, origin: 'usdt_tx' as const
                     });
                 }
 

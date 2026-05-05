@@ -180,7 +180,9 @@ export function useInvestorHandlers(
 
             batch.update(userDocRef.collection('investors').doc(investorId), {
                 capitalInvested: investor.capitalInvested + amount,
-                initialCapital: investor.capitalInvested + amount
+                // initialCapital is NOT updated: it must remain the original
+                // deposit. The reinvested amount is tracked via the
+                // 'reinvest_profit' investor transaction instead.
             });
 
             await batch.commit();
