@@ -36,6 +36,7 @@ import { useReportExports } from './hooks/useReportExports';
 
 // Shared Utils
 import { now, parseAndEvaluate } from './utils';
+import { computeInvestorProfits } from './utils/financialCalculations';
 
 const TransactionsPage = React.lazy(() =>
     import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage }))
@@ -170,119 +171,26 @@ export default function MainApp({ user }: { user: AppUser }) {
         setTheme, isDark
     } = useSettings(userDocRef);
 
-    // 1.3 Derived Data
+    // 1.3 Derived Data – delegates to the centralized pure function
     const derivedInvestors = useMemo(() => {
         if (!shouldSubscribeInvestors) return [];
 
-        const toMs = (value: any): number => {
-            if (typeof value === 'number') return value;
-            if (value && typeof value.toMillis === 'function') return value.toMillis();
-            const parsed = new Date(value).getTime();
-            return Number.isFinite(parsed) ? parsed : 0;
-        };
-
         const feePercent = parseFloat(managerFeePercentage) || 0;
-        const managerFeeRatio = Math.max(0, Math.min(1, feePercent / 100));
-
-        const txByInvestor = new Map<string, InvestorTransaction[]>();
-        for (const tx of investorTransactions) {
-            const list = txByInvestor.get(tx.investorId) || [];
-            list.push(tx);
-            txByInvestor.set(tx.investorId, list);
-        }
-
-        const investorsBase = investors.map(inv => {
-            const myTxs = txByInvestor.get(inv.id) || [];
-            const movementTxs = myTxs.filter(tx =>
-                tx.type === 'deposit_capital' ||
-                tx.type === 'reinvest_profit' ||
-                tx.type === 'withdraw_capital'
-            );
-
-            const currentCapitalFromMovements = movementTxs.reduce((sum, tx) => {
-                if (tx.type === 'withdraw_capital') return sum - tx.amount;
-                return sum + tx.amount;
-            }, 0);
-
-            const withdrawnProfit = myTxs
-                .filter(tx => tx.type === 'withdraw_profit')
-                .reduce((sum, tx) => sum + tx.amount, 0);
-            const reinvestedProfit = myTxs
-                .filter(tx => tx.type === 'reinvest_profit')
-                .reduce((sum, tx) => sum + tx.amount, 0);
-
-            return {
-                ...inv,
-                entryTs: toMs(inv.entryDate),
-                txs: myTxs,
-                hasCapitalMovements: movementTxs.length > 0,
-                capitalInvested: movementTxs.length > 0 ? currentCapitalFromMovements : inv.initialCapital,
-                withdrawnProfit,
-                reinvestedProfit
-            };
-        });
-
-        const capitalAtTs = (inv: typeof investorsBase[number], ts: number): number => {
-            const movementsUntilTs = inv.txs.filter(tx =>
-                toMs(tx.timestamp) <= ts &&
-                (tx.type === 'deposit_capital' || tx.type === 'reinvest_profit' || tx.type === 'withdraw_capital')
-            );
-
-            if (movementsUntilTs.length === 0) {
-                return inv.hasCapitalMovements ? 0 : inv.initialCapital;
-            }
-
-            return movementsUntilTs.reduce((sum, tx) => {
-                if (tx.type === 'withdraw_capital') return sum - tx.amount;
-                return sum + tx.amount;
-            }, 0);
-        };
-
-        const distributedProfitByInvestor = new Map<string, number>();
-        for (const inv of investorsBase) distributedProfitByInvestor.set(inv.id, 0);
-
         const sellTxs = transactions
             .filter(tx => tx.type === 'sell' && tx.currency === 'USDT' && (tx.profit || 0) !== 0)
-            .sort((a, b) => toMs(a.timestamp) - toMs(b.timestamp));
+            .map(tx => ({ profit: tx.profit || 0, timestamp: tx.timestamp }));
 
-        for (const sellTx of sellTxs) {
-            const sellTs = toMs(sellTx.timestamp);
-            const distributableProfit = (sellTx.profit || 0) * (1 - managerFeeRatio);
+        const results = computeInvestorProfits(investors, investorTransactions, sellTxs, feePercent);
 
-            const eligible = investorsBase
-                .filter(inv => inv.entryTs <= sellTs)
-                .map(inv => ({ id: inv.id, cap: Math.max(0, capitalAtTs(inv, sellTs)) }))
-                .filter(item => item.cap > 0);
-
-            const totalCapAtSell = eligible.reduce((sum, item) => sum + item.cap, 0);
-            if (totalCapAtSell <= 0) continue;
-
-            for (const item of eligible) {
-                const share = item.cap / totalCapAtSell;
-                distributedProfitByInvestor.set(
-                    item.id,
-                    (distributedProfitByInvestor.get(item.id) || 0) + (distributableProfit * share)
-                );
-            }
-        }
-
-        const totalCurrentCapital = investorsBase.reduce((sum, inv) => {
-            if (!inv.isActive || inv.capitalInvested <= 0) return sum;
-            return sum + inv.capitalInvested;
-        }, 0);
-
-        return investorsBase.map(inv => {
-            const currentShare = inv.isActive && totalCurrentCapital > 0
-                ? Math.max(0, inv.capitalInvested) / totalCurrentCapital
-                : 0;
-            const totalProfit = distributedProfitByInvestor.get(inv.id) || 0;
-            const availableProfit = totalProfit - inv.withdrawnProfit - inv.reinvestedProfit;
-
+        return investors.map((inv, idx) => {
+            const derived = results[idx];
             return {
                 ...inv,
-                sharePercentage: currentShare,
-                totalProfit,
-                availableProfit
+                capitalInvested: derived.capitalInvested,
+                sharePercentage: derived.sharePercentage,
+                totalProfit: derived.totalProfit,
+                availableProfit: derived.availableProfit,
+                withdrawnProfit: derived.withdrawnProfit,
             };
         });
     }, [shouldSubscribeInvestors, investors, investorTransactions, managerFeePercentage, transactions]);
@@ -1296,16 +1204,14 @@ export default function MainApp({ user }: { user: AppUser }) {
             );
         }
         const myTransactions = investorTransactions.filter(tx => tx.investorId === investor.id);
-        const totalCapital = derivedInvestors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0);
         return (
             <Suspense fallback={<div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-50 text-slate-600'}`}>{t('common.loading')}</div>}>
                 <InvestorDashboardPage
                     investor={investor}
                     transactions={myTransactions}
                     isDark={isDark}
-                    globalNetProfit={portfolioStats.usdt.totalProfit}
-                    managerFeePercentage={Number(managerFeePercentage)}
-                    totalCapital={totalCapital}
+                    computedTotalProfit={investor.totalProfit}
+                    computedAvailableProfit={investor.availableProfit}
                 />
             </Suspense>
         );

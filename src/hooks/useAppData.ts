@@ -6,6 +6,7 @@ import {
     ManualAsset, ManualAssetClient, ManualAssetTransaction,
     Investor, InvestorTransaction
 } from '../types';
+import { computePortfolioStats } from '../utils/financialCalculations';
 
 type UseAppDataOptions = {
     subscribeManualAssets?: boolean;
@@ -106,79 +107,8 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         };
     }, [userDocRef, refreshKey, subscribeManualAssets, subscribeInvestors, subscribeTreasuryCards]);
 
-    // Derived Calculations
-    const portfolioStats = useMemo(() => {
-        const createInitialStats = () => ({ costBasis: 0, purchasedQty: 0, available: 0, totalProfit: 0, avgBuy: 0 });
-        const round2 = (value: number) => Number(value.toFixed(2));
-        const normalizeZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : round2(value));
-        let usdtStats = createInitialStats();
-        let eurStats = createInitialStats();
-
-        for (const tx of transactions) {
-            const stats = tx.currency === 'USDT' ? usdtStats : eurStats;
-            const txQuantity = round2(Math.abs(Number(tx.quantity || 0)));
-            const txTotal = round2(Number(tx.total || 0));
-            if (txQuantity <= 0) continue;
-
-            if (tx.type === 'buy' || tx.type === 'Ajout Manuel') {
-                stats.available = round2(stats.available + txQuantity);
-            } else {
-                stats.available = round2(stats.available - txQuantity);
-            }
-
-            if (tx.type === 'Ajout Manuel' && txTotal > 0) {
-                stats.purchasedQty = round2(stats.purchasedQty + txQuantity);
-                stats.costBasis = round2(stats.costBasis + txTotal);
-            } else if (tx.type === 'buy') {
-                stats.purchasedQty = round2(stats.purchasedQty + txQuantity);
-                stats.costBasis = round2(stats.costBasis + txTotal);
-            } else if (tx.type === 'sell' || tx.type === 'Retrait Manuel') {
-                const avgBuy = (stats.purchasedQty > 0) ? (stats.costBasis / stats.purchasedQty) : 0;
-                const removedQty = Math.min(txQuantity, stats.purchasedQty);
-                if (tx.type === 'sell' && tx.currency === 'USDT') {
-                    const sellPrice = Number(tx.sell);
-                    if (removedQty > 0 && Number.isFinite(sellPrice) && sellPrice > 0) {
-                        const realized = (sellPrice - avgBuy) * removedQty;
-                        usdtStats.totalProfit = round2(usdtStats.totalProfit + realized);
-                    } else {
-                        // Fallback for historical/legacy rows with no recoverable cost basis.
-                        usdtStats.totalProfit = round2(usdtStats.totalProfit + Number(tx.profit || 0));
-                    }
-                }
-                stats.purchasedQty = round2(stats.purchasedQty - removedQty);
-                stats.costBasis = round2(stats.costBasis - (removedQty * avgBuy));
-                if (stats.purchasedQty < 0.00001) { stats.purchasedQty = 0; stats.costBasis = 0; }
-            }
-        }
-        usdtStats.available = normalizeZero(usdtStats.available);
-        eurStats.available = normalizeZero(eurStats.available);
-
-        // If displayed available quantity is zero, consider the position fully closed.
-        // This prevents stale PAM from remaining when only microscopic residue exists.
-        if (usdtStats.available === 0) {
-            usdtStats.purchasedQty = 0;
-            usdtStats.costBasis = 0;
-        }
-        if (eurStats.available === 0) {
-            eurStats.purchasedQty = 0;
-            eurStats.costBasis = 0;
-        }
-
-        usdtStats.purchasedQty = normalizeZero(usdtStats.purchasedQty);
-        eurStats.purchasedQty = normalizeZero(eurStats.purchasedQty);
-        usdtStats.costBasis = normalizeZero(usdtStats.costBasis);
-        eurStats.costBasis = normalizeZero(eurStats.costBasis);
-
-        if (usdtStats.purchasedQty === 0) usdtStats.costBasis = 0;
-        if (eurStats.purchasedQty === 0) eurStats.costBasis = 0;
-
-        usdtStats.avgBuy = (usdtStats.purchasedQty > 0) ? usdtStats.costBasis / usdtStats.purchasedQty : 0;
-        eurStats.avgBuy = (eurStats.purchasedQty > 0) ? eurStats.costBasis / eurStats.purchasedQty : 0;
-        usdtStats.avgBuy = normalizeZero(usdtStats.avgBuy);
-        eurStats.avgBuy = normalizeZero(eurStats.avgBuy);
-        usdtStats.totalProfit = normalizeZero(usdtStats.totalProfit);
-        return { usdt: usdtStats, eur: eurStats };
-    }, [transactions]);
+    // Derived Calculations – delegates to the centralized pure function
+    const portfolioStats = useMemo(() => computePortfolioStats(transactions), [transactions]);
 
     const treasuryStats = useMemo(() => {
         const normalizeZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : Number(value.toFixed(2)));

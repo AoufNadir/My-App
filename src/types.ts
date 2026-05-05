@@ -174,6 +174,7 @@ export interface PortfolioStats {
     purchasedQty: number;
     costBasis: number;
     avgBuy: number;
+    totalProfit: number;
     available: number;
   };
 }
