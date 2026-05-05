@@ -3,6 +3,7 @@ import {
   getClientOperationLabel,
   getPortfolioOperationLabel
 } from './transactionTerminology';
+import { buildLinkedClientMap } from './financialCalculations';
 
 type PortfolioSnapshot = {
   usdt: { available: number; avgBuy: number; totalProfit: number };
@@ -392,26 +393,7 @@ function reportShell(opts: {
   return { fileName: opts.fileName, html };
 }
 
-function buildLinkedClientMap(clientTransactions: ClientTransactionDzd[]) {
-  const map = new Map<string, { clientId: string; timestamp: number; isSecondary: boolean }>();
-  for (const row of clientTransactions) {
-    if (!row.linkedTxId || !row.clientId) continue;
-    const isSecondary = row.linkRole === 'dzd_receiver';
-    const existing = map.get(row.linkedTxId);
-    if (!existing) {
-      map.set(row.linkedTxId, { clientId: row.clientId, timestamp: row.timestamp, isSecondary });
-      continue;
-    }
-    if (existing.isSecondary && !isSecondary) {
-      map.set(row.linkedTxId, { clientId: row.clientId, timestamp: row.timestamp, isSecondary });
-      continue;
-    }
-    if (existing.isSecondary === isSecondary && row.timestamp > existing.timestamp) {
-      map.set(row.linkedTxId, { clientId: row.clientId, timestamp: row.timestamp, isSecondary });
-    }
-  }
-  return map;
-}
+
 
 export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload {
   const startTs = new Date(input.year, input.month, 1).getTime();

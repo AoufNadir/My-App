@@ -13,9 +13,10 @@ interface InvestorDashboardPageProps {
   investor: Investor;
   transactions: InvestorTransaction[];
   isDark: boolean;
-  globalNetProfit: number;
-  managerFeePercentage: number;
-  totalCapital: number;
+  /** Pre-computed total profit from the centralized investor engine */
+  computedTotalProfit: number;
+  /** Pre-computed available profit from the centralized investor engine */
+  computedAvailableProfit: number;
 }
 
 type DashboardStats = {
@@ -29,27 +30,20 @@ export const InvestorDashboardPage: React.FC<InvestorDashboardPageProps> = ({
   investor,
   transactions,
   isDark,
-  globalNetProfit,
-  managerFeePercentage,
-  totalCapital
+  computedTotalProfit,
+  computedAvailableProfit
 }) => {
   const stats = useMemo<DashboardStats>(() => {
-    const share = totalCapital > 0 ? (investor.capitalInvested / totalCapital) : 0;
-    const managerFee = globalNetProfit * (managerFeePercentage / 100);
-    const distributablePool = globalNetProfit - managerFee;
-
-    const currentTotalProfit = distributablePool * share;
-    const currentAvailable = currentTotalProfit - investor.withdrawnProfit;
-    const totalValue = investor.capitalInvested + currentAvailable;
+    const totalValue = investor.capitalInvested + computedAvailableProfit;
     const profitPercentage = investor.capitalInvested > 0
-      ? (currentTotalProfit / investor.capitalInvested) * 100
+      ? (computedTotalProfit / investor.capitalInvested) * 100
       : 0;
 
     const entry = new Date(investor.entryDate).getTime();
     const diffDays = Math.ceil(Math.abs(Date.now() - entry) / (1000 * 60 * 60 * 24));
 
-    return { totalValue, profitPercentage, diffDays, currentTotalProfit };
-  }, [investor, globalNetProfit, managerFeePercentage, totalCapital]);
+    return { totalValue, profitPercentage, diffDays, currentTotalProfit: computedTotalProfit };
+  }, [investor, computedTotalProfit, computedAvailableProfit]);
 
   const orderedTransactions = useMemo(
     () => [...transactions].sort((a, b) => b.timestamp - a.timestamp),
