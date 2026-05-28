@@ -1,24 +1,46 @@
 import { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
 import type { AppUser } from '../firebaseAuth';
-import {
-    Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard,
-    ManualAsset, ManualAssetClient, ManualAssetTransaction,
-    Investor, InvestorTransaction
-} from '../types';
-
+import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction } from '../types';
 type UseAppDataOptions = {
     subscribeManualAssets?: boolean;
     subscribeInvestors?: boolean;
     subscribeTreasuryCards?: boolean;
 };
-
+type AppDataCollectionKey = 'transactions' | 'clients' | 'clientTransactions' | 'treasuryTransactions' | 'treasuryCards' | 'manualAssets' | 'manualAssetClients' | 'manualAssetTransactions' | 'investors' | 'investorTransactions';
+type CollectionLoadState = {
+    received: boolean;
+    fromCache: boolean;
+    serverSynced: boolean;
+};
+const COLLECTION_KEYS: AppDataCollectionKey[] = [
+    'transactions',
+    'clients',
+    'clientTransactions',
+    'treasuryTransactions',
+    'treasuryCards',
+    'manualAssets',
+    'manualAssetClients',
+    'manualAssetTransactions',
+    'investors',
+    'investorTransactions'
+];
+function createInitialCollectionState(activeKeys: Set<AppDataCollectionKey>) {
+    return COLLECTION_KEYS.reduce((acc, key) => {
+        const inactive = !activeKeys.has(key);
+        acc[key] = {
+            received: inactive,
+            fromCache: false,
+            serverSynced: inactive
+        };
+        return acc;
+    }, {} as Record<AppDataCollectionKey, CollectionLoadState>);
+}
 export function useAppData(user: AppUser, refreshKey: number, options: UseAppDataOptions = {}) {
     const userDocRef = useMemo(() => db.collection('users').doc(user.uid), [user.uid]);
     const subscribeManualAssets = options.subscribeManualAssets ?? true;
     const subscribeInvestors = options.subscribeInvestors ?? true;
     const subscribeTreasuryCards = options.subscribeTreasuryCards ?? true;
-
     // Data State
     const [transactions, setTransactions] = useState<Tx[]>([]);
     const [clientsDzd, setClientsDzd] = useState<ClientDzd[]>([]);
@@ -30,82 +52,163 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     const [manualAssetTransactions, setManualAssetTransactions] = useState<ManualAssetTransaction[]>([]);
     const [investors, setInvestors] = useState<Investor[]>([]);
     const [investorTransactions, setInvestorTransactions] = useState<InvestorTransaction[]>([]);
-
+    const [collectionState, setCollectionState] = useState<Record<AppDataCollectionKey, CollectionLoadState>>(() => createInitialCollectionState(new Set(COLLECTION_KEYS)));
+    const activeCollectionKeys = useMemo(() => {
+        const keys: AppDataCollectionKey[] = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions'];
+        if (subscribeTreasuryCards)
+            keys.push('treasuryCards');
+        if (subscribeManualAssets)
+            keys.push('manualAssets', 'manualAssetClients', 'manualAssetTransactions');
+        if (subscribeInvestors)
+            keys.push('investors', 'investorTransactions');
+        return keys;
+    }, [subscribeTreasuryCards, subscribeManualAssets, subscribeInvestors]);
     // Real-time Listeners
     useEffect(() => {
+        const activeKeys = new Set<AppDataCollectionKey>(activeCollectionKeys);
+        const appliedDocSnapshots = new Set<AppDataCollectionKey>();
+        setCollectionState(createInitialCollectionState(activeKeys));
+        const markSnapshot = (key: AppDataCollectionKey, snap: {
+            metadata?: {
+                fromCache?: boolean;
+            };
+        }) => {
+            const fromCache = Boolean(snap.metadata?.fromCache);
+            setCollectionState(prev => ({
+                ...prev,
+                [key]: {
+                    received: true,
+                    fromCache,
+                    serverSynced: prev[key]?.serverSynced || !fromCache
+                }
+            }));
+        };
+        const shouldApplyDocs = (key: AppDataCollectionKey, snap: {
+            docChanges?: () => unknown[];
+        }) => {
+            if (!appliedDocSnapshots.has(key)) {
+                appliedDocSnapshots.add(key);
+                return true;
+            }
+            return (snap.docChanges?.() || []).length > 0;
+        };
+        const snapshotOptions = { includeMetadataChanges: true };
         const unsubTxs = userDocRef.collection('usdt_txs').orderBy('timestamp', 'asc').onSnapshot(snap => {
+            markSnapshot('transactions', snap);
+            if (!shouldApplyDocs('transactions', snap))
+                return;
             setTransactions(snap.docs.map(doc => {
                 const data = doc.data();
                 const newDoc: any = { id: doc.id, ...data };
-                if (newDoc.usd !== undefined) { newDoc.quantity = newDoc.usd; delete newDoc.usd; }
-                if (!newDoc.currency) { newDoc.currency = 'USDT'; }
+                if (newDoc.usd !== undefined) {
+                    newDoc.quantity = newDoc.usd;
+                    delete newDoc.usd;
+                }
+                if (!newDoc.currency) {
+                    newDoc.currency = 'USDT';
+                }
                 return newDoc;
             }) as Tx[]);
-        });
-
+        }, snapshotOptions);
         const unsubClients = userDocRef.collection('dzd_clients').orderBy('fullName', 'asc').onSnapshot(snap => {
+            markSnapshot('clients', snap);
+            if (!shouldApplyDocs('clients', snap))
+                return;
             setClientsDzd(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ClientDzd[]);
-        });
-
+        }, snapshotOptions);
         const unsubClientTxs = userDocRef.collection('dzd_client_txs').orderBy('timestamp', 'asc').onSnapshot(snap => {
+            markSnapshot('clientTransactions', snap);
+            if (!shouldApplyDocs('clientTransactions', snap))
+                return;
             setClientTransactionsDzd(snap.docs.map(doc => {
                 const data = doc.data();
                 const newDoc: any = { id: doc.id, ...data };
-                if (newDoc.linkedUsdtTxId) { newDoc.linkedTxId = newDoc.linkedUsdtTxId; delete newDoc.linkedUsdtTxId; }
+                if (newDoc.linkedUsdtTxId) {
+                    newDoc.linkedTxId = newDoc.linkedUsdtTxId;
+                    delete newDoc.linkedUsdtTxId;
+                }
                 return newDoc;
             }) as ClientTransactionDzd[]);
-        });
-
+        }, snapshotOptions);
         const unsubTreasuryTxs = userDocRef.collection('treasury_txs').orderBy('timestamp', 'asc').onSnapshot(snap => {
+            markSnapshot('treasuryTransactions', snap);
+            if (!shouldApplyDocs('treasuryTransactions', snap))
+                return;
             setTreasuryTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TreasuryTx[]);
-        });
-
+        }, snapshotOptions);
         if (!subscribeTreasuryCards) {
             setTreasuryCards([]);
         }
-
+        if (!subscribeManualAssets) {
+            setManualAssets([]);
+            setManualAssetClients([]);
+            setManualAssetTransactions([]);
+        }
+        if (!subscribeInvestors) {
+            setInvestors([]);
+            setInvestorTransactions([]);
+        }
         const unsubTreasuryCards = subscribeTreasuryCards
             ? userDocRef.collection('treasury_cards').onSnapshot(snap => {
+                markSnapshot('treasuryCards', snap);
+                if (!shouldApplyDocs('treasuryCards', snap))
+                    return;
                 setTreasuryCards(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TreasuryCard[]);
-            })
+            }, snapshotOptions)
             : () => undefined;
-
         const unsubManualAssets = subscribeManualAssets
             ? userDocRef.collection('manual_assets').orderBy('createdAt', 'desc').onSnapshot(snap => {
+                markSnapshot('manualAssets', snap);
+                if (!shouldApplyDocs('manualAssets', snap))
+                    return;
                 setManualAssets(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ManualAsset[]);
-            })
+            }, snapshotOptions)
             : () => undefined;
-
         const unsubManualClients = subscribeManualAssets
             ? userDocRef.collection('manual_asset_clients').orderBy('fullName', 'asc').onSnapshot(snap => {
+                markSnapshot('manualAssetClients', snap);
+                if (!shouldApplyDocs('manualAssetClients', snap))
+                    return;
                 setManualAssetClients(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ManualAssetClient[]);
-            })
+            }, snapshotOptions)
             : () => undefined;
-
         const unsubManualTxs = subscribeManualAssets
             ? userDocRef.collection('actifTransactions').orderBy('timestamp', 'desc').onSnapshot(snap => {
+                markSnapshot('manualAssetTransactions', snap);
+                if (!shouldApplyDocs('manualAssetTransactions', snap))
+                    return;
                 setManualAssetTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ManualAssetTransaction[]);
-            })
+            }, snapshotOptions)
             : () => undefined;
-
         const unsubInvestors = subscribeInvestors
             ? userDocRef.collection('investors').onSnapshot(snap => {
+                markSnapshot('investors', snap);
+                if (!shouldApplyDocs('investors', snap))
+                    return;
                 setInvestors(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Investor[]);
-            })
+            }, snapshotOptions)
             : () => undefined;
-
         const unsubInvestorTxs = subscribeInvestors
             ? userDocRef.collection('investor_transactions').onSnapshot(snap => {
+                markSnapshot('investorTransactions', snap);
+                if (!shouldApplyDocs('investorTransactions', snap))
+                    return;
                 setInvestorTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as InvestorTransaction[]);
-            })
+            }, snapshotOptions)
             : () => undefined;
-
         return () => {
-            unsubTxs(); unsubClients(); unsubClientTxs(); unsubTreasuryTxs(); unsubTreasuryCards();
-            unsubManualAssets(); unsubManualClients(); unsubManualTxs(); unsubInvestors(); unsubInvestorTxs();
+            unsubTxs();
+            unsubClients();
+            unsubClientTxs();
+            unsubTreasuryTxs();
+            unsubTreasuryCards();
+            unsubManualAssets();
+            unsubManualClients();
+            unsubManualTxs();
+            unsubInvestors();
+            unsubInvestorTxs();
         };
-    }, [userDocRef, refreshKey, subscribeManualAssets, subscribeInvestors, subscribeTreasuryCards]);
-
+    }, [userDocRef, refreshKey, subscribeManualAssets, subscribeInvestors, subscribeTreasuryCards, activeCollectionKeys]);
     // Derived Calculations
     const portfolioStats = useMemo(() => {
         const createInitialStats = () => ({ costBasis: 0, purchasedQty: 0, available: 0, totalProfit: 0, avgBuy: 0 });
@@ -113,46 +216,58 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         const normalizeZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : round2(value));
         let usdtStats = createInitialStats();
         let eurStats = createInitialStats();
-
         for (const tx of transactions) {
             const stats = tx.currency === 'USDT' ? usdtStats : eurStats;
             const txQuantity = round2(Math.abs(Number(tx.quantity || 0)));
             const txTotal = round2(Number(tx.total || 0));
-            if (txQuantity <= 0) continue;
-
+            if (txQuantity <= 0)
+                continue;
             if (tx.type === 'buy' || tx.type === 'Ajout Manuel') {
                 stats.available = round2(stats.available + txQuantity);
-            } else {
+            }
+            else {
                 stats.available = round2(stats.available - txQuantity);
             }
-
             if (tx.type === 'Ajout Manuel' && txTotal > 0) {
                 stats.purchasedQty = round2(stats.purchasedQty + txQuantity);
                 stats.costBasis = round2(stats.costBasis + txTotal);
-            } else if (tx.type === 'buy') {
+            }
+            else if (tx.type === 'buy') {
                 stats.purchasedQty = round2(stats.purchasedQty + txQuantity);
                 stats.costBasis = round2(stats.costBasis + txTotal);
-            } else if (tx.type === 'sell' || tx.type === 'Retrait Manuel') {
+            }
+            else if (tx.type === 'sell' || tx.type === 'Retrait Manuel') {
                 const avgBuy = (stats.purchasedQty > 0) ? (stats.costBasis / stats.purchasedQty) : 0;
                 const removedQty = Math.min(txQuantity, stats.purchasedQty);
-                if (tx.type === 'sell' && tx.currency === 'USDT') {
+                if (tx.type === 'sell') {
                     const sellPrice = Number(tx.sell);
                     if (removedQty > 0 && Number.isFinite(sellPrice) && sellPrice > 0) {
                         const realized = (sellPrice - avgBuy) * removedQty;
-                        usdtStats.totalProfit = round2(usdtStats.totalProfit + realized);
-                    } else {
+                        stats.totalProfit = round2(stats.totalProfit + realized);
+                    }
+                    else {
                         // Fallback for historical/legacy rows with no recoverable cost basis.
-                        usdtStats.totalProfit = round2(usdtStats.totalProfit + Number(tx.profit || 0));
+                        stats.totalProfit = round2(stats.totalProfit + Number(tx.profit || 0));
                     }
                 }
                 stats.purchasedQty = round2(stats.purchasedQty - removedQty);
                 stats.costBasis = round2(stats.costBasis - (removedQty * avgBuy));
-                if (stats.purchasedQty < 0.00001) { stats.purchasedQty = 0; stats.costBasis = 0; }
+                if (stats.purchasedQty < 0.00001) {
+                    stats.purchasedQty = 0;
+                    stats.costBasis = 0;
+                }
+            }
+            // When a position closes mid-history (available returns to ~0), drop any
+            // residue from cumulative rounding so the next buy starts from a clean PAM.
+            // totalProfit is preserved — it is cumulative realized profit, not position state.
+            if (Math.abs(stats.available) < 0.005) {
+                stats.available = 0;
+                stats.purchasedQty = 0;
+                stats.costBasis = 0;
             }
         }
         usdtStats.available = normalizeZero(usdtStats.available);
         eurStats.available = normalizeZero(eurStats.available);
-
         // If displayed available quantity is zero, consider the position fully closed.
         // This prevents stale PAM from remaining when only microscopic residue exists.
         if (usdtStats.available === 0) {
@@ -163,80 +278,91 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             eurStats.purchasedQty = 0;
             eurStats.costBasis = 0;
         }
-
         usdtStats.purchasedQty = normalizeZero(usdtStats.purchasedQty);
         eurStats.purchasedQty = normalizeZero(eurStats.purchasedQty);
         usdtStats.costBasis = normalizeZero(usdtStats.costBasis);
         eurStats.costBasis = normalizeZero(eurStats.costBasis);
-
-        if (usdtStats.purchasedQty === 0) usdtStats.costBasis = 0;
-        if (eurStats.purchasedQty === 0) eurStats.costBasis = 0;
-
+        if (usdtStats.purchasedQty === 0)
+            usdtStats.costBasis = 0;
+        if (eurStats.purchasedQty === 0)
+            eurStats.costBasis = 0;
         usdtStats.avgBuy = (usdtStats.purchasedQty > 0) ? usdtStats.costBasis / usdtStats.purchasedQty : 0;
         eurStats.avgBuy = (eurStats.purchasedQty > 0) ? eurStats.costBasis / eurStats.purchasedQty : 0;
         usdtStats.avgBuy = normalizeZero(usdtStats.avgBuy);
         eurStats.avgBuy = normalizeZero(eurStats.avgBuy);
         usdtStats.totalProfit = normalizeZero(usdtStats.totalProfit);
+        eurStats.totalProfit = normalizeZero(eurStats.totalProfit);
         return { usdt: usdtStats, eur: eurStats };
     }, [transactions]);
-
     const treasuryStats = useMemo(() => {
         const normalizeZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : Number(value.toFixed(2)));
         const resolveWallet = (raw: any): 'Caisse' | 'BaridiMob' | null => {
-            if (!raw) return null;
+            if (!raw)
+                return null;
             const normalized = String(raw).toLowerCase();
-            if (normalized.includes('caisse')) return 'Caisse';
-            if (normalized.includes('baridi')) return 'BaridiMob';
+            if (normalized.includes('caisse'))
+                return 'Caisse';
+            if (normalized.includes('baridi'))
+                return 'BaridiMob';
             return null;
         };
-        const parseLegacyTransfer = (rawAsset?: string): { from: 'Caisse' | 'BaridiMob' | null; to: 'Caisse' | 'BaridiMob' | null } => {
-            if (!rawAsset) return { from: null, to: null };
+        const parseLegacyTransfer = (rawAsset?: string): {
+            from: 'Caisse' | 'BaridiMob' | null;
+            to: 'Caisse' | 'BaridiMob' | null;
+        } => {
+            if (!rawAsset)
+                return { from: null, to: null };
             const match = /from\s+(.+?)\s+to\s+(.+)/i.exec(rawAsset);
-            if (!match) return { from: null, to: null };
+            if (!match)
+                return { from: null, to: null };
             return { from: resolveWallet(match[1]), to: resolveWallet(match[2]) };
         };
-
         let caisse = 0, baridi = 0;
         treasuryTransactions.forEach(tx => {
             const txData = tx as any;
             const amount = Number(tx.amount || 0);
-            if (!Number.isFinite(amount) || amount <= 0) return;
-
+            if (!Number.isFinite(amount) || amount <= 0)
+                return;
             if (tx.type === 'Transfer') {
                 const legacy = parseLegacyTransfer(txData.asset);
                 const from = resolveWallet(txData.source) || legacy.from;
                 const to = resolveWallet(txData.destination) || legacy.to;
-                if (!from || !to || from === to) return;
-                if (from === 'Caisse') caisse -= amount;
-                if (from === 'BaridiMob') baridi -= amount;
-                if (to === 'Caisse') caisse += amount;
-                if (to === 'BaridiMob') baridi += amount;
+                if (!from || !to || from === to)
+                    return;
+                if (from === 'Caisse')
+                    caisse -= amount;
+                if (from === 'BaridiMob')
+                    baridi -= amount;
+                if (to === 'Caisse')
+                    caisse += amount;
+                if (to === 'BaridiMob')
+                    baridi += amount;
                 return;
             }
-
             let factor = 0;
-            if (tx.type === 'Ajout' || tx.type === 'Adjustment (+)') factor = 1;
-            else if (tx.type === 'Retrait' || tx.type === 'Adjustment (-)') factor = -1;
-
+            if (tx.type === 'Ajout' || tx.type === 'Adjustment (+)')
+                factor = 1;
+            else if (tx.type === 'Retrait' || tx.type === 'Adjustment (-)')
+                factor = -1;
             const source = txData.source
                 || (txData.asset === 'DZD-Caisse' ? 'Caisse' : txData.asset === 'DZD-Baridi' ? 'BaridiMob' : null);
-
-            if (source === 'Caisse') caisse += (amount * factor);
-            if (source === 'BaridiMob') baridi += (amount * factor);
+            if (source === 'Caisse')
+                caisse += (amount * factor);
+            if (source === 'BaridiMob')
+                baridi += (amount * factor);
         });
         return { caisse: normalizeZero(caisse), baridi: normalizeZero(baridi) };
     }, [treasuryTransactions]);
-
     const clientBalances = useMemo(() => {
         const balances = new Map<string, number>();
         clientsDzd.forEach(c => balances.set(c.id, 0));
         clientTransactionsDzd.forEach(tx => {
-            if (tx.affectsBalance === false) return;
+            if (tx.affectsBalance === false)
+                return;
             balances.set(tx.clientId, (balances.get(tx.clientId) || 0) + tx.montant);
         });
         return balances;
     }, [clientsDzd, clientTransactionsDzd]);
-
     const assetClientBalances = useMemo(() => {
         const map = new Map<string, number>();
         manualAssetTransactions.forEach(tx => {
@@ -245,7 +371,6 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         });
         return map;
     }, [manualAssetTransactions]);
-
     const assetBalances = useMemo(() => {
         const map = new Map<string, number>();
         manualAssetTransactions.forEach(tx => {
@@ -253,29 +378,33 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         });
         return map;
     }, [manualAssetTransactions]);
-
     const totals = useMemo(() => {
         let totalDettes = 0, totalAvances = 0;
-        clientBalances.forEach(b => { if (b < 0) totalDettes += b; else if (b > 0) totalAvances += b; });
-        assetBalances.forEach(b => { if (b < 0) totalDettes += b; else if (b > 0) totalAvances += b; });
+        clientBalances.forEach(b => { if (b < 0)
+            totalDettes += b;
+        else if (b > 0)
+            totalAvances += b; });
         return { totalDettes, totalAvances };
-    }, [clientBalances, assetBalances]);
-
-    const [isDataLoaded, setIsDataLoaded] = useState(false);
-
-    useEffect(() => {
-        // Simple heuristic for initial load
-        if (transactions.length > 0 || clientsDzd.length > 0 || isDataLoaded) {
-            setIsDataLoaded(true);
-        }
-    }, [transactions, clientsDzd, isDataLoaded]);
-
+    }, [clientBalances]);
+    const dataStatus = useMemo(() => {
+        const activeStates = activeCollectionKeys.map(key => collectionState[key]);
+        const hasReceivedInitialSnapshot = activeStates.every(state => state?.received);
+        const hasServerSynced = activeStates.every(state => state?.serverSynced);
+        const hasCacheSnapshot = activeStates.some(state => state?.received && state?.fromCache && !state?.serverSynced);
+        return {
+            hasReceivedInitialSnapshot,
+            hasServerSynced,
+            isShowingCachedData: hasReceivedInitialSnapshot && !hasServerSynced && hasCacheSnapshot,
+            collectionState
+        };
+    }, [activeCollectionKeys, collectionState]);
+    const isDataLoaded = dataStatus.hasReceivedInitialSnapshot;
     return {
         userDocRef,
         transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, treasuryCards,
         manualAssets, manualAssetClients, manualAssetTransactions,
         investors, investorTransactions,
         portfolioStats, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals,
-        isDataLoaded
+        isDataLoaded, dataStatus
     };
 }

@@ -1,105 +1,116 @@
 import { memo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/Dialog';
+import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../ui/Modal';
 import { Label } from '../ui/Label';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { NumberInput } from '../ui/NumberInput';
-
 type MainClientCrudDialogsProps = Record<string, any>;
-
-function MainClientCrudDialogsComponent({
-    txToDelete,
-    setTxToDelete,
-    cardBase,
-    isDark,
-    t,
-    handleDeleteConfirm,
-    clientTxToDelete,
-    setClientTxToDelete,
-    handleDeleteClientTxConfirm,
-    isClientModalOpen,
-    setIsClientModalOpen,
-    editingClient,
-    clientFullName,
-    setClientFullName,
-    clientPhone,
-    setClientPhone,
-    clientRedotpayId,
-    setClientRedotpayId,
-    clientBinanceEmail,
-    setClientBinanceEmail,
-    initialBalance,
-    setInitialBalance,
-    fieldBase,
-    handleSaveClient,
-    clientToDelete,
-    clientDeleteMode,
-    setClientToDelete,
-    handleDeleteClient
-}: MainClientCrudDialogsProps) {
+function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, initialBalance, setInitialBalance, handleSaveClient, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient }: MainClientCrudDialogsProps) {
     const isBlockedClientDelete = clientDeleteMode === 'blocked';
-    const clientDeleteTitle = isBlockedClientDelete ? 'Suppression impossible' : 'Attention avant suppression';
+    const isBalanceOnlyClientDelete = clientDeleteMode === 'balance_only';
+    const isClientOnlyCleanupDelete = clientDeleteMode === 'client_only_cleanup';
+    const clientDeleteTitle = isBlockedClientDelete
+        ? 'Suppression impossible'
+        : isBalanceOnlyClientDelete
+            ? 'Supprimer ce doublon client ?'
+            : isClientOnlyCleanupDelete
+                ? 'Retirer de Clients seulement ?'
+                : 'Attention avant suppression';
     const clientDeleteMessage = isBlockedClientDelete
-        ? 'Ce client a encore un solde actif (dette ou avance). Reglez d abord sa situation avant de le supprimer.'
-        : 'Ce client a un historique d activite. Si vous confirmez, son historique client sera supprime et il disparaitra des rapports mensuels et annuels.';
+        ? "Ce client a encore un solde actif (dette ou avance). Réglez d'abord sa situation avant de le supprimer."
+        : isBalanceOnlyClientDelete
+            ? "Ce client a seulement un solde manuel ou initial, sans opération de vente/achat liée. Vous pouvez le supprimer s'il s'agit d'un doublon d'investisseur."
+            : isClientOnlyCleanupDelete
+                ? "Ce nom existe aussi dans Investisseurs. La suppression retirera seulement sa fiche et son historique de Clients quotidiens."
+                : "Ce client a un historique d'activité. Si vous confirmez, son historique sera supprimé et il disparaîtra des rapports.";
     const clientDeleteWarning = isBlockedClientDelete
-        ? 'Le client ne peut pas etre supprime tant que son solde n est pas a zero.'
-        : 'Cette action est irreversible et supprimera aussi les elements lies au client dans cet espace.';
+        ? "Le client ne peut pas être supprimé tant que son solde n'est pas à zéro."
+        : isBalanceOnlyClientDelete
+            ? "Son solde client sera retiré du Capital total. L'investisseur reste dans Investisseurs."
+            : isClientOnlyCleanupDelete
+                ? "Les comptes Investisseurs ne seront pas modifiés."
+                : "Cette action est irréversible et supprimera aussi les éléments liés au client.";
+    const headerClass = 'sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
+    const footerClass = 'sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
+    const cancelBtn = 'flex-1 py-3 rounded-xl font-bold transition-colors bg-neutral-100 text-neutral-700 hover:bg-neutral-200';
+    const dangerBtn = 'flex-1 bg-danger hover:opacity-95 text-white font-bold py-3 rounded-xl shadow-sm transition-colors';
+    const primaryBtn = 'flex-1 bg-primary hover:bg-primary-dark text-white font-bold py-3 rounded-xl shadow-sm transition-colors';
+    return (<>
+            {/* Delete portfolio tx confirmation */}
+            <Modal isOpen={txToDelete !== null} onClose={() => setTxToDelete(null)} className="max-w-sm bg-surface">
+                <ModalHeader onClose={() => setTxToDelete(null)} className={headerClass}>
+                    <ModalTitle className="text-base sm:text-lg">{t('transactions.deleteTransaction')}</ModalTitle>
+                </ModalHeader>
+                <ModalContent className="px-4 py-4 sm:px-5">
+                    <p className="text-sm text-neutral-700">{t('transactions.confirmDeleteTx')}</p>
+                    <p className="text-xs text-financial-loss font-medium mt-2">{t('transactions.irreversibleAction')}</p>
+                </ModalContent>
+                <ModalFooter className={footerClass}>
+                    <div className="flex gap-2 w-full">
+                        <Button onClick={() => setTxToDelete(null)} className={cancelBtn}>{t('common.cancel')}</Button>
+                        <Button onClick={handleDeleteConfirm} className={dangerBtn}>{t('common.delete')}</Button>
+                    </div>
+                </ModalFooter>
+            </Modal>
 
-    return (
-        <>
-            <Dialog isOpen={txToDelete !== null} onClose={() => setTxToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>{t('transactions.deleteTransaction')}</DialogTitle></DialogHeader>
-                <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">{t('transactions.confirmDeleteTx')}</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">{t('transactions.irreversibleAction')}</p>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => setTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
-                    <Button onClick={handleDeleteConfirm} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{t('common.delete')}</Button>
-                </DialogFooter>
-            </Dialog>
-            <Dialog isOpen={clientTxToDelete !== null} onClose={() => setClientTxToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>{t('transactions.deleteTransaction')}</DialogTitle></DialogHeader>
-                <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">{t('transactions.confirmDeleteTx')}</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">{t('transactions.irreversibleAction')}</p>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => setClientTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
-                    <Button onClick={handleDeleteClientTxConfirm} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{t('common.delete')}</Button>
-                </DialogFooter>
-            </Dialog>
-            <Dialog isOpen={isClientModalOpen} onClose={() => setIsClientModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsClientModalOpen(false)} isDark={isDark}><DialogTitle>{editingClient ? t('transactions.editClient') : t('transactions.newClient')}</DialogTitle></DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    <div><Label>{t('transactions.fullName')}</Label><Input value={clientFullName} onChange={e => setClientFullName(e.target.value)} className={fieldBase} /></div>
-                    <div><Label>{t('transactions.phone')}</Label><Input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className={fieldBase} /></div>
-                    <div><Label>RedotPay ID</Label><Input value={clientRedotpayId} onChange={e => setClientRedotpayId(e.target.value)} className={fieldBase} /></div>
-                    <div><Label>Binance Email</Label><Input value={clientBinanceEmail} onChange={e => setClientBinanceEmail(e.target.value)} className={fieldBase} /></div>
+            {/* Delete client tx confirmation */}
+            <Modal isOpen={clientTxToDelete !== null} onClose={() => setClientTxToDelete(null)} className="max-w-sm bg-surface">
+                <ModalHeader onClose={() => setClientTxToDelete(null)} className={headerClass}>
+                    <ModalTitle className="text-base sm:text-lg">{t('transactions.deleteTransaction')}</ModalTitle>
+                </ModalHeader>
+                <ModalContent className="px-4 py-4 sm:px-5">
+                    <p className="text-sm text-neutral-700">{t('transactions.confirmDeleteTx')}</p>
+                    <p className="text-xs text-financial-loss font-medium mt-2">{t('transactions.irreversibleAction')}</p>
+                </ModalContent>
+                <ModalFooter className={footerClass}>
+                    <div className="flex gap-2 w-full">
+                        <Button onClick={() => setClientTxToDelete(null)} className={cancelBtn}>{t('common.cancel')}</Button>
+                        <Button onClick={handleDeleteClientTxConfirm} className={dangerBtn}>{t('common.delete')}</Button>
+                    </div>
+                </ModalFooter>
+            </Modal>
 
-                    {!editingClient && <div><Label>{t('transactions.initialBalance')} ({t('common.dinar')})</Label><NumberInput value={initialBalance} onChange={e => setInitialBalance(e.target.value)} className={fieldBase} placeholder="0.00" /></div>}
-                </DialogContent>
-                <DialogFooter><Button onClick={handleSaveClient} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl">{t('common.save')}</Button></DialogFooter>
-            </Dialog>
+            {/* Create/Edit Client */}
+            <Modal isOpen={isClientModalOpen} onClose={() => setIsClientModalOpen(false)} className="max-w-md bg-surface">
+                <ModalHeader onClose={() => setIsClientModalOpen(false)} className={headerClass}>
+                    <ModalTitle className="text-base sm:text-lg">{editingClient ? t('transactions.editClient') : t('transactions.newClient')}</ModalTitle>
+                </ModalHeader>
+                <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
+                    <div><Label>{t('transactions.fullName')}</Label><Input value={clientFullName} onChange={e => setClientFullName(e.target.value)} className="mt-1"/></div>
+                    <div><Label>{t('transactions.phone')}</Label><Input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className="mt-1"/></div>
+                    <div><Label>RedotPay ID</Label><Input value={clientRedotpayId} onChange={e => setClientRedotpayId(e.target.value)} className="mt-1"/></div>
+                    <div><Label>Binance Email</Label><Input value={clientBinanceEmail} onChange={e => setClientBinanceEmail(e.target.value)} className="mt-1"/></div>
+                    {!editingClient && (<div>
+                            <Label>{t('transactions.initialBalance')} ({t('common.dinar')})</Label>
+                            <NumberInput value={initialBalance} onChange={e => setInitialBalance(e.target.value)} className="mt-1" placeholder="0.00"/>
+                        </div>)}
+                </ModalContent>
+                <ModalFooter className={footerClass}>
+                    <div className="flex gap-2 w-full">
+                        <Button onClick={() => setIsClientModalOpen(false)} className={cancelBtn}>{t('common.cancel')}</Button>
+                        <Button onClick={handleSaveClient} className={primaryBtn}>{t('common.save')}</Button>
+                    </div>
+                </ModalFooter>
+            </Modal>
 
-            <Dialog isOpen={clientToDelete !== null} onClose={() => setClientToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>{clientDeleteTitle}</DialogTitle></DialogHeader>
-                <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">{clientDeleteMessage}</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">{clientDeleteWarning}</p>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => setClientToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
-                    {!isBlockedClientDelete && (
-                        <Button onClick={handleDeleteClient} className="w-full bg-red-600 text-white font-bold py-3 rounded-xl">{t('transactions.confirmDelete')}</Button>
-                    )}
-                </DialogFooter>
-            </Dialog>
-        </>
-    );
+            {/* Delete client confirmation */}
+            <Modal isOpen={clientToDelete !== null} onClose={() => setClientToDelete(null)} className="max-w-sm bg-surface">
+                <ModalHeader onClose={() => setClientToDelete(null)} className={headerClass}>
+                    <ModalTitle className="text-base sm:text-lg">{clientDeleteTitle}</ModalTitle>
+                </ModalHeader>
+                <ModalContent className="px-4 py-4 sm:px-5">
+                    <p className="text-sm text-neutral-700">{clientDeleteMessage}</p>
+                    <p className="text-xs text-financial-loss font-medium mt-2">{clientDeleteWarning}</p>
+                </ModalContent>
+                <ModalFooter className={footerClass}>
+                    <div className="flex gap-2 w-full">
+                        <Button onClick={() => setClientToDelete(null)} className={cancelBtn}>{t('common.cancel')}</Button>
+                        {!isBlockedClientDelete && (<Button onClick={handleDeleteClient} className={dangerBtn}>{t('transactions.confirmDelete')}</Button>)}
+                    </div>
+                </ModalFooter>
+            </Modal>
+        </>);
 }
-
 const areMainClientCrudDialogsPropsEqual = (prev: MainClientCrudDialogsProps, next: MainClientCrudDialogsProps) => {
     const prevTxDeleteOpen = prev.txToDelete !== null;
     const nextTxDeleteOpen = next.txToDelete !== null;
@@ -107,36 +118,28 @@ const areMainClientCrudDialogsPropsEqual = (prev: MainClientCrudDialogsProps, ne
     const nextClientTxDeleteOpen = next.clientTxToDelete !== null;
     const prevClientDeleteOpen = prev.clientToDelete !== null;
     const nextClientDeleteOpen = next.clientToDelete !== null;
-
-    if (
-        prevTxDeleteOpen !== nextTxDeleteOpen
+    if (prevTxDeleteOpen !== nextTxDeleteOpen
         || prevClientTxDeleteOpen !== nextClientTxDeleteOpen
         || prev.isClientModalOpen !== next.isClientModalOpen
-        || prevClientDeleteOpen !== nextClientDeleteOpen
-    ) {
+        || prevClientDeleteOpen !== nextClientDeleteOpen) {
         return false;
     }
-
-    if (nextTxDeleteOpen && prev.txToDelete !== next.txToDelete) return false;
-    if (nextClientTxDeleteOpen && prev.clientTxToDelete !== next.clientTxToDelete) return false;
-    if (nextClientDeleteOpen && prev.clientToDelete !== next.clientToDelete) return false;
-    if (prev.clientDeleteMode !== next.clientDeleteMode) return false;
-
+    if (nextTxDeleteOpen && prev.txToDelete !== next.txToDelete)
+        return false;
+    if (nextClientTxDeleteOpen && prev.clientTxToDelete !== next.clientTxToDelete)
+        return false;
+    if (nextClientDeleteOpen && prev.clientToDelete !== next.clientToDelete)
+        return false;
+    if (prev.clientDeleteMode !== next.clientDeleteMode)
+        return false;
     if (next.isClientModalOpen) {
-        return (
-            prev.editingClient === next.editingClient
+        return (prev.editingClient === next.editingClient
             && prev.clientFullName === next.clientFullName
             && prev.clientPhone === next.clientPhone
             && prev.clientRedotpayId === next.clientRedotpayId
             && prev.clientBinanceEmail === next.clientBinanceEmail
-            && prev.initialBalance === next.initialBalance
-            && prev.fieldBase === next.fieldBase
-            && prev.isDark === next.isDark
-            && prev.cardBase === next.cardBase
-        );
+            && prev.initialBalance === next.initialBalance);
     }
-
     return true;
 };
-
 export const MainClientCrudDialogs = memo(MainClientCrudDialogsComponent, areMainClientCrudDialogsPropsEqual);

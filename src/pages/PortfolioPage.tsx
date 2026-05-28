@@ -1,142 +1,268 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Card } from '../components/ui/Card';
-import { UnifiedTitle } from '../components/ui/UnifiedTitle';
+import { Card, CardContent, CardHeader } from '../components/ui/Card';
+import { HeroKpiCard } from '../components/ui/HeroKpiCard';
+import { IconButton } from '../components/ui/IconButton';
+import { MoneyText } from '../components/ui/MoneyText';
+import { PageHeader } from '../components/ui/PageHeader';
+import { SectionHeading } from '../components/ui/SectionHeading';
 import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
+import { WalletIcon } from '../components/icons/WalletIcon';
+import { PencilIcon } from '../components/icons/PencilIcon';
+import { PamSimulatorCard } from '../components/portfolio/PamSimulatorCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Tx, ClientDzd, ClientTransactionDzd } from '../types';
-import { PortfolioStatCard } from '../components/portfolio/PortfolioStatCard';
 
 type PortfolioPageProps = {
-  statsView: 'usdt' | 'clients';
-  setStatsView: (view: 'usdt' | 'clients') => void;
-  isDark: boolean;
-  setIsSettingsModalOpen: (isOpen: boolean) => void;
-  cardBase: string;
-  subtleText: string;
-  portfolioStats: any;
-  totalPortfolioValue: number;
-  suggestedProfitMargin: string;
-  suggestedSellingPrice?: string;
-  parseAndEvaluate: (expr: string) => number;
-  usdtReportMonth: number;
-  setUsdtReportMonth: (month: number) => void;
-  usdtReportYear: number;
-  setUsdtReportYear: (year: number) => void;
-  reportMonths: (year: number) => string[];
-  reportYears: number[];
-  monthlyStats: any;
-  transactions: Tx[];
-  selectedHeatmapDay: { day: number; profit: number; } | null;
-  setSelectedHeatmapDay: (day: { day: number; profit: number; } | null) => void;
-  simMode: 'dzd' | 'eur' | 'sell_dzd';
-  setSimMode: (mode: 'dzd' | 'eur' | 'sell_dzd') => void;
-  simBuyQty: string;
-  setSimBuyQty: (val: string) => void;
-  simBuyPrice: string;
-  setSimBuyPrice: (val: string) => void;
-  fieldBase: string;
-  newPamFromDzdSimulator: number | null;
-  simEurQty: string;
-  setSimEurQty: (val: string) => void;
-  simEurDzdPrice: string;
-  setSimEurDzdPrice: (val: string) => void;
-  simEurUsdtRate: string;
-  setSimEurUsdtRate: (val: string) => void;
-  newPamFromEurSimulator: number | null;
-  handleExportUsdtReport: () => void;
-  dzdDashboardStats: any;
-  reportClient: string;
-  setReportClient: (id: string) => void;
-  clientsDzd: ClientDzd[];
-  clientTransactionsDzd: ClientTransactionDzd[];
-  getClientFullName: (client: ClientDzd) => string;
-  reportMonth: number;
-  setReportMonth: (month: number) => void;
-  reportYear: number;
-  setReportYear: (year: number) => void;
-  handleExportClientReport: (clientId: string, month: number, year: number) => void;
-  simSellUsdtQty?: string;
-  setSimSellUsdtQty?: (val: string) => void;
-  simSellDzdPrice?: string;
-  setSimSellDzdPrice?: (val: string) => void;
-  openPortfolioBalanceEditModal?: (asset: 'USDT' | 'EUR') => void;
+    statsView: 'usdt' | 'clients';
+    setStatsView: (view: 'usdt' | 'clients') => void;
+    setIsSettingsModalOpen: (isOpen: boolean) => void;
+    cardBase: string;
+    subtleText: string;
+    portfolioStats: any;
+    totalPortfolioValue: number;
+    suggestedProfitMargin: string;
+    suggestedSellingPrice?: string;
+    suggestedUsdtEurSellPrice?: string;
+    suggestedSellingPriceEur?: string;
+    parseAndEvaluate: (expr: string) => number;
+    usdtReportMonth: number;
+    setUsdtReportMonth: (month: number) => void;
+    usdtReportYear: number;
+    setUsdtReportYear: (year: number) => void;
+    reportMonths: (year: number) => string[];
+    reportYears: number[];
+    monthlyStats: any;
+    transactions: Tx[];
+    selectedHeatmapDay: {
+        day: number;
+        profit: number;
+    } | null;
+    setSelectedHeatmapDay: (day: {
+        day: number;
+        profit: number;
+    } | null) => void;
+    simMode: 'dzd' | 'eur' | 'sell_dzd' | 'sell_eur';
+    setSimMode: (mode: 'dzd' | 'eur' | 'sell_dzd' | 'sell_eur') => void;
+    simBuyQty: string;
+    setSimBuyQty: (val: string) => void;
+    simBuyPrice: string;
+    setSimBuyPrice: (val: string) => void;
+    fieldBase: string;
+    newPamFromDzdSimulator: number | null;
+    simEurQty: string;
+    setSimEurQty: (val: string) => void;
+    simEurDzdPrice: string;
+    setSimEurDzdPrice: (val: string) => void;
+    simEurUsdtRate: string;
+    setSimEurUsdtRate: (val: string) => void;
+    newPamFromEurSimulator: number | null;
+    handleExportUsdtReport: () => void;
+    dzdDashboardStats: any;
+    reportClient: string;
+    setReportClient: (id: string) => void;
+    clientsDzd: ClientDzd[];
+    clientTransactionsDzd: ClientTransactionDzd[];
+    getClientFullName: (client: ClientDzd) => string;
+    reportMonth: number;
+    setReportMonth: (month: number) => void;
+    reportYear: number;
+    setReportYear: (year: number) => void;
+    handleExportClientReport: (clientId: string, month: number, year: number) => void;
+    simSellUsdtQty?: string;
+    setSimSellUsdtQty?: (val: string) => void;
+    simSellDzdPrice?: string;
+    setSimSellDzdPrice?: (val: string) => void;
+    simSellEurPrice?: string;
+    setSimSellEurPrice?: (val: string) => void;
+    simSellEurToDzdRate?: string;
+    setSimSellEurToDzdRate?: (val: string) => void;
+    openPortfolioBalanceEditModal?: (asset: 'USDT' | 'EUR') => void;
 };
 
+type AssetRowProps = {
+    symbol: 'USDT' | 'EUR';
+    quantity: number;
+    value: number;
+    pam: number;
+    suggestedSellPrice: number;
+    onEdit?: () => void;
+    sellLabel: string;
+};
+
+function AssetRow({ symbol, quantity, value, pam, suggestedSellPrice, onEdit, sellLabel }: AssetRowProps) {
+    return (
+        <div className="rounded-lg bg-surface-muted p-4">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="text-sm font-semibold text-neutral-700">{symbol}</p>
+                    <div className="mt-1">
+                        <MoneyText value={quantity} currency={symbol} semantic="plain" size="hero" min={0} max={2} />
+                    </div>
+                    <p className="mt-1 text-xs text-neutral-500">
+                        <MoneyText value={value} currency="DZD" semantic="plain" size="sm" min={0} max={0} />
+                    </p>
+                </div>
+                {onEdit && (
+                    <IconButton label={`Modifier ${symbol}`} variant="edit" size="sm" onClick={onEdit}>
+                        <PencilIcon />
+                    </IconButton>
+                )}
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+                <AssetMetric label="PAM" value={pam} />
+                <AssetMetric label={sellLabel} value={suggestedSellPrice} />
+            </div>
+        </div>
+    );
+}
+
+type AssetMetricProps = {
+    label: string;
+    value: number;
+};
+
+function AssetMetric({ label, value }: AssetMetricProps) {
+    return (
+        <div className="rounded-lg bg-surface px-3 py-2">
+            <p className="text-xs font-medium text-neutral-500">{label}</p>
+            <MoneyText value={value} currency="DZD" semantic="plain" size="md" min={2} max={2} />
+        </div>
+    );
+}
+
 export function PortfolioPage(props: PortfolioPageProps) {
-  const {
-    isDark,
-    setIsSettingsModalOpen,
-    cardBase,
-    subtleText,
-    portfolioStats,
-    suggestedProfitMargin,
-    suggestedSellingPrice,
-    parseAndEvaluate,
-    openPortfolioBalanceEditModal
-  } = props;
+    const {
+        portfolioStats,
+        suggestedProfitMargin,
+        suggestedSellingPrice,
+        suggestedUsdtEurSellPrice,
+        suggestedSellingPriceEur,
+        parseAndEvaluate,
+        simMode,
+        setSimMode,
+        simBuyQty,
+        setSimBuyQty,
+        simBuyPrice,
+        setSimBuyPrice,
+        newPamFromDzdSimulator,
+        simEurQty,
+        setSimEurQty,
+        simEurDzdPrice,
+        setSimEurDzdPrice,
+        simEurUsdtRate,
+        setSimEurUsdtRate,
+        newPamFromEurSimulator,
+        simSellUsdtQty,
+        setSimSellUsdtQty,
+        simSellDzdPrice,
+        setSimSellDzdPrice,
+        simSellEurPrice,
+        setSimSellEurPrice,
+        simSellEurToDzdRate,
+        setSimSellEurToDzdRate,
+        openPortfolioBalanceEditModal,
+    } = props;
+    const { t } = useLanguage();
+    const normalizeNearZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : value);
+    const usdtAvail = normalizeNearZero(portfolioStats.usdt.available);
+    const eurAvail = normalizeNearZero(portfolioStats.eur.available);
+    const usdtValue = usdtAvail * Number(portfolioStats.usdt.avgBuy || 0);
+    const eurValue = eurAvail * Number(portfolioStats.eur.avgBuy || 0);
+    const stockValue = usdtValue + eurValue;
+    const suggestedUsdtPrice = suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0
+        ? parseFloat(suggestedSellingPrice)
+        : (portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin));
+    const suggestedEurPrice = suggestedSellingPriceEur && parseFloat(suggestedSellingPriceEur) > 0
+        ? parseFloat(suggestedSellingPriceEur)
+        : (portfolioStats.eur.avgBuy + parseAndEvaluate(suggestedProfitMargin));
 
-  const { t } = useLanguage();
-  const normalizeNearZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : value);
+    return (
+        <div className="anim-page-in space-y-4">
+            <PageHeader
+                title={t('finance.stock') as string}
+                subtitle={t('portfolio.currentStatus') as string}
+            />
 
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="space-y-4">
-        <Card className={`${cardBase} p-4 sm:p-6`}>
-          <UnifiedTitle
-            as="h2"
-            isDark={isDark}
-            variant="section"
-            className="mb-4"
-            icon={<BriefcaseIcon className="w-4 h-4" />}
-          >
-            {t('portfolio.currentStatus')}
-          </UnifiedTitle>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <PortfolioStatCard isDark={isDark} subtleText={subtleText} title={t('portfolio.netProfitLoss')} value={portfolioStats.usdt.totalProfit.toFixed(2)} currency="DZD" colorClass={portfolioStats.usdt.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'} />
-            <PortfolioStatCard
-              isDark={isDark}
-              subtleText={subtleText}
-              title={t('portfolio.currentBalanceEur')}
-              value={normalizeNearZero(portfolioStats.eur.available).toFixed(2)}
-              currency="EUR"
-              colorClass="text-amber-400"
-              onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('EUR') : undefined}
+            <HeroKpiCard
+                accent="sky"
+                icon={<WalletIcon className="h-5 w-5" />}
+                primaryLabel={t('finance.stock') as string}
+                primaryValue={stockValue}
+                primaryCurrency="DZD"
+                primarySemantic="plain"
+                secondary={[
+                    {
+                        label: 'USDT',
+                        value: usdtAvail,
+                        currency: 'USDT',
+                        display: <MoneyText value={usdtAvail} currency="USDT" semantic="plain" size="xl" min={0} max={2} />,
+                    },
+                    {
+                        label: 'EUR',
+                        value: eurAvail,
+                        currency: 'EUR',
+                        display: <MoneyText value={eurAvail} currency="EUR" semantic="plain" size="xl" min={0} max={2} />,
+                    },
+                ]}
             />
-            <PortfolioStatCard isDark={isDark} subtleText={subtleText} title={t('portfolio.avgBuyPriceEur')} value={portfolioStats.eur.avgBuy.toFixed(2)} currency="DZD" colorClass="text-gray-300" />
-            <PortfolioStatCard
-              isDark={isDark}
-              subtleText={subtleText}
-              title={t('portfolio.currentBalanceUsdt')}
-              value={normalizeNearZero(portfolioStats.usdt.available).toFixed(2)}
-              currency="USDT"
-              colorClass="text-sky-400"
-              onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('USDT') : undefined}
+
+            <Card>
+                <CardHeader className="p-4 pb-3">
+                    <SectionHeading icon={<BriefcaseIcon className="h-4 w-4" />}>
+                        {t('portfolio.currentStatus')}
+                    </SectionHeading>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 gap-3 p-4 pt-0 sm:grid-cols-2">
+                    <AssetRow
+                        symbol="USDT"
+                        quantity={usdtAvail}
+                        value={usdtValue}
+                        pam={portfolioStats.usdt.avgBuy}
+                        suggestedSellPrice={suggestedUsdtPrice}
+                        onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('USDT') : undefined}
+                        sellLabel={t('transactions.sell') as string}
+                    />
+                    <AssetRow
+                        symbol="EUR"
+                        quantity={eurAvail}
+                        value={eurValue}
+                        pam={portfolioStats.eur.avgBuy}
+                        suggestedSellPrice={suggestedEurPrice}
+                        onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('EUR') : undefined}
+                        sellLabel={t('transactions.sell') as string}
+                    />
+                </CardContent>
+            </Card>
+
+            <PamSimulatorCard
+                portfolioStats={portfolioStats}
+                suggestedProfitMargin={suggestedProfitMargin}
+                suggestedSellingPrice={suggestedSellingPrice}
+                suggestedUsdtEurSellPrice={suggestedUsdtEurSellPrice}
+                parseAndEvaluate={parseAndEvaluate}
+                simMode={simMode}
+                setSimMode={setSimMode}
+                simBuyQty={simBuyQty}
+                setSimBuyQty={setSimBuyQty}
+                simBuyPrice={simBuyPrice}
+                setSimBuyPrice={setSimBuyPrice}
+                newPamFromDzdSimulator={newPamFromDzdSimulator}
+                simEurQty={simEurQty}
+                setSimEurQty={setSimEurQty}
+                simEurDzdPrice={simEurDzdPrice}
+                setSimEurDzdPrice={setSimEurDzdPrice}
+                simEurUsdtRate={simEurUsdtRate}
+                setSimEurUsdtRate={setSimEurUsdtRate}
+                newPamFromEurSimulator={newPamFromEurSimulator}
+                simSellUsdtQty={simSellUsdtQty}
+                setSimSellUsdtQty={setSimSellUsdtQty}
+                simSellDzdPrice={simSellDzdPrice}
+                setSimSellDzdPrice={setSimSellDzdPrice}
+                simSellEurPrice={simSellEurPrice}
+                setSimSellEurPrice={setSimSellEurPrice}
+                simSellEurToDzdRate={simSellEurToDzdRate}
+                setSimSellEurToDzdRate={setSimSellEurToDzdRate}
             />
-            <PortfolioStatCard isDark={isDark} subtleText={subtleText} title={t('portfolio.avgBuyPriceUsdt')} value={portfolioStats.usdt.avgBuy.toFixed(2)} currency="DZD" colorClass="text-gray-300" />
-            <PortfolioStatCard
-              isDark={isDark}
-              subtleText={subtleText}
-              title={t('portfolio.suggestedSellPrice')}
-              value={suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0
-                ? parseFloat(suggestedSellingPrice).toFixed(2)
-                : (portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin)).toFixed(2)
-              }
-              currency="DZD"
-              colorClass="text-yellow-400"
-              className={`${isDark ? 'hover:border-yellow-500/50' : 'hover:border-yellow-400/50'} hover:scale-[1.02]`}
-              onEdit={() => setIsSettingsModalOpen(true)}
-            >
-              <div className={`text-xs mt-2 ${subtleText}`}>
-                {t('portfolio.margin')}: {suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0
-                  ? (parseFloat(suggestedSellingPrice) - portfolioStats.usdt.avgBuy).toFixed(2)
-                  : suggestedProfitMargin
-                } DA
-              </div>
-            </PortfolioStatCard>
-          </div>
-        </Card>
-      </div>
-    </motion.div>
-  );
+        </div>
+    );
 }

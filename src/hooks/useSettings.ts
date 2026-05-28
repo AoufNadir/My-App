@@ -1,29 +1,27 @@
 import { useState, useEffect } from 'react';
 import type { FirestoreDocumentReference } from '../firebase';
-
 export function useSettings(userDocRef: FirestoreDocumentReference) {
     const [suggestedProfitMargin, setSuggestedProfitMargin] = useState(() => localStorage.getItem('suggestedProfitMargin') || '2');
     const [suggestedSellingPrice, setSuggestedSellingPrice] = useState(() => localStorage.getItem('suggestedSellingPrice') || '');
+    const [suggestedUsdtEurSellPrice, setSuggestedUsdtEurSellPrice] = useState(() => localStorage.getItem('suggestedUsdtEurSellPrice') || '');
     const [suggestedSellingPriceEur, setSuggestedSellingPriceEur] = useState(() => localStorage.getItem('suggestedSellingPriceEur') || '');
     const [managerFeePercentage, setManagerFeePercentage] = useState(() => localStorage.getItem('managerFeePercentage') || "20");
     const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
-
     useEffect(() => {
         localStorage.setItem('suggestedProfitMargin', suggestedProfitMargin);
     }, [suggestedProfitMargin]);
-
     useEffect(() => {
         localStorage.setItem('suggestedSellingPrice', suggestedSellingPrice);
     }, [suggestedSellingPrice]);
-
+    useEffect(() => {
+        localStorage.setItem('suggestedUsdtEurSellPrice', suggestedUsdtEurSellPrice);
+    }, [suggestedUsdtEurSellPrice]);
     useEffect(() => {
         localStorage.setItem('suggestedSellingPriceEur', suggestedSellingPriceEur);
     }, [suggestedSellingPriceEur]);
-
     useEffect(() => {
         localStorage.setItem('managerFeePercentage', managerFeePercentage);
     }, [managerFeePercentage]);
-
     useEffect(() => {
         const loadSettings = async () => {
             try {
@@ -36,6 +34,9 @@ export function useSettings(userDocRef: FirestoreDocumentReference) {
                     if (data?.suggestedSellingPrice !== undefined) {
                         setSuggestedSellingPrice(parseFloat(data.suggestedSellingPrice).toFixed(2));
                     }
+                    if (data?.suggestedUsdtEurSellPrice !== undefined) {
+                        setSuggestedUsdtEurSellPrice(parseFloat(data.suggestedUsdtEurSellPrice).toFixed(4));
+                    }
                     if (data?.suggestedSellingPriceEur !== undefined) {
                         setSuggestedSellingPriceEur(parseFloat(data.suggestedSellingPriceEur).toFixed(2));
                     }
@@ -43,48 +44,47 @@ export function useSettings(userDocRef: FirestoreDocumentReference) {
                         setManagerFeePercentage(data.managerFeePercentage.toString());
                     }
                 }
-            } catch (e) {
+            }
+            catch (e) {
                 console.error('Error loading settings:', e);
-            } finally {
+            }
+            finally {
                 setIsSettingsLoaded(true);
             }
         };
         loadSettings();
     }, [userDocRef]);
-
     useEffect(() => {
-        if (!isSettingsLoaded) return;
+        if (!isSettingsLoaded)
+            return;
         const timer = setTimeout(async () => {
             try {
                 const val = parseFloat(managerFeePercentage);
                 if (!isNaN(val)) {
                     await userDocRef.update({ managerFeePercentage: val });
                 }
-            } catch (e) {
+            }
+            catch (e) {
                 console.error('Error saving manager fee:', e);
             }
         }, 1000);
         return () => clearTimeout(timer);
     }, [managerFeePercentage, userDocRef, isSettingsLoaded]);
-
-    const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
-    const isDark = theme === 'dark';
-
+    const [theme, setThemeState] = useState<string>('light');
+    const setTheme = () => setThemeState('light');
     useEffect(() => {
-        localStorage.setItem('theme', theme);
-        if (theme === 'dark') {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
+        localStorage.setItem('theme', 'light');
+        document.documentElement.classList.remove('dark');
+        if (theme !== 'light')
+            setThemeState('light');
     }, [theme]);
-
     return {
         suggestedProfitMargin, setSuggestedProfitMargin,
         suggestedSellingPrice, setSuggestedSellingPrice,
+        suggestedUsdtEurSellPrice, setSuggestedUsdtEurSellPrice,
         suggestedSellingPriceEur, setSuggestedSellingPriceEur,
         managerFeePercentage, setManagerFeePercentage,
         isSettingsLoaded,
-        theme, setTheme, isDark
+        theme, setTheme
     };
 }

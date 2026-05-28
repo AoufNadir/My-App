@@ -1,101 +1,58 @@
-import React, { useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { TreasuryCard, ManualAsset, ManualAssetClient } from '../types';
+import { useMemo } from 'react';
+import { TreasuryCard } from '../types';
 import { TreasurySummarySection } from '../components/treasury/TreasurySummarySection';
 import { TreasuryCollectionsSection } from '../components/treasury/TreasuryCollectionsSection';
-
+import { HeroKpiCard } from '../components/ui/HeroKpiCard';
+import { LandmarkIcon } from '../components/icons/LandmarkIcon';
+import { useLanguage } from '../contexts/LanguageContext';
+import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
 type TresoreriePageProps = {
-  isDark: boolean;
-  cardBase: string;
-  subtleText: string;
-  caisseBalance: number;
-  baridiBalance: number;
-  totalDettes: number;
-  totalAvances: number;
-  portfolioValue: number;
-  openTreasuryModal: () => void;
-  treasuryCards: TreasuryCard[];
-  openTreasuryCardModal: (card?: TreasuryCard) => void;
-  setTreasuryCardToDelete: (card: TreasuryCard | null) => void;
-  openTreasuryBalanceEditModal: (asset: 'Caisse' | 'BaridiMob') => void;
-  manualAssets: ManualAsset[];
-  manualAssetClients: ManualAssetClient[];
-  assetBalances: Map<string, number>;
-  onOpenManualAsset: (asset: ManualAsset) => void;
-  onOpenCreateManualAsset: () => void;
-  onDeleteManualAsset: (assetId: string) => void;
+    cardBase: string;
+    subtleText: string;
+    caisseBalance: number;
+    baridiBalance: number;
+    totalDettes: number;
+    totalAvances: number;
+    investorLiability?: number;
+    portfolioValue: number;
+    openTreasuryModal: () => void;
+    treasuryCards: TreasuryCard[];
+    openTreasuryCardModal: (card?: TreasuryCard) => void;
+    setTreasuryCardToDelete: (card: TreasuryCard | null) => void;
+    openTreasuryBalanceEditModal: (asset: 'Caisse' | 'BaridiMob') => void;
+    openDeliveryExpenseModal?: () => void;
+    servicesSummary?: {
+        netCapitalImpact?: number;
+    };
 };
+export function TresoreriePage({ cardBase, subtleText, caisseBalance, baridiBalance, totalDettes, totalAvances, investorLiability = 0, portfolioValue, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, servicesSummary }: TresoreriePageProps) {
+    const { t } = useLanguage();
+    const servicesCapitalImpact = Number(servicesSummary?.netCapitalImpact || 0);
+    const capitalSnapshot = useMemo(() => computeCapitalSnapshot({
+        caisseBalance,
+        baridiBalance,
+        portfolioValue,
+        totalDettes,
+        totalAvances,
+        treasuryCards,
+        investorLiability,
+        servicesCapitalImpact
+    }), [caisseBalance, baridiBalance, portfolioValue, totalDettes, totalAvances, treasuryCards, investorLiability, servicesCapitalImpact]);
+    const secondaryItems = [
+        { label: t('finance.realCapital') as string, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const },
+        { label: t('finance.investorLiability') as string, value: capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: capitalSnapshot.investorLiability > 0 ? 'loss' as const : 'plain' as const, hideWhenZero: true },
+        { label: t('common.caisseBalance') as string, value: caisseBalance, currency: 'DZD' as const, semantic: 'plain' as const },
+        { label: t('common.baridiBalance') as string, value: baridiBalance, currency: 'DZD' as const, semantic: 'plain' as const },
+        { label: t('finance.stock') as string, value: portfolioValue, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
+        { label: t('finance.treasuryCards') as string, value: capitalSnapshot.treasuryCardsTotal, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
+        { label: t('nav.services') as string, value: capitalSnapshot.servicesCapitalImpact, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true },
+        { label: t('finance.netPosition') as string, value: capitalSnapshot.netClientPosition, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true }
+    ].filter((item) => !item.hideWhenZero || Math.abs(item.value) > 0.005);
+    return (<div className="anim-page-in space-y-5">
+      <HeroKpiCard accent="sky" icon={<LandmarkIcon className="w-5 h-5"/>} primaryLabel={t('treasury.totalCapital') as string} primaryValue={capitalSnapshot.totalCapital} primaryCurrency="DZD" primarySemantic="plain" secondary={secondaryItems}/>
 
-export function TresoreriePage({
-  isDark,
-  subtleText,
-  caisseBalance,
-  baridiBalance,
-  totalDettes,
-  totalAvances,
-  portfolioValue,
-  treasuryCards,
-  openTreasuryCardModal,
-  setTreasuryCardToDelete,
-  openTreasuryBalanceEditModal,
-  manualAssets,
-  manualAssetClients,
-  assetBalances,
-  onOpenManualAsset,
-  onOpenCreateManualAsset,
-  onDeleteManualAsset
-}: TresoreriePageProps) {
-  const [activeCardId, setActiveCardId] = React.useState<string | null>(null);
+      <TreasurySummarySection cardBase={cardBase} subtleText={subtleText} caisseBalance={caisseBalance} baridiBalance={baridiBalance} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} investorLiability={capitalSnapshot.investorLiability} servicesCapitalImpact={capitalSnapshot.servicesCapitalImpact} openTreasuryBalanceEditModal={openTreasuryBalanceEditModal} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string}/>
 
-  const manualCardsTotal = useMemo(
-    () => treasuryCards.reduce((acc, card) => acc + (Number(card.value) || 0), 0),
-    [treasuryCards]
-  );
-
-  const dettesAbs = Math.abs(totalDettes);
-  const positionNette = totalAvances - dettesAbs;
-  const capitalTotal = (Number(caisseBalance) || 0)
-    + (Number(baridiBalance) || 0)
-    + (Number(portfolioValue) || 0)
-    + manualCardsTotal
-    - positionNette;
-
-  const toggleCard = (id: string) => {
-    setActiveCardId((prev) => (prev === id ? null : id));
-  };
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="grid grid-cols-1 gap-4">
-        <TreasurySummarySection
-          isDark={isDark}
-          subtleText={subtleText}
-          capitalTotal={capitalTotal}
-          portfolioValue={portfolioValue}
-          caisseBalance={caisseBalance}
-          baridiBalance={baridiBalance}
-          dettesAbs={dettesAbs}
-          totalAvances={totalAvances}
-          positionNette={positionNette}
-          activeCardId={activeCardId}
-          onToggleCard={toggleCard}
-          openTreasuryBalanceEditModal={openTreasuryBalanceEditModal}
-        />
-
-        <TreasuryCollectionsSection
-          isDark={isDark}
-          subtleText={subtleText}
-          treasuryCards={treasuryCards}
-          openTreasuryCardModal={openTreasuryCardModal}
-          setTreasuryCardToDelete={setTreasuryCardToDelete}
-          manualAssets={manualAssets}
-          manualAssetClients={manualAssetClients}
-          assetBalances={assetBalances}
-          onOpenManualAsset={onOpenManualAsset}
-          onOpenCreateManualAsset={onOpenCreateManualAsset}
-          onDeleteManualAsset={onDeleteManualAsset}
-        />
-      </div>
-    </motion.div>
-  );
+      <TreasuryCollectionsSection cardBase={cardBase} subtleText={subtleText} treasuryCards={treasuryCards} openTreasuryCardModal={openTreasuryCardModal} setTreasuryCardToDelete={setTreasuryCardToDelete}/>
+    </div>);
 }

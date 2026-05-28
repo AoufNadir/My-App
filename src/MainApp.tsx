@@ -1,11 +1,9 @@
-import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-
+import React, { Suspense, startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction } from './types';
 import { useLanguage } from './contexts/LanguageContext';
 import { signOut } from 'firebase/auth';
 import { auth, type AppUser } from './firebaseAuth';
 import { db, fieldValueDelete } from './firebase';
-
 import { AlertTriangleIcon } from './components/icons/AlertTriangleIcon';
 import { Trash2Icon } from './components/icons/Trash2Icon';
 import { ArrowDownIcon } from './components/icons/ArrowDownIcon';
@@ -18,10 +16,14 @@ import { CheckIcon } from './components/icons/CheckIcon';
 import { CameraIcon } from './components/icons/CameraIcon';
 import { ArrowRightLeftIcon } from './components/icons/ArrowRightLeftIcon';
 import { RotateCcwIcon } from './components/icons/RotateCcwIcon';
-
 import { AppMobileMenuNav, AppBottomNav } from './components/main/AppNavigation';
 import { MainHeaderBar } from './components/main/MainHeaderBar';
 import { MainContentArea } from './components/main/MainContentArea';
+import { MainAppDialogs } from './components/main/MainAppDialogs';
+import type { TransactionFilterMode } from './components/transactions/transactionsTypes';
+import { OfflineBanner } from './components/ui/OfflineBanner';
+import { MonthlyRecapBanner } from './components/ui/MonthlyRecapBanner';
+import { useMonthlyRecap } from './hooks/useMonthlyRecap';
 // Custom Hooks
 import { useAppData } from './hooks/useAppData';
 import { useSettings } from './hooks/useSettings';
@@ -30,89 +32,60 @@ import { useClientHandlers } from './hooks/useClientHandlers';
 import { useAssetHandlers } from './hooks/useAssetHandlers';
 import { useGlobalSearch } from './hooks/useGlobalSearch';
 import { useInvestorHandlers } from './hooks/useInvestorHandlers';
+import { deriveInvestorEconomics, type InvestorEconomicsResult } from './hooks/useInvestorEconomics';
 import { useMainNavigation } from './hooks/useMainNavigation';
+import { useBackHandler } from './hooks/useBackHandler';
 import { useOverdueDebtClients } from './hooks/useOverdueDebtClients';
 import { useReportExports } from './hooks/useReportExports';
-
 // Shared Utils
 import { now, parseAndEvaluate } from './utils';
-
-const TransactionsPage = React.lazy(() =>
-    import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage }))
-);
-const PortfolioPage = React.lazy(() =>
-    import('./pages/PortfolioPage').then((module) => ({ default: module.PortfolioPage }))
-);
-const AnalyticsPage = React.lazy(() =>
-    import('./pages/AnalyticsPage').then((module) => ({ default: module.AnalyticsPage }))
-);
-const ClientsPage = React.lazy(() =>
-    import('./pages/ClientsPage').then((module) => ({ default: module.ClientsPage }))
-);
-const TresoreriePage = React.lazy(() =>
-    import('./pages/TresoreriePage').then((module) => ({ default: module.TresoreriePage }))
-);
-const ManualAssetPage = React.lazy(() =>
-    import('./pages/ManualAssetPage').then((module) => ({ default: module.ManualAssetPage }))
-);
-const ManualClientPage = React.lazy(() =>
-    import('./pages/ManualClientPage').then((module) => ({ default: module.ManualClientPage }))
-);
-const InvestorsPage = React.lazy(() =>
-    import('./pages/InvestorsPage').then((module) => ({ default: module.InvestorsPage }))
-);
-const InvestorDetailsPage = React.lazy(() =>
-    import('./pages/InvestorDetailsPage').then((module) => ({ default: module.InvestorDetailsPage }))
-);
-const InvestorDashboardPage = React.lazy(() =>
-    import('./pages/InvestorDashboardPage').then((module) => ({ default: module.InvestorDashboardPage }))
-);
-const GlobalSearchDialog = React.lazy(() =>
-    import('./components/main/MainDialogs').then((module) => ({ default: module.GlobalSearchDialog }))
-);
-const WalletTransferDialog = React.lazy(() =>
-    import('./components/main/MainDialogs').then((module) => ({ default: module.WalletTransferDialog }))
-);
-const MainTransferAndFilterDialogs = React.lazy(() =>
-    import('./components/main/MainTransferAndFilterDialogs').then((module) => ({ default: module.MainTransferAndFilterDialogs }))
-);
-const MainTransactionDialog = React.lazy(() =>
-    import('./components/main/MainTransactionDialog').then((module) => ({ default: module.MainTransactionDialog }))
-);
-const MainClientSummaryDialog = React.lazy(() =>
-    import('./components/main/MainClientSummaryDialog').then((module) => ({ default: module.MainClientSummaryDialog }))
-);
-const MainInvestorDialogs = React.lazy(() =>
-    import('./components/main/MainInvestorDialogs').then((module) => ({ default: module.MainInvestorDialogs }))
-);
-const MainUtilityDialogs = React.lazy(() =>
-    import('./components/main/MainUtilityDialogs').then((module) => ({ default: module.MainUtilityDialogs }))
-);
-const MainClientOperationsDialogs = React.lazy(() =>
-    import('./components/main/MainClientOperationsDialogs').then((module) => ({ default: module.MainClientOperationsDialogs }))
-);
-const MainClientCrudDialogs = React.lazy(() =>
-    import('./components/main/MainClientCrudDialogs').then((module) => ({ default: module.MainClientCrudDialogs }))
-);
-
+import { computePamLedger } from './utils/pamLedger';
+import { calculateInvestorLiability } from './utils/capitalSnapshot';
+import { formatNumber } from './pages/shared/pageFormat';
+const TransactionsPage = React.lazy(() => import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage })));
+const PortfolioPage = React.lazy(() => import('./pages/PortfolioPage').then((module) => ({ default: module.PortfolioPage })));
+const AnalyticsPage = React.lazy(() => import('./pages/AnalyticsPage').then((module) => ({ default: module.AnalyticsPage })));
+const PersonalExpensesPage = React.lazy(() => import('./pages/PersonalExpensesPage').then((module) => ({ default: module.PersonalExpensesPage })));
+const ClientsPage = React.lazy(() => import('./pages/ClientsPage').then((module) => ({ default: module.ClientsPage })));
+const TresoreriePage = React.lazy(() => import('./pages/TresoreriePage').then((module) => ({ default: module.TresoreriePage })));
+const ServicesPage = React.lazy(() => import('./pages/ServicesPage').then((module) => ({ default: module.ServicesPage })));
+const ManualAssetPage = React.lazy(() => import('./pages/ManualAssetPage').then((module) => ({ default: module.ManualAssetPage })));
+const ManualClientPage = React.lazy(() => import('./pages/ManualClientPage').then((module) => ({ default: module.ManualClientPage })));
+const InvestorsPage = React.lazy(() => import('./pages/InvestorsPage').then((module) => ({ default: module.InvestorsPage })));
+const InvestorDetailsPage = React.lazy(() => import('./pages/InvestorDetailsPage').then((module) => ({ default: module.InvestorDetailsPage })));
+const InvestorDashboardPage = React.lazy(() => import('./pages/InvestorDashboardPage').then((module) => ({ default: module.InvestorDashboardPage })));
+const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
+const GlobalSearchDialog = React.lazy(() => import('./components/main/MainDialogs').then((module) => ({ default: module.GlobalSearchDialog })));
 const loadPdfReports = () => import('./utils/pdfReports');
-
+const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
+    derivedInvestors: [],
+    warnings: [],
+    totals: {
+        derivedProfit: 0,
+        managerShare: 0,
+        investorShare: 0,
+        unallocatedProfit: 0,
+        reconciliationDifference: 0,
+        totalDeliveryExpenses: 0,
+        netDistributableProfit: 0,
+    },
+};
+type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
 function getClientDisplayName(client: ClientDzd) {
     return client.fullName || (client.prenom ? `${client.nom} ${client.prenom}` : client.nom);
 }
-
-function PageLoadingFallback({ isDark, text }: { isDark: boolean; text: string }) {
-    return (
-        <div className={`w-full rounded-2xl border p-6 text-center text-sm font-semibold ${isDark ? 'border-slate-700 bg-slate-800/60 text-slate-200' : 'border-slate-200 bg-white/80 text-slate-700'}`}>
+function PageLoadingFallback({ text }: {
+    text: string;
+}) {
+    return (<div className={`w-full rounded-2xl border p-6 text-center text-sm font-semibold ${'border-slate-200 bg-white/80 text-slate-700'}`}>
             {text}
-        </div>
-    );
+        </div>);
 }
-
-export default function MainApp({ user }: { user: AppUser }) {
+export default function MainApp({ user }: {
+    user: AppUser;
+}) {
     // PWA Install Prompt
     const [installPrompt, setInstallPrompt] = useState<any>(null);
-
     useEffect(() => {
         const handler = (e: Event) => {
             e.preventDefault();
@@ -121,232 +94,74 @@ export default function MainApp({ user }: { user: AppUser }) {
         window.addEventListener('beforeinstallprompt', handler);
         return () => window.removeEventListener('beforeinstallprompt', handler);
     }, []);
-
     const handleInstallClick = () => {
-        if (!installPrompt) return;
+        if (!installPrompt)
+            return;
         installPrompt.prompt();
-        installPrompt.userChoice.then((choiceResult: { outcome: string }) => {
+        installPrompt.userChoice.then((choiceResult: {
+            outcome: string;
+        }) => {
             setInstallPrompt(null);
         });
     };
-
     // --- 1. CORE DATA & SETTINGS ---
     const { t } = useLanguage();
     const [refreshKey, setRefreshKey] = useState(0);
     const [alert, setAlert] = useState('');
-    const {
-        investorIdFromUrl,
-        isInvestorRoute,
-        navigateToView,
-        selectedClientId,
-        setSelectedClientId,
-        setView,
-        view
-    } = useMainNavigation();
+    const { investorIdFromUrl, isInvestorRoute, navigateToView, selectedClientId, setSelectedClientId, setView, view } = useMainNavigation();
     const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
     const [selectedAssetClientId, setSelectedAssetClientId] = useState<string | null>(null);
-
-    const shouldSubscribeManualAssets = view === 'tresorerie' || selectedAssetId !== null || selectedAssetClientId !== null;
-    const shouldSubscribeInvestors = view === 'investors' || isInvestorRoute;
-    const shouldSubscribeTreasuryCards = view === 'tresorerie' || view === 'transactions';
-
+    const shouldSubscribeManualAssets = view === 'services'
+        || view === 'dashboard'
+        || view === 'tresorerie'
+        || selectedAssetId !== null
+        || selectedAssetClientId !== null;
+    const shouldSubscribeInvestors = view === 'investors' || view === 'dashboard' || view === 'tresorerie' || view === 'dzd' || isInvestorRoute;
+    const shouldSubscribeTreasuryCards = view === 'dashboard' || view === 'tresorerie' || view === 'transactions';
     // 1.1 App Data (Provides userDocRef)
-    const {
-        userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, treasuryCards, manualAssets,
-        manualAssetClients, manualAssetTransactions, portfolioStats, treasuryStats, clientBalances,
-        assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded
-    } = useAppData(user, refreshKey, {
+    const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, portfolioStats, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
         subscribeManualAssets: shouldSubscribeManualAssets,
         subscribeInvestors: shouldSubscribeInvestors,
         subscribeTreasuryCards: shouldSubscribeTreasuryCards
     });
-
     // 1.2 Settings
-    const {
-        suggestedProfitMargin, setSuggestedProfitMargin,
-        suggestedSellingPrice, setSuggestedSellingPrice,
-        suggestedSellingPriceEur, setSuggestedSellingPriceEur,
-        managerFeePercentage, setManagerFeePercentage,
-        setTheme, isDark
-    } = useSettings(userDocRef);
-
+    const { suggestedProfitMargin, setSuggestedProfitMargin, suggestedSellingPrice, setSuggestedSellingPrice, suggestedUsdtEurSellPrice, setSuggestedUsdtEurSellPrice, suggestedSellingPriceEur, setSuggestedSellingPriceEur, managerFeePercentage, setManagerFeePercentage, setTheme } = useSettings(userDocRef);
     // 1.3 Derived Data
-    const derivedInvestors = useMemo(() => {
-        if (!shouldSubscribeInvestors) return [];
-
-        const toMs = (value: any): number => {
-            if (typeof value === 'number') return value;
-            if (value && typeof value.toMillis === 'function') return value.toMillis();
-            const parsed = new Date(value).getTime();
-            return Number.isFinite(parsed) ? parsed : 0;
-        };
-
-        const feePercent = parseFloat(managerFeePercentage) || 0;
-        const managerFeeRatio = Math.max(0, Math.min(1, feePercent / 100));
-
-        const txByInvestor = new Map<string, InvestorTransaction[]>();
-        for (const tx of investorTransactions) {
-            const list = txByInvestor.get(tx.investorId) || [];
-            list.push(tx);
-            txByInvestor.set(tx.investorId, list);
-        }
-
-        const investorsBase = investors.map(inv => {
-            const myTxs = txByInvestor.get(inv.id) || [];
-            const movementTxs = myTxs.filter(tx =>
-                tx.type === 'deposit_capital' ||
-                tx.type === 'reinvest_profit' ||
-                tx.type === 'withdraw_capital'
-            );
-
-            const currentCapitalFromMovements = movementTxs.reduce((sum, tx) => {
-                if (tx.type === 'withdraw_capital') return sum - tx.amount;
-                return sum + tx.amount;
-            }, 0);
-
-            const withdrawnProfit = myTxs
-                .filter(tx => tx.type === 'withdraw_profit')
-                .reduce((sum, tx) => sum + tx.amount, 0);
-            const reinvestedProfit = myTxs
-                .filter(tx => tx.type === 'reinvest_profit')
-                .reduce((sum, tx) => sum + tx.amount, 0);
-
-            return {
-                ...inv,
-                entryTs: toMs(inv.entryDate),
-                txs: myTxs,
-                hasCapitalMovements: movementTxs.length > 0,
-                capitalInvested: movementTxs.length > 0 ? currentCapitalFromMovements : inv.initialCapital,
-                withdrawnProfit,
-                reinvestedProfit
-            };
+    // FIX-PERF (Phase 3): defer heavy computations so list/UI updates stay
+    // interactive on weak phones. React renders with the previous pamLedger /
+    // investorEconomics while a concurrent transition recomputes the new ones.
+    const deferredTransactions = useDeferredValue(transactions);
+    const deferredInvestors = useDeferredValue(investors);
+    const deferredInvestorTransactions = useDeferredValue(investorTransactions);
+    const pamLedger = useMemo(() => computePamLedger(deferredTransactions), [deferredTransactions]);
+    const deliveryExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense'), [treasuryTransactions]);
+    const personalExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense'), [treasuryTransactions]);
+    const investorEconomics = useMemo(() => {
+        if (!shouldSubscribeInvestors)
+            return EMPTY_INVESTOR_ECONOMICS;
+        return deriveInvestorEconomics({
+            investors: deferredInvestors,
+            investorTransactions: deferredInvestorTransactions,
+            transactions: deferredTransactions,
+            managerFeePercentage,
+            pamLedger,
+            deliveryExpenses
         });
-
-        const capitalAtTs = (inv: typeof investorsBase[number], ts: number): number => {
-            const movementsUntilTs = inv.txs.filter(tx =>
-                toMs(tx.timestamp) <= ts &&
-                (tx.type === 'deposit_capital' || tx.type === 'reinvest_profit' || tx.type === 'withdraw_capital')
-            );
-
-            if (movementsUntilTs.length === 0) {
-                return inv.hasCapitalMovements ? 0 : inv.initialCapital;
-            }
-
-            return movementsUntilTs.reduce((sum, tx) => {
-                if (tx.type === 'withdraw_capital') return sum - tx.amount;
-                return sum + tx.amount;
-            }, 0);
-        };
-
-        const distributedProfitByInvestor = new Map<string, number>();
-        for (const inv of investorsBase) distributedProfitByInvestor.set(inv.id, 0);
-
-        const sellTxs = transactions
-            .filter(tx => tx.type === 'sell' && tx.currency === 'USDT' && (tx.profit || 0) !== 0)
-            .sort((a, b) => toMs(a.timestamp) - toMs(b.timestamp));
-
-        for (const sellTx of sellTxs) {
-            const sellTs = toMs(sellTx.timestamp);
-            const distributableProfit = (sellTx.profit || 0) * (1 - managerFeeRatio);
-
-            const eligible = investorsBase
-                .filter(inv => inv.entryTs <= sellTs)
-                .map(inv => ({ id: inv.id, cap: Math.max(0, capitalAtTs(inv, sellTs)) }))
-                .filter(item => item.cap > 0);
-
-            const totalCapAtSell = eligible.reduce((sum, item) => sum + item.cap, 0);
-            if (totalCapAtSell <= 0) continue;
-
-            for (const item of eligible) {
-                const share = item.cap / totalCapAtSell;
-                distributedProfitByInvestor.set(
-                    item.id,
-                    (distributedProfitByInvestor.get(item.id) || 0) + (distributableProfit * share)
-                );
-            }
-        }
-
-        const totalCurrentCapital = investorsBase.reduce((sum, inv) => {
-            if (!inv.isActive || inv.capitalInvested <= 0) return sum;
-            return sum + inv.capitalInvested;
-        }, 0);
-
-        return investorsBase.map(inv => {
-            const currentShare = inv.isActive && totalCurrentCapital > 0
-                ? Math.max(0, inv.capitalInvested) / totalCurrentCapital
-                : 0;
-            const totalProfit = distributedProfitByInvestor.get(inv.id) || 0;
-            const availableProfit = totalProfit - inv.withdrawnProfit - inv.reinvestedProfit;
-
-            return {
-                ...inv,
-                sharePercentage: currentShare,
-                totalProfit,
-                availableProfit
-            };
-        });
-    }, [shouldSubscribeInvestors, investors, investorTransactions, managerFeePercentage, transactions]);
-
+    }, [shouldSubscribeInvestors, deferredInvestors, deferredInvestorTransactions, managerFeePercentage, deferredTransactions, pamLedger, deliveryExpenses]);
+    const derivedInvestors = investorEconomics.derivedInvestors;
     // --- 2. BUSINESS LOGIC HOOKS ---
-    const {
-        isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual,
-        buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal,
-        buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal,
-        sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal,
-        buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount,
-        eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate,
-        linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus,
-        notes, setNotes, profitPercent, setProfitPercent,
-        isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab,
-        adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount,
-        adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote,
-        adjustmentClientId, setAdjustmentClientId, editingTreasuryTx,
-        usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell,
-        handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal,
-        txToDelete, setTxToDelete, handleConfirmDeleteTx,
-        isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount,
-        transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId,
-        transferNotes, setTransferNotes, handleSaveTransfer
-    } = useTransactionHandlers({
+    const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer } = useTransactionHandlers({
         userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, treasuryStats,
         suggestedProfitMargin, suggestedSellingPrice, suggestedSellingPriceEur,
         setAlert, setSelectedClientId: (id: string | null) => setSelectedClientId(id), setView: (v: string) => setView(v)
     });
-
-    const {
-        isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode,
-        clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance,
-        clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail,
-        openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient,
-        isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx,
-        clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount,
-        clientTxType, setClientTxType, clientTxNotes, setClientTxNotes,
-        clientTxSource, setClientTxSource, openClientTxModal, handleSaveClientTx, handleDeleteClientTx,
-        clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice,
-        clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice
-    } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, setAlert);
-
-    const {
-        isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, setEditingInvestor,
-        investorToDelete, setInvestorToDelete, isInvestorTxModalOpen, setIsInvestorTxModalOpen,
-        investorName, setInvestorName, investorInitialCapital, setInvestorInitialCapital,
-        investorNotes, setInvestorNotes, isManager, setIsManager,
-        investorTxType, setInvestorTxType, investorTxAmount, setInvestorTxAmount,
-        investorTxNotes, setInvestorTxNotes, investorTxToDelete, setInvestorTxToDelete,
-        isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput,
-        selectedInvestorId, setSelectedInvestorId, handleSaveInvestor, handleSaveInvestorTx,
-        handleReinvestProfit, handleDeleteInvestor, openInvestorModal, closeInvestorModal
-    } = useInvestorHandlers(userDocRef, investors, derivedInvestors, treasuryStats, setAlert);
-
-    const {
-        isAssetModalOpen, setIsAssetModalOpen, editingAsset, setEditingAsset,
-        isAssetClientModalOpen, setIsAssetClientModalOpen, editingAssetClient, setEditingAssetClient,
-        isCreateAssetModalOpen, setIsCreateAssetModalOpen, newAssetName, setNewAssetName,
-        newAssetDescription, setNewAssetDescription, assetClientBalance, setAssetClientBalance,
-        handleCreateAsset, handleDeleteAsset, openAssetClientModal, closeAssetClientModal,
-        handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, handleCreateAssetTransaction
-    } = useAssetHandlers(userDocRef, manualAssets, manualAssetClients, assetClientBalances, setAlert);
-
+    const { isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert);
+    const { isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, setEditingInvestor, investorToDelete, setInvestorToDelete, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorName, setInvestorName, investorInitialCapital, setInvestorInitialCapital, investorNotes, setInvestorNotes, isManager, setIsManager, investorTxType, setInvestorTxType, investorTxAmount, setInvestorTxAmount, investorTxNotes, setInvestorTxNotes, investorTxPaymentSource, setInvestorTxPaymentSource, investorTxToDelete, setInvestorTxToDelete, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, selectedInvestorId, setSelectedInvestorId, handleSaveInvestor, handleSaveInvestorTx, handleReinvestProfit, handleDeleteInvestor, openInvestorModal, closeInvestorModal, 
+    // Personal withdrawal (manager's daily personal expense)
+    isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen, personalWithdrawalAmount, setPersonalWithdrawalAmount, personalWithdrawalMethod, setPersonalWithdrawalMethod, personalWithdrawalDate, setPersonalWithdrawalDate, personalWithdrawalNote, setPersonalWithdrawalNote, personalWithdrawalMode, setPersonalWithdrawalMode, editingPersonalExpenseTx, personalExpenseToDelete, setPersonalExpenseToDelete, openEditPersonalExpense, openPersonalWithdrawalModal, closePersonalWithdrawalModal, handleSavePersonalWithdrawal, handleDeletePersonalExpense, managerAvailableProfit, managerExists, 
+    // Reconcile advance
+    isReconcileAdvanceModalOpen, reconcileAdvanceTx, reconcileActualAmount, setReconcileActualAmount, openReconcileAdvanceModal, closeReconcileAdvanceModal, handleReconcilePersonalAdvance } = useInvestorHandlers(userDocRef, derivedInvestors, treasuryStats, setAlert);
+    const { isAssetModalOpen, setIsAssetModalOpen, editingAsset, setEditingAsset, isAssetClientModalOpen, setIsAssetClientModalOpen, editingAssetClient, setEditingAssetClient, isCreateAssetModalOpen, setIsCreateAssetModalOpen, newAssetName, setNewAssetName, newAssetDescription, setNewAssetDescription, assetClientBalance, setAssetClientBalance, handleCreateAsset, handleDeleteAsset, openAssetClientModal, closeAssetClientModal, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, handleCreateAssetTransaction } = useAssetHandlers(userDocRef, manualAssets, manualAssetClients, assetClientBalances, setAlert);
     // --- 3. LOCAL UI STATE ---
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -355,21 +170,26 @@ export default function MainApp({ user }: { user: AppUser }) {
     const [isTreasuryBalanceEditModalOpen, setIsTreasuryBalanceEditModalOpen] = useState(false);
     const [isPortfolioBalanceEditModalOpen, setIsPortfolioBalanceEditModalOpen] = useState(false);
     const [statsView, setStatsView] = useState<'overview' | 'historical' | 'simulator' | 'dzd' | 'investors'>('overview');
-    const [selectedHeatmapDay, setSelectedHeatmapDay] = useState<{ day: number; profit: number; } | null>(null);
+    const [selectedHeatmapDay, setSelectedHeatmapDay] = useState<{
+        day: number;
+        profit: number;
+    } | null>(null);
     const [isDateFilterModalOpen, setIsDateFilterModalOpen] = useState(false);
-    const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
+    const [dateRange, setDateRange] = useState<{
+        start: Date | null;
+        end: Date | null;
+    }>({ start: null, end: null });
     const [tempStartDate, setTempStartDate] = useState('');
     const [tempEndDate, setTempEndDate] = useState('');
-    const [filterMode, setFilterMode] = useState<'all' | 'buy' | 'sell' | 'adjustments' | 'clients' | 'treasury'>('all');
+    const [filterMode, setFilterMode] = useState<TransactionFilterMode>('all');
     const [clientSearchQuery, setClientSearchQuery] = useState('');
-    const [clientSortMode, setClientSortMode] = useState<'all' | 'advances' | 'debts' | 'zero_balance'>('all');
-
+    const [clientSortMode, setClientSortMode] = useState<ClientSortMode>('all');
     const [isWalletTransferModalOpen, setIsWalletTransferModalOpen] = useState(false);
     const [walletTransferAmount, setWalletTransferAmount] = useState('');
     const [walletTransferSource, setWalletTransferSource] = useState<'Caisse' | 'BaridiMob'>('Caisse');
     const [walletTransferDest, setWalletTransferDest] = useState<'Caisse' | 'BaridiMob'>('BaridiMob');
     const [walletTransferNotes, setWalletTransferNotes] = useState('');
-
+    const [editingWalletTransferTx, setEditingWalletTransferTx] = useState<TreasuryTx | null>(null);
     const [editingTreasuryCard, setEditingTreasuryCard] = useState<TreasuryCard | null>(null);
     const [treasuryCardName, setTreasuryCardName] = useState('');
     const [treasuryCardValue, setTreasuryCardValue] = useState('');
@@ -378,11 +198,12 @@ export default function MainApp({ user }: { user: AppUser }) {
     const [treasuryBalanceEditAsset, setTreasuryBalanceEditAsset] = useState<'Caisse' | 'BaridiMob'>('Caisse');
     const [treasuryBalanceEditValue, setTreasuryBalanceEditValue] = useState('');
     const [treasuryBalanceEditNotes, setTreasuryBalanceEditNotes] = useState('');
+    const [editingTreasuryBalanceTx, setEditingTreasuryBalanceTx] = useState<TreasuryTx | null>(null);
     const [portfolioBalanceEditAsset, setPortfolioBalanceEditAsset] = useState<'USDT' | 'EUR'>('USDT');
     const [portfolioBalanceEditValue, setPortfolioBalanceEditValue] = useState('');
     const [portfolioBalanceEditNotes, setPortfolioBalanceEditNotes] = useState('');
-
-    const [simMode, setSimMode] = useState<'dzd' | 'eur' | 'sell_dzd'>('dzd');
+    const [editingPortfolioBalanceTx, setEditingPortfolioBalanceTx] = useState<Tx | null>(null);
+    const [simMode, setSimMode] = useState<'dzd' | 'eur' | 'sell_dzd' | 'sell_eur'>('dzd');
     const [simBuyQty, setSimBuyQty] = useState('');
     const [simBuyPrice, setSimBuyPrice] = useState('');
     const [simEurQty, setSimEurQty] = useState('');
@@ -390,23 +211,15 @@ export default function MainApp({ user }: { user: AppUser }) {
     const [simEurUsdtRate, setSimEurUsdtRate] = useState('');
     const [simSellUsdtQty, setSimSellUsdtQty] = useState('');
     const [simSellDzdPrice, setSimSellDzdPrice] = useState('');
-
+    const [simSellEurPrice, setSimSellEurPrice] = useState('');
+    const [simSellEurToDzdRate, setSimSellEurToDzdRate] = useState('');
     const [copiedValue, setCopiedValue] = useState<string | null>(null);
     const [summaryClient, setSummaryClient] = useState<ClientDzd | null>(null);
     const [treasuryTxToDelete, setTreasuryTxToDelete] = useState<TreasuryTx | null>(null);
     const touchTimer = useRef<any>(null);
-
     // --- 4. DERIVATIONS ---
     const getClientFullName = getClientDisplayName;
-    const {
-        closeGlobalSearch,
-        globalSearchQuery,
-        globalSearchResults,
-        handleOpenGlobalSearch,
-        handleSelectGlobalSearchResult,
-        isGlobalSearchOpen,
-        setGlobalSearchQuery
-    } = useGlobalSearch({
+    const { closeGlobalSearch, globalSearchQuery, globalSearchResults, handleOpenGlobalSearch, handleSelectGlobalSearchResult, isGlobalSearchOpen, setGlobalSearchQuery } = useGlobalSearch({
         clientTransactionsDzd,
         clientsDzd,
         getClientFullName,
@@ -418,22 +231,7 @@ export default function MainApp({ user }: { user: AppUser }) {
         transactions,
         treasuryTransactions
     });
-    const {
-        handleExportClientReport,
-        handleExportInvestorReport,
-        handleExportUsdtReport,
-        reportClient,
-        reportMonth,
-        reportMonthNames,
-        reportYear,
-        setReportClient,
-        setReportMonth,
-        setReportYear,
-        setUsdtReportMonth,
-        setUsdtReportYear,
-        usdtReportMonth,
-        usdtReportYear
-    } = useReportExports({
+    const { handleExportClientReport, handleExportInvestorReport, handleExportPersonalExpensesReport, handleExportUsdtReport, reportClient, reportMonth, reportMonthNames, reportYear, setReportClient, setReportMonth, setReportYear, setUsdtReportMonth, setUsdtReportYear, usdtReportMonth, usdtReportYear } = useReportExports({
         clientBalances,
         clientTransactionsDzd,
         clientsDzd,
@@ -441,57 +239,156 @@ export default function MainApp({ user }: { user: AppUser }) {
         getClientFullName,
         investorTransactions,
         loadPdfReports,
+        managerFeePercentage,
         portfolioStats,
+        pamLedger,
         setAlert,
         t,
-        transactions
+        transactions,
+        deliveryExpenses,
+        personalExpenses
     });
-    const transferFromBalance = useMemo(() => clientBalances.get(transferFromClientId) || 0, [clientBalances, transferFromClientId]);
-    const transferToBalance = useMemo(() => clientBalances.get(transferToClientId) || 0, [clientBalances, transferToClientId]);
-
+    const findClientTransferCounterpartInState = (tx: ClientTransactionDzd | null) => {
+        if (!tx || (tx.type !== 'Transfert Sortant' && tx.type !== 'Transfert Entrant'))
+            return null;
+        const counterpartType = tx.type === 'Transfert Sortant' ? 'Transfert Entrant' : 'Transfert Sortant';
+        const counterpartAmount = -tx.montant;
+        return clientTransactionsDzd.find((candidate) => candidate.id !== tx.id
+            && candidate.clientId !== tx.clientId
+            && candidate.type === counterpartType
+            && candidate.date === tx.date
+            && candidate.time === tx.time
+            && Math.abs(candidate.montant - counterpartAmount) <= 0.01
+            && Math.abs(candidate.timestamp - tx.timestamp) <= 1) || null;
+    };
+    const getEditableClientTransferBalance = (clientId: string) => {
+        let balance = clientBalances.get(clientId) || 0;
+        if (!editingTransferTx)
+            return balance;
+        const counterpart = findClientTransferCounterpartInState(editingTransferTx);
+        if (editingTransferTx.clientId === clientId)
+            balance -= editingTransferTx.montant;
+        if (counterpart?.clientId === clientId)
+            balance -= counterpart.montant;
+        return balance;
+    };
+    const transferFromBalance = useMemo(() => (transferFromClientId ? getEditableClientTransferBalance(transferFromClientId) : 0), [clientBalances, clientTransactionsDzd, editingTransferTx, transferFromClientId]);
+    const transferToBalance = useMemo(() => (transferToClientId ? getEditableClientTransferBalance(transferToClientId) : 0), [clientBalances, clientTransactionsDzd, editingTransferTx, transferToClientId]);
     const shouldComputeClientDerivations = view === 'dzd' || selectedClientId !== null;
-
     const filteredClientsDzd = useMemo(() => {
-        if (!shouldComputeClientDerivations) return clientsDzd;
+        if (!shouldComputeClientDerivations)
+            return clientsDzd;
         let list = [...clientsDzd];
         const normalizedQuery = clientSearchQuery.trim().toLowerCase();
         if (normalizedQuery) {
             list = list.filter(c => getClientDisplayName(c).toLowerCase().includes(normalizedQuery) || (c.phone && c.phone.includes(normalizedQuery)));
         }
         const ZERO_EPSILON = 0.005;
+        let oldestDebtByClientId: Map<string, {
+            oldestTimestamp: number;
+            amount: number;
+        }> | null = null;
+        if (clientSortMode === 'debts_oldest_highest') {
+            const txByClient = new Map<string, ClientTransactionDzd[]>();
+            clientTransactionsDzd.forEach((tx) => {
+                if (tx.affectsBalance === false)
+                    return;
+                const rows = txByClient.get(tx.clientId) || [];
+                rows.push(tx);
+                txByClient.set(tx.clientId, rows);
+            });
+            oldestDebtByClientId = new Map();
+            txByClient.forEach((clientTxs, clientId) => {
+                const debtQueue: Array<{
+                    timestamp: number;
+                    remaining: number;
+                }> = [];
+                let availableCredit = 0;
+                clientTxs
+                    .slice()
+                    .sort((a, b) => a.timestamp - b.timestamp)
+                    .forEach((tx) => {
+                    const amount = Number(tx.montant || 0);
+                    if (!Number.isFinite(amount) || Math.abs(amount) <= ZERO_EPSILON)
+                        return;
+                    if (amount < 0) {
+                        let incomingDebt = Math.abs(amount);
+                        if (availableCredit > ZERO_EPSILON) {
+                            const consumedCredit = Math.min(availableCredit, incomingDebt);
+                            availableCredit -= consumedCredit;
+                            incomingDebt -= consumedCredit;
+                        }
+                        if (incomingDebt > ZERO_EPSILON) {
+                            debtQueue.push({ timestamp: tx.timestamp, remaining: incomingDebt });
+                        }
+                        return;
+                    }
+                    let remainingPayment = amount;
+                    while (remainingPayment > ZERO_EPSILON && debtQueue.length > 0) {
+                        const oldestDebt = debtQueue[0];
+                        const consumed = Math.min(remainingPayment, oldestDebt.remaining);
+                        oldestDebt.remaining -= consumed;
+                        remainingPayment -= consumed;
+                        if (oldestDebt.remaining <= ZERO_EPSILON)
+                            debtQueue.shift();
+                    }
+                    if (remainingPayment > ZERO_EPSILON) {
+                        availableCredit += remainingPayment;
+                    }
+                });
+                const openDebtLots = debtQueue.filter((lot) => lot.remaining > ZERO_EPSILON);
+                if (openDebtLots.length === 0)
+                    return;
+                oldestDebtByClientId!.set(clientId, {
+                    oldestTimestamp: openDebtLots[0].timestamp,
+                    amount: openDebtLots.reduce((sum, lot) => sum + lot.remaining, 0)
+                });
+            });
+        }
         if (clientSortMode === 'advances') {
             list = list.filter(c => (clientBalances.get(c.id) || 0) > ZERO_EPSILON);
-        } else if (clientSortMode === 'debts') {
+        }
+        else if (clientSortMode === 'debts' || clientSortMode === 'debts_oldest_highest') {
             list = list.filter(c => (clientBalances.get(c.id) || 0) < -ZERO_EPSILON);
-        } else if (clientSortMode === 'zero_balance') {
+        }
+        else if (clientSortMode === 'zero_balance') {
             list = list.filter(c => Math.abs(clientBalances.get(c.id) || 0) <= ZERO_EPSILON);
         }
         if (clientSortMode === 'zero_balance') {
             list.sort((a, b) => getClientDisplayName(a).localeCompare(getClientDisplayName(b)));
-        } else {
+        }
+        else if (clientSortMode === 'debts_oldest_highest') {
+            list.sort((a, b) => {
+                const aMeta = oldestDebtByClientId?.get(a.id);
+                const bMeta = oldestDebtByClientId?.get(b.id);
+                const byOldest = (aMeta?.oldestTimestamp ?? Number.MAX_SAFE_INTEGER) - (bMeta?.oldestTimestamp ?? Number.MAX_SAFE_INTEGER);
+                if (Math.abs(byOldest) > 1)
+                    return byOldest;
+                const byDebtAmount = Math.abs(clientBalances.get(b.id) || 0) - Math.abs(clientBalances.get(a.id) || 0);
+                if (Math.abs(byDebtAmount) > ZERO_EPSILON)
+                    return byDebtAmount;
+                return getClientDisplayName(a).localeCompare(getClientDisplayName(b));
+            });
+        }
+        else {
             list.sort((a, b) => {
                 const aBalance = clientBalances.get(a.id) || 0;
                 const bBalance = clientBalances.get(b.id) || 0;
                 const byMagnitude = Math.abs(bBalance) - Math.abs(aBalance);
-                if (Math.abs(byMagnitude) > ZERO_EPSILON) return byMagnitude;
+                if (Math.abs(byMagnitude) > ZERO_EPSILON)
+                    return byMagnitude;
                 const byValue = bBalance - aBalance;
-                if (Math.abs(byValue) > ZERO_EPSILON) return byValue;
+                if (Math.abs(byValue) > ZERO_EPSILON)
+                    return byValue;
                 return getClientDisplayName(a).localeCompare(getClientDisplayName(b));
             });
         }
         return list;
-    }, [shouldComputeClientDerivations, clientsDzd, clientSearchQuery, clientSortMode, clientBalances]);
-
-    const selectedClient = useMemo(
-        () => shouldComputeClientDerivations ? (clientsDzd.find(c => c.id === selectedClientId) || null) : null,
-        [shouldComputeClientDerivations, clientsDzd, selectedClientId]
-    );
-    const selectedClientTransactions = useMemo(
-        () => shouldComputeClientDerivations
-            ? clientTransactionsDzd.filter(tx => tx.clientId === selectedClientId).sort((a, b) => b.timestamp - a.timestamp)
-            : [],
-        [shouldComputeClientDerivations, clientTransactionsDzd, selectedClientId]
-    );
+    }, [shouldComputeClientDerivations, clientsDzd, clientSearchQuery, clientSortMode, clientBalances, clientTransactionsDzd]);
+    const selectedClient = useMemo(() => shouldComputeClientDerivations ? (clientsDzd.find(c => c.id === selectedClientId) || null) : null, [shouldComputeClientDerivations, clientsDzd, selectedClientId]);
+    const selectedClientTransactions = useMemo(() => shouldComputeClientDerivations
+        ? clientTransactionsDzd.filter(tx => tx.clientId === selectedClientId).sort((a, b) => b.timestamp - a.timestamp)
+        : [], [shouldComputeClientDerivations, clientTransactionsDzd, selectedClientId]);
     const overdueDebtClients = useOverdueDebtClients({
         clients: shouldComputeClientDerivations ? clientsDzd : [],
         clientTransactions: shouldComputeClientDerivations ? clientTransactionsDzd : [],
@@ -499,66 +396,139 @@ export default function MainApp({ user }: { user: AppUser }) {
         getClientFullName: getClientDisplayName,
         minDays: 7
     });
-
+    const dashboardDebtClients = useOverdueDebtClients({
+        clients: view === 'dashboard' ? clientsDzd : [],
+        clientTransactions: view === 'dashboard' ? clientTransactionsDzd : [],
+        clientBalances,
+        getClientFullName: getClientDisplayName,
+        minDays: -1
+    });
     const shouldComputePortfolioSimulators = view === 'statistiques' || view === 'analytics';
-
     const newPamFromDzdSimulator = useMemo(() => {
-        if (!shouldComputePortfolioSimulators) return null;
+        if (!shouldComputePortfolioSimulators)
+            return null;
         const qty = parseAndEvaluate(simBuyQty);
         const price = parseAndEvaluate(simBuyPrice);
-        if (qty <= 0 || price <= 0) return null;
+        if (qty <= 0 || price <= 0)
+            return null;
         const totalCost = portfolioStats.usdt.costBasis + (qty * price);
         const totalQty = portfolioStats.usdt.purchasedQty + qty;
         return totalQty <= 0 ? 0 : totalCost / totalQty;
     }, [shouldComputePortfolioSimulators, simBuyQty, simBuyPrice, portfolioStats.usdt]);
-
     const newPamFromEurSimulator = useMemo(() => {
-        if (!shouldComputePortfolioSimulators) return null;
+        if (!shouldComputePortfolioSimulators)
+            return null;
         const eurQty = parseAndEvaluate(simEurQty);
         const eurPriceDzd = parseAndEvaluate(simEurDzdPrice);
         const rate = parseAndEvaluate(simEurUsdtRate);
-        if (eurQty <= 0 || eurPriceDzd <= 0 || rate <= 0) return null;
+        if (eurQty <= 0 || eurPriceDzd <= 0 || rate <= 0)
+            return null;
         const newUsdtQty = eurQty / rate;
         const totalCost = portfolioStats.usdt.costBasis + (newUsdtQty * eurPriceDzd * rate);
         const totalQty = portfolioStats.usdt.purchasedQty + newUsdtQty;
         return totalQty <= 0 ? 0 : totalCost / totalQty;
     }, [shouldComputePortfolioSimulators, simEurQty, simEurDzdPrice, simEurUsdtRate, portfolioStats.usdt]);
-
+    const globalNetProfit = Number(portfolioStats.usdt.totalProfit || 0) + Number(portfolioStats.eur.totalProfit || 0);
+    const investorLiability = useMemo(() => calculateInvestorLiability(derivedInvestors), [derivedInvestors]);
     const dailyOverview = useMemo(() => {
-        const dayStart = new Date();
+        const now = new Date();
+        const dayStart = new Date(now);
         dayStart.setHours(0, 0, 0, 0);
-        const dayEnd = new Date();
-        dayEnd.setHours(23, 59, 59, 999);
-        const startTs = dayStart.getTime();
-        const endTs = dayEnd.getTime();
-
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const yearStart = new Date(now.getFullYear(), 0, 1);
+        const dayStartTs = dayStart.getTime();
+        const monthStartTs = monthStart.getTime();
+        const yearStartTs = yearStart.getTime();
+        const nowTs = now.getTime();
         let todayProfit = 0;
+        let monthToDateProfit = 0;
+        let yearToDateProfit = 0;
+        let allTimeProfit = 0;
         let todayUsdtSold = 0;
+        let todayEurSold = 0;
+        let monthToDateUsdtSold = 0;
+        let monthToDateEurSold = 0;
+        let yearToDateUsdtSold = 0;
+        let yearToDateEurSold = 0;
+        let allTimeUsdtSold = 0;
+        let allTimeEurSold = 0;
         const activeClientIds = new Set<string>();
-
-        transactions.forEach((tx) => {
-            if (tx.timestamp < startTs || tx.timestamp > endTs) return;
-            if (tx.type === 'sell' && tx.currency === 'USDT') {
-                todayProfit += Number(tx.profit || 0);
-                todayUsdtSold += Number(tx.quantity || 0);
+        pamLedger.sellProfitRows.forEach((tx) => {
+            if (tx.timestamp > nowTs)
+                return;
+            const derivedProfit = Number(tx.derivedProfit || 0);
+            const quantity = Number(tx.quantity || 0);
+            allTimeProfit += derivedProfit;
+            if (tx.currency === 'EUR')
+                allTimeEurSold += quantity;
+            else
+                allTimeUsdtSold += quantity;
+            if (tx.timestamp >= dayStartTs) {
+                todayProfit += derivedProfit;
+                if (tx.currency === 'EUR')
+                    todayEurSold += quantity;
+                else
+                    todayUsdtSold += quantity;
+            }
+            if (tx.timestamp >= monthStartTs) {
+                monthToDateProfit += derivedProfit;
+                if (tx.currency === 'EUR')
+                    monthToDateEurSold += quantity;
+                else
+                    monthToDateUsdtSold += quantity;
+            }
+            if (tx.timestamp >= yearStartTs) {
+                yearToDateProfit += derivedProfit;
+                if (tx.currency === 'EUR')
+                    yearToDateEurSold += quantity;
+                else
+                    yearToDateUsdtSold += quantity;
             }
         });
-
         clientTransactionsDzd.forEach((tx) => {
-            if (tx.timestamp >= startTs && tx.timestamp <= endTs) {
+            if (tx.timestamp >= dayStartTs && tx.timestamp <= nowTs) {
                 activeClientIds.add(tx.clientId);
             }
         });
-
         return {
             caisse: treasuryStats.caisse,
             baridi: treasuryStats.baridi,
             activeClients: activeClientIds.size,
             todayProfit,
-            todayUsdtSold
+            monthToDateProfit,
+            yearToDateProfit,
+            allTimeProfit,
+            todayUsdtSold,
+            todayEurSold,
+            monthToDateUsdtSold,
+            monthToDateEurSold,
+            yearToDateUsdtSold,
+            yearToDateEurSold,
+            allTimeUsdtSold,
+            allTimeEurSold
         };
-    }, [transactions, clientTransactionsDzd, treasuryStats]);
-
+    }, [pamLedger, clientTransactionsDzd, treasuryStats]);
+    const servicesSummary = useMemo(() => {
+        let amountToReceive = 0;
+        let clientAdvances = 0;
+        assetClientBalances.forEach((balance) => {
+            if (balance < -0.005)
+                amountToReceive += Math.abs(balance);
+            else if (balance > 0.005)
+                clientAdvances += balance;
+        });
+        const cashReceived = manualAssetTransactions.reduce((sum, tx) => sum + (tx.type === 'payment_received' ? Math.abs(Number(tx.amount || 0)) : 0), 0);
+        const serviceRevenue = manualAssetTransactions.reduce((sum, tx) => sum + ((tx.type === 'service' || tx.type === 'invoice') ? Math.abs(Number(tx.amount || 0)) : 0), 0);
+        return {
+            amountToReceive,
+            clientAdvances,
+            cashReceived,
+            serviceRevenue,
+            netCapitalImpact: amountToReceive - clientAdvances,
+            servicesCount: manualAssets.length,
+            clientsCount: manualAssetClients.length
+        };
+    }, [assetClientBalances, manualAssetTransactions, manualAssets.length, manualAssetClients.length]);
     /* Legacy global search logic moved to useGlobalSearch.
                 id: `search_client_${client.id}`,
                 kind: 'client' as const,
@@ -584,8 +554,8 @@ export default function MainApp({ user }: { user: AppUser }) {
             if (!haystack.includes(q)) return;
 
             const amountLabel = tx.currency === 'USDT'
-                ? `${Number(tx.quantity || 0).toFixed(2)} USDT`
-                : `${Number(tx.quantity || 0).toFixed(2)} EUR`;
+                ? `${formatNumber(Number(tx.quantity || 0), { min: 0, max: 2 })} USDT`
+                : `${formatNumber(Number(tx.quantity || 0), { min: 0, max: 2 })} EUR`;
             txResults.push({
                 id: `search_usdt_${tx.id}`,
                 kind: 'transaction',
@@ -646,13 +616,24 @@ export default function MainApp({ user }: { user: AppUser }) {
     }, [deferredGlobalSearchQuery, clientsDzd, clientTransactionsDzd, transactions, treasuryTransactions, t]);
 
     */
-
     // --- 5. UI HANDLERS ---
     const handleTouchStart = (c: ClientDzd) => { touchTimer.current = setTimeout(() => setSummaryClient(c), 800); };
-    const handleTouchEnd = () => { if (touchTimer.current) { clearTimeout(touchTimer.current); touchTimer.current = null; } };
+    const handleTouchEnd = () => { if (touchTimer.current) {
+        clearTimeout(touchTimer.current);
+        touchTimer.current = null;
+    } };
     const handleCopy = (val: string) => { navigator.clipboard.writeText(val); setCopiedValue(val); setTimeout(() => setCopiedValue(null), 2000); };
     const openDateFilterModal = () => { setTempStartDate(dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''); setTempEndDate(dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''); setIsDateFilterModalOpen(true); };
-    const handleApplyDateFilter = () => { if (tempStartDate && tempEndDate) { const s = new Date(tempStartDate); s.setHours(0, 0, 0, 0); const e = new Date(tempEndDate); e.setHours(23, 59, 59, 999); setDateRange({ start: s, end: e }); setIsDateFilterModalOpen(false); } else setAlert('⚠️ Dates incomplètes.'); };
+    const handleApplyDateFilter = () => { if (tempStartDate && tempEndDate) {
+        const s = new Date(tempStartDate);
+        s.setHours(0, 0, 0, 0);
+        const e = new Date(tempEndDate);
+        e.setHours(23, 59, 59, 999);
+        setDateRange({ start: s, end: e });
+        setIsDateFilterModalOpen(false);
+    }
+    else
+        setAlert('⚠️ Dates incomplètes.'); };
     const handleClearDateFilter = () => { setDateRange({ start: null, end: null }); setIsDateFilterModalOpen(false); };
     const openTreasuryCardModal = (card: TreasuryCard | null = null) => {
         setEditingTreasuryCard(card);
@@ -661,13 +642,68 @@ export default function MainApp({ user }: { user: AppUser }) {
         setTreasuryCardNotes(card?.notes || '');
         setIsTreasuryCardModalOpen(true);
     };
-    const openTreasuryBalanceEditModal = (asset: 'Caisse' | 'BaridiMob') => { setTreasuryBalanceEditAsset(asset); setTreasuryBalanceEditValue(Math.round(asset === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toString()); setTreasuryBalanceEditNotes(''); setIsTreasuryBalanceEditModalOpen(true); };
-    const openPortfolioBalanceEditModal = (asset: 'USDT' | 'EUR') => {
+    const closeWalletTransferModal = () => {
+        setIsWalletTransferModalOpen(false);
+        setEditingWalletTransferTx(null);
+        setWalletTransferAmount('');
+        setWalletTransferNotes('');
+        setWalletTransferSource('Caisse');
+        setWalletTransferDest('BaridiMob');
+    };
+    const openWalletTransferModal = (txToEdit: TreasuryTx | null = null) => {
+        if (txToEdit) {
+            const nextSource = txToEdit.source || 'Caisse';
+            const nextDestination = txToEdit.destination || (nextSource === 'Caisse' ? 'BaridiMob' : 'Caisse');
+            setEditingWalletTransferTx(txToEdit);
+            setWalletTransferSource(nextSource);
+            setWalletTransferDest(nextDestination);
+            setWalletTransferAmount(Math.abs(Number(txToEdit.amount || 0)).toString());
+            setWalletTransferNotes(txToEdit.notes || '');
+        }
+        else {
+            setEditingWalletTransferTx(null);
+            setWalletTransferSource('Caisse');
+            setWalletTransferDest('BaridiMob');
+            setWalletTransferAmount('');
+            setWalletTransferNotes('');
+        }
+        setIsWalletTransferModalOpen(true);
+    };
+    const getTreasuryBalanceEditEffect = (tx: TreasuryTx | null) => {
+        if (!tx)
+            return 0;
+        return tx.type === 'Retrait' ? -Math.abs(Number(tx.amount || 0)) : Math.abs(Number(tx.amount || 0));
+    };
+    const getPortfolioBalanceEditEffect = (tx: Tx | null) => {
+        if (!tx)
+            return 0;
+        return tx.type === 'Retrait Manuel' ? -Math.abs(Number(tx.quantity || 0)) : Math.abs(Number(tx.quantity || 0));
+    };
+    const closeTreasuryBalanceEditModal = () => {
+        setIsTreasuryBalanceEditModalOpen(false);
+        setEditingTreasuryBalanceTx(null);
+        setTreasuryBalanceEditNotes('');
+    };
+    const openTreasuryBalanceEditModal = (asset: 'Caisse' | 'BaridiMob', txToEdit: TreasuryTx | null = null) => {
+        const currentBalance = asset === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+        setEditingTreasuryBalanceTx(txToEdit);
+        setTreasuryBalanceEditAsset(asset);
+        setTreasuryBalanceEditValue(Math.round(currentBalance).toString());
+        setTreasuryBalanceEditNotes(txToEdit?.notes || '');
+        setIsTreasuryBalanceEditModalOpen(true);
+    };
+    const closePortfolioBalanceEditModal = () => {
+        setIsPortfolioBalanceEditModalOpen(false);
+        setEditingPortfolioBalanceTx(null);
+        setPortfolioBalanceEditNotes('');
+    };
+    const openPortfolioBalanceEditModal = (asset: 'USDT' | 'EUR', txToEdit: Tx | null = null) => {
         const currentBalance = asset === 'USDT' ? portfolioStats.usdt.available : portfolioStats.eur.available;
         const normalizedBalance = (Object.is(currentBalance, -0) || Math.abs(currentBalance) < 0.005) ? 0 : currentBalance;
+        setEditingPortfolioBalanceTx(txToEdit);
         setPortfolioBalanceEditAsset(asset);
         setPortfolioBalanceEditValue(Number(normalizedBalance || 0).toFixed(2));
-        setPortfolioBalanceEditNotes('');
+        setPortfolioBalanceEditNotes(txToEdit?.notes || '');
         setIsPortfolioBalanceEditModalOpen(true);
     };
     const getRelativeDateLabel = (dateStr: string) => dateStr === now().date ? t('transactions.today') : dateStr;
@@ -707,14 +743,26 @@ export default function MainApp({ user }: { user: AppUser }) {
     */
     const handleSaveTreasuryBalanceEdit = async () => {
         const parsedNewVal = parseAndEvaluate(treasuryBalanceEditValue);
-        if (isNaN(parsedNewVal) || parsedNewVal < 0) { setAlert(t('common.invalidAmount')); return; }
+        if (isNaN(parsedNewVal) || parsedNewVal < 0) {
+            setAlert(t('common.invalidAmount'));
+            return;
+        }
         const newVal = Math.round(parsedNewVal);
         setIsSaving(true);
         try {
-            const oldVal = treasuryBalanceEditAsset === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
-            const diff = Math.round(newVal - oldVal); if (diff === 0) { setIsTreasuryBalanceEditModalOpen(false); return; }
+            const currentVal = treasuryBalanceEditAsset === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+            const baseVal = Math.round(currentVal - getTreasuryBalanceEditEffect(editingTreasuryBalanceTx));
+            const diff = Math.round(newVal - baseVal);
+            if (diff === 0) {
+                if (editingTreasuryBalanceTx) {
+                    await userDocRef.collection('treasury_txs').doc(editingTreasuryBalanceTx.id).delete();
+                    setAlert("✅ Correction supprimée.");
+                }
+                closeTreasuryBalanceEditModal();
+                return;
+            }
             const { date, time, timestamp } = now();
-            await userDocRef.collection('treasury_txs').add({
+            const payload = {
                 type: diff > 0 ? 'Ajout' : 'Retrait',
                 source: treasuryBalanceEditAsset,
                 amount: Math.abs(diff),
@@ -724,25 +772,52 @@ export default function MainApp({ user }: { user: AppUser }) {
                 time,
                 timestamp,
                 origin: 'balance_edit'
-            });
-            setAlert("✅ Solde mis à jour."); setIsTreasuryBalanceEditModalOpen(false);
-        } catch (e) { setAlert("❌ Erreur."); } finally { setIsSaving(false); }
+            };
+            if (editingTreasuryBalanceTx) {
+                await userDocRef.collection('treasury_txs').doc(editingTreasuryBalanceTx.id).update(payload);
+            }
+            else {
+                await userDocRef.collection('treasury_txs').add(payload);
+            }
+            setAlert("✅ Solde mis à jour.");
+            closeTreasuryBalanceEditModal();
+        }
+        catch (e) {
+            setAlert("❌ Erreur.");
+        }
+        finally {
+            setIsSaving(false);
+        }
     };
-
     const handleSavePortfolioBalanceEdit = async () => {
-        const parsedNewVal = parseAndEvaluate(portfolioBalanceEditValue);
-        if (isNaN(parsedNewVal) || parsedNewVal < 0) { setAlert(t('common.invalidAmount')); return; }
-        const newVal = Number(parsedNewVal.toFixed(2));
-
+        const rawInput = portfolioBalanceEditValue.replace(',', '.').trim();
+        const parsedInput = parseAndEvaluate(rawInput);
+        if (isNaN(parsedInput)) {
+            setAlert(t('common.invalidAmount'));
+            return;
+        }
+        const currentValRaw = portfolioBalanceEditAsset === 'USDT'
+            ? portfolioStats.usdt.available
+            : portfolioStats.eur.available;
+        const baseVal = Number((currentValRaw - getPortfolioBalanceEditEffect(editingPortfolioBalanceTx)).toFixed(2));
+        const isSignedAdjustment = /^[+-]/.test(rawInput);
+        const targetVal = isSignedAdjustment ? baseVal + parsedInput : parsedInput;
+        const newVal = Math.abs(targetVal) < 0.005 ? 0 : Number(targetVal.toFixed(2));
+        if (newVal < 0) {
+            setAlert(`⚠️ Solde ${portfolioBalanceEditAsset} insuffisant.`);
+            return;
+        }
         setIsSaving(true);
         try {
-            const oldValRaw = portfolioBalanceEditAsset === 'USDT'
-                ? portfolioStats.usdt.available
-                : portfolioStats.eur.available;
-            const oldVal = Number(oldValRaw.toFixed(2));
-            const diff = Number((newVal - oldVal).toFixed(2));
-            if (Math.abs(diff) < 0.005) { setIsPortfolioBalanceEditModalOpen(false); return; }
-
+            const diff = Number((newVal - baseVal).toFixed(2));
+            if (Math.abs(diff) < 0.005) {
+                if (editingPortfolioBalanceTx) {
+                    await userDocRef.collection('usdt_txs').doc(editingPortfolioBalanceTx.id).delete();
+                    setAlert(t('common.operationSuccess'));
+                }
+                closePortfolioBalanceEditModal();
+                return;
+            }
             const { date, time, timestamp } = now();
             const type = diff > 0 ? 'Ajout Manuel' : 'Retrait Manuel';
             const quantity = Math.abs(diff);
@@ -753,17 +828,19 @@ export default function MainApp({ user }: { user: AppUser }) {
                 const latestPricedTx = [...transactions]
                     .sort((a, b) => b.timestamp - a.timestamp)
                     .find((tx) => {
-                        if (tx.currency !== currency) return false;
-                        if ((tx.type === 'buy' || tx.type === 'Ajout Manuel') && typeof tx.price === 'number' && tx.price > 0) return true;
-                        if (tx.type === 'sell' && typeof tx.sell === 'number' && tx.sell > 0) return true;
+                    if (tx.currency !== currency)
                         return false;
-                    });
-
+                    if ((tx.type === 'buy' || tx.type === 'Ajout Manuel') && typeof tx.price === 'number' && tx.price > 0)
+                        return true;
+                    if (tx.type === 'sell' && typeof tx.sell === 'number' && tx.sell > 0)
+                        return true;
+                    return false;
+                });
                 if (latestPricedTx) {
-                    if (latestPricedTx.type === 'sell') return Number(latestPricedTx.sell || 0);
+                    if (latestPricedTx.type === 'sell')
+                        return Number(latestPricedTx.sell || 0);
                     return Number(latestPricedTx.price || 0);
                 }
-
                 const configuredSuggestedPrice = currency === 'EUR'
                     ? (parseFloat(suggestedSellingPriceEur || '0') || 0)
                     : (parseFloat(suggestedSellingPrice || '0') || 0);
@@ -772,7 +849,6 @@ export default function MainApp({ user }: { user: AppUser }) {
                 return derivedAvg > 0 ? derivedAvg : 0;
             };
             const referencePrice = avgBuy > 0 ? avgBuy : getFallbackPrice(portfolioBalanceEditAsset);
-
             const txPayload: any = {
                 timestamp,
                 date,
@@ -783,38 +859,180 @@ export default function MainApp({ user }: { user: AppUser }) {
                 notes: portfolioBalanceEditNotes.trim() || `Correction solde ${portfolioBalanceEditAsset} (${diff > 0 ? '+' : ''}${diff.toFixed(2)})`,
                 origin: 'balance_edit'
             };
-
-            // Preserve weighted average when increasing balance.
-            if (type === 'Ajout Manuel' && referencePrice > 0) {
-                txPayload.price = Number(referencePrice.toFixed(2));
-                txPayload.total = Number((quantity * referencePrice).toFixed(2));
+            if (editingPortfolioBalanceTx) {
+                if (type === 'Ajout Manuel' && referencePrice > 0) {
+                    txPayload.price = Number(referencePrice.toFixed(2));
+                    txPayload.total = Number((quantity * referencePrice).toFixed(2));
+                }
+                else {
+                    txPayload.price = fieldValueDelete();
+                    txPayload.total = fieldValueDelete();
+                }
+                await userDocRef.collection('usdt_txs').doc(editingPortfolioBalanceTx.id).update(txPayload);
             }
-
-            await userDocRef.collection('usdt_txs').add(txPayload);
+            else {
+                if (type === 'Ajout Manuel' && referencePrice > 0) {
+                    txPayload.price = Number(referencePrice.toFixed(2));
+                    txPayload.total = Number((quantity * referencePrice).toFixed(2));
+                }
+                await userDocRef.collection('usdt_txs').add(txPayload);
+            }
             setAlert(t('common.operationSuccess'));
-            setIsPortfolioBalanceEditModalOpen(false);
-        } catch (e) {
+            closePortfolioBalanceEditModal();
+        }
+        catch (e) {
             setAlert(t('common.error'));
-        } finally {
+        }
+        finally {
             setIsSaving(false);
         }
     };
-
-    const handleEditClientTx = (tx: ClientTransactionDzd) => { if (tx.linkedTxId) { const l = transactions.find(t => t.id === tx.linkedTxId); if (l) openForm(l.type === 'buy' ? (l.currency === 'USDT' ? 'buy_usdt' : 'buy_eur') : (l.currency === 'USDT' ? 'sell_usdt' : 'sell_eur'), l); else openClientTxModal(tx); } else openClientTxModal(tx); };
-    const handleDeleteClientTxClick = (tx: ClientTransactionDzd) => { if (tx.linkedTxId) { const l = transactions.find(t => t.id === tx.linkedTxId); if (l) setTxToDelete(l); else { setClientTxToDelete(tx); setAlert("⚠️ Orpheline."); } } else setClientTxToDelete(tx); };
-
+    const handleEditClientTx = (tx: ClientTransactionDzd) => { if (tx.linkedTxId) {
+        const l = transactions.find(t => t.id === tx.linkedTxId);
+        if (l)
+            openForm(l.type === 'buy' ? (l.currency === 'USDT' ? 'buy_usdt' : 'buy_eur') : (l.currency === 'USDT' ? 'sell_usdt' : 'sell_eur'), l);
+        else
+            openClientTxModal(tx);
+    }
+    else
+        openClientTxModal(tx); };
+    const handleDeleteClientTxClick = (tx: ClientTransactionDzd) => { if (tx.linkedTxId) {
+        const l = transactions.find(t => t.id === tx.linkedTxId);
+        if (l)
+            setTxToDelete(l);
+        else {
+            setClientTxToDelete(tx);
+        }
+    }
+    else
+        setClientTxToDelete(tx); };
+    const findLinkedParentTxForClientActions = (tx: ClientTransactionDzd): Tx | TreasuryTx | null => {
+        if (!tx.linkedTxId)
+            return null;
+        if (tx.origin === 'adjustment') {
+            return treasuryTransactions.find(t => t.id === tx.linkedTxId) ?? null;
+        }
+        return transactions.find(t => t.id === tx.linkedTxId) ?? null;
+    };
+    const handleEditLinkedClientTx = (tx: ClientTransactionDzd) => {
+        if (tx.type === 'Transfert Sortant' || tx.type === 'Transfert Entrant') {
+            openTransferModal(tx);
+            return;
+        }
+        const linkedTx = findLinkedParentTxForClientActions(tx);
+        if (!linkedTx) {
+            openClientTxModal(tx);
+            return;
+        }
+        if ('currency' in linkedTx) {
+            openForm(linkedTx.type === 'buy'
+                ? (linkedTx.currency === 'USDT' ? 'buy_usdt' : 'buy_eur')
+                : (linkedTx.currency === 'USDT' ? 'sell_usdt' : 'sell_eur'), linkedTx);
+            return;
+        }
+        openAdjustmentModal(linkedTx.type === 'Retrait' ? 'subtract' : 'add', linkedTx);
+    };
+    const handleDeleteLinkedClientTxClick = (tx: ClientTransactionDzd) => {
+        if (tx.type === 'Transfert Sortant' || tx.type === 'Transfert Entrant') {
+            setClientTxToDelete(tx);
+            return;
+        }
+        const linkedTx = findLinkedParentTxForClientActions(tx);
+        if (!linkedTx) {
+            setClientTxToDelete(tx);
+            return;
+        }
+        if ('currency' in linkedTx) {
+            setTxToDelete(linkedTx);
+            return;
+        }
+        setTreasuryTxToDelete(linkedTx);
+    };
+    const handleEditPortfolioTx = (tx: Tx) => {
+        if (tx.linkedTxId) {
+            const parentTx = transactions.find(t => t.id === tx.linkedTxId);
+            if (parentTx) {
+                handleEditPortfolioTx(parentTx);
+                return;
+            }
+        }
+        if (tx.type === 'Ajout Manuel' || tx.type === 'Retrait Manuel') {
+            openPortfolioBalanceEditModal(tx.currency, tx);
+            return;
+        }
+        openForm(tx.type === 'buy'
+            ? (tx.currency === 'USDT' ? 'buy_usdt' : 'buy_eur')
+            : (tx.currency === 'USDT' ? 'sell_usdt' : 'sell_eur'), tx);
+    };
+    const handleEditTreasuryTx = (tx: TreasuryTx) => {
+        if (tx.type === 'Transfer') {
+            openWalletTransferModal(tx);
+            return;
+        }
+        if (tx.origin === 'balance_edit') {
+            openTreasuryBalanceEditModal(tx.source === 'BaridiMob' ? 'BaridiMob' : 'Caisse', tx);
+            return;
+        }
+        if (tx.origin === 'client_tx' && tx.linkedTxId) {
+            const linkedClientTx = clientTransactionsDzd.find((clientTx) => clientTx.id === tx.linkedTxId);
+            if (linkedClientTx) {
+                handleEditLinkedClientTx(linkedClientTx);
+            }
+            else {
+                setAlert("⚠️ Transaction cliente introuvable.");
+            }
+            return;
+        }
+        if (tx.origin === 'manual_asset') {
+            const linkedAssetTx = manualAssetTransactions.find((assetTx) => assetTx.id === tx.linkedAssetTxId);
+            if (!linkedAssetTx) {
+                setAlert("⚠️ Transaction service introuvable.");
+                return;
+            }
+            setSelectedAssetId(linkedAssetTx.actifId);
+            setSelectedAssetClientId(linkedAssetTx.clientId);
+            startTransition(() => {
+                setView('services');
+            });
+            setAlert("ℹ️ La transaction source a été ouverte dans Services.");
+            return;
+        }
+        if (tx.linkedTxId) {
+            const linkedPortfolioTx = transactions.find((portfolioTx) => portfolioTx.id === tx.linkedTxId);
+            if (linkedPortfolioTx) {
+                handleEditPortfolioTx(linkedPortfolioTx);
+                return;
+            }
+        }
+        openAdjustmentModal(tx.type === 'Retrait' ? 'subtract' : 'add', tx);
+    };
     const handleWalletTransfer = async () => {
         const amountInput = parseAndEvaluate(walletTransferAmount);
         const amount = Math.round(amountInput);
-        if (isNaN(amountInput) || amount <= 0) { setAlert("⚠️ Montant invalide."); return; }
-        if (walletTransferSource === walletTransferDest) { setAlert(t('common.sameSourceDest')); return; }
-        const sourceBalance = walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
-        if (amount > sourceBalance) { setAlert(t('common.insufficientBalance')); return; }
+        if (isNaN(amountInput) || amount <= 0) {
+            setAlert("⚠️ Montant invalide.");
+            return;
+        }
+        if (walletTransferSource === walletTransferDest) {
+            setAlert(t('common.sameSourceDest'));
+            return;
+        }
+        let sourceBalance = walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+        if (editingWalletTransferTx) {
+            if (editingWalletTransferTx.source === walletTransferSource)
+                sourceBalance += editingWalletTransferTx.amount;
+            if (editingWalletTransferTx.destination === walletTransferSource)
+                sourceBalance -= editingWalletTransferTx.amount;
+        }
+        if (amount > sourceBalance) {
+            setAlert(t('common.insufficientBalance'));
+            return;
+        }
         setIsSaving(true);
         try {
             const ts = Date.now();
             const { date, time } = now();
-            await userDocRef.collection('treasury_txs').add({
+            const payload = {
                 type: 'Transfer',
                 source: walletTransferSource,
                 destination: walletTransferDest,
@@ -822,30 +1040,138 @@ export default function MainApp({ user }: { user: AppUser }) {
                 amount,
                 notes: walletTransferNotes || 'Transfert interne',
                 date, time, timestamp: ts
-            });
-            setAlert("✅ Transfert enregistré.");
-            setIsWalletTransferModalOpen(false);
-            setWalletTransferAmount('');
-            setWalletTransferNotes('');
-        } catch (e) { setAlert("❌ Erreur."); } finally { setIsSaving(false); }
+            };
+            if (editingWalletTransferTx) {
+                await userDocRef.collection('treasury_txs').doc(editingWalletTransferTx.id).update(payload);
+                setAlert("✅ Transfert mis à jour.");
+            }
+            else {
+                await userDocRef.collection('treasury_txs').add(payload);
+                setAlert("✅ Transfert enregistré.");
+            }
+            closeWalletTransferModal();
+        }
+        catch (e) {
+            setAlert("❌ Erreur.");
+        }
+        finally {
+            setIsSaving(false);
+        }
     };
     const handleSwapSourceDest = () => { const s = walletTransferSource; const d = walletTransferDest; setWalletTransferSource(d); setWalletTransferDest(s); };
+    const getWalletTransferEditableBalance = (account: 'Caisse' | 'BaridiMob') => {
+        let balance = account === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+        if (editingWalletTransferTx) {
+            if (editingWalletTransferTx.source === account)
+                balance += editingWalletTransferTx.amount;
+            if (editingWalletTransferTx.destination === account)
+                balance -= editingWalletTransferTx.amount;
+        }
+        return balance;
+    };
     const handleWalletTransferMaxClick = () => {
-        let max = 0;
-        if (walletTransferSource === 'Caisse') max = treasuryStats.caisse;
-        else if (walletTransferSource === 'BaridiMob') max = treasuryStats.baridi;
+        const max = getWalletTransferEditableBalance(walletTransferSource);
         setWalletTransferAmount(Math.max(0, Math.floor(max)).toString());
     };
     const walletTransferAmountValue = parseAndEvaluate(walletTransferAmount);
-    const walletTransferSourceBalance = walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+    const walletTransferSourceBalance = getWalletTransferEditableBalance(walletTransferSource);
     const isWalletTransferInvalid = isSaving
         || !walletTransferAmount
         || isNaN(walletTransferAmountValue)
         || walletTransferAmountValue <= 0
         || walletTransferAmountValue > walletTransferSourceBalance
         || walletTransferSource === walletTransferDest;
-
     /* Legacy report export handlers moved to useReportExports.
+    const handleExportPersonalExpensesReport = async (periodKey: 'day' | 'week' | 'month' | 'year') => {
+        const { buildPersonalExpensesPdfReport, openPdfPrintWindow } = await loadPdfReports();
+        const nowTs = Date.now();
+        const d = new Date(nowTs);
+
+        // Compute period boundaries
+        let periodStart: number;
+        let periodEnd: number;
+        let periodLabel: string;
+
+        if (periodKey === 'day') {
+            const sd = new Date(d);
+            sd.setHours(0, 0, 0, 0);
+            periodStart = sd.getTime();
+            const ed = new Date(sd);
+            ed.setHours(23, 59, 59, 999);
+            periodEnd = ed.getTime();
+            periodLabel = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        } else if (periodKey === 'week') {
+            const sd = new Date(d);
+            const dow = sd.getDay();
+            const diff = dow === 0 ? -6 : 1 - dow;
+            sd.setDate(sd.getDate() + diff);
+            sd.setHours(0, 0, 0, 0);
+            periodStart = sd.getTime();
+            const ed = new Date(sd);
+            ed.setDate(ed.getDate() + 6);
+            ed.setHours(23, 59, 59, 999);
+            periodEnd = ed.getTime();
+            periodLabel = `Semaine du ${sd.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
+        } else if (periodKey === 'month') {
+            const sd = new Date(d.getFullYear(), d.getMonth(), 1);
+            periodStart = sd.getTime();
+            periodEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+            periodLabel = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        } else {
+            const sd = new Date(d.getFullYear(), 0, 1);
+            periodStart = sd.getTime();
+            periodEnd = new Date(d.getFullYear(), 11, 31, 23, 59, 59, 999).getTime();
+            periodLabel = String(d.getFullYear());
+        }
+
+        // Compute previous period total
+        const prevStart = (() => {
+            const ps = new Date(periodStart);
+            if (periodKey === 'day') { ps.setDate(ps.getDate() - 1); ps.setHours(0, 0, 0, 0); return ps.getTime(); }
+            if (periodKey === 'week') { ps.setDate(ps.getDate() - 7); return ps.getTime(); }
+            if (periodKey === 'month') { return new Date(ps.getFullYear(), ps.getMonth() - 1, 1).getTime(); }
+            return new Date(ps.getFullYear() - 1, 0, 1).getTime();
+        })();
+        const prevEnd = (() => {
+            if (periodKey === 'day') { const e = new Date(prevStart); e.setHours(23, 59, 59, 999); return e.getTime(); }
+            if (periodKey === 'week') { const e = new Date(prevStart); e.setDate(e.getDate() + 6); e.setHours(23, 59, 59, 999); return e.getTime(); }
+            if (periodKey === 'month') { const e = new Date(prevStart); return new Date(e.getFullYear(), e.getMonth() + 1, 0, 23, 59, 59, 999).getTime(); }
+            return new Date(new Date(prevStart).getFullYear(), 11, 31, 23, 59, 59, 999).getTime();
+        })();
+
+        const netExpense = (tx: any): number => {
+            if (tx.origin === 'personal_expense_return') return 0;
+            if (tx.advanceState === 'settled') return Number(tx.settledAmount || 0);
+            return Number(tx.amount || 0);
+        };
+        const previousPeriodTotal = personalExpenses
+            .filter((tx) => tx.timestamp >= prevStart && tx.timestamp <= prevEnd && tx.advanceState !== 'pending' && tx.origin !== 'personal_expense_return')
+            .reduce((sum, tx) => sum + netExpense(tx), 0);
+
+        const managerInvestor = derivedInvestors.find((inv) => inv.isManager === true);
+        const managerProfitAvailable = Number(managerInvestor?.availableProfit || 0);
+
+        const report = buildPersonalExpensesPdfReport({
+            expenses: personalExpenses,
+            periodLabel,
+            periodKey,
+            periodStart,
+            periodEnd,
+            previousPeriodTotal,
+            managerProfitAvailable
+        });
+
+        const opened = openPdfPrintWindow(report);
+        if (!opened) {
+            setAlert("❌ Impossible d'ouvrir l'apercu PDF.");
+            return;
+        }
+        const isMobile = /android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent || '');
+        setAlert(isMobile
+            ? "✅ Rapport dépenses ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
+            : "✅ Rapport dépenses prêt. Enregistrez en PDF depuis l'impression.");
+    };
+
     const handleExportClientReport = async (cId: string, m: number, y: number) => {
         if (!cId) {
             setAlert("⚠️ Selectionnez un client.");
@@ -883,6 +1209,7 @@ export default function MainApp({ user }: { user: AppUser }) {
     const handleExportUsdtReport = async () => {
         const monthLabels = Array.isArray(t('common.months')) ? (t('common.months') as any as string[]) : [];
         const { buildMonthlyPdfReport, openPdfPrintWindow } = await loadPdfReports();
+        const pamLedger = computePamLedger(transactions);
         const report = buildMonthlyPdfReport({
             month: usdtReportMonth,
             year: usdtReportYear,
@@ -891,7 +1218,8 @@ export default function MainApp({ user }: { user: AppUser }) {
             clientTransactions: clientTransactionsDzd,
             clients: clientsDzd,
             getClientName: getClientFullName,
-            portfolioStats
+            portfolioStats,
+            pamLedger
         });
         const opened = openPdfPrintWindow(report);
         if (!opened) {
@@ -930,7 +1258,6 @@ export default function MainApp({ user }: { user: AppUser }) {
         const name = treasuryCardName.trim();
         const value = parseAndEvaluate(treasuryCardValue);
         const notes = treasuryCardNotes.trim();
-
         if (!name) {
             setAlert(`⚠️ ${t('common.fillAllFields')}`);
             return;
@@ -939,50 +1266,75 @@ export default function MainApp({ user }: { user: AppUser }) {
             setAlert(`⚠️ ${t('common.invalidAmount')}`);
             return;
         }
-
         setIsSaving(true);
         try {
             const payload = { name, value: Number(value.toFixed(2)), notes };
             if (editingTreasuryCard) {
                 await userDocRef.collection('treasury_cards').doc(editingTreasuryCard.id).update(payload);
-            } else {
+            }
+            else {
                 await userDocRef.collection('treasury_cards').add(payload);
             }
-
             setAlert(`✅ ${t('common.operationSuccess')}`);
             setIsTreasuryCardModalOpen(false);
             setEditingTreasuryCard(null);
             setTreasuryCardName('');
             setTreasuryCardValue('');
             setTreasuryCardNotes('');
-        } catch (e) {
+        }
+        catch (e) {
             setAlert(`❌ ${t('common.error')}`);
-        } finally {
+        }
+        finally {
             setIsSaving(false);
         }
     };
     const handleDeleteTreasuryCard = async () => {
-        if (!treasuryCardToDelete) return;
-
+        if (!treasuryCardToDelete)
+            return;
         setIsSaving(true);
         try {
             await userDocRef.collection('treasury_cards').doc(treasuryCardToDelete.id).delete();
             setAlert(`✅ ${t('common.operationSuccess')}`);
             setTreasuryCardToDelete(null);
-        } catch (e) {
+        }
+        catch (e) {
             setAlert(`❌ ${t('common.error')}`);
-        } finally {
+        }
+        finally {
             setIsSaving(false);
         }
     };
     const handleDeleteTreasuryTxConfirm = async () => {
-        if (!treasuryTxToDelete) return;
-
+        if (!treasuryTxToDelete)
+            return;
+        if (treasuryTxToDelete.origin === 'investor_profit_withdrawal' && treasuryTxToDelete.linkedInvestorTxId) {
+            setIsSaving(true);
+            try {
+                const batch = db.batch();
+                batch.delete(userDocRef.collection('treasury_txs').doc(treasuryTxToDelete.id));
+                batch.delete(userDocRef.collection('investor_transactions').doc(treasuryTxToDelete.linkedInvestorTxId));
+                await batch.commit();
+                setAlert('✅ Retrait investisseur supprimé.');
+            }
+            catch (e) {
+                console.error(e);
+                setAlert('❌ Erreur pendant la suppression.');
+            }
+            finally {
+                setIsSaving(false);
+                setTreasuryTxToDelete(null);
+            }
+            return;
+        }
+        await handleDeleteTx(treasuryTxToDelete.id, 'treasury_tx');
+        setTreasuryTxToDelete(null);
+        return;
         // Treasury rows can be child transactions. Delete their parent when possible
         // to keep balances and linked records consistent.
         if (treasuryTxToDelete.origin === 'manual_asset') {
             if (!treasuryTxToDelete.linkedAssetTxId) {
-                setAlert("⚠️ Transaction liée à un actif manuel introuvable.");
+                setAlert("⚠️ Transaction liée à un service introuvable.");
                 setTreasuryTxToDelete(null);
                 return;
             }
@@ -990,18 +1342,17 @@ export default function MainApp({ user }: { user: AppUser }) {
             setTreasuryTxToDelete(null);
             return;
         }
-
         if (treasuryTxToDelete.linkedTxId) {
             if (treasuryTxToDelete.origin === 'client_tx') {
                 await handleDeleteTx(treasuryTxToDelete.linkedTxId, 'client_tx');
-            } else {
+            }
+            else {
                 // Legacy treasury rows generated from USDT/EUR operations may not have origin.
                 await handleDeleteTx(treasuryTxToDelete.linkedTxId, 'usdt_tx');
             }
             setTreasuryTxToDelete(null);
             return;
         }
-
         await handleDeleteTx(treasuryTxToDelete.id, 'treasury_tx');
         setTreasuryTxToDelete(null);
     };
@@ -1011,7 +1362,6 @@ export default function MainApp({ user }: { user: AppUser }) {
             setAlert(t('common.invalidAmount'));
             return;
         }
-
         setIsSaving(true);
         try {
             const txRef = userDocRef.collection('actifTransactions').doc(txId);
@@ -1020,12 +1370,11 @@ export default function MainApp({ user }: { user: AppUser }) {
                 setAlert("Erreur: Transaction introuvable.");
                 return;
             }
-
             const existing = existingDoc.data() as any;
             const shouldLinkTreasury = data.type === 'payment_received' && (data.paymentMethod === 'cash' || data.paymentMethod === 'baridi');
             const source = data.paymentMethod === 'cash' ? 'Caisse' : 'BaridiMob';
             const clientName = manualAssetClients.find(c => c.id === data.clientId)?.fullName || 'Client';
-            const assetName = manualAssets.find(a => a.id === data.actifId)?.name || 'Actif';
+            const assetName = manualAssets.find(a => a.id === data.actifId)?.name || 'Service';
             const treasuryPayload = {
                 timestamp: data.timestamp,
                 date: data.date,
@@ -1037,31 +1386,32 @@ export default function MainApp({ user }: { user: AppUser }) {
                 origin: 'manual_asset',
                 linkedAssetTxId: txId
             };
-
             const batch = db.batch();
             const txUpdatePayload: any = { ...data, amount };
-
             const linkedTreasuryId = existing?.linkedTreasuryTxId as string | undefined;
             if (shouldLinkTreasury) {
                 if (linkedTreasuryId) {
                     batch.update(userDocRef.collection('treasury_txs').doc(linkedTreasuryId), treasuryPayload);
-                } else {
+                }
+                else {
                     const newTreasuryRef = userDocRef.collection('treasury_txs').doc();
                     batch.set(newTreasuryRef, treasuryPayload);
                     txUpdatePayload.linkedTreasuryTxId = newTreasuryRef.id;
                 }
-            } else if (linkedTreasuryId) {
+            }
+            else if (linkedTreasuryId) {
                 batch.delete(userDocRef.collection('treasury_txs').doc(linkedTreasuryId));
                 txUpdatePayload.linkedTreasuryTxId = fieldValueDelete();
             }
-
             batch.update(txRef, txUpdatePayload);
             await batch.commit();
             setAlert(t('common.operationSuccess'));
-        } catch (e) {
+        }
+        catch (e) {
             console.error(e);
             setAlert(t('common.error'));
-        } finally {
+        }
+        finally {
             setIsSaving(false);
         }
     };
@@ -1074,24 +1424,24 @@ export default function MainApp({ user }: { user: AppUser }) {
                 setAlert("Erreur: Transaction introuvable.");
                 return;
             }
-
             const txData = docSnap.data() as any;
             const batch = db.batch();
             batch.delete(txRef);
-
             if (txData?.linkedTreasuryTxId) {
                 batch.delete(userDocRef.collection('treasury_txs').doc(txData.linkedTreasuryTxId));
-            } else {
+            }
+            else {
                 const linkedTreasury = await userDocRef.collection('treasury_txs').where('linkedAssetTxId', '==', id).get();
                 linkedTreasury.forEach(d => batch.delete(d.ref));
             }
-
             await batch.commit();
             setAlert(t('common.operationSuccess'));
-        } catch (e) {
+        }
+        catch (e) {
             console.error(e);
             setAlert(t('common.error'));
-        } finally {
+        }
+        finally {
             setIsSaving(false);
         }
     };
@@ -1104,64 +1454,119 @@ export default function MainApp({ user }: { user: AppUser }) {
     };
     const handleDeleteConfirm = () => handleConfirmDeleteTx();
     const handleDeleteClientTxConfirm = async () => {
-        if (!clientTxToDelete) return;
+        if (!clientTxToDelete)
+            return;
+        if (clientTxToDelete.type === 'Transfert Sortant' || clientTxToDelete.type === 'Transfert Entrant') {
+            const counterpart = findClientTransferCounterpartInState(clientTxToDelete);
+            setIsSaving(true);
+            try {
+                const batch = db.batch();
+                batch.delete(userDocRef.collection('dzd_client_txs').doc(clientTxToDelete.id));
+                if (counterpart) {
+                    batch.delete(userDocRef.collection('dzd_client_txs').doc(counterpart.id));
+                }
+                await batch.commit();
+                setAlert("✅ Supprimé.");
+            }
+            catch (e) {
+                console.error(e);
+                setAlert("❌ Erreur.");
+            }
+            finally {
+                setIsSaving(false);
+                setClientTxToDelete(null);
+            }
+            return;
+        }
         await handleDeleteTx(clientTxToDelete.id, 'client_tx');
         setClientTxToDelete(null);
     };
     const handleInvestorTransaction = async () => handleSaveInvestorTx();
-    const handleDeleteInvestorTx = async (tx: InvestorTransaction) => { setInvestorTxToDelete(tx); };
-
+    const handleDeleteInvestorTx = async () => {
+        if (!investorTxToDelete)
+            return;
+        setIsSaving(true);
+        try {
+            const batch = db.batch();
+            batch.delete(userDocRef.collection('investor_transactions').doc(investorTxToDelete.id));
+            if (investorTxToDelete.linkedTreasuryTxId) {
+                batch.delete(userDocRef.collection('treasury_txs').doc(investorTxToDelete.linkedTreasuryTxId));
+            }
+            await batch.commit();
+            setAlert('✅ Transaction investisseur supprimée.');
+        }
+        catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur pendant la suppression.');
+        }
+        finally {
+            setIsSaving(false);
+            setInvestorTxToDelete(null);
+        }
+    };
     const handleGlobalReset = async () => {
         setIsSaving(true);
         try {
             const colls = ['usdt_txs', 'treasury_txs', 'dzd_clients', 'dzd_client_txs', 'treasury_cards', 'manual_assets', 'manual_asset_clients', 'actifTransactions', 'investors', 'investor_transactions'];
             for (const c of colls) {
                 const qs = await userDocRef.collection(c).get();
-                let batch = db.batch(); let count = 0;
-                for (const d of qs.docs) { batch.delete(d.ref); count++; if (count >= 400) { await batch.commit(); batch = db.batch(); count = 0; } }
+                let batch = db.batch();
+                let count = 0;
+                for (const d of qs.docs) {
+                    batch.delete(d.ref);
+                    count++;
+                    if (count >= 400) {
+                        await batch.commit();
+                        batch = db.batch();
+                        count = 0;
+                    }
+                }
                 await batch.commit();
             }
-            setAlert("✅ Réinitialisé."); setRefreshKey(prev => prev + 1); setIsResetModalOpen(false);
-        } catch (e) { setAlert("❌ Erreur."); } finally { setIsSaving(false); }
+            setAlert("✅ Réinitialisé.");
+            setRefreshKey(prev => prev + 1);
+            setIsResetModalOpen(false);
+        }
+        catch (e) {
+            setAlert("❌ Erreur.");
+        }
+        finally {
+            setIsSaving(false);
+        }
     };
-
-    const bgApp = isDark ? "bg-[#0b0f1a] text-white" : "bg-slate-50 text-slate-900";
-    const cardBase = isDark ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900";
-    const fieldBase = isDark ? "bg-slate-800 border-slate-700 text-white focus:ring-sky-500" : "bg-slate-50 border-slate-200 text-slate-900 focus:ring-sky-600";
-    const subtleText = isDark ? "text-slate-400" : "text-slate-500";
+    const bgApp = "bg-slate-50 text-slate-900";
+    const cardBase = "bg-white border-slate-200 text-slate-900";
+    const fieldBase = "bg-slate-50 border-slate-200 text-slate-900 focus:ring-sky-600";
+    const subtleText = "text-slate-500";
     const detectAlertTone = (message: string): 'success' | 'error' | 'info' => {
         const normalized = (message || '')
             .toLowerCase()
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '');
-
-        const hasAny = (tokens: string[]) =>
-            tokens.some((token) => normalized.includes(token));
-
+        const hasAny = (tokens: string[]) => tokens.some((token) => normalized.includes(token));
         const errorTokens = [
             'error', 'erreur', 'failed', 'echec', 'invalide', 'invalid',
             'impossible', 'introuvable', 'not found', 'insuffisant', 'insufficient',
             'orphan', 'orpheline'
         ];
-
         const successTokens = [
             'success', 'succes', 'reussi', 'reussie', 'operation reussie',
             'mis a jour', 'mise a jour', 'ajoute', 'ajoutee', 'supprime',
             'supprimee', 'transfert reussi', 'saved', 'updated', 'added',
             'deleted', 'enregistre', 'confirme'
         ];
-
-        if (hasAny(errorTokens)) return 'error';
-        if (hasAny(successTokens)) return 'success';
+        if (hasAny(errorTokens))
+            return 'error';
+        if (hasAny(successTokens))
+            return 'success';
         return 'info';
     };
     const alertTone = detectAlertTone(alert);
     const alertClass = alertTone === 'success'
-        ? (isDark ? 'bg-green-900/50 border-green-400/30 text-green-300' : 'bg-green-50 border-green-300 text-green-800')
+        ? ('bg-green-50 border-green-300 text-green-800')
         : alertTone === 'error'
-            ? (isDark ? 'bg-red-900/50 border-red-400/30 text-red-300' : 'bg-red-50 border-red-300 text-red-800')
-            : (isDark ? 'bg-sky-900/40 border-sky-400/30 text-sky-300' : 'bg-sky-50 border-sky-300 text-sky-800');
-
+            ? ('bg-red-50 border-red-300 text-red-800')
+            : ('bg-sky-50 border-sky-300 text-sky-800');
     /* Legacy persisted navigation/search effects moved to hooks.
     useEffect(() => {
         const p = window.location.pathname;
@@ -1191,7 +1596,6 @@ export default function MainApp({ user }: { user: AppUser }) {
     const portfolioPageProps = useMemo(() => ({
         statsView,
         setStatsView,
-        isDark,
         setIsSettingsModalOpen,
         cardBase,
         subtleText,
@@ -1199,6 +1603,8 @@ export default function MainApp({ user }: { user: AppUser }) {
         totalPortfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy),
         suggestedProfitMargin,
         suggestedSellingPrice,
+        suggestedUsdtEurSellPrice,
+        suggestedSellingPriceEur,
         parseAndEvaluate,
         usdtReportMonth,
         setUsdtReportMonth,
@@ -1241,22 +1647,71 @@ export default function MainApp({ user }: { user: AppUser }) {
         setSimSellUsdtQty,
         simSellDzdPrice,
         setSimSellDzdPrice,
+        simSellEurPrice,
+        setSimSellEurPrice,
+        simSellEurToDzdRate,
+        setSimSellEurToDzdRate,
         openPortfolioBalanceEditModal
     }), [
-        statsView, isDark, cardBase, subtleText, portfolioStats, suggestedProfitMargin, suggestedSellingPrice,
+        statsView, cardBase, subtleText, portfolioStats, suggestedProfitMargin, suggestedSellingPrice, suggestedUsdtEurSellPrice, suggestedSellingPriceEur,
         usdtReportMonth, usdtReportYear, transactions, clientTransactionsDzd, selectedHeatmapDay, simMode, simBuyQty, simBuyPrice,
         fieldBase, newPamFromDzdSimulator, simEurQty, simEurDzdPrice, simEurUsdtRate, newPamFromEurSimulator,
-        reportClient, clientsDzd, reportMonth, reportYear, simSellUsdtQty, simSellDzdPrice, reportMonthNames,
+        reportClient, clientsDzd, reportMonth, reportYear, simSellUsdtQty, simSellDzdPrice, simSellEurPrice, simSellEurToDzdRate, reportMonthNames,
         getClientFullName, handleExportClientReport, handleExportUsdtReport, openPortfolioBalanceEditModal
     ]);
-
+    // Bulk-import clients from CSV. Skips duplicates by name or phone, creates
+    // an initial-balance ledger entry when an `initialBalance` column is mapped.
+    const handleImportClients = async (rows: Record<string, string>[]): Promise<void> => {
+        if (!rows || rows.length === 0)
+            return;
+        const existingNames = new Set(clientsDzd.map(c => (c.fullName || c.nom || '').toLowerCase()));
+        const existingPhones = new Set(clientsDzd.map(c => (c.phone || '').replace(/\s+/g, '')));
+        let added = 0, skipped = 0;
+        for (const row of rows) {
+            const fullName = (row.fullName || '').trim();
+            if (!fullName) {
+                skipped++;
+                continue;
+            }
+            const phone = (row.phone || '').trim();
+            const phoneKey = phone.replace(/\s+/g, '');
+            if (existingNames.has(fullName.toLowerCase()) || (phoneKey && existingPhones.has(phoneKey))) {
+                skipped++;
+                continue;
+            }
+            const data: any = {
+                fullName,
+                phone,
+                redotpayId: (row.redotpayId || '').trim(),
+                binanceEmail: (row.binanceEmail || '').trim(),
+                nom: fullName,
+            };
+            try {
+                const ref = await userDocRef.collection('dzd_clients').add(data);
+                const initBalRaw = (row.initialBalance || '').trim().replace(/,/g, '.');
+                const initBal = initBalRaw ? Number(initBalRaw) : 0;
+                if (!isNaN(initBal) && initBal !== 0) {
+                    const { date, time, timestamp } = now();
+                    await userDocRef.collection('dzd_client_txs').add({
+                        clientId: ref.id, timestamp, date, time,
+                        type: 'Solde Initial', montant: initBal, notes: 'Import CSV', paymentMethod: 'Crédit'
+                    });
+                }
+                existingNames.add(fullName.toLowerCase());
+                if (phoneKey)
+                    existingPhones.add(phoneKey);
+                added++;
+            }
+            catch (e) {
+                console.error('CSV import row failed:', e);
+                skipped++;
+            }
+        }
+        setAlert(`✅ Import: ${added} ajouté${added > 1 ? 's' : ''}, ${skipped} ignoré${skipped > 1 ? 's' : ''}.`);
+    };
     const clientsPageProps = useMemo(() => ({
         selectedClientId,
         setSelectedClientId,
-        cardBase,
-        fieldBase,
-        isDark,
-        subtleText,
         openClientModal,
         setIsTransferModalOpen,
         clientSearchQuery,
@@ -1276,111 +1731,158 @@ export default function MainApp({ user }: { user: AppUser }) {
         openClientTxModal,
         copiedValue,
         handleCopy,
-        handleEditClientTx,
-        handleDeleteClientTxClick,
-        overdueDebtClients
+        handleEditClientTx: handleEditLinkedClientTx,
+        handleDeleteClientTxClick: handleDeleteLinkedClientTxClick,
+        overdueDebtClients,
+        onImportClients: handleImportClients,
     }), [
-        selectedClientId, cardBase, fieldBase, isDark, subtleText, clientSearchQuery, clientSortMode,
+        selectedClientId, clientSearchQuery, clientSortMode,
         filteredClientsDzd, clientBalances, selectedClient, selectedClientTransactions, transactions, copiedValue,
         openClientModal, handleTouchStart, handleTouchEnd, handleClientDeleteRequest, handleExportClientReport, openClientTxModal,
-        handleCopy, handleEditClientTx, handleDeleteClientTxClick, overdueDebtClients
+        handleCopy, handleEditLinkedClientTx, handleDeleteLinkedClientTxClick, overdueDebtClients
     ]);
-
     if (isInvestorRoute) {
         const investor = derivedInvestors.find(i => i.id === investorIdFromUrl) || derivedInvestors[0];
         if (!investor) {
-            return (
-                <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500">
+            return (<div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500">
                     {derivedInvestors.length === 0 ? "Chargement des données investisseur..." : "Investisseur non trouvé."}
-                </div>
-            );
+                </div>);
         }
         const myTransactions = investorTransactions.filter(tx => tx.investorId === investor.id);
         const totalCapital = derivedInvestors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0);
-        return (
-            <Suspense fallback={<div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-50 text-slate-600'}`}>{t('common.loading')}</div>}>
-                <InvestorDashboardPage
-                    investor={investor}
-                    transactions={myTransactions}
-                    isDark={isDark}
-                    globalNetProfit={portfolioStats.usdt.totalProfit}
-                    managerFeePercentage={Number(managerFeePercentage)}
-                    totalCapital={totalCapital}
-                />
-            </Suspense>
-        );
+        return (<Suspense fallback={<div className={`min-h-screen flex items-center justify-center ${'bg-slate-50 text-slate-600'}`}>{t('common.loading')}</div>}>
+                <InvestorDashboardPage investor={investor} transactions={myTransactions} globalNetProfit={globalNetProfit} managerFeePercentage={Number(managerFeePercentage)} totalCapital={totalCapital} onExportReport={(range) => handleExportInvestorReport(investor.id, range)}/>
+            </Suspense>);
     }
-
     const navLabels = useMemo(() => ({
+        dashboard: t('nav.dashboard') as string || 'Accueil',
         transactions: t('nav.transactions') as string,
         portfolio: t('nav.portfolio') as string,
         analytics: t('nav.analytics') as string,
+        reports: t('nav.reports') as string || 'Rapports',
         clients: t('nav.clients') as string,
         treasury: t('nav.treasury') as string,
-        investors: 'Investisseurs'
+        services: t('nav.services') as string || 'Services',
+        investors: t('nav.investors') as string || 'Investisseurs',
+        more: t('nav.more') as string || 'Menu',
+        settings: t('common.settings') as string || 'Parametres',
+        money: t('nav.money') as string || 'Argent',
+        followUp: t('nav.followUp') as string || 'Suivi',
+        documents: t('nav.documents') as string || 'Documents',
+        expenses: t('nav.expenses') as string || 'Mes dépenses'
     }), [t]);
-    const mainContentProps = { alert, alertClass, cardBase, subtleText, t, isDark, dailyOverview, PageLoadingFallback, view, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, setIsWalletTransferModalOpen, setIsTransferModalOpen, treasuryTransactions, handleEditClientTx, handleDeleteClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, ClientsPage, clientsPageProps, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, setEditingInvestor, setIsInvestorModalOpen, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport };
+    const openServicesView = () => {
+        setSelectedAssetId(null);
+        setSelectedAssetClientId(null);
+        setView('services');
+    };
+    const openClientsWithDebtFollowUp = () => {
+        setSelectedClientId(null);
+        setClientSearchQuery('');
+        setClientSortMode('debts_oldest_highest');
+        setView('dzd');
+    };
+    const openDashboardClient = (clientId: string) => {
+        setClientSearchQuery('');
+        setSelectedClientId(clientId);
+        setView('dzd');
+    };
+    const dashboardPageProps = {
+        dailyOverview,
+        portfolioStats,
+        treasuryStats,
+        totals,
+        treasuryCards,
+        investorLiability,
+        servicesSummary,
+        globalNetProfit,
+        overdueDebtClients: dashboardDebtClients,
+        isDataSyncing: !dataStatus.hasServerSynced,
+        onNewTransaction: () => openForm('buy_usdt'),
+        onOpenClients: () => { setSelectedClientId(null); setView('dzd'); },
+        onOpenClient: openDashboardClient,
+        onOpenClientDebts: openClientsWithDebtFollowUp,
+        onOpenTreasury: () => setView('tresorerie'),
+        onOpenAnalytics: () => setView('analytics'),
+        onOpenPersonalWithdrawal: openPersonalWithdrawalModal
+    };
+    const mainContentProps = { alert, alertClass, cardBase, subtleText, t, dailyOverview, PageLoadingFallback, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport };
     const walletTransferDialogProps = useMemo(() => ({
-        isOpen: isWalletTransferModalOpen, onClose: () => setIsWalletTransferModalOpen(false), cardBase, isDark, subtleText, fieldBase,
+        isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, cardBase, subtleText, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSource,
         destination: walletTransferDest, setDestination: setWalletTransferDest, notes: walletTransferNotes, setNotes: setWalletTransferNotes,
         onMax: handleWalletTransferMaxClick, onSwap: handleSwapSourceDest, onConfirm: handleWalletTransfer, isInvalid: isWalletTransferInvalid,
-        isSaving, caisseBalance: treasuryStats.caisse, baridiBalance: treasuryStats.baridi, title: t('transactions.internalTransfer'),
+        isSaving, caisseBalance: getWalletTransferEditableBalance('Caisse'), baridiBalance: getWalletTransferEditableBalance('BaridiMob'), title: editingWalletTransferTx ? `${t('common.edit')} ${t('transactions.internalTransfer')}` : t('transactions.internalTransfer'),
         subtitle: 'Transfert entre comptes internes', amountLabel: t('transactions.amount'), fromLabel: t('transactions.from'),
         toLabel: t('transactions.to'), sourceLabel: t('common.source'), destinationLabel: t('common.destination'),
         notesOptionalLabel: t('common.notesOptional'), sameAccountErrorText: 'Impossible de selectionner le meme compte.',
-        processingText: t('common.processing'), confirmText: t('transactions.confirmTransfer')
-    }), [isWalletTransferModalOpen, cardBase, isDark, subtleText, fieldBase, walletTransferAmount, walletTransferSource, walletTransferDest, walletTransferNotes, handleWalletTransferMaxClick, handleSwapSourceDest, handleWalletTransfer, isWalletTransferInvalid, isSaving, treasuryStats.caisse, treasuryStats.baridi, t]);
+        processingText: t('common.processing'), confirmText: editingWalletTransferTx ? t('common.save') : t('transactions.confirmTransfer')
+    }), [isWalletTransferModalOpen, closeWalletTransferModal, cardBase, subtleText, fieldBase, walletTransferAmount, walletTransferSource, walletTransferDest, walletTransferNotes, handleWalletTransferMaxClick, handleSwapSourceDest, handleWalletTransfer, isWalletTransferInvalid, isSaving, editingWalletTransferTx, treasuryStats.caisse, treasuryStats.baridi, t]);
     const clientTransferDialogProps = useMemo(() => ({
-        isOpen: isTransferModalOpen, onClose: () => setIsTransferModalOpen(false), cardBase, isDark, subtleText, fieldBase,
+        isOpen: isTransferModalOpen, onClose: closeTransferModal, cardBase, subtleText, fieldBase,
         fromClientId: transferFromClientId, setFromClientId: setTransferFromClientId, toClientId: transferToClientId, setToClientId: setTransferToClientId,
         amount: transferAmount, setAmount: setTransferAmount, notes: transferNotes, setNotes: setTransferNotes, onSave: handleSaveTransfer,
         isSaving, clients: clientsDzd.map(c => ({ id: c.id, label: getClientFullName(c) })), fromBalance: transferFromBalance,
         toBalance: transferToBalance, onMaxFrom: () => setTransferAmount(Math.abs(transferFromBalance).toString()),
-        title: t('transactions.clientTransfer'), infoText: t('transactions.transferDebtCredit'), fromLabel: t('transactions.from'),
+        title: editingTransferTx ? `${t('common.edit')} ${t('transactions.clientTransfer')}` : t('transactions.clientTransfer'), infoText: t('transactions.transferDebtCredit'), fromLabel: t('transactions.from'),
         toLabel: t('transactions.to'), amountLabel: t('transactions.amount'), notesLabel: t('common.notes'),
         filterClientsLabel: t('transactions.filterClients'), balanceLabel: t('common.balance'), dinarLabel: t('common.dinar'),
-        confirmLabel: t('transactions.confirmTransfer')
-    }), [isTransferModalOpen, cardBase, isDark, subtleText, fieldBase, transferFromClientId, transferToClientId, transferAmount, transferNotes, handleSaveTransfer, isSaving, clientsDzd, getClientFullName, transferFromBalance, transferToBalance, setTransferAmount, t]);
+        confirmLabel: editingTransferTx ? t('common.save') : t('transactions.confirmTransfer')
+    }), [isTransferModalOpen, closeTransferModal, cardBase, subtleText, fieldBase, transferFromClientId, transferToClientId, transferAmount, transferNotes, handleSaveTransfer, isSaving, clientsDzd, getClientFullName, transferFromBalance, transferToBalance, setTransferAmount, editingTransferTx, t]);
     const treasuryBalanceEditDialogProps = useMemo(() => ({
-        isOpen: isTreasuryBalanceEditModalOpen, onClose: () => setIsTreasuryBalanceEditModalOpen(false), cardBase, isDark, fieldBase,
+        isOpen: isTreasuryBalanceEditModalOpen, onClose: closeTreasuryBalanceEditModal, cardBase, fieldBase,
         asset: treasuryBalanceEditAsset, value: treasuryBalanceEditValue, notes: treasuryBalanceEditNotes, setNotes: setTreasuryBalanceEditNotes,
         onSave: handleSaveTreasuryBalanceEdit, titlePrefix: t('transactions.editBalance'), descriptionText: t('transactions.editBalanceDesc'),
         newBalanceLabel: t('transactions.newBalance'), dinarLabel: t('common.dinar'), notesOptionalLabel: t('common.notesOptional'),
         reasonPlaceholder: t('transactions.reason'), saveLabel: t('common.save'),
         onValueChange: (value: string) => {
             const normalized = value.replace(',', '.').trim();
-            if (normalized === '') { setTreasuryBalanceEditValue(''); return; }
-            if (/^\d+$/.test(normalized)) setTreasuryBalanceEditValue(normalized);
+            if (normalized === '') {
+                setTreasuryBalanceEditValue('');
+                return;
+            }
+            if (/^\d+$/.test(normalized))
+                setTreasuryBalanceEditValue(normalized);
         },
         onValueBlur: () => {
             const parsed = parseAndEvaluate(treasuryBalanceEditValue);
-            if (!isNaN(parsed)) setTreasuryBalanceEditValue(Math.round(parsed).toString());
+            if (!isNaN(parsed))
+                setTreasuryBalanceEditValue(Math.round(parsed).toString());
         }
-    }), [isTreasuryBalanceEditModalOpen, cardBase, isDark, fieldBase, treasuryBalanceEditAsset, treasuryBalanceEditValue, treasuryBalanceEditNotes, handleSaveTreasuryBalanceEdit, t]);
+    }), [isTreasuryBalanceEditModalOpen, closeTreasuryBalanceEditModal, cardBase, fieldBase, treasuryBalanceEditAsset, treasuryBalanceEditValue, treasuryBalanceEditNotes, handleSaveTreasuryBalanceEdit, t]);
     const portfolioBalanceEditDialogProps = useMemo(() => ({
-        isOpen: isPortfolioBalanceEditModalOpen, onClose: () => setIsPortfolioBalanceEditModalOpen(false), cardBase, isDark, fieldBase,
+        isOpen: isPortfolioBalanceEditModalOpen, onClose: closePortfolioBalanceEditModal, cardBase, fieldBase,
         asset: portfolioBalanceEditAsset, value: portfolioBalanceEditValue, notes: portfolioBalanceEditNotes, setNotes: setPortfolioBalanceEditNotes,
-        onSave: handleSavePortfolioBalanceEdit, isSaving, titlePrefix: t('transactions.editBalance'), descriptionText: t('transactions.editBalanceDesc'),
-        newBalanceLabel: t('transactions.newBalance'), notesOptionalLabel: t('common.notesOptional'), reasonPlaceholder: t('transactions.reason'),
+        onSave: handleSavePortfolioBalanceEdit, isSaving, titlePrefix: t('transactions.editBalance'), descriptionText: `${t('transactions.editBalanceDesc')} Utilisez +montant pour ajouter ou -montant pour retirer.`,
+        newBalanceLabel: `${t('transactions.newBalance')} / Ajustement`, notesOptionalLabel: t('common.notesOptional'), reasonPlaceholder: t('transactions.reason'),
         saveLabel: t('common.save'), savingLabel: t('common.saving'),
         onValueChange: (value: string) => {
             const normalized = value.replace(',', '.').trim();
-            if (normalized === '') { setPortfolioBalanceEditValue(''); return; }
-            if (/^\d+(\.\d{0,2})?$/.test(normalized)) setPortfolioBalanceEditValue(normalized);
+            if (normalized === '') {
+                setPortfolioBalanceEditValue('');
+                return;
+            }
+            if (/^[+-]?$/.test(normalized) || /^[+-]?\d+(\.\d{0,2})?$/.test(normalized))
+                setPortfolioBalanceEditValue(normalized);
         },
         onValueBlur: () => {
-            const parsed = parseAndEvaluate(portfolioBalanceEditValue);
-            if (!isNaN(parsed)) setPortfolioBalanceEditValue(Number(parsed).toFixed(2));
+            const raw = portfolioBalanceEditValue.replace(',', '.').trim();
+            if (raw === '+' || raw === '-')
+                return;
+            const parsed = parseAndEvaluate(raw);
+            if (!isNaN(parsed)) {
+                const formatted = Math.abs(parsed).toFixed(2);
+                setPortfolioBalanceEditValue(raw.startsWith('+') ? `+${formatted}` : Number(parsed).toFixed(2));
+            }
         }
-    }), [isPortfolioBalanceEditModalOpen, cardBase, isDark, fieldBase, portfolioBalanceEditAsset, portfolioBalanceEditValue, portfolioBalanceEditNotes, handleSavePortfolioBalanceEdit, isSaving, t]);
+    }), [isPortfolioBalanceEditModalOpen, closePortfolioBalanceEditModal, cardBase, fieldBase, portfolioBalanceEditAsset, portfolioBalanceEditValue, portfolioBalanceEditNotes, handleSavePortfolioBalanceEdit, isSaving, t]);
     const dateFilterDialogProps = useMemo(() => ({
-        isOpen: isDateFilterModalOpen, onClose: () => setIsDateFilterModalOpen(false), cardBase, isDark, fieldBase,
+        isOpen: isDateFilterModalOpen, onClose: () => setIsDateFilterModalOpen(false), cardBase, fieldBase,
         startDate: tempStartDate, setStartDate: setTempStartDate, endDate: tempEndDate, setEndDate: setTempEndDate,
         onClear: handleClearDateFilter, onApply: handleApplyDateFilter, title: t('transactions.filterByDate'),
         startLabel: t('transactions.startDate'), endLabel: t('transactions.endDate'), clearLabel: t('transactions.clear'),
         applyLabel: t('transactions.apply')
-    }), [isDateFilterModalOpen, cardBase, isDark, fieldBase, tempStartDate, tempEndDate, handleClearDateFilter, handleApplyDateFilter, t]);
+    }), [isDateFilterModalOpen, cardBase, fieldBase, tempStartDate, tempEndDate, handleClearDateFilter, handleApplyDateFilter, t]);
     const isClientOperationsOpen = isClientTxModalOpen || isAdjustmentModalOpen;
     const isTransferAndFilterDialogsOpen = isTransferModalOpen || isTreasuryBalanceEditModalOpen || isPortfolioBalanceEditModalOpen || isDateFilterModalOpen;
     const isTransactionDialogOpen = mode !== null;
@@ -1388,106 +1890,220 @@ export default function MainApp({ user }: { user: AppUser }) {
     const isUtilityDialogsOpen = isSettingsModalOpen || isResetModalOpen || isCreateAssetModalOpen || isTreasuryCardModalOpen || treasuryCardToDelete !== null || treasuryTxToDelete !== null;
     const isClientSummaryOpen = summaryClient !== null;
     const isInvestorDialogsOpen = isInvestorModalOpen || investorToDelete !== null || isInvestorTxModalOpen || investorTxToDelete !== null || isReinvestModalOpen;
-
-    return (
-        <div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
+    // Wire Android/browser system back button. Highest-priority handler first;
+    // falls through to changing the active tab toward `transactions` (root).
+    useBackHandler([
+        () => { if (selectedAssetClientId) {
+            setSelectedAssetClientId(null);
+            return true;
+        } return false; },
+        () => { if (selectedAssetId) {
+            setSelectedAssetId(null);
+            return true;
+        } return false; },
+        () => { if (selectedInvestorId) {
+            setSelectedInvestorId(null);
+            return true;
+        } return false; },
+        () => { if (selectedClientId) {
+            setSelectedClientId(null);
+            return true;
+        } return false; },
+        () => { if (view !== 'dashboard') {
+            startTransition(() => setView('dashboard'));
+            return true;
+        } return false; }
+    ]);
+    // Surface a recap of the previous month's realized profit on first
+    // visit of a new month. Banner self-dismisses (persisted in localStorage).
+    const { recap: monthlyRecap, dismiss: dismissMonthlyRecap } = useMonthlyRecap(transactions, pamLedger);
+    // Per-view quick action wired to the bottom-bar center FAB. Returning
+    // undefined hides the FAB on read-mostly views.
+    const onFabPress = useMemo(() => {
+        if (view === 'dashboard')
+            return () => openForm('buy_usdt');
+        if (view === 'transactions')
+            return () => openForm('buy_usdt');
+        if (view === 'dzd')
+            return () => openClientModal(null);
+        if (view === 'services' && !selectedAssetId && !selectedAssetClientId)
+            return () => setIsCreateAssetModalOpen(true);
+        if (view === 'investors')
+            return () => openInvestorModal(null);
+        if (view === 'tresorerie')
+            return () => openAdjustmentModal('add');
+        return undefined;
+    }, [view, selectedAssetId, selectedAssetClientId, openForm, openClientModal, openAdjustmentModal, openInvestorModal]);
+    return (<div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
+            <OfflineBanner />
             <div className="max-w-4xl mx-auto px-2 sm:px-4 pb-24">
-                <MainHeaderBar {...{ isDark, view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), setIsMobileMenuOpen, handleOpenGlobalSearch, setTheme, onSignOut: () => signOut(auth), labels: navLabels }} />
-                <AppMobileMenuNav view={view} isDark={isDark} onSelect={navigateToView} isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} labels={navLabels} />
+                    <MainHeaderBar {...{ view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), setIsMobileMenuOpen, handleOpenGlobalSearch, setTheme, onSignOut: () => signOut(auth), labels: navLabels }}/>
+                <AppMobileMenuNav view={view} onSelect={navigateToView} isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} labels={navLabels} onOpenSettings={() => setIsSettingsModalOpen(true)}/>
 
-                <MainContentArea {...mainContentProps} />
+                <MonthlyRecapBanner recap={monthlyRecap} onDismiss={dismissMonthlyRecap}/>
 
-                <AppBottomNav view={view} isDark={isDark} onSelect={navigateToView} labels={navLabels} />
+                <MainContentArea {...mainContentProps}/>
 
-                {isGlobalSearchOpen && (
-                    <Suspense fallback={null}>
-                        <GlobalSearchDialog {...{ isOpen: isGlobalSearchOpen, onClose: closeGlobalSearch, cardBase, isDark, fieldBase, subtleText, query: globalSearchQuery, setQuery: setGlobalSearchQuery, results: globalSearchResults, onSelectResult: handleSelectGlobalSearchResult, title: t('common.globalSearch'), placeholder: t('common.searchPlaceholder'), noResultsText: t('common.noResults'), clientsText: t('nav.clients'), transactionsText: t('nav.transactions') }} />
-                    </Suspense>
-                )}
+                <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onFabPress={onFabPress} onOpenSettings={() => setIsSettingsModalOpen(true)}/>
+
+                {isGlobalSearchOpen && (<Suspense fallback={null}>
+                        <GlobalSearchDialog {...{ isOpen: isGlobalSearchOpen, onClose: closeGlobalSearch, cardBase, fieldBase, subtleText, query: globalSearchQuery, setQuery: setGlobalSearchQuery, results: globalSearchResults, onSelectResult: handleSelectGlobalSearchResult, title: t('common.globalSearch'), placeholder: t('common.searchPlaceholder'), noResultsText: t('common.noResults'), clientsText: t('nav.clients'), transactionsText: t('nav.transactions') }}/>
+                    </Suspense>)}
             </div>
 
-            {/* MODALS */}
+            <MainAppDialogs {...{
+        isWalletTransferModalOpen, walletTransferDialogProps,
+        isClientOperationsOpen,
+        isClientTxModalOpen, setIsClientTxModalOpen,
+        editingClientTx,
+        clientTxType, setClientTxType,
+        clientTxUsdtAmount, setClientTxUsdtAmount,
+        clientTxSellPrice, setClientTxSellPrice,
+        clientTxEurAmount, setClientTxEurAmount,
+        clientTxEurPrice, setClientTxEurPrice,
+        clientTxAmount, setClientTxAmount,
+        clientTxNotes, setClientTxNotes,
+        clientTxPaymentStatus, setClientTxPaymentStatus,
+        clientTxLinkedClientId,
+        handleSaveClientTx,
+        selectedClientId,
+        isAdjustmentModalOpen, setIsAdjustmentModalOpen,
+        editingTreasuryTx,
+        adjustmentTab, setAdjustmentTab,
+        adjustmentAsset, setAdjustmentAsset,
+        adjustmentAmount, setAdjustmentAmount,
+        adjustmentClientId, setAdjustmentClientId,
+        adjustmentPrice, setAdjustmentPrice,
+        adjustmentNote, setAdjustmentNote,
+        isDeliveryExpenseModalOpen, closeDeliveryExpenseModal,
+        openDeliveryExpenseModal,
+        deliveryExpenseAmount, setDeliveryExpenseAmount,
+        deliveryExpenseMethod, setDeliveryExpenseMethod,
+        deliveryExpenseDate, setDeliveryExpenseDate,
+        deliveryExpenseNote, setDeliveryExpenseNote,
+        handleSaveDeliveryExpense,
+        isPersonalWithdrawalModalOpen, closePersonalWithdrawalModal,
+        personalWithdrawalAmount, setPersonalWithdrawalAmount,
+        personalWithdrawalMethod, setPersonalWithdrawalMethod,
+        personalWithdrawalDate, setPersonalWithdrawalDate,
+        personalWithdrawalNote, setPersonalWithdrawalNote,
+        personalWithdrawalMode, setPersonalWithdrawalMode,
+        editingPersonalExpenseTx,
+        personalExpenseToDelete, setPersonalExpenseToDelete,
+        handleSavePersonalWithdrawal,
+        handleDeletePersonalExpense,
+        managerAvailableProfit, managerExists,
+        isReconcileAdvanceModalOpen, closeReconcileAdvanceModal,
+        reconcileAdvanceTx, reconcileActualAmount, setReconcileActualAmount,
+        handleReconcilePersonalAdvance,
+        clientBalances, portfolioStats, treasuryStats,
+        clientsDzd, getClientFullName,
+        treasuryCards,
+        handleGlobalAdjustment,
+        cardBase, fieldBase, subtleText, t,
+        isSaving, setAlert,
+        isTransferAndFilterDialogsOpen,
+        clientTransferDialogProps,
+        treasuryBalanceEditDialogProps,
+        portfolioBalanceEditDialogProps,
+        dateFilterDialogProps,
+        isTransactionDialogOpen,
+        mode, editingTx, closeForm, openForm,
+        buyUsdtMode, setBuyUsdtMode,
+        setEurDzdPrice,
+        buyUsdtAmount, setBuyUsdtAmount,
+        isTotalManual, setIsTotalManual,
+        buyUsdtPrice, setBuyUsdtPrice,
+        buyUsdtTotal, setBuyUsdtTotal,
+        formValidation,
+        linkedClientId, setLinkedClientId,
+        linkedClientDzdId, setLinkedClientDzdId,
+        openClientModal,
+        clientPaymentStatus, setClientPaymentStatus,
+        notes, setNotes,
+        txTags, setTxTags,
+        buyEurForUsdtAmount, setBuyEurForUsdtAmount,
+        eurDzdPrice, eurUsdtRate, setEurUsdtRate,
+        sellAmount, setSellAmount,
+        sellPrice, setSellPrice,
+        sellTotal, setSellTotal,
+        sellSettlementCurrency, setSellSettlementCurrency,
+        sellEurToDzdRate, setSellEurToDzdRate,
+        suggestedSellingPrice, suggestedUsdtEurSellPrice, suggestedSellingPriceEur, suggestedProfitMargin,
+        profitPercent, setProfitPercent,
+        buyEurAmount, setBuyEurAmount,
+        buyEurPrice, setBuyEurPrice,
+        buyEurTotal, setBuyEurTotal,
+        handleBuy, handleSell,
+        isClientCrudDialogsOpen,
+        txToDelete, setTxToDelete,
+        handleDeleteConfirm,
+        clientTxToDelete, setClientTxToDelete,
+        handleDeleteClientTxConfirm,
+        isClientModalOpen, setIsClientModalOpen,
+        editingClient,
+        clientFullName, setClientFullName,
+        clientPhone, setClientPhone,
+        clientRedotpayId, setClientRedotpayId,
+        clientBinanceEmail, setClientBinanceEmail,
+        initialBalance, setInitialBalance,
+        handleSaveClient,
+        clientToDelete, clientDeleteMode,
+        handleClientDeleteRequest,
+        handleDeleteClient,
+        isUtilityDialogsOpen,
+        isSettingsModalOpen, setIsSettingsModalOpen,
+        setSuggestedProfitMargin,
+        setSuggestedSellingPrice,
+        setSuggestedUsdtEurSellPrice,
+        setSuggestedSellingPriceEur,
+        setIsResetModalOpen,
+        userDocRef,
+        isResetModalOpen,
+        handleGlobalReset,
+        isCreateAssetModalOpen, setIsCreateAssetModalOpen,
+        newAssetName, setNewAssetName,
+        newAssetDescription, setNewAssetDescription,
+        handleCreateAsset,
+        isTreasuryCardModalOpen, setIsTreasuryCardModalOpen,
+        editingTreasuryCard,
+        treasuryCardName, setTreasuryCardName,
+        treasuryCardValue, setTreasuryCardValue,
+        treasuryCardNotes, setTreasuryCardNotes,
+        handleSaveTreasuryCard,
+        treasuryCardToDelete, setTreasuryCardToDelete,
+        handleDeleteTreasuryCard,
+        treasuryTxToDelete, setTreasuryTxToDelete,
+        handleDeleteTreasuryTxConfirm,
+        isClientSummaryOpen,
+        summaryClient, setSummaryClient,
+        clientTransactionsDzd, transactions,
+        handleExportClientReport,
+        reportMonth, reportYear,
+        isInvestorDialogsOpen,
+        isInvestorModalOpen, setIsInvestorModalOpen,
+        editingInvestor,
+        handleSaveInvestor,
+        investorName, setInvestorName,
+        investorInitialCapital, setInvestorInitialCapital,
+        investorNotes, setInvestorNotes,
+        isManager, setIsManager,
+        derivedInvestors,
+        selectedInvestorId,
+        isInvestorTxModalOpen, setIsInvestorTxModalOpen,
+        investorTxType,
+        investorTxAmount, setInvestorTxAmount,
+        investorTxPaymentSource, setInvestorTxPaymentSource,
+        investorTxNotes, setInvestorTxNotes,
+        handleInvestorTransaction,
+        investorToDelete, setInvestorToDelete,
+        handleDeleteInvestor,
+        investorTxToDelete, setInvestorTxToDelete,
+        handleDeleteInvestorTx,
+        isReinvestModalOpen, setIsReinvestModalOpen,
+        reinvestInput, setReinvestInput,
+        handleReinvestProfit,
+    }}/>
 
-            {/* 1. WALLET TRANSFER MODAL REDESIGNED */}
-            {isWalletTransferModalOpen && (
-                <Suspense fallback={null}>
-                    <WalletTransferDialog {...walletTransferDialogProps} />
-                </Suspense>
-            )}
-            {isClientOperationsOpen && (
-                <Suspense fallback={null}>
-                    <MainClientOperationsDialogs {...{ isClientTxModalOpen, setIsClientTxModalOpen, cardBase, isDark, editingClientTx, t, clientTxType, setClientTxType, fieldBase, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, clientTxAmount, setClientTxAmount, clientTxNotes, setClientTxNotes, handleSaveClientTx, selectedClientId, isAdjustmentModalOpen, setIsAdjustmentModalOpen, editingTreasuryTx, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentClientId, clientBalances, portfolioStats, treasuryStats, clientsDzd, getClientFullName, setAdjustmentClientId, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, treasuryCards, handleGlobalAdjustment, isSaving }} />
-                </Suspense>
-            )}
-            {isTransferAndFilterDialogsOpen && (
-                <Suspense fallback={null}>
-                    <MainTransferAndFilterDialogs
-                        clientTransferProps={clientTransferDialogProps}
-                        treasuryBalanceEditProps={treasuryBalanceEditDialogProps}
-                        portfolioBalanceEditProps={portfolioBalanceEditDialogProps}
-                        dateFilterProps={dateFilterDialogProps}
-                    />
-                </Suspense>
-            )}
-
-            {isTransactionDialogOpen && (
-                <Suspense fallback={null}>
-                    <MainTransactionDialog {...{ mode, editingTx, closeForm, openForm, cardBase, isDark, t, subtleText, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, suggestedSellingPrice, suggestedSellingPriceEur, suggestedProfitMargin, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving }} />
-                </Suspense>
-            )}
-            {isClientCrudDialogsOpen && (
-                <Suspense fallback={null}>
-                    <MainClientCrudDialogs {...{ txToDelete, setTxToDelete, cardBase, isDark, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, initialBalance, setInitialBalance, fieldBase, handleSaveClient, clientToDelete, clientDeleteMode, setClientToDelete: handleClientDeleteRequest, handleDeleteClient }} />
-                </Suspense>
-            )}
-            {isUtilityDialogsOpen && (
-                <Suspense fallback={null}>
-                    <MainUtilityDialogs {...{ isSettingsModalOpen, setIsSettingsModalOpen, cardBase, isDark, t, suggestedProfitMargin, setSuggestedProfitMargin, suggestedSellingPrice, setSuggestedSellingPrice, suggestedSellingPriceEur, setSuggestedSellingPriceEur, portfolioStats, fieldBase, subtleText, setIsResetModalOpen, userDocRef, setAlert, isResetModalOpen, handleGlobalReset, isCreateAssetModalOpen, setIsCreateAssetModalOpen, newAssetName, setNewAssetName, newAssetDescription, setNewAssetDescription, handleCreateAsset, isTreasuryCardModalOpen, setIsTreasuryCardModalOpen, editingTreasuryCard, treasuryCardName, setTreasuryCardName, treasuryCardValue, setTreasuryCardValue, treasuryCardNotes, setTreasuryCardNotes, handleSaveTreasuryCard, isSaving, treasuryCardToDelete, setTreasuryCardToDelete, handleDeleteTreasuryCard, treasuryTxToDelete, setTreasuryTxToDelete, handleDeleteTreasuryTxConfirm }} />
-                </Suspense>
-            )}
-            {/* CLIENT SUMMARY MODAL */}
-            {/* CLIENT SUMMARY MODAL */}
-            {isClientSummaryOpen && (
-                <Suspense fallback={null}>
-                    <MainClientSummaryDialog {...{
-                        summaryClient,
-                        setSummaryClient,
-                        cardBase,
-                        isDark,
-                        t,
-                        subtleText,
-                        clientBalances,
-                        clientTransactionsDzd,
-                        transactions,
-                        setAlert,
-                        getClientFullName,
-                        handleExportClientReport,
-                        reportMonth,
-                        reportYear
-                    }} />
-                </Suspense>
-            )}
-            {isInvestorDialogsOpen && (
-                <Suspense fallback={null}>
-                    <MainInvestorDialogs {...{ isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, handleSaveInvestor, investorName, setInvestorName, fieldBase, investorInitialCapital, setInvestorInitialCapital, investorNotes, setInvestorNotes, isManager, setIsManager, derivedInvestors, selectedInvestorId, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorTxType, investorTxAmount, setInvestorTxAmount, subtleText, investorTxNotes, setInvestorTxNotes, handleInvestorTransaction, cardBase, isDark, t, investorToDelete, setInvestorToDelete, handleDeleteInvestor, investorTxToDelete, setInvestorTxToDelete, handleDeleteInvestorTx, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, handleReinvestProfit, setAlert }} />
-                </Suspense>
-            )}
-
-        </div>
-    );
+        </div>);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

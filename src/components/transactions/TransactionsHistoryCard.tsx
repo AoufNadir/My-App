@@ -1,22 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { Dropdown, DropdownItem } from '../ui/Dropdown';
-import { UnifiedTitle } from '../ui/UnifiedTitle';
-import { FilterIcon } from '../icons/FilterIcon';
+import { Dropdown } from '../ui/Dropdown';
+import { SectionHeading } from '../ui/SectionHeading';
+import { EmptyState } from '../ui/EmptyState';
 import { CalendarIcon } from '../icons/CalendarIcon';
+import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
+import { ArrowRightLeftIcon } from '../icons/ArrowRightLeftIcon';
+import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
+import { BanknotesIcon } from '../icons/BanknotesIcon';
+import { CreditCardIcon } from '../icons/CreditCardIcon';
+import { FilterIcon } from '../icons/FilterIcon';
+import { WalletIcon } from '../icons/WalletIcon';
+import { UsersIcon } from '../icons/UsersIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { Tx } from '../../types';
+import { normalizeLedgerLabel } from '../../utils/financialUx';
 import {
   DisplayTx,
   SavedTransactionFilter,
-  TransactionFilterMode
+  TransactionFilterMode,
 } from './transactionsTypes';
 
 type TransactionsHistoryCardProps = {
-  cardBase: string;
-  isDark: boolean;
-  subtleText: string;
   t: (key: string) => string;
   openDateFilterModal: () => void;
   dateRange: { start: Date | null; end: Date | null };
@@ -25,6 +31,7 @@ type TransactionsHistoryCardProps = {
   onApplySavedFilter: (savedFilter: SavedTransactionFilter) => void;
   onDeleteSavedFilter: (savedFilterId: string) => void;
   txFilterLabels: Record<TransactionFilterMode, string>;
+  txFilterCounts: Record<TransactionFilterMode, number>;
   filterMode: TransactionFilterMode;
   setFilterMode: (mode: TransactionFilterMode) => void;
   groupedTransactions: Record<string, DisplayTx[]>;
@@ -35,9 +42,6 @@ type TransactionsHistoryCardProps = {
 };
 
 export function TransactionsHistoryCard({
-  cardBase,
-  isDark,
-  subtleText,
   t,
   openDateFilterModal,
   dateRange,
@@ -46,20 +50,79 @@ export function TransactionsHistoryCard({
   onApplySavedFilter,
   onDeleteSavedFilter,
   txFilterLabels,
+  txFilterCounts,
   filterMode,
   setFilterMode,
   groupedTransactions,
   getRelativeDateLabel,
   onEditDisplayTx,
   onDeleteDisplayTx,
-  formatDzdAmount
+  formatDzdAmount,
 }: TransactionsHistoryCardProps) {
-  const INITIAL_VISIBLE_TRANSACTIONS = 120;
-  const LOAD_MORE_TRANSACTIONS = 120;
-  const [visibleTransactionCount, setVisibleTransactionCount] = useState(INITIAL_VISIBLE_TRANSACTIONS);
+  const INITIAL_VISIBLE = 120;
+  const LOAD_MORE_COUNT = 120;
+  const [visibleTransactionCount, setVisibleTransactionCount] = useState(INITIAL_VISIBLE);
+
+  const filterGroups: Array<{
+    title: string;
+    modes: Array<{ mode: TransactionFilterMode; icon: React.ReactNode; tone: string }>;
+  }> = [
+    {
+      title: t('transactions.filterGroupGeneral'),
+      modes: [
+        { mode: 'all', icon: <CalendarIcon className="h-4 w-4" />, tone: 'text-primary bg-primary/10' },
+      ],
+    },
+    {
+      title: t('transactions.filterGroupBuy'),
+      modes: [
+        { mode: 'buy_usdt_dzd', icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
+        { mode: 'buy_usdt_eur', icon: <ArrowRightLeftIcon className="h-4 w-4" />, tone: 'text-primary bg-primary/10' },
+        { mode: 'buy_eur_dzd',  icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
+      ],
+    },
+    {
+      title: t('transactions.filterGroupSell'),
+      modes: [
+        { mode: 'sell_usdt_dzd', icon: <ArrowUpRightIcon className="h-4 w-4" />,   tone: 'text-financial-loss bg-danger-bg' },
+        { mode: 'sell_usdt_eur', icon: <ArrowRightLeftIcon className="h-4 w-4" />, tone: 'text-financial-debt bg-warning-bg' },
+        { mode: 'sell_eur_dzd',  icon: <ArrowUpRightIcon className="h-4 w-4" />,   tone: 'text-financial-loss bg-danger-bg' },
+      ],
+    },
+    {
+      title: t('transactions.filterGroupStock'),
+      modes: [
+        { mode: 'stock_in',  icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
+        { mode: 'stock_out', icon: <ArrowUpRightIcon className="h-4 w-4" />,  tone: 'text-financial-loss bg-danger-bg' },
+      ],
+    },
+    {
+      title: t('transactions.filterGroupClients'),
+      modes: [
+        { mode: 'client_receipts_cash',    icon: <BanknotesIcon className="h-4 w-4" />,     tone: 'text-financial-profit bg-success-bg' },
+        { mode: 'client_receipts_baridi',  icon: <CreditCardIcon className="h-4 w-4" />,    tone: 'text-financial-profit bg-success-bg' },
+        { mode: 'client_receipts_credit',  icon: <UsersIcon className="h-4 w-4" />,          tone: 'text-financial-debt bg-warning-bg' },
+        { mode: 'client_payouts_cash',     icon: <BanknotesIcon className="h-4 w-4" />,     tone: 'text-financial-loss bg-danger-bg' },
+        { mode: 'client_payouts_baridi',   icon: <CreditCardIcon className="h-4 w-4" />,    tone: 'text-financial-loss bg-danger-bg' },
+        { mode: 'client_payouts_credit',   icon: <UsersIcon className="h-4 w-4" />,          tone: 'text-financial-debt bg-warning-bg' },
+        { mode: 'client_adjustments',      icon: <WalletIcon className="h-4 w-4" />,         tone: 'text-neutral-500 bg-neutral-100' },
+        { mode: 'client_transfers',        icon: <ArrowRightLeftIcon className="h-4 w-4" />, tone: 'text-primary bg-primary/10' },
+      ],
+    },
+    {
+      title: t('transactions.filterGroupTreasury'),
+      modes: [
+        { mode: 'treasury_in_cash',    icon: <BanknotesIcon className="h-4 w-4" />,     tone: 'text-financial-profit bg-success-bg' },
+        { mode: 'treasury_in_baridi',  icon: <CreditCardIcon className="h-4 w-4" />,    tone: 'text-financial-profit bg-success-bg' },
+        { mode: 'treasury_out_cash',   icon: <BanknotesIcon className="h-4 w-4" />,     tone: 'text-financial-loss bg-danger-bg' },
+        { mode: 'treasury_out_baridi', icon: <CreditCardIcon className="h-4 w-4" />,    tone: 'text-financial-loss bg-danger-bg' },
+        { mode: 'treasury_transfers',  icon: <ArrowRightLeftIcon className="h-4 w-4" />, tone: 'text-primary bg-primary/10' },
+      ],
+    },
+  ];
 
   useEffect(() => {
-    setVisibleTransactionCount(INITIAL_VISIBLE_TRANSACTIONS);
+    setVisibleTransactionCount(INITIAL_VISIBLE);
   }, [groupedTransactions]);
 
   const dateGroups = useMemo(
@@ -67,11 +130,7 @@ export function TransactionsHistoryCard({
     [groupedTransactions]
   );
 
-  const {
-    visibleDateGroups,
-    hiddenTransactionCount,
-    totalTransactionCount
-  } = useMemo(() => {
+  const { visibleDateGroups, hiddenTransactionCount, totalTransactionCount } = useMemo(() => {
     let remaining = visibleTransactionCount;
     let hidden = 0;
     let total = 0;
@@ -79,159 +138,223 @@ export function TransactionsHistoryCard({
 
     for (const [date, txs] of dateGroups) {
       total += txs.length;
-
-      if (remaining <= 0) {
-        hidden += txs.length;
-        continue;
-      }
-
+      if (remaining <= 0) { hidden += txs.length; continue; }
       if (txs.length <= remaining) {
         visibleGroups.push([date, txs]);
         remaining -= txs.length;
-        continue;
+      } else {
+        visibleGroups.push([date, txs.slice(0, remaining)]);
+        hidden += txs.length - remaining;
+        remaining = 0;
       }
-
-      visibleGroups.push([date, txs.slice(0, remaining)]);
-      hidden += txs.length - remaining;
-      remaining = 0;
     }
 
     return {
       visibleDateGroups: visibleGroups,
       hiddenTransactionCount: hidden,
-      totalTransactionCount: total
+      totalTransactionCount: total,
     };
   }, [dateGroups, visibleTransactionCount]);
 
   return (
-    <Card className={cardBase}>
-      <CardHeader className="flex flex-row items-center justify-between p-4">
-        <UnifiedTitle
-          as="h2"
-          isDark={isDark}
-          variant="section"
-          icon={<CalendarIcon className="w-4 h-4" />}
-        >
-          {t('transactions.history')}
-        </UnifiedTitle>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          <Button
-            onClick={openDateFilterModal}
-            className={`p-2 rounded-lg font-semibold transition-colors ${isDark ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-200 hover:bg-slate-300'} ${dateRange.start ? (isDark ? 'bg-sky-500/20 text-sky-300' : 'bg-sky-100 text-sky-600') : ''}`}
-            aria-label="Filtrer par date"
-          >
-            <CalendarIcon className="w-5 h-5" />
-          </Button>
+    <Card>
+      <CardHeader className="p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <SectionHeading icon={<CalendarIcon className="w-4 h-4" />}>
+            {t('transactions.history')}
+          </SectionHeading>
 
-          <Button
-            onClick={onSaveCurrentFilter}
-            className={`px-3 py-2 text-sm rounded-lg font-semibold transition-colors ${isDark ? 'bg-emerald-700 hover:bg-emerald-600 text-emerald-100' : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700'}`}
-          >
-            {t('transactions.saveCurrentFilter')}
-          </Button>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2 sm:flex sm:items-center sm:justify-end">
+            <Dropdown
+              align="start"
+              contentClassName="w-[calc(100vw-2rem)] max-w-2xl max-h-[72vh] overflow-y-auto p-2"
+              trigger={(
+                <Button variant="outline" className="min-h-touch w-full min-w-0 justify-start gap-2 rounded-lg px-3 text-xs font-bold bg-neutral-100 hover:bg-neutral-200 text-neutral-800 transition-colors">
+                  <FilterIcon className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 truncate">{txFilterLabels[filterMode]}</span>
+                  <span className="ms-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] bg-surface text-neutral-600">
+                    {txFilterCounts[filterMode] || 0}
+                  </span>
+                </Button>
+              )}
+            >
+              <div className="space-y-3">
+                {filterGroups.map((group) => (
+                  <div key={group.title}>
+                    <div className="mb-1 px-1 text-[10px] font-black uppercase text-neutral-400">
+                      {group.title}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {group.modes.map(({ mode, icon, tone }) => {
+                        const isActive = filterMode === mode;
+                        return (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setFilterMode(mode)}
+                            className={[
+                                'min-h-12 rounded-lg border p-2 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                              isActive
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100',
+                            ].join(' ')}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}>
+                                {icon}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-[12px] font-bold leading-snug">
+                                  {txFilterLabels[mode]}
+                                </span>
+                                <span className={[
+                                  'mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                                  isActive ? 'bg-surface/20' : 'bg-surface text-neutral-500',
+                                ].join(' ')}>
+                                  {txFilterCounts[mode] || 0}
+                                </span>
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Dropdown>
 
-          <Dropdown
-            isDark={isDark}
-            trigger={(
-              <Button className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg font-semibold transition-colors ${isDark ? 'bg-indigo-700 hover:bg-indigo-600 text-indigo-100' : 'bg-indigo-100 hover:bg-indigo-200 text-indigo-700'}`}>
-                <span>{t('transactions.savedFilters')}</span>
-              </Button>
-            )}
-          >
-            {savedFilters.length === 0 ? (
-              <div className={`px-3 py-2 text-sm ${subtleText}`}>{t('transactions.noSavedFilters')}</div>
-            ) : (
-              savedFilters.map((savedFilter) => (
-                <div key={savedFilter.id} className="flex items-center justify-between gap-2 px-2 py-1">
-                  <button
-                    onClick={() => onApplySavedFilter(savedFilter)}
-                    className={`text-left text-sm flex-1 px-2 py-2 rounded-md ${isDark ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-slate-100 text-slate-700'}`}
-                  >
-                    {savedFilter.name}
-                  </button>
-                  <button
-                    onClick={() => onDeleteSavedFilter(savedFilter.id)}
-                    className={`px-2 py-1 rounded text-xs ${isDark ? 'bg-red-900/40 text-red-300 hover:bg-red-900/60' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
-                  >
-                    {t('common.delete')}
-                  </button>
+            <Button
+              onClick={openDateFilterModal}
+              className={[
+                'min-h-touch px-3 rounded-lg text-xs font-bold transition-colors',
+                dateRange.start
+                  ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                  : 'bg-neutral-200 hover:bg-neutral-300 text-neutral-700',
+              ].join(' ')}
+              aria-label="Filtrer par date"
+            >
+              <CalendarIcon className="w-4 h-4 sm:mr-1" />
+              <span className="hidden sm:inline">Dates</span>
+            </Button>
+
+            <Dropdown
+              trigger={(
+                <Button className="min-h-touch px-3 text-xs rounded-lg font-bold transition-colors bg-primary/10 hover:bg-primary/20 text-primary">
+                  <span>Vues</span>
+                </Button>
+              )}
+            >
+              <button
+                onClick={onSaveCurrentFilter}
+                className="mb-1 w-full min-h-touch text-start text-sm font-semibold px-3 py-2 rounded-md bg-primary hover:bg-primary-dark text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                + {t('transactions.saveCurrentFilter')}
+              </button>
+              {savedFilters.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-neutral-500">
+                  {t('transactions.noSavedFilters')}
                 </div>
-              ))
-            )}
-          </Dropdown>
-
-          <Dropdown
-            isDark={isDark}
-            trigger={(
-              <Button className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg font-semibold transition-colors ${isDark ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-200 hover:bg-slate-300'}`}>
-                <FilterIcon className="w-4 h-4" />
-                <span>{txFilterLabels[filterMode]}</span>
-              </Button>
-            )}
-          >
-            <DropdownItem onClick={() => setFilterMode('all')} isActive={filterMode === 'all'}>{t('transactions.filterAll')}</DropdownItem>
-            <DropdownItem onClick={() => setFilterMode('buy')} isActive={filterMode === 'buy'}>{t('transactions.filterBuy')}</DropdownItem>
-            <DropdownItem onClick={() => setFilterMode('sell')} isActive={filterMode === 'sell'}>{t('transactions.filterSell')}</DropdownItem>
-            <DropdownItem onClick={() => setFilterMode('adjustments')} isActive={filterMode === 'adjustments'}>{t('transactions.filterAdjustments')}</DropdownItem>
-            <DropdownItem onClick={() => setFilterMode('clients')} isActive={filterMode === 'clients'}>{t('transactions.filterClients')}</DropdownItem>
-            <DropdownItem onClick={() => setFilterMode('treasury')} isActive={filterMode === 'treasury'}>{t('transactions.filterTreasury')}</DropdownItem>
-          </Dropdown>
+              ) : (
+                savedFilters.map((savedFilter) => (
+                  <div key={savedFilter.id} className="flex items-center justify-between gap-2 px-2 py-1">
+                    <button
+                      onClick={() => onApplySavedFilter(savedFilter)}
+                      className="min-h-touch text-start text-sm flex-1 px-2 py-2 rounded-md hover:bg-neutral-100 text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      {savedFilter.name}
+                    </button>
+                    <button
+                      onClick={() => onDeleteSavedFilter(savedFilter.id)}
+                      className="min-h-touch px-2 py-1 rounded text-xs font-semibold text-danger hover:bg-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
+                    >
+                      {t('common.delete')}
+                    </button>
+                  </div>
+                ))
+              )}
+            </Dropdown>
+          </div>
         </div>
       </CardHeader>
 
       <CardContent className="p-0">
-        <div className="space-y-4 pb-4">
+        <div className="pb-2">
           {visibleDateGroups.length > 0 ? (
-            visibleDateGroups.map(([date, txsOnDate]) => {
-              return (
-                <div key={date}>
-                  <h3 className={`font-semibold text-sm mb-2 px-4 ${subtleText}`}>{getRelativeDateLabel(date)}</h3>
-                  <div className="divide-y" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-                    {txsOnDate.map((tx) => {
-                      const cryptoTx = tx.rawTx as Tx;
-                      const unitPrice = Number(cryptoTx.price || cryptoTx.sell || 0);
-                      return (
-                        <SwipeableListItem
-                          key={tx.id}
-                          onEdit={() => onEditDisplayTx(tx)}
-                          onDelete={() => onDeleteDisplayTx(tx)}
-                          disableSwipe={false}
-                        >
-                          <div className={`flex items-center gap-3 py-3 px-4 ${isDark ? 'bg-[#111827]' : 'bg-white'}`} style={{ contentVisibility: 'auto', containIntrinsicSize: '84px' }}>
-                            {tx.icon}
-
-                            <div className="flex-grow min-w-0">
-                              <p className="font-bold truncate">{tx.typeLabel}</p>
-                              <p className={`text-sm ${subtleText} truncate`}>{tx.details}</p>
-                              <p className={`text-xs ${subtleText}`}>{tx.time}</p>
-                            </div>
-
-                            <div className="text-right flex-shrink-0">
-                              <p className={`font-bold ${tx.amountColor}`}>{tx.amountLabel}</p>
-                              {tx.sourceType === 'usdt_tx' && unitPrice > 0 ? (
-                                <p className={`text-xs ${subtleText}`}>@ {formatDzdAmount(unitPrice)}</p>
-                              ) : null}
-                            </div>
-                          </div>
-                        </SwipeableListItem>
-                      );
-                    })}
-                  </div>
+            visibleDateGroups.map(([date, txsOnDate]) => (
+              <div key={date}>
+                <div className="sticky top-0 z-10 px-4 py-2 text-xs font-semibold uppercase bg-surface/95 text-neutral-500 backdrop-blur-sm">
+                  {getRelativeDateLabel(date)}
                 </div>
-              );
-            })
+                <div className="divide-y divide-neutral-100">
+                  {txsOnDate.map((tx) => {
+                    const cryptoTx = tx.rawTx as Tx;
+                    const isUsdtSaleSettledInEur =
+                      cryptoTx.type === 'sell'
+                      && cryptoTx.currency === 'USDT'
+                      && cryptoTx.settlementCurrency === 'EUR';
+                    const unitPrice = Number(
+                      isUsdtSaleSettledInEur
+                        ? cryptoTx.sellPriceEur
+                        : (cryptoTx.price || cryptoTx.sell || 0)
+                    );
+                    const unitPriceLabel = isUsdtSaleSettledInEur
+                      ? `${unitPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} EUR/USDT`
+                      : formatDzdAmount(unitPrice);
+
+                    return (
+                      <SwipeableListItem
+                        key={tx.id}
+                        onEdit={() => onEditDisplayTx(tx)}
+                        onDelete={() => onDeleteDisplayTx(tx)}
+                        disableSwipe={false}
+                      >
+                        <div
+                          className="flex items-center gap-3 py-3 px-4 bg-surface"
+                          // Technical exception: content-visibility keeps long transaction lists responsive.
+                          style={{ contentVisibility: 'auto', containIntrinsicSize: '76px' }}
+                        >
+                          {tx.icon}
+
+                          <div className="flex-grow min-w-0">
+                            <p className="text-base font-semibold truncate">
+                              {normalizeLedgerLabel(tx.typeLabel)}
+                            </p>
+                            <p className="text-xs truncate text-neutral-500">
+                              {normalizeLedgerLabel(tx.details)}
+                            </p>
+                            <p className="text-xs text-neutral-500">{tx.time}</p>
+                          </div>
+
+                          <div className="text-end shrink-0">
+                            <p dir="ltr" className={`text-base font-semibold tabular-nums ${tx.amountColor}`}>
+                              {tx.amountLabel}
+                            </p>
+                            {tx.sourceType === 'usdt_tx' && unitPrice > 0 && (
+                              <p dir="ltr" className="text-xs text-neutral-500">@ {unitPriceLabel}</p>
+                            )}
+                          </div>
+                        </div>
+                      </SwipeableListItem>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
           ) : (
-            <p className={`text-center py-8 ${subtleText}`}>{t('transactions.noTransactions')}</p>
+            <EmptyState title={t('transactions.noTransactions')} />
           )}
+
           {hiddenTransactionCount > 0 && (
             <div className="px-4 pt-2">
               <Button
-                onClick={() => setVisibleTransactionCount((prev) => prev + LOAD_MORE_TRANSACTIONS)}
-                className={`w-full rounded-xl px-4 py-3 font-semibold ${isDark ? 'bg-slate-700 text-slate-100 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                onClick={() => setVisibleTransactionCount((prev) => prev + LOAD_MORE_COUNT)}
+                variant="outline"
+                className="w-full rounded-xl px-4 py-3 font-semibold bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
               >
-                Afficher plus ({Math.min(hiddenTransactionCount, LOAD_MORE_TRANSACTIONS)})
+                Afficher plus ({Math.min(hiddenTransactionCount, LOAD_MORE_COUNT)})
               </Button>
-              <p className={`mt-2 text-center text-xs ${subtleText}`}>
+              <p className="mt-2 text-center text-xs text-neutral-500">
                 {totalTransactionCount - hiddenTransactionCount} / {totalTransactionCount}
               </p>
             </div>

@@ -1,1 +1,58 @@
 @import "tailwindcss";
+@import "./styles/tokens.css";
+
+/* Dark mode: applies when an ancestor has class="dark" */
+@variant dark (&:is(.dark *));
+
+/* FIX-PERF (Phase 2): replace framer-motion in UI primitives with native CSS.
+   These animations run on the GPU compositor (opacity + transform only),
+   so they're cheap and don't drag the 122 KB motion library into the
+   initial bundle. */
+@keyframes anim-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes anim-dialog-center-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes anim-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes anim-dropdown-in {
+  from { opacity: 0; transform: scale(0.95) translateY(-6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes anim-fade-slide-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes anim-page-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.anim-backdrop-in { animation: anim-backdrop-in 160ms ease-out; }
+.anim-dialog-center-in { animation: anim-dialog-center-in 200ms cubic-bezier(0.16, 1, 0.3, 1); }
+.anim-sheet-in { animation: anim-sheet-in 280ms cubic-bezier(0.16, 1, 0.3, 1); }
+.anim-dropdown-in { animation: anim-dropdown-in 120ms ease-out; transform-origin: top right; }
+.anim-dropdown-in-start { transform-origin: top left; }
+.anim-fade-slide-down { animation: anim-fade-slide-down 220ms ease-out; }
+.anim-page-in { animation: anim-page-in 220ms ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-backdrop-in,
+  .anim-dialog-center-in,
+  .anim-sheet-in,
+  .anim-dropdown-in,
+  .anim-fade-slide-down,
+  .anim-page-in {
+    animation: none;
+  }
+}

@@ -1,17 +1,13 @@
 import { useState } from 'react';
-import { db, type FirestoreDocumentReference } from '../firebase';
-import { Investor, InvestorTransaction } from '../types';
+import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
+import { Investor, InvestorTransaction, TreasuryTx } from '../types';
 import { now, parseAndEvaluate } from '../utils';
-
-export function useInvestorHandlers(
-    userDocRef: FirestoreDocumentReference,
-    investors: Investor[],
-    derivedInvestors: any[],
-    treasuryStats: { caisse: number; baridi: number },
-    setAlert: (msg: string) => void
-) {
+import { evaluatePersonalAdvanceReconciliation } from '../utils/personalExpenses';
+export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, derivedInvestors: any[], treasuryStats: {
+    caisse: number;
+    baridi: number;
+}, setAlert: (msg: string) => void) {
     const [isSaving, setIsSaving] = useState(false);
-
     // Modal & form state
     const [isInvestorModalOpen, setIsInvestorModalOpen] = useState(false);
     const [editingInvestor, setEditingInvestor] = useState<Investor | null>(null);
@@ -22,19 +18,397 @@ export function useInvestorHandlers(
     const [isManager, setIsManager] = useState(false);
     const [investorEmail, setInvestorEmail] = useState('');
     const [investorPhone, setInvestorPhone] = useState('');
-
     // Transaction state
     const [isInvestorTxModalOpen, setIsInvestorTxModalOpen] = useState(false);
     const [investorTxAmount, setInvestorTxAmount] = useState('');
     const [investorTxType, setInvestorTxType] = useState<'deposit_capital' | 'withdraw_profit' | 'withdraw_capital' | 'reinvest_profit'>('deposit_capital');
     const [investorTxNotes, setInvestorTxNotes] = useState('');
+    const [investorTxPaymentSource, setInvestorTxPaymentSource] = useState<'Caisse' | 'BaridiMob'>('Caisse');
     const [investorTxToDelete, setInvestorTxToDelete] = useState<InvestorTransaction | null>(null);
-
     // Reinvest state
     const [isReinvestModalOpen, setIsReinvestModalOpen] = useState(false);
     const [reinvestInput, setReinvestInput] = useState('');
     const [selectedInvestorId, setSelectedInvestorId] = useState('');
-
+    // Personal withdrawal state (manager only — daily personal expense)
+    const [isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen] = useState(false);
+    const [personalWithdrawalAmount, setPersonalWithdrawalAmount] = useState('');
+    const [personalWithdrawalMethod, setPersonalWithdrawalMethod] = useState<'Caisse' | 'BaridiMob'>('Caisse');
+    const [personalWithdrawalDate, setPersonalWithdrawalDate] = useState<string>('');
+    const [personalWithdrawalNote, setPersonalWithdrawalNote] = useState('');
+    const [personalWithdrawalMode, setPersonalWithdrawalMode] = useState<'expense' | 'advance'>('expense');
+    const [editingPersonalExpenseTx, setEditingPersonalExpenseTx] = useState<TreasuryTx | null>(null);
+    const [personalExpenseToDelete, setPersonalExpenseToDelete] = useState<TreasuryTx | null>(null);
+    const openPersonalWithdrawalModal = () => {
+        setEditingPersonalExpenseTx(null);
+        setPersonalWithdrawalAmount('');
+        setPersonalWithdrawalMethod('Caisse');
+        setPersonalWithdrawalDate('');
+        setPersonalWithdrawalNote('');
+        setPersonalWithdrawalMode('expense');
+        setIsPersonalWithdrawalModalOpen(true);
+    };
+    const closePersonalWithdrawalModal = () => {
+        setIsPersonalWithdrawalModalOpen(false);
+        setEditingPersonalExpenseTx(null);
+    };
+    // Reconcile advance state
+    const [isReconcileAdvanceModalOpen, setIsReconcileAdvanceModalOpen] = useState(false);
+    const [reconcileAdvanceTx, setReconcileAdvanceTx] = useState<TreasuryTx | null>(null);
+    const [reconcileActualAmount, setReconcileActualAmount] = useState('');
+    const openReconcileAdvanceModal = (advanceTx: TreasuryTx) => {
+        setReconcileAdvanceTx(advanceTx);
+        setReconcileActualAmount('');
+        setIsReconcileAdvanceModalOpen(true);
+    };
+    const closeReconcileAdvanceModal = () => {
+        setIsReconcileAdvanceModalOpen(false);
+        setReconcileAdvanceTx(null);
+        setReconcileActualAmount('');
+    };
+    const managerInvestor = derivedInvestors.find((inv) => inv.isManager === true) || null;
+    const managerAvailableProfit = Number(managerInvestor?.availableProfit || 0);
+    const toDateInput = (timestamp?: number) => {
+        if (!timestamp)
+            return '';
+        const d = new Date(timestamp);
+        if (Number.isNaN(d.getTime()))
+            return '';
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    const resolvePersonalExpenseInvestorTx = async (tx: TreasuryTx) => {
+        if (tx.linkedInvestorTxId) {
+            const snap = await userDocRef.collection('investor_transactions').doc(tx.linkedInvestorTxId).get();
+            if (snap.exists) {
+                return {
+                    id: tx.linkedInvestorTxId,
+                    exists: true,
+                    amount: Number((snap.data() as InvestorTransaction | undefined)?.amount || 0)
+                };
+            }
+        }
+        if (tx.id) {
+            const snap = await userDocRef.collection('investor_transactions')
+                .where('linkedTreasuryTxId', '==', tx.id)
+                .limit(1)
+                .get();
+            const doc = snap.docs[0];
+            if (doc) {
+                return {
+                    id: doc.id,
+                    exists: true,
+                    amount: Number((doc.data() as InvestorTransaction | undefined)?.amount || 0)
+                };
+            }
+        }
+        return { id: '', exists: false, amount: 0 };
+    };
+    const findPersonalAdvanceReturnDocs = async (tx: TreasuryTx) => {
+        const docs = new Map<string, any>();
+        if (tx.linkedReturnTxId) {
+            const snap = await userDocRef.collection('treasury_txs').doc(tx.linkedReturnTxId).get();
+            if (snap.exists)
+                docs.set(tx.linkedReturnTxId, snap.ref);
+        }
+        if (tx.id) {
+            const snap = await userDocRef.collection('treasury_txs')
+                .where('linkedTreasuryTxId', '==', tx.id)
+                .where('origin', '==', 'personal_expense_return')
+                .get();
+            snap.docs.forEach((doc) => docs.set(doc.id, doc.ref));
+        }
+        return Array.from(docs.entries()).map(([id, ref]) => ({ id, ref }));
+    };
+    const buildPersonalWithdrawalStamp = (dateInput: string, editingTx?: TreasuryTx | null) => {
+        if (dateInput) {
+            const [y, m, d] = dateInput.split('-').map(Number);
+            if (y && m && d) {
+                const selectedDateInput = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                if (editingTx && toDateInput(editingTx.timestamp) === selectedDateInput) {
+                    return {
+                        timestamp: editingTx.timestamp,
+                        date: editingTx.date,
+                        time: editingTx.time
+                    };
+                }
+                const picked = new Date();
+                const isToday = picked.getFullYear() === y && picked.getMonth() + 1 === m && picked.getDate() === d;
+                if (isToday) {
+                    return now();
+                }
+                const customDate = new Date(y, m - 1, d, 12, 0, 0);
+                return {
+                    timestamp: customDate.getTime(),
+                    date: customDate.toLocaleDateString('fr-FR'),
+                    time: customDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                };
+            }
+        }
+        return now();
+    };
+    const openEditPersonalExpense = (tx: TreasuryTx) => {
+        if (tx.advanceState === 'settled') {
+            setReconcileAdvanceTx(tx);
+            setReconcileActualAmount(String(Number(tx.settledAmount || 0)));
+            setIsReconcileAdvanceModalOpen(true);
+            return;
+        }
+        setEditingPersonalExpenseTx(tx);
+        setPersonalWithdrawalAmount(String(Number(tx.amount || 0)));
+        setPersonalWithdrawalMethod(tx.source === 'BaridiMob' ? 'BaridiMob' : 'Caisse');
+        setPersonalWithdrawalDate(toDateInput(tx.timestamp));
+        setPersonalWithdrawalNote(tx.notes || '');
+        setPersonalWithdrawalMode(tx.advanceState === 'pending' ? 'advance' : 'expense');
+        setIsPersonalWithdrawalModalOpen(true);
+    };
+    const handleSavePersonalWithdrawal = async () => {
+        const amountNum = parseAndEvaluate(personalWithdrawalAmount);
+        if (isNaN(amountNum) || amountNum <= 0) {
+            setAlert('⚠️ Montant invalide.');
+            return;
+        }
+        if (!managerInvestor) {
+            setAlert('⚠️ Aucun gérant défini. Désignez un investisseur comme gérant.');
+            return;
+        }
+        const epsilon = 0.005;
+        const isAdvance = personalWithdrawalMode === 'advance';
+        const currentExpenseCredit = editingPersonalExpenseTx && editingPersonalExpenseTx.advanceState !== 'pending'
+            ? Number(editingPersonalExpenseTx.settledAmount ?? editingPersonalExpenseTx.amount ?? 0)
+            : 0;
+        if (!isAdvance && amountNum > managerAvailableProfit + currentExpenseCredit + epsilon) {
+            setAlert('⚠️ Montant dépasse ton profit disponible.');
+            return;
+        }
+        const currentSourceCredit = editingPersonalExpenseTx?.source === personalWithdrawalMethod
+            ? Number(editingPersonalExpenseTx.amount || 0)
+            : 0;
+        const availableBalance = (personalWithdrawalMethod === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi) + currentSourceCredit;
+        if (amountNum > availableBalance + epsilon) {
+            setAlert(personalWithdrawalMethod === 'Caisse' ? '⚠️ Solde Caisse insuffisant.' : '⚠️ Solde BaridiMob insuffisant.');
+            return;
+        }
+        if (isSaving)
+            return;
+        setIsSaving(true);
+        try {
+            const { timestamp, date: dateStr, time: timeStr } = buildPersonalWithdrawalStamp(personalWithdrawalDate, editingPersonalExpenseTx);
+            const trimmedNote = personalWithdrawalNote.trim();
+            const batch = db.batch();
+            const treasuryRef = editingPersonalExpenseTx?.id
+                ? userDocRef.collection('treasury_txs').doc(editingPersonalExpenseTx.id)
+                : userDocRef.collection('treasury_txs').doc();
+            const linkedInvestor = editingPersonalExpenseTx
+                ? await resolvePersonalExpenseInvestorTx(editingPersonalExpenseTx)
+                : { id: '', exists: false, amount: 0 };
+            const investorTxRef = linkedInvestor.exists && linkedInvestor.id
+                ? userDocRef.collection('investor_transactions').doc(linkedInvestor.id)
+                : userDocRef.collection('investor_transactions').doc();
+            const linkedInvestorTxId = linkedInvestor.exists && linkedInvestor.id ? linkedInvestor.id : investorTxRef.id;
+            const investorPayload = {
+                investorId: managerInvestor.id,
+                type: 'withdraw_profit',
+                amount: isAdvance ? 0 : amountNum,
+                paymentSource: personalWithdrawalMethod,
+                linkedTreasuryTxId: treasuryRef.id,
+                date: dateStr,
+                time: timeStr,
+                timestamp,
+                notes: trimmedNote
+                    ? `${isAdvance ? 'Avance perso' : 'Dépense perso'}: ${trimmedNote}`
+                    : (isAdvance ? 'Avance personnelle' : 'Dépense personnelle')
+            };
+            if (linkedInvestor.exists) {
+                batch.update(investorTxRef, investorPayload);
+            }
+            else {
+                batch.set(investorTxRef, investorPayload);
+            }
+            const treasuryPayload: any = {
+                timestamp,
+                date: dateStr,
+                time: timeStr,
+                type: 'Retrait',
+                source: personalWithdrawalMethod,
+                amount: amountNum,
+                notes: trimmedNote || (isAdvance ? 'Avance personnelle' : 'Dépense personnelle'),
+                linkedInvestorTxId,
+                origin: 'personal_expense'
+            };
+            if (isAdvance) {
+                treasuryPayload.advanceState = 'pending';
+                if (editingPersonalExpenseTx) {
+                    treasuryPayload.settledAmount = fieldValueDelete();
+                    treasuryPayload.linkedReturnTxId = fieldValueDelete();
+                }
+            }
+            else if (editingPersonalExpenseTx) {
+                treasuryPayload.advanceState = fieldValueDelete();
+                treasuryPayload.settledAmount = fieldValueDelete();
+                treasuryPayload.linkedReturnTxId = fieldValueDelete();
+            }
+            if (editingPersonalExpenseTx) {
+                batch.update(treasuryRef, treasuryPayload);
+            }
+            else {
+                batch.set(treasuryRef, treasuryPayload);
+            }
+            await batch.commit();
+            setAlert(editingPersonalExpenseTx
+                ? '✅ Dépense mise à jour.'
+                : (isAdvance ? "✅ Avance enregistrée — elle ne sera déduite du profit qu'à la régularisation." : '✅ Dépense personnelle enregistrée.'));
+            setIsPersonalWithdrawalModalOpen(false);
+            setEditingPersonalExpenseTx(null);
+        }
+        catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur.');
+        }
+        finally {
+            setIsSaving(false);
+        }
+    };
+    const handleReconcilePersonalAdvance = async () => {
+        if (!reconcileAdvanceTx || !reconcileAdvanceTx.id) {
+            setAlert('⚠️ Avance introuvable.');
+            return;
+        }
+        const advanceAmount = Number(reconcileAdvanceTx.amount || 0);
+        const reconciliation = evaluatePersonalAdvanceReconciliation(reconcileActualAmount, advanceAmount);
+        if (!reconciliation.isValid) {
+            if (reconciliation.error === 'exceeds') {
+                setAlert(`⚠️ Le montant dépensé ne peut pas dépasser l'avance (${advanceAmount}).`);
+            }
+            else if (reconciliation.error === 'negative') {
+                setAlert('⚠️ Le montant dépensé doit être positif ou zéro.');
+            }
+            else {
+                setAlert('⚠️ Montant invalide.');
+            }
+            return;
+        }
+        const actualSpent = reconciliation.actualSpent;
+        const returnAmount = reconciliation.returnAmount;
+        if (!managerInvestor) {
+            setAlert('⚠️ Aucun gérant défini. Désignez un investisseur comme gérant.');
+            return;
+        }
+        if (isSaving)
+            return;
+        setIsSaving(true);
+        try {
+            const { date, time, timestamp } = now();
+            const batch = db.batch();
+            const originalAdvanceRef = userDocRef.collection('treasury_txs').doc(reconcileAdvanceTx.id);
+            const linkedInvestor = await resolvePersonalExpenseInvestorTx(reconcileAdvanceTx);
+            const availableForActualSpend = managerAvailableProfit + Number(linkedInvestor.amount || 0);
+            if (actualSpent > availableForActualSpend + 0.005) {
+                setAlert(`⚠️ Montant dépensé dépasse ton profit disponible (${availableForActualSpend.toFixed(2)} DZD).`);
+                return;
+            }
+            const investorTxRef = linkedInvestor.exists && linkedInvestor.id
+                ? userDocRef.collection('investor_transactions').doc(linkedInvestor.id)
+                : userDocRef.collection('investor_transactions').doc();
+            const linkedInvestorTxId = linkedInvestor.exists && linkedInvestor.id ? linkedInvestor.id : investorTxRef.id;
+            const investorPayload = {
+                investorId: managerInvestor.id,
+                type: 'withdraw_profit',
+                amount: actualSpent,
+                paymentSource: reconcileAdvanceTx.source || 'Caisse',
+                linkedTreasuryTxId: reconcileAdvanceTx.id,
+                date: reconcileAdvanceTx.date,
+                time: reconcileAdvanceTx.time,
+                timestamp: reconcileAdvanceTx.timestamp,
+                notes: reconcileAdvanceTx.notes
+                    ? `Dépense perso: ${reconcileAdvanceTx.notes}`
+                    : 'Dépense personnelle'
+            };
+            if (linkedInvestor.exists) {
+                batch.update(investorTxRef, investorPayload);
+            }
+            else {
+                batch.set(investorTxRef, investorPayload);
+            }
+            const returnDocs = await findPersonalAdvanceReturnDocs(reconcileAdvanceTx);
+            const primaryReturnDoc = returnDocs[0] || null;
+            const advanceUpdatePayload: any = {
+                advanceState: 'settled',
+                settledAmount: actualSpent,
+                linkedInvestorTxId
+            };
+            if (returnAmount > 0.005) {
+                const returnPayload: any = {
+                    timestamp,
+                    date,
+                    time,
+                    type: 'Ajout',
+                    source: reconcileAdvanceTx.source || 'Caisse',
+                    amount: returnAmount,
+                    notes: `Régularisation avance · Retour ${reconcileAdvanceTx.source || 'Caisse'}`,
+                    linkedTreasuryTxId: reconcileAdvanceTx.id,
+                    origin: 'personal_expense_return'
+                };
+                if (linkedInvestorTxId) {
+                    returnPayload.linkedInvestorTxId = linkedInvestorTxId;
+                }
+                if (primaryReturnDoc) {
+                    const { timestamp: _timestamp, date: _date, time: _time, ...returnUpdatePayload } = returnPayload;
+                    batch.update(primaryReturnDoc.ref, returnUpdatePayload);
+                    advanceUpdatePayload.linkedReturnTxId = primaryReturnDoc.id;
+                }
+                else {
+                    const returnTxRef = userDocRef.collection('treasury_txs').doc();
+                    batch.set(returnTxRef, returnPayload);
+                    advanceUpdatePayload.linkedReturnTxId = returnTxRef.id;
+                }
+                returnDocs.slice(1).forEach((doc) => batch.delete(doc.ref));
+            }
+            else {
+                advanceUpdatePayload.linkedReturnTxId = fieldValueDelete();
+                returnDocs.forEach((doc) => batch.delete(doc.ref));
+            }
+            batch.update(originalAdvanceRef, advanceUpdatePayload);
+            await batch.commit();
+            setAlert(returnAmount > 0.005
+                ? `✅ Avance régularisée — ${returnAmount.toFixed(2)} DZD retourné à ${reconcileAdvanceTx.source || 'Caisse'}.`
+                : '✅ Avance régularisée.');
+            closeReconcileAdvanceModal();
+        }
+        catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur lors de la régularisation.');
+        }
+        finally {
+            setIsSaving(false);
+        }
+    };
+    const handleDeletePersonalExpense = async () => {
+        if (!personalExpenseToDelete?.id)
+            return;
+        if (isSaving)
+            return;
+        setIsSaving(true);
+        try {
+            const batch = db.batch();
+            const tx = personalExpenseToDelete;
+            batch.delete(userDocRef.collection('treasury_txs').doc(tx.id));
+            const linkedInvestor = await resolvePersonalExpenseInvestorTx(tx);
+            if (linkedInvestor.exists && linkedInvestor.id) {
+                batch.delete(userDocRef.collection('investor_transactions').doc(linkedInvestor.id));
+            }
+            const returnDocs = await findPersonalAdvanceReturnDocs(tx);
+            returnDocs.forEach((doc) => batch.delete(doc.ref));
+            await batch.commit();
+            setAlert('✅ Dépense supprimée.');
+            setPersonalExpenseToDelete(null);
+        }
+        catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur pendant la suppression.');
+        }
+        finally {
+            setIsSaving(false);
+        }
+    };
     const openInvestorModal = (investor: Investor | null = null) => {
         setEditingInvestor(investor);
         if (investor) {
@@ -44,7 +418,8 @@ export function useInvestorHandlers(
             setIsManager(investor.isManager || false);
             setInvestorEmail(investor.email || '');
             setInvestorPhone(investor.phone || '');
-        } else {
+        }
+        else {
             setInvestorName('');
             setInvestorInitialCapital('0');
             setInvestorNotes('');
@@ -54,12 +429,10 @@ export function useInvestorHandlers(
         }
         setIsInvestorModalOpen(true);
     };
-
     const closeInvestorModal = () => {
         setIsInvestorModalOpen(false);
         setEditingInvestor(null);
     };
-
     const handleSaveInvestor = async () => {
         const capital = parseAndEvaluate(investorInitialCapital);
         if (!investorName.trim()) {
@@ -70,20 +443,22 @@ export function useInvestorHandlers(
             setAlert('Invalid initial capital.');
             return;
         }
-
         setIsSaving(true);
         try {
             const batch = db.batch();
             if (editingInvestor) {
-                batch.update(userDocRef.collection('investors').doc(editingInvestor.id), {
+                const updatePayload: any = {
                     name: investorName.trim(),
                     notes: investorNotes.trim(),
                     isManager,
                     email: investorEmail.trim(),
-                    phone: investorPhone.trim()
-                });
+                    phone: investorPhone.trim(),
+                    linkedClientId: fieldValueDelete()
+                };
+                batch.update(userDocRef.collection('investors').doc(editingInvestor.id), updatePayload);
                 setAlert('Investor updated.');
-            } else {
+            }
+            else {
                 const ref = userDocRef.collection('investors').doc();
                 const data: Investor = {
                     id: ref.id,
@@ -101,7 +476,6 @@ export function useInvestorHandlers(
                     email: investorEmail.trim(),
                     phone: investorPhone.trim()
                 };
-
                 batch.set(ref, data);
                 if (capital > 0) {
                     batch.set(userDocRef.collection('investor_transactions').doc(), {
@@ -116,55 +490,94 @@ export function useInvestorHandlers(
                 }
                 setAlert('Investor added.');
             }
-
             await batch.commit();
             closeInvestorModal();
             return true;
-        } catch (e) {
+        }
+        catch (e) {
             setAlert('Error while saving investor.');
             return false;
-        } finally {
+        }
+        finally {
             setIsSaving(false);
         }
     };
-
     const handleSaveInvestorTx = async () => {
         const amount = parseAndEvaluate(investorTxAmount);
         if (!selectedInvestorId || isNaN(amount) || amount <= 0) {
             setAlert('Invalid transaction data.');
             return;
         }
-
+        const selectedInvestor = derivedInvestors.find((investor) => investor.id === selectedInvestorId);
+        if (!selectedInvestor) {
+            setAlert('Investor not found.');
+            return;
+        }
+        if (investorTxType === 'withdraw_profit') {
+            const availableProfit = Number(selectedInvestor.availableProfit || 0);
+            const sourceBalance = investorTxPaymentSource === 'Caisse'
+                ? Number(treasuryStats.caisse || 0)
+                : Number(treasuryStats.baridi || 0);
+            if (amount > availableProfit + 0.005) {
+                setAlert('Amount exceeds available profit.');
+                return;
+            }
+            if (amount > sourceBalance + 0.005) {
+                setAlert(investorTxPaymentSource === 'Caisse' ? 'Solde Caisse insuffisant.' : 'Solde BaridiMob insuffisant.');
+                return;
+            }
+        }
         setIsSaving(true);
         try {
+            const { date, time, timestamp } = now();
+            const batch = db.batch();
             const txRef = userDocRef.collection('investor_transactions').doc();
-            await txRef.set({
+            const investorTxPayload: any = {
                 investorId: selectedInvestorId,
                 type: investorTxType,
                 amount,
                 notes: investorTxNotes.trim(),
-                date: now().date,
-                time: now().time,
-                timestamp: now().timestamp
-            });
-
+                date,
+                time,
+                timestamp
+            };
+            if (investorTxType === 'withdraw_profit') {
+                const treasuryRef = userDocRef.collection('treasury_txs').doc();
+                investorTxPayload.paymentSource = investorTxPaymentSource;
+                investorTxPayload.linkedTreasuryTxId = treasuryRef.id;
+                batch.set(treasuryRef, {
+                    timestamp,
+                    date,
+                    time,
+                    type: 'Retrait',
+                    source: investorTxPaymentSource,
+                    amount,
+                    notes: `Retrait profit investisseur: ${selectedInvestor.name}${investorTxNotes.trim() ? ` - ${investorTxNotes.trim()}` : ''}`,
+                    linkedInvestorTxId: txRef.id,
+                    origin: 'investor_profit_withdrawal'
+                });
+            }
+            batch.set(txRef, investorTxPayload);
+            await batch.commit();
             setAlert('Transaction saved.');
             setIsInvestorTxModalOpen(false);
             setInvestorTxAmount('');
             setInvestorTxNotes('');
+            setInvestorTxPaymentSource('Caisse');
             return true;
-        } catch (e) {
+        }
+        catch (e) {
             setAlert('Error while saving transaction.');
             return false;
-        } finally {
+        }
+        finally {
             setIsSaving(false);
         }
     };
-
     const handleReinvestProfit = async (investorId: string, amount: number) => {
         const investor = derivedInvestors.find((i) => i.id === investorId);
-        if (!investor || amount <= 0) return;
-
+        if (!investor || amount <= 0)
+            return;
         setIsSaving(true);
         try {
             const batch = db.batch();
@@ -177,72 +590,71 @@ export function useInvestorHandlers(
                 timestamp: now().timestamp,
                 notes: 'Reinvestissement'
             });
-
             batch.update(userDocRef.collection('investors').doc(investorId), {
                 capitalInvested: investor.capitalInvested + amount,
                 initialCapital: investor.capitalInvested + amount
             });
-
             await batch.commit();
             setAlert('Reinvestment recorded.');
             return true;
-        } catch (e) {
+        }
+        catch (e) {
             setAlert('Error while reinvesting.');
             return false;
-        } finally {
+        }
+        finally {
             setIsSaving(false);
         }
     };
-
     const handleDeleteInvestor = async (investorId?: string) => {
         const targetInvestorId = investorId || investorToDelete?.id;
         if (!targetInvestorId) {
             setAlert('Investor not found.');
             return false;
         }
-
         setIsSaving(true);
         try {
             const investorRef = userDocRef.collection('investors').doc(targetInvestorId);
             const txCollection = userDocRef.collection('investor_transactions');
             const DELETE_CHUNK = 400;
-
             let deletedTxCount = 0;
             let investorDeleted = false;
-
             while (true) {
                 const txSnap = await txCollection.where('investorId', '==', targetInvestorId).limit(DELETE_CHUNK).get();
-                if (txSnap.empty) break;
-
+                if (txSnap.empty)
+                    break;
                 const batch = db.batch();
-                txSnap.docs.forEach((doc) => batch.delete(doc.ref));
-
+                txSnap.docs.forEach((doc) => {
+                    const txData = doc.data() as InvestorTransaction;
+                    if (txData.linkedTreasuryTxId) {
+                        batch.delete(userDocRef.collection('treasury_txs').doc(txData.linkedTreasuryTxId));
+                    }
+                    batch.delete(doc.ref);
+                });
                 if (!investorDeleted) {
                     batch.delete(investorRef);
                     investorDeleted = true;
                 }
-
                 await batch.commit();
                 deletedTxCount += txSnap.size;
-
-                if (txSnap.size < DELETE_CHUNK) break;
+                if (txSnap.size < DELETE_CHUNK)
+                    break;
             }
-
             if (!investorDeleted) {
                 await investorRef.delete();
             }
-
             setAlert(`Investor deleted (${deletedTxCount} transaction(s) removed).`);
             setInvestorToDelete(null);
             return true;
-        } catch (e) {
+        }
+        catch (e) {
             setAlert('Error while deleting investor.');
             return false;
-        } finally {
+        }
+        finally {
             setIsSaving(false);
         }
     };
-
     return {
         isSaving,
         isInvestorModalOpen,
@@ -271,6 +683,8 @@ export function useInvestorHandlers(
         setInvestorTxType,
         investorTxNotes,
         setInvestorTxNotes,
+        investorTxPaymentSource,
+        setInvestorTxPaymentSource,
         investorTxToDelete,
         setInvestorTxToDelete,
         handleSaveInvestorTx,
@@ -284,6 +698,37 @@ export function useInvestorHandlers(
         closeInvestorModal,
         handleSaveInvestor,
         handleReinvestProfit,
-        handleDeleteInvestor
+        handleDeleteInvestor,
+        // Personal withdrawal (manager's daily personal expense)
+        isPersonalWithdrawalModalOpen,
+        setIsPersonalWithdrawalModalOpen,
+        personalWithdrawalAmount,
+        setPersonalWithdrawalAmount,
+        personalWithdrawalMethod,
+        setPersonalWithdrawalMethod,
+        personalWithdrawalDate,
+        setPersonalWithdrawalDate,
+        personalWithdrawalNote,
+        setPersonalWithdrawalNote,
+        personalWithdrawalMode,
+        setPersonalWithdrawalMode,
+        editingPersonalExpenseTx,
+        personalExpenseToDelete,
+        setPersonalExpenseToDelete,
+        openEditPersonalExpense,
+        openPersonalWithdrawalModal,
+        closePersonalWithdrawalModal,
+        handleSavePersonalWithdrawal,
+        handleDeletePersonalExpense,
+        managerAvailableProfit,
+        managerExists: Boolean(managerInvestor),
+        // Reconcile advance
+        isReconcileAdvanceModalOpen,
+        reconcileAdvanceTx,
+        reconcileActualAmount,
+        setReconcileActualAmount,
+        openReconcileAdvanceModal,
+        closeReconcileAdvanceModal,
+        handleReconcilePersonalAdvance
     };
 }

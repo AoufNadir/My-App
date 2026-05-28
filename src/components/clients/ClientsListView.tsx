@@ -1,212 +1,164 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Dropdown, DropdownItem } from '../ui/Dropdown';
-import { UnifiedTitle } from '../ui/UnifiedTitle';
+import { SectionHeading } from '../ui/SectionHeading';
+import { HeroKpiCard } from '../ui/HeroKpiCard';
+import { EmptyState } from '../ui/EmptyState';
+import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { FilterIcon } from '../icons/FilterIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { UsersIcon } from '../icons/UsersIcon';
+import { UploadCloudIcon } from '../icons/UploadCloudIcon';
+import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
+import { CsvImportSheet, type CsvFieldSpec } from '../import/CsvImportSheet';
 import { ClientDzd, OverdueDebtClient } from '../../types';
-import { formatDzd } from '../../pages/shared/pageFormat';
-import { OverdueDebtsPanel } from './OverdueDebtsPanel';
-
-type ClientSortMode = 'all' | 'advances' | 'debts' | 'zero_balance';
-
+import { OverdueDebtsModal } from './OverdueDebtsModal';
+const CLIENT_IMPORT_FIELDS: CsvFieldSpec[] = [
+    { key: 'fullName', label: 'Nom complet', required: true, aliases: ['name', 'nom', 'fullname'] },
+    { key: 'phone', label: 'Téléphone', aliases: ['phone', 'tel', 'mobile'] },
+    { key: 'binanceEmail', label: 'Email Binance', aliases: ['email', 'binance'] },
+    { key: 'redotpayId', label: 'Redotpay ID', aliases: ['redotpay', 'redot'] },
+    { key: 'initialBalance', label: 'Solde initial (DZD)', aliases: ['solde', 'balance', 'initial'] }
+];
+type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
 const CLIENT_SORT_LABELS: Record<ClientSortMode, string> = {
-  all: 'Tous',
-  advances: 'Avances',
-  debts: 'Dettes',
-  zero_balance: 'Solde Nul'
+    all: 'Tous',
+    advances: 'Avances',
+    debts: 'Dettes',
+    debts_oldest_highest: 'Dettes anciennes',
+    zero_balance: 'Solde Nul'
 };
-
 type ClientsListViewProps = {
-  cardBase: string;
-  fieldBase: string;
-  isDark: boolean;
-  subtleText: string;
-  openClientModal: (client: ClientDzd | null) => void;
-  clientSearchQuery: string;
-  setClientSearchQuery: (query: string) => void;
-  clientSortMode: ClientSortMode;
-  setClientSortMode: (mode: ClientSortMode) => void;
-  filteredClientsDzd: ClientDzd[];
-  clientBalances: Map<string, number>;
-  getClientFullName: (client: ClientDzd) => string;
-  handleTouchStart: (client: ClientDzd) => void;
-  handleTouchEnd: () => void;
-  setClientToDelete: (client: ClientDzd | null) => void;
-  setSelectedClientId: (id: string | null) => void;
-  overdueDebtClients: OverdueDebtClient[];
+    openClientModal: (client: ClientDzd | null) => void;
+    clientSearchQuery: string;
+    setClientSearchQuery: (query: string) => void;
+    clientSortMode: ClientSortMode;
+    setClientSortMode: (mode: ClientSortMode) => void;
+    filteredClientsDzd: ClientDzd[];
+    clientBalances: Map<string, number>;
+    getClientFullName: (client: ClientDzd) => string;
+    handleTouchStart: (client: ClientDzd) => void;
+    handleTouchEnd: () => void;
+    setClientToDelete: (client: ClientDzd | null) => void;
+    setSelectedClientId: (id: string | null) => void;
+    overdueDebtClients: OverdueDebtClient[];
+    onImportClients?: (rows: Record<string, string>[]) => Promise<void>;
 };
+export function ClientsListView({ openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, setSelectedClientId, overdueDebtClients, onImportClients }: ClientsListViewProps) {
+    const INITIAL_VISIBLE_CLIENTS = 80;
+    const LOAD_MORE_CLIENTS = 80;
+    const [visibleClientCount, setVisibleClientCount] = useState(INITIAL_VISIBLE_CLIENTS);
+    const [importOpen, setImportOpen] = useState(false);
+    const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
+    useEffect(() => {
+        setVisibleClientCount(INITIAL_VISIBLE_CLIENTS);
+    }, [filteredClientsDzd]);
+    const visibleClients = useMemo(() => filteredClientsDzd.slice(0, visibleClientCount), [filteredClientsDzd, visibleClientCount]);
+    const hiddenClientCount = Math.max(0, filteredClientsDzd.length - visibleClientCount);
+    const overdueByClientId = useMemo(() => new Map(overdueDebtClients.map((client) => [client.clientId, client])), [overdueDebtClients]);
+    const clientsWithDebt = useMemo(() => filteredClientsDzd.filter((client) => (clientBalances.get(client.id) || 0) < 0).length, [filteredClientsDzd, clientBalances]);
+    const clientsWithAdvance = useMemo(() => filteredClientsDzd.filter((client) => (clientBalances.get(client.id) || 0) > 0).length, [filteredClientsDzd, clientBalances]);
+    const overdueCount = overdueDebtClients.length;
+    const hasOverdue = overdueCount > 0;
+    const overdueDisplay = (<button type="button" onClick={() => setIsOverdueModalOpen(true)} className={`flex items-baseline gap-1 text-lg font-semibold transition-opacity hover:opacity-80 ${hasOverdue ? 'text-financial-loss' : 'text-neutral-500'}`}>
+      <span className="inline-flex items-center gap-1">
+        {hasOverdue && <AlertTriangleIcon className="w-3.5 h-3.5"/>}
+        <bdi>{overdueCount}</bdi>
+      </span>
+    </button>);
+    return (<div className="space-y-4">
+      <HeroKpiCard accent="sky" icon={<UsersIcon className="w-5 h-5"/>} primaryLabel="Total Clients" primaryValue={filteredClientsDzd.length} primaryCurrency={null} primarySemantic="plain" secondary={[
+            { label: 'Dettes', value: clientsWithDebt, currency: null, semantic: 'plain' },
+            { label: 'Avances', value: clientsWithAdvance, currency: null, semantic: 'plain' },
+            { label: 'En retard', value: overdueCount, display: overdueDisplay }
+        ]}/>
 
-export function ClientsListView({
-  cardBase,
-  fieldBase,
-  isDark,
-  subtleText,
-  openClientModal,
-  clientSearchQuery,
-  setClientSearchQuery,
-  clientSortMode,
-  setClientSortMode,
-  filteredClientsDzd,
-  clientBalances,
-  getClientFullName,
-  handleTouchStart,
-  handleTouchEnd,
-  setClientToDelete,
-  setSelectedClientId,
-  overdueDebtClients
-}: ClientsListViewProps) {
-  const INITIAL_VISIBLE_CLIENTS = 80;
-  const LOAD_MORE_CLIENTS = 80;
-  const [visibleClientCount, setVisibleClientCount] = useState(INITIAL_VISIBLE_CLIENTS);
-
-  useEffect(() => {
-    setVisibleClientCount(INITIAL_VISIBLE_CLIENTS);
-  }, [filteredClientsDzd]);
-
-  const visibleClients = useMemo(
-    () => filteredClientsDzd.slice(0, visibleClientCount),
-    [filteredClientsDzd, visibleClientCount]
-  );
-
-  const hiddenClientCount = Math.max(0, filteredClientsDzd.length - visibleClientCount);
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      {overdueDebtClients.length > 0 && (
-        <div className="mb-4">
-          <OverdueDebtsPanel
-            overdueDebtors={overdueDebtClients}
-            cardBase={cardBase}
-            subtleText={subtleText}
-            isDark={isDark}
-            onOpenClient={setSelectedClientId}
-          />
-        </div>
-      )}
-
-      <Card className={cardBase}>
+      <Card>
         <CardHeader className="p-4">
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <UnifiedTitle
-                as="h2"
-                isDark={isDark}
-                variant="section"
-                icon={<UsersIcon className="w-4 h-4" />}
-              >
+              <SectionHeading icon={<UsersIcon className="w-4 h-4"/>}>
                 Liste des Clients
-              </UnifiedTitle>
+              </SectionHeading>
+              <span className="text-sm text-neutral-500">{filteredClientsDzd.length}</span>
             </div>
 
-            <div className={`flex items-center gap-3 p-3.5 rounded-xl border shadow-sm transition-all ${isDark ? 'bg-gradient-to-r from-slate-800/80 to-slate-800/50 border-slate-700/50' : 'bg-gradient-to-r from-indigo-50/50 to-white border-indigo-100/50'}`}>
-              <div className={`p-2.5 rounded-lg ${isDark ? 'bg-indigo-500/20' : 'bg-indigo-100'}`}>
-                <UserIcon className={`w-5 h-5 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
-              </div>
-              <div className="flex-1">
-                <p className={`text-xs font-medium uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Nombre de Clients
-                </p>
-                <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {filteredClientsDzd.length}
-                </p>
-              </div>
-            </div>
-
-            <div className="w-full">
-              <Button onClick={() => openClientModal(null)} className={`w-full py-3 rounded-xl font-bold border transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                <UserIcon className="w-5 h-5" />
+            <div className="w-full flex gap-2">
+              <Button onClick={() => openClientModal(null)} variant="outline" className="flex-1 py-3 rounded-xl font-bold border-border bg-surface text-neutral-700 hover:bg-neutral-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                <UserIcon className="w-5 h-5"/>
                 <span>Nouveau Client</span>
               </Button>
+              {onImportClients && (<Button onClick={() => setImportOpen(true)} variant="outline" aria-label="Importer un CSV" className="shrink-0 px-3 py-3 rounded-xl font-bold border-border bg-surface text-neutral-700 hover:bg-neutral-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                  <UploadCloudIcon className="w-5 h-5"/>
+                </Button>)}
             </div>
           </div>
         </CardHeader>
 
         <CardContent className="p-4 pt-0">
           <div className="flex gap-2 mb-4">
-            <Input
-              type="text"
-              placeholder="Rechercher un client..."
-              value={clientSearchQuery}
-              onChange={(e) => setClientSearchQuery(e.target.value)}
-              className={`${fieldBase} flex-grow`}
-            />
+            <Input type="text" placeholder="Rechercher un client..." value={clientSearchQuery} onChange={(e) => setClientSearchQuery(e.target.value)} className="flex-grow"/>
           </div>
-          <Dropdown
-            isDark={isDark}
-            trigger={(
-              <Button className={`w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg font-semibold transition-colors ${isDark ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-200 hover:bg-slate-300'}`}>
-                <FilterIcon className="w-4 h-4" />
+          <Dropdown trigger={(<Button className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg font-semibold transition-colors bg-neutral-100 text-neutral-700 hover:bg-neutral-200">
+                <FilterIcon className="w-4 h-4"/>
                 <span>{CLIENT_SORT_LABELS[clientSortMode]}</span>
-              </Button>
-            )}
-          >
+              </Button>)}>
             <DropdownItem onClick={() => setClientSortMode('all')} isActive={clientSortMode === 'all'}>Tous</DropdownItem>
             <DropdownItem onClick={() => setClientSortMode('advances')} isActive={clientSortMode === 'advances'}>Avances (+)</DropdownItem>
             <DropdownItem onClick={() => setClientSortMode('debts')} isActive={clientSortMode === 'debts'}>Dettes (-)</DropdownItem>
+            <DropdownItem onClick={() => setClientSortMode('debts_oldest_highest')} isActive={clientSortMode === 'debts_oldest_highest'}>Dettes anciennes</DropdownItem>
             <DropdownItem onClick={() => setClientSortMode('zero_balance')} isActive={clientSortMode === 'zero_balance'}>Solde Nul</DropdownItem>
           </Dropdown>
         </CardContent>
 
         <CardContent className="p-0">
-          {filteredClientsDzd.length > 0 ? (
-            <div className="divide-y" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
+          {filteredClientsDzd.length > 0 ? (<div className="divide-y divide-neutral-100">
               {visibleClients.map((client) => {
                 const balance = clientBalances.get(client.id) || 0;
-                return (
-                  <SwipeableListItem
-                    key={client.id}
-                    onEdit={() => openClientModal(client)}
-                    onDelete={() => setClientToDelete(client)}
-                  >
-                    <div
-                      onTouchStart={() => handleTouchStart(client)}
-                      onTouchEnd={handleTouchEnd}
-                      onContextMenu={(e) => { e.preventDefault(); handleTouchStart(client); }}
-                      className={`flex items-center gap-3 p-4 cursor-pointer w-full relative z-10 ${isDark ? 'bg-[#111827]' : 'bg-white'}`}
-                      style={{ contentVisibility: 'auto', containIntrinsicSize: '88px' }}
-                      onClick={() => setSelectedClientId(client.id)}
-                    >
-                      <div className={`p-2 rounded-full flex-shrink-0 ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
-                        <UserIcon className="w-5 h-5" />
+                const overdue = overdueByClientId.get(client.id);
+                const fullName = getClientFullName(client);
+                return (<SwipeableListItem key={client.id} onEdit={() => openClientModal(client)} onDelete={() => setClientToDelete(client)}>
+                    <div onTouchStart={() => handleTouchStart(client)} onTouchEnd={handleTouchEnd} onContextMenu={(e) => { e.preventDefault(); handleTouchStart(client); }} className="flex items-center gap-3 p-4 cursor-pointer w-full relative z-10 bg-surface hover:bg-neutral-50 transition-colors" 
+                    // Technical exception: content-visibility keeps long client lists responsive.
+                    style={{ contentVisibility: 'auto', containIntrinsicSize: '76px' }} onClick={() => setSelectedClientId(client.id)}>
+                      <div className="shrink-0 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <UserIcon className="w-5 h-5"/>
                       </div>
-                      <div className="flex-grow min-w-0">
-                        <p className="font-bold truncate">{getClientFullName(client)}</p>
-                        <p className={`text-xs ${subtleText} truncate`}>{client.phone || 'Pas de numero'}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate text-sm font-semibold text-neutral-900">{fullName}</p>
+                          {overdue && (<span className="shrink-0 inline-flex items-center gap-0.5 text-financial-loss" title={`${overdue.daysOverdue} jours de retard`}>
+                              <AlertTriangleIcon className="w-3.5 h-3.5"/>
+                              <span className="text-xs font-bold">{overdue.daysOverdue}j</span>
+                            </span>)}
+                        </div>
                       </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className={`font-bold ${balance > 0 ? 'text-green-400' : balance < 0 ? 'text-red-400' : ''}`}>
-                          {formatDzd(balance, { min: 2, max: 2 })}
-                        </p>
+                      <div className="shrink-0 flex flex-col items-end gap-0.5">
+                        {balance !== 0 && (<CurrencyAmount value={Math.abs(balance)} currency="DZD" size="md" className={balance < 0 ? 'text-financial-debt' : 'text-financial-profit'}/>)}
+                        <span className={`text-[10px] font-medium ${balance < 0 ? 'text-financial-debt' : balance > 0 ? 'text-financial-profit' : 'text-neutral-400'}`}>
+                          {balance < 0 ? 'دين' : balance > 0 ? 'رصيد' : 'متعادل'}
+                        </span>
                       </div>
                     </div>
-                  </SwipeableListItem>
-                );
-              })}
-            </div>
-          ) : (
-            <p className={`text-center py-8 ${subtleText}`}>Aucun client trouve.</p>
-          )}
+                  </SwipeableListItem>);
+            })}
+            </div>) : (<EmptyState icon={<UsersIcon className="w-5 h-5"/>} title="Aucun client trouvé" subtitle="Ajoutez un client ou modifiez votre recherche."/>)}
         </CardContent>
-        {hiddenClientCount > 0 && (
-          <CardContent className="px-4 pb-4 pt-3">
-            <Button
-              onClick={() => setVisibleClientCount((prev) => prev + LOAD_MORE_CLIENTS)}
-              className={`w-full rounded-xl px-4 py-3 font-semibold ${isDark ? 'bg-slate-700 text-slate-100 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-            >
+        {hiddenClientCount > 0 && (<CardContent className="px-4 pb-4 pt-3">
+            <Button onClick={() => setVisibleClientCount((prev) => prev + LOAD_MORE_CLIENTS)} variant="outline" className="w-full rounded-xl px-4 py-3 font-semibold bg-neutral-100 text-neutral-700 hover:bg-neutral-200">
               Afficher plus ({Math.min(hiddenClientCount, LOAD_MORE_CLIENTS)})
             </Button>
-            <p className={`mt-2 text-center text-xs ${subtleText}`}>
+            <p className="mt-2 text-center text-xs text-neutral-500">
               {visibleClients.length} / {filteredClientsDzd.length}
             </p>
-          </CardContent>
-        )}
+          </CardContent>)}
       </Card>
-    </motion.div>
-  );
+
+      {onImportClients && (<CsvImportSheet isOpen={importOpen} onClose={() => setImportOpen(false)} title="Importer des clients" fields={CLIENT_IMPORT_FIELDS} onConfirm={onImportClients}/>)}
+
+      <OverdueDebtsModal isOpen={isOverdueModalOpen} onClose={() => setIsOverdueModalOpen(false)} overdueDebtors={overdueDebtClients} onOpenClient={setSelectedClientId}/>
+    </div>);
 }

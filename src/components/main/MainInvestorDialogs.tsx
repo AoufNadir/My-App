@@ -1,237 +1,255 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/Dialog';
+import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Label } from '../ui/Label';
 import { Input } from '../ui/Input';
 import { NumberInput } from '../ui/NumberInput';
-
+import { Select } from '../ui/Select';
+import { MoneyField } from '../ui/MoneyField';
+import { TransactionPreviewCard, type PreviewRow } from '../ui/TransactionPreviewCard';
+import { parseAndEvaluate } from '../../utils';
+import { formatMoney } from '../../pages/shared/pageFormat';
 type MainInvestorDialogsProps = Record<string, any>;
-
-export function MainInvestorDialogs({
-    isInvestorModalOpen,
-    setIsInvestorModalOpen,
-    editingInvestor,
-    handleSaveInvestor,
-    investorName,
-    setInvestorName,
-    fieldBase,
-    investorInitialCapital,
-    setInvestorInitialCapital,
-    investorNotes,
-    setInvestorNotes,
-    isManager,
-    setIsManager,
-    derivedInvestors,
-    selectedInvestorId,
-    isInvestorTxModalOpen,
-    setIsInvestorTxModalOpen,
-    investorTxType,
-    investorTxAmount,
-    setInvestorTxAmount,
-    subtleText,
-    investorTxNotes,
-    setInvestorTxNotes,
-    handleInvestorTransaction,
-    cardBase,
-    isDark,
-    t,
-    investorToDelete,
-    setInvestorToDelete,
-    handleDeleteInvestor,
-    investorTxToDelete,
-    setInvestorTxToDelete,
-    handleDeleteInvestorTx,
-    isReinvestModalOpen,
-    setIsReinvestModalOpen,
-    reinvestInput,
-    setReinvestInput,
-    handleReinvestProfit,
-    setAlert
-}: MainInvestorDialogsProps) {
-    return (
-        <>
+export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, handleSaveInvestor, investorName, setInvestorName, fieldBase, investorInitialCapital, setInvestorInitialCapital, investorNotes, setInvestorNotes, isManager, setIsManager, derivedInvestors, selectedInvestorId, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorTxType, investorTxAmount, setInvestorTxAmount, investorTxPaymentSource, setInvestorTxPaymentSource, treasuryStats, subtleText, investorTxNotes, setInvestorTxNotes, handleInvestorTransaction, cardBase, t, investorToDelete, setInvestorToDelete, handleDeleteInvestor, investorTxToDelete, setInvestorTxToDelete, handleDeleteInvestorTx, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, handleReinvestProfit, setAlert }: MainInvestorDialogsProps) {
+    const headerClass = 'sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
+    const footerClass = 'sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
+    const cancelBtn = 'flex-1 rounded-xl bg-neutral-100 py-3 font-bold text-neutral-700 transition-colors hover:bg-neutral-200';
+    const primaryBtn = 'flex-1 rounded-xl bg-primary py-3 font-bold text-white shadow-sm transition-colors hover:bg-primary-dark';
+    const dangerBtn = 'flex-1 rounded-xl bg-danger py-3 font-bold text-white shadow-sm transition-colors hover:bg-danger-light';
+    return (<>
             {/* INVESTOR CREATION / EDIT MODAL */}
-            <Dialog isOpen={isInvestorModalOpen} onClose={() => setIsInvestorModalOpen(false)} className={`${cardBase} max-w-md`}>
-                <DialogHeader onClose={() => setIsInvestorModalOpen(false)} isDark={isDark}>
-                    <DialogTitle>{editingInvestor ? "Modifier Investisseur" : "Nouvel Investisseur"}</DialogTitle>
-                </DialogHeader>
-                <DialogContent className="px-6 pb-6 space-y-4">
-                    <form onSubmit={(e) => {
-                        e.preventDefault();
-                        handleSaveInvestor();
-                    }}>
+            <Modal isOpen={isInvestorModalOpen} onClose={() => setIsInvestorModalOpen(false)} className="max-w-md bg-surface">
+                <ModalHeader onClose={() => setIsInvestorModalOpen(false)} className={headerClass}>
+                    <ModalTitle className="text-base sm:text-lg">{editingInvestor ? "Modifier Investisseur" : "Nouvel Investisseur"}</ModalTitle>
+                </ModalHeader>
+                <form onSubmit={(e) => {
+            e.preventDefault();
+            handleSaveInvestor();
+        }}>
+                    <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
                         <div>
                             <Label>Nom Complet</Label>
-                            <Input value={investorName} onChange={e => setInvestorName(e.target.value)} className={fieldBase} placeholder="Nom de l'investisseur" required />
+                            <Input value={investorName} onChange={e => setInvestorName(e.target.value)} className="mt-1" placeholder="Nom de l'investisseur" required/>
                         </div>
-                        {!editingInvestor && (
-                            <div>
+                        {!editingInvestor && (<div>
                                 <Label>Capital Initial (DZD)</Label>
-                                <NumberInput value={investorInitialCapital} onChange={e => setInvestorInitialCapital(e.target.value)} className={fieldBase} placeholder="0.00" />
-                            </div>
-                        )}
-                        {/* Share Percentage Removed - Auto Calculated */}
+                                <NumberInput value={investorInitialCapital} onChange={e => setInvestorInitialCapital(e.target.value)} className="mt-1" placeholder="0.00"/>
+                            </div>)}
+
                         <div>
-                            <Label>Notes (Optionnel)</Label>
-                            <Input value={investorNotes} onChange={e => setInvestorNotes(e.target.value)} className={fieldBase} placeholder="Notes..." />
+                            <Label>Notes</Label>
+                            <Input value={investorNotes} onChange={e => setInvestorNotes(e.target.value)} className="mt-1" placeholder="Notes optionnelles..."/>
                         </div>
 
-                        <div className="flex items-center gap-2 mt-4 p-3 rounded-lg border border-indigo-100 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-900/10">
-                            <input
-                                type="checkbox"
-                                id="isManager"
-                                checked={isManager}
-                                onChange={e => setIsManager(e.target.checked)}
-                                className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
-                            />
-                            <label htmlFor="isManager" className="text-sm font-medium cursor-pointer select-none">
-                                Cet investisseur est le Gérant
-                            </label>
+                        <label htmlFor="isManager" className="mt-2 flex min-h-touch cursor-pointer items-center gap-3 rounded-xl bg-surface-muted p-3 transition-colors hover:bg-neutral-100">
+                            <input type="checkbox" id="isManager" checked={isManager} onChange={e => setIsManager(e.target.checked)} className="h-5 w-5 rounded accent-primary"/>
+                            <span className="text-sm font-medium select-none">
+                                Cet investisseur est le Gérant 👑
+                            </span>
+                        </label>
+                    </ModalContent>
+                    <ModalFooter className={footerClass}>
+                        <div className="flex gap-2 w-full">
+                            <Button type="button" onClick={() => setIsInvestorModalOpen(false)} className={cancelBtn}>
+                                Annuler
+                            </Button>
+                            <Button type="submit" className={primaryBtn}>
+                                {editingInvestor ? "Mettre à jour" : "Créer"}
+                            </Button>
                         </div>
-
-                        <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl mt-4">
-                            {editingInvestor ? "Mettre à jour" : "Créer Investisseur"}
-                        </Button>
-                    </form>
-                </DialogContent>
-            </Dialog>
+                    </ModalFooter>
+                </form>
+            </Modal>
 
             {/* INVESTOR TRANSACTION MODAL */}
             {(() => {
-                const selectedInv = derivedInvestors.find(i => i.id === selectedInvestorId);
-                let availableProfit = 0;
-                let showAvailability = false;
+            const selectedInv = derivedInvestors.find(i => i.id === selectedInvestorId);
+            const amt = parseAndEvaluate(investorTxAmount);
+            const validAmount = Number.isFinite(amt) && amt > 0;
+            const availableProfit = selectedInv?.availableProfit || 0;
+            const capitalInvested = selectedInv?.capitalInvested || 0;
+            const paymentSource = investorTxPaymentSource || 'Caisse';
+            const paymentSourceBalance = paymentSource === 'Caisse'
+                ? Number(treasuryStats?.caisse || 0)
+                : Number(treasuryStats?.baridi || 0);
+            let cap = 0;
+            let capLabel = '';
+            let nextLabel = '';
+            let nextValue = 0;
+            let exceedsCap = false;
+            let exceedsPaymentSource = false;
+            let titleStr = '';
+            if (investorTxType === 'withdraw_profit') {
+                cap = availableProfit;
+                capLabel = 'Profit disponible';
+                nextLabel = 'Profit apres retrait';
+                nextValue = availableProfit - amt;
+                exceedsCap = amt > availableProfit;
+                exceedsPaymentSource = amt > paymentSourceBalance;
+                titleStr = 'Retrait Profit';
+            }
+            else if (investorTxType === 'withdraw_capital') {
+                cap = capitalInvested;
+                capLabel = 'Capital investi';
+                nextLabel = 'Capital apres retrait';
+                nextValue = capitalInvested - amt;
+                exceedsCap = amt > capitalInvested;
+                titleStr = 'Retrait Capital';
+            }
+            else if (investorTxType === 'deposit_capital') {
+                capLabel = 'Capital actuel';
+                cap = capitalInvested;
+                nextLabel = 'Capital apres depot';
+                nextValue = capitalInvested + amt;
+                titleStr = 'Depot Capital';
+            }
+            else {
+                capLabel = 'Profit actuel';
+                cap = availableProfit;
+                nextLabel = 'Profit apres distribution';
+                nextValue = availableProfit + amt;
+                titleStr = 'Distribution Profit';
+            }
+            const isInvalid = !validAmount || exceedsCap || exceedsPaymentSource;
+            const errorMsg = !validAmount
+                ? 'Montant invalide'
+                : exceedsCap
+                    ? `Montant superieur a ${capLabel.toLowerCase()}`
+                    : exceedsPaymentSource
+                        ? `Solde ${paymentSource} insuffisant`
+                        : '';
+            return (<Modal isOpen={isInvestorTxModalOpen} onClose={() => setIsInvestorTxModalOpen(false)} className="max-w-md bg-surface">
+                        <ModalHeader onClose={() => setIsInvestorTxModalOpen(false)} className={headerClass}>
+                            <ModalTitle className="text-base sm:text-lg">{titleStr}</ModalTitle>
+                        </ModalHeader>
+                        <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
+                            <MoneyField label="Montant" value={investorTxAmount} onChange={setInvestorTxAmount} currency="DZD" placeholder="0.00" error={errorMsg && validAmount ? errorMsg : undefined}/>
 
-                if (isInvestorTxModalOpen && selectedInv && investorTxType === 'withdraw_profit') {
-                    showAvailability = true;
-                    availableProfit = selectedInv.availableProfit || 0;
-                }
+                            {investorTxType === 'withdraw_profit' && (<div>
+                                    <Label>Source du paiement</Label>
+                                    <Select value={paymentSource} onChange={(event) => setInvestorTxPaymentSource(event.target.value as 'Caisse' | 'BaridiMob')} className="mt-1">
+                                        <option value="Caisse">Caisse</option>
+                                        <option value="BaridiMob">BaridiMob</option>
+                                    </Select>
+                                    <p className={`mt-1 text-xs ${subtleText}`}>
+                                        Solde disponible: <span dir="ltr">{formatMoney(paymentSourceBalance, 'DZD')}</span>
+                                    </p>
+                                </div>)}
 
-                return (
-                    <Dialog isOpen={isInvestorTxModalOpen} onClose={() => setIsInvestorTxModalOpen(false)} className={`${cardBase} max-w-md`}>
-                        <DialogHeader onClose={() => setIsInvestorTxModalOpen(false)} isDark={isDark}>
-                            <DialogTitle>
-                                {investorTxType === 'deposit_capital' ? 'Dépôt Capital' :
-                                    investorTxType === 'withdraw_capital' ? 'Retrait Capital' :
-                                        investorTxType === 'profit_distribution' ? 'Distribution Profit' : 'Retrait Profit'}
-                            </DialogTitle>
-                        </DialogHeader>
-                        <DialogContent className="px-6 pb-6 space-y-4">
-                            <div>
-                                <Label>Montant (DZD)</Label>
-                                <NumberInput value={investorTxAmount} onChange={e => setInvestorTxAmount(e.target.value)} className={fieldBase} placeholder="0.00" />
-                                {showAvailability && (
-                                    <div className={`text-xs mt-1 text-right ${availableProfit > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                        Disponible: {availableProfit.toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD
-                                    </div>
-                                )}
+                            {validAmount && selectedInv && (() => {
+                    const rows: PreviewRow[] = [
+                        { label: capLabel, value: cap, currency: 'DZD' },
+                        { label: 'Montant', value: amt, currency: 'DZD' },
+                        { label: nextLabel, value: nextValue, currency: 'DZD', semantic: 'auto', emphasize: true }
+                    ];
+                    if (investorTxType === 'withdraw_profit') {
+                        rows.push({
+                            label: `${paymentSource} apres paiement`,
+                            value: paymentSourceBalance - amt,
+                            currency: 'DZD',
+                            semantic: 'auto'
+                        });
+                    }
+                    return (<TransactionPreviewCard title="Résumé" rows={rows} error={(exceedsCap || exceedsPaymentSource) ? errorMsg : undefined}/>);
+                })()}
+                        </ModalContent>
+                        <ModalFooter className={footerClass}>
+                            <div className="flex gap-2 w-full">
+                                <Button onClick={() => setIsInvestorTxModalOpen(false)} className={cancelBtn}>
+                                    Annuler
+                                </Button>
+                                <Button onClick={handleInvestorTransaction} disabled={isInvalid} className={`flex-1 rounded-xl py-3 font-bold text-white shadow-sm transition-colors ${isInvalid ? 'cursor-not-allowed bg-neutral-400 opacity-70' : 'bg-primary hover:bg-primary-dark'}`} title={isInvalid ? errorMsg : undefined}>
+                                    Confirmer
+                                </Button>
                             </div>
-                            <div>
-                                <Label>Notes</Label>
-                                <Input value={investorTxNotes} onChange={e => setInvestorTxNotes(e.target.value)} className={fieldBase} />
-                            </div>
-                        </DialogContent>
-                        <DialogFooter>
-                            <Button
-                                onClick={handleInvestorTransaction}
-                                disabled={showAvailability && availableProfit <= 0}
-                                className={`w-full text-white font-bold py-3 rounded-xl ${showAvailability && availableProfit <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
-                            >
-                                Confirmer
-                            </Button>
-                        </DialogFooter>
-                    </Dialog>
-                );
-            })()}
+                        </ModalFooter>
+                    </Modal>);
+        })()}
 
             {/* INVESTOR DELETE CONFIRMATION */}
-            <Dialog isOpen={investorToDelete !== null} onClose={() => setInvestorToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>{t('common.confirmDelete')}</DialogTitle></DialogHeader>
-                <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">Êtes-vous sûr de vouloir supprimer cet investisseur ?</p>
-                    <p className="text-xs text-red-500 font-bold mt-2">Cette action est irréversible.</p>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => setInvestorToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
-                    <Button onClick={() => handleDeleteInvestor(investorToDelete?.id)} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{t('common.delete')}</Button>
-                </DialogFooter>
-            </Dialog>
+            <Modal isOpen={investorToDelete !== null} onClose={() => setInvestorToDelete(null)} className="max-w-sm bg-surface">
+                <ModalHeader onClose={() => setInvestorToDelete(null)} className={headerClass}>
+                    <ModalTitle className="text-base sm:text-lg">{t('common.confirmDelete')}</ModalTitle>
+                </ModalHeader>
+                <ModalContent className="px-4 py-4 sm:px-5">
+                    <p className="text-sm text-neutral-700">Êtes-vous sûr de vouloir supprimer cet investisseur ?</p>
+                    <p className="text-xs text-danger font-medium mt-2">Cette action est irréversible.</p>
+                </ModalContent>
+                <ModalFooter className={footerClass}>
+                    <div className="flex gap-2 w-full">
+                        <Button onClick={() => setInvestorToDelete(null)} className={cancelBtn}>{t('common.cancel')}</Button>
+                        <Button onClick={() => handleDeleteInvestor(investorToDelete?.id)} className={dangerBtn}>{t('common.delete')}</Button>
+                    </div>
+                </ModalFooter>
+            </Modal>
 
             {/* INVESTOR TRANSACTION DELETE CONFIRMATION */}
-            <Dialog isOpen={investorTxToDelete !== null} onClose={() => setInvestorTxToDelete(null)} className={cardBase}>
-                <DialogHeader isDark={isDark}><DialogTitle>{t('common.confirmDelete')}</DialogTitle></DialogHeader>
-                <DialogContent className="p-6">
-                    <p className="text-sm opacity-80">Êtes-vous sûr de vouloir supprimer cette transaction ?</p>
-                </DialogContent>
-                <DialogFooter>
-                    <Button onClick={() => setInvestorTxToDelete(null)} className={`w-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'} mb-2`}>{t('common.cancel')}</Button>
-                    <Button onClick={handleDeleteInvestorTx} className="bg-red-600 text-white w-full font-bold py-3 rounded-xl">{t('common.delete')}</Button>
-                </DialogFooter>
-            </Dialog>
+            <Modal isOpen={investorTxToDelete !== null} onClose={() => setInvestorTxToDelete(null)} className="max-w-sm bg-surface">
+                <ModalHeader onClose={() => setInvestorTxToDelete(null)} className={headerClass}>
+                    <ModalTitle className="text-base sm:text-lg">{t('common.confirmDelete')}</ModalTitle>
+                </ModalHeader>
+                <ModalContent className="px-4 py-4 sm:px-5">
+                    <p className="text-sm text-neutral-700">Êtes-vous sûr de vouloir supprimer cette transaction ?</p>
+                </ModalContent>
+                <ModalFooter className={footerClass}>
+                    <div className="flex gap-2 w-full">
+                        <Button onClick={() => setInvestorTxToDelete(null)} className={cancelBtn}>{t('common.cancel')}</Button>
+                        <Button onClick={handleDeleteInvestorTx} className={dangerBtn}>{t('common.delete')}</Button>
+                    </div>
+                </ModalFooter>
+            </Modal>
 
             {/* REINVEST PROFIT MODAL */}
-            {isReinvestModalOpen && (
-                <Dialog isOpen={isReinvestModalOpen} onClose={() => setIsReinvestModalOpen(false)} className={`${cardBase} max-w-md`}>
-                    <DialogHeader onClose={() => setIsReinvestModalOpen(false)} isDark={isDark}>
-                        <DialogTitle>Réinvestir les bénéfices</DialogTitle>
-                    </DialogHeader>
-                    <DialogContent className="px-6 pb-6 space-y-4">
-                        <div>
-                            <Label>Montant à réinvestir (DZD)</Label>
-                            <NumberInput
-                                value={reinvestInput}
-                                onChange={e => setReinvestInput(e.target.value)}
-                                className={`${fieldBase} text-xl font-bold text-center h-14`}
-                                placeholder="0.00"
-                            />
-                            <div className="flex justify-between items-center mt-2 px-1">
-                                <span className={`text-xs ${subtleText}`}>Disponible:</span>
-                                <span className="text-xs font-bold text-indigo-500">
-                                    {(derivedInvestors.find(i => i.id === selectedInvestorId)?.availableProfit || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD
-                                </span>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 mt-4">
-                            <button
-                                onClick={() => {
-                                    const avail = derivedInvestors.find(i => i.id === selectedInvestorId)?.availableProfit || 0;
-                                    setReinvestInput(avail.toFixed(2));
-                                }}
-                                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all ${isDark ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}`}
-                            >
+            {isReinvestModalOpen && (() => {
+            const selectedInv = derivedInvestors.find(i => i.id === selectedInvestorId);
+            const availableProfit = selectedInv?.availableProfit || 0;
+            const capitalInvested = selectedInv?.capitalInvested || 0;
+            const reinvestAmt = parseAndEvaluate(reinvestInput);
+            const validAmount = Number.isFinite(reinvestAmt) && reinvestAmt > 0;
+            const exceedsAvailable = reinvestAmt > availableProfit;
+            const isInvalid = !validAmount || exceedsAvailable;
+            const errorMsg = !validAmount
+                ? 'Montant invalide'
+                : exceedsAvailable
+                    ? 'Montant superieur au profit disponible'
+                    : '';
+            return (<Modal isOpen={isReinvestModalOpen} onClose={() => setIsReinvestModalOpen(false)} className="max-w-md bg-surface">
+                    <ModalHeader onClose={() => setIsReinvestModalOpen(false)} className={headerClass}>
+                        <ModalTitle className="text-base sm:text-lg">Réinvestir les bénéfices</ModalTitle>
+                    </ModalHeader>
+                    <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
+                        <MoneyField label="Montant à réinvestir" value={reinvestInput} onChange={setReinvestInput} currency="DZD" placeholder="0.00" hint={<>Disponible: <span dir="ltr">{formatMoney(availableProfit, 'DZD')}</span></>} error={validAmount && exceedsAvailable ? errorMsg : undefined}/>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button type="button" onClick={() => setReinvestInput(availableProfit.toFixed(2))} className="min-h-touch rounded-lg bg-primary/10 px-3 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary/15">
                                 Tout Réinvestir
                             </button>
-                            <button
-                                onClick={() => {
-                                    const avail = (derivedInvestors.find(i => i.id === selectedInvestorId)?.availableProfit || 0) / 2;
-                                    setReinvestInput(avail.toFixed(2));
-                                }}
-                                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all ${isDark ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}
-                            >
+                            <button type="button" onClick={() => setReinvestInput((availableProfit / 2).toFixed(2))} className="min-h-touch rounded-lg bg-neutral-100 px-3 py-2 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-200">
                                 Moitié (50%)
                             </button>
                         </div>
-                    </DialogContent>
-                    <DialogFooter>
-                        <div className="flex gap-3 w-full">
-                            <Button onClick={() => setIsReinvestModalOpen(false)} className={`flex-1 ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>Annuler</Button>
-                            <Button
-                                onClick={() => {
-                                    const amt = parseFloat(reinvestInput);
-                                    if (!isNaN(amt) && amt > 0) {
-                                        handleReinvestProfit(selectedInvestorId!, amt);
-                                        setIsReinvestModalOpen(false);
-                                    } else {
-                                        setAlert("⚠️ Montant invalide.");
-                                    }
-                                }}
-                                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
-                            >
+
+                        {validAmount && selectedInv && (<TransactionPreviewCard title="Résumé" rows={[
+                        { label: 'Profit disponible', value: availableProfit, currency: 'DZD' },
+                        { label: 'Montant a reinvestir', value: reinvestAmt, currency: 'DZD' },
+                        { label: 'Profit restant', value: availableProfit - reinvestAmt, currency: 'DZD', semantic: 'auto' },
+                        { label: 'Nouveau capital', value: capitalInvested + reinvestAmt, currency: 'DZD', emphasize: true }
+                    ]} error={exceedsAvailable ? errorMsg : undefined}/>)}
+                    </ModalContent>
+                    <ModalFooter className={footerClass}>
+                        <div className="flex gap-2 w-full">
+                            <Button onClick={() => setIsReinvestModalOpen(false)} className={cancelBtn}>Annuler</Button>
+                            <Button onClick={() => {
+                    if (isInvalid) {
+                        setAlert(`⚠️ ${errorMsg}`);
+                        return;
+                    }
+                    handleReinvestProfit(selectedInvestorId!, reinvestAmt);
+                    setIsReinvestModalOpen(false);
+                }} disabled={isInvalid} className={`flex-1 rounded-xl py-3 font-bold text-white shadow-sm transition-colors ${isInvalid ? 'cursor-not-allowed bg-neutral-400 opacity-70' : 'bg-primary hover:bg-primary-dark'}`} title={isInvalid ? errorMsg : undefined}>
                                 Confirmer
                             </Button>
                         </div>
-                    </DialogFooter>
-                </Dialog>
-            )}
-        </>
-    );
+                    </ModalFooter>
+                </Modal>);
+        })()}
+        </>);
 }

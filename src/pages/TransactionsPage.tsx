@@ -1,18 +1,16 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useMemo, useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx } from '../types';
-import { PencilIcon } from '../components/icons/PencilIcon';
+import { PlusIcon } from '../components/icons/PlusIcon';
+import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
+import { HeroKpiCard } from '../components/ui/HeroKpiCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import { TransactionsHistoryCard } from '../components/transactions/TransactionsHistoryCard';
 import { NewTransactionMenuDialog } from '../components/transactions/NewTransactionMenuDialog';
-import { TransactionFilterMode } from '../components/transactions/transactionsTypes';
+import { TransactionFilterMode, DisplayTx } from '../components/transactions/transactionsTypes';
 import { useTransactionsViewModel } from '../components/transactions/useTransactionsViewModel';
 
 type TransactionsPageProps = {
-  cardBase: string;
-  isDark: boolean;
-  subtleText: string;
   openAdjustmentModal: (type: 'add' | 'subtract', txToEdit?: TreasuryTx | null) => void;
   openForm: (newMode: 'buy_usdt' | 'sell_usdt' | 'buy_eur' | 'sell_eur', txToEdit?: Tx | null) => void;
   filterMode: TransactionFilterMode;
@@ -28,16 +26,17 @@ type TransactionsPageProps = {
   setDateRange: (range: { start: Date | null; end: Date | null }) => void;
   openWalletTransferModal: () => void;
   openTransferModal: () => void;
+  openDeliveryExpenseModal: () => void;
+  openPersonalWithdrawalModal?: () => void;
   treasuryTransactions: TreasuryTx[];
+  handleEditPortfolioTx?: (tx: Tx) => void;
   handleEditClientTx?: (tx: ClientTransactionDzd) => void;
+  handleEditTreasuryTx?: (tx: TreasuryTx) => void;
   handleDeleteClientTxClick?: (tx: ClientTransactionDzd) => void;
   setTreasuryTxToDelete?: (tx: TreasuryTx | null) => void;
 };
 
 export function TransactionsPage({
-  cardBase,
-  isDark,
-  subtleText,
   openAdjustmentModal,
   openForm,
   filterMode,
@@ -53,10 +52,14 @@ export function TransactionsPage({
   setDateRange,
   openWalletTransferModal,
   openTransferModal,
+  openDeliveryExpenseModal,
+  openPersonalWithdrawalModal,
   treasuryTransactions,
+  handleEditPortfolioTx,
   handleEditClientTx,
+  handleEditTreasuryTx,
   handleDeleteClientTxClick,
-  setTreasuryTxToDelete
+  setTreasuryTxToDelete,
 }: TransactionsPageProps) {
   const { t } = useLanguage();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -64,15 +67,15 @@ export function TransactionsPage({
   const {
     savedFilters,
     txFilterLabels,
+    txFilterCounts,
     groupedTransactions,
     formatDzdAmount,
     handleSaveCurrentFilter,
     handleApplySavedFilter,
     handleDeleteSavedFilter,
     handleEditDisplayTx,
-    handleDeleteDisplayTx
+    handleDeleteDisplayTx,
   } = useTransactionsViewModel({
-    isDark,
     t: t as (key: string) => string,
     filterMode,
     setFilterMode,
@@ -86,27 +89,49 @@ export function TransactionsPage({
     openForm,
     openAdjustmentModal,
     setTxToDelete,
+    handleEditPortfolioTx,
     handleEditClientTx,
+    handleEditTreasuryTx,
     handleDeleteClientTxClick,
-    setTreasuryTxToDelete
+    setTreasuryTxToDelete,
   });
 
+  const stats = useMemo(() => {
+    const allTxs: DisplayTx[] = Object.values(groupedTransactions).flat() as DisplayTx[];
+    return {
+      total:    allTxs.length,
+      crypto:   allTxs.filter((tx) => tx.category === 'crypto').length,
+      client:   allTxs.filter((tx) => tx.category === 'client').length,
+      treasury: allTxs.filter((tx) => tx.category === 'treasury').length,
+    };
+  }, [groupedTransactions]);
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="mb-2">
-        <Button
-          onClick={() => setIsMenuOpen(true)}
-          className="w-full py-4 rounded-xl shadow-lg font-bold text-lg text-white flex items-center justify-center gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all transform hover:scale-[1.01]"
-        >
-          <PencilIcon className="w-5 h-5" />
-          {t('transactions.newTransaction')}
-        </Button>
-      </div>
+    <div className="anim-page-in space-y-5">
+      <HeroKpiCard
+        accent="sky"
+        icon={<BriefcaseIcon className="w-5 h-5" />}
+        primaryLabel={t('transactions.history') as string}
+        primaryValue={stats.total}
+        primaryCurrency={null}
+        primarySemantic="plain"
+        secondary={[
+          { label: 'Portefeuille',               value: stats.crypto,   currency: null, semantic: 'plain' },
+          { label: t('nav.clients') as string,   value: stats.client,   currency: null, semantic: 'plain' },
+          { label: t('nav.treasury') as string,  value: stats.treasury, currency: null, semantic: 'plain' },
+        ]}
+      />
+
+      <Button
+        variant="primary"
+        onClick={() => setIsMenuOpen(true)}
+        className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold shadow-sm transition-all active:scale-[0.98]"
+      >
+        <PlusIcon className="w-4 h-4" />
+        {t('transactions.newTransaction')}
+      </Button>
 
       <TransactionsHistoryCard
-        cardBase={cardBase}
-        isDark={isDark}
-        subtleText={subtleText}
         t={t as (key: string) => string}
         openDateFilterModal={openDateFilterModal}
         dateRange={dateRange}
@@ -115,6 +140,7 @@ export function TransactionsPage({
         onApplySavedFilter={handleApplySavedFilter}
         onDeleteSavedFilter={handleDeleteSavedFilter}
         txFilterLabels={txFilterLabels}
+        txFilterCounts={txFilterCounts}
         filterMode={filterMode}
         setFilterMode={setFilterMode}
         groupedTransactions={groupedTransactions}
@@ -127,14 +153,14 @@ export function TransactionsPage({
       <NewTransactionMenuDialog
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        cardBase={cardBase}
-        isDark={isDark}
         t={t as (key: string) => string}
         openForm={(newMode) => openForm(newMode)}
         openWalletTransferModal={openWalletTransferModal}
         openTransferModal={openTransferModal}
         openAdjustmentModal={(type) => openAdjustmentModal(type)}
+        openDeliveryExpenseModal={openDeliveryExpenseModal}
+        openPersonalWithdrawalModal={openPersonalWithdrawalModal}
       />
-    </motion.div>
+    </div>
   );
 }

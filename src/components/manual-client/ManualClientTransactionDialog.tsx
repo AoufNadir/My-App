@@ -2,106 +2,112 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { Select } from '../ui/Select';
-import { NumberInput } from '../ui/NumberInput';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/Dialog';
+import { MoneyField } from '../ui/MoneyField';
+import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../ui/Modal';
+import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { ManualAssetTransaction } from '../../types';
-
+import { describeServiceBalance, type ServiceBalanceKind } from '../../utils/serviceBalances';
+import { useLanguage } from '../../contexts/LanguageContext';
 type TransactionType = 'service' | 'payment_received';
 type PaymentMethod = 'cash' | 'baridi' | 'credit';
-
 type ManualClientTransactionDialogProps = {
-  isDark: boolean;
-  cardBase: string;
-  fieldBase: string;
-  isTxModalOpen: boolean;
-  editingTx: ManualAssetTransaction | null;
-  txType: TransactionType;
-  setTxType: (type: TransactionType) => void;
-  amount: string;
-  setAmount: (value: string) => void;
-  serviceType: string;
-  setServiceType: (value: string) => void;
-  notes: string;
-  setNotes: (value: string) => void;
-  paymentMethod: PaymentMethod;
-  setPaymentMethod: (method: PaymentMethod) => void;
-  onClose: () => void;
-  onSave: () => void;
+    cardBase: string;
+    fieldBase: string;
+    isTxModalOpen: boolean;
+    editingTx: ManualAssetTransaction | null;
+    txType: TransactionType;
+    setTxType: (type: TransactionType) => void;
+    amount: string;
+    setAmount: (value: string) => void;
+    serviceType: string;
+    setServiceType: (value: string) => void;
+    notes: string;
+    setNotes: (value: string) => void;
+    paymentMethod: PaymentMethod;
+    setPaymentMethod: (method: PaymentMethod) => void;
+    currentBalance: number;
+    onClose: () => void;
+    onSave: () => void;
 };
-
-export function ManualClientTransactionDialog({
-  isDark,
-  cardBase,
-  fieldBase,
-  isTxModalOpen,
-  editingTx,
-  txType,
-  setTxType,
-  amount,
-  setAmount,
-  serviceType,
-  setServiceType,
-  notes,
-  setNotes,
-  paymentMethod,
-  setPaymentMethod,
-  onClose,
-  onSave
-}: ManualClientTransactionDialogProps) {
-  return (
-    <Dialog isOpen={isTxModalOpen} onClose={onClose} className={`${cardBase} max-w-md`}>
-      <DialogHeader onClose={onClose} isDark={isDark}>
-        <DialogTitle>{editingTx ? "Modifier l'Operation" : 'Nouvelle Operation'}</DialogTitle>
-      </DialogHeader>
-      <DialogContent className="px-6 pb-6 space-y-4">
+export function ManualClientTransactionDialog({ cardBase, fieldBase, isTxModalOpen, editingTx, txType, setTxType, amount, setAmount, serviceType, setServiceType, paymentMethod, setPaymentMethod, currentBalance, onClose, onSave }: ManualClientTransactionDialogProps) {
+    const { t } = useLanguage();
+    const subtleText = 'text-neutral-500';
+    const parsedAmount = Number.parseFloat(amount.replace(/\s/g, '').replace(',', '.')) || 0;
+    const signedAmount = txType === 'service' ? -Math.abs(parsedAmount) : Math.abs(parsedAmount);
+    const nextBalance = currentBalance + signedAmount;
+    const currentBalanceView = describeServiceBalance(currentBalance);
+    const nextBalanceView = describeServiceBalance(nextBalance);
+    const serviceBalanceLabel = (kind: ServiceBalanceKind) => {
+        if (kind === 'to_receive')
+            return t('finance.toReceive');
+        if (kind === 'client_advance')
+            return t('finance.clientAdvance');
+        return t('finance.settled');
+    };
+    const balanceSemantic = (kind: ServiceBalanceKind) => kind === 'to_receive'
+        ? 'profit'
+        : kind === 'client_advance'
+            ? 'loss'
+            : 'plain';
+    const segItem = (active: boolean, activeClass: string) => `min-h-touch flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${active
+        ? activeClass
+        : 'text-neutral-600 hover:text-neutral-800'}`;
+    return (<Modal isOpen={isTxModalOpen} onClose={onClose} className="max-w-md bg-surface">
+      <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
+        <ModalTitle className="text-base sm:text-lg">{editingTx ? t('transactions.editOperation') : t('transactions.newOperation')}</ModalTitle>
+      </ModalHeader>
+      <ModalContent className="px-4 py-4 sm:px-5 space-y-4">
         <div>
-          <Label>Type d'Operation</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setTxType('service')}
-              className={`p-3 rounded-xl border font-bold text-sm transition-all ${txType === 'service' ? 'bg-indigo-600 text-white border-indigo-600' : `${fieldBase} opacity-70`}`}
-            >
-              Service / Vente
+          <Label>{t('transactions.operationType')}</Label>
+          <div className="mt-1 flex gap-1 rounded-xl bg-neutral-100 p-1">
+            <button type="button" onClick={() => setTxType('service')} className={segItem(txType === 'service', 'bg-danger text-white shadow-sm')}>
+              {t('services.service')} / {t('transactions.sell')}
             </button>
-            <button
-              onClick={() => setTxType('payment_received')}
-              className={`p-3 rounded-xl border font-bold text-sm transition-all ${txType === 'payment_received' ? 'bg-green-600 text-white border-green-600' : `${fieldBase} opacity-70`}`}
-            >
-              Reglement Recu
+            <button type="button" onClick={() => setTxType('payment_received')} className={segItem(txType === 'payment_received', 'bg-success text-white shadow-sm')}>
+              {t('transactions.paymentReceived')}
             </button>
           </div>
         </div>
 
-        {txType === 'service' && (
-          <div>
-            <Label>Type de Service</Label>
-            <Input value={serviceType} onChange={(e) => setServiceType(e.target.value)} className={fieldBase} placeholder="Ex: Conception, Impression..." />
-          </div>
-        )}
+        {txType === 'service' && (<div>
+            <Label>{t('services.serviceType')}</Label>
+            <Input value={serviceType} onChange={(e) => setServiceType(e.target.value)} className="mt-1" placeholder={t('services.servicePlaceholder') as string}/>
+          </div>)}
 
-        <div>
-          <Label>Montant (DZD)</Label>
-          <NumberInput value={amount} onChange={(e) => setAmount(e.target.value)} className={`${fieldBase} text-center text-2xl font-bold`} placeholder="0.00" />
-        </div>
+        <MoneyField label={t('transactions.amount') as string} value={amount} onChange={setAmount} currency="DZD" placeholder="0.00"/>
 
-        {txType !== 'service' && (
-          <div>
-            <Label>Mode de Paiement</Label>
-            <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} className={fieldBase}>
-              <option value="cash">Especes</option>
+        {txType !== 'service' && (<div>
+            <Label>{t('services.paymentMethod')}</Label>
+            <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} className="mt-1">
+              <option value="cash">{t('services.cash')}</option>
               <option value="baridi">BaridiMob</option>
             </Select>
-          </div>
-        )}
+          </div>)}
 
-        <div>
-          <Label>Notes</Label>
-          <Input value={notes} onChange={(e) => setNotes(e.target.value)} className={fieldBase} />
+        <div className="rounded-xl bg-surface-muted p-3">
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className={subtleText}>{t('transactions.currentBalance')}</span>
+            <span className="font-semibold text-end">
+              {serviceBalanceLabel(currentBalanceView.kind)}: <CurrencyAmount value={currentBalanceView.amount} currency="DZD" semantic={balanceSemantic(currentBalanceView.kind)} size="md"/>
+            </span>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+            <span className={subtleText}>{t('services.afterConfirmation')}</span>
+            <span className="font-bold text-end">
+              {serviceBalanceLabel(nextBalanceView.kind)}: <CurrencyAmount value={nextBalanceView.amount} currency="DZD" semantic={balanceSemantic(nextBalanceView.kind)} size="md"/>
+            </span>
+          </div>
         </div>
-      </DialogContent>
-      <DialogFooter>
-        <Button onClick={onSave} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">Confirmer</Button>
-      </DialogFooter>
-    </Dialog>
-  );
+      </ModalContent>
+      <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
+        <div className="flex gap-2 w-full">
+          <Button onClick={onClose} className="flex-1 rounded-xl bg-neutral-100 py-3 font-bold text-neutral-700 transition-colors hover:bg-neutral-200">
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={onSave} className="flex-1 rounded-xl bg-primary py-3 font-bold text-white shadow-sm transition-colors hover:bg-primary-dark">
+            {t('common.confirm')}
+          </Button>
+        </div>
+      </ModalFooter>
+    </Modal>);
 }

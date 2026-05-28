@@ -1,77 +1,59 @@
 import { Card, CardContent, CardHeader } from '../ui/Card';
-import { UnifiedTitle } from '../ui/UnifiedTitle';
+import { SectionHeading } from '../ui/SectionHeading';
+import { MobileTable, type MobileTableColumn } from '../ui/MobileTable';
+import { Badge } from '../ui/Badge';
+import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { FileSpreadsheetIcon } from '../icons/FileSpreadsheetIcon';
 import { InvestorTransaction } from '../../types';
-import { formatDzd } from '../../pages/shared/pageFormat';
-
 type InvestorDashboardTransactionsTableProps = {
-  orderedTransactions: InvestorTransaction[];
-  isDark: boolean;
+    orderedTransactions: InvestorTransaction[];
 };
-
 function getInvestorDashboardTxMeta(type: InvestorTransaction['type']) {
-  if (type === 'profit_distribution') return { label: 'Distribution Profit', badge: 'bg-emerald-500/10 text-emerald-500', positive: true };
-  if (type === 'deposit_capital') return { label: 'Depot Capital', badge: 'bg-blue-500/10 text-blue-500', positive: true };
-  if (type === 'withdraw_profit') return { label: 'Retrait Profit', badge: 'bg-amber-500/10 text-amber-500', positive: false };
-  return { label: 'Retrait Capital', badge: 'bg-gray-500/10 text-gray-500', positive: false };
+    if (type === 'profit_distribution')
+        return { label: 'Distribution Profit', badgeVariant: 'success' as const, positive: true };
+    if (type === 'deposit_capital')
+        return { label: 'Depot Capital', badgeVariant: 'primary' as const, positive: true };
+    if (type === 'withdraw_profit')
+        return { label: 'Retrait Profit', badgeVariant: 'warning' as const, positive: false };
+    return { label: 'Retrait Capital', badgeVariant: 'neutral' as const, positive: false };
 }
-
-export function InvestorDashboardTransactionsTable({
-  orderedTransactions,
-  isDark
-}: InvestorDashboardTransactionsTableProps) {
-  return (
-    <Card className={`${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'} border shadow-sm`}>
-      <CardHeader className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-        <UnifiedTitle
-          as="h3"
-          isDark={isDark}
-          variant="section"
-          icon={<FileSpreadsheetIcon className="w-4 h-4" />}
-        >
+export function InvestorDashboardTransactionsTable({ orderedTransactions }: InvestorDashboardTransactionsTableProps) {
+    const columns: MobileTableColumn<InvestorTransaction>[] = [
+        {
+            key: 'date',
+            label: 'Date',
+            render: (tx) => (<div>
+              <div className="font-medium text-neutral-900">{tx.date}</div>
+              <div className="text-xs text-neutral-500">{tx.time}</div>
+            </div>),
+        },
+        {
+            key: 'type',
+            label: 'Type',
+            render: (tx) => {
+                const meta = getInvestorDashboardTxMeta(tx.type);
+                return <Badge variant={meta.badgeVariant}>{meta.label}</Badge>;
+            },
+        },
+        {
+            key: 'amount',
+            label: 'Montant',
+            align: 'end',
+            render: (tx) => {
+                const meta = getInvestorDashboardTxMeta(tx.type);
+                const signedAmount = (meta.positive ? 1 : -1) * Math.abs(tx.amount);
+                return <CurrencyAmount value={signedAmount} currency="DZD" semantic="auto" size="lg" showSign decimals={0}/>;
+            },
+        },
+    ];
+    return (<Card className="border border-border bg-surface shadow-sm">
+      <CardHeader className="flex items-center justify-between border-b border-border p-4">
+        <SectionHeading icon={<FileSpreadsheetIcon className="w-4 h-4"/>}>
           Historique des Transactions
-        </UnifiedTitle>
+        </SectionHeading>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className={`${isDark ? 'bg-slate-900/50 text-gray-400' : 'bg-slate-50 text-gray-500'} font-medium`}>
-              <tr>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3 text-right">Montant</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {orderedTransactions.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center opacity-50">Aucune transaction trouvee.</td>
-                </tr>
-              ) : (
-                orderedTransactions.map((tx) => {
-                  const meta = getInvestorDashboardTxMeta(tx.type);
-                  return (
-                    <tr key={tx.id} className={`${isDark ? 'hover:bg-slate-700/30' : 'hover:bg-slate-50'} transition-colors`}>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>{tx.date}</div>
-                        <div className="text-xs opacity-50">{tx.time}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${meta.badge}`}>
-                          {meta.label}
-                        </span>
-                      </td>
-                      <td className={`px-4 py-3 text-right font-bold ${meta.positive ? 'text-emerald-500' : 'text-red-500'}`}>
-                        {meta.positive ? '+' : '-'}{formatDzd(tx.amount, { min: 0, max: 2 })}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+        <MobileTable columns={columns} data={orderedTransactions} keyExtractor={(tx) => tx.id} emptyTitle="Aucune transaction" emptySubtitle="L'historique des transactions s'affichera ici."/>
       </CardContent>
-    </Card>
-  );
+    </Card>);
 }

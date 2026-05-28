@@ -1,87 +1,65 @@
-import React, { useMemo } from 'react';
-import { motion } from 'framer-motion';
+import React, { useMemo, useState } from 'react';
+import { UserIcon } from '../components/icons/UserIcon';
 import { PlusIcon } from '../components/icons/PlusIcon';
 import { Investor } from '../types';
-import { InvestorsStatsSection } from '../components/investors/InvestorsStatsSection';
+import { InvestorsDetailsCard } from '../components/investors/InvestorsDetailsCard';
+import { CommissionEditorModal } from '../components/investors/CommissionEditorModal';
 import { InvestorsListSection } from '../components/investors/InvestorsListSection';
-
+import { HeroKpiCard } from '../components/ui/HeroKpiCard';
+import { PageHeader } from '../components/ui/PageHeader';
+import { Button } from '../components/ui/Button';
+import type { InvestorEconomicsResult } from '../hooks/useInvestorEconomics';
 interface InvestorsPageProps {
-  isDark: boolean;
-  cardBase: string;
-  subtleText: string;
-  investors: Investor[];
-  onOpenInvestor: (investor: Investor) => void;
-  onAddInvestor: () => void;
-  onEditInvestor: (investor: Investor) => void;
-  onDeleteInvestor: (investor: Investor) => void;
-  globalNetProfit: number;
-  managerFeePercentage: string;
-  setManagerFeePercentage: (val: string) => void;
+    cardBase: string;
+    subtleText: string;
+    investors: Investor[];
+    onOpenInvestor: (investor: Investor) => void;
+    onAddInvestor: () => void;
+    onEditInvestor: (investor: Investor) => void;
+    onDeleteInvestor: (investor: Investor) => void;
+    investorEconomicsTotals: InvestorEconomicsResult['totals'];
+    managerFeePercentage: string;
+    setManagerFeePercentage: (val: string) => void;
 }
-
 type InvestorsStats = {
-  totalCapital: number;
-  totalProfitDistributed: number;
-  totalAvailable: number;
-  managerFee: number;
-  totalWithdrawn: number;
+    totalCapital: number;
+    totalProfitDistributed: number;
+    totalAvailable: number;
+    managerFee: number;
+    totalWithdrawn: number;
+    activeCount: number;
+    totalDeliveryExpenses: number;
+    netDistributableProfit: number;
 };
+export const InvestorsPage: React.FC<InvestorsPageProps> = ({ cardBase, subtleText, investors, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, setManagerFeePercentage }) => {
+    const stats: InvestorsStats = useMemo(() => {
+        const totalCapital = investors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0);
+        const totalProfitDistributed = investors.reduce((sum, inv) => sum + (inv.totalProfit || 0), 0);
+        const totalAvailable = investors.reduce((sum, inv) => sum + (inv.availableProfit || 0), 0);
+        const totalWithdrawn = investors.reduce((sum, inv) => sum + (inv.withdrawnProfit || 0), 0);
+        const managerFee = investorEconomicsTotals.managerShare;
+        const activeCount = investors.filter((inv) => inv.isActive).length;
+        const totalDeliveryExpenses = investorEconomicsTotals.totalDeliveryExpenses || 0;
+        const netDistributableProfit = investorEconomicsTotals.netDistributableProfit || 0;
+        return { totalCapital, totalProfitDistributed, totalAvailable, managerFee, totalWithdrawn, activeCount, totalDeliveryExpenses, netDistributableProfit };
+    }, [investors, investorEconomicsTotals]);
+    const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false);
+    return (<div className="anim-page-in space-y-6">
+      <PageHeader title="Investisseurs" subtitle={`${stats.activeCount} actifs`} className="-mx-4 sm:mx-0 sm:rounded-lg" actions={(<Button onClick={onAddInvestor} className="gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-white hover:bg-primary-dark">
+            <PlusIcon className="h-4 w-4"/>
+            <span className="hidden sm:inline">Ajouter</span>
+          </Button>)}/>
 
-export const InvestorsPage: React.FC<InvestorsPageProps> = ({
-  isDark,
-  cardBase,
-  subtleText,
-  investors,
-  onOpenInvestor,
-  onAddInvestor,
-  onEditInvestor,
-  onDeleteInvestor,
-  globalNetProfit,
-  managerFeePercentage,
-  setManagerFeePercentage
-}) => {
-  const stats: InvestorsStats = useMemo(() => {
-    const totalCapital = investors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0);
-    const totalProfitDistributed = investors.reduce((sum, inv) => sum + (inv.totalProfit || 0), 0);
-    const totalAvailable = investors.reduce((sum, inv) => sum + (inv.availableProfit || 0), 0);
-    const totalWithdrawn = investors.reduce((sum, inv) => sum + (inv.withdrawnProfit || 0), 0);
-    const managerFee = globalNetProfit * ((parseFloat(managerFeePercentage) || 0) / 100);
+      <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel="Capital total investisseurs" primaryValue={stats.totalCapital} primaryCurrency="DZD" primarySemantic="plain" secondary={[
+            { label: 'Profit distribué', value: stats.totalProfitDistributed, currency: 'DZD', semantic: 'auto' },
+            { label: 'Profit disponible', value: stats.totalAvailable, currency: 'DZD', semantic: 'auto' },
+            { label: 'Fee gérant', value: stats.managerFee, currency: 'DZD', semantic: 'auto' }
+        ]}/>
 
-    return { totalCapital, totalProfitDistributed, totalAvailable, managerFee, totalWithdrawn };
-  }, [investors, globalNetProfit, managerFeePercentage]);
+      <InvestorsDetailsCard cardBase={cardBase} subtleText={subtleText} stats={stats} managerFeePercentage={managerFeePercentage} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)}/>
 
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <InvestorsStatsSection
-        cardBase={cardBase}
-        subtleText={subtleText}
-        isDark={isDark}
-        stats={stats}
-        managerFeePercentage={managerFeePercentage}
-        setManagerFeePercentage={setManagerFeePercentage}
-      />
+      <InvestorsListSection cardBase={cardBase} subtleText={subtleText} investors={investors} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor}/>
 
-      <div className="fixed bottom-24 right-4 z-50">
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onAddInvestor}
-          className="w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl flex items-center justify-center transition-colors focus:outline-none"
-        >
-          <PlusIcon className="w-8 h-8" />
-        </motion.button>
-      </div>
-
-      <InvestorsListSection
-        cardBase={cardBase}
-        subtleText={subtleText}
-        isDark={isDark}
-        investors={investors}
-        totalCapital={stats.totalCapital}
-        onOpenInvestor={onOpenInvestor}
-        onEditInvestor={onEditInvestor}
-        onDeleteInvestor={onDeleteInvestor}
-      />
-    </motion.div>
-  );
+      <CommissionEditorModal isOpen={isCommissionModalOpen} onClose={() => setIsCommissionModalOpen(false)} value={managerFeePercentage} onChange={setManagerFeePercentage} managerFeeAmount={stats.managerFee}/>
+    </div>);
 };

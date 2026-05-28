@@ -1,154 +1,50 @@
+import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { UnifiedTitle } from '../ui/UnifiedTitle';
+import { FinancialMetricCard } from '../ui/FinancialMetricCard';
 import { PlusIcon } from '../icons/PlusIcon';
 import { Trash2Icon } from '../icons/Trash2Icon';
-import { PencilIcon } from '../icons/PencilIcon';
 import { CreditCardIcon } from '../icons/CreditCardIcon';
-import { BriefcaseIcon } from '../icons/BriefcaseIcon';
-import { ManualAsset, ManualAssetClient, TreasuryCard } from '../../types';
-import { formatDzd } from '../../pages/shared/pageFormat';
-
+import { TreasuryCard } from '../../types';
+import { useLanguage } from '../../contexts/LanguageContext';
 type TreasuryCollectionsSectionProps = {
-  isDark: boolean;
-  subtleText: string;
-  treasuryCards: TreasuryCard[];
-  openTreasuryCardModal: (card?: TreasuryCard) => void;
-  setTreasuryCardToDelete: (card: TreasuryCard | null) => void;
-  manualAssets: ManualAsset[];
-  manualAssetClients: ManualAssetClient[];
-  assetBalances: Map<string, number>;
-  onOpenManualAsset: (asset: ManualAsset) => void;
-  onOpenCreateManualAsset: () => void;
-  onDeleteManualAsset: (assetId: string) => void;
+    cardBase: string;
+    subtleText: string;
+    treasuryCards: TreasuryCard[];
+    openTreasuryCardModal: (card?: TreasuryCard) => void;
+    setTreasuryCardToDelete: (card: TreasuryCard | null) => void;
 };
-
-export function TreasuryCollectionsSection({
-  isDark,
-  subtleText,
-  treasuryCards,
-  openTreasuryCardModal,
-  setTreasuryCardToDelete,
-  manualAssets,
-  manualAssetClients,
-  assetBalances,
-  onOpenManualAsset,
-  onOpenCreateManualAsset,
-  onDeleteManualAsset
-}: TreasuryCollectionsSectionProps) {
-  const assetClientCount = new Map<string, number>();
-  manualAssetClients.forEach((client) => {
-    assetClientCount.set(client.assetId, (assetClientCount.get(client.assetId) || 0) + 1);
-  });
-
-  return (
-    <>
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <UnifiedTitle
-            as="h3"
-            isDark={isDark}
-            variant="section"
-            icon={<CreditCardIcon className="w-4 h-4" />}
-          >
-            Cartes de Tresorerie
-          </UnifiedTitle>
-          <Button onClick={() => openTreasuryCardModal()} className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg flex items-center gap-2 text-sm font-bold">
-            <PlusIcon className="w-4 h-4" /> Ajouter
-          </Button>
-        </div>
-
-        {treasuryCards.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {treasuryCards.map((card) => (
-              <div key={card.id} className={`p-5 rounded-2xl shadow-sm border transition-all relative group ${isDark ? 'bg-[#1E293B] border-[#334155]' : 'bg-white border-slate-200'}`}>
-                <div className={`flex items-center justify-between text-sm font-medium mb-2 ${subtleText}`}>
-                  <span>{card.name}</span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => openTreasuryCardModal(card)}
-                      className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1.5 hover:bg-blue-500/20 rounded-full text-blue-500"
-                    >
-                      <PencilIcon className="w-4 h-4" />
+export function TreasuryCollectionsSection({ cardBase, subtleText, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete }: TreasuryCollectionsSectionProps) {
+    const { t } = useLanguage();
+    const visibleCards = treasuryCards.filter((card) => Math.abs(Number(card.value) || 0) > 0.005);
+    return (<Card className={cardBase}>
+      <CardHeader className="p-4 pb-3 flex flex-row items-center justify-between">
+        <UnifiedTitle as="h3" variant="section" icon={<CreditCardIcon className="w-4 h-4"/>}>
+          {t('finance.treasuryCards')}
+        </UnifiedTitle>
+        <Button onClick={() => openTreasuryCardModal()} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold">
+          <PlusIcon className="w-4 h-4"/> {t('transactions.add')}
+        </Button>
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        {visibleCards.length > 0 ? (<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {visibleCards.map((card) => (<FinancialMetricCard key={card.id} label={card.name} value={Number(card.value) || 0} tone="stock" icon={<CreditCardIcon className="h-4 w-4"/>} onEdit={() => openTreasuryCardModal(card)} meta={(<div className="space-y-3">
+                    {card.notes?.trim() && (<div className="rounded-lg border border-border bg-surface-muted p-3">
+                        <p className={`text-xs font-medium ${subtleText}`}>
+                          {t('common.notes')}
+                        </p>
+                        <p className="mt-1 whitespace-pre-line text-sm leading-6 text-neutral-700">
+                          {card.notes}
+                        </p>
+                      </div>)}
+                    <button type="button" onClick={() => setTreasuryCardToDelete(card)} className="inline-flex min-h-touch items-center gap-2 rounded-lg bg-danger-bg px-3 text-xs font-bold text-danger transition-colors hover:bg-danger/10">
+                      <Trash2Icon className="h-4 w-4"/>
+                      {t('common.delete')}
                     </button>
-                    <button
-                      onClick={() => setTreasuryCardToDelete(card)}
-                      className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1.5 hover:bg-red-500/20 rounded-full text-red-500"
-                    >
-                      <Trash2Icon className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {formatDzd(Number(card.value) || 0, { min: 2, max: 2 })}
-                </div>
-                <div className={`mt-4 rounded-xl border p-3 ${isDark ? 'border-slate-700 bg-slate-950/40' : 'border-slate-200 bg-slate-50'}`}>
-                  <p className={`text-[11px] font-semibold uppercase tracking-[0.24em] ${subtleText}`}>Notes</p>
-                  <p className={`mt-2 text-sm leading-6 whitespace-pre-line ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                    {card.notes?.trim() || 'Aucune note pour cette carte.'}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className={`p-8 rounded-2xl border border-dashed text-center ${isDark ? 'border-slate-700 text-slate-500' : 'border-slate-300 text-slate-400'}`}>
-            Aucune carte ajoutee.
-          </div>
-        )}
-      </div>
-
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <UnifiedTitle
-            as="h3"
-            isDark={isDark}
-            variant="section"
-            icon={<BriefcaseIcon className="w-4 h-4" />}
-          >
-            Actifs Manuels
-          </UnifiedTitle>
-          <Button onClick={onOpenCreateManualAsset} className="bg-teal-600 hover:bg-teal-700 text-white p-2 rounded-lg flex items-center gap-2 text-sm font-bold">
-            <PlusIcon className="w-4 h-4" /> Creer
-          </Button>
-        </div>
-
-        {manualAssets.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {manualAssets.map((asset) => {
-              const balance = assetBalances.get(asset.id) || 0;
-              const clientCount = assetClientCount.get(asset.id) || 0;
-
-              return (
-                <div
-                  key={asset.id}
-                  onClick={() => onOpenManualAsset(asset)}
-                  className={`p-5 rounded-2xl shadow-sm border transition-all relative group cursor-pointer hover:scale-[1.02] ${isDark ? 'bg-[#1E293B] border-[#334155] hover:bg-[#263345]' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
-                >
-                  <div className={`flex items-center justify-between text-sm font-medium mb-2 ${subtleText}`}>
-                    <span>{asset.name}</span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onDeleteManualAsset(asset.id); }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-red-500/20 rounded-full text-red-500"
-                    >
-                      <Trash2Icon className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className={`text-2xl font-bold ${balance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {formatDzd(balance, { min: 2, max: 2 })}
-                  </div>
-                  <div className={`text-xs mt-2 ${subtleText} flex items-center gap-2`}>
-                    <span className="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">{clientCount} Clients</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className={`p-8 rounded-2xl border border-dashed text-center ${isDark ? 'border-slate-700 text-slate-500' : 'border-slate-300 text-slate-400'}`}>
-            Aucun actif manuel cree.
-          </div>
-        )}
-      </div>
-    </>
-  );
+                  </div>)}/>))}
+          </div>) : (<div className="rounded-lg border border-dashed border-border-strong p-6 text-center text-sm text-neutral-400">
+            {t('transactions.noTransactions')}
+          </div>)}
+      </CardContent>
+    </Card>);
 }

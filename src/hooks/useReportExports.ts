@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import type { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, PortfolioStats, Tx } from '../types';
-
+import type { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, PortfolioStats, TreasuryTx, Tx } from '../types';
+import { computePamLedger, type PamLedgerResult } from '../utils/pamLedger';
+import { deriveInvestorEconomics } from './useInvestorEconomics';
 type Translator = (key: string) => unknown;
-
 type UseReportExportsArgs = {
     clientBalances: Map<string, number>;
     clientTransactionsDzd: ClientTransactionDzd[];
@@ -11,138 +11,237 @@ type UseReportExportsArgs = {
     getClientFullName: (client: ClientDzd) => string;
     investorTransactions: InvestorTransaction[];
     loadPdfReports: () => Promise<typeof import('../utils/pdfReports')>;
+    managerFeePercentage: string;
+    pamLedger?: PamLedgerResult;
     portfolioStats: PortfolioStats;
     setAlert: (message: string) => void;
     t: Translator;
     transactions: Tx[];
+    deliveryExpenses?: TreasuryTx[];
+    personalExpenses?: TreasuryTx[];
 };
-
+export type InvestorReportDateRange = {
+    startTs?: number | null;
+    endTs?: number | null;
+};
 function getMonthLabels(t: Translator) {
     const value = t('common.months');
-    if (!Array.isArray(value)) return [];
+    if (!Array.isArray(value))
+        return [];
     return value.filter((item): item is string => typeof item === 'string');
 }
-
 function isMobileDevice() {
-    if (typeof window === 'undefined') return false;
+    if (typeof window === 'undefined')
+        return false;
     return /android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent || '');
 }
-
-export function useReportExports({
-    clientBalances,
-    clientTransactionsDzd,
-    clientsDzd,
-    derivedInvestors,
-    getClientFullName,
-    investorTransactions,
-    loadPdfReports,
-    portfolioStats,
-    setAlert,
-    t,
-    transactions
-}: UseReportExportsArgs) {
+export function useReportExports({ clientBalances, clientTransactionsDzd, clientsDzd, derivedInvestors, getClientFullName, investorTransactions, loadPdfReports, managerFeePercentage, pamLedger: providedPamLedger, portfolioStats, setAlert, t, transactions, deliveryExpenses, personalExpenses }: UseReportExportsArgs) {
     const [usdtReportMonth, setUsdtReportMonth] = useState(new Date().getMonth());
     const [usdtReportYear, setUsdtReportYear] = useState(new Date().getFullYear());
     const [reportClient, setReportClient] = useState('');
     const [reportMonth, setReportMonth] = useState(new Date().getMonth());
     const [reportYear, setReportYear] = useState(new Date().getFullYear());
-
     const reportMonthNames = useMemo(() => getMonthLabels(t), [t]);
-
+    const reportPamLedger = useMemo(() => providedPamLedger || computePamLedger(transactions), [providedPamLedger, transactions]);
     const handleExportClientReport = async (clientId: string, month: number, year: number) => {
         if (!clientId) {
             setAlert('Selectionnez un client.');
             return;
         }
-
         const monthLabels = getMonthLabels(t);
+        const monthLabel = monthLabels[month] || `${month + 1}`;
+        const clientName = clientsDzd.find((client) => client.id === clientId);
         const { buildClientPdfReport, openPdfPrintWindow } = await loadPdfReports();
         const report = buildClientPdfReport({
             clientId,
             month,
             year,
-            monthLabel: monthLabels[month] || `${month + 1}`,
+            monthLabel,
             clients: clientsDzd,
             clientTransactions: clientTransactionsDzd,
             transactions,
             clientBalance: clientBalances.get(clientId) || 0,
             getClientName: getClientFullName
         });
-
         if (!report) {
             setAlert('Client introuvable.');
             return;
         }
-
         const opened = openPdfPrintWindow(report);
         if (!opened) {
             setAlert("Impossible d'ouvrir l'apercu PDF.");
             return;
         }
-
-        setAlert(
-            isMobileDevice()
-                ? "Rapport client ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
-                : "Rapport client pret. Enregistrez en PDF depuis l'impression."
-        );
+        setAlert(isMobileDevice()
+            ? `Releve client ${clientName ? getClientFullName(clientName) : ''} - ${monthLabel} ${year} ouvert. Appuyez sur 'Enregistrer PDF' dans la page.`
+            : `Releve client ${clientName ? getClientFullName(clientName) : ''} - ${monthLabel} ${year} pret. Enregistrez en PDF depuis l'impression.`);
     };
-
     const handleExportUsdtReport = async () => {
         const monthLabels = getMonthLabels(t);
+        const monthLabel = monthLabels[usdtReportMonth] || `${usdtReportMonth + 1}`;
         const { buildMonthlyPdfReport, openPdfPrintWindow } = await loadPdfReports();
         const report = buildMonthlyPdfReport({
             month: usdtReportMonth,
             year: usdtReportYear,
-            monthLabel: monthLabels[usdtReportMonth] || `${usdtReportMonth + 1}`,
+            monthLabel,
             transactions,
             clientTransactions: clientTransactionsDzd,
             clients: clientsDzd,
             getClientName: getClientFullName,
-            portfolioStats
+            portfolioStats,
+            pamLedger: reportPamLedger
         });
-
         const opened = openPdfPrintWindow(report);
         if (!opened) {
             setAlert("Impossible d'ouvrir l'apercu PDF.");
             return;
         }
-
-        setAlert(
-            isMobileDevice()
-                ? "Rapport mensuel ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
-                : "Rapport mensuel pret. Enregistrez en PDF depuis l'impression."
-        );
+        setAlert(isMobileDevice()
+            ? `Rapport mensuel ${monthLabel} ${usdtReportYear} ouvert. Appuyez sur 'Enregistrer PDF' dans la page.`
+            : `Rapport mensuel ${monthLabel} ${usdtReportYear} pret. Enregistrez en PDF depuis l'impression.`);
     };
-
-    const handleExportInvestorReport = async (investorId: string) => {
-        const investor = derivedInvestors.find((item) => item.id === investorId);
+    const handleExportInvestorReport = async (investorId: string, range: InvestorReportDateRange = {}) => {
+        const periodEconomics = deriveInvestorEconomics({
+            investors: derivedInvestors,
+            investorTransactions,
+            transactions,
+            managerFeePercentage,
+            pamLedger: reportPamLedger,
+            periodStartTs: range.startTs,
+            periodEndTs: range.endTs,
+            deliveryExpenses
+        });
+        const investor = periodEconomics.derivedInvestors.find((item) => item.id === investorId);
         if (!investor) {
             setAlert('Investisseur introuvable.');
             return;
         }
-
         const { buildInvestorPdfReport, openPdfPrintWindow } = await loadPdfReports();
         const report = buildInvestorPdfReport({
             investor,
-            investorTransactions: investorTransactions.filter((tx) => tx.investorId === investorId)
+            investorTransactions: investorTransactions.filter((tx) => tx.investorId === investorId),
+            reportStartTs: range.startTs,
+            reportEndTs: range.endTs
         });
-
         const opened = openPdfPrintWindow(report);
         if (!opened) {
             setAlert("Impossible d'ouvrir l'apercu PDF.");
             return;
         }
-
-        setAlert(
-            isMobileDevice()
-                ? "Rapport investisseur ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
-                : "Rapport investisseur pret. Enregistrez en PDF depuis l'impression."
-        );
+        setAlert(isMobileDevice()
+            ? "Rapport investisseur ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
+            : "Rapport investisseur pret. Enregistrez en PDF depuis l'impression.");
     };
-
+    const handleExportPersonalExpensesReport = async (periodKey: 'day' | 'week' | 'month' | 'year') => {
+        const expenses = personalExpenses || [];
+        const { buildPersonalExpensesPdfReport, openPdfPrintWindow } = await loadPdfReports();
+        const nowTs = Date.now();
+        const d = new Date(nowTs);
+        let periodStart: number;
+        let periodEnd: number;
+        let periodLabel: string;
+        if (periodKey === 'day') {
+            const sd = new Date(d);
+            sd.setHours(0, 0, 0, 0);
+            periodStart = sd.getTime();
+            const ed = new Date(sd);
+            ed.setHours(23, 59, 59, 999);
+            periodEnd = ed.getTime();
+            periodLabel = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        }
+        else if (periodKey === 'week') {
+            const sd = new Date(d);
+            const dow = sd.getDay();
+            const diff = dow === 0 ? -6 : 1 - dow;
+            sd.setDate(sd.getDate() + diff);
+            sd.setHours(0, 0, 0, 0);
+            periodStart = sd.getTime();
+            const ed = new Date(sd);
+            ed.setDate(ed.getDate() + 6);
+            ed.setHours(23, 59, 59, 999);
+            periodEnd = ed.getTime();
+            periodLabel = `Semaine du ${sd.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
+        }
+        else if (periodKey === 'month') {
+            const sd = new Date(d.getFullYear(), d.getMonth(), 1);
+            periodStart = sd.getTime();
+            periodEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+            periodLabel = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        }
+        else {
+            const sd = new Date(d.getFullYear(), 0, 1);
+            periodStart = sd.getTime();
+            periodEnd = new Date(d.getFullYear(), 11, 31, 23, 59, 59, 999).getTime();
+            periodLabel = String(d.getFullYear());
+        }
+        const prevStart = (() => {
+            const ps = new Date(periodStart);
+            if (periodKey === 'day') {
+                ps.setDate(ps.getDate() - 1);
+                ps.setHours(0, 0, 0, 0);
+                return ps.getTime();
+            }
+            if (periodKey === 'week') {
+                ps.setDate(ps.getDate() - 7);
+                return ps.getTime();
+            }
+            if (periodKey === 'month') {
+                return new Date(ps.getFullYear(), ps.getMonth() - 1, 1).getTime();
+            }
+            return new Date(ps.getFullYear() - 1, 0, 1).getTime();
+        })();
+        const prevEnd = (() => {
+            if (periodKey === 'day') {
+                const e = new Date(prevStart);
+                e.setHours(23, 59, 59, 999);
+                return e.getTime();
+            }
+            if (periodKey === 'week') {
+                const e = new Date(prevStart);
+                e.setDate(e.getDate() + 6);
+                e.setHours(23, 59, 59, 999);
+                return e.getTime();
+            }
+            if (periodKey === 'month') {
+                const e = new Date(prevStart);
+                return new Date(e.getFullYear(), e.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+            }
+            return new Date(new Date(prevStart).getFullYear(), 11, 31, 23, 59, 59, 999).getTime();
+        })();
+        const netExpense = (tx: TreasuryTx): number => {
+            if (tx.origin === 'personal_expense_return')
+                return 0;
+            if (tx.advanceState === 'settled')
+                return Number(tx.settledAmount || 0);
+            return Number(tx.amount || 0);
+        };
+        const previousPeriodTotal = expenses
+            .filter((tx) => tx.timestamp >= prevStart && tx.timestamp <= prevEnd && tx.advanceState !== 'pending' && tx.origin !== 'personal_expense_return')
+            .reduce((sum, tx) => sum + netExpense(tx), 0);
+        const managerInvestor = derivedInvestors.find((inv) => inv.isManager === true);
+        const managerProfitAvailable = Number(managerInvestor?.availableProfit || 0);
+        const report = buildPersonalExpensesPdfReport({
+            expenses,
+            periodLabel,
+            periodKey,
+            periodStart,
+            periodEnd,
+            previousPeriodTotal,
+            managerProfitAvailable
+        });
+        const opened = openPdfPrintWindow(report);
+        if (!opened) {
+            setAlert("Impossible d'ouvrir l'apercu PDF.");
+            return;
+        }
+        setAlert(isMobileDevice()
+            ? "Rapport depenses ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
+            : "Rapport depenses pret. Enregistrez en PDF depuis l'impression.");
+    };
     return {
         handleExportClientReport,
         handleExportInvestorReport,
+        handleExportPersonalExpensesReport,
         handleExportUsdtReport,
         reportClient,
         reportMonth,

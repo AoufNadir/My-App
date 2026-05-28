@@ -1,59 +1,25 @@
-import { Button } from '../ui/Button';
-import { UnifiedTitle } from '../ui/UnifiedTitle';
-import { ArrowLeftIcon } from '../icons/ArrowLeftIcon';
-import { BriefcaseIcon } from '../icons/BriefcaseIcon';
-import { formatDzd } from '../../pages/shared/pageFormat';
-
+import { PageHeader } from '../ui/PageHeader';
+import { FinancialMetricCard } from '../ui/FinancialMetricCard';
+import { useLanguage } from '../../contexts/LanguageContext';
 type ManualAssetHeaderStatsProps = {
-  assetName: string;
-  assetDescription?: string;
-  totalBalance: number;
-  clientsCount: number;
-  onBack: () => void;
-  isDark: boolean;
-  subtleText: string;
+    assetName: string;
+    assetDescription?: string;
+    amountToReceive: number;
+    clientAdvances: number;
+    netCapitalImpact: number;
+    clientsCount: number;
+    onBack: () => void;
+    subtleText: string;
 };
+export function ManualAssetHeaderStats({ assetName, assetDescription, amountToReceive, clientAdvances, netCapitalImpact, clientsCount, onBack, subtleText }: ManualAssetHeaderStatsProps) {
+    const { t } = useLanguage();
+    return (<>
+      <PageHeader title={assetName} subtitle={assetDescription || t('services.clients') as string} onBack={onBack} className="-mx-4 sm:mx-0 sm:rounded-lg"/>
 
-export function ManualAssetHeaderStats({
-  assetName,
-  assetDescription,
-  totalBalance,
-  clientsCount,
-  onBack,
-  isDark,
-  subtleText
-}: ManualAssetHeaderStatsProps) {
-  return (
-    <>
-      <div className="flex items-center gap-4">
-        <Button onClick={onBack} className={`p-2 rounded-full ${isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-600 hover:bg-slate-100'}`}>
-          <ArrowLeftIcon className="w-6 h-6" />
-        </Button>
-        <div>
-          <UnifiedTitle
-            as="h1"
-            isDark={isDark}
-            variant="page"
-            icon={<BriefcaseIcon className="w-4 h-4" />}
-          >
-            {assetName}
-          </UnifiedTitle>
-          <p className={`text-sm ${subtleText}`}>{assetDescription || 'Gestion des clients et operations'}</p>
-        </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <FinancialMetricCard label={t('services.toReceive') as string} value={amountToReceive} semantic={amountToReceive > 0 ? 'profit' : 'plain'} tone="profit"/>
+        <FinancialMetricCard label={t('services.clientAdvances') as string} value={clientAdvances} semantic={clientAdvances > 0 ? 'loss' : 'plain'} tone="debt"/>
+        <FinancialMetricCard label={t('services.capitalImpact') as string} value={netCapitalImpact} semantic="auto" tone={netCapitalImpact >= 0 ? 'profit' : 'debt'} hint={`${clientsCount} client${clientsCount > 1 ? 's' : ''}`}/>
       </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-          <div className={`text-sm font-medium mb-1 ${subtleText}`}>Solde Total (Estime)</div>
-          <div className={`text-2xl font-bold ${totalBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-            {formatDzd(totalBalance, { min: 2, max: 2 })}
-          </div>
-        </div>
-        <div className={`p-5 rounded-2xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-          <div className={`text-sm font-medium mb-1 ${subtleText}`}>Nombre de Clients</div>
-          <div className="text-2xl font-bold">{clientsCount}</div>
-        </div>
-      </div>
-    </>
-  );
+    </>);
 }

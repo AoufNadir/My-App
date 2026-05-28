@@ -23,14 +23,27 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
     },
     build: {
+      target: 'es2020',
+      sourcemap: false,
+      cssCodeSplit: true,
+      chunkSizeWarningLimit: 800,
       rollupOptions: {
         output: {
-          manualChunks: {
-            react: ['react', 'react-dom'],
-            firebaseAuth: ['firebase/app', 'firebase/auth'],
-            firebaseFirestore: ['firebase/firestore'],
-            motion: ['framer-motion'],
-            charts: ['recharts']
+          manualChunks: (id) => {
+            if (!id.includes('node_modules')) {
+              if (id.includes('/utils/pdfReports')) return 'pdfReports';
+              if (id.includes('/utils/pamLedger')) return 'pamLedger';
+              return undefined;
+            }
+            if (id.includes('react-dom') || id.includes('/react/') || id.includes('scheduler')) return 'react';
+            if (id.includes('firebase/auth')) return 'firebaseAuth';
+            if (id.includes('firebase/firestore')) return 'firebaseFirestore';
+            if (id.includes('firebase')) return 'firebaseCore';
+            if (id.includes('framer-motion') || id.includes('/motion-dom/') || id.includes('/motion-utils/')) return 'motion';
+            if (id.includes('recharts') || id.includes('/d3-') || id.includes('victory-vendor')) return 'charts';
+            if (id.includes('jspdf') || id.includes('html2canvas')) return 'pdf';
+            if (id.includes('xlsx') || id.includes('papaparse')) return 'spreadsheet';
+            return 'vendor';
           }
         }
       }

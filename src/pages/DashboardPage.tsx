@@ -1,0 +1,424 @@
+import { useMemo, type ReactNode } from 'react';
+import { Button } from '../components/ui/Button';
+import { Card, CardContent, CardHeader } from '../components/ui/Card';
+import { SectionHeading } from '../components/ui/SectionHeading';
+import { CurrencyAmount, type AmountSemantic } from '../components/financial/CurrencyAmount';
+import { HeroKpiCard } from '../components/ui/HeroKpiCard';
+import { AlertTriangleIcon } from '../components/icons/AlertTriangleIcon';
+import { BanknotesIcon } from '../components/icons/BanknotesIcon';
+import { ArrowRightLeftIcon } from '../components/icons/ArrowRightLeftIcon';
+import { ArrowUpRightIcon } from '../components/icons/ArrowUpRightIcon';
+import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
+import { CalendarIcon } from '../components/icons/CalendarIcon';
+import { LandmarkIcon } from '../components/icons/LandmarkIcon';
+import { PlusIcon } from '../components/icons/PlusIcon';
+import { SparklesIcon } from '../components/icons/SparklesIcon';
+import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
+import { UsersIcon } from '../components/icons/UsersIcon';
+import { WalletIcon } from '../components/icons/WalletIcon';
+import type { OverdueDebtClient, TreasuryCard } from '../types';
+import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
+import { useLanguage } from '../contexts/LanguageContext';
+type DashboardPageProps = {
+    dailyOverview: {
+        caisse: number;
+        baridi: number;
+        activeClients: number;
+        todayProfit: number;
+        monthToDateProfit: number;
+        yearToDateProfit: number;
+        allTimeProfit: number;
+        todayUsdtSold: number;
+        todayEurSold: number;
+        monthToDateUsdtSold: number;
+        monthToDateEurSold: number;
+        yearToDateUsdtSold: number;
+        yearToDateEurSold: number;
+        allTimeUsdtSold: number;
+        allTimeEurSold: number;
+    };
+    portfolioStats: any;
+    treasuryStats: any;
+    totals: any;
+    treasuryCards: TreasuryCard[];
+    investorLiability?: number;
+    servicesSummary?: {
+        netCapitalImpact?: number;
+    };
+    globalNetProfit: number;
+    overdueDebtClients: OverdueDebtClient[];
+    isDataSyncing?: boolean;
+    onNewTransaction: () => void;
+    onOpenClients: () => void;
+    onOpenClient: (clientId: string) => void;
+    onOpenClientDebts: () => void;
+    onOpenTreasury: () => void;
+    onOpenAnalytics: () => void;
+    onOpenPersonalWithdrawal?: () => void;
+};
+type Tone = 'success' | 'warning' | 'danger' | 'info';
+type PriorityItem = {
+    id: string;
+    title: string;
+    body: ReactNode;
+    tone: Tone;
+    action?: () => void;
+    actionLabel?: string;
+};
+function toneClasses(tone: Tone): string {
+    if (tone === 'danger')
+        return 'border border-danger/20 bg-danger-bg text-danger';
+    if (tone === 'warning')
+        return 'border border-warning/20 bg-warning-bg text-warning';
+    if (tone === 'success')
+        return 'border border-success/20 bg-success-bg text-success';
+    return 'border border-info/20 bg-info-bg text-info';
+}
+function renderDebtPriorityBody(template: string, amount: number, days: number, date: string) {
+    return (<>
+      {template.split(/(\{amount\}|\{days\}|\{date\})/g).map((part, index) => {
+            if (part === '{amount}') {
+                return <CurrencyAmount key={index} value={amount} currency="DZD" decimals={2} size="sm" className="font-semibold text-inherit"/>;
+            }
+            if (part === '{days}') {
+                return <span key={index} dir="ltr" className="tabular-nums">{days}</span>;
+            }
+            if (part === '{date}') {
+                return <span key={index} dir="ltr" className="tabular-nums">{date}</span>;
+            }
+            return part;
+        })}
+    </>);
+}
+function ActionStrip({ actions, }: {
+    actions: Array<{
+        label: string;
+        icon: ReactNode;
+        onClick: () => void;
+        primary?: boolean;
+    }>;
+}) {
+    return (<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {actions.map((action) => (<Button key={action.label} type="button" onClick={action.onClick} variant={action.primary ? 'primary' : 'outline'} size="md" className="w-full min-h-[74px] rounded-xl px-2.5 py-3 text-xs font-bold sm:min-h-[64px] sm:text-sm">
+          <span className="inline-flex h-full min-w-0 flex-col items-center justify-center gap-1.5 text-center sm:flex-row sm:gap-2">
+            {action.icon}
+            <span className="max-w-full leading-tight break-words">{action.label}</span>
+          </span>
+        </Button>))}
+    </div>);
+}
+function PriorityList({ title, items, onTitleClick, }: {
+    title: string;
+    items: PriorityItem[];
+    onTitleClick?: () => void;
+}) {
+    const renderItemContent = (item: PriorityItem) => (<div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-base font-semibold">{item.title}</p>
+        <p className="mt-1 text-sm leading-snug opacity-85">{item.body}</p>
+      </div>
+      {item.action && item.actionLabel && (<span className="shrink-0 rounded-md bg-surface/15 px-2 py-1 text-xs font-bold">
+          {item.actionLabel}
+        </span>)}
+    </div>);
+    return (<Card>
+      <CardHeader className="p-4 pb-3">
+        {onTitleClick ? (<button type="button" onClick={onTitleClick} className="w-full min-h-touch text-start rounded-md transition-opacity hover:opacity-85 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>{title}</SectionHeading>
+          </button>) : (<SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>{title}</SectionHeading>)}
+      </CardHeader>
+      <CardContent className="p-4 pt-0 space-y-2">
+        {items.map((item) => item.action ? (<button key={item.id} type="button" onClick={item.action} className={`w-full rounded-xl p-4 text-start transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${toneClasses(item.tone)}`}>
+              {renderItemContent(item)}
+            </button>) : (<div key={item.id} className={`rounded-xl p-4 ${toneClasses(item.tone)}`}>
+              {renderItemContent(item)}
+            </div>))}
+      </CardContent>
+    </Card>);
+}
+function TodaySummary({ title, items, }: {
+    title: string;
+    items: Array<{
+        label: string;
+        value: number;
+        semantic?: AmountSemantic;
+        icon: ReactNode;
+    }>;
+}) {
+    return (<Card>
+      <CardHeader className="p-4 pb-3">
+        <SectionHeading icon={<CalendarIcon className="w-4 h-4"/>}>{title}</SectionHeading>
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        <div className="grid grid-cols-2 gap-3">
+          {items.map((item) => (<div key={item.label} className="rounded-xl border border-border bg-surface-muted p-4">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-xs font-semibold text-neutral-500">{item.label}</p>
+                <span className="text-neutral-400">{item.icon}</span>
+              </div>
+              <div className="mt-3">
+                <CurrencyAmount value={item.value} currency="DZD" semantic={item.semantic ?? 'auto'} size="xl" decimals={0}/>
+              </div>
+            </div>))}
+        </div>
+      </CardContent>
+    </Card>);
+}
+function MoneyMap({ title, rows, }: {
+    title: string;
+    rows: Array<{
+        label: string;
+        value: number;
+        semantic?: AmountSemantic;
+        icon: ReactNode;
+    }>;
+}) {
+    return (<Card>
+      <CardHeader className="p-4 pb-3">
+        <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>{title}</SectionHeading>
+      </CardHeader>
+      <CardContent className="p-0 divide-y divide-neutral-100">
+        {rows.map((row) => (<div key={row.label} className="flex items-center justify-between gap-3 px-4 py-3.5">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600">
+                {row.icon}
+              </span>
+              <p className="text-sm font-medium text-neutral-500">{row.label}</p>
+            </div>
+            <CurrencyAmount value={row.value} currency="DZD" semantic={row.semantic ?? 'plain'} size="lg" decimals={0}/>
+          </div>))}
+      </CardContent>
+    </Card>);
+}
+function PortfolioStatusCard({ title, stockLabel, valueLabel, portfolioStats, stockValue, }: {
+    title: string;
+    stockLabel: string;
+    valueLabel: string;
+    portfolioStats: any;
+    stockValue: number;
+}) {
+    const usdtQty = Number(portfolioStats?.usdt?.available || 0);
+    const eurQty = Number(portfolioStats?.eur?.available || 0);
+    const usdtPam = Number(portfolioStats?.usdt?.avgBuy || 0);
+    const eurPam = Number(portfolioStats?.eur?.avgBuy || 0);
+    const usdtValue = usdtQty * usdtPam;
+    const eurValue = eurQty * eurPam;
+    const assetRows = [
+        { label: 'USDT', qty: usdtQty, currency: 'USDT' as const, pam: usdtPam, value: usdtValue },
+        { label: 'EUR', qty: eurQty, currency: 'EUR' as const, pam: eurPam, value: eurValue }
+    ];
+    return (<Card>
+      <CardHeader className="p-4 pb-3 flex flex-row items-start justify-between gap-3">
+        <SectionHeading icon={<BriefcaseIcon className="w-4 h-4"/>}>{title}</SectionHeading>
+        <div className="text-right shrink-0">
+          <p className="text-xs font-medium text-neutral-500">{stockLabel}</p>
+          <CurrencyAmount value={stockValue} currency="DZD" size="md" decimals={0}/>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {assetRows.map((asset) => (<div key={asset.label} className="rounded-xl border border-border bg-surface-muted p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface text-neutral-600">
+                    <WalletIcon className="h-5 w-5"/>
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-neutral-800">{asset.label}</p>
+                    <CurrencyAmount value={asset.qty} currency={asset.currency} size="lg"/>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xs font-medium text-neutral-500">PAM</p>
+                  <CurrencyAmount value={asset.pam} currency="DZD" size="sm" decimals={2}/>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center justify-between rounded-lg bg-surface px-3 py-2 text-sm">
+                <span className="text-neutral-500">{valueLabel}</span>
+                <CurrencyAmount value={asset.value} currency="DZD" size="sm" decimals={0} className="font-semibold text-neutral-700"/>
+              </div>
+            </div>))}
+        </div>
+      </CardContent>
+    </Card>);
+}
+function DashboardSyncState({ title, body, actions, }: {
+    title: string;
+    body: string;
+    actions: Array<{
+        label: string;
+        icon: ReactNode;
+        onClick: () => void;
+        primary?: boolean;
+    }>;
+}) {
+    return (<div className="anim-page-in space-y-5">
+      <Card>
+        <CardContent className="p-5">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <ArrowRightLeftIcon className="h-5 w-5"/>
+            </span>
+            <div className="min-w-0">
+              <p className="text-base font-semibold text-neutral-900">{title}</p>
+              <p className="mt-1 text-sm leading-snug text-neutral-500">{body}</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2">
+            {[0, 1, 2].map((item) => (<div key={item} className="h-10 animate-pulse rounded-lg bg-neutral-100"/>))}
+          </div>
+        </CardContent>
+      </Card>
+      <ActionStrip actions={actions}/>
+    </div>);
+}
+export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, totals, treasuryCards, investorLiability = 0, servicesSummary, overdueDebtClients, globalNetProfit, isDataSyncing = false, onNewTransaction, onOpenClients, onOpenClient, onOpenClientDebts, onOpenTreasury, onOpenAnalytics, onOpenPersonalWithdrawal, }: DashboardPageProps) {
+    const { t } = useLanguage();
+    const stockValue = Number(portfolioStats?.usdt?.available || 0) * Number(portfolioStats?.usdt?.avgBuy || 0)
+        + Number(portfolioStats?.eur?.available || 0) * Number(portfolioStats?.eur?.avgBuy || 0);
+    const servicesCapitalImpact = Number(servicesSummary?.netCapitalImpact || 0);
+    const capitalSnapshot = useMemo(() => computeCapitalSnapshot({
+        caisseBalance: Number(treasuryStats?.caisse || 0),
+        baridiBalance: Number(treasuryStats?.baridi || 0),
+        portfolioValue: stockValue,
+        totalDettes: Number(totals?.totalDettes || 0),
+        totalAvances: Number(totals?.totalAvances || 0),
+        treasuryCards,
+        investorLiability,
+        servicesCapitalImpact,
+    }), [treasuryStats, stockValue, totals, treasuryCards, investorLiability, servicesCapitalImpact]);
+    const cashTotal = capitalSnapshot.cashTotal;
+    const totalDebt = capitalSnapshot.receivables;
+    const totalAdvances = capitalSnapshot.clientAdvances;
+    const financialHealth = capitalSnapshot.totalCapital;
+    const capitalSecondaryItems = [
+        { label: t('finance.realCapital') as string, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const },
+        { label: t('finance.investorLiability') as string, value: capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: capitalSnapshot.investorLiability > 0 ? 'loss' as const : 'plain' as const, hideWhenZero: true },
+        { label: t('finance.liquidity') as string, value: cashTotal, currency: 'DZD' as const, semantic: 'plain' as const },
+        { label: t('finance.stock') as string, value: stockValue, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
+        { label: t('finance.treasuryCards') as string, value: capitalSnapshot.treasuryCardsTotal, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
+        { label: t('nav.services') as string, value: capitalSnapshot.servicesCapitalImpact, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true },
+        { label: t('finance.netPosition') as string, value: capitalSnapshot.netClientPosition, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true }
+    ].filter((item) => !item.hideWhenZero || Math.abs(item.value) > 0.005);
+    const lowStock = Number(portfolioStats?.usdt?.available || 0) < 100
+        && Number(portfolioStats?.eur?.available || 0) < 100;
+    const getClientDebtAmount = (client: OverdueDebtClient) => {
+        const balance = Number(client.balance || 0);
+        if (balance < -0.005)
+            return Math.abs(balance);
+        return Math.abs(Number(client.overdueAmount || 0));
+    };
+    const priorities = useMemo<PriorityItem[]>(() => {
+        const rows: PriorityItem[] = [];
+        const topDebtClients = overdueDebtClients
+            .slice()
+            .sort((a, b) => {
+            const byAmount = getClientDebtAmount(b) - getClientDebtAmount(a);
+            if (Math.abs(byAmount) > 0.005)
+                return byAmount;
+            const byOldest = Number(a.oldestUnpaidTimestamp || 0) - Number(b.oldestUnpaidTimestamp || 0);
+            if (Math.abs(byOldest) > 1)
+                return byOldest;
+            return a.fullName.localeCompare(b.fullName);
+        })
+            .slice(0, 3);
+        if (topDebtClients.length > 0) {
+            return topDebtClients.map((client, index) => ({
+                id: `urgent-debt-${client.clientId}`,
+                title: `${index + 1}. ${client.fullName}`,
+                body: renderDebtPriorityBody(t('dashboard.debtPriorityCardBody') as string, getClientDebtAmount(client), client.daysOverdue, client.oldestUnpaidDate),
+                tone: 'danger' as Tone,
+                action: () => onOpenClient(client.clientId),
+                actionLabel: t('dashboard.viewClient') as string,
+            }));
+        }
+        if (cashTotal < totalAdvances && totalAdvances > 0) {
+            rows.push({
+                id: 'uncovered-advances',
+                title: t('dashboard.uncoveredAdvances') as string,
+                body: t('dashboard.uncoveredAdvancesBody') as string,
+                tone: 'warning',
+                action: onOpenTreasury,
+                actionLabel: t('dashboard.openTreasury') as string,
+            });
+        }
+        if (lowStock) {
+            rows.push({
+                id: 'low-stock',
+                title: t('dashboard.lowStock') as string,
+                body: t('dashboard.lowStockBody') as string,
+                tone: 'warning',
+            });
+        }
+        if (dailyOverview.activeClients === 0 && dailyOverview.todayProfit === 0) {
+            rows.push({
+                id: 'calm-day',
+                title: t('dashboard.calmDay') as string,
+                body: t('dashboard.calmDayBody') as string,
+                tone: 'info',
+                action: onOpenAnalytics,
+                actionLabel: t('nav.analytics') as string,
+            });
+        }
+        if (rows.length === 0) {
+            rows.push({
+                id: 'stable',
+                title: t('dashboard.stable') as string,
+                body: t('dashboard.stableBody') as string,
+                tone: 'success',
+            });
+        }
+        return rows.slice(0, 3);
+    }, [
+        overdueDebtClients,
+        cashTotal,
+        totalAdvances,
+        lowStock,
+        dailyOverview.activeClients,
+        dailyOverview.todayProfit,
+        onOpenClient,
+        onOpenClientDebts,
+        onOpenTreasury,
+        onOpenAnalytics,
+        t
+    ]);
+    const primaryActions = [
+        { label: t('dashboard.newOperation') as string, icon: <PlusIcon className="h-4 w-4"/>, onClick: onNewTransaction, primary: true },
+        { label: t('nav.clients') as string, icon: <UsersIcon className="h-4 w-4"/>, onClick: onOpenClients },
+        { label: t('nav.treasury') as string, icon: <ArrowRightLeftIcon className="h-4 w-4"/>, onClick: onOpenTreasury },
+        { label: t('nav.analytics') as string, icon: <TrendingUpIcon className="h-4 w-4"/>, onClick: onOpenAnalytics }
+    ];
+    if (isDataSyncing) {
+        return (<DashboardSyncState title={t('dashboard.syncingTitle') as string} body={t('dashboard.syncingBody') as string} actions={primaryActions}/>);
+    }
+    return (<div className="anim-page-in space-y-5">
+      <HeroKpiCard accent="sky" icon={<LandmarkIcon className="w-5 h-5"/>} primaryLabel={t('dashboard.capitalTotal') as string} primaryValue={financialHealth} primaryCurrency="DZD" primarySemantic="plain" secondary={capitalSecondaryItems}/>
+
+      <ActionStrip actions={primaryActions}/>
+
+      {onOpenPersonalWithdrawal && (<Button onClick={onOpenPersonalWithdrawal} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold border border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary transition-colors active:scale-[0.98]">
+          <BanknotesIcon className="h-4 w-4"/>
+          <span>Ma dépense du jour</span>
+        </Button>)}
+
+      <TodaySummary title={t('dashboard.profitSummary') as string} items={[
+            { label: t('dashboard.profitYear') as string, value: dailyOverview.yearToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
+            { label: t('dashboard.profitAllTime') as string, value: Number(dailyOverview.allTimeProfit ?? globalNetProfit), semantic: 'auto', icon: <TrendingUpIcon className="h-4 w-4"/> },
+            { label: t('dashboard.profitMonth') as string, value: dailyOverview.monthToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
+            { label: t('dashboard.profitToday') as string, value: dailyOverview.todayProfit, semantic: 'auto', icon: <BriefcaseIcon className="h-4 w-4"/> }
+        ]}/>
+
+      <PriorityList title={t('dashboard.attentionNeeded') as string} items={priorities} onTitleClick={onOpenClientDebts}/>
+
+      <PortfolioStatusCard title={t('portfolio.currentStatus') as string} stockLabel={t('finance.stock') as string} valueLabel={t('transactions.value') as string} portfolioStats={portfolioStats} stockValue={stockValue}/>
+
+      <MoneyMap title={t('dashboard.moneyMap') as string} rows={[
+            { label: 'Caisse', value: Number(treasuryStats?.caisse || 0), icon: <WalletIcon className="h-4 w-4"/> },
+            { label: 'BaridiMob', value: Number(treasuryStats?.baridi || 0), icon: <LandmarkIcon className="h-4 w-4"/> },
+            { label: t('finance.stock') as string, value: stockValue, icon: <BriefcaseIcon className="h-4 w-4"/> },
+            { label: t('finance.toReceive') as string, value: totalDebt, semantic: totalDebt > 0 ? 'profit' : 'plain', icon: <ArrowUpRightIcon className="h-4 w-4"/> },
+            { label: t('finance.clientAdvance') as string, value: totalAdvances, semantic: totalAdvances > 0 ? 'loss' : 'plain', icon: <AlertTriangleIcon className="h-4 w-4"/> },
+            { label: t('finance.investorLiability') as string, value: capitalSnapshot.investorLiability, semantic: capitalSnapshot.investorLiability > 0 ? 'loss' : 'plain', icon: <UsersIcon className="h-4 w-4"/> }
+        ]}/>
+    </div>);
+}
