@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { HeroKpiCard } from '../components/ui/HeroKpiCard';
 import { IconButton } from '../components/ui/IconButton';
-import { MoneyText } from '../components/ui/MoneyText';
+import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
@@ -15,8 +15,6 @@ type PortfolioPageProps = {
     statsView: 'usdt' | 'clients';
     setStatsView: (view: 'usdt' | 'clients') => void;
     setIsSettingsModalOpen: (isOpen: boolean) => void;
-    cardBase: string;
-    subtleText: string;
     portfolioStats: any;
     totalPortfolioValue: number;
     suggestedProfitMargin: string;
@@ -46,7 +44,6 @@ type PortfolioPageProps = {
     setSimBuyQty: (val: string) => void;
     simBuyPrice: string;
     setSimBuyPrice: (val: string) => void;
-    fieldBase: string;
     newPamFromDzdSimulator: number | null;
     simEurQty: string;
     setSimEurQty: (val: string) => void;
@@ -95,10 +92,10 @@ function AssetRow({ symbol, quantity, value, pam, suggestedSellPrice, onEdit, se
                 <div className="min-w-0">
                     <p className="text-sm font-semibold text-neutral-700">{symbol}</p>
                     <div className="mt-1">
-                        <MoneyText value={quantity} currency={symbol} semantic="plain" size="hero" min={0} max={2} />
+                        <CurrencyAmount value={quantity} currency={symbol} semantic="plain" size="hero" decimals={2}/>
                     </div>
                     <p className="mt-1 text-xs text-neutral-500">
-                        <MoneyText value={value} currency="DZD" semantic="plain" size="sm" min={0} max={0} />
+                        <CurrencyAmount value={value} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                     </p>
                 </div>
                 {onEdit && (
@@ -125,7 +122,7 @@ function AssetMetric({ label, value }: AssetMetricProps) {
     return (
         <div className="rounded-lg bg-surface px-3 py-2">
             <p className="text-xs font-medium text-neutral-500">{label}</p>
-            <MoneyText value={value} currency="DZD" semantic="plain" size="md" min={2} max={2} />
+            <CurrencyAmount value={value} currency="DZD" semantic="plain" size="md" decimals={2}/>
         </div>
     );
 }
@@ -195,13 +192,13 @@ export function PortfolioPage(props: PortfolioPageProps) {
                         label: 'USDT',
                         value: usdtAvail,
                         currency: 'USDT',
-                        display: <MoneyText value={usdtAvail} currency="USDT" semantic="plain" size="xl" min={0} max={2} />,
+                        display: <CurrencyAmount value={usdtAvail} currency="USDT" semantic="plain" size="xl" decimals={2}/>,
                     },
                     {
                         label: 'EUR',
                         value: eurAvail,
                         currency: 'EUR',
-                        display: <MoneyText value={eurAvail} currency="EUR" semantic="plain" size="xl" min={0} max={2} />,
+                        display: <CurrencyAmount value={eurAvail} currency="EUR" semantic="plain" size="xl" decimals={2}/>,
                     },
                 ]}
             />

@@ -6,7 +6,7 @@ import { Tabs } from '../ui/Tabs';
 import { EmptyState } from '../ui/EmptyState';
 import { Badge } from '../ui/Badge';
 import { HeroKpiCard } from '../ui/HeroKpiCard';
-import { MoneyText } from '../ui/MoneyText';
+import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { PlusIcon } from '../icons/PlusIcon';
 import { MinusIcon } from '../icons/MinusIcon';
 import { WalletIcon } from '../icons/WalletIcon';
@@ -26,22 +26,16 @@ type InvestorDetailsContentProps = {
     onWithdrawProfit: () => void;
     onReinvestProfit: () => void;
     onDeleteTransaction: (tx: InvestorTransaction) => void;
-    cardBase: string;
-    subtleText: string;
 };
-type TxMeta = {
-    label: string;
-    isPositive: boolean;
-    icon: React.ReactNode;
-};
+type TxMeta = { label: string; isPositive: boolean; icon: React.ReactNode };
 function getTxMeta(tx: InvestorTransaction): TxMeta {
     switch (tx.type) {
         case 'profit_distribution':
             return { label: 'Distribution de Profit', isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
         case 'withdraw_profit':
-            return { label: 'Retrait de Benefices', isPositive: false, icon: <WalletIcon className="w-4 h-4"/> };
+            return { label: 'Retrait de Bénéfices', isPositive: false, icon: <WalletIcon className="w-4 h-4"/> };
         case 'reinvest_profit':
-            return { label: 'Reinvestissement', isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
+            return { label: 'Réinvestissement', isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
         case 'deposit_capital':
             return { label: 'Ajout de Capital', isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
         default:
@@ -50,12 +44,10 @@ function getTxMeta(tx: InvestorTransaction): TxMeta {
 }
 function diffDaysSince(entryDate: string): number {
     const start = new Date(entryDate).getTime();
-    if (!Number.isFinite(start))
-        return 0;
-    const diff = Date.now() - start;
-    return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+    if (!Number.isFinite(start)) return 0;
+    return Math.max(0, Math.floor((Date.now() - start) / (1000 * 60 * 60 * 24)));
 }
-export function InvestorDetailsContent({ investor, orderedTransactions, activeTab, setActiveTab, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction, cardBase, subtleText }: InvestorDetailsContentProps) {
+export function InvestorDetailsContent({ investor, orderedTransactions, activeTab, setActiveTab, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction }: InvestorDetailsContentProps) {
     const currentTotalProfit = investor.totalProfit || 0;
     const currentAvailable = investor.availableProfit || 0;
     const currentWithdrawn = investor.withdrawnProfit || 0;
@@ -68,8 +60,8 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
     return (<>
       <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel="Capital Investi" primaryValue={investor.capitalInvested} primaryCurrency="DZD" primarySemantic="plain" secondary={[
             { label: 'Profit disponible', value: currentAvailable, currency: 'DZD', semantic: 'auto' },
-            { label: 'Total gagne', value: currentTotalProfit, currency: 'DZD', semantic: 'auto' },
-            { label: 'Total retire', value: currentWithdrawn, currency: 'DZD', semantic: 'plain' },
+            { label: 'Total gagné', value: currentTotalProfit, currency: 'DZD', semantic: 'auto' },
+            { label: 'Total retiré', value: currentWithdrawn, currency: 'DZD', semantic: 'plain' },
             {
                 label: 'Part du fonds',
                 value: 0,
@@ -80,11 +72,9 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
             }
         ]}/>
 
-      <Card className={cardBase}>
+      <Card>
         <CardHeader className="p-4 pb-3">
-          <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>
-            Actions
-          </SectionHeading>
+          <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>Actions</SectionHeading>
         </CardHeader>
         <CardContent className="p-4 pt-0">
           <div className="grid grid-cols-2 gap-3">
@@ -95,47 +85,45 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
               <MinusIcon className="w-4 h-4"/> Retirer Capital
             </Button>
             <Button onClick={onWithdrawProfit} className={secondaryActionClass}>
-              <WalletIcon className="w-4 h-4"/> Retirer Benefices
+              <WalletIcon className="w-4 h-4"/> Retirer Bénéfices
             </Button>
             <Button onClick={onReinvestProfit} disabled={!canReinvest} className={`${primaryActionClass} ${!canReinvest ? 'cursor-not-allowed opacity-40 hover:bg-primary' : ''}`}>
-              <PlusIcon className="w-4 h-4"/> Reinvestir
+              <PlusIcon className="w-4 h-4"/> Réinvestir
             </Button>
           </div>
         </CardContent>
       </Card>
 
       <Tabs tabs={[
-            { id: 'overview', label: 'Apercu' },
+            { id: 'overview', label: 'Aperçu' },
             { id: 'history', label: 'Historique', badge: orderedTransactions.length }
         ]} activeTab={activeTab} onChange={(id) => setActiveTab(id as 'overview' | 'history')} variant="underline"/>
 
       {activeTab === 'overview' && (<div className="space-y-4">
-          <Card className={cardBase}>
+          <Card>
             <CardHeader className="p-4 pb-3">
-              <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>
-                Informations
-              </SectionHeading>
+              <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>Informations</SectionHeading>
             </CardHeader>
             <CardContent className="p-0 divide-y divide-neutral-100">
               <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-                <span className={`text-sm ${subtleText}`}>Statut</span>
+                <span className="text-sm text-neutral-500">Statut</span>
                 <span className="flex items-center gap-2 text-base font-semibold">
                   <Badge variant={investor.isActive ? 'success' : 'neutral'}>{investor.isActive ? 'Actif' : 'Inactif'}</Badge>
-                  {investor.isManager && (<Badge variant="warning">Gerant</Badge>)}
+                  {investor.isManager && (<Badge variant="warning">Gérant</Badge>)}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-                <span className={`text-sm ${subtleText}`}>Date d'entree</span>
+                <span className="text-sm text-neutral-500">Date d'entrée</span>
                 <span className="text-base font-semibold">{formattedEntryDate}</span>
               </div>
               <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-                <span className={`text-sm ${subtleText}`}>Duree d'investissement</span>
+                <span className="text-sm text-neutral-500">Durée d'investissement</span>
                 <span className="text-base font-semibold">
-                  {investmentDays} <span className={`text-sm font-normal ${subtleText}`}>jours</span>
+                  {investmentDays} <span className="text-sm font-normal text-neutral-500">jours</span>
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-                <span className={`text-sm ${subtleText}`}>Part du fonds</span>
+                <span className="text-sm text-neutral-500">Part du fonds</span>
                 <span className="text-base font-semibold">
                   <bdi>{sharePercentDisplay}</bdi>
                   <span className="ms-1 text-[0.85em] opacity-70 font-normal">%</span>
@@ -144,27 +132,23 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
             </CardContent>
           </Card>
 
-          {investor.notes && (<Card className={cardBase}>
+          {investor.notes && (<Card>
               <CardHeader className="p-4 pb-2">
-                <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>
-                  Notes
-                </SectionHeading>
+                <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>Notes</SectionHeading>
               </CardHeader>
               <CardContent className="p-4 pt-0">
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{investor.notes}</p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-700">{investor.notes}</p>
               </CardContent>
             </Card>)}
         </div>)}
 
-      {activeTab === 'history' && (<Card className={cardBase}>
+      {activeTab === 'history' && (<Card>
           <CardHeader className="p-4 pb-3 flex flex-row items-center justify-between">
-            <SectionHeading icon={<FileSpreadsheetIcon className="w-4 h-4"/>}>
-              Historique
-            </SectionHeading>
-            <span className={`text-sm ${subtleText}`}>{orderedTransactions.length} operations</span>
+            <SectionHeading icon={<FileSpreadsheetIcon className="w-4 h-4"/>}>Historique</SectionHeading>
+            <span className="text-sm text-neutral-500">{orderedTransactions.length} opérations</span>
           </CardHeader>
           <CardContent className="p-0">
-            {orderedTransactions.length === 0 ? (<EmptyState icon={<FileSpreadsheetIcon className="w-5 h-5"/>} title="Aucune transaction." />) : (<div className="divide-y divide-neutral-100">
+            {orderedTransactions.length === 0 ? (<EmptyState icon={<FileSpreadsheetIcon className="w-5 h-5"/>} title="Aucune transaction."/>) : (<div className="divide-y divide-neutral-100">
                 {orderedTransactions.map((tx) => {
                     const meta = getTxMeta(tx);
                     const signedAmount = (meta.isPositive ? 1 : -1) * Math.abs(tx.amount);
@@ -177,12 +161,12 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
                             </div>
                             <div className="min-w-0">
                               <p className="text-base font-semibold truncate">{meta.label}</p>
-                              <p className={`text-xs ${subtleText}`}>{tx.date} a {tx.time}</p>
-                              {tx.notes && <p className={`text-xs ${subtleText} mt-0.5 truncate`}>{tx.notes}</p>}
+                              <p className="text-xs text-neutral-500">{tx.date} à {tx.time}</p>
+                              {tx.notes && <p className="text-xs text-neutral-500 mt-0.5 truncate">{tx.notes}</p>}
                             </div>
                           </div>
                           <div className="shrink-0 text-end">
-                            <MoneyText value={signedAmount} currency="DZD" semantic="auto" size="lg" showSign/>
+                            <CurrencyAmount value={signedAmount} currency="DZD" semantic="auto" size="lg" showSign decimals={0}/>
                           </div>
                         </div>
                       </SwipeableListItem>

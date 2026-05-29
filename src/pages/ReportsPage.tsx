@@ -6,7 +6,7 @@ import { Label } from '../components/ui/Label';
 import { Select } from '../components/ui/Select';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
 import { PageHeader } from '../components/ui/PageHeader';
-import { MoneyText } from '../components/ui/MoneyText';
+import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { Button } from '../components/ui/Button';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { FileSpreadsheetIcon } from '../components/icons/FileSpreadsheetIcon';
@@ -19,9 +19,6 @@ import type { ClientDzd, ClientTransactionDzd, PortfolioStats, Tx } from '../typ
 import { computePamLedger } from '../utils/pamLedger';
 import { formatNumber } from './shared/pageFormat';
 type ReportsPageProps = {
-    cardBase: string;
-    subtleText: string;
-    fieldBase: string;
     usdtReportMonth: number;
     setUsdtReportMonth: (month: number) => void;
     usdtReportYear: number;
@@ -179,7 +176,7 @@ export function ReportsPage({ usdtReportMonth, setUsdtReportMonth, usdtReportYea
           <div className="border-t border-border pt-4">
             <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">{selectedMonthLabel} {usdtReportYear}</p>
             <div className="mt-2">
-              <MoneyText value={monthlyPreview.realizedProfit} currency="DZD" semantic="auto" showSign size="hero" className="text-3xl sm:text-4xl"/>
+              <CurrencyAmount value={monthlyPreview.realizedProfit} currency="DZD" semantic="auto" showSign size="hero" className="text-3xl sm:text-4xl" decimals={0}/>
             </div>
             <p className="mt-1 text-sm font-semibold text-neutral-500">{t('reports.realizedProfit')}</p>
           </div>
@@ -188,11 +185,11 @@ export function ReportsPage({ usdtReportMonth, setUsdtReportMonth, usdtReportYea
             <MetricTile
               label={t('reports.soldVolume')}
               value={<span className="text-lg font-extrabold tabular-nums text-primary" dir="ltr">{formatNumber(soldVolumeTotal, { min: 0, max: 2 })}</span>}
-              hint={<span className="flex flex-wrap gap-1"><MoneyText value={monthlyPreview.volUsdtSold} currency="USDT" semantic="plain" size="sm" min={0} max={2}/><span>/</span><MoneyText value={monthlyPreview.volEurSold} currency="EUR" semantic="plain" size="sm" min={0} max={2}/></span>}
+              hint={<span className="flex flex-wrap gap-1"><CurrencyAmount value={monthlyPreview.volUsdtSold} currency="USDT" semantic="plain" size="sm" decimals={2}/><span>/</span><CurrencyAmount value={monthlyPreview.volEurSold} currency="EUR" semantic="plain" size="sm" decimals={2}/></span>}
             />
             <MetricTile label={t('reports.operations')} value={<span className="text-lg font-extrabold text-warning" dir="ltr">{monthlyPreview.txCount}</span>}/>
-            <MetricTile label={t('reports.cumulativeProfit')} value={<MoneyText value={cumulativeProfit} currency="DZD" semantic="auto" size="lg"/>}/>
-            <MetricTile label={t('reports.topClient')} value={monthlyPreview.topClient ? <span className="block truncate text-lg font-extrabold text-success">{monthlyPreview.topClient.name}</span> : <span className="text-neutral-500">-</span>} hint={monthlyPreview.topClient ? <MoneyText value={monthlyPreview.topClient.profit} currency="DZD" semantic="auto" size="sm" min={2} max={2}/> : t('reports.noLinkedClient')}/>
+            <MetricTile label={t('reports.cumulativeProfit')} value={<CurrencyAmount value={cumulativeProfit} currency="DZD" semantic="auto" size="lg" decimals={0}/>}/>
+            <MetricTile label={t('reports.topClient')} value={monthlyPreview.topClient ? <span className="block truncate text-lg font-extrabold text-success">{monthlyPreview.topClient.name}</span> : <span className="text-neutral-500">-</span>} hint={monthlyPreview.topClient ? <CurrencyAmount value={monthlyPreview.topClient.profit} currency="DZD" semantic="auto" size="sm" decimals={2}/> : t('reports.noLinkedClient')}/>
           </div>
 
             <Button onClick={handleExportUsdtReport} className="w-full gap-2">
@@ -239,15 +236,15 @@ export function ReportsPage({ usdtReportMonth, setUsdtReportMonth, usdtReportYea
               <div className="border-t border-border pt-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">{t('reports.closingBalance')}</p>
                 <div className="mt-2">
-                  <MoneyText value={clientPreview.closingBalance} currency="DZD" semantic="auto" size="hero" className="text-3xl sm:text-4xl"/>
+                  <CurrencyAmount value={clientPreview.closingBalance} currency="DZD" semantic="auto" size="hero" className="text-3xl sm:text-4xl" decimals={0}/>
                 </div>
                 <p className="mt-1 text-sm font-semibold text-neutral-500">{selectedClientMonthLabel} {reportYear}</p>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <MetricTile label={t('reports.openingBalance')} value={<MoneyText value={clientPreview.openingBalance} currency="DZD" semantic="auto" size="lg"/>}/>
-                <MetricTile label={t('reports.totalReceived')} value={<MoneyText value={clientPreview.totalReceived} currency="DZD" semantic="profit" size="lg"/>} hint={<WalletIcon className="h-4 w-4 text-success"/>}/>
-                <MetricTile label={t('reports.totalPaid')} value={<MoneyText value={clientPreview.totalPaid} currency="DZD" semantic="loss" size="lg"/>}/>
+                <MetricTile label={t('reports.openingBalance')} value={<CurrencyAmount value={clientPreview.openingBalance} currency="DZD" semantic="auto" size="lg" decimals={0}/>}/>
+                <MetricTile label={t('reports.totalReceived')} value={<CurrencyAmount value={clientPreview.totalReceived} currency="DZD" semantic="profit" size="lg" decimals={0}/>} hint={<WalletIcon className="h-4 w-4 text-success"/>}/>
+                <MetricTile label={t('reports.totalPaid')} value={<CurrencyAmount value={clientPreview.totalPaid} currency="DZD" semantic="loss" size="lg" decimals={0}/>}/>
                 <MetricTile label={t('reports.operations')} value={<span className="text-lg font-extrabold text-warning" dir="ltr">{clientPreview.operations}</span>}/>
               </div>
             </>) : (<div>

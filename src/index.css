@@ -1,8 +1,30 @@
 @import "tailwindcss";
 @import "./styles/tokens.css";
 
-/* Dark mode: applies when an ancestor has class="dark" */
-@variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
+
+html,
+body,
+#root {
+  min-height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  background: var(--color-app-bg);
+  color: var(--color-neutral-900);
+  font-family: var(--font-latin);
+}
+
+html[dir="rtl"] body {
+  font-family: var(--font-arabic);
+}
+
+::selection {
+  background: var(--color-primary);
+  color: var(--color-surface);
+}
 
 /* FIX-PERF (Phase 2): replace framer-motion in UI primitives with native CSS.
    These animations run on the GPU compositor (opacity + transform only),

@@ -1,7 +1,7 @@
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card, CardHeader, CardContent } from '../ui/Card';
-import { MoneyText } from '../ui/MoneyText';
+import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { SectionHeading } from '../ui/SectionHeading';
 import { TrendingUpIcon } from '../icons/TrendingUpIcon';
 import { InvestorTransaction } from '../../types';
@@ -61,7 +61,7 @@ export const InvestorPerformanceChart: React.FC<InvestorPerformanceChartProps> =
             const value = Number(payload[0].value || 0);
             return (<div className="rounded-lg border border-border bg-surface p-3 shadow-card">
                 <p className="mb-1 text-xs font-medium text-neutral-500">Date: {label}</p>
-                <MoneyText value={value} currency="DZD" semantic="plain" size="md" min={2} max={2}/>
+                <CurrencyAmount value={value} currency="DZD" semantic="plain" size="md" decimals={2}/>
                 <p className="mt-1 text-xs font-semibold text-neutral-500">Valeur Totale</p>
             </div>);
         }

@@ -11,8 +11,6 @@ import { useLanguage } from '../../contexts/LanguageContext';
 type TransactionType = 'service' | 'payment_received';
 type PaymentMethod = 'cash' | 'baridi' | 'credit';
 type ManualClientTransactionDialogProps = {
-    cardBase: string;
-    fieldBase: string;
     isTxModalOpen: boolean;
     editingTx: ManualAssetTransaction | null;
     txType: TransactionType;
@@ -29,7 +27,7 @@ type ManualClientTransactionDialogProps = {
     onClose: () => void;
     onSave: () => void;
 };
-export function ManualClientTransactionDialog({ cardBase, fieldBase, isTxModalOpen, editingTx, txType, setTxType, amount, setAmount, serviceType, setServiceType, paymentMethod, setPaymentMethod, currentBalance, onClose, onSave }: ManualClientTransactionDialogProps) {
+export function ManualClientTransactionDialog({ isTxModalOpen, editingTx, txType, setTxType, amount, setAmount, serviceType, setServiceType, paymentMethod, setPaymentMethod, currentBalance, onClose, onSave }: ManualClientTransactionDialogProps) {
     const { t } = useLanguage();
     const subtleText = 'text-neutral-500';
     const parsedAmount = Number.parseFloat(amount.replace(/\s/g, '').replace(',', '.')) || 0;

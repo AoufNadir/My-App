@@ -22,8 +22,6 @@ const areDailyOverviewsEqual = (prev: any, next: any) => (prev?.caisse === next?
     && prev?.allTimeEurSold === next?.allTimeEurSold);
 const arePortfolioPagePropsEqual = (prev: any, next: any) => (prev?.statsView === next?.statsView
     && true
-    && prev?.cardBase === next?.cardBase
-    && prev?.subtleText === next?.subtleText
     && prev?.portfolioStats === next?.portfolioStats
     && prev?.totalPortfolioValue === next?.totalPortfolioValue
     && prev?.suggestedProfitMargin === next?.suggestedProfitMargin
@@ -80,8 +78,6 @@ const areDashboardPagePropsEqual = (prev: any, next: any) => (prev?.portfolioSta
 const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainContentAreaProps) => {
     if (prev.alert !== next.alert
         || prev.alertClass !== next.alertClass
-        || prev.cardBase !== next.cardBase
-        || prev.subtleText !== next.subtleText
         || prev.t !== next.t
         || false
         || prev.view !== next.view
@@ -138,7 +134,7 @@ const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainCont
             return true;
     }
 };
-function MainContentAreaComponent({ alert, alertClass, cardBase, subtleText, t, dailyOverview, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx, handleEditTreasuryTx, handleDeleteClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport }: MainContentAreaProps) {
+function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx, handleEditTreasuryTx, handleDeleteClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport }: MainContentAreaProps) {
     const selectedInvestor = selectedInvestorId
         ? derivedInvestors.find((investor: any) => investor.id === selectedInvestorId) || null
         : null;
@@ -155,12 +151,11 @@ function MainContentAreaComponent({ alert, alertClass, cardBase, subtleText, t, 
 
                     {view === 'analytics' && <AnalyticsPage {...portfolioPageProps}/>}
 
-                    {view === 'expenses' && PersonalExpensesPage && (<PersonalExpensesPage cardBase={cardBase} subtleText={subtleText} personalExpenses={personalExpenses} managerAvailableProfit={managerAvailableProfit} managerExists={managerExists} onOpenReconcile={openReconcileAdvanceModal} onEditExpense={openEditPersonalExpense} onDeleteExpense={setPersonalExpenseToDelete} onExportReport={handleExportPersonalExpensesReport}/>)}
+                    {view === 'expenses' && PersonalExpensesPage && (<PersonalExpensesPage personalExpenses={personalExpenses} managerAvailableProfit={managerAvailableProfit} managerExists={managerExists} onOpenReconcile={openReconcileAdvanceModal} onEditExpense={openEditPersonalExpense} onDeleteExpense={setPersonalExpenseToDelete} onExportReport={handleExportPersonalExpensesReport}/>)}
 
                     {view === 'dzd' && <ClientsPage {...clientsPageProps}/>}
 
                     {view === 'tresorerie' && (<TresoreriePage {...{
-            cardBase, subtleText,
             caisseBalance: treasuryStats.caisse,
             baridiBalance: treasuryStats.baridi,
             totalDettes: totals.totalDettes,
@@ -177,11 +172,11 @@ function MainContentAreaComponent({ alert, alertClass, cardBase, subtleText, t, 
             onOpenServices: openServicesView
         }}/>)}
 
-                    {view === 'services' && (selectedAssetClientId ? (<ManualClientPage client={manualAssetClients.find(c => c.id === selectedAssetClientId)!} transactions={manualAssetTransactions.filter(tx => tx.clientId === selectedAssetClientId)} balance={assetClientBalances.get(`${selectedAssetId}_${selectedAssetClientId}`) || 0} onBack={() => setSelectedAssetClientId(null)} onAddTransaction={handleCreateAssetTransaction} onUpdateTransaction={handleUpdateAssetTransaction} onDeleteTransaction={handleDeleteAssetTransaction} cardBase={cardBase} fieldBase={fieldBase} subtleText={subtleText}/>) : selectedAssetId ? (<ManualAssetPage asset={manualAssets.find(a => a.id === selectedAssetId)!} clients={manualAssetClients.filter(c => c.assetId === selectedAssetId)} assetTransactions={manualAssetTransactions.filter(tx => tx.actifId === selectedAssetId)} clientBalances={assetClientBalances} onBack={() => setSelectedAssetId(null)} onSelectClient={(client) => setSelectedAssetClientId(client.id)} onCreateClient={(fullName, phone, email, notes) => {
+                    {view === 'services' && (selectedAssetClientId ? (<ManualClientPage client={manualAssetClients.find(c => c.id === selectedAssetClientId)!} transactions={manualAssetTransactions.filter(tx => tx.clientId === selectedAssetClientId)} balance={assetClientBalances.get(`${selectedAssetId}_${selectedAssetClientId}`) || 0} onBack={() => setSelectedAssetClientId(null)} onAddTransaction={handleCreateAssetTransaction} onUpdateTransaction={handleUpdateAssetTransaction} onDeleteTransaction={handleDeleteAssetTransaction}/>) : selectedAssetId ? (<ManualAssetPage asset={manualAssets.find(a => a.id === selectedAssetId)!} clients={manualAssetClients.filter(c => c.assetId === selectedAssetId)} assetTransactions={manualAssetTransactions.filter(tx => tx.actifId === selectedAssetId)} clientBalances={assetClientBalances} onBack={() => setSelectedAssetId(null)} onSelectClient={(client) => setSelectedAssetClientId(client.id)} onCreateClient={(fullName, phone, email, notes) => {
                 handleCreateAssetClient(selectedAssetId, { fullName, phone, email, notes });
             }} onUpdateClient={(clientId, data) => {
                 handleUpdateAssetClient(clientId, data);
-            }} onDeleteClient={handleDeleteAssetClient} cardBase={cardBase} fieldBase={fieldBase} subtleText={subtleText}/>) : (<ServicesPage cardBase={cardBase} subtleText={subtleText} manualAssets={manualAssets} manualAssetClients={manualAssetClients} manualAssetTransactions={manualAssetTransactions} assetClientBalances={assetClientBalances} onOpenManualAsset={(asset: ManualAsset) => setSelectedAssetId(asset.id)} onOpenCreateManualAsset={() => setIsCreateAssetModalOpen(true)} onDeleteManualAsset={(id: string) => handleDeleteAsset(id, manualAssetTransactions.filter(tx => tx.actifId === id).length)}/>))}
+            }} onDeleteClient={handleDeleteAssetClient}/>) : (<ServicesPage manualAssets={manualAssets} manualAssetClients={manualAssetClients} manualAssetTransactions={manualAssetTransactions} assetClientBalances={assetClientBalances} onOpenManualAsset={(asset: ManualAsset) => setSelectedAssetId(asset.id)} onOpenCreateManualAsset={() => setIsCreateAssetModalOpen(true)} onDeleteManualAsset={(id: string) => handleDeleteAsset(id, manualAssetTransactions.filter(tx => tx.actifId === id).length)}/>))}
 
                     {view === 'investors' && (selectedInvestorId && selectedInvestor ? (<InvestorDetailsPage investor={selectedInvestor} transactions={investorTransactions.filter(tx => tx.investorId === selectedInvestorId)} onBack={() => setSelectedInvestorId(null)} onAddCapital={() => { setInvestorTxType('deposit_capital'); setIsInvestorTxModalOpen(true); }} onWithdrawCapital={() => { setInvestorTxType('withdraw_capital'); setIsInvestorTxModalOpen(true); }} onWithdrawProfit={() => { setInvestorTxType('withdraw_profit'); setIsInvestorTxModalOpen(true); }} onReinvestProfit={() => {
                 const inv = derivedInvestors.find(i => i.id === selectedInvestorId);
@@ -189,7 +184,7 @@ function MainContentAreaComponent({ alert, alertClass, cardBase, subtleText, t, 
                     setReinvestInput((inv.availableProfit || 0).toFixed(2));
                     setIsReinvestModalOpen(true);
                 }
-            }} onDeleteTransaction={(tx) => { setInvestorTxToDelete(tx); }} onExportReport={(range) => handleExportInvestorReport(selectedInvestorId, range)} cardBase={cardBase} subtleText={subtleText} globalNetProfit={globalNetProfit} managerFeePercentage={Number(managerFeePercentage)} totalCapital={derivedInvestors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0)}/>) : (<InvestorsPage cardBase={cardBase} subtleText={subtleText} investors={derivedInvestors} onOpenInvestor={(inv) => setSelectedInvestorId(inv.id)} onAddInvestor={() => openInvestorModal(null)} onEditInvestor={(inv) => openInvestorModal(inv)} onDeleteInvestor={(inv) => { setInvestorToDelete(inv); }} investorEconomicsTotals={investorEconomicsTotals} managerFeePercentage={managerFeePercentage} setManagerFeePercentage={setManagerFeePercentage}/>))}
+            }} onDeleteTransaction={(tx) => { setInvestorTxToDelete(tx); }} onExportReport={(range) => handleExportInvestorReport(selectedInvestorId, range)} globalNetProfit={globalNetProfit} managerFeePercentage={Number(managerFeePercentage)} totalCapital={derivedInvestors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0)}/>) : (<InvestorsPage investors={derivedInvestors} onOpenInvestor={(inv) => setSelectedInvestorId(inv.id)} onAddInvestor={() => openInvestorModal(null)} onEditInvestor={(inv) => openInvestorModal(inv)} onDeleteInvestor={(inv) => { setInvestorToDelete(inv); }} investorEconomicsTotals={investorEconomicsTotals} managerFeePercentage={managerFeePercentage} setManagerFeePercentage={setManagerFeePercentage}/>))}
                     </ErrorBoundary>
                     </Suspense>
                 </main>);

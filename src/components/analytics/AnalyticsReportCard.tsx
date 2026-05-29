@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader } from '../ui/Card';
 import { EmptyState } from '../ui/EmptyState';
 import { Label } from '../ui/Label';
 import { MobileTable, type MobileTableColumn } from '../ui/MobileTable';
-import { MoneyText } from '../ui/MoneyText';
+import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { SectionHeading } from '../ui/SectionHeading';
 import { Select } from '../ui/Select';
 import { Tabs, type Tab } from '../ui/Tabs';
@@ -20,9 +20,6 @@ import { AnalyticsExportPanel } from './AnalyticsExportPanel';
 import { CalculatedStats, MonthlyClientRank, MonthlyClientRanking } from './analyticsTypes';
 
 type AnalyticsReportCardProps = {
-    cardBase: string;
-    subtleText: string;
-    fieldBase: string;
     t: (...args: any[]) => any;
     usdtReportMonth: number;
     setUsdtReportMonth: (month: number) => void;
@@ -57,9 +54,6 @@ type AnalyticsReportCardProps = {
 };
 
 export function AnalyticsReportCard({
-    cardBase: _cardBase,
-    subtleText: _subtleText,
-    fieldBase: _fieldBase,
     t,
     usdtReportMonth,
     setUsdtReportMonth,
@@ -150,25 +144,25 @@ export function AnalyticsReportCard({
             key: 'buyVolumeUsdt',
             label: t('portfolio.buyVolumeUsdt'),
             align: 'end',
-            render: (row) => <MoneyText value={row.buyVolumeUsdt} currency="USDT" semantic="plain" size="sm" min={0} max={2} />,
+            render: (row) => <CurrencyAmount value={row.buyVolumeUsdt} currency="USDT" semantic="plain" size="sm" decimals={2}/>,
         },
         {
             key: 'sellVolumeUsdt',
             label: t('portfolio.sellVolumeUsdt'),
             align: 'end',
-            render: (row) => <MoneyText value={row.sellVolumeUsdt} currency="USDT" semantic="plain" size="sm" min={0} max={2} />,
+            render: (row) => <CurrencyAmount value={row.sellVolumeUsdt} currency="USDT" semantic="plain" size="sm" decimals={2}/>,
         },
         {
             key: 'totalVolumeUsdt',
             label: t('portfolio.totalVolumeUsdt'),
             align: 'end',
-            render: (row) => <MoneyText value={row.totalVolumeUsdt} currency="USDT" semantic="plain" size="sm" min={0} max={2} />,
+            render: (row) => <CurrencyAmount value={row.totalVolumeUsdt} currency="USDT" semantic="plain" size="sm" decimals={2}/>,
         },
         {
             key: 'realizedProfit',
             label: t('portfolio.realizedProfit'),
             align: 'end',
-            render: (row) => <MoneyText value={row.realizedProfit} currency="DZD" semantic="auto" showSign size="sm" min={0} max={2} />,
+            render: (row) => <CurrencyAmount value={row.realizedProfit} currency="DZD" semantic="auto" showSign size="sm" decimals={2}/>,
         },
         {
             key: 'txCount',
@@ -317,7 +311,7 @@ function MonthlyPanel({
                         <Badge variant={monthlyHasData ? 'success' : 'neutral'}>{monthlyHasData ? t('portfolio.activePeriod') : t('portfolio.emptyPeriod')}</Badge>
                     </div>
                     <div className="mt-5">
-                        <MoneyText value={calculatedStats.realizedProfit} currency="DZD" semantic="auto" showSign size="hero" />
+                        <CurrencyAmount value={calculatedStats.realizedProfit} currency="DZD" semantic="auto" showSign size="hero" decimals={2}/>
                         <p className="mt-1 text-sm font-semibold text-neutral-500">{t('portfolio.monthlyProfitHint')}</p>
                     </div>
                     {!monthlyHasData && (
@@ -333,7 +327,7 @@ function MonthlyPanel({
             <div className="grid grid-cols-2 gap-2">
                 {flowMetrics.map((item) => (
                     <MetricTile key={`${item.label}-${item.currency}`} label={item.label}>
-                        <MoneyText value={item.value} currency={item.currency} semantic="plain" size="xl" min={0} max={2} />
+                        <CurrencyAmount value={item.value} currency={item.currency} semantic="plain" size="xl" decimals={2}/>
                     </MetricTile>
                 ))}
             </div>
@@ -385,7 +379,7 @@ function MonthlyPanel({
                             {selectedHeatmapDay && (
                                 <p className="mt-2 rounded-lg bg-surface-muted p-2 text-center text-sm text-neutral-700">
                                     {t('portfolio.profitOn')} {selectedHeatmapDay.day}/{usdtReportMonth + 1}/{usdtReportYear}:{' '}
-                                    <MoneyText value={selectedHeatmapDay.profit} currency="DZD" semantic="auto" size="sm" min={2} max={2} />
+                                    <CurrencyAmount value={selectedHeatmapDay.profit} currency="DZD" semantic="auto" size="sm" decimals={2}/>
                                 </p>
                             )}
                         </div>
@@ -413,14 +407,14 @@ function ClientsPanel({ t, topProfitableRows, monthlyClientRanking, columns, isC
                     label={t('portfolio.topTradedClient')}
                     client={monthlyClientRanking.topTradedClient}
                     emptyText={t('portfolio.noClientMonthlyData')}
-                    value={(client) => <MoneyText value={client.totalVolumeUsdt} currency="USDT" semantic="plain" size="lg" min={0} max={2} />}
+                    value={(client) => <CurrencyAmount value={client.totalVolumeUsdt} currency="USDT" semantic="plain" size="lg" decimals={2}/>}
                     hint={(client) => `${t('portfolio.txCount')}: ${client.txCount}`}
                 />
                 <TopClientTile
                     label={t('portfolio.topProfitableClient')}
                     client={monthlyClientRanking.topProfitableClient}
                     emptyText={t('portfolio.noClientMonthlyData')}
-                    value={(client) => <MoneyText value={client.realizedProfit} currency="DZD" semantic="auto" showSign size="lg" min={0} max={2} />}
+                    value={(client) => <CurrencyAmount value={client.realizedProfit} currency="DZD" semantic="auto" showSign size="lg" decimals={2}/>}
                     hint={(client) => `${t('portfolio.sellCount')}: ${client.sellCount}`}
                 />
             </div>
@@ -545,7 +539,7 @@ function DayProfitValue({ entry }: { entry: [number, number] | null }) {
         <span className="flex flex-wrap items-center gap-1 text-sm font-bold text-neutral-900">
             <span dir="ltr">{entry[0]}</span>
             <span>/</span>
-            <MoneyText value={entry[1]} currency="DZD" semantic="auto" size="sm" min={0} max={0} />
+            <CurrencyAmount value={entry[1]} currency="DZD" semantic="auto" size="sm" decimals={0}/>
         </span>
     );
 }

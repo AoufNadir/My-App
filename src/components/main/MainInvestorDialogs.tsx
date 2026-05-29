@@ -93,6 +93,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                 nextLabel = 'Capital apres retrait';
                 nextValue = capitalInvested - amt;
                 exceedsCap = amt > capitalInvested;
+                exceedsPaymentSource = amt > paymentSourceBalance;
                 titleStr = 'Retrait Capital';
             }
             else if (investorTxType === 'deposit_capital') {
@@ -130,7 +131,29 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                                         <option value="Caisse">Caisse</option>
                                         <option value="BaridiMob">BaridiMob</option>
                                     </Select>
-                                    <p className={`mt-1 text-xs ${subtleText}`}>
+                                    <p className="mt-1 text-xs text-neutral-500">
+                                        Solde disponible: <span dir="ltr">{formatMoney(paymentSourceBalance, 'DZD')}</span>
+                                    </p>
+                                </div>)}
+
+                            {investorTxType === 'deposit_capital' && (<div>
+                                    <Label>Destination de l'apport</Label>
+                                    <Select value={paymentSource} onChange={(event) => setInvestorTxPaymentSource(event.target.value as 'Caisse' | 'BaridiMob')} className="mt-1">
+                                        <option value="Caisse">Caisse</option>
+                                        <option value="BaridiMob">BaridiMob</option>
+                                    </Select>
+                                    <p className="mt-1 text-xs text-neutral-500">
+                                        Solde actuel: <span dir="ltr">{formatMoney(paymentSourceBalance, 'DZD')}</span>
+                                    </p>
+                                </div>)}
+
+                            {investorTxType === 'withdraw_capital' && (<div>
+                                    <Label>Source du retrait</Label>
+                                    <Select value={paymentSource} onChange={(event) => setInvestorTxPaymentSource(event.target.value as 'Caisse' | 'BaridiMob')} className="mt-1">
+                                        <option value="Caisse">Caisse</option>
+                                        <option value="BaridiMob">BaridiMob</option>
+                                    </Select>
+                                    <p className="mt-1 text-xs text-neutral-500">
                                         Solde disponible: <span dir="ltr">{formatMoney(paymentSourceBalance, 'DZD')}</span>
                                     </p>
                                 </div>)}
@@ -144,6 +167,22 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                     if (investorTxType === 'withdraw_profit') {
                         rows.push({
                             label: `${paymentSource} apres paiement`,
+                            value: paymentSourceBalance - amt,
+                            currency: 'DZD',
+                            semantic: 'auto'
+                        });
+                    }
+                    if (investorTxType === 'deposit_capital') {
+                        rows.push({
+                            label: `${paymentSource} apres depot`,
+                            value: paymentSourceBalance + amt,
+                            currency: 'DZD',
+                            semantic: 'auto'
+                        });
+                    }
+                    if (investorTxType === 'withdraw_capital') {
+                        rows.push({
+                            label: `${paymentSource} apres retrait`,
                             value: paymentSourceBalance - amt,
                             currency: 'DZD',
                             semantic: 'auto'

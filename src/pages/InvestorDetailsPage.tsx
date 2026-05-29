@@ -21,13 +21,11 @@ interface InvestorDetailsPageProps {
     onReinvestProfit: () => void;
     onDeleteTransaction: (tx: InvestorTransaction) => void;
     onExportReport: (range?: InvestorReportDateRange) => void;
-    cardBase: string;
-    subtleText: string;
     globalNetProfit: number;
     managerFeePercentage: number;
     totalCapital: number;
 }
-export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ investor, transactions, onBack, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction, onExportReport, cardBase, subtleText }) => {
+export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ investor, transactions, onBack, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction, onExportReport }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
     const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
     const [reportStartDate, setReportStartDate] = useState('');
@@ -35,11 +33,9 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ invest
     const [reportDateError, setReportDateError] = useState('');
     const orderedTransactions = useMemo(() => [...transactions].sort((a, b) => b.timestamp - a.timestamp), [transactions]);
     const parseDateBoundary = (value: string, endOfDay: boolean) => {
-        if (!value)
-            return null;
+        if (!value) return null;
         const [year, month, day] = value.split('-').map(Number);
-        if (!year || !month || !day)
-            return null;
+        if (!year || !month || !day) return null;
         const date = new Date(year, month - 1, day);
         date.setHours(endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
         return date.getTime();
@@ -69,8 +65,7 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ invest
         setReportDateError('');
     };
     const openReportDialog = () => {
-        if (!reportStartDate && !reportEndDate)
-            setCurrentMonthRange();
+        if (!reportStartDate && !reportEndDate) setCurrentMonthRange();
         setReportDateError('');
         setIsReportDialogOpen(true);
     };
@@ -82,7 +77,7 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ invest
             return;
         }
         if (startTs !== null && endTs !== null && startTs > endTs) {
-            setReportDateError('La date de debut doit etre avant la date de fin.');
+            setReportDateError('La date de début doit être avant la date de fin.');
             return;
         }
         onExportReport({ startTs, endTs });
@@ -94,24 +89,24 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ invest
             PDF
           </Button>)}/>
 
-      <InvestorDetailsContent investor={investor} orderedTransactions={orderedTransactions} activeTab={activeTab} setActiveTab={setActiveTab} onAddCapital={onAddCapital} onWithdrawCapital={onWithdrawCapital} onWithdrawProfit={onWithdrawProfit} onReinvestProfit={onReinvestProfit} onDeleteTransaction={onDeleteTransaction} cardBase={cardBase} subtleText={subtleText}/>
+      <InvestorDetailsContent investor={investor} orderedTransactions={orderedTransactions} activeTab={activeTab} setActiveTab={setActiveTab} onAddCapital={onAddCapital} onWithdrawCapital={onWithdrawCapital} onWithdrawProfit={onWithdrawProfit} onReinvestProfit={onReinvestProfit} onDeleteTransaction={onDeleteTransaction}/>
 
       <Modal isOpen={isReportDialogOpen} onClose={() => setIsReportDialogOpen(false)} className="max-w-md bg-surface">
         <ModalHeader onClose={() => setIsReportDialogOpen(false)} className="border-b border-border px-4 py-3 sm:px-5">
-          <ModalTitle className="text-base sm:text-lg">Creer rapport investisseur</ModalTitle>
+          <ModalTitle className="text-base sm:text-lg">Créer rapport investisseur</ModalTitle>
         </ModalHeader>
         <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
           <div className="grid grid-cols-2 gap-3">
-            <Button onClick={setCurrentMonthRange} variant="outline" className="rounded-lg bg-surface px-3 py-2 text-sm font-bold">
+            <Button onClick={setCurrentMonthRange} variant="outline" className="rounded-lg px-3 py-2 text-sm font-bold">
               Mois courant
             </Button>
-            <Button onClick={setCurrentYearRange} variant="outline" className="rounded-lg bg-surface px-3 py-2 text-sm font-bold">
-              Annee courante
+            <Button onClick={setCurrentYearRange} variant="outline" className="rounded-lg px-3 py-2 text-sm font-bold">
+              Année courante
             </Button>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label>Date debut</Label>
+              <Label>Date début</Label>
               <DatePicker value={reportStartDate} onChange={(iso) => { setReportStartDate(iso); setReportDateError(''); }} className="mt-1"/>
             </div>
             <div>
@@ -122,11 +117,11 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ invest
           {reportDateError && <p className="text-sm font-semibold text-danger">{reportDateError}</p>}
         </ModalContent>
         <ModalFooter className="border-t border-border px-4 py-3 sm:px-5">
-          <Button onClick={clearReportRange} variant="outline" className="w-full bg-surface">
+          <Button onClick={clearReportRange} variant="outline" className="w-full">
             Tout l'historique
           </Button>
           <Button onClick={handleCreateReport} className="w-full bg-primary text-white hover:bg-primary-dark">
-            Creer PDF
+            Créer PDF
           </Button>
         </ModalFooter>
       </Modal>

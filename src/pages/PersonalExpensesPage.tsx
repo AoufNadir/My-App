@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { HeroKpiCard } from '../components/ui/HeroKpiCard';
-import { MoneyText } from '../components/ui/MoneyText';
+import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { IconButton } from '../components/ui/IconButton';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SectionHeading } from '../components/ui/SectionHeading';
@@ -25,8 +25,6 @@ import { formatNumber } from './shared/pageFormat';
 type Period = 'day' | 'week' | 'month' | 'year';
 
 type PersonalExpensesPageProps = {
-    cardBase: string;
-    subtleText: string;
     personalExpenses: TreasuryTx[];
     managerAvailableProfit: number;
     managerExists: boolean;
@@ -164,8 +162,6 @@ function netExpenseAmount(tx: TreasuryTx): number {
 }
 
 export function PersonalExpensesPage({
-    cardBase: _cardBase,
-    subtleText: _subtleText,
     personalExpenses,
     managerAvailableProfit,
     managerExists,
@@ -357,7 +353,7 @@ export function PersonalExpensesPage({
                 <Card className="p-4">
                     <div className="flex items-center justify-between gap-3">
                         <p className="text-sm font-medium text-neutral-500">Profit disponible</p>
-                        <MoneyText value={managerAvailableProfit} currency="DZD" semantic="auto" size="lg" />
+                        <CurrencyAmount value={managerAvailableProfit} currency="DZD" semantic="auto" size="lg" decimals={0}/>
                     </div>
                 </Card>
             )}
@@ -390,11 +386,11 @@ export function PersonalExpensesPage({
                     />
                     <MetricBlock
                         label="Moyenne / jour"
-                        value={<MoneyText value={dailyAverage} currency="DZD" semantic="plain" size="xl" min={0} max={0} />}
+                        value={<CurrencyAmount value={dailyAverage} currency="DZD" semantic="plain" size="xl" decimals={0}/>}
                     />
                     <MetricBlock
                         label="Plus grosse dep."
-                        value={<MoneyText value={biggestAmount} currency="DZD" semantic="plain" size="xl" min={0} max={0} />}
+                        value={<CurrencyAmount value={biggestAmount} currency="DZD" semantic="plain" size="xl" decimals={0}/>}
                         caption={biggestExpense?.date}
                     />
                 </CardContent>
@@ -409,7 +405,7 @@ export function PersonalExpensesPage({
                         </SectionHeading>
                         <div className="shrink-0 text-right">
                             <p className="text-xs font-medium text-neutral-500">En cours</p>
-                            <MoneyText value={pendingTotal} currency="DZD" semantic="neutral" size="lg" min={0} max={0} />
+                            <CurrencyAmount value={pendingTotal} currency="DZD" semantic="neutral" size="lg" decimals={0}/>
                         </div>
                     </CardHeader>
                     <CardContent className="divide-y divide-border p-0">
@@ -468,7 +464,7 @@ export function PersonalExpensesPage({
                         <p className="text-xs font-medium text-neutral-500">
                             Total · {filteredExpenses.length} op{filteredExpenses.length > 1 ? 's' : ''}
                         </p>
-                        <MoneyText value={periodTotal} currency="DZD" semantic="plain" size="md" min={0} max={0} />
+                        <CurrencyAmount value={periodTotal} currency="DZD" semantic="plain" size="md" decimals={0}/>
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -496,7 +492,7 @@ export function PersonalExpensesPage({
                                         caption={isSettled && advanceAmount > displayAmount ? (
                                             <span className="inline-flex flex-wrap items-center justify-end gap-1">
                                                 sur avance
-                                                <MoneyText value={advanceAmount} currency="DZD" semantic="plain" size="sm" min={0} max={0} />
+                                                <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                                             </span>
                                         ) : undefined}
                                         onEdit={onEditExpense}
@@ -578,7 +574,7 @@ function ExpenseRow({
             </div>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                 <div className="text-right">
-                    <MoneyText value={amount} currency="DZD" semantic={amountSemantic} size="lg" showSign={amount < 0} min={0} max={0} />
+                    <CurrencyAmount value={amount} currency="DZD" semantic={amountSemantic} size="lg" showSign={amount < 0} decimals={0}/>
                     {amountLabel && <p className="text-xs text-neutral-500">{amountLabel}</p>}
                     {caption && <p className="text-xs text-neutral-500">{caption}</p>}
                 </div>

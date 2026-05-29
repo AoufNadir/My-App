@@ -4,7 +4,8 @@ import { Label } from '../ui/Label';
 import { MoneyField } from '../ui/MoneyField';
 import { DatePicker } from '../ui/DatePicker';
 import { Textarea } from '../ui/Textarea';
-import { MoneyText } from '../ui/MoneyText';
+import { CurrencyAmount } from '../financial/CurrencyAmount';
+
 import { Tabs } from '../ui/Tabs';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -61,7 +62,7 @@ export function DeliveryExpenseModal({
                     hint={(
                         <span className="inline-flex flex-wrap items-center gap-1">
                             {t('delivery.availableBalance')}:
-                            <MoneyText value={availableBalance} currency="DZD" semantic="plain" size="sm" min={0} max={0} />
+                            <CurrencyAmount value={availableBalance} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                         </span>
                     )}
                     placeholder="0"

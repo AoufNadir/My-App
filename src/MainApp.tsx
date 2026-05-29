@@ -40,7 +40,7 @@ import { useReportExports } from './hooks/useReportExports';
 // Shared Utils
 import { now, parseAndEvaluate } from './utils';
 import { computePamLedger } from './utils/pamLedger';
-import { calculateInvestorLiability } from './utils/capitalSnapshot';
+import { calculateInvestorLiability, calculateInvestorBreakdown } from './utils/capitalSnapshot';
 import { formatNumber } from './pages/shared/pageFormat';
 const TransactionsPage = React.lazy(() => import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage })));
 const PortfolioPage = React.lazy(() => import('./pages/PortfolioPage').then((module) => ({ default: module.PortfolioPage })));
@@ -77,7 +77,7 @@ function getClientDisplayName(client: ClientDzd) {
 function PageLoadingFallback({ text }: {
     text: string;
 }) {
-    return (<div className={`w-full rounded-2xl border p-6 text-center text-sm font-semibold ${'border-slate-200 bg-white/80 text-slate-700'}`}>
+    return (<div className="w-full rounded-2xl border border-border bg-surface/80 text-neutral-700 p-6 text-center text-sm font-semibold">
             {text}
         </div>);
 }
@@ -116,7 +116,7 @@ export default function MainApp({ user }: {
         || view === 'tresorerie'
         || selectedAssetId !== null
         || selectedAssetClientId !== null;
-    const shouldSubscribeInvestors = view === 'investors' || view === 'dashboard' || view === 'tresorerie' || view === 'dzd' || isInvestorRoute;
+    const shouldSubscribeInvestors = view === 'investors' || view === 'dashboard' || view === 'tresorerie' || view === 'dzd' || view === 'transactions' || isInvestorRoute;
     const shouldSubscribeTreasuryCards = view === 'dashboard' || view === 'tresorerie' || view === 'transactions';
     // 1.1 App Data (Provides userDocRef)
     const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, portfolioStats, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
@@ -125,7 +125,7 @@ export default function MainApp({ user }: {
         subscribeTreasuryCards: shouldSubscribeTreasuryCards
     });
     // 1.2 Settings
-    const { suggestedProfitMargin, setSuggestedProfitMargin, suggestedSellingPrice, setSuggestedSellingPrice, suggestedUsdtEurSellPrice, setSuggestedUsdtEurSellPrice, suggestedSellingPriceEur, setSuggestedSellingPriceEur, managerFeePercentage, setManagerFeePercentage, setTheme } = useSettings(userDocRef);
+    const { suggestedProfitMargin, setSuggestedProfitMargin, suggestedSellingPrice, setSuggestedSellingPrice, suggestedUsdtEurSellPrice, setSuggestedUsdtEurSellPrice, suggestedSellingPriceEur, setSuggestedSellingPriceEur, managerFeePercentage, setManagerFeePercentage } = useSettings(userDocRef);
     // 1.3 Derived Data
     // FIX-PERF (Phase 3): defer heavy computations so list/UI updates stay
     // interactive on weak phones. React renders with the previous pamLedger /
@@ -403,7 +403,7 @@ export default function MainApp({ user }: {
         getClientFullName: getClientDisplayName,
         minDays: -1
     });
-    const shouldComputePortfolioSimulators = view === 'statistiques' || view === 'analytics';
+    const shouldComputePortfolioSimulators = view === 'dashboard' || view === 'statistiques' || view === 'analytics';
     const newPamFromDzdSimulator = useMemo(() => {
         if (!shouldComputePortfolioSimulators)
             return null;
@@ -428,8 +428,11 @@ export default function MainApp({ user }: {
         const totalQty = portfolioStats.usdt.purchasedQty + newUsdtQty;
         return totalQty <= 0 ? 0 : totalCost / totalQty;
     }, [shouldComputePortfolioSimulators, simEurQty, simEurDzdPrice, simEurUsdtRate, portfolioStats.usdt]);
-    const globalNetProfit = Number(portfolioStats.usdt.totalProfit || 0) + Number(portfolioStats.eur.totalProfit || 0);
+    // Use PAM ledger derivedProfit as the single source of truth for global net profit.
+    // This ensures the Dashboard total matches the amount distributed to investors.
+    const globalNetProfit = Number(pamLedger.totals.derivedProfit || 0);
     const investorLiability = useMemo(() => calculateInvestorLiability(derivedInvestors), [derivedInvestors]);
+    const investorBreakdown = useMemo(() => calculateInvestorBreakdown(derivedInvestors), [derivedInvestors]);
     const dailyOverview = useMemo(() => {
         const now = new Date();
         const dayStart = new Date(now);
@@ -1534,10 +1537,10 @@ export default function MainApp({ user }: {
             setIsSaving(false);
         }
     };
-    const bgApp = "bg-slate-50 text-slate-900";
-    const cardBase = "bg-white border-slate-200 text-slate-900";
-    const fieldBase = "bg-slate-50 border-slate-200 text-slate-900 focus:ring-sky-600";
-    const subtleText = "text-slate-500";
+    const bgApp = "bg-app-bg text-neutral-900";
+    const cardBase = "bg-surface border-border text-neutral-900";
+    const fieldBase = "bg-surface-muted border-border text-neutral-900 focus:ring-primary";
+    const subtleText = "text-neutral-500";
     const detectAlertTone = (message: string): 'success' | 'error' | 'info' => {
         const normalized = (message || '')
             .toLowerCase()
@@ -1563,10 +1566,10 @@ export default function MainApp({ user }: {
     };
     const alertTone = detectAlertTone(alert);
     const alertClass = alertTone === 'success'
-        ? ('bg-green-50 border-green-300 text-green-800')
+        ? ('border-financial-profit/40 bg-success-bg text-financial-profit')
         : alertTone === 'error'
-            ? ('bg-red-50 border-red-300 text-red-800')
-            : ('bg-sky-50 border-sky-300 text-sky-800');
+            ? ('border-financial-loss/40 bg-danger-bg text-financial-loss')
+            : ('border-info/40 bg-info-bg text-info');
     /* Legacy persisted navigation/search effects moved to hooks.
     useEffect(() => {
         const p = window.location.pathname;
@@ -1744,13 +1747,13 @@ export default function MainApp({ user }: {
     if (isInvestorRoute) {
         const investor = derivedInvestors.find(i => i.id === investorIdFromUrl) || derivedInvestors[0];
         if (!investor) {
-            return (<div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500">
+            return (<div className="min-h-screen flex items-center justify-center bg-app-bg text-neutral-500">
                     {derivedInvestors.length === 0 ? "Chargement des données investisseur..." : "Investisseur non trouvé."}
                 </div>);
         }
         const myTransactions = investorTransactions.filter(tx => tx.investorId === investor.id);
         const totalCapital = derivedInvestors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0);
-        return (<Suspense fallback={<div className={`min-h-screen flex items-center justify-center ${'bg-slate-50 text-slate-600'}`}>{t('common.loading')}</div>}>
+        return (<Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-app-bg text-neutral-500">{t('common.loading')}</div>}>
                 <InvestorDashboardPage investor={investor} transactions={myTransactions} globalNetProfit={globalNetProfit} managerFeePercentage={Number(managerFeePercentage)} totalCapital={totalCapital} onExportReport={(range) => handleExportInvestorReport(investor.id, range)}/>
             </Suspense>);
     }
@@ -1794,6 +1797,7 @@ export default function MainApp({ user }: {
         totals,
         treasuryCards,
         investorLiability,
+        investorBreakdown,
         servicesSummary,
         globalNetProfit,
         overdueDebtClients: dashboardDebtClients,
@@ -1804,9 +1808,9 @@ export default function MainApp({ user }: {
         onOpenClientDebts: openClientsWithDebtFollowUp,
         onOpenTreasury: () => setView('tresorerie'),
         onOpenAnalytics: () => setView('analytics'),
-        onOpenPersonalWithdrawal: openPersonalWithdrawalModal
+        onOpenPersonalWithdrawal: openPersonalWithdrawalModal,
     };
-    const mainContentProps = { alert, alertClass, cardBase, subtleText, t, dailyOverview, PageLoadingFallback, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport };
+    const mainContentProps = { alert, alertClass, cardBase, subtleText, t, dailyOverview, PageLoadingFallback, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport };
     const walletTransferDialogProps = useMemo(() => ({
         isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, cardBase, subtleText, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSource,
@@ -1937,14 +1941,14 @@ export default function MainApp({ user }: {
     return (<div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
             <OfflineBanner />
             <div className="max-w-4xl mx-auto px-2 sm:px-4 pb-24">
-                    <MainHeaderBar {...{ view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), setIsMobileMenuOpen, handleOpenGlobalSearch, setTheme, onSignOut: () => signOut(auth), labels: navLabels }}/>
-                <AppMobileMenuNav view={view} onSelect={navigateToView} isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} labels={navLabels} onOpenSettings={() => setIsSettingsModalOpen(true)}/>
+                    <MainHeaderBar {...{ view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), setIsMobileMenuOpen, handleOpenGlobalSearch, onOpenSettings: () => setIsSettingsModalOpen(true), onSignOut: () => signOut(auth), labels: navLabels }}/>
+                <AppMobileMenuNav view={view} onSelect={navigateToView} isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} labels={navLabels} onOpenSettings={() => setIsSettingsModalOpen(true)} handleOpenGlobalSearch={handleOpenGlobalSearch} onSignOut={() => signOut(auth)}/>
 
                 <MonthlyRecapBanner recap={monthlyRecap} onDismiss={dismissMonthlyRecap}/>
 
                 <MainContentArea {...mainContentProps}/>
 
-                <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onFabPress={onFabPress} onOpenSettings={() => setIsSettingsModalOpen(true)}/>
+                <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onFabPress={onFabPress}/>
 
                 {isGlobalSearchOpen && (<Suspense fallback={null}>
                         <GlobalSearchDialog {...{ isOpen: isGlobalSearchOpen, onClose: closeGlobalSearch, cardBase, fieldBase, subtleText, query: globalSearchQuery, setQuery: setGlobalSearchQuery, results: globalSearchResults, onSelectResult: handleSelectGlobalSearchResult, title: t('common.globalSearch'), placeholder: t('common.searchPlaceholder'), noResultsText: t('common.noResults'), clientsText: t('nav.clients'), transactionsText: t('nav.transactions') }}/>

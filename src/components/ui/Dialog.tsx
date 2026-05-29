@@ -137,12 +137,12 @@ const Dialog = ({ isOpen, onClose, children, className, layout = 'auto' }: Dialo
     if (!isOpen)
         return null;
     return (<div onClick={() => onClose()} className={`anim-backdrop-in fixed inset-0 bg-overlay z-50 ${renderAsSheet ? 'flex items-end justify-center' : 'grid place-items-center p-2 sm:p-4'}`}>
-      {renderAsSheet ? (<div onClick={(e: React.MouseEvent) => e.stopPropagation()} className={`anim-sheet-in relative w-full max-h-[95dvh] rounded-t-2xl overflow-hidden flex flex-col pb-[env(safe-area-inset-bottom)] touch-pan-y shadow-dialog ${className || ''}`}>
+      {renderAsSheet ? (<div onClick={(e: React.MouseEvent) => e.stopPropagation()} className={`anim-sheet-in relative w-full max-h-[95dvh] rounded-t-2xl overflow-hidden flex flex-col bg-surface text-neutral-900 pb-[env(safe-area-inset-bottom)] touch-pan-y shadow-dialog ${className || ''}`}>
           <div ref={sheetHandleRef} className="pt-2 pb-1 flex items-center justify-center cursor-grab active:cursor-grabbing shrink-0" aria-hidden="true">
-            <span className="block h-1.5 w-10 rounded-full bg-neutral-300/60"/>
+            <span className="block h-1.5 w-10 rounded-full bg-neutral-300"/>
           </div>
           <div className="overflow-y-auto flex-1">{children}</div>
-        </div>) : (<div onClick={(e: React.MouseEvent) => e.stopPropagation()} className={`anim-dialog-center-in relative w-full rounded-2xl overflow-y-auto max-h-[95dvh] shadow-dialog ${className || ''}`}>
+        </div>) : (<div onClick={(e: React.MouseEvent) => e.stopPropagation()} className={`anim-dialog-center-in relative w-full rounded-2xl overflow-y-auto max-h-[95dvh] bg-surface text-neutral-900 shadow-dialog ${className || ''}`}>
           {children}
         </div>)}
     </div>);
@@ -155,17 +155,17 @@ type DialogHeaderProps = React.HTMLAttributes<HTMLDivElement> & {
 };
 const DialogHeader = React.forwardRef<HTMLDivElement, DialogHeaderProps>(({ className, children, onClose, ...props }, ref) => (<div ref={ref} className={`flex items-start justify-between p-6 ${className ?? ''}`} {...props}>
       <div className="flex flex-col space-y-1.5">{children}</div>
-      {onClose && (<button type="button" className="inline-flex h-touch w-touch -m-2 items-center justify-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-100 active:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" onClick={onClose} aria-label="Close">
+      {onClose && (<button type="button" className="inline-flex h-touch w-touch -m-2 items-center justify-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-100 active:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface" onClick={onClose} aria-label="Close">
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
           </svg>
         </button>)}
     </div>));
 DialogHeader.displayName = 'DialogHeader';
-const DialogTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(({ className, ...props }, ref) => (<h2 ref={ref} className={`text-lg font-semibold leading-none text-neutral-900 dark:text-neutral-100 ${className ?? ''}`} {...props}/>));
+const DialogTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(({ className, ...props }, ref) => (<h2 ref={ref} className={`text-lg font-semibold leading-none text-neutral-900 ${className ?? ''}`} {...props}/>));
 DialogTitle.displayName = 'DialogTitle';
 const DialogFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (<div ref={ref} className={`flex flex-col-reverse sm:flex-row sm:justify-end sm:gap-2 p-6 ${className ?? ''}`} {...props}/>));
 DialogFooter.displayName = 'DialogFooter';
-const DialogDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(({ className, ...props }, ref) => (<p ref={ref} className={`text-sm text-neutral-500 dark:text-neutral-400 ${className ?? ''}`} {...props}/>));
+const DialogDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(({ className, ...props }, ref) => (<p ref={ref} className={`text-sm text-neutral-500 ${className ?? ''}`} {...props}/>));
 DialogDescription.displayName = 'DialogDescription';
 export { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription };

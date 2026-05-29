@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from './ui/Modal';
 import { Button } from './ui/Button';
 import { ShareIcon } from './icons/ShareIcon';
@@ -18,10 +18,17 @@ function readTokenColor(tokenName: string): string | undefined {
     }
     return window.getComputedStyle(document.documentElement).getPropertyValue(tokenName).trim() || undefined;
 }
+function buildReportPreviewHtml(html: string): string {
+    const styleBlocks = html.match(/<style[\s\S]*?<\/style>/gi)?.join('') || '';
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    const bodyHtml = bodyMatch?.[1] || html;
+    return `${styleBlocks}<div class="report-shell-body report-preview-root">${bodyHtml}</div>`;
+}
 export function ReportModal({ isOpen, onClose, reportData }: ReportModalProps) {
     const reportPrintRef = useRef<HTMLDivElement>(null);
     const [isSharing, setIsSharing] = useState(false);
     const canShare = typeof navigator.share === 'function';
+    const previewHtml = useMemo(() => reportData ? buildReportPreviewHtml(reportData.html) : '', [reportData]);
     const handleShareImage = async () => {
         const element = reportPrintRef.current;
         if (!element || !reportData) {
@@ -168,9 +175,9 @@ export function ReportModal({ isOpen, onClose, reportData }: ReportModalProps) {
       </ModalHeader>
       <ModalContent className="p-2 sm:p-4 max-h-[70vh] overflow-y-auto">
         {reportData && (
-        // The report HTML is rendered inside a white container for generation consistency
-        <div ref={reportPrintRef} className="rounded-lg bg-surface shadow-card">
-              <div dangerouslySetInnerHTML={{ __html: reportData.html }}/>
+        // The report is isolated with its generated CSS so image export matches the print/PDF template.
+        <div ref={reportPrintRef} className="overflow-hidden rounded-lg bg-app-bg shadow-card">
+              <div dangerouslySetInnerHTML={{ __html: previewHtml }}/>
           </div>)}
       </ModalContent>
       <ModalFooter>

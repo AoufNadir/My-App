@@ -28,9 +28,6 @@ export type MainSearchResult = {
 type GlobalSearchDialogProps = {
     isOpen: boolean;
     onClose: () => void;
-    cardBase: string;
-    fieldBase: string;
-    subtleText: string;
     query: string;
     setQuery: (value: string) => void;
     results: MainSearchResult[];
@@ -41,7 +38,7 @@ type GlobalSearchDialogProps = {
     clientsText: string;
     transactionsText: string;
 };
-export function GlobalSearchDialog({ isOpen, onClose, cardBase: _cardBase, fieldBase: _fieldBase, subtleText: _subtleText, query, setQuery, results, onSelectResult, title, placeholder, noResultsText, clientsText, transactionsText }: GlobalSearchDialogProps) {
+export function GlobalSearchDialog({ isOpen, onClose, query, setQuery, results, onSelectResult, title, placeholder, noResultsText, clientsText, transactionsText }: GlobalSearchDialogProps) {
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-2xl bg-surface text-neutral-900">
       <ModalHeader onClose={onClose}>
         <ModalTitle>{title}</ModalTitle>
@@ -69,9 +66,6 @@ export function GlobalSearchDialog({ isOpen, onClose, cardBase: _cardBase, field
 type WalletTransferDialogProps = {
     isOpen: boolean;
     onClose: () => void;
-    cardBase: string;
-    subtleText: string;
-    fieldBase: string;
     amount: string;
     setAmount: (value: string) => void;
     source: 'Caisse' | 'BaridiMob';
@@ -99,7 +93,7 @@ type WalletTransferDialogProps = {
     processingText: string;
     confirmText: string;
 };
-export function WalletTransferDialog({ isOpen, onClose, cardBase: _cardBase, subtleText: _subtleText, fieldBase: _fieldBase, amount, setAmount, source, setSource, destination, setDestination, notes, setNotes, onMax, onSwap, onConfirm, isInvalid, isSaving, caisseBalance, baridiBalance, title, subtitle, amountLabel, fromLabel, toLabel, sourceLabel, destinationLabel, notesOptionalLabel, sameAccountErrorText, processingText, confirmText }: WalletTransferDialogProps) {
+export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, source, setSource, destination, setDestination, notes, setNotes, onMax, onSwap, onConfirm, isInvalid, isSaving, caisseBalance, baridiBalance, title, subtitle, amountLabel, fromLabel, toLabel, sourceLabel, destinationLabel, notesOptionalLabel, sameAccountErrorText, processingText, confirmText }: WalletTransferDialogProps) {
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
       <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
         <ModalTitle className="text-base sm:text-lg">{title}</ModalTitle>
@@ -164,8 +158,6 @@ export function WalletTransferDialog({ isOpen, onClose, cardBase: _cardBase, sub
 type DateFilterDialogProps = {
     isOpen: boolean;
     onClose: () => void;
-    cardBase: string;
-    fieldBase: string;
     startDate: string;
     setStartDate: (value: string) => void;
     endDate: string;
@@ -178,7 +170,7 @@ type DateFilterDialogProps = {
     clearLabel: string;
     applyLabel: string;
 };
-export function DateFilterDialog({ isOpen, onClose, cardBase: _cardBase, fieldBase: _fieldBase, startDate, setStartDate, endDate, setEndDate, onClear, onApply, title, startLabel, endLabel, clearLabel, applyLabel }: DateFilterDialogProps) {
+export function DateFilterDialog({ isOpen, onClose, startDate, setStartDate, endDate, setEndDate, onClear, onApply, title, startLabel, endLabel, clearLabel, applyLabel }: DateFilterDialogProps) {
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
       <ModalHeader onClose={onClose}>
         <ModalTitle>{title}</ModalTitle>
@@ -206,9 +198,6 @@ type ClientOption = {
 type ClientTransferDialogProps = {
     isOpen: boolean;
     onClose: () => void;
-    cardBase: string;
-    subtleText: string;
-    fieldBase: string;
     fromClientId: string;
     setFromClientId: (value: string) => void;
     toClientId: string;
@@ -234,7 +223,7 @@ type ClientTransferDialogProps = {
     dinarLabel: string;
     confirmLabel: string;
 };
-export function ClientTransferDialog({ isOpen, onClose, cardBase: _cardBase, subtleText: _subtleText, fieldBase: _fieldBase, fromClientId, setFromClientId, toClientId, setToClientId, amount, setAmount, notes, setNotes, onSave, isSaving, clients, fromBalance, toBalance, onMaxFrom, title, infoText, fromLabel, toLabel, amountLabel, notesLabel, filterClientsLabel, balanceLabel, dinarLabel, confirmLabel }: ClientTransferDialogProps) {
+export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromClientId, toClientId, setToClientId, amount, setAmount, notes, setNotes, onSave, isSaving, clients, fromBalance, toBalance, onMaxFrom, title, infoText, fromLabel, toLabel, amountLabel, notesLabel, filterClientsLabel, balanceLabel, dinarLabel, confirmLabel }: ClientTransferDialogProps) {
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
       <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
         <ModalTitle className="text-base sm:text-lg">{title}</ModalTitle>
@@ -305,8 +294,6 @@ export function ClientTransferDialog({ isOpen, onClose, cardBase: _cardBase, sub
 type TreasuryBalanceEditDialogProps = {
     isOpen: boolean;
     onClose: () => void;
-    cardBase: string;
-    fieldBase: string;
     asset: 'Caisse' | 'BaridiMob';
     value: string;
     onValueChange: (value: string) => void;
@@ -322,7 +309,7 @@ type TreasuryBalanceEditDialogProps = {
     reasonPlaceholder: string;
     saveLabel: string;
 };
-export function TreasuryBalanceEditDialog({ isOpen, onClose, cardBase: _cardBase, fieldBase: _fieldBase, asset, value, onValueChange, onValueBlur, notes, setNotes, onSave, titlePrefix, descriptionText, newBalanceLabel, dinarLabel, notesOptionalLabel, reasonPlaceholder, saveLabel }: TreasuryBalanceEditDialogProps) {
+export function TreasuryBalanceEditDialog({ isOpen, onClose, asset, value, onValueChange, onValueBlur, notes, setNotes, onSave, titlePrefix, descriptionText, newBalanceLabel, dinarLabel, notesOptionalLabel, reasonPlaceholder, saveLabel }: TreasuryBalanceEditDialogProps) {
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-sm bg-surface text-neutral-900">
       <ModalHeader onClose={onClose}>
         <ModalTitle>{titlePrefix} {asset}</ModalTitle>
@@ -342,8 +329,6 @@ export function TreasuryBalanceEditDialog({ isOpen, onClose, cardBase: _cardBase
 type PortfolioBalanceEditDialogProps = {
     isOpen: boolean;
     onClose: () => void;
-    cardBase: string;
-    fieldBase: string;
     asset: 'USDT' | 'EUR';
     value: string;
     onValueChange: (value: string) => void;
@@ -360,7 +345,7 @@ type PortfolioBalanceEditDialogProps = {
     saveLabel: string;
     savingLabel: string;
 };
-export function PortfolioBalanceEditDialog({ isOpen, onClose, cardBase: _cardBase, fieldBase: _fieldBase, asset, value, onValueChange, onValueBlur, notes, setNotes, onSave, isSaving, titlePrefix, descriptionText, newBalanceLabel, notesOptionalLabel, reasonPlaceholder, saveLabel, savingLabel }: PortfolioBalanceEditDialogProps) {
+export function PortfolioBalanceEditDialog({ isOpen, onClose, asset, value, onValueChange, onValueBlur, notes, setNotes, onSave, isSaving, titlePrefix, descriptionText, newBalanceLabel, notesOptionalLabel, reasonPlaceholder, saveLabel, savingLabel }: PortfolioBalanceEditDialogProps) {
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-sm bg-surface text-neutral-900">
       <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
         <ModalTitle className="text-base sm:text-lg">{titlePrefix} {asset}</ModalTitle>

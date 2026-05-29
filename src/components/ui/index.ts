@@ -57,5 +57,4 @@ export { TagInput } from './TagInput';
 export { TransactionPreviewCard } from './TransactionPreviewCard';
 export { SectionHeading } from './SectionHeading';
 export type { SectionHeadingProps } from './SectionHeading';
-export { ThemeToggle } from './ThemeToggle';
 export { UnifiedTitle } from './UnifiedTitle';

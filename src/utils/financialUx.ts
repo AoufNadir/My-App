@@ -36,21 +36,21 @@ export function getClientBalanceReading(balance: number): BalanceReading {
 }
 export function getToneClass(tone: FinancialTone) {
     if (tone === 'receive') {
-        return 'bg-red-50 text-red-700 border-red-100';
+        return 'bg-financial-loss-bg text-financial-loss border-financial-loss/30';
     }
     if (tone === 'advance') {
-        return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+        return 'bg-financial-profit-bg text-financial-profit border-financial-profit/30';
     }
     if (tone === 'warning') {
-        return 'bg-red-50 text-red-700 border-red-100';
+        return 'bg-danger-bg text-danger border-danger/30';
     }
     if (tone === 'transfer') {
-        return 'bg-sky-50 text-sky-700 border-sky-100';
+        return 'bg-info-bg text-info border-info/30';
     }
     if (tone === 'settled') {
-        return 'bg-slate-100 text-slate-600 border-slate-200';
+        return 'bg-surface-muted text-neutral-600 border-border';
     }
-    return 'bg-slate-50 text-slate-600 border-slate-200';
+    return 'bg-surface text-neutral-600 border-border';
 }
 export function normalizeLedgerLabel(value: string) {
     return value

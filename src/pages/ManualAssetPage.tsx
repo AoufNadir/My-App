@@ -21,11 +21,8 @@ type ManualAssetPageProps = {
         balance?: number;
     }) => void;
     onDeleteClient: (clientId: string) => void;
-    cardBase: string;
-    fieldBase: string;
-    subtleText: string;
 };
-export function ManualAssetPage({ asset, clients, assetTransactions, clientBalances, onBack, onSelectClient, onCreateClient, onUpdateClient, onDeleteClient, cardBase, fieldBase, subtleText }: ManualAssetPageProps) {
+export function ManualAssetPage({ asset, clients, assetTransactions, clientBalances, onBack, onSelectClient, onCreateClient, onUpdateClient, onDeleteClient }: ManualAssetPageProps) {
     const { searchQuery, setSearchQuery, isCreateClientModalOpen, setIsCreateClientModalOpen, isEditClientModalOpen, clientForm, setClientForm, filteredClients, openCreateModal, openEditModal, closeEditModal, handleCreate, handleUpdate } = useManualAssetClientManager({
         assetId: asset.id,
         clients,
@@ -50,12 +47,12 @@ export function ManualAssetPage({ asset, clients, assetTransactions, clientBalan
         };
     }, [asset.id, clients, clientBalances]);
     return (<div className="anim-page-in space-y-4">
-      <ManualAssetHeaderStats assetName={asset.name} assetDescription={asset.description} amountToReceive={balanceStats.amountToReceive} clientAdvances={balanceStats.clientAdvances} netCapitalImpact={balanceStats.netCapitalImpact} clientsCount={clients.length} onBack={onBack} subtleText={subtleText}/>
+      <ManualAssetHeaderStats assetName={asset.name} assetDescription={asset.description} amountToReceive={balanceStats.amountToReceive} clientAdvances={balanceStats.clientAdvances} netCapitalImpact={balanceStats.netCapitalImpact} clientsCount={clients.length} onBack={onBack}/>
 
-      <ManualAssetClientsPanel subtleText={subtleText} fieldBase={fieldBase} searchQuery={searchQuery} setSearchQuery={setSearchQuery} onOpenCreateModal={openCreateModal} filteredClients={filteredClients} assetId={asset.id} clientBalances={clientBalances} onSelectClient={onSelectClient} onOpenEditModal={openEditModal} onDeleteClient={onDeleteClient}/>
+      <ManualAssetClientsPanel searchQuery={searchQuery} setSearchQuery={setSearchQuery} onOpenCreateModal={openCreateModal} filteredClients={filteredClients} assetId={asset.id} clientBalances={clientBalances} onSelectClient={onSelectClient} onOpenEditModal={openEditModal} onDeleteClient={onDeleteClient}/>
 
-      <ManualAssetReportsSection assetId={asset.id} assetName={asset.name} clients={clients} assetTransactions={assetTransactions} clientBalances={clientBalances} subtleText={subtleText} fieldBase={fieldBase}/>
+      <ManualAssetReportsSection assetId={asset.id} assetName={asset.name} clients={clients} assetTransactions={assetTransactions} clientBalances={clientBalances}/>
 
-      <ManualAssetClientDialogs cardBase={cardBase} fieldBase={fieldBase} subtleText={subtleText} isCreateClientModalOpen={isCreateClientModalOpen} isEditClientModalOpen={isEditClientModalOpen} clientForm={clientForm} setClientForm={setClientForm} onCloseCreateModal={() => setIsCreateClientModalOpen(false)} onCloseEditModal={closeEditModal} onCreate={handleCreate} onUpdate={handleUpdate}/>
+      <ManualAssetClientDialogs isCreateClientModalOpen={isCreateClientModalOpen} isEditClientModalOpen={isEditClientModalOpen} clientForm={clientForm} setClientForm={setClientForm} onCloseCreateModal={() => setIsCreateClientModalOpen(false)} onCloseEditModal={closeEditModal} onCreate={handleCreate} onUpdate={handleUpdate}/>
     </div>);
 }

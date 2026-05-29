@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { MoneyField } from '../ui/MoneyField';
-import { MoneyText } from '../ui/MoneyText';
+import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { SectionHeading } from '../ui/SectionHeading';
 import { Tabs, type Tab } from '../ui/Tabs';
 import { RefreshCwIcon } from '../icons/RefreshCwIcon';
@@ -21,7 +22,7 @@ type SimSellResult = {
     profitMarginPercent: number;
 } | null;
 
-type PamSimulatorCardProps = {
+export type PamSimulatorCardProps = {
     portfolioStats: any;
     suggestedProfitMargin: string;
     suggestedSellingPrice?: string;
@@ -49,6 +50,9 @@ type PamSimulatorCardProps = {
     setSimSellEurPrice?: (val: string) => void;
     simSellEurToDzdRate?: string;
     setSimSellEurToDzdRate?: (val: string) => void;
+    variant?: 'full' | 'compact';
+    defaultExpanded?: boolean;
+    showQuickDecision?: boolean;
 };
 
 export function PamSimulatorCard({
@@ -79,8 +83,13 @@ export function PamSimulatorCard({
     setSimSellEurPrice,
     simSellEurToDzdRate,
     setSimSellEurToDzdRate,
+    variant = 'full',
+    defaultExpanded,
+    showQuickDecision = false,
 }: PamSimulatorCardProps) {
     const { t } = useLanguage();
+    const isCompact = variant === 'compact';
+    const [expanded, setExpanded] = useState(defaultExpanded ?? !isCompact);
 
     const resolveSuggestedDzdSellPrice = () => {
         const configuredPrice = suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0
@@ -145,6 +154,47 @@ export function PamSimulatorCard({
                 }
             }
         }
+    };
+
+    const suggestedDzdSellPrice = resolveSuggestedDzdSellPrice();
+    const breakEvenDzdPrice = Number(portfolioStats.usdt?.avgBuy || 0);
+    const availableUsdt = Math.max(0, Number(portfolioStats.usdt?.available || 0));
+    const enteredQuickQty = simSellUsdtQty ? parseAndEvaluate(simSellUsdtQty) : 0;
+    const quickQty = Number.isFinite(enteredQuickQty) && enteredQuickQty > 0 ? enteredQuickQty : availableUsdt;
+    const quickProfit = quickQty * (suggestedDzdSellPrice - breakEvenDzdPrice);
+    const quickMarginPercent = breakEvenDzdPrice > 0
+        ? ((suggestedDzdSellPrice - breakEvenDzdPrice) / breakEvenDzdPrice) * 100
+        : 0;
+    const shouldShowQuickDecision = showQuickDecision || isCompact;
+
+    const useAllStock = () => {
+        handleModeChange('sell_dzd');
+        if (setSimSellUsdtQty) {
+            setSimSellUsdtQty(availableUsdt > 0 ? availableUsdt.toFixed(2) : '');
+        }
+        setExpanded(true);
+    };
+
+    const useSuggestedPrice = () => {
+        handleModeChange('sell_dzd');
+        if (setSimSellDzdPrice && suggestedDzdSellPrice > 0) {
+            setSimSellDzdPrice(suggestedDzdSellPrice.toFixed(2));
+        }
+        setExpanded(true);
+    };
+
+    const resetSimulator = () => {
+        setSimMode('dzd');
+        setSimBuyQty('');
+        setSimBuyPrice('');
+        setSimEurQty('');
+        setSimEurDzdPrice('');
+        setSimEurUsdtRate('');
+        setSimSellUsdtQty?.('');
+        setSimSellDzdPrice?.('');
+        setSimSellEurPrice?.('');
+        setSimSellEurToDzdRate?.('');
+        setExpanded(true);
     };
 
     const simSellResult = useMemo<SimSellResult>(() => {
@@ -217,24 +267,69 @@ export function PamSimulatorCard({
 
     return (
         <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader className="flex flex-row items-center justify-between gap-3 p-4 pb-3">
                 <SectionHeading icon={<RefreshCwIcon className="h-4 w-4" />}>
                     {t('portfolio.pamPriceSimulator')}
                 </SectionHeading>
+                {isCompact && (
+                    <Button type="button" variant="outline" size="sm" onClick={() => setExpanded((value) => !value)} className="shrink-0 rounded-lg px-3">
+                        {expanded ? t('common.hide') : t('common.show')}
+                    </Button>
+                )}
             </CardHeader>
             <CardContent className="space-y-4 p-4 pt-0">
+                {shouldShowQuickDecision && (
+                    <div className="space-y-3 rounded-xl border border-border bg-surface-muted p-3">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            <QuickMetric
+                                label={t('portfolio.currentPam')}
+                                value={<CurrencyAmount value={breakEvenDzdPrice} currency="DZD" semantic="plain" size="sm" decimals={2} />}
+                            />
+                            <QuickMetric
+                                label={t('portfolio.suggestedSellPrice')}
+                                value={<CurrencyAmount value={suggestedDzdSellPrice} currency="DZD" semantic="plain" size="sm" decimals={2} />}
+                            />
+                            <QuickMetric
+                                label={t('portfolio.breakEvenPrice')}
+                                value={<CurrencyAmount value={breakEvenDzdPrice} currency="DZD" semantic="plain" size="sm" decimals={2} />}
+                            />
+                            <QuickMetric
+                                label={t('portfolio.estimatedProfit')}
+                                value={<CurrencyAmount value={quickProfit} currency="DZD" semantic="auto" showSign size="sm" decimals={0} />}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <span className={`text-xs font-bold ${quickProfit >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`} dir="ltr">
+                                {quickMarginPercent >= 0 ? '+' : ''}{formatNumber(quickMarginPercent, { min: 2, max: 2 })}%
+                            </span>
+                            <div className="grid grid-cols-3 gap-2">
+                                <Button type="button" variant="outline" size="sm" onClick={useAllStock} className="min-w-0 rounded-lg px-1.5 text-xs leading-tight">
+                                    {t('portfolio.useAllStock')}
+                                </Button>
+                                <Button type="button" variant="outline" size="sm" onClick={useSuggestedPrice} className="min-w-0 rounded-lg px-1.5 text-xs leading-tight">
+                                    {t('portfolio.useSuggestedPrice')}
+                                </Button>
+                                <Button type="button" variant="ghost" size="sm" onClick={resetSimulator} className="min-w-0 rounded-lg px-1.5 text-xs leading-tight">
+                                    {t('portfolio.resetSimulator')}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {(!isCompact || expanded) && (<>
                 <Tabs tabs={tabs} activeTab={simMode} onChange={handleModeChange} variant="pills" />
 
                 {simMode === 'dzd' && (
                     <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3">
                             <MoneyField label={t('portfolio.qtyUsdt')} value={simBuyQty} onChange={setSimBuyQty} currency="USDT" placeholder="1000" />
                             <MoneyField label={t('portfolio.buyPrice')} value={simBuyPrice} onChange={setSimBuyPrice} currency="DZD" placeholder="240.50" />
                         </div>
                         {newPamFromDzdSimulator !== null && (
                             <ResultBox>
-                                <ResultLine label={t('portfolio.newPam')} value={<MoneyText value={newPamFromDzdSimulator} currency="DZD" semantic="neutral" size="lg" min={2} max={2} />} />
-                                <ResultLine label={t('portfolio.suggestedSellPrice')} value={<MoneyText value={newPamFromDzdSimulator + parseAndEvaluate(suggestedProfitMargin)} currency="DZD" semantic="plain" size="sm" min={2} max={2} />} />
+                                <ResultLine label={t('portfolio.newPam')} value={<CurrencyAmount value={newPamFromDzdSimulator} currency="DZD" semantic="neutral" size="lg" decimals={2}/>} />
+                                <ResultLine label={t('portfolio.suggestedSellPrice')} value={<CurrencyAmount value={newPamFromDzdSimulator + parseAndEvaluate(suggestedProfitMargin)} currency="DZD" semantic="plain" size="sm" decimals={2}/>} />
                             </ResultBox>
                         )}
                     </div>
@@ -249,7 +344,7 @@ export function PamSimulatorCard({
                         </div>
                         {newPamFromEurSimulator !== null && (
                             <ResultBox>
-                                <ResultLine label={t('portfolio.newPam')} value={<MoneyText value={newPamFromEurSimulator} currency="DZD" semantic="neutral" size="lg" min={2} max={2} />} />
+                                <ResultLine label={t('portfolio.newPam')} value={<CurrencyAmount value={newPamFromEurSimulator} currency="DZD" semantic="neutral" size="lg" decimals={2}/>} />
                             </ResultBox>
                         )}
                     </div>
@@ -257,17 +352,17 @@ export function PamSimulatorCard({
 
                 {simMode === 'sell_dzd' && (
                     <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3">
                             <MoneyField label={t('portfolio.qtyUsdt')} value={simSellUsdtQty || ''} onChange={(value) => setSimSellUsdtQty?.(value)} currency="USDT" placeholder="1000" />
                             <MoneyField label={t('portfolio.sellingPriceDzd')} value={simSellDzdPrice || ''} onChange={(value) => setSimSellDzdPrice?.(value)} currency="DZD" placeholder="242.00" />
                         </div>
 
                         <ResultBox>
-                            <ResultLine label={t('portfolio.currentPam')} value={<MoneyText value={portfolioStats.usdt.avgBuy} currency="DZD" semantic="plain" size="md" min={2} max={2} />} />
+                            <ResultLine label={t('portfolio.currentPam')} value={<CurrencyAmount value={portfolioStats.usdt.avgBuy} currency="DZD" semantic="plain" size="md" decimals={2}/>} />
                             {simSellResult && (
                                 <ResultGrid>
-                                    <ResultItem label={t('portfolio.saleValueDzd')} value={<MoneyText value={simSellResult.saleValueDzd} currency="DZD" semantic="plain" size="sm" />} />
-                                    <ResultItem label={t('portfolio.soldCost')} value={<MoneyText value={simSellResult.soldCostDzd} currency="DZD" semantic="plain" size="sm" />} />
+                                    <ResultItem label={t('portfolio.saleValueDzd')} value={<CurrencyAmount value={simSellResult.saleValueDzd} currency="DZD" semantic="plain" size="sm" decimals={2}/>} />
+                                    <ResultItem label={t('portfolio.soldCost')} value={<CurrencyAmount value={simSellResult.soldCostDzd} currency="DZD" semantic="plain" size="sm" decimals={2}/>} />
                                     <ResultItem label={t('portfolio.marginPercent')} value={<PercentValue value={simSellResult.profitMarginPercent} profitable={simSellResult.isProfitable} />} />
                                 </ResultGrid>
                             )}
@@ -292,13 +387,13 @@ export function PamSimulatorCard({
                         </div>
 
                         <ResultBox>
-                            <ResultLine label={t('portfolio.currentPam')} value={<MoneyText value={portfolioStats.usdt.avgBuy} currency="DZD" semantic="plain" size="md" min={2} max={2} />} />
+                            <ResultLine label={t('portfolio.currentPam')} value={<CurrencyAmount value={portfolioStats.usdt.avgBuy} currency="DZD" semantic="plain" size="md" decimals={2}/>} />
                             {simSellResult && (
                                 <ResultGrid>
-                                    <ResultItem label={t('portfolio.saleValueEur')} value={<MoneyText value={simSellResult.saleValueEur || 0} currency="EUR" semantic="plain" size="sm" />} />
-                                    <ResultItem label={t('portfolio.saleValueDzd')} value={<MoneyText value={simSellResult.saleValueDzd} currency="DZD" semantic="plain" size="sm" />} />
-                                    <ResultItem label={t('portfolio.equivalentPriceDzd')} value={<MoneyText value={simSellResult.effectiveSellPriceDzd} currency="DZD" semantic="plain" size="sm" />} />
-                                    <ResultItem label={t('portfolio.soldCost')} value={<MoneyText value={simSellResult.soldCostDzd} currency="DZD" semantic="plain" size="sm" />} />
+                                    <ResultItem label={t('portfolio.saleValueEur')} value={<CurrencyAmount value={simSellResult.saleValueEur || 0} currency="EUR" semantic="plain" size="sm" decimals={2}/>} />
+                                    <ResultItem label={t('portfolio.saleValueDzd')} value={<CurrencyAmount value={simSellResult.saleValueDzd} currency="DZD" semantic="plain" size="sm" decimals={2}/>} />
+                                    <ResultItem label={t('portfolio.equivalentPriceDzd')} value={<CurrencyAmount value={simSellResult.effectiveSellPriceDzd} currency="DZD" semantic="plain" size="sm" decimals={2}/>} />
+                                    <ResultItem label={t('portfolio.soldCost')} value={<CurrencyAmount value={simSellResult.soldCostDzd} currency="DZD" semantic="plain" size="sm" decimals={2}/>} />
                                     <ResultItem label={t('portfolio.marginPercent')} value={<PercentValue value={simSellResult.profitMarginPercent} profitable={simSellResult.isProfitable} />} />
                                 </ResultGrid>
                             )}
@@ -313,8 +408,18 @@ export function PamSimulatorCard({
                         )}
                     </div>
                 )}
+                </>)}
             </CardContent>
         </Card>
+    );
+}
+
+function QuickMetric({ label, value }: { label: ReactNode; value: ReactNode }) {
+    return (
+        <div className="rounded-lg bg-surface px-3 py-2">
+            <p className="text-[11px] font-bold uppercase text-neutral-500">{label}</p>
+            <div className="mt-1 font-semibold">{value}</div>
+        </div>
     );
 }
 
@@ -366,7 +471,7 @@ function ProfitPreview({ result, profitableLabel, lossLabel }: { result: NonNull
             <p className={`mb-1 text-xs font-semibold ${result.isProfitable ? 'text-success' : 'text-danger'}`}>
                 {result.isProfitable ? profitableLabel : lossLabel}
             </p>
-            <MoneyText value={result.profit} currency="DZD" semantic="auto" showSign size="xl" />
+            <CurrencyAmount value={result.profit} currency="DZD" semantic="auto" showSign size="xl" decimals={2}/>
         </div>
     );
 }

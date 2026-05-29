@@ -4,7 +4,8 @@ import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { MoneyField } from '../ui/MoneyField';
 import { DatePicker } from '../ui/DatePicker';
-import { MoneyText } from '../ui/MoneyText';
+import { CurrencyAmount } from '../financial/CurrencyAmount';
+
 import { Tabs } from '../ui/Tabs';
 import { InfoIcon } from '../icons/InfoIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -76,12 +77,12 @@ export function PersonalWithdrawalModal({
     const errorMessage = !managerExists ? errorTitle : exceedsProfit ? (
         <span className="inline-flex flex-wrap items-center gap-1">
             Depasse ton profit disponible
-            <MoneyText value={managerAvailableProfit} currency="DZD" semantic="plain" size="sm" min={0} max={0} />
+            <CurrencyAmount value={managerAvailableProfit} currency="DZD" semantic="plain" size="sm" decimals={0}/>
         </span>
     ) : exceedsBalance ? (
         <span className="inline-flex flex-wrap items-center gap-1">
             Solde {method} insuffisant
-            <MoneyText value={availableBalance} currency="DZD" semantic="plain" size="sm" min={0} max={0} />
+            <CurrencyAmount value={availableBalance} currency="DZD" semantic="plain" size="sm" decimals={0}/>
         </span>
     ) : undefined;
 
@@ -118,10 +119,10 @@ export function PersonalWithdrawalModal({
                         <span className="inline-flex flex-wrap items-center gap-1">
                             {mode === 'advance' ? 'Deduit du profit a la regularisation' : 'Ton profit dispo:'}
                             {mode !== 'advance' && (
-                                <MoneyText value={managerAvailableProfit} currency="DZD" semantic="plain" size="sm" min={0} max={0} />
+                                <CurrencyAmount value={managerAvailableProfit} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                             )}
                             <span>· {method}:</span>
-                            <MoneyText value={availableBalance} currency="DZD" semantic="plain" size="sm" min={0} max={0} />
+                            <CurrencyAmount value={availableBalance} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                         </span>
                     )}
                     error={errorMessage}

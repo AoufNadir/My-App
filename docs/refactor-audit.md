@@ -69,6 +69,8 @@ This audit records the surfaces planned and completed for the fintech mobile UI 
 - Dashboard, Transactions, Clients, Investors, Services, Expenses, Reports, Analytics, Portfolio/Stock, and Parameters surfaces have been refactored to the shared UI/tokens layer.
 - Recharts surfaces now use token-backed CSS variables and custom tokenized tooltips.
 - PDF/print HTML reads report colors from design tokens; image exports keep only technical capture styles.
+- PDF/print HTML now uses the Pro Digital export identity: app logo, branded header, report badge, token-backed KPI cards, token-backed tables, and a branded footer.
+- Client JPG/image export card now uses the same Pro Digital identity with logo, branded metadata, token-backed balance panel, and a branded footer.
 - Remaining `style={{...}}` usages are technical exceptions only: list `content-visibility`, swipe widths/touch action, and hidden export capture positioning.
 - Focused scans show no direct hex colors outside `src/styles/tokens.css`, and no old direct Tailwind palette classes in `src/components`, `src/pages`, or `src/AppContent.tsx`.
 - `npm run build` succeeds after the refactor.
@@ -91,6 +93,13 @@ This audit records the surfaces planned and completed for the fintech mobile UI 
   - document/body scroll width: `390`
   - horizontal overflow: `false`
   - console errors: `[]`
+- Playwright monthly PDF/Print export check on `390x844`:
+  - exported report opened from the real app.
+  - Pro Digital logo/header: present.
+  - export badge/title/meta card: present.
+  - old generated-report footer text: absent.
+  - horizontal overflow: `false`.
+  - console/page errors: `[]`.
 - Real Firebase account smoke check on `390x844` completed:
   - login succeeded.
   - Dashboard, Transactions, Clients, Investors, Services, Expenses, Portfolio/Stock, Analytics/Reports, Treasury, and Parameters opened.
@@ -99,7 +108,7 @@ This audit records the surfaces planned and completed for the fintech mobile UI 
 
 ## Remaining Manual QA
 - Perform hands-on CRUD checks with real data after login: create/edit/delete one transaction, client entry, investor movement, service item, and expense.
-- Export one monthly PDF, one client PDF, one investor PDF, one expenses PDF, and verify browser print/save output.
-- Test JPG/image share or download from the client summary export on mobile and desktop.
+- Export one client PDF, one investor PDF, one expenses PDF, and verify browser print/save output.
+- Test JPG/image share or download from the client summary export on mobile and desktop with an account that contains at least one client.
 - Run a short financial scenario with real data: buy, sell, linked client payment, expense, investor movement, PAM profit preview.
 - Review `git status` carefully before any commit because the workspace contains many pre-existing modified/untracked files.

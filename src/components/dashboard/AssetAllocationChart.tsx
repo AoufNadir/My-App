@@ -2,7 +2,7 @@ import React from 'react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { EmptyState } from '../ui/EmptyState';
-import { MoneyText } from '../ui/MoneyText';
+import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { SectionHeading } from '../ui/SectionHeading';
 import { WalletIcon } from '../icons/WalletIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -44,7 +44,7 @@ export const AssetAllocationChart: React.FC<AssetAllocationChartProps> = ({ data
                         <div className={`h-3 w-3 rounded-full ${dataItem.swatchClass}`}/>
                         <span className="text-xs font-bold text-neutral-900">{dataItem.name}</span>
                     </div>
-                    <MoneyText value={Number(dataItem.value || 0)} currency="DZD" semantic="plain" size="md" min={0} max={0}/>
+                    <CurrencyAmount value={Number(dataItem.value || 0)} currency="DZD" semantic="plain" size="md" decimals={0}/>
                     <p className="mt-1 text-xs text-neutral-500">
                         {payload[0].percent ? `${(payload[0].percent * 100).toFixed(1)}%` : ''}
                     </p>

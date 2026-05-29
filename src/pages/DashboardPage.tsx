@@ -42,6 +42,7 @@ type DashboardPageProps = {
     totals: any;
     treasuryCards: TreasuryCard[];
     investorLiability?: number;
+    investorBreakdown?: { capital: number; profits: number; total: number };
     servicesSummary?: {
         netCapitalImpact?: number;
     };
@@ -272,7 +273,7 @@ function DashboardSyncState({ title, body, actions, }: {
       <ActionStrip actions={actions}/>
     </div>);
 }
-export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, totals, treasuryCards, investorLiability = 0, servicesSummary, overdueDebtClients, globalNetProfit, isDataSyncing = false, onNewTransaction, onOpenClients, onOpenClient, onOpenClientDebts, onOpenTreasury, onOpenAnalytics, onOpenPersonalWithdrawal, }: DashboardPageProps) {
+export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, totals, treasuryCards, investorLiability = 0, investorBreakdown, servicesSummary, overdueDebtClients, globalNetProfit, isDataSyncing = false, onNewTransaction, onOpenClients, onOpenClient, onOpenClientDebts, onOpenTreasury, onOpenAnalytics, onOpenPersonalWithdrawal, }: DashboardPageProps) {
     const { t } = useLanguage();
     const stockValue = Number(portfolioStats?.usdt?.available || 0) * Number(portfolioStats?.usdt?.avgBuy || 0)
         + Number(portfolioStats?.eur?.available || 0) * Number(portfolioStats?.eur?.avgBuy || 0);
@@ -293,7 +294,8 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
     const financialHealth = capitalSnapshot.totalCapital;
     const capitalSecondaryItems = [
         { label: t('finance.realCapital') as string, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const },
-        { label: t('finance.investorLiability') as string, value: capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: capitalSnapshot.investorLiability > 0 ? 'loss' as const : 'plain' as const, hideWhenZero: true },
+        { label: 'Capital investisseurs', value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
+        { label: 'Profits non retirés', value: investorBreakdown?.profits ?? 0, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
         { label: t('finance.liquidity') as string, value: cashTotal, currency: 'DZD' as const, semantic: 'plain' as const },
         { label: t('finance.stock') as string, value: stockValue, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
         { label: t('finance.treasuryCards') as string, value: capitalSnapshot.treasuryCardsTotal, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
@@ -418,7 +420,8 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
             { label: t('finance.stock') as string, value: stockValue, icon: <BriefcaseIcon className="h-4 w-4"/> },
             { label: t('finance.toReceive') as string, value: totalDebt, semantic: totalDebt > 0 ? 'profit' : 'plain', icon: <ArrowUpRightIcon className="h-4 w-4"/> },
             { label: t('finance.clientAdvance') as string, value: totalAdvances, semantic: totalAdvances > 0 ? 'loss' : 'plain', icon: <AlertTriangleIcon className="h-4 w-4"/> },
-            { label: t('finance.investorLiability') as string, value: capitalSnapshot.investorLiability, semantic: capitalSnapshot.investorLiability > 0 ? 'loss' : 'plain', icon: <UsersIcon className="h-4 w-4"/> }
+            { label: 'Capital investisseurs', value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, semantic: 'loss', icon: <UsersIcon className="h-4 w-4"/> },
+            { label: 'Profits non retirés', value: investorBreakdown?.profits ?? 0, semantic: 'loss', icon: <UsersIcon className="h-4 w-4"/> }
         ]}/>
     </div>);
 }

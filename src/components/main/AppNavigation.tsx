@@ -3,7 +3,6 @@ import { Button } from '../ui/Button';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Dropdown, DropdownItem } from '../ui/Dropdown';
 import { Fab } from '../ui/Fab';
-import { ThemeToggle } from '../ui/ThemeToggle';
 import { MainNavLink } from './MainNavLink';
 import { MobileNavLink } from './MobileNavLink';
 import { BriefcaseIcon } from '../icons/BriefcaseIcon';
@@ -18,6 +17,13 @@ import { XIcon } from '../icons/XIcon';
 import { LayoutDashboardIcon } from '../icons/LayoutDashboardIcon';
 import { SettingsIcon } from '../icons/SettingsIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
+import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
+import { GlobeIcon } from '../icons/GlobeIcon';
+import { SunIcon } from '../icons/SunIcon';
+import { MoonIcon } from '../icons/MoonIcon';
+import { LogOutIcon } from '../icons/LogOutIcon';
+import { useLanguage, type Lang } from '../../contexts/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 type NavLabels = {
     dashboard: string;
     transactions: string;
@@ -44,6 +50,8 @@ type MobileMenuNavProps = NavSharedProps & {
     isOpen: boolean;
     onClose: () => void;
     onOpenSettings?: () => void;
+    handleOpenGlobalSearch?: () => void;
+    onSignOut?: () => void;
 };
 type BottomNavProps = NavSharedProps & {
     /** Optional contextual quick action rendered as a small floating button above the bar. */
@@ -57,7 +65,6 @@ function AppDesktopNavComponent({ view, onSelect, labels }: NavSharedProps) {
         ? 'bg-primary text-white shadow-card'
         : 'text-neutral-600 hover:bg-neutral-100'}`;
     return (<div className="hidden items-center gap-1 rounded-xl border border-border p-1 sm:flex">
-      <ThemeToggle />
       <MainNavLink activeView={view} onSelect={onSelect} targetView="dashboard" colorClass="bg-neutral-700" fillWidth={false} className="px-3 py-2">{labels.dashboard}</MainNavLink>
       <MainNavLink activeView={view} onSelect={onSelect} targetView="transactions" colorClass="bg-primary" fillWidth={false} className="px-3 py-2">{labels.transactions}</MainNavLink>
       <MainNavLink activeView={view} onSelect={onSelect} targetView="dzd" colorClass="bg-secondary" fillWidth={false} className="px-3 py-2">{labels.clients}</MainNavLink>
@@ -76,16 +83,20 @@ function AppDesktopNavComponent({ view, onSelect, labels }: NavSharedProps) {
       </Dropdown>
     </div>);
 }
-function AppMobileMenuNavComponent({ view, onSelect, labels, isOpen, onClose, onOpenSettings }: MobileMenuNavProps) {
+function AppMobileMenuNavComponent({ view, onSelect, labels, isOpen, onClose, onOpenSettings, handleOpenGlobalSearch, onSignOut }: MobileMenuNavProps) {
+    const { lang, setLang, t } = useLanguage();
+    const { theme, toggleTheme } = useTheme();
     if (!isOpen)
         return null;
-    return (<div className="anim-fade-slide-down fixed inset-0 z-50 bg-surface/95 p-4 backdrop-blur-xl sm:hidden">
-          <div className="flex justify-end mb-8">
+    const nextLang = lang === 'fr' ? 'ar' : 'fr';
+    const nextLangName = lang === 'fr' ? 'العربية' : 'Français';
+    return (<div className="anim-fade-slide-down fixed inset-0 z-50 bg-surface/95 p-4 backdrop-blur-xl sm:hidden overflow-y-auto pb-16">
+          <div className="flex justify-end mb-4">
             <Button onClick={onClose} variant="ghost" className="rounded-full p-2">
               <XIcon className="w-6 h-6"/>
             </Button>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="dashboard" icon={<LayoutDashboardIcon className="w-6 h-6"/>} colorClass="text-neutral-400">{labels.dashboard}</MobileNavLink>
             <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="transactions" icon={<BriefcaseIcon className="w-6 h-6"/>} colorClass="text-primary">{labels.transactions}</MobileNavLink>
             <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="statistiques" icon={<WalletIcon className="w-6 h-6"/>} colorClass="text-financial-asset">{labels.portfolio}</MobileNavLink>
@@ -95,14 +106,33 @@ function AppMobileMenuNavComponent({ view, onSelect, labels, isOpen, onClose, on
             <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="tresorerie" icon={<LandmarkIcon className="w-6 h-6"/>} colorClass="text-success">{labels.treasury}</MobileNavLink>
             <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="services" icon={<BriefcaseIcon className="w-6 h-6"/>} colorClass="text-secondary">{labels.services}</MobileNavLink>
             <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="investors" icon={<UserIcon className="w-6 h-6"/>} colorClass="text-secondary">{labels.investors}</MobileNavLink>
-            {onOpenSettings && (<button type="button" onClick={() => { onOpenSettings(); onClose(); }} className="flex w-full items-center gap-4 rounded-lg p-4 text-left text-lg font-semibold text-neutral-700 transition-colors hover:bg-neutral-100">
+            
+            <hr className="border-border my-2" />
+
+            {handleOpenGlobalSearch && (<button type="button" onClick={() => { handleOpenGlobalSearch(); onClose(); }} className="flex w-full items-center gap-4 rounded-lg p-3 text-left text-base font-semibold text-neutral-700 transition-colors hover:bg-neutral-100">
+                <MagnifyingGlassIcon className="w-6 h-6"/>
+                <span>{t('common.search') || 'Recherche'}</span>
+              </button>)}
+
+            <button type="button" onClick={toggleTheme} className="flex w-full items-center gap-4 rounded-lg p-3 text-left text-base font-semibold text-neutral-700 transition-colors hover:bg-neutral-100">
+                {theme === 'light' ? <MoonIcon className="w-6 h-6"/> : <SunIcon className="w-6 h-6 text-warning"/>}
+                <span>{theme === 'light' ? t('common.themeDark') || 'Mode sombre' : t('common.themeLight') || 'Mode clair'}</span>
+            </button>
+
+            <button type="button" onClick={() => setLang(nextLang)} className="flex w-full items-center gap-4 rounded-lg p-3 text-left text-base font-semibold text-neutral-700 transition-colors hover:bg-neutral-100">
+                <GlobeIcon className="w-6 h-6"/>
+                <span>{nextLangName}</span>
+            </button>
+
+            {onOpenSettings && (<button type="button" onClick={() => { onOpenSettings(); onClose(); }} className="flex w-full items-center gap-4 rounded-lg p-3 text-left text-base font-semibold text-neutral-700 transition-colors hover:bg-neutral-100">
                 <SettingsIcon className="w-6 h-6"/>
                 {labels.settings}
               </button>)}
-            <div className="flex items-center justify-between rounded-lg p-4">
-              <span className="text-lg font-semibold text-neutral-700">Thème</span>
-              <ThemeToggle />
-            </div>
+
+            {onSignOut && (<button type="button" onClick={() => { onSignOut(); onClose(); }} className="flex w-full items-center gap-4 rounded-lg p-3 text-left text-base font-semibold text-danger transition-colors hover:bg-danger-bg">
+                <LogOutIcon className="w-6 h-6"/>
+                <span>{t('common.logout') || 'Déconnexion'}</span>
+              </button>)}
           </div>
     </div>);
 }
@@ -125,9 +155,9 @@ function AppBottomNavComponent({ view, onSelect, labels, onFabPress, fabHidden, 
       <span>{label}</span>
     </button>);
     return (<>
-      {onFabPress && !fabHidden && (<Fab position="inline" icon={<PlusIcon className="h-5 w-5"/>} onClick={onFabPress} wrapperClassName="sm:hidden fixed end-4 z-[46] bottom-[calc(4.5rem+env(safe-area-inset-bottom))]" className="h-11 w-11 !bg-neutral-800 dark:!bg-neutral-200 dark:!text-neutral-900 shadow-card-hover hover:!bg-neutral-700 dark:hover:!bg-neutral-100" ariaLabel="Action rapide"/>)}
+      {onFabPress && !fabHidden && (<Fab position="inline" icon={<PlusIcon className="h-5 w-5"/>} onClick={onFabPress} wrapperClassName="sm:hidden fixed end-[calc(100vw-100dvw+1rem)] z-[46] bottom-[calc(4.5rem+env(safe-area-inset-bottom))]" className="h-11 w-11 !bg-fab-bg hover:!bg-fab-bg-hover text-white shadow-card-hover" ariaLabel="Action rapide"/>)}
 
-      <nav aria-label="Navigation principale" className="fixed inset-x-0 bottom-0 z-[45] border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
+      <nav aria-label="Navigation principale" className="fixed bottom-0 left-0 z-[45] w-[100dvw] border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
         <div className="grid grid-cols-4 gap-1 px-3 py-1.5">
           <button type="button" onClick={() => onSelect('dashboard')} className={tabBtn(view === 'dashboard')} aria-label={labels.dashboard}>
             <LayoutDashboardIcon className="h-[18px] w-[18px]"/>
@@ -160,10 +190,6 @@ function AppBottomNavComponent({ view, onSelect, labels, onFabPress, fabHidden, 
           {moreSheetItem('analytics', <ArrowUpIcon className="h-5 w-5"/>, labels.analytics, 'text-warning')}
           {moreSheetItem('expenses', <BanknotesIcon className="h-5 w-5"/>, labels.expenses, 'text-danger')}
           {onOpenSettings && moreSheetAction(<SettingsIcon className="h-5 w-5"/>, labels.settings, 'text-neutral-500', onOpenSettings)}
-          <div className="px-5 py-3 flex items-center justify-between">
-            <span className="text-sm font-medium text-neutral-700">Thème</span>
-            <ThemeToggle />
-          </div>
         </div>
       </BottomSheet>
     </>);
@@ -177,7 +203,9 @@ const areBottomNavPropsEqual = (prev: BottomNavProps, next: BottomNavProps) => (
     && prev.onOpenSettings === next.onOpenSettings);
 const areMobileMenuNavPropsEqual = (prev: MobileMenuNavProps, next: MobileMenuNavProps) => (areNavSharedPropsEqual(prev, next)
     && prev.isOpen === next.isOpen
-    && prev.onOpenSettings === next.onOpenSettings);
+    && prev.onOpenSettings === next.onOpenSettings
+    && prev.handleOpenGlobalSearch === next.handleOpenGlobalSearch
+    && prev.onSignOut === next.onSignOut);
 export const AppDesktopNav = memo(AppDesktopNavComponent, areNavSharedPropsEqual);
 export const AppMobileMenuNav = memo(AppMobileMenuNavComponent, areMobileMenuNavPropsEqual);
 export const AppBottomNav = memo(AppBottomNavComponent, areBottomNavPropsEqual);

@@ -10,8 +10,6 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import type { InvestorEconomicsResult } from '../hooks/useInvestorEconomics';
 interface InvestorsPageProps {
-    cardBase: string;
-    subtleText: string;
     investors: Investor[];
     onOpenInvestor: (investor: Investor) => void;
     onAddInvestor: () => void;
@@ -31,7 +29,7 @@ type InvestorsStats = {
     totalDeliveryExpenses: number;
     netDistributableProfit: number;
 };
-export const InvestorsPage: React.FC<InvestorsPageProps> = ({ cardBase, subtleText, investors, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, setManagerFeePercentage }) => {
+export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, setManagerFeePercentage }) => {
     const stats: InvestorsStats = useMemo(() => {
         const totalCapital = investors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0);
         const totalProfitDistributed = investors.reduce((sum, inv) => sum + (inv.totalProfit || 0), 0);
@@ -56,9 +54,9 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ cardBase, subtleTe
             { label: 'Fee gérant', value: stats.managerFee, currency: 'DZD', semantic: 'auto' }
         ]}/>
 
-      <InvestorsDetailsCard cardBase={cardBase} subtleText={subtleText} stats={stats} managerFeePercentage={managerFeePercentage} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)}/>
+      <InvestorsDetailsCard stats={stats} managerFeePercentage={managerFeePercentage} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)}/>
 
-      <InvestorsListSection cardBase={cardBase} subtleText={subtleText} investors={investors} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor}/>
+      <InvestorsListSection investors={investors} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor}/>
 
       <CommissionEditorModal isOpen={isCommissionModalOpen} onClose={() => setIsCommissionModalOpen(false)} value={managerFeePercentage} onChange={setManagerFeePercentage} managerFeeAmount={stats.managerFee}/>
     </div>);

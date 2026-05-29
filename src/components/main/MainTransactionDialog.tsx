@@ -1,7 +1,7 @@
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { MoneyField } from '../ui/MoneyField';
-import { UnifiedTitle } from '../ui/UnifiedTitle';
+import { SectionHeading } from '../ui/SectionHeading';
 import { ClientLinker } from './ClientLinker';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
@@ -178,10 +178,10 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, ca
                         {/* Buy USDT: choose funding source */}
                         {mode === 'buy_usdt' && !buyUsdtMode && (<div className="space-y-3 pt-1">
                                 <div>
-                                    <UnifiedTitle as="h3" variant="section" icon={<SparklesIcon className="w-4 h-4"/>}>
+                                    <SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>
                                         {t('transactions.fundingQuestion')}
-                                    </UnifiedTitle>
-                                    <p className={`mt-1 text-sm ${subtleText}`}>{t('transactions.fundingHint')}</p>
+                                    </SectionHeading>
+                                    <p className="mt-1 text-sm text-neutral-500">{t('transactions.fundingHint')}</p>
                                 </div>
                                 <div className="space-y-2">
                                     <button type="button" onClick={() => setBuyUsdtMode('with_dzd')} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-start transition-colors bg-surface-muted hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
@@ -191,7 +191,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, ca
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="text-base font-semibold">{t('portfolio.buyWithDzd')}</p>
-                                                <p className={`text-xs ${subtleText}`}>{t('common.dinar')}</p>
+                                                <p className={`text-xs text-neutral-500`}>{t('common.dinar')}</p>
                                             </div>
                                         </div>
                                         <ChevronRightIcon className={`h-5 w-5 shrink-0 ${subtleText}`}/>
@@ -203,7 +203,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, ca
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="text-base font-semibold">{t('portfolio.buyWithEur')}</p>
-                                                <p className={`text-xs ${subtleText}`}>EUR</p>
+                                                <p className={`text-xs text-neutral-500`}>EUR</p>
                                             </div>
                                         </div>
                                         <ChevronRightIcon className={`h-5 w-5 shrink-0 ${subtleText}`}/>

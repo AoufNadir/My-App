@@ -14,8 +14,6 @@ type ManualAssetReportsSectionProps = {
     clients: ManualAssetClient[];
     assetTransactions: ManualAssetTransaction[];
     clientBalances: Map<string, number>;
-    subtleText: string;
-    fieldBase: string;
 };
 type ClientPerformanceRow = {
     clientId: string;
@@ -135,16 +133,15 @@ function StatCard({ label, value, hint, valueClassName = '' }: {
       <p className="mt-1 text-xs text-neutral-500">{hint}</p>
     </div>);
 }
-function RankedClientsBlock({ title, totalClients, rows, subtleText }: {
+function RankedClientsBlock({ title, totalClients, rows }: {
     title: string;
     totalClients: number;
     rows: ClientPerformanceRow[];
-    subtleText: string;
 }) {
     return (<div className="rounded-xl border border-border bg-surface-muted p-3">
       <div className="flex items-center justify-between gap-3">
         <h4 className="text-sm font-bold leading-tight text-neutral-900">{title}</h4>
-        <span className={`text-[12px] ${subtleText}`}>{totalClients} clients</span>
+        <span className={`text-[12px] text-neutral-500`}>{totalClients} clients</span>
       </div>
 
       {rows.length > 0 ? (<div className="mt-3 space-y-2">
@@ -161,7 +158,7 @@ function RankedClientsBlock({ title, totalClients, rows, subtleText }: {
                   <p className="truncate text-sm font-bold leading-tight text-neutral-900">
                     {index + 1}. {row.clientName}
                   </p>
-                  <p className={`mt-1 text-[12px] ${subtleText}`}>
+                  <p className={`mt-1 text-[12px] text-neutral-500`}>
                     {row.operationsCount} ops . {row.servicesCount} services
                   </p>
                 </div>
@@ -170,10 +167,10 @@ function RankedClientsBlock({ title, totalClients, rows, subtleText }: {
                   <p className="text-sm font-bold leading-tight">
                     <CurrencyAmount value={row.serviceRevenue} currency="DZD" semantic="profit" size="md" decimals={2}/>
                   </p>
-                  <p className={`mt-1 text-[12px] leading-4 ${subtleText}`}>
+                  <p className={`mt-1 text-[12px] leading-4 text-neutral-500`}>
                     Encaisse: <CurrencyAmount value={row.cashReceived} currency="DZD" semantic="profit" size="sm" decimals={2}/>
                   </p>
-                  <p className={`text-[12px] leading-4 ${subtleText}`}>
+                  <p className={`text-[12px] leading-4 text-neutral-500`}>
                     {getServiceBalanceLabel(balanceView.kind)}: <CurrencyAmount value={balanceView.amount} currency="DZD" semantic={balanceSemantic} size="sm" decimals={2}/>
                   </p>
                 </div>
@@ -185,18 +182,17 @@ function RankedClientsBlock({ title, totalClients, rows, subtleText }: {
         </div>)}
     </div>);
 }
-function ReportCard({ title, subtitle, topTitle, report, subtleText }: {
+function ReportCard({ title, subtitle, topTitle, report }: {
     title: string;
     subtitle: string;
     topTitle: string;
     report: PeriodReport;
-    subtleText: string;
 }) {
     return (<section className="rounded-xl border border-border bg-surface p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-bold leading-tight text-neutral-900">{title}</h3>
-          <p className={`mt-1 text-sm ${subtleText}`}>{subtitle}</p>
+          <p className={`mt-1 text-sm text-neutral-500`}>{subtitle}</p>
         </div>
         <div className="rounded-lg border border-border bg-surface-muted p-2.5 text-neutral-600">
           <CalendarIcon className="w-4 h-4"/>
@@ -216,11 +212,11 @@ function ReportCard({ title, subtitle, topTitle, report, subtleText }: {
           <StatCard label="Client actif" value={report.topActiveClient?.clientName || 'Aucun client'} hint={report.topActiveClient ? `${report.topActiveClient.operationsCount} operations` : 'Pas encore d activite'} valueClassName="break-words"/>
         </div>
 
-        <RankedClientsBlock title={topTitle} totalClients={report.activeClientsCount} rows={report.topClients} subtleText={subtleText}/>
+        <RankedClientsBlock title={topTitle} totalClients={report.activeClientsCount} rows={report.topClients}/>
       </div>
     </section>);
 }
-export function ManualAssetReportsSection({ assetId, assetName, clients, assetTransactions, clientBalances, subtleText, fieldBase }: ManualAssetReportsSectionProps) {
+export function ManualAssetReportsSection({ assetId, assetName, clients, assetTransactions, clientBalances }: ManualAssetReportsSectionProps) {
     const today = new Date();
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
@@ -278,7 +274,7 @@ export function ManualAssetReportsSection({ assetId, assetName, clients, assetTr
         <SectionHeading icon={<TrendingUpIcon className="w-4 h-4"/>}>
           Rapport Clients
         </SectionHeading>
-        <p className={`mt-1 max-w-[32rem] text-sm leading-6 ${subtleText}`}>
+        <p className={`mt-1 max-w-[32rem] text-sm leading-6 text-neutral-500`}>
           Suivi du chiffre de service, des encaissements et des clients les plus rentables pour {assetName}.
         </p>
       </div>
@@ -314,6 +310,6 @@ export function ManualAssetReportsSection({ assetId, assetName, clients, assetTr
         </Button>
       </div>
 
-      <ReportCard title={activeTitle} subtitle={activeSubtitle} topTitle={activeTopTitle} report={activeReport} subtleText={subtleText}/>
+      <ReportCard title={activeTitle} subtitle={activeSubtitle} topTitle={activeTopTitle} report={activeReport}/>
     </section>);
 }

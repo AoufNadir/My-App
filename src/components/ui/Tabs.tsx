@@ -17,22 +17,21 @@ export type TabsProps = {
 };
 const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, variant = 'underline', className = '', }) => {
     if (variant === 'pills') {
-        return (<div role="tablist" className={['flex flex-wrap gap-2', className].filter(Boolean).join(' ')}>
+        return (<div role="tablist" className={['grid grid-cols-2 gap-2 w-full sm:flex sm:flex-wrap sm:w-auto', className].filter(Boolean).join(' ')}>
         {tabs.map((tab) => {
                 const isActive = tab.id === activeTab;
                 return (<button key={tab.id} role="tab" type="button" aria-selected={isActive} disabled={tab.disabled} onClick={() => onChange(tab.id)} className={[
-                        'inline-flex items-center gap-1.5 rounded-full px-4 min-h-touch',
-                        'text-sm font-medium transition-colors',
+                        'inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 min-h-[44px] w-full text-[13px] sm:text-sm font-semibold transition-colors text-center sm:rounded-full sm:px-4 sm:py-2 sm:w-auto',
                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                         'disabled:opacity-40 disabled:pointer-events-none',
                         isActive
-                            ? 'bg-primary text-white'
+                            ? 'bg-primary text-white shadow-sm'
                             : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
                     ]
                         .filter(Boolean)
                         .join(' ')}>
               {tab.icon}
-              {tab.label}
+              <span className="truncate max-w-full">{tab.label}</span>
               {tab.badge !== undefined && (<span className={[
                             'inline-flex items-center justify-center rounded-full px-1.5 py-0.5',
                             'text-[10px] font-bold leading-none min-w-[18px]',

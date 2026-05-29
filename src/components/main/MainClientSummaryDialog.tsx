@@ -81,12 +81,12 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
         ? 'border-danger/40 bg-danger/20'
         : currentBalance > 0
             ? 'border-success/40 bg-success/20'
-            : 'border-neutral-400/30 bg-neutral-800/70';
+            : 'border-border bg-surface-muted';
     const balanceExportAmountClass = currentBalance < 0
         ? 'text-financial-loss'
         : currentBalance > 0
             ? 'text-financial-profit'
-            : 'text-neutral-300';
+            : 'text-neutral-900';
     const balanceAmountDisplay = `${currentBalance > 0 ? '+' : ''}${formatClientAmount(currentBalance)} DZD`;
     const balanceTitle = currentBalance < 0
         ? 'Client doit payer ce montant'
@@ -138,7 +138,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                     Number(safeRatio.toFixed(2)),
                     2.2, 2, 1.8, 1.5, 1.2, 1
                 ])].filter((ratio) => ratio > 0).sort((a, b) => b - a);
-            const exportCaptureBackground = readTokenColor('--color-neutral-900');
+            const exportCaptureBackground = readTokenColor('--color-surface');
             const captureBaseOptions = {
                 cacheBust: true,
                 width: nodeWidth,
@@ -251,37 +251,55 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
         {summaryClient && (<>
             {/* Technical export positioning only: the card is rendered off-screen at a fixed capture width. */}
             <div style={{ position: 'fixed', left: '-20000px', top: 0, width: exportCardWidth, pointerEvents: 'none' }}>
-              <div ref={exportCardRef} className="box-border rounded-[20px] border border-primary/25 bg-neutral-900 p-7 font-latin text-info-bg">
-                <div className="flex items-baseline justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-bold uppercase tracking-[1.2px] text-primary-light">Releve Client</div>
-                    <div className="mt-1 text-[34px] font-black text-surface">{getClientFullName(summaryClient)}</div>
+              <div ref={exportCardRef} className="box-border rounded-md border border-border bg-surface p-7 font-latin text-neutral-900 shadow-card">
+                <div className="flex items-center justify-between gap-4 border-b border-border pb-5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <img src="/logo.png" alt="Pro Digital" className="h-12 w-12 shrink-0 rounded-md border border-border bg-surface object-cover shadow-card"/>
+                    <div className="min-w-0">
+                      <div className="text-[18px] font-black leading-tight text-neutral-900">Pro Digital</div>
+                      <div className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-primary">Releve Client</div>
+                    </div>
                   </div>
-                  <div className="text-end text-sm text-primary-light">
-                    <div>3 dernieres operations</div>
-                    <div className="mt-0.5">{new Date().toLocaleString('fr-FR')}</div>
+                  <div className="shrink-0 rounded-md border border-border bg-surface-muted px-4 py-3 text-end">
+                    <div className="text-[11px] font-black uppercase tracking-[0.12em] text-neutral-500">Export image</div>
+                    <div className="mt-1 text-sm font-bold text-neutral-700">{new Date().toLocaleString('fr-FR')}</div>
                   </div>
                 </div>
-                <div className={`mt-4 rounded-[14px] border px-[18px] py-4 ${balanceExportPanelClass}`}>
-                  <div className="text-sm font-bold uppercase tracking-[0.5px] text-info-bg">Etat du compte</div>
-                  <div className="mt-2 text-2xl font-extrabold text-neutral-200">{balanceTitle}</div>
-                  <div className={`mt-2 text-[64px] font-black leading-none ${balanceExportAmountClass}`} dir="ltr">{balanceAmountDisplay}</div>
-                  <div className="mt-2 text-[17px] text-neutral-300">{balanceHint}</div>
+
+                <div className="mt-6">
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-secondary">Compte client</div>
+                  <div className="mt-1 text-[34px] font-black leading-tight text-neutral-900">{getClientFullName(summaryClient)}</div>
+                  <div className="mt-1 text-sm font-semibold text-neutral-500">
+                    {summaryClient.phone || 'Sans telephone'}
+                  </div>
                 </div>
-                <div className="mt-[18px] overflow-hidden rounded-md border border-neutral-400/30 bg-neutral-800/70">
-                  <div className="border-b border-neutral-400/25 px-3 py-2.5 text-xs font-bold uppercase tracking-[0.6px] text-primary-light">
+
+                <div className={`mt-5 rounded-md border px-5 py-4 ${balanceExportPanelClass}`}>
+                  <div className="text-xs font-black uppercase tracking-[0.12em] text-neutral-500">Etat du compte</div>
+                  <div className="mt-2 text-2xl font-black text-neutral-900">{balanceTitle}</div>
+                  <div className={`mt-3 text-[60px] font-black leading-none ${balanceExportAmountClass}`} dir="ltr">{balanceAmountDisplay}</div>
+                  <div className="mt-3 text-[16px] font-semibold text-neutral-500">{balanceHint}</div>
+                </div>
+
+                <div className="mt-5 overflow-hidden rounded-md border border-border bg-surface">
+                  <div className="border-b border-border bg-surface-muted px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-primary">
                     Dernieres operations (3)
                   </div>
-                  {clientRows.length > 0 ? clientRows.map(({ tx, label, details }) => (<div key={tx.id} className="border-b border-neutral-400/20 px-3 py-[11px]">
+                  {clientRows.length > 0 ? clientRows.map(({ tx, label, details }) => (<div key={tx.id} className="border-b border-border px-4 py-3 last:border-b-0">
                       <div className="flex justify-between gap-3">
-                        <div className="text-lg font-bold text-neutral-200">{label}</div>
+                        <div className="text-lg font-black text-neutral-900">{label}</div>
                         <div className={`text-[22px] font-black ${tx.montant >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`} dir="ltr">
                           {tx.montant >= 0 ? '+' : ''}{formatClientAmount(tx.montant)} DZD
                         </div>
                       </div>
-                      {details ? (<div className="mt-1 text-sm text-neutral-300">{details}</div>) : null}
-                      <div className="mt-1 text-[13px] text-neutral-400">{tx.date} a {tx.time}</div>
-                    </div>)) : (<div className="p-[18px] text-center text-neutral-400">Aucune operation.</div>)}
+                      {details ? (<div className="mt-1 text-sm font-semibold text-neutral-600">{details}</div>) : null}
+                      <div className="mt-1 text-[13px] font-semibold text-neutral-500">{tx.date} a {tx.time}</div>
+                    </div>)) : (<div className="p-5 text-center font-semibold text-neutral-500">Aucune operation.</div>)}
+                </div>
+
+                <div className="mt-5 flex items-center justify-between border-t border-border pt-4 text-xs font-bold text-neutral-500">
+                  <span>Pro Digital - Document genere automatiquement</span>
+                  <span>Finance operations</span>
                 </div>
               </div>
             </div>

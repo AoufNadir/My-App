@@ -21,7 +21,7 @@ const SIZE_CLASSES: Record<IconButtonSize, string> = {
 };
 const BASE = 'inline-flex shrink-0 items-center justify-center rounded-full ' +
     'transition-colors cursor-pointer ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ' +
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-app-bg ' +
     'disabled:opacity-40 disabled:pointer-events-none';
 const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(({ className, variant = 'ghost', size = 'md', label, ...props }, ref) => (<button ref={ref} type="button" aria-label={label} className={[BASE, VARIANT_CLASSES[variant], SIZE_CLASSES[size], className]
         .filter(Boolean)

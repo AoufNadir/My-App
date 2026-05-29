@@ -20,7 +20,7 @@ Card.displayName = 'Card';
 // مكونات داخلية اختيارية — بدون padding افتراضي، المسافة تأتي من className
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (<div ref={ref} className={['flex flex-col', className].filter(Boolean).join(' ')} {...props}/>));
 CardHeader.displayName = 'CardHeader';
-const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(({ className, ...props }, ref) => (<h3 ref={ref} className={['text-base font-semibold leading-snug text-neutral-900 dark:text-neutral-100', className]
+const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(({ className, ...props }, ref) => (<h3 ref={ref} className={['text-base font-semibold leading-snug text-neutral-900', className]
         .filter(Boolean)
         .join(' ')} {...props}/>));
 CardTitle.displayName = 'CardTitle';

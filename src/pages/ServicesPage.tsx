@@ -6,7 +6,7 @@ import { HeroKpiCard } from '../components/ui/HeroKpiCard';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { Badge } from '../components/ui/Badge';
-import { MoneyText } from '../components/ui/MoneyText';
+import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { SwipeableListItem } from '../components/ui/SwipeableListItem';
 import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
 import { PlusIcon } from '../components/icons/PlusIcon';
@@ -14,8 +14,6 @@ import { ChevronRightIcon } from '../components/icons/ChevronRightIcon';
 import type { ManualAsset, ManualAssetClient, ManualAssetTransaction } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 type ServicesPageProps = {
-    cardBase: string;
-    subtleText: string;
     manualAssets: ManualAsset[];
     manualAssetClients: ManualAssetClient[];
     manualAssetTransactions: ManualAssetTransaction[];
@@ -44,33 +42,21 @@ function buildServiceStats(asset: ManualAsset, clients: ManualAssetClient[], tra
     let clientAdvances = 0;
     for (const client of assetClients) {
         const balance = assetClientBalances.get(`${asset.id}_${client.id}`) || 0;
-        if (balance < -0.005)
-            amountToReceive += Math.abs(balance);
-        else if (balance > 0.005)
-            clientAdvances += balance;
+        if (balance < -0.005) amountToReceive += Math.abs(balance);
+        else if (balance > 0.005) clientAdvances += balance;
     }
     const serviceRevenue = assetTransactions.reduce((sum, tx) => sum + (isServiceLike(tx) ? Math.abs(Number(tx.amount || 0)) : 0), 0);
     const cashReceived = assetTransactions.reduce((sum, tx) => sum + (tx.type === 'payment_received' ? Math.abs(Number(tx.amount || 0)) : 0), 0);
-    return {
-        asset,
-        clientsCount: assetClients.length,
-        servicesCount: assetTransactions.filter(isServiceLike).length,
-        serviceRevenue,
-        cashReceived,
-        amountToReceive,
-        clientAdvances,
-        netCapitalImpact: amountToReceive - clientAdvances
-    };
+    return { asset, clientsCount: assetClients.length, servicesCount: assetTransactions.filter(isServiceLike).length, serviceRevenue, cashReceived, amountToReceive, clientAdvances, netCapitalImpact: amountToReceive - clientAdvances };
 }
-export function ServicesPage({ cardBase, subtleText, manualAssets, manualAssetClients, manualAssetTransactions, assetClientBalances, onOpenManualAsset, onOpenCreateManualAsset, onDeleteManualAsset }: ServicesPageProps) {
+export function ServicesPage({ manualAssets, manualAssetClients, manualAssetTransactions, assetClientBalances, onOpenManualAsset, onOpenCreateManualAsset, onDeleteManualAsset }: ServicesPageProps) {
     const { t } = useLanguage();
     const serviceRows = useMemo(() => manualAssets
         .map((asset) => buildServiceStats(asset, manualAssetClients, manualAssetTransactions, assetClientBalances))
         .sort((left, right) => {
-        if (right.netCapitalImpact !== left.netCapitalImpact)
-            return right.netCapitalImpact - left.netCapitalImpact;
-        return left.asset.name.localeCompare(right.asset.name, 'fr');
-    }), [manualAssets, manualAssetClients, manualAssetTransactions, assetClientBalances]);
+            if (right.netCapitalImpact !== left.netCapitalImpact) return right.netCapitalImpact - left.netCapitalImpact;
+            return left.asset.name.localeCompare(right.asset.name, 'fr');
+        }), [manualAssets, manualAssetClients, manualAssetTransactions, assetClientBalances]);
     const totals = useMemo(() => serviceRows.reduce((acc, row) => ({
         amountToReceive: acc.amountToReceive + row.amountToReceive,
         clientAdvances: acc.clientAdvances + row.clientAdvances,
@@ -90,7 +76,7 @@ export function ServicesPage({ cardBase, subtleText, manualAssets, manualAssetCl
             { label: t('services.clients') as string, value: totals.clientsCount, currency: null }
         ]}/>
 
-      <Card className={cardBase}>
+      <Card>
         <CardHeader className="p-4">
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
@@ -99,14 +85,12 @@ export function ServicesPage({ cardBase, subtleText, manualAssets, manualAssetCl
               </SectionHeading>
               <Badge variant="secondary" size="sm">{serviceRows.length}</Badge>
             </div>
-
-            <Button onClick={onOpenCreateManualAsset} variant="outline" className="flex w-full items-center justify-center gap-2 rounded-xl border-border bg-surface py-3 font-bold text-neutral-700 transition-all hover:bg-neutral-50 active:scale-[0.98]">
+            <Button onClick={onOpenCreateManualAsset} variant="outline" className="flex w-full items-center justify-center gap-2 rounded-xl py-3 font-bold text-neutral-700 transition-all hover:bg-neutral-50 active:scale-[0.98]">
               <PlusIcon className="w-5 h-5"/>
               <span>{t('services.newService')}</span>
             </Button>
           </div>
         </CardHeader>
-
         <CardContent className="p-0">
           {serviceRows.length > 0 ? (<div className="divide-y divide-neutral-100">
               {serviceRows.map((row) => {
@@ -119,18 +103,14 @@ export function ServicesPage({ cardBase, subtleText, manualAssets, manualAssetCl
                       </div>
                       <div className="flex-grow min-w-0">
                         <p className="truncate text-base font-semibold">{row.asset.name}</p>
-                        <p className={`truncate text-xs ${subtleText} mt-0.5`}>{subInfo}</p>
+                        <p className="truncate text-xs text-neutral-500 mt-0.5">{subInfo}</p>
                       </div>
                       <div className="shrink-0 flex items-center gap-2">
                         <div className="text-end">
-                          <p className="text-base font-semibold">
-                            <MoneyText value={row.netCapitalImpact} currency="DZD" semantic="auto" size="md" min={0} max={2} showSign/>
-                          </p>
-                          {row.amountToReceive > 0 && (<p className={`text-xs ${subtleText}`}>
-                              {t('services.toReceive')}
-                            </p>)}
+                          <CurrencyAmount value={row.netCapitalImpact} currency="DZD" semantic="auto" size="md" decimals={0} showSign/>
+                          {row.amountToReceive > 0 && (<p className="text-xs text-neutral-500">{t('services.toReceive')}</p>)}
                         </div>
-                        <ChevronRightIcon className={`w-5 h-5 ${subtleText}`}/>
+                        <ChevronRightIcon className="w-5 h-5 text-neutral-400"/>
                       </div>
                     </div>
                   </SwipeableListItem>);

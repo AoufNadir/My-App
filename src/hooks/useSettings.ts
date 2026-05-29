@@ -70,21 +70,12 @@ export function useSettings(userDocRef: FirestoreDocumentReference) {
         }, 1000);
         return () => clearTimeout(timer);
     }, [managerFeePercentage, userDocRef, isSettingsLoaded]);
-    const [theme, setThemeState] = useState<string>('light');
-    const setTheme = () => setThemeState('light');
-    useEffect(() => {
-        localStorage.setItem('theme', 'light');
-        document.documentElement.classList.remove('dark');
-        if (theme !== 'light')
-            setThemeState('light');
-    }, [theme]);
     return {
         suggestedProfitMargin, setSuggestedProfitMargin,
         suggestedSellingPrice, setSuggestedSellingPrice,
         suggestedUsdtEurSellPrice, setSuggestedUsdtEurSellPrice,
         suggestedSellingPriceEur, setSuggestedSellingPriceEur,
         managerFeePercentage, setManagerFeePercentage,
-        isSettingsLoaded,
-        theme, setTheme
+        isSettingsLoaded
     };
 }

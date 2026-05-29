@@ -4,7 +4,7 @@ import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { EmptyState } from '../ui/EmptyState';
 import { Label } from '../ui/Label';
-import { MoneyText } from '../ui/MoneyText';
+import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { SectionHeading } from '../ui/SectionHeading';
 import { Select } from '../ui/Select';
@@ -122,7 +122,7 @@ export function AnalyticsExportPanel({
                     <div className="border-t border-border pt-4">
                         <p className="text-xs font-medium text-neutral-500">{selectedMonthLabel} {usdtReportYear}</p>
                         <div className="mt-2">
-                            <MoneyText value={calculatedStats.realizedProfit} currency="DZD" semantic="auto" showSign size="hero" />
+                            <CurrencyAmount value={calculatedStats.realizedProfit} currency="DZD" semantic="auto" showSign size="hero" decimals={2}/>
                         </div>
                         <p className="mt-1 text-sm font-semibold text-neutral-500">{t('reports.realizedProfit')}</p>
                     </div>
@@ -133,18 +133,18 @@ export function AnalyticsExportPanel({
                             value={<span className="text-lg font-extrabold tabular-nums text-primary" dir="ltr">{formatNumber(calculatedStats.volUsdtSold + calculatedStats.volEurSold, { min: 0, max: 2 })}</span>}
                             hint={(
                                 <span className="flex flex-wrap gap-1">
-                                    <MoneyText value={calculatedStats.volUsdtSold} currency="USDT" semantic="plain" size="sm" min={0} max={2} />
+                                    <CurrencyAmount value={calculatedStats.volUsdtSold} currency="USDT" semantic="plain" size="sm" decimals={2}/>
                                     <span>/</span>
-                                    <MoneyText value={calculatedStats.volEurSold} currency="EUR" semantic="plain" size="sm" min={0} max={2} />
+                                    <CurrencyAmount value={calculatedStats.volEurSold} currency="EUR" semantic="plain" size="sm" decimals={2}/>
                                 </span>
                             )}
                         />
                         <MetricTile label={t('reports.operations')} value={<span className="text-lg font-extrabold text-warning">{monthlyTxCount}</span>} />
-                        <MetricTile label={t('reports.cumulativeProfit')} value={<MoneyText value={cumulativeProfit} currency="DZD" semantic="auto" size="lg" />} />
+                        <MetricTile label={t('reports.cumulativeProfit')} value={<CurrencyAmount value={cumulativeProfit} currency="DZD" semantic="auto" size="lg" decimals={2}/>} />
                         <MetricTile
                             label={t('reports.topClient')}
                             value={topClient ? <span className="block truncate text-lg font-extrabold text-success">{topClient.clientName}</span> : <span className="text-neutral-500">-</span>}
-                            hint={topClient ? <MoneyText value={topClient.realizedProfit} currency="DZD" semantic="auto" size="sm" min={2} max={2} /> : t('reports.noLinkedClient')}
+                            hint={topClient ? <CurrencyAmount value={topClient.realizedProfit} currency="DZD" semantic="auto" size="sm" decimals={2}/> : t('reports.noLinkedClient')}
                         />
                     </div>
 
@@ -204,15 +204,15 @@ export function AnalyticsExportPanel({
                             <div className="border-t border-border pt-4">
                                 <p className="text-xs font-medium text-neutral-500">{t('reports.closingBalance')}</p>
                                 <div className="mt-2">
-                                    <MoneyText value={clientPreview.closingBalance} currency="DZD" semantic="auto" size="hero" />
+                                    <CurrencyAmount value={clientPreview.closingBalance} currency="DZD" semantic="auto" size="hero" decimals={2}/>
                                 </div>
                                 <p className="mt-1 text-sm font-semibold text-neutral-500">{selectedClientMonthLabel} {reportYear}</p>
                             </div>
 
                             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                <MetricTile label={t('reports.openingBalance')} value={<MoneyText value={clientPreview.openingBalance} currency="DZD" semantic="auto" size="lg" />} />
-                                <MetricTile label={t('reports.totalReceived')} value={<MoneyText value={clientPreview.totalReceived} currency="DZD" semantic="profit" size="lg" />} hint={<WalletIcon className="h-4 w-4 text-success" />} />
-                                <MetricTile label={t('reports.totalPaid')} value={<MoneyText value={clientPreview.totalPaid} currency="DZD" semantic="loss" size="lg" />} />
+                                <MetricTile label={t('reports.openingBalance')} value={<CurrencyAmount value={clientPreview.openingBalance} currency="DZD" semantic="auto" size="lg" decimals={2}/>} />
+                                <MetricTile label={t('reports.totalReceived')} value={<CurrencyAmount value={clientPreview.totalReceived} currency="DZD" semantic="profit" size="lg" decimals={2}/>} hint={<WalletIcon className="h-4 w-4 text-success" />} />
+                                <MetricTile label={t('reports.totalPaid')} value={<CurrencyAmount value={clientPreview.totalPaid} currency="DZD" semantic="loss" size="lg" decimals={2}/>} />
                                 <MetricTile label={t('reports.operations')} value={<span className="text-lg font-extrabold text-warning">{clientPreview.operations}</span>} />
                             </div>
                         </>

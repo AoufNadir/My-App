@@ -7,8 +7,6 @@ import { LandmarkIcon } from '../components/icons/LandmarkIcon';
 import { useLanguage } from '../contexts/LanguageContext';
 import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
 type TresoreriePageProps = {
-    cardBase: string;
-    subtleText: string;
     caisseBalance: number;
     baridiBalance: number;
     totalDettes: number;
@@ -25,7 +23,7 @@ type TresoreriePageProps = {
         netCapitalImpact?: number;
     };
 };
-export function TresoreriePage({ cardBase, subtleText, caisseBalance, baridiBalance, totalDettes, totalAvances, investorLiability = 0, portfolioValue, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, servicesSummary }: TresoreriePageProps) {
+export function TresoreriePage({ caisseBalance, baridiBalance, totalDettes, totalAvances, investorLiability = 0, portfolioValue, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, servicesSummary }: TresoreriePageProps) {
     const { t } = useLanguage();
     const servicesCapitalImpact = Number(servicesSummary?.netCapitalImpact || 0);
     const capitalSnapshot = useMemo(() => computeCapitalSnapshot({
@@ -51,8 +49,8 @@ export function TresoreriePage({ cardBase, subtleText, caisseBalance, baridiBala
     return (<div className="anim-page-in space-y-5">
       <HeroKpiCard accent="sky" icon={<LandmarkIcon className="w-5 h-5"/>} primaryLabel={t('treasury.totalCapital') as string} primaryValue={capitalSnapshot.totalCapital} primaryCurrency="DZD" primarySemantic="plain" secondary={secondaryItems}/>
 
-      <TreasurySummarySection cardBase={cardBase} subtleText={subtleText} caisseBalance={caisseBalance} baridiBalance={baridiBalance} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} investorLiability={capitalSnapshot.investorLiability} servicesCapitalImpact={capitalSnapshot.servicesCapitalImpact} openTreasuryBalanceEditModal={openTreasuryBalanceEditModal} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string}/>
+      <TreasurySummarySection caisseBalance={caisseBalance} baridiBalance={baridiBalance} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} investorLiability={capitalSnapshot.investorLiability} servicesCapitalImpact={capitalSnapshot.servicesCapitalImpact} openTreasuryBalanceEditModal={openTreasuryBalanceEditModal} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string}/>
 
-      <TreasuryCollectionsSection cardBase={cardBase} subtleText={subtleText} treasuryCards={treasuryCards} openTreasuryCardModal={openTreasuryCardModal} setTreasuryCardToDelete={setTreasuryCardToDelete}/>
+      <TreasuryCollectionsSection treasuryCards={treasuryCards} openTreasuryCardModal={openTreasuryCardModal} setTreasuryCardToDelete={setTreasuryCardToDelete}/>
     </div>);
 }

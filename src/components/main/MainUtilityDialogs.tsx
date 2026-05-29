@@ -88,9 +88,9 @@ function PinSettings({}: {}) {
 function MainUtilityDialogsComponent({
     isSettingsModalOpen,
     setIsSettingsModalOpen,
-    cardBase: _cardBase,
     t,
     suggestedProfitMargin,
+    setSuggestedProfitMargin,
     suggestedSellingPrice,
     setSuggestedSellingPrice,
     suggestedUsdtEurSellPrice,
@@ -98,8 +98,6 @@ function MainUtilityDialogsComponent({
     suggestedSellingPriceEur,
     setSuggestedSellingPriceEur,
     portfolioStats,
-    fieldBase: _fieldBase,
-    subtleText: _subtleText,
     setIsResetModalOpen,
     userDocRef,
     setAlert,
@@ -188,6 +186,14 @@ function MainUtilityDialogsComponent({
                         currency="DZD"
                         placeholder="0.00"
                         hint={`${t('portfolio.avgBuyPriceEur')}: ${(portfolioStats.eur.avgBuy || 0).toFixed(2)} ${t('common.dinar')}`}
+                    />
+
+                    <MoneyField
+                        label={t('settings.defaultMarginDzd')}
+                        value={suggestedProfitMargin}
+                        onChange={setSuggestedProfitMargin}
+                        currency="DZD"
+                        placeholder="2.00"
                     />
 
                     <PinSettings />
@@ -328,11 +334,7 @@ const areMainUtilityDialogsPropsEqual = (prev: MainUtilityDialogsProps, next: Ma
             && prev.suggestedSellingPrice === next.suggestedSellingPrice
             && prev.suggestedUsdtEurSellPrice === next.suggestedUsdtEurSellPrice
             && prev.suggestedSellingPriceEur === next.suggestedSellingPriceEur
-            && prev.portfolioStats === next.portfolioStats
-            && prev.fieldBase === next.fieldBase
-            && prev.subtleText === next.subtleText
-            && true
-            && prev.cardBase === next.cardBase;
+            && prev.portfolioStats === next.portfolioStats;
         if (!sameSettings) {
             return false;
         }
@@ -340,9 +342,7 @@ const areMainUtilityDialogsPropsEqual = (prev: MainUtilityDialogsProps, next: Ma
     if (next.isCreateAssetModalOpen) {
         const sameCreateAsset = prev.newAssetName === next.newAssetName
             && prev.newAssetDescription === next.newAssetDescription
-            && prev.fieldBase === next.fieldBase
-            && true
-            && prev.cardBase === next.cardBase;
+            && true;
         if (!sameCreateAsset) {
             return false;
         }
@@ -353,9 +353,7 @@ const areMainUtilityDialogsPropsEqual = (prev: MainUtilityDialogsProps, next: Ma
             && prev.treasuryCardValue === next.treasuryCardValue
             && prev.treasuryCardNotes === next.treasuryCardNotes
             && prev.isSaving === next.isSaving
-            && prev.fieldBase === next.fieldBase
-            && true
-            && prev.cardBase === next.cardBase;
+            && true;
         if (!sameCardModal) {
             return false;
         }

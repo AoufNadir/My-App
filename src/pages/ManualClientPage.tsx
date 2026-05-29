@@ -12,11 +12,8 @@ type ManualClientPageProps = {
     onAddTransaction: (data: Omit<ManualAssetTransaction, 'id'>) => void;
     onUpdateTransaction: (txId: string, data: Omit<ManualAssetTransaction, 'id'>) => void;
     onDeleteTransaction: (txId: string) => void;
-    cardBase: string;
-    fieldBase: string;
-    subtleText: string;
 };
-export function ManualClientPage({ client, transactions, balance, onBack, onAddTransaction, onUpdateTransaction, onDeleteTransaction, cardBase, fieldBase, subtleText }: ManualClientPageProps) {
+export function ManualClientPage({ client, transactions, balance, onBack, onAddTransaction, onUpdateTransaction, onDeleteTransaction }: ManualClientPageProps) {
     const { orderedTransactions, isTxModalOpen, editingTx, txType, setTxType, amount, setAmount, serviceType, setServiceType, notes, setNotes, paymentMethod, setPaymentMethod, openCreateModal, openEditModal, closeTransactionModal, handleSaveTx } = useManualClientTransactionManager({
         client,
         transactions,
@@ -24,10 +21,8 @@ export function ManualClientPage({ client, transactions, balance, onBack, onAddT
         onUpdateTransaction
     });
     return (<div className="anim-page-in space-y-4">
-      <ManualClientHeaderStats clientName={client.fullName} clientPhone={client.phone} balance={balance} onBack={onBack} subtleText={subtleText}/>
-
-      <ManualClientTransactionsPanel subtleText={subtleText} orderedTransactions={orderedTransactions} onOpenCreateModal={openCreateModal} onOpenEditModal={openEditModal} onDeleteTransaction={onDeleteTransaction}/>
-
-      <ManualClientTransactionDialog cardBase={cardBase} fieldBase={fieldBase} isTxModalOpen={isTxModalOpen} editingTx={editingTx} txType={txType} setTxType={setTxType} amount={amount} setAmount={setAmount} serviceType={serviceType} setServiceType={setServiceType} notes={notes} setNotes={setNotes} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} currentBalance={balance} onClose={closeTransactionModal} onSave={handleSaveTx}/>
+      <ManualClientHeaderStats clientName={client.fullName} clientPhone={client.phone} balance={balance} onBack={onBack}/>
+      <ManualClientTransactionsPanel orderedTransactions={orderedTransactions} onOpenCreateModal={openCreateModal} onOpenEditModal={openEditModal} onDeleteTransaction={onDeleteTransaction}/>
+      <ManualClientTransactionDialog isTxModalOpen={isTxModalOpen} editingTx={editingTx} txType={txType} setTxType={setTxType} amount={amount} setAmount={setAmount} serviceType={serviceType} setServiceType={setServiceType} notes={notes} setNotes={setNotes} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} currentBalance={balance} onClose={closeTransactionModal} onSave={handleSaveTx}/>
     </div>);
 }

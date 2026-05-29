@@ -9,26 +9,22 @@ import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { Investor } from '../../types';
 type InvestorsListSectionProps = {
-    cardBase: string;
-    subtleText: string;
     investors: Investor[];
     activeCount: number;
     onOpenInvestor: (investor: Investor) => void;
     onEditInvestor: (investor: Investor) => void;
     onDeleteInvestor: (investor: Investor) => void;
 };
-export function InvestorsListSection({ cardBase, subtleText, investors, activeCount, onOpenInvestor, onEditInvestor, onDeleteInvestor }: InvestorsListSectionProps) {
-    return (<Card className={cardBase}>
+export function InvestorsListSection({ investors, activeCount, onOpenInvestor, onEditInvestor, onDeleteInvestor }: InvestorsListSectionProps) {
+    return (<Card>
       <CardHeader className="flex flex-row items-center justify-between border-b border-border p-4">
-        <div className="flex items-center gap-2">
-          <SectionHeading icon={<UsersIcon className="w-4 h-4"/>}>
-            Liste des Investisseurs
-          </SectionHeading>
-        </div>
+        <SectionHeading icon={<UsersIcon className="w-4 h-4"/>}>
+          Liste des Investisseurs
+        </SectionHeading>
         <Badge variant="primary" size="sm">{activeCount} Actifs</Badge>
       </CardHeader>
       <CardContent className="p-0">
-        {investors.length === 0 ? (<EmptyState icon={<UsersIcon className="w-6 h-6"/>} title="Aucun investisseur enregistre." subtitle="Ajoutez un investisseur pour suivre son capital et ses bénéfices."/>) : (<div className="divide-y divide-neutral-100">
+        {investors.length === 0 ? (<EmptyState icon={<UsersIcon className="w-6 h-6"/>} title="Aucun investisseur enregistré." subtitle="Ajoutez un investisseur pour suivre son capital et ses bénéfices."/>) : (<div className="divide-y divide-neutral-100">
             {investors.map((investor) => {
                 const availableProfit = Number(investor.availableProfit || 0);
                 return (<React.Fragment key={investor.id}>
@@ -40,7 +36,7 @@ export function InvestorsListSection({ cardBase, subtleText, investors, activeCo
                         </div>
                         <div className="flex min-w-0 items-center gap-1.5">
                           <h3 className="text-base font-semibold truncate">{investor.name}</h3>
-                          {investor.isManager && (<Badge variant="warning" size="sm">Gerant</Badge>)}
+                          {investor.isManager && (<Badge variant="warning" size="sm">Gérant</Badge>)}
                           {!investor.isActive && (<Badge variant="neutral" size="sm">Inactif</Badge>)}
                         </div>
                       </div>
@@ -52,7 +48,7 @@ export function InvestorsListSection({ cardBase, subtleText, investors, activeCo
                             <CurrencyAmount value={availableProfit} currency="DZD" semantic="auto" size="md" showSign decimals={0}/>
                           </div>
                         </div>
-                        <ChevronRightIcon className={`w-5 h-5 ${subtleText || 'text-neutral-500'}`}/>
+                        <ChevronRightIcon className="w-5 h-5 text-neutral-400"/>
                       </div>
                     </div>
                   </SwipeableListItem>

@@ -8,7 +8,7 @@ type PortfolioStatCardProps = {
     value: string;
     currency?: string;
     colorClass: string;
-    subtleText: string;
+
     onEdit?: () => void;
     children?: React.ReactNode;
     className?: string;
@@ -19,7 +19,6 @@ export function PortfolioStatCard({
     value,
     currency,
     colorClass,
-    subtleText: _subtleText,
     onEdit,
     children,
     className,

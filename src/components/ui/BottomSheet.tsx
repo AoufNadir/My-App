@@ -108,7 +108,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, child
         <div data-drag-handle="true" className="pt-2 pb-1 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none" aria-hidden="true">
           <span className="block h-1.5 w-10 rounded-full bg-neutral-300"/>
         </div>
-        {title && (<div className="px-5 pt-1 pb-3 border-b border-neutral-100">
+        {title && (<div className="px-5 pt-1 pb-3 border-b border-border">
             <h2 className="text-base font-semibold">{title}</h2>
           </div>)}
         <div className="overflow-y-auto max-h-[calc(95dvh-56px)]">

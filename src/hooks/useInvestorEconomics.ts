@@ -18,6 +18,8 @@ export type DerivedInvestor = Investor & {
     hasCapitalMovements: boolean;
     reinvestedProfit: number;
     accountingWarnings: InvestorAccountingWarning[];
+    /** ROI = totalProfit / capitalInvested × 100 (percentage). Null when capitalInvested = 0. */
+    roi: number | null;
 };
 export interface InvestorEconomicsResult {
     derivedInvestors: DerivedInvestor[];
@@ -168,9 +170,10 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             .filter((item) => item.cap > 0);
         const totalCapAtSell = eligible.reduce((sum, item) => sum + item.cap, 0);
         if (totalCapAtSell <= 0) {
-            // FIX-Q9: pre-investor profit stays suspended in unallocatedProfit only.
-            // It is not routed to managerShare nor distributed to investors.
-            unallocatedProfit = addM(unallocatedProfit, derivedProfit);
+            // Accounting rule: profit generated before any investor joined belongs
+            // entirely to the manager (sole capital owner at that moment).
+            // Previously suspended in unallocatedProfit — now correctly routed to managerShare.
+            managerShare = addM(managerShare, derivedProfit);
             continue;
         }
         const investorPool = roundM(derivedProfit * (1 - managerFeeRatio));
@@ -267,11 +270,15 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
                 message: 'Investor withdrawals plus reinvested profit exceed derived totalProfit.',
             });
         }
+        const roi = inv.capitalInvested > 0.005
+            ? roundM((totalProfit / inv.capitalInvested) * 100)
+            : null;
         return {
             ...inv,
             sharePercentage: currentShare,
             totalProfit,
             availableProfit,
+            roi,
             accountingWarnings: warningsByInvestor.get(inv.id) || [],
         };
     });

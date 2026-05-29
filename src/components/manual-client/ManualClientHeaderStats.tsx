@@ -7,9 +7,8 @@ type ManualClientHeaderStatsProps = {
     clientPhone?: string;
     balance: number;
     onBack: () => void;
-    subtleText: string;
 };
-export function ManualClientHeaderStats({ clientName, clientPhone, balance, onBack, subtleText }: ManualClientHeaderStatsProps) {
+export function ManualClientHeaderStats({ clientName, clientPhone, balance, onBack }: ManualClientHeaderStatsProps) {
     const balanceView = describeServiceBalance(balance);
     const balanceSemantic = balanceView.kind === 'to_receive'
         ? 'profit'

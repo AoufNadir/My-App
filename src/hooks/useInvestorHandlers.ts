@@ -527,6 +527,21 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 return;
             }
         }
+        // Retrait de capital: valider que la trésorerie et le capital sont suffisants.
+        if (investorTxType === 'withdraw_capital') {
+            const capitalInvested = Number(selectedInvestor.capitalInvested || 0);
+            const sourceBalance = investorTxPaymentSource === 'Caisse'
+                ? Number(treasuryStats.caisse || 0)
+                : Number(treasuryStats.baridi || 0);
+            if (amount > capitalInvested + 0.005) {
+                setAlert('Amount exceeds invested capital.');
+                return;
+            }
+            if (amount > sourceBalance + 0.005) {
+                setAlert(investorTxPaymentSource === 'Caisse' ? 'Solde Caisse insuffisant.' : 'Solde BaridiMob insuffisant.');
+                return;
+            }
+        }
         setIsSaving(true);
         try {
             const { date, time, timestamp } = now();
@@ -557,6 +572,44 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     origin: 'investor_profit_withdrawal'
                 });
             }
+            // Retrait de capital investisseur: crée un Retrait de trésorerie correspondant
+            // afin que Capital Total diminue du même montant que Engagements investisseurs,
+            // laissant Capital réel = Capital Total - Engagements inchangé.
+            if (investorTxType === 'withdraw_capital') {
+                const treasuryRef = userDocRef.collection('treasury_txs').doc();
+                investorTxPayload.paymentSource = investorTxPaymentSource;
+                investorTxPayload.linkedTreasuryTxId = treasuryRef.id;
+                batch.set(treasuryRef, {
+                    timestamp,
+                    date,
+                    time,
+                    type: 'Retrait',
+                    source: investorTxPaymentSource,
+                    amount,
+                    notes: `Retrait capital investisseur: ${selectedInvestor.name}${investorTxNotes.trim() ? ` - ${investorTxNotes.trim()}` : ''}`,
+                    linkedInvestorTxId: txRef.id,
+                    origin: 'investor_capital_withdrawal'
+                });
+            }
+            // Nouvel apport investisseur: crée une entrée de trésorerie correspondante
+            // afin que Capital Total augmente du même montant que Engagements investisseurs,
+            // laissant Capital réel = Capital Total - Engagements inchangé.
+            if (investorTxType === 'deposit_capital') {
+                const treasuryRef = userDocRef.collection('treasury_txs').doc();
+                investorTxPayload.paymentSource = investorTxPaymentSource;
+                investorTxPayload.linkedTreasuryTxId = treasuryRef.id;
+                batch.set(treasuryRef, {
+                    timestamp,
+                    date,
+                    time,
+                    type: 'Ajout',
+                    source: investorTxPaymentSource,
+                    amount,
+                    notes: `Apport capital investisseur: ${selectedInvestor.name}${investorTxNotes.trim() ? ` - ${investorTxNotes.trim()}` : ''}`,
+                    linkedInvestorTxId: txRef.id,
+                    origin: 'investor_capital_deposit'
+                });
+            }
             batch.set(txRef, investorTxPayload);
             await batch.commit();
             setAlert('Transaction saved.');
@@ -581,6 +634,9 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         setIsSaving(true);
         try {
             const batch = db.batch();
+            // Record the reinvestment transaction only.
+            // capitalInvested is derived dynamically from transaction history in
+            // buildInvestorsBase (useInvestorEconomics) — no direct Firestore field update needed.
             batch.set(userDocRef.collection('investor_transactions').doc(), {
                 investorId,
                 type: 'reinvest_profit',
@@ -588,11 +644,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 date: now().date,
                 time: now().time,
                 timestamp: now().timestamp,
-                notes: 'Reinvestissement'
-            });
-            batch.update(userDocRef.collection('investors').doc(investorId), {
-                capitalInvested: investor.capitalInvested + amount,
-                initialCapital: investor.capitalInvested + amount
+                notes: 'Reinvestissement profit'
             });
             await batch.commit();
             setAlert('Reinvestment recorded.');

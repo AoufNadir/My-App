@@ -61,6 +61,12 @@ const config: Config = {
           usd: cssVar('--color-financial-usd'),
           dzd: cssVar('--color-financial-dzd'),
         },
+        action: {
+          buy: cssVar('--color-action-buy'),
+          'buy-hover': cssVar('--color-action-buy-hover'),
+          sell: cssVar('--color-action-sell'),
+          'sell-hover': cssVar('--color-action-sell-hover'),
+        },
       },
       fontFamily: {
         arabic: [cssVar('--font-arabic')],

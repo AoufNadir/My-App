@@ -21,11 +21,11 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
     asChild?: boolean;
 };
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-    primary: 'bg-primary text-white hover:bg-primary-dark active:bg-primary-dark',
-    secondary: 'bg-secondary text-white hover:bg-secondary-dark active:bg-secondary-dark',
-    danger: 'bg-danger text-white hover:bg-danger-light active:bg-danger-light',
-    ghost: 'bg-transparent text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 active:bg-neutral-200',
-    outline: 'bg-transparent border border-border text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 active:bg-neutral-200',
+    primary: 'bg-primary text-white shadow-card hover:bg-primary-dark active:bg-primary-dark',
+    secondary: 'bg-secondary text-white shadow-card hover:bg-secondary-dark active:bg-secondary-dark',
+    danger: 'bg-action-sell text-white shadow-card hover:bg-action-sell-hover active:bg-action-sell-hover',
+    ghost: 'bg-transparent text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200',
+    outline: 'bg-surface border border-border text-neutral-700 hover:bg-surface-muted active:bg-neutral-100',
 };
 const SIZE_CLASSES: Record<ButtonSize, string> = {
     sm: 'min-h-touch px-3 py-2 text-xs gap-1.5',
@@ -34,7 +34,7 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
 };
 const BASE = 'inline-flex items-center justify-center rounded-md font-semibold ' +
     'transition-colors cursor-pointer select-none ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ' +
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-app-bg ' +
     'disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98]';
 const hasCustomVisualClasses = (className?: string) => {
     if (!className)

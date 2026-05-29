@@ -9,9 +9,8 @@ type ManualAssetHeaderStatsProps = {
     netCapitalImpact: number;
     clientsCount: number;
     onBack: () => void;
-    subtleText: string;
 };
-export function ManualAssetHeaderStats({ assetName, assetDescription, amountToReceive, clientAdvances, netCapitalImpact, clientsCount, onBack, subtleText }: ManualAssetHeaderStatsProps) {
+export function ManualAssetHeaderStats({ assetName, assetDescription, amountToReceive, clientAdvances, netCapitalImpact, clientsCount, onBack }: ManualAssetHeaderStatsProps) {
     const { t } = useLanguage();
     return (<>
       <PageHeader title={assetName} subtitle={assetDescription || t('services.clients') as string} onBack={onBack} className="-mx-4 sm:mx-0 sm:rounded-lg"/>

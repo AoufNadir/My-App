@@ -23,6 +23,8 @@
   --color-border: #E5E7EB;
   --color-border-strong: #D1D5DB;
   --color-overlay: rgb(17 24 39 / 0.62);
+  --color-fab-bg: #111827;
+  --color-fab-bg-hover: #1F2937;
 
   /* Semantic states */
   --color-success: #16A34A;
@@ -65,6 +67,12 @@
   --color-financial-usd: #16A34A;
   --color-financial-dzd: #0F766E;
 
+  /* Action fills for white text */
+  --color-action-buy: #15803D;
+  --color-action-buy-hover: #166534;
+  --color-action-sell: #DC2626;
+  --color-action-sell-hover: #B91C1C;
+
   /* Typography */
   --font-arabic: 'Cairo', 'Tajawal', system-ui, sans-serif;
   --font-latin: 'Inter', 'DM Sans', system-ui, sans-serif;
@@ -76,15 +84,6 @@
   --spacing-page-y: 20px;
   --spacing-card: 16px;
   --spacing-section: 24px;
-
-  /* Semantic text colors */
-  --color-text-primary: #111827;
-  --color-text-secondary: #6B7280;
-  --color-text-muted: #9CA3AF;
-
-  /* Surface aliases */
-  --color-surface-2: #F3F4F6;
-  --color-surface-3: #E5E7EB;
 
   /* Radius */
   --radius-sm: 8px;
@@ -98,42 +97,74 @@
   --shadow-dialog: 0 24px 60px rgb(17 24 39 / 0.22);
 }
 
-/* ============================================================
-   DARK MODE — overrides CSS custom properties injected by
-   @theme above. Tailwind utilities reference var(--color-*),
-   so switching these variables is all that is needed.
-   ============================================================ */
 .dark {
-  /* App surfaces */
-  --color-app-bg:        #0F172A;
-  --color-surface:       #1E293B;
-  --color-surface-muted: #1E293B;
-  --color-surface-raised: #293548;
-  --color-surface-2:     #293548;
-  --color-surface-3:     #334155;
-  --color-border:        #334155;
-  --color-border-strong: #475569;
-  --color-overlay:       rgb(0 0 0 / 0.72);
+  /* Brand for dark mode */
+  --color-primary: #2563EB;
+  --color-primary-light: #60A5FA;
+  --color-primary-dark: #1D4ED8;
 
-  /* Semantic text */
-  --color-text-primary:   #F1F5F9;
-  --color-text-secondary: #94A3B8;
-  --color-text-muted:     #64748B;
+  --color-secondary: #0F766E;
+  --color-secondary-light: #2DD4BF;
+  --color-secondary-dark: #0F766E;
 
-  /* Neutral scale — inverted for text/bg readability */
-  --color-neutral-50:  #1E293B;
-  --color-neutral-100: #293548;
-  --color-neutral-200: #334155;
-  --color-neutral-300: #475569;
-  --color-neutral-400: #64748B;
-  --color-neutral-500: #94A3B8;
+  /* App surfaces - high-contrast fintech dark theme */
+  --color-app-bg: #0A0F1D;
+  --color-surface: #111827;
+  --color-surface-muted: #182235;
+  --color-surface-raised: #1B2740;
+  --color-border: #2A3750;
+  --color-border-strong: #3B4A66;
+  --color-overlay: rgba(0, 0, 0, 0.75);
+  --color-fab-bg: #2563EB;
+  --color-fab-bg-hover: #60A5FA;
+
+  /* Semantic state backgrounds in dark mode */
+  --color-success: #15803D;
+  --color-success-light: #4ADE80;
+  --color-success-bg: rgba(34, 197, 94, 0.08);
+
+  --color-danger: #DC2626;
+  --color-danger-light: #F87171;
+  --color-danger-bg: rgba(239, 68, 68, 0.08);
+
+  --color-warning: #F59E0B;
+  --color-warning-light: #FCD34D;
+  --color-warning-bg: rgba(245, 158, 11, 0.08);
+
+  --color-info: #60A5FA;
+  --color-info-bg: rgba(96, 165, 250, 0.08);
+
+  /* Neutral scale - Inverted for dark mode text compatibility */
+  --color-neutral-50: #111827;
+  --color-neutral-100: #182235;
+  --color-neutral-200: #25334A;
+  --color-neutral-300: #3B4A66;
+  --color-neutral-400: #7F8EA8;
+  --color-neutral-500: #A8B3C7;
   --color-neutral-600: #CBD5E1;
   --color-neutral-700: #E2E8F0;
-  --color-neutral-800: #F1F5F9;
-  --color-neutral-900: #F8FAFC;
+  --color-neutral-800: #F8FAFC;
+  --color-neutral-900: #FFFFFF;
 
-  /* Elevation — softer shadows on dark bg */
-  --shadow-card:        0 1px 3px rgb(0 0 0 / 0.30);
-  --shadow-card-hover:  0 8px 24px rgb(0 0 0 / 0.45);
-  --shadow-dialog:      0 24px 60px rgb(0 0 0 / 0.55);
+  /* Financial semantics adjusted for dark mode */
+  --color-financial-profit: #22C55E;
+  --color-financial-profit-bg: #06210F;
+  --color-financial-loss: #F87171;
+  --color-financial-loss-bg: #351416;
+  --color-financial-debt: #F59E0B;
+  --color-financial-debt-bg: #2D2108;
+  --color-financial-asset: #60A5FA;
+  --color-financial-asset-bg: #102441;
+  --color-financial-eur: #60A5FA;
+  --color-financial-usd: #22C55E;
+  --color-financial-dzd: #2DD4BF;
+  --color-action-buy: #15803D;
+  --color-action-buy-hover: #166534;
+  --color-action-sell: #DC2626;
+  --color-action-sell-hover: #B91C1C;
+
+  /* Shadows adjusted for dark mode */
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+  --shadow-dialog: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
 }

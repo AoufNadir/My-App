@@ -1,7 +1,7 @@
 import React from 'react';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Area, AreaChart } from 'recharts';
 import { Card, CardContent, CardHeader } from '../ui/Card';
-import { MoneyText } from '../ui/MoneyText';
+import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { SectionHeading } from '../ui/SectionHeading';
 import { TrendingUpIcon } from '../icons/TrendingUpIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -23,7 +23,7 @@ export const ProfitHistoryChart: React.FC<ProfitHistoryChartProps> = ({ data }) 
             const value = Number(payload[0].value || 0);
             return (<div className="rounded-lg border border-border bg-surface p-3 shadow-card">
                     <p className="mb-1 text-xs font-medium text-neutral-500">{label}</p>
-                    <MoneyText value={value} currency="DZD" semantic="auto" size="md" min={2} max={2}/>
+                    <CurrencyAmount value={value} currency="DZD" semantic="auto" size="md" decimals={2}/>
                 </div>);
         }
         return null;

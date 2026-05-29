@@ -1,4 +1,19 @@
 import type { Investor, TreasuryCard } from '../types';
+/** Split of investor liability into capital and undistributed profits. */
+export type InvestorBreakdown = {
+    capital: number;   // sum of capitalInvested for non-managers
+    profits: number;   // sum of availableProfit for non-managers
+    total: number;     // capital + profits = investorLiability
+};
+/** Returns investorLiability split into capital and undistributed profits. */
+export function calculateInvestorBreakdown(investors: ReadonlyArray<Investor>): InvestorBreakdown {
+    return investors.reduce((acc, inv) => {
+        if (inv.isManager) return acc;
+        const capital = Number.isFinite(Number(inv.capitalInvested)) ? Math.max(0, Number(inv.capitalInvested || 0)) : 0;
+        const profit  = Number.isFinite(Number(inv.availableProfit))  ? Math.max(0, Number(inv.availableProfit  || 0)) : 0;
+        return { capital: acc.capital + capital, profits: acc.profits + profit, total: acc.total + capital + profit };
+    }, { capital: 0, profits: 0, total: 0 });
+}
 type CapitalSnapshotInput = {
     caisseBalance: number;
     baridiBalance: number;

@@ -8,7 +8,6 @@ import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { ManualAssetTransaction } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 type ManualClientTransactionsPanelProps = {
-    subtleText: string;
     orderedTransactions: ManualAssetTransaction[];
     onOpenCreateModal: () => void;
     onOpenEditModal: (tx: ManualAssetTransaction) => void;
@@ -44,7 +43,7 @@ function getTransactionAmountView(tx: ManualAssetTransaction, t: (key: string) =
         semantic: amount >= 0 ? 'profit' : 'loss'
     };
 }
-export function ManualClientTransactionsPanel({ subtleText, orderedTransactions, onOpenCreateModal, onOpenEditModal, onDeleteTransaction }: ManualClientTransactionsPanelProps) {
+export function ManualClientTransactionsPanel({ orderedTransactions, onOpenCreateModal, onOpenEditModal, onDeleteTransaction }: ManualClientTransactionsPanelProps) {
     const { t } = useLanguage();
     return (<div className="overflow-hidden rounded-xl border border-border bg-surface">
       <div className="flex items-center justify-between gap-3 border-b border-border p-3">
@@ -64,13 +63,13 @@ export function ManualClientTransactionsPanel({ subtleText, orderedTransactions,
                 <div className="flex min-h-touch items-center justify-between gap-3 bg-surface p-4 transition-colors hover:bg-neutral-50">
                   <div className="min-w-0">
                     <div className="text-base font-semibold">{getTransactionTitle(tx, t)}</div>
-                    <div className={`truncate text-xs ${subtleText} mt-0.5`}>
+                    <div className={`truncate text-xs text-neutral-500 mt-0.5`}>
                       {tx.date} · {tx.time}{tx.notes ? ` · ${tx.notes}` : ''}
                     </div>
                   </div>
                   <div className="shrink-0 text-end">
                     <CurrencyAmount value={amountView.amount} currency="DZD" semantic={amountView.semantic} size="lg" decimals={0}/>
-                    <div className={`text-xs ${subtleText}`}>
+                    <div className={`text-xs text-neutral-500`}>
                       {amountView.label}
                     </div>
                   </div>

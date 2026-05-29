@@ -2,7 +2,8 @@ import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { MoneyField } from '../ui/MoneyField';
-import { MoneyText } from '../ui/MoneyText';
+import { CurrencyAmount } from '../financial/CurrencyAmount';
+
 import { InfoIcon } from '../icons/InfoIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { TreasuryTx } from '../../types';
@@ -47,7 +48,7 @@ export function PersonalAdvanceReconcileModal({
     const errorMessage = reconciliation.error === 'exceeds' ? (
         <span className="inline-flex flex-wrap items-center gap-1">
             Ne peut pas depasser l'avance prise
-            <MoneyText value={advanceAmount} currency="DZD" semantic="plain" size="sm" min={0} max={0} />
+            <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="sm" decimals={0}/>
         </span>
     ) : errorTitle;
     const returnSource = advanceTx.source || 'Caisse';
@@ -63,7 +64,7 @@ export function PersonalAdvanceReconcileModal({
                 <Card variant="flat" className="p-4">
                     <div className="flex items-center justify-between gap-3">
                         <span className="text-sm text-neutral-500">Avance prise</span>
-                        <MoneyText value={advanceAmount} currency="DZD" semantic="plain" size="xl" min={0} max={0} />
+                        <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="xl" decimals={0}/>
                     </div>
                     <dl className="mt-3 space-y-1 text-xs">
                         <DetailLine label="Date" value={`${advanceTx.date} · ${advanceTx.time}`} />
@@ -81,7 +82,7 @@ export function PersonalAdvanceReconcileModal({
                     hint={(
                         <span className="inline-flex flex-wrap items-center gap-1">
                             Avance prise:
-                            <MoneyText value={advanceAmount} currency="DZD" semantic="plain" size="sm" min={0} max={0} />
+                            <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                         </span>
                     )}
                     error={errorMessage}
@@ -110,12 +111,12 @@ export function PersonalAdvanceReconcileModal({
                                 {returnAmount > 0 ? `Retour automatique a ${returnSource}` : 'Aucun retour'}
                             </span>
                             {returnAmount > 0 && (
-                                <MoneyText value={returnAmount} currency="DZD" semantic="profit" size="xl" showSign min={0} max={0} />
+                                <CurrencyAmount value={returnAmount} currency="DZD" semantic="profit" size="xl" showSign decimals={0}/>
                             )}
                         </div>
                         <div className="mt-2 flex items-center justify-between gap-3 text-xs text-neutral-500">
                             <span>Depense finale</span>
-                            <MoneyText value={reconciliation.actualSpent} currency="DZD" semantic="plain" size="sm" min={0} max={0} />
+                            <CurrencyAmount value={reconciliation.actualSpent} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                         </div>
                     </Card>
                 )}
