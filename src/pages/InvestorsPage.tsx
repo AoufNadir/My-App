@@ -54,7 +54,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, onOpenI
             { label: 'Fee gérant', value: stats.managerFee, currency: 'DZD', semantic: 'auto' }
         ]}/>
 
-      <InvestorsDetailsCard stats={stats} managerFeePercentage={managerFeePercentage} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)}/>
+      <InvestorsDetailsCard stats={stats} managerFeePercentage={managerFeePercentage} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference}/>
 
       <InvestorsListSection investors={investors} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor}/>
 

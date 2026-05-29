@@ -12,6 +12,7 @@ type TresoreriePageProps = {
     totalDettes: number;
     totalAvances: number;
     investorLiability?: number;
+    investorBreakdown?: { capital: number; profits: number; total: number };
     portfolioValue: number;
     openTreasuryModal: () => void;
     treasuryCards: TreasuryCard[];
@@ -23,7 +24,7 @@ type TresoreriePageProps = {
         netCapitalImpact?: number;
     };
 };
-export function TresoreriePage({ caisseBalance, baridiBalance, totalDettes, totalAvances, investorLiability = 0, portfolioValue, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, servicesSummary }: TresoreriePageProps) {
+export function TresoreriePage({ caisseBalance, baridiBalance, totalDettes, totalAvances, investorLiability = 0, investorBreakdown, portfolioValue, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, servicesSummary }: TresoreriePageProps) {
     const { t } = useLanguage();
     const servicesCapitalImpact = Number(servicesSummary?.netCapitalImpact || 0);
     const capitalSnapshot = useMemo(() => computeCapitalSnapshot({
@@ -38,7 +39,9 @@ export function TresoreriePage({ caisseBalance, baridiBalance, totalDettes, tota
     }), [caisseBalance, baridiBalance, portfolioValue, totalDettes, totalAvances, treasuryCards, investorLiability, servicesCapitalImpact]);
     const secondaryItems = [
         { label: t('finance.realCapital') as string, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const },
-        { label: t('finance.investorLiability') as string, value: capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: capitalSnapshot.investorLiability > 0 ? 'loss' as const : 'plain' as const, hideWhenZero: true },
+        // Split investor liability: capital invested vs undistributed profits
+        { label: 'Capital investisseurs', value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
+        { label: 'Profits non retirés', value: investorBreakdown?.profits ?? 0, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
         { label: t('common.caisseBalance') as string, value: caisseBalance, currency: 'DZD' as const, semantic: 'plain' as const },
         { label: t('common.baridiBalance') as string, value: baridiBalance, currency: 'DZD' as const, semantic: 'plain' as const },
         { label: t('finance.stock') as string, value: portfolioValue, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },

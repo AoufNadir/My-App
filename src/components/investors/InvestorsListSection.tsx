@@ -47,6 +47,9 @@ export function InvestorsListSection({ investors, activeCount, onOpenInvestor, o
                           <div className="mt-0.5">
                             <CurrencyAmount value={availableProfit} currency="DZD" semantic="auto" size="md" showSign decimals={0}/>
                           </div>
+                          {(investor as any).roi !== null && (investor as any).roi !== undefined && (<div className={`mt-0.5 text-[10px] font-bold tabular-nums ${(investor as any).roi > 0 ? 'text-financial-profit' : (investor as any).roi < 0 ? 'text-financial-loss' : 'text-neutral-400'}`} dir="ltr">
+                            {(investor as any).roi > 0 ? '+' : ''}{((investor as any).roi as number).toFixed(1)}% ROI
+                          </div>)}
                         </div>
                         <ChevronRightIcon className="w-5 h-5 text-neutral-400"/>
                       </div>

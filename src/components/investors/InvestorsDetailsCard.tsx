@@ -4,6 +4,7 @@ import { SectionHeading } from '../ui/SectionHeading';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
+import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
 type InvestorsStats = {
     totalCapital: number;
     totalProfitDistributed: number;
@@ -17,6 +18,7 @@ type InvestorsDetailsCardProps = {
     stats: InvestorsStats;
     managerFeePercentage: string;
     onOpenCommissionEditor: () => void;
+    reconciliationDifference?: number;
 };
 function DetailRow({ label, value, semantic = 'auto' }: { label: string; value: number; semantic?: 'auto' | 'loss' | 'plain' }) {
     return (<div className="flex items-center justify-between gap-3 px-4 py-3.5">
@@ -24,8 +26,9 @@ function DetailRow({ label, value, semantic = 'auto' }: { label: string; value: 
       <CurrencyAmount value={value} currency="DZD" semantic={semantic} size="lg" decimals={0}/>
     </div>);
 }
-export function InvestorsDetailsCard({ stats, managerFeePercentage, onOpenCommissionEditor }: InvestorsDetailsCardProps) {
+export function InvestorsDetailsCard({ stats, managerFeePercentage, onOpenCommissionEditor, reconciliationDifference = 0 }: InvestorsDetailsCardProps) {
     const hasDeliveryExpenses = (stats.totalDeliveryExpenses ?? 0) > 0;
+    const hasReconciliationIssue = Math.abs(reconciliationDifference) > 0.05;
     const displayPercentage = managerFeePercentage?.trim() ? managerFeePercentage : '0';
     return (<Card>
       <CardHeader className="p-4 pb-3">
@@ -54,5 +57,14 @@ export function InvestorsDetailsCard({ stats, managerFeePercentage, onOpenCommis
             <DetailRow label="Bénéfice net distribuable" value={stats.netDistributableProfit || 0} semantic="auto"/>
           </>)}
       </CardContent>
+      {hasReconciliationIssue && (<div className="mx-4 mb-4 flex items-start gap-2 rounded-xl bg-danger-bg px-3 py-2.5">
+          <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-danger"/>
+          <div>
+            <p className="text-xs font-bold text-danger">Écart de réconciliation détecté</p>
+            <p className="mt-0.5 text-xs text-danger/80">
+              Différence: <span dir="ltr" className="font-mono">{reconciliationDifference.toFixed(2)} DZD</span> — la somme des parts ne correspond pas au profit total.
+            </p>
+          </div>
+        </div>)}
     </Card>);
 }

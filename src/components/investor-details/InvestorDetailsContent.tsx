@@ -52,6 +52,9 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
     const currentAvailable = investor.availableProfit || 0;
     const currentWithdrawn = investor.withdrawnProfit || 0;
     const sharePercentDisplay = formatNumber((investor.sharePercentage || 0) * 100, { min: 2, max: 2 });
+    const roiDisplay = (investor as any).roi !== null && (investor as any).roi !== undefined
+        ? formatNumber((investor as any).roi, { min: 2, max: 2 })
+        : null;
     const canReinvest = currentAvailable > 0.01;
     const investmentDays = useMemo(() => diffDaysSince(investor.entryDate), [investor.entryDate]);
     const formattedEntryDate = useMemo(() => new Date(investor.entryDate).toLocaleDateString('fr-FR'), [investor.entryDate]);
@@ -69,6 +72,14 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
                 <bdi>{sharePercentDisplay}</bdi>
                 <span className="ms-1 text-[0.85em] opacity-70 font-normal">%</span>
               </span>),
+            },
+            {
+                label: 'ROI',
+                value: 0,
+                display: roiDisplay !== null ? (<span className={`text-lg font-semibold ${(investor as any).roi > 0 ? 'text-financial-profit' : (investor as any).roi < 0 ? 'text-financial-loss' : 'text-neutral-500'}`}>
+                  <bdi>{(investor as any).roi > 0 ? '+' : ''}{roiDisplay}</bdi>
+                  <span className="ms-1 text-[0.85em] opacity-70 font-normal">%</span>
+                </span>) : <span className="text-lg text-neutral-400">—</span>
             }
         ]}/>
 
