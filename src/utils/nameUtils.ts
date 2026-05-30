@@ -53,29 +53,43 @@ function toSkeleton(s: string): string {
 }
 
 /**
- * Build the set of normalized forms for a name token (for haystack matching).
- * Returns raw + skeleton + with/without leading vowel.
+ * Build the set of normalized forms for a name (for haystack matching).
+ * Generates multiple transliteration equivalents so any variant of a query
+ * can find any variant of a stored name.
  */
 function nameForms(name: string): string[] {
     const raw = removeDiacritics(name).toLowerCase();
     const forms = new Set<string>([raw]);
 
-    // Also try without leading vowel: "aissa" → "issa"
-    if (/^[aeiou]/.test(raw)) forms.add(raw.slice(1));
+    // ou → o  ← KEY FIX: "mouhamed" → "mohamed", so "moh" matches ✓
+    forms.add(raw.replace(/ou/g, 'o'));
 
-    // ou → u substitution (Mouhamed → Muhamed for raw matching)
+    // ou → u  (Mouhamed → Muhamed)
     forms.add(raw.replace(/ou/g, 'u'));
+
+    // Remove leading vowel: "aissa" → "issa"
+    if (/^[aeiou]/.test(raw)) {
+        const noLeading = raw.slice(1);
+        forms.add(noLeading);
+        forms.add(noLeading.replace(/ou/g, 'o'));
+    }
+
+    // dj → j (Djamel → Jamel)
+    const djNorm = raw.replace(/dj/g, 'j');
+    forms.add(djNorm);
+    forms.add(djNorm.replace(/ou/g, 'o'));
 
     return Array.from(forms);
 }
 
 /**
  * Check if a search query matches a client name using:
- * 1. Raw substring match (case/diacritic insensitive)
- * 2. Phonetic / skeleton match for longer queries (≥3 consonants)
+ * 1. Raw + transliteration variant substring match
+ * 2. Phonetic skeleton match (≥2 consonants)
  *
- * Covers: Mohamed ↔ Mouhamed ↔ Mohammed ↔ Muhammad
- *         Aissa ↔ Issa, Djamel ↔ Jamal, Karim ↔ Kerim
+ * Covers: "moh" → Mouhamed / Mohamed ✓
+ *         Mohamed ↔ Mouhamed ↔ Mohammed ↔ Muhammad ✓
+ *         Aissa ↔ Issa ✓  Djamel ↔ Jamal ✓  Karim ↔ Kerim ✓
  */
 export function nameMatchesQuery(fullName: string, query: string): boolean {
     if (!query) return true;
@@ -84,18 +98,24 @@ export function nameMatchesQuery(fullName: string, query: string): boolean {
 
     const qRaw = removeDiacritics(q).toLowerCase();
 
-    // 1 — raw substring search across all name forms
-    const hayForms = nameForms(fullName);
-    if (hayForms.some(f => f.includes(qRaw))) return true;
+    // Also generate query variants so "moh" finds "mouhamed" AND "mohamed"
+    const qForms = new Set<string>([qRaw]);
+    qForms.add(qRaw.replace(/ou/g, 'o'));
+    qForms.add(qRaw.replace(/ou/g, 'u'));
+    if (/^[aeiou]/.test(qRaw)) qForms.add(qRaw.slice(1));
 
-    // 2 — skeleton match (phonetic) for queries with ≥3 consonants
+    // 1 — cross-product: any query form found in any name form
+    const hayForms = nameForms(fullName);
+    for (const qf of qForms) {
+        if (hayForms.some(nf => nf.includes(qf))) return true;
+    }
+
+    // 2 — skeleton match for queries with ≥2 consonants
     const qSkel = toSkeleton(q);
-    if (qSkel.length >= 3) {
+    if (qSkel.length >= 2) {
         const nameSkel = toSkeleton(fullName);
         if (nameSkel.includes(qSkel)) return true;
-        // Also allow query to be contained in name skeleton partially
-        // (user typed beginning: "moham" → "mhm" ⊂ "mhmd")
-        if (qSkel.length >= 3 && nameSkel.startsWith(qSkel)) return true;
+        if (nameSkel.startsWith(qSkel)) return true;
     }
 
     return false;
