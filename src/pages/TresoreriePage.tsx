@@ -8,6 +8,8 @@ import { SectionHeading } from '../components/ui/SectionHeading';
 import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { LandmarkIcon } from '../components/icons/LandmarkIcon';
 import { ArrowUpRightIcon } from '../components/icons/ArrowUpRightIcon';
+import { BanknotesIcon } from '../components/icons/BanknotesIcon';
+import { EmptyState } from '../components/ui/EmptyState';
 import { useLanguage } from '../contexts/LanguageContext';
 import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
 
@@ -79,6 +81,13 @@ export function TresoreriePage({ caisseBalance, baridiBalance, totalDettes, tota
         { label: t('nav.services') as string, value: capitalSnapshot.servicesCapitalImpact, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true },
         { label: t('finance.netPosition') as string, value: capitalSnapshot.netClientPosition, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true }
     ].filter((item) => !item.hideWhenZero || Math.abs(item.value) > 0.005);
+    const recentTxs = useMemo(() => {
+        return [...treasuryTransactions]
+            .filter((tx) => tx.type !== 'Transfer' && !tx.origin?.startsWith('investor') && !tx.origin?.startsWith('personal'))
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, 12);
+    }, [treasuryTransactions]);
+
     return (<div className="anim-page-in space-y-5">
       <HeroKpiCard accent="sky" icon={<LandmarkIcon className="w-5 h-5"/>} primaryLabel={t('treasury.totalCapital') as string} primaryValue={capitalSnapshot.totalCapital} primaryCurrency="DZD" primarySemantic="plain" secondary={secondaryItems}/>
 
@@ -116,5 +125,39 @@ export function TresoreriePage({ caisseBalance, baridiBalance, totalDettes, tota
       <TreasurySummarySection caisseBalance={caisseBalance} baridiBalance={baridiBalance} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} investorLiability={capitalSnapshot.investorLiability} servicesCapitalImpact={capitalSnapshot.servicesCapitalImpact} openTreasuryBalanceEditModal={openTreasuryBalanceEditModal} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string}/>
 
       <TreasuryCollectionsSection treasuryCards={treasuryCards} openTreasuryCardModal={openTreasuryCardModal} setTreasuryCardToDelete={setTreasuryCardToDelete}/>
+
+      <Card>
+        <CardHeader className="p-4 pb-3">
+          <SectionHeading icon={<BanknotesIcon className="w-4 h-4"/>}>Mouvements récents</SectionHeading>
+        </CardHeader>
+        <CardContent className="p-0">
+          {recentTxs.length === 0 ? (
+            <EmptyState icon={<BanknotesIcon className="w-5 h-5"/>} title="Aucun mouvement" subtitle="Les entrées et sorties de caisse apparaîtront ici."/>
+          ) : (
+            <div className="divide-y divide-neutral-100">
+              {recentTxs.map((tx) => {
+                const isIn = tx.type === 'Ajout' || tx.type === 'Adjustment (+)';
+                const amount = Number(tx.amount || 0);
+                const label = tx.type === 'Ajout' ? 'Entrée' : tx.type === 'Retrait' ? 'Sortie' : tx.type;
+                return (
+                  <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isIn ? 'bg-success-bg text-financial-profit' : 'bg-danger-bg text-financial-loss'}`}>
+                      <span className="text-base font-bold leading-none">{isIn ? '+' : '−'}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-neutral-800">{label}</p>
+                      <p className="text-xs text-neutral-400">
+                        {tx.source ?? '—'} · {tx.date}
+                        {tx.notes ? ` · ${tx.notes}` : ''}
+                      </p>
+                    </div>
+                    <CurrencyAmount value={isIn ? amount : -amount} currency="DZD" semantic="auto" size="md" decimals={0} showSign/>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>);
 }
