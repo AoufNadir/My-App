@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { UserIcon } from '../components/icons/UserIcon';
 import { PlusIcon } from '../components/icons/PlusIcon';
+import { BanknotesIcon } from '../components/icons/BanknotesIcon';
 import { Investor } from '../types';
 import { InvestorsDetailsCard } from '../components/investors/InvestorsDetailsCard';
 import { CommissionEditorModal } from '../components/investors/CommissionEditorModal';
@@ -8,6 +9,7 @@ import { InvestorsListSection } from '../components/investors/InvestorsListSecti
 import { HeroKpiCard } from '../components/ui/HeroKpiCard';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
+import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import type { InvestorEconomicsResult } from '../hooks/useInvestorEconomics';
 interface InvestorsPageProps {
     investors: Investor[];
@@ -53,6 +55,17 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, onOpenI
             { label: 'Profit disponible', value: stats.totalAvailable, currency: 'DZD', semantic: 'auto' },
             { label: 'Fee gérant', value: stats.managerFee, currency: 'DZD', semantic: 'auto' }
         ]}/>
+
+      {/* Distribution reminder when available profits are significant */}
+      {stats.totalAvailable > 10000 && (<div className="flex items-center gap-3 rounded-xl border border-warning/30 bg-warning-bg px-4 py-3">
+          <BanknotesIcon className="h-5 w-5 shrink-0 text-warning"/>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-warning">Profits à distribuer</p>
+            <p className="mt-0.5 text-xs text-warning/70">
+              <CurrencyAmount value={stats.totalAvailable} currency="DZD" semantic="plain" size="sm" decimals={0}/> disponibles pour les investisseurs actifs
+            </p>
+          </div>
+        </div>)}
 
       <InvestorsDetailsCard stats={stats} managerFeePercentage={managerFeePercentage} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference}/>
 

@@ -3,11 +3,42 @@ import { Card, CardHeader, CardContent } from '../ui/Card';
 import { SectionHeading } from '../ui/SectionHeading';
 import { EmptyState } from '../ui/EmptyState';
 import { Badge } from '../ui/Badge';
+import { Button } from '../ui/Button';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { UsersIcon } from '../icons/UsersIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
+import { DownloadCloudIcon } from '../icons/DownloadCloudIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { Investor } from '../../types';
+
+function exportInvestorsCsv(investors: Investor[]) {
+    const esc = (v: string | number | null | undefined) => {
+        const s = String(v ?? '');
+        return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const headers = ['Nom', 'Rôle', 'Statut', 'Capital investi', 'Profit disponible', 'Total retiré', 'Total gagné', 'ROI %', "Date d'entrée"];
+    const rows = investors.map((inv) => [
+        esc(inv.name),
+        esc(inv.isManager ? 'Gérant' : 'Investisseur'),
+        esc(inv.isActive ? 'Actif' : 'Inactif'),
+        esc(Number(inv.capitalInvested || 0).toFixed(2)),
+        esc(Number(inv.availableProfit || 0).toFixed(2)),
+        esc(Number(inv.withdrawnProfit || 0).toFixed(2)),
+        esc(Number(inv.totalProfit || 0).toFixed(2)),
+        esc((inv as any).roi !== null && (inv as any).roi !== undefined ? Number((inv as any).roi).toFixed(2) : ''),
+        esc(inv.entryDate || ''),
+    ].join(','));
+    const csv = [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `investisseurs_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
 type InvestorsListSectionProps = {
     investors: Investor[];
     activeCount: number;
@@ -17,11 +48,18 @@ type InvestorsListSectionProps = {
 };
 export function InvestorsListSection({ investors, activeCount, onOpenInvestor, onEditInvestor, onDeleteInvestor }: InvestorsListSectionProps) {
     return (<Card>
-      <CardHeader className="flex flex-row items-center justify-between border-b border-border p-4">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 border-b border-border p-4">
         <SectionHeading icon={<UsersIcon className="w-4 h-4"/>}>
           Liste des Investisseurs
         </SectionHeading>
-        <Badge variant="primary" size="sm">{activeCount} Actifs</Badge>
+        <div className="flex items-center gap-2 shrink-0">
+          <Badge variant="primary" size="sm">{activeCount} Actifs</Badge>
+          {investors.length > 0 && (
+            <Button onClick={() => exportInvestorsCsv(investors)} variant="icon" size="icon" className="rounded-button bg-neutral-100 hover:bg-neutral-200" aria-label="Exporter CSV" title="Exporter en CSV">
+              <DownloadCloudIcon className="w-4 h-4"/>
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="p-0">
         {investors.length === 0 ? (<EmptyState icon={<UsersIcon className="w-6 h-6"/>} title="Aucun investisseur enregistré." subtitle="Ajoutez un investisseur pour suivre son capital et ses bénéfices."/>) : (<div className="divide-y divide-neutral-100">
