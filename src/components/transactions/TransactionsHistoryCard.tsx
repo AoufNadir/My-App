@@ -64,6 +64,7 @@ export function TransactionsHistoryCard({
   const LOAD_MORE_COUNT = 120;
   const [visibleTransactionCount, setVisibleTransactionCount] = useState(INITIAL_VISIBLE);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTag, setActiveTag] = useState<string | null>(null);
 
   const filterGroups: Array<{
     title: string;
@@ -125,34 +126,49 @@ export function TransactionsHistoryCard({
 
   useEffect(() => {
     setVisibleTransactionCount(INITIAL_VISIBLE);
-  }, [groupedTransactions, searchQuery]);
+  }, [groupedTransactions, searchQuery, activeTag]);
 
   const dateGroups = useMemo(
     () => Object.entries(groupedTransactions),
     [groupedTransactions]
   );
 
+  // All unique tags across all transactions (for the tag picker)
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    for (const [, txs] of dateGroups) {
+      for (const tx of txs) {
+        const tags = (tx.rawTx as any).tags;
+        if (Array.isArray(tags)) tags.forEach((t: string) => tagSet.add(t));
+      }
+    }
+    return Array.from(tagSet).sort();
+  }, [dateGroups]);
+
   const filteredDateGroups = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return dateGroups;
+    const hasFilter = q || activeTag;
+    if (!hasFilter) return dateGroups;
     return dateGroups
       .map(([date, txs]) => [date, txs.filter((tx) => {
         const notes = ((tx.rawTx as any).notes || '') as string;
         const tags = (Array.isArray((tx.rawTx as any).tags) ? (tx.rawTx as any).tags : []) as string[];
-        return (
+        const matchesSearch = !q || (
           tx.typeLabel.toLowerCase().includes(q) ||
           tx.details.toLowerCase().includes(q) ||
           tx.amountLabel.toLowerCase().includes(q) ||
           notes.toLowerCase().includes(q) ||
           tags.some((tag) => tag.toLowerCase().includes(q))
         );
+        const matchesTag = !activeTag || tags.includes(activeTag);
+        return matchesSearch && matchesTag;
       })] as [string, DisplayTx[]])
       .filter(([, txs]) => txs.length > 0);
-  }, [dateGroups, searchQuery]);
+  }, [dateGroups, searchQuery, activeTag]);
 
   // Compute total DZD for all filtered transactions when a filter/search is active
   const filteredSummary = useMemo(() => {
-    const isFiltered = filterMode !== 'all' || searchQuery.trim().length > 0;
+    const isFiltered = filterMode !== 'all' || searchQuery.trim().length > 0 || activeTag !== null;
     if (!isFiltered) return null;
     let totalDzd = 0;
     let count = 0;
@@ -319,7 +335,7 @@ export function TransactionsHistoryCard({
         <div className="relative">
           <Input
             type="search"
-            placeholder="Rechercher : client, type, notes, montant..."
+            placeholder="Rechercher : client, type, notes, tag, montant..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pe-8 text-sm"
@@ -337,6 +353,26 @@ export function TransactionsHistoryCard({
             </button>
           )}
         </div>
+
+        {/* Tag filter chips */}
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {allTags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => setActiveTag((prev) => prev === tag ? null : tag)}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                  activeTag === tag
+                    ? 'bg-primary text-white'
+                    : 'bg-primary/10 text-primary hover:bg-primary/20'
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="p-0">
