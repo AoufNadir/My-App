@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
 import { Dropdown } from '../ui/Dropdown';
 import { SectionHeading } from '../ui/SectionHeading';
 import { EmptyState } from '../ui/EmptyState';
@@ -62,6 +63,7 @@ export function TransactionsHistoryCard({
   const INITIAL_VISIBLE = 120;
   const LOAD_MORE_COUNT = 120;
   const [visibleTransactionCount, setVisibleTransactionCount] = useState(INITIAL_VISIBLE);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const filterGroups: Array<{
     title: string;
@@ -123,12 +125,28 @@ export function TransactionsHistoryCard({
 
   useEffect(() => {
     setVisibleTransactionCount(INITIAL_VISIBLE);
-  }, [groupedTransactions]);
+  }, [groupedTransactions, searchQuery]);
 
   const dateGroups = useMemo(
     () => Object.entries(groupedTransactions),
     [groupedTransactions]
   );
+
+  const filteredDateGroups = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return dateGroups;
+    return dateGroups
+      .map(([date, txs]) => [date, txs.filter((tx) => {
+        const notes = ((tx.rawTx as any).notes || '') as string;
+        return (
+          tx.typeLabel.toLowerCase().includes(q) ||
+          tx.details.toLowerCase().includes(q) ||
+          tx.amountLabel.toLowerCase().includes(q) ||
+          notes.toLowerCase().includes(q)
+        );
+      })] as [string, DisplayTx[]])
+      .filter(([, txs]) => txs.length > 0);
+  }, [dateGroups, searchQuery]);
 
   const { visibleDateGroups, hiddenTransactionCount, totalTransactionCount } = useMemo(() => {
     let remaining = visibleTransactionCount;
@@ -136,7 +154,7 @@ export function TransactionsHistoryCard({
     let total = 0;
     const visibleGroups: Array<[string, DisplayTx[]]> = [];
 
-    for (const [date, txs] of dateGroups) {
+    for (const [date, txs] of filteredDateGroups) {
       total += txs.length;
       if (remaining <= 0) { hidden += txs.length; continue; }
       if (txs.length <= remaining) {
@@ -158,7 +176,7 @@ export function TransactionsHistoryCard({
 
   return (
     <Card>
-      <CardHeader className="p-4">
+      <CardHeader className="p-4 space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <SectionHeading icon={<CalendarIcon className="w-4 h-4" />}>
             {t('transactions.history')}
@@ -276,12 +294,35 @@ export function TransactionsHistoryCard({
             </Dropdown>
           </div>
         </div>
+
+        {/* Inline text search */}
+        <div className="relative">
+          <Input
+            type="search"
+            placeholder="Rechercher : client, type, notes, montant..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pe-8 text-sm"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute end-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600"
+              aria-label="Effacer la recherche"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          )}
+        </div>
       </CardHeader>
 
       <CardContent className="p-0">
         <div className="pb-2">
           {visibleDateGroups.length > 0 ? (
-            visibleDateGroups.map(([date, txsOnDate]) => (
+            visibleDateGroups.map(([date, txsOnDate]: [string, DisplayTx[]]) => (
               <div key={date}>
                 <div className="sticky top-0 z-10 px-4 py-2 text-xs font-semibold uppercase bg-surface/95 text-neutral-500 backdrop-blur-sm">
                   {getRelativeDateLabel(date)}
@@ -347,7 +388,10 @@ export function TransactionsHistoryCard({
               </div>
             ))
           ) : (
-            <EmptyState title={t('transactions.noTransactions')} />
+            <EmptyState
+              title={searchQuery.trim() ? 'Aucun résultat' : t('transactions.noTransactions')}
+              subtitle={searchQuery.trim() ? `Aucune opération ne correspond à "${searchQuery.trim()}"` : undefined}
+            />
           )}
 
           {hiddenTransactionCount > 0 && (
