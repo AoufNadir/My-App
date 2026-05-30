@@ -43,7 +43,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, onOpenI
     }, [investors, investorEconomicsTotals]);
     const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false);
     return (<div className="anim-page-in space-y-6">
-      <PageHeader title="Investisseurs" subtitle={`${stats.activeCount} actifs`} className="-mx-4 sm:mx-0 sm:rounded-lg" actions={(<Button onClick={onAddInvestor} className="gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-white hover:bg-primary-dark">
+      <PageHeader title="Investisseurs" subtitle={`${stats.activeCount} actifs`} className="-mx-4 sm:mx-0 sm:rounded-card" actions={(<Button onClick={onAddInvestor} variant="primary" size="md" className="font-semibold">
             <PlusIcon className="h-4 w-4"/>
             <span className="hidden sm:inline">Ajouter</span>
           </Button>)}/>

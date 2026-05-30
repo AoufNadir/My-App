@@ -11,6 +11,12 @@ body,
   overflow-x: hidden;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 body {
   background: var(--color-app-bg);
   color: var(--color-neutral-900);

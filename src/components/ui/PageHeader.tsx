@@ -13,7 +13,7 @@ const BackIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" view
     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/>
   </svg>);
 const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, onBack, actions, className = '', }) => (<header className={[
-        'sticky top-0 z-10 flex min-h-[56px] items-center gap-3',
+        'sticky top-0 z-10 flex min-h-[56px] max-w-full items-center gap-3',
         'bg-surface border-b border-border px-4',
         className
     ]
@@ -40,7 +40,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, onBack, action
     </div>
 
     {/* actions — جهة اليسار في RTL، اليمين في LTR */}
-    {actions && (<div className="shrink-0 flex items-center gap-1">{actions}</div>)}
+    {actions && (<div className="flex shrink-0 items-center gap-1 [&>button]:min-h-button-md">{actions}</div>)}
   </header>);
 PageHeader.displayName = 'PageHeader';
 export { PageHeader };

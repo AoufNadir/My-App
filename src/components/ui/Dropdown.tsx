@@ -23,11 +23,11 @@ export function Dropdown({ trigger, children, contentClassName, align = 'end' }:
     const cardBase = 'bg-surface border-border';
     const alignClass = align === 'start' ? 'start-0' : 'end-0';
     const animClass = align === 'start' ? 'anim-dropdown-in anim-dropdown-in-start' : 'anim-dropdown-in';
-    return (<div className="relative" ref={dropdownRef}>
+    return (<div className="relative min-w-0" ref={dropdownRef}>
       <div onClick={handleToggle} className="cursor-pointer">
         {trigger}
       </div>
-      {isOpen && (<div className={`${animClass} absolute top-full ${alignClass} mt-2 w-56 rounded-md shadow-lg z-20 ${cardBase} border p-1 ${contentClassName || ''}`} onClick={() => setIsOpen(false)}>
+      {isOpen && (<div className={`${animClass} absolute top-full ${alignClass} z-20 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-button border p-1 shadow-lg ${cardBase} ${contentClassName || ''}`} onClick={() => setIsOpen(false)}>
           {children}
         </div>)}
     </div>);
@@ -41,7 +41,7 @@ type DropdownItemProps = {
 };
 export function DropdownItem({ children, onClick, isActive, icon }: DropdownItemProps) {
     const activeClass = isActive ? 'bg-primary text-white' : 'text-neutral-700 hover:bg-neutral-100';
-    return (<button onClick={onClick} className={`w-full min-h-touch text-start px-3 py-2 text-sm rounded-md transition-colors flex items-center gap-2 ${activeClass}`}>
+    return (<button onClick={onClick} className={`flex min-h-button-md w-full items-center gap-2 rounded-button px-3 py-2 text-start text-sm transition-colors ${activeClass}`}>
       {icon && <span className="shrink-0">{icon}</span>}
       <span>{children}</span>
     </button>);

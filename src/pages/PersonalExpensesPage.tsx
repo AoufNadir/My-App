@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
@@ -419,7 +419,7 @@ export function PersonalExpensesPage({
                                 iconTone="warning"
                                 badge={<Badge variant="warning" size="sm">Avance</Badge>}
                                 action={onOpenReconcile && (
-                                    <Button type="button" size="sm" onClick={() => onOpenReconcile(tx)}>
+                                    <Button type="button" size="sm" onClick={() => onOpenReconcile(tx)} className="shrink-0 whitespace-nowrap px-3">
                                         <RefreshCwIcon className="h-3.5 w-3.5" />
                                         Regulariser
                                     </Button>
@@ -525,6 +525,7 @@ function MetricBlock({ label, value, caption }: MetricBlockProps) {
 }
 
 type ExpenseRowProps = {
+    key?: React.Key;
     tx: TreasuryTx;
     amount: number;
     amountSemantic: 'auto' | 'neutral' | 'plain';
@@ -554,41 +555,48 @@ function ExpenseRow({
         : 'bg-neutral-100 text-neutral-600';
 
     return (
-        <div className="flex items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-surface-muted">
-            <div className="flex min-w-0 items-center gap-3">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${iconClass}`}>
+        <div className="grid gap-3 px-4 py-3.5 transition-colors hover:bg-surface-muted sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+            <div className="flex min-w-0 items-start gap-3">
+                <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${iconClass}`}>
                     {iconTone === 'warning' ? <AlertTriangleIcon className="h-5 w-5" /> : <BanknotesIcon className="h-5 w-5" />}
                 </div>
-                <div className="min-w-0">
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <p className="truncate text-base font-semibold text-neutral-900">
+                <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <p className="min-w-0 truncate text-base font-semibold leading-snug text-neutral-900">
                             {tx.notes || (iconTone === 'warning' ? 'Avance personnelle' : 'Depense personnelle')}
                         </p>
-                        {badge}
+                        {badge && <span className="shrink-0">{badge}</span>}
                     </div>
-                    <p className="mt-0.5 text-xs text-neutral-500">
-                        {tx.date} · {tx.time}
-                        {tx.source && <span> · {tx.source}</span>}
+                    <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-snug text-neutral-500">
+                        <span dir="ltr">{tx.date}</span>
+                        <span aria-hidden="true">·</span>
+                        <span dir="ltr">{tx.time}</span>
+                        {tx.source && (<>
+                            <span aria-hidden="true">·</span>
+                            <span>{tx.source}</span>
+                        </>)}
                     </p>
                 </div>
             </div>
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                <div className="text-right">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2 ps-[52px] sm:w-auto sm:shrink-0 sm:justify-end sm:ps-0">
+                <div className="min-w-[92px] flex-1 text-start sm:flex-none sm:text-end">
                     <CurrencyAmount value={amount} currency="DZD" semantic={amountSemantic} size="lg" showSign={amount < 0} decimals={0}/>
                     {amountLabel && <p className="text-xs text-neutral-500">{amountLabel}</p>}
                     {caption && <p className="text-xs text-neutral-500">{caption}</p>}
                 </div>
-                {action}
-                {onEdit && (
-                    <IconButton label="Modifier la depense" size="sm" variant="edit" onClick={() => onEdit(tx)}>
-                        <PencilIcon />
-                    </IconButton>
-                )}
-                {onDelete && (
-                    <IconButton label="Supprimer la depense" size="sm" variant="delete" onClick={() => onDelete(tx)}>
-                        <Trash2Icon />
-                    </IconButton>
-                )}
+                <div className="flex shrink-0 items-center justify-end gap-2">
+                    {action}
+                    {onEdit && (
+                        <IconButton label="Modifier la depense" size="sm" variant="edit" onClick={() => onEdit(tx)}>
+                            <PencilIcon />
+                        </IconButton>
+                    )}
+                    {onDelete && (
+                        <IconButton label="Supprimer la depense" size="sm" variant="delete" onClick={() => onDelete(tx)}>
+                            <Trash2Icon />
+                        </IconButton>
+                    )}
+                </div>
             </div>
         </div>
     );

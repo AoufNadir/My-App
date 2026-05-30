@@ -157,9 +157,38 @@ export function useAnalyticsViewModel({ transactions, usdtReportMonth, usdtRepor
             : null;
         return { rankedRows, topTradedClient, topProfitableClient };
     }, [transactions, clientTransactionsDzd, clientsDzd, getClientFullName, usdtReportMonth, usdtReportYear, t, pamLedger]);
+    // Annual summary: profit per month for the selected year
+    const annualStats = useMemo(() => {
+        const yearStart = new Date(usdtReportYear, 0, 1).getTime();
+        const yearEnd = new Date(usdtReportYear, 11, 31, 23, 59, 59, 999).getTime();
+        const byMonth = new Array(12).fill(0) as number[];
+        let ytdProfit = 0;
+        let bestMonth = -1;
+        let bestMonthProfit = -Infinity;
+        for (const row of pamLedger.sellProfitRows) {
+            if (row.timestamp < yearStart || row.timestamp > yearEnd) continue;
+            const m = new Date(row.timestamp).getMonth();
+            byMonth[m] += row.derivedProfit || 0;
+            ytdProfit += row.derivedProfit || 0;
+            if (byMonth[m] > bestMonthProfit) {
+                bestMonthProfit = byMonth[m];
+                bestMonth = m;
+            }
+        }
+        // Previous month (relative to selected month)
+        const prevMonth = usdtReportMonth === 0 ? 11 : usdtReportMonth - 1;
+        const prevMonthProfit = prevMonth === 11 && usdtReportMonth === 0
+            ? 0  // different year — skip
+            : byMonth[prevMonth];
+        const currentMonthProfit = byMonth[usdtReportMonth];
+        const trend = prevMonthProfit === 0 ? null
+            : ((currentMonthProfit - prevMonthProfit) / Math.abs(prevMonthProfit)) * 100;
+        return { byMonth, ytdProfit, bestMonth, bestMonthProfit, trend, currentMonthProfit, prevMonthProfit };
+    }, [pamLedger, usdtReportYear, usdtReportMonth]);
     return {
         calculatedStats,
         heatmapData,
-        monthlyClientRanking
+        monthlyClientRanking,
+        annualStats
     };
 }

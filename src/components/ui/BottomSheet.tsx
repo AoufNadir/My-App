@@ -104,7 +104,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, child
     if (!isOpen)
         return null;
     return (<div onClick={onClose} className="anim-backdrop-in fixed inset-0 bg-overlay z-50 flex items-end justify-center">
-      <div ref={sheetRef} onClick={(e: React.MouseEvent) => e.stopPropagation()} className={`anim-sheet-in relative w-full sm:max-w-md max-h-[95dvh] rounded-t-2xl overflow-hidden bg-surface text-neutral-900 pb-[env(safe-area-inset-bottom)] shadow-dialog ${className}`}>
+      <div ref={sheetRef} onClick={(e: React.MouseEvent) => e.stopPropagation()} className={`anim-sheet-in relative max-h-[95dvh] w-full max-w-full overflow-hidden rounded-t-2xl bg-surface pb-[env(safe-area-inset-bottom)] text-neutral-900 shadow-dialog sm:max-w-md ${className}`}>
         <div data-drag-handle="true" className="pt-2 pb-1 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none" aria-hidden="true">
           <span className="block h-1.5 w-10 rounded-full bg-neutral-300"/>
         </div>

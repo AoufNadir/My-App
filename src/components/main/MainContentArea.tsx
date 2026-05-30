@@ -138,7 +138,7 @@ function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, view, D
     const selectedInvestor = selectedInvestorId
         ? derivedInvestors.find((investor: any) => investor.id === selectedInvestorId) || null
         : null;
-    return (<main className="py-6">
+    return (<main className="py-4 sm:py-6">
                     {alert && (<div className="anim-fade-slide-down mb-4"><Alert className={`rounded-xl ${alertClass}`}><AlertDescription>{alert}</AlertDescription></Alert></div>)}
 
                     <Suspense fallback={<SkeletonList rows={6} itemHeight={72} className="mt-2"/>}>

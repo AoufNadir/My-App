@@ -1,86 +1,92 @@
-# Mobile UI & Responsive Audit Report (Pro Digital)
+# Mobile UI Audit - Pro Digital
 
-This document provides a comprehensive audit of the mobile user interface (Mobile UI / Responsive UI) for the **Pro Digital** application. It details the issues identified, the affected components/pages, and the refactoring steps executed to establish a robust, mobile-first design.
+Date: 2026-05-30
 
----
+## Scope
 
-## 1. Identified Issues & Affected Areas
+Reviewed the mobile-first UI surfaces that affect daily phone usage:
 
-### A. Header / Top Navigation (Crowded & Wrapping)
-* **Status**: 🔴 **Critical**
-* **Symptoms**: On mobile viewports (< 640px), the title `"Pro Digital"` wrapped into two lines (`Pro` and `Digital`) due to extreme horizontal space constraints. The right side of the header displayed 5 action buttons/dropdowns simultaneously (`Search`, `Settings`, `Theme`, `Language`, `Logout`).
-* **Root Cause**: All navigation/utility actions were rendered inline inside a `flex` container without any responsive hiding classes.
-* **Impacted Files**: `src/components/main/MainHeaderBar.tsx`
+- Header / topbar: `MainHeaderBar`
+- Mobile menu and bottom navigation: `AppNavigation`, `MobileNavLink`, `Fab`
+- Layout shell: `MainApp`, `MainContentArea`
+- Shared UI primitives: `Button`, `IconButton`, `Input`, `Select`, `Textarea`, `MoneyField`, `DatePicker`, `Tabs`, `Card`, `Dialog`, `BottomSheet`, `Dropdown`, `PageHeader`
+- Main pages checked with Playwright: Dashboard, Transactions, Clients, Stock/Portfolio simulator, Investors, Services, Personal Expenses, Settings modal, New Transaction modal
 
-### B. Unprofessional Text Overlap (Label Component)
-* **Status**: ⚠️ **Medium**
-* **Symptoms**: Long text labels like `"Quantité USDT"` or `"Selling Price (DZD)"` wrapped onto two lines on very narrow devices (< 380px) and overlapped vertically.
-* **Root Cause**: The global `<Label>` component used the Tailwind class `leading-none`, forcing a line height of `1`, which does not allow wrapped lines to render with proper spacing.
-* **Impacted Files**: `src/components/ui/Label.tsx`
+## Problems Found
 
-### C. Dense Inputs in Grid Layouts
-* **Status**: ⚠️ **Medium**
-* **Symptoms**: The `MoneyField` inputs inside the PAM & price simulator were locked in a `grid-cols-2` layout regardless of screen width. On screens below 380px, the input fields became too cramped, prompting keyboard-entry issues and label wrapping.
-* **Root Cause**: Hardcoded `grid-cols-2` classes on input wrappers.
-* **Impacted Files**: `src/components/portfolio/PamSimulatorCard.tsx`
+- Mobile header still rendered five utility actions at once: search, settings, theme, language, logout.
+- Header icon buttons were visually around 36px on mobile, below the intended 44px touch target.
+- `Pro Digital` had protection against wrapping, but the available space was still squeezed by too many right-side icons.
+- Button sizing was inconsistent across shared components and page-level buttons: mixed `py-2`, `py-3`, `h-9`, `h-12`, custom radii, and ad hoc colors.
+- Input/select/money fields used compatible but not fully unified heights and radii.
+- Modal footer buttons were not consistently full-width on mobile.
+- PAM simulator tabs needed a strict mobile grid and consistent 44px tab height.
+- The previous audit file was stale: it described header fixes that were not present in the current source.
+- `NumberInput` emitted a browser console error because the native `pattern` attribute was invalid with modern `/v` regexp parsing.
 
-### D. Uneven Tab Pillars
-* **Status**: ⚠️ **Medium**
-* **Symptoms**: The four main simulator actions (`Achat avec DZD`, `Achat avec EUR`, `Vente USDT vs DZD`, `Vente USDT vs EUR`) wrapped unpredictably into three or four lines of varying heights depending on viewport width, violating design balance.
-* **Root Cause**: The `pills` variant of the global `Tabs` component relied on a simple `flex flex-wrap` configuration without uniform grid sizing for mobile.
-* **Impacted Files**: `src/components/ui/Tabs.tsx`
+## Fixes Applied
 
-### E. Scroll Overflow Safety
-* **Status**: ⚠️ **Medium**
-* **Symptoms**: Potential risk of vertical or horizontal scroll leakage if viewport size calculations (`100vw` or absolute positioning) exceeded boundaries.
-* **Impacted Files**: `src/index.css`
+- Rebuilt mobile header as a separate mobile layout:
+  - left: menu button only
+  - center: single-line `Pro Digital`
+  - right: theme and language only
+  - search, settings, logout moved to the mobile menu
+- Added/extended design tokens in `src/styles/tokens.css` and mirrored them in `tailwind.config.ts`:
+  - `button-sm`, `button-md`, `button-lg`
+  - `icon-button`
+  - `input`
+  - `button` and `card` radius
+  - mobile typography tokens
+- Unified shared components:
+  - `Button`: variants and sizes include `primary`, `secondary`, `success`, `danger`, `ghost`, `outline`, `tab`, `icon`; sizes include `sm`, `md`, `lg`, `icon`
+  - `IconButton`: 40/44/52px touch sizes
+  - `Input`, `Select`, `Textarea`, `MoneyField`, `DatePicker`: 48px input height and `rounded-button`
+  - `Tabs`: mobile `grid-cols-2`, 44px height, truncated labels
+  - `Card`: `rounded-card`
+  - `Dialog` / `BottomSheet`: max-width safeguards and mobile-friendly footer buttons
+  - `Dropdown`: viewport max-width guard
+  - `PageHeader`: max-width and button target consistency
+- Updated key page buttons in Dashboard, Transactions, Clients, Client Details, Investors, Services, and manual-service panels to use shared sizing instead of local random padding.
+- Changed the app content wrapper to `px-page-x` so mobile page padding is consistently 16px.
+- Removed the invalid `NumberInput` native `pattern` attribute; math-expression validation remains in the component logic.
 
----
+## Overflow Findings
 
-## 2. Refactoring & Fixes Applied
+No persistent page-level horizontal overflow was found after the fixes.
 
-### A. Mobile-First Header Optimization
-* **Actions**:
-  * Hidden `Settings`, `Theme`, `Language` dropdown, and `Logout` buttons from the top bar on viewports smaller than `sm` (`640px`) using the class `hidden sm:inline-flex` / `hidden sm:flex`.
-  * Added `whitespace-nowrap shrink-0` to the `h1` application title (`Pro Digital`) to strictly prevent two-line wrapping under all layout situations.
-  * Preserved only the high-priority **Global Search** button on the right side of the mobile header, keeping the top header extremely light, uncluttered, and professional.
-* **Result**: A perfectly balanced, premium mobile header:
-  `[Menu-Burger-Icon]   Pro Digital   [Search-Icon]`
+Notable risk areas checked:
 
-### B. Mobile Menu Drawer Integration (Quick Actions Container)
-* **Actions**:
-  * Expanded `AppMobileMenuNav` props to accept search (`handleOpenGlobalSearch`) and logout (`onSignOut`) triggers.
-  * Added a dedicated quick-action panel at the bottom of the burger menu overlay separated by a neat horizontal rule (`<hr className="border-border my-2" />`).
-  * Integrated **Theme Toggle** (Light/Dark mode) with descriptive labels and active icon indicators.
-  * Integrated **Language Switcher** directly in the drawer showing the target language option.
-  * Relocated **Global Search** and **Settings** triggers inside the menu panel.
-  * Configured the menu container to support safe vertical scrolling (`overflow-y-auto pb-16`) to guarantee scrollability on low-height mobile devices.
+- Header utility buttons: fixed by reducing visible mobile actions.
+- Page headers using `-mx-4`: safe after the shell padding was standardized to 16px.
+- PAM simulator tabs and inputs: fixed via mobile two-column tabs and responsive input grids.
+- Dropdowns and sheets: constrained with `max-w-[calc(100vw-2rem)]` or `max-w-full`.
+- Bottom navigation: retained `100dvw` behavior to avoid scrollbar-width overflow on fixed mobile nav.
 
-### C. Responsive Tab Pillars
-* **Actions**:
-  * Redefined the `pills` tab system in `Tabs.tsx` to automatically generate a `grid grid-cols-2 gap-2` on mobile layouts, stretching buttons uniformly so they share identical widths and heights (`min-h-[44px]` touch target).
-  * Maintained default `sm:flex sm:flex-wrap sm:w-auto` behavior for tablet/desktop views.
-  * Wrapped tab labels in `truncate max-w-full` for safety.
+## Verification
 
-### D. Layout Grid & Typography Fixes
-* **Actions**:
-  * Modified grid definitions inside `PamSimulatorCard.tsx` to use the responsive class `grid-cols-1 min-[380px]:grid-cols-2 gap-3`, letting fields stack safely on narrow phones but snap into 2 columns once space permits.
-  * Altered `<Label>` component line-height class from `leading-none` to `leading-snug` and added a `mb-1.5` margin to ensure wrapped text reads naturally without layout overlaps.
-  * Placed `max-width: 100%` and `overflow-x: hidden` constraints on the `html`, `body`, and `#root` layout elements in `index.css` as a global fallback safety layer.
+Commands:
 
----
+- `npm run build` passed.
+- Playwright responsive checks passed at:
+  - 360px
+  - 375px
+  - 390px
+  - 414px
+  - 430px
 
-## 3. Post-Audit Manual Verification Status
+Checked on each width:
 
-Manual layout checks were simulated against various screen resolutions:
+- No horizontal overflow.
+- Header title remains one line.
+- Header has only 3 visible mobile buttons: menu, theme, language.
+- Header buttons are 44px touch targets.
+- PAM simulator tabs render as a balanced 2x2 grid with 44px height.
+- PAM simulator fields are 48px high and responsive.
+- Settings modal fields are 48px high and fit the viewport.
+- New Transaction modal fits the viewport.
+- Browser console errors from `NumberInput` pattern are gone.
 
-| Viewport Width | Header Text Alignment | Overflow Status | Button Unification | Tabs Structure |
-| :--- | :--- | :--- | :--- | :--- |
-| **360px** | ✅ Perfect - Single Line | ✅ None | ✅ Uniform 44px height | ✅ Clean 2x2 grid |
-| **375px** | ✅ Perfect - Single Line | ✅ None | ✅ Uniform 44px height | ✅ Clean 2x2 grid |
-| **390px** | ✅ Perfect - Single Line | ✅ None | ✅ Uniform 44px height | ✅ Clean 2x2 grid |
-| **414px** | ✅ Perfect - Single Line | ✅ None | ✅ Uniform 44px height | ✅ Clean 2x2 grid |
-| **430px** | ✅ Perfect - Single Line | ✅ None | ✅ Uniform 44px height | ✅ Clean 2x2 grid |
+## Remaining Decisions
 
----
-*Report compiled on: May 29, 2026*
+- The mobile header currently keeps both theme and language visible. If the desired header is even quieter, theme can also move into the menu, leaving only language on the right.
+- Some legacy feature-specific screens still have local visual classes for specialized rows/cards. They now inherit the shared primitives where practical, but a deeper visual pass can further reduce local styling without changing behavior.

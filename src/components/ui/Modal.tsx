@@ -1,15 +1,16 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './Dialog';
+import type { DialogLayout } from './Dialog';
 
 export type ModalProps = {
     isOpen: boolean;
     onClose: () => void;
     children?: React.ReactNode;
     className?: string;
-    layout?: 'auto' | 'centered' | 'sheet';
+    layout?: DialogLayout;
 };
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, className, layout = 'auto' }) => (<Dialog isOpen={isOpen} onClose={onClose} className={className} layout={layout}>
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, className, layout = 'auto' as DialogLayout }) => (<Dialog isOpen={isOpen} onClose={onClose} className={className} layout={layout}>
     {children}
   </Dialog>);
 

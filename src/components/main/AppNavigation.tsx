@@ -58,6 +58,7 @@ type BottomNavProps = NavSharedProps & {
     onFabPress?: () => void;
     fabHidden?: boolean;
     onOpenSettings?: () => void;
+    overdueCount?: number;
 };
 function AppDesktopNavComponent({ view, onSelect, labels }: NavSharedProps) {
     const sectionLabelClass = 'px-3 pb-1 pt-2 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400';
@@ -90,9 +91,11 @@ function AppMobileMenuNavComponent({ view, onSelect, labels, isOpen, onClose, on
         return null;
     const nextLang = lang === 'fr' ? 'ar' : 'fr';
     const nextLangName = lang === 'fr' ? 'العربية' : 'Français';
-    return (<div className="anim-fade-slide-down fixed inset-0 z-50 bg-surface/95 p-4 backdrop-blur-xl sm:hidden overflow-y-auto pb-16">
-          <div className="flex justify-end mb-4">
-            <Button onClick={onClose} variant="ghost" className="rounded-full p-2">
+    const actionClass = 'flex min-h-button-md w-full items-center gap-4 rounded-button px-3 py-2.5 text-start text-base font-semibold text-neutral-700 transition-colors hover:bg-neutral-100';
+    return (<div className="anim-fade-slide-down fixed inset-0 z-50 max-w-full overflow-y-auto bg-surface/95 p-4 pb-16 backdrop-blur-xl sm:hidden">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="truncate whitespace-nowrap text-lg font-extrabold text-neutral-900">Pro Digital</h2>
+            <Button onClick={onClose} variant="icon" size="icon" className="rounded-full" aria-label="Fermer">
               <XIcon className="w-6 h-6"/>
             </Button>
           </div>
@@ -109,27 +112,27 @@ function AppMobileMenuNavComponent({ view, onSelect, labels, isOpen, onClose, on
             
             <hr className="border-border my-2" />
 
-            {handleOpenGlobalSearch && (<button type="button" onClick={() => { handleOpenGlobalSearch(); onClose(); }} className="flex w-full items-center gap-4 rounded-lg p-3 text-left text-base font-semibold text-neutral-700 transition-colors hover:bg-neutral-100">
+            {handleOpenGlobalSearch && (<button type="button" onClick={() => { handleOpenGlobalSearch(); onClose(); }} className={actionClass}>
                 <MagnifyingGlassIcon className="w-6 h-6"/>
                 <span>{t('common.search') || 'Recherche'}</span>
               </button>)}
 
-            <button type="button" onClick={toggleTheme} className="flex w-full items-center gap-4 rounded-lg p-3 text-left text-base font-semibold text-neutral-700 transition-colors hover:bg-neutral-100">
+            <button type="button" onClick={() => { toggleTheme(); onClose(); }} className={actionClass}>
                 {theme === 'light' ? <MoonIcon className="w-6 h-6"/> : <SunIcon className="w-6 h-6 text-warning"/>}
                 <span>{theme === 'light' ? t('common.themeDark') || 'Mode sombre' : t('common.themeLight') || 'Mode clair'}</span>
             </button>
 
-            <button type="button" onClick={() => setLang(nextLang)} className="flex w-full items-center gap-4 rounded-lg p-3 text-left text-base font-semibold text-neutral-700 transition-colors hover:bg-neutral-100">
+            <button type="button" onClick={() => { setLang(nextLang); onClose(); }} className={actionClass}>
                 <GlobeIcon className="w-6 h-6"/>
                 <span>{nextLangName}</span>
             </button>
 
-            {onOpenSettings && (<button type="button" onClick={() => { onOpenSettings(); onClose(); }} className="flex w-full items-center gap-4 rounded-lg p-3 text-left text-base font-semibold text-neutral-700 transition-colors hover:bg-neutral-100">
+            {onOpenSettings && (<button type="button" onClick={() => { onOpenSettings(); onClose(); }} className={actionClass}>
                 <SettingsIcon className="w-6 h-6"/>
                 {labels.settings}
               </button>)}
 
-            {onSignOut && (<button type="button" onClick={() => { onSignOut(); onClose(); }} className="flex w-full items-center gap-4 rounded-lg p-3 text-left text-base font-semibold text-danger transition-colors hover:bg-danger-bg">
+            {onSignOut && (<button type="button" onClick={() => { onSignOut(); onClose(); }} className={`${actionClass} text-danger hover:bg-danger-bg`}>
                 <LogOutIcon className="w-6 h-6"/>
                 <span>{t('common.logout') || 'Déconnexion'}</span>
               </button>)}
@@ -137,20 +140,20 @@ function AppMobileMenuNavComponent({ view, onSelect, labels, isOpen, onClose, on
     </div>);
 }
 const SECONDARY_VIEWS = ['statistiques', 'analytics', 'tresorerie', 'services', 'investors', 'expenses'] as const;
-function AppBottomNavComponent({ view, onSelect, labels, onFabPress, fabHidden, onOpenSettings }: BottomNavProps) {
+function AppBottomNavComponent({ view, onSelect, labels, onFabPress, fabHidden, onOpenSettings, overdueCount = 0 }: BottomNavProps) {
     const [moreOpen, setMoreOpen] = useState(false);
     const isSecondaryActive = (SECONDARY_VIEWS as readonly string[]).includes(view);
     const sectionLabelClass = 'px-5 pb-1 pt-3 text-[10px] font-black uppercase tracking-[0.18em] text-neutral-400';
-    const tabBtn = (active: boolean) => `flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[10px] font-semibold leading-none transition-colors ${active
+    const tabBtn = (active: boolean) => `flex min-h-button-sm min-w-0 flex-col items-center justify-center gap-0.5 rounded-button px-1 py-1.5 text-[10px] font-semibold leading-none transition-colors ${active
         ? 'bg-neutral-100 text-neutral-900'
         : 'text-neutral-500 hover:text-neutral-800'}`;
-    const moreSheetItem = (target: string, icon: React.ReactNode, label: string, color: string) => (<button key={target} type="button" onClick={() => { setMoreOpen(false); onSelect(target); }} className={`flex items-center gap-3 w-full px-5 py-3 text-left text-sm font-medium ${view === target
+    const moreSheetItem = (target: string, icon: React.ReactNode, label: string, color: string) => (<button key={target} type="button" onClick={() => { setMoreOpen(false); onSelect(target); }} className={`flex min-h-button-md w-full items-center gap-3 px-5 py-3 text-start text-sm font-medium ${view === target
             ? 'bg-neutral-100 text-neutral-900'
             : 'text-neutral-700 hover:bg-neutral-50'}`}>
       <span className={color}>{icon}</span>
       <span>{label}</span>
     </button>);
-    const moreSheetAction = (icon: React.ReactNode, label: string, color: string, onClick?: () => void) => (<button type="button" onClick={() => { setMoreOpen(false); onClick?.(); }} className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm font-medium text-neutral-700 hover:bg-neutral-50">
+    const moreSheetAction = (icon: React.ReactNode, label: string, color: string, onClick?: () => void) => (<button type="button" onClick={() => { setMoreOpen(false); onClick?.(); }} className="flex min-h-button-md w-full items-center gap-3 px-5 py-3 text-start text-sm font-medium text-neutral-700 hover:bg-neutral-50">
       <span className={color}>{icon}</span>
       <span>{label}</span>
     </button>);
@@ -169,7 +172,12 @@ function AppBottomNavComponent({ view, onSelect, labels, onFabPress, fabHidden, 
           </button>
 
           <button type="button" onClick={() => onSelect('dzd')} className={tabBtn(view === 'dzd')} aria-label={labels.clients}>
-            <UsersIcon className="h-[18px] w-[18px]"/>
+            <span className="relative inline-flex">
+              <UsersIcon className="h-[18px] w-[18px]"/>
+              {overdueCount > 0 && (<span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[9px] font-bold text-white">
+                  {overdueCount > 9 ? '9+' : overdueCount}
+                </span>)}
+            </span>
             <span className="max-w-full truncate">{labels.clients}</span>
           </button>
           <button type="button" onClick={() => setMoreOpen(true)} className={tabBtn(isSecondaryActive)} aria-label={labels.more}>

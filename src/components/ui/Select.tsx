@@ -7,11 +7,11 @@ export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(({ className, label, error, helperText, id, children, ...props }, ref) => {
     const selectId = id ?? label?.toLowerCase().replace(/\s+/g, '-');
     return (<div className="flex w-full flex-col gap-1.5">
-        {label && (<label htmlFor={selectId} className="text-sm font-medium text-neutral-700">
+        {label && (<label htmlFor={selectId} className="text-sm font-semibold leading-snug text-neutral-700">
             {label}
           </label>)}
         <select id={selectId} ref={ref} className={[
-            'flex w-full min-h-[44px] rounded-md border px-3 py-2 text-sm',
+            'flex w-full min-h-input rounded-button border px-3 py-2 text-sm leading-tight',
             'bg-surface text-neutral-900',
             'transition-colors',
             error

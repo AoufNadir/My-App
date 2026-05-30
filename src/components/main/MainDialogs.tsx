@@ -39,27 +39,90 @@ type GlobalSearchDialogProps = {
     transactionsText: string;
 };
 export function GlobalSearchDialog({ isOpen, onClose, query, setQuery, results, onSelectResult, title, placeholder, noResultsText, clientsText, transactionsText }: GlobalSearchDialogProps) {
+    const [selectedIndex, setSelectedIndex] = React.useState(0);
+    const listRef = React.useRef<HTMLDivElement>(null);
+    // Reset selection when results change
+    React.useEffect(() => { setSelectedIndex(0); }, [results]);
+    // Keyboard navigation
+    React.useEffect(() => {
+        if (!isOpen) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setSelectedIndex((i) => Math.min(i + 1, results.length - 1));
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setSelectedIndex((i) => Math.max(i - 1, 0));
+            } else if (e.key === 'Enter' && results.length > 0) {
+                e.preventDefault();
+                onSelectResult(results[selectedIndex]);
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [isOpen, results, selectedIndex, onSelectResult]);
+    // Scroll selected item into view
+    React.useEffect(() => {
+        const el = listRef.current?.querySelector(`[data-index="${selectedIndex}"]`);
+        el?.scrollIntoView({ block: 'nearest' });
+    }, [selectedIndex]);
+    // Group results
+    const clients = results.filter((r) => r.kind === 'client');
+    const transactions = results.filter((r) => r.kind === 'transaction');
+    const groups = [
+        { label: clientsText, items: clients, color: 'bg-primary/10 text-primary' },
+        { label: transactionsText, items: transactions, color: 'bg-neutral-100 text-neutral-700' },
+    ].filter((g) => g.items.length > 0);
+    let globalIdx = -1;
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-2xl bg-surface text-neutral-900">
-      <ModalHeader onClose={onClose}>
-        <ModalTitle>{title}</ModalTitle>
+      <ModalHeader onClose={onClose} className="border-b border-border px-4 py-3">
+        <ModalTitle className="text-base">{title}</ModalTitle>
       </ModalHeader>
-      <ModalContent className="px-6 pb-6 space-y-3">
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={placeholder} autoFocus/>
-        <div className="max-h-[50vh] overflow-y-auto rounded-lg border border-border">
-          {!query.trim() ? (<p className="p-4 text-sm text-neutral-500">Ctrl+K</p>) : results.length === 0 ? (<p className="p-4 text-sm text-neutral-500">{noResultsText}</p>) : (<div className="divide-y divide-border">
-              {results.map((result) => (<button key={result.id} onClick={() => onSelectResult(result)} className="w-full p-3 text-left transition-colors hover:bg-neutral-50">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold truncate">{result.title}</p>
-                      <p className="mt-0.5 truncate text-xs text-neutral-500">{result.subtitle || '-'}</p>
-                    </div>
-                    <span className={`rounded-full px-2 py-1 text-[10px] uppercase tracking-wide ${result.kind === 'client' ? 'bg-primary/10 text-primary' : 'bg-neutral-100 text-neutral-700'}`}>
-                      {result.kind === 'client' ? clientsText : transactionsText}
-                    </span>
+      <ModalContent className="p-4 space-y-3">
+        <div className="relative">
+          <Input value={query} onChange={(e) => { setQuery(e.target.value); }} placeholder={placeholder} autoFocus className="pr-16"/>
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-border bg-surface-muted px-1.5 py-0.5 text-[10px] font-bold text-neutral-400 hidden sm:block">
+            Ctrl K
+          </span>
+        </div>
+        <div ref={listRef} className="max-h-[55vh] overflow-y-auto rounded-xl border border-border">
+          {!query.trim() ? (<div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+              <span className="text-2xl">🔍</span>
+              <p className="text-sm text-neutral-500">Tapez pour rechercher clients ou transactions</p>
+              <p className="text-xs text-neutral-400">Ctrl+K pour ouvrir · Échap pour fermer · ↑↓ pour naviguer</p>
+            </div>) : results.length === 0 ? (<div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+              <span className="text-2xl">😕</span>
+              <p className="text-sm text-neutral-500">{noResultsText}</p>
+              <p className="text-xs text-neutral-400">pour "<span className="font-semibold">{query}</span>"</p>
+            </div>) : (<div>
+              {groups.map((group) => (<div key={group.label}>
+                  <div className="sticky top-0 z-10 bg-surface-muted px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-400 border-b border-border">
+                    {group.label} ({group.items.length})
                   </div>
-                </button>))}
+                  <div className="divide-y divide-border">
+                    {group.items.map((result) => {
+                    globalIdx++;
+                    const idx = globalIdx;
+                    const isActive = idx === selectedIndex;
+                    return (<button key={result.id} data-index={idx} onClick={() => onSelectResult(result)} onMouseEnter={() => setSelectedIndex(idx)} className={`w-full min-h-touch px-4 py-3 text-start transition-colors ${isActive ? 'bg-primary/5' : 'hover:bg-neutral-50'}`}>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-semibold truncate text-sm">{result.title}</p>
+                              <p className="mt-0.5 truncate text-xs text-neutral-500">{result.subtitle || '—'}</p>
+                            </div>
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${group.color}`}>
+                              {group.label}
+                            </span>
+                          </div>
+                        </button>);
+                })}
+                  </div>
+                </div>))}
             </div>)}
         </div>
+        {results.length > 0 && (<p className="text-center text-[10px] text-neutral-400">
+            ↑↓ naviguer · Entrée sélectionner · Échap fermer
+          </p>)}
       </ModalContent>
     </Modal>);
 }

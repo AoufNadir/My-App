@@ -54,7 +54,7 @@ function ContactRow({ label, value, copiedValue, onCopy }: ContactRowProps) {
         <p className="text-sm text-neutral-500">{label}</p>
         <p dir="ltr" className="text-base font-semibold truncate select-all leading-snug mt-0.5">{value}</p>
       </div>
-      <Button onClick={() => onCopy(value)} className={`shrink-0 p-2 rounded-lg transition-colors ${isCopied ? 'bg-success-bg text-financial-profit' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`} aria-label={`Copier ${label}`}>
+      <Button onClick={() => onCopy(value)} variant="icon" size="icon" className={`shrink-0 rounded-button ${isCopied ? 'bg-success-bg text-financial-profit' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`} aria-label={`Copier ${label}`}>
         {isCopied ? <CheckIcon className="w-4 h-4"/> : <CopyIcon className="w-4 h-4"/>}
       </Button>
     </div>);
@@ -111,7 +111,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
     return (<div className="anim-page-in space-y-5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <Button onClick={() => setSelectedClientId(null)} variant="ghost" className="p-2 rounded-full text-neutral-600 hover:bg-neutral-100">
+          <Button onClick={() => setSelectedClientId(null)} variant="icon" size="icon" className="rounded-full text-neutral-600 hover:bg-neutral-100">
             <ChevronLeftIcon className="w-6 h-6"/>
           </Button>
           <div className="flex-grow min-w-0">
@@ -122,13 +122,13 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <Button onClick={() => handleTouchStart(selectedClient)} variant="ghost" className="p-2 rounded-full hover:bg-neutral-100" aria-label="Partager">
+          <Button onClick={() => handleTouchStart(selectedClient)} variant="icon" size="icon" className="rounded-full hover:bg-neutral-100" aria-label="Partager">
             <ShareIcon className="w-5 h-5"/>
           </Button>
-          <Button onClick={() => openClientModal(selectedClient)} variant="ghost" className="p-2 rounded-full hover:bg-neutral-100" aria-label="Modifier le client">
+          <Button onClick={() => openClientModal(selectedClient)} variant="icon" size="icon" className="rounded-full hover:bg-neutral-100" aria-label="Modifier le client">
             <PencilIcon className="w-5 h-5"/>
           </Button>
-          <Button onClick={exportCurrentMonthReport} className="ms-1 px-3 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white font-semibold text-sm flex items-center gap-2">
+          <Button onClick={exportCurrentMonthReport} variant="primary" size="sm" className="ms-1">
             <FileSpreadsheetIcon className="w-4 h-4"/>
             PDF
           </Button>
@@ -152,11 +152,11 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
         </CardHeader>
         <CardContent className="p-4 pt-0">
           <div className="grid grid-cols-2 gap-3">
-            <Button onClick={() => openClientTxModal(null, 'Règlement Reçu', selectedClientId)} className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white shadow-sm transition-transform bg-primary hover:bg-primary-dark active:scale-95">
+            <Button onClick={() => openClientTxModal(null, 'Règlement Reçu', selectedClientId)} variant="primary" size="md" className="w-full font-bold">
               <ArrowDownIcon className="w-4 h-4"/>
               {t('transactions.paymentReceived')}
             </Button>
-            <Button onClick={() => openClientTxModal(null, 'Paiement Effectué', selectedClientId)} className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-neutral-700 transition-transform bg-neutral-100 hover:bg-neutral-200 active:scale-95">
+            <Button onClick={() => openClientTxModal(null, 'Paiement Effectué', selectedClientId)} variant="tab" size="md" className="w-full font-bold">
               <ArrowUpIcon className="w-4 h-4"/>
               {t('transactions.paymentMade')}
             </Button>

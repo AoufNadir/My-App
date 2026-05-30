@@ -1940,7 +1940,7 @@ export default function MainApp({ user }: {
     }, [view, selectedAssetId, selectedAssetClientId, openForm, openClientModal, openAdjustmentModal, openInvestorModal]);
     return (<div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
             <OfflineBanner />
-            <div className="max-w-4xl mx-auto px-2 sm:px-4 pb-24">
+            <div className="mx-auto max-w-4xl px-page-x pb-24 sm:px-4">
                     <MainHeaderBar {...{ view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), setIsMobileMenuOpen, handleOpenGlobalSearch, onOpenSettings: () => setIsSettingsModalOpen(true), onSignOut: () => signOut(auth), labels: navLabels }}/>
                 <AppMobileMenuNav view={view} onSelect={navigateToView} isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} labels={navLabels} onOpenSettings={() => setIsSettingsModalOpen(true)} handleOpenGlobalSearch={handleOpenGlobalSearch} onSignOut={() => signOut(auth)}/>
 
@@ -1948,7 +1948,7 @@ export default function MainApp({ user }: {
 
                 <MainContentArea {...mainContentProps}/>
 
-                <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onFabPress={onFabPress}/>
+                <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onFabPress={onFabPress} overdueCount={overdueDebtClients.length}/>
 
                 {isGlobalSearchOpen && (<Suspense fallback={null}>
                         <GlobalSearchDialog {...{ isOpen: isGlobalSearchOpen, onClose: closeGlobalSearch, cardBase, fieldBase, subtleText, query: globalSearchQuery, setQuery: setGlobalSearchQuery, results: globalSearchResults, onSelectResult: handleSelectGlobalSearchResult, title: t('common.globalSearch'), placeholder: t('common.searchPlaceholder'), noResultsText: t('common.noResults'), clientsText: t('nav.clients'), transactionsText: t('nav.transactions') }}/>

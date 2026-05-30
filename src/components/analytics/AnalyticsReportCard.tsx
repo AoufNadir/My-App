@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FC } from 'react';
 import type { ReactNode } from 'react';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
@@ -521,14 +521,12 @@ function ProfitHeatmap({
     );
 }
 
-function MetricTile({ label, children }: { label: ReactNode; children: ReactNode }) {
-    return (
-        <div className="rounded-lg border border-border bg-surface p-3">
-            <span className="text-xs font-medium text-neutral-500">{label}</span>
-            <div className="mt-2">{children}</div>
-        </div>
-    );
-}
+const MetricTile: FC<{ label: ReactNode; children: ReactNode }> = ({ label, children }) => (
+    <div className="rounded-lg border border-border bg-surface p-3">
+        <span className="text-xs font-medium text-neutral-500">{label}</span>
+        <div className="mt-2">{children}</div>
+    </div>
+);
 
 function DayProfitValue({ entry }: { entry: [number, number] | null }) {
     if (!entry) {

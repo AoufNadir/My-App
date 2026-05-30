@@ -65,7 +65,7 @@ export function ServicesPage({ manualAssets, manualAssetClients, manualAssetTran
         clientsCount: acc.clientsCount + row.clientsCount
     }), { amountToReceive: 0, clientAdvances: 0, cashReceived: 0, netCapitalImpact: 0, clientsCount: 0 }), [serviceRows]);
     return (<div className="anim-page-in space-y-4">
-      <PageHeader title={t('services.title') as string} subtitle={`${serviceRows.length} service${serviceRows.length > 1 ? 's' : ''}`} className="-mx-4 sm:mx-0 sm:rounded-lg" actions={(<Button onClick={onOpenCreateManualAsset} className="gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-white hover:bg-primary-dark">
+      <PageHeader title={t('services.title') as string} subtitle={`${serviceRows.length} service${serviceRows.length > 1 ? 's' : ''}`} className="-mx-4 sm:mx-0 sm:rounded-card" actions={(<Button onClick={onOpenCreateManualAsset} variant="primary" size="md" className="font-semibold">
             <PlusIcon className="w-4 h-4"/>
             <span className="hidden sm:inline">{t('services.newService')}</span>
           </Button>)}/>
@@ -85,7 +85,7 @@ export function ServicesPage({ manualAssets, manualAssetClients, manualAssetTran
               </SectionHeading>
               <Badge variant="secondary" size="sm">{serviceRows.length}</Badge>
             </div>
-            <Button onClick={onOpenCreateManualAsset} variant="outline" className="flex w-full items-center justify-center gap-2 rounded-xl py-3 font-bold text-neutral-700 transition-all hover:bg-neutral-50 active:scale-[0.98]">
+            <Button onClick={onOpenCreateManualAsset} variant="outline" size="md" className="w-full font-bold text-neutral-700">
               <PlusIcon className="w-5 h-5"/>
               <span>{t('services.newService')}</span>
             </Button>
@@ -115,7 +115,7 @@ export function ServicesPage({ manualAssets, manualAssetClients, manualAssetTran
                     </div>
                   </SwipeableListItem>);
             })}
-            </div>) : (<EmptyState icon={<BriefcaseIcon className="w-6 h-6"/>} title={t('services.title') as string} subtitle={t('services.newService') as string} action={(<Button onClick={onOpenCreateManualAsset} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 font-bold text-white hover:bg-primary-dark">
+            </div>) : (<EmptyState icon={<BriefcaseIcon className="w-6 h-6"/>} title={t('services.title') as string} subtitle={t('services.newService') as string} action={(<Button onClick={onOpenCreateManualAsset} variant="primary" size="md" className="font-bold">
                   <PlusIcon className="w-4 h-4"/>
                   {t('services.newService')}
                 </Button>)}/>)}

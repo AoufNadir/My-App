@@ -7,13 +7,13 @@ export type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
 const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, type, label, error, helperText, id, dir, ...props }, ref) => {
     const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-');
     return (<div className="flex w-full flex-col gap-1.5">
-        {label && (<label htmlFor={inputId} className="text-sm font-medium text-neutral-700">
+        {label && (<label htmlFor={inputId} className="text-sm font-semibold leading-snug text-neutral-700">
             {label}
           </label>)}
         <input id={inputId} type={type} 
     // dir="ltr" مطلوب على حقول المبالغ المالية حتى في الصفحات العربية
     dir={dir} ref={ref} className={[
-            'flex w-full min-h-[44px] rounded-md border px-3 py-2 text-sm',
+            'flex w-full min-h-input rounded-button border px-3 py-2 text-sm leading-tight',
             'bg-surface text-neutral-900 placeholder:text-neutral-400',
             'transition-colors',
             error

@@ -1522,6 +1522,48 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
       <h2 class="section-title">Mouvements de la p&eacute;riode</h2>
       ${movementsHtml}
     </section>
+
+    <section class="section">
+      <h2 class="section-title">D&eacute;tail des op&eacute;rations</h2>
+      ${orderedTxs.length ? `
+      <table class="data-table" style="width:100%;border-collapse:collapse;font-size:11px;margin-top:8px;">
+        <thead>
+          <tr style="background:#f3f4f6;text-align:left;">
+            <th style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">Date</th>
+            <th style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">Type</th>
+            <th style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">Montant</th>
+            <th style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">Source</th>
+            <th style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${orderedTxs.map((tx, i) => {
+            const typeLabel = tx.type === 'deposit_capital' ? 'Dépôt capital'
+                : tx.type === 'withdraw_capital' ? 'Retrait capital'
+                : tx.type === 'withdraw_profit' ? 'Retrait bénéfice'
+                : tx.type === 'reinvest_profit' ? 'Réinvestissement'
+                : tx.type;
+            const isPositive = tx.type === 'deposit_capital' || tx.type === 'reinvest_profit';
+            const color = isPositive ? '#16a34a' : '#dc2626';
+            const sign = isPositive ? '+' : '-';
+            return `<tr style="background:${i % 2 === 0 ? '#ffffff' : '#f9fafb'};">
+              <td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;white-space:nowrap;">${escapeHtml(tx.date || '')}</td>
+              <td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;">${escapeHtml(typeLabel)}</td>
+              <td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;text-align:right;color:${color};font-weight:600;">${sign}${formatNumber(tx.amount)} DZD</td>
+              <td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;">${escapeHtml((tx as any).paymentSource || '—')}</td>
+              <td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;color:#6b7280;font-size:10px;">${escapeHtml(tx.notes || '')}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="background:#f3f4f6;font-weight:700;">
+            <td colspan="2" style="padding:6px 8px;">Total mouvements</td>
+            <td style="padding:6px 8px;text-align:right;">${orderedTxs.length} op.</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>` : '<div class="compact-empty">Aucune op&eacute;ration sur cette p&eacute;riode.</div>'}
+    </section>
   `;
     return reportShell({
         fileName: `${sanitizeFileName(`rapport_investisseur_${investorName}${periodSuffix ? `_${periodSuffix}` : ''}`) || 'rapport_investisseur'}.pdf`,

@@ -66,20 +66,45 @@ type PriorityItem = {
     action?: () => void;
     actionLabel?: string;
 };
-function toneClasses(tone: Tone): string {
-    if (tone === 'danger')
-        return 'border border-danger/20 bg-danger-bg text-danger';
-    if (tone === 'warning')
-        return 'border border-warning/20 bg-warning-bg text-warning';
-    if (tone === 'success')
-        return 'border border-success/20 bg-success-bg text-success';
-    return 'border border-info/20 bg-info-bg text-info';
+const PRIORITY_TONE_CLASSES: Record<Tone, {
+    item: string;
+    title: string;
+    body: string;
+    action: string;
+}> = {
+    danger: {
+        item: 'border border-danger/20 border-s-4 border-s-danger/70 bg-danger-bg text-neutral-900 shadow-sm dark:border-danger-light/20 dark:border-s-danger-light/70 dark:bg-surface-muted',
+        title: 'text-danger dark:text-danger-light',
+        body: 'text-neutral-700 dark:text-neutral-600',
+        action: 'border border-danger/20 bg-surface text-danger dark:border-danger-light/25 dark:bg-danger-light/10 dark:text-danger-light',
+    },
+    warning: {
+        item: 'border border-warning/25 bg-warning-bg text-neutral-900 shadow-sm',
+        title: 'text-warning',
+        body: 'text-neutral-700 dark:text-neutral-600',
+        action: 'border border-warning/25 bg-surface text-warning dark:bg-surface-raised',
+    },
+    success: {
+        item: 'border border-success/20 bg-success-bg text-neutral-900 shadow-sm',
+        title: 'text-success dark:text-success-light',
+        body: 'text-neutral-700 dark:text-neutral-600',
+        action: 'border border-success/20 bg-surface text-success dark:bg-surface-raised dark:text-success-light',
+    },
+    info: {
+        item: 'border border-info/20 bg-info-bg text-neutral-900 shadow-sm',
+        title: 'text-info',
+        body: 'text-neutral-700 dark:text-neutral-600',
+        action: 'border border-info/20 bg-surface text-info dark:bg-surface-raised',
+    },
+};
+function toneClasses(tone: Tone): typeof PRIORITY_TONE_CLASSES[Tone] {
+    return PRIORITY_TONE_CLASSES[tone];
 }
 function renderDebtPriorityBody(template: string, amount: number, days: number, date: string) {
     return (<>
       {template.split(/(\{amount\}|\{days\}|\{date\})/g).map((part, index) => {
             if (part === '{amount}') {
-                return <CurrencyAmount key={index} value={amount} currency="DZD" decimals={2} size="sm" className="font-semibold text-inherit"/>;
+                return <CurrencyAmount key={index} value={amount} currency="DZD" decimals={2} size="sm" className="font-semibold text-danger dark:text-danger-light"/>;
             }
             if (part === '{days}') {
                 return <span key={index} dir="ltr" className="tabular-nums">{days}</span>;
@@ -100,10 +125,10 @@ function ActionStrip({ actions, }: {
     }>;
 }) {
     return (<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {actions.map((action) => (<Button key={action.label} type="button" onClick={action.onClick} variant={action.primary ? 'primary' : 'outline'} size="md" className="w-full min-h-[74px] rounded-xl px-2.5 py-3 text-xs font-bold sm:min-h-[64px] sm:text-sm">
+      {actions.map((action) => (<Button key={action.label} type="button" onClick={action.onClick} variant={action.primary ? 'primary' : 'outline'} size="md" className="min-h-[64px] w-full px-2.5 text-xs font-bold sm:min-h-[56px] sm:text-sm">
           <span className="inline-flex h-full min-w-0 flex-col items-center justify-center gap-1.5 text-center sm:flex-row sm:gap-2">
             {action.icon}
-            <span className="max-w-full leading-tight break-words">{action.label}</span>
+            <span className="max-w-full truncate leading-tight">{action.label}</span>
           </span>
         </Button>))}
     </div>);
@@ -113,14 +138,12 @@ function PriorityList({ title, items, onTitleClick, }: {
     items: PriorityItem[];
     onTitleClick?: () => void;
 }) {
-    const renderItemContent = (item: PriorityItem) => (<div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-base font-semibold">{item.title}</p>
-        <p className="mt-1 text-sm leading-snug opacity-85">{item.body}</p>
-      </div>
-      {item.action && item.actionLabel && (<span className="shrink-0 rounded-md bg-surface/15 px-2 py-1 text-xs font-bold">
+    const renderItemContent = (item: PriorityItem, tone: typeof PRIORITY_TONE_CLASSES[Tone]) => (<div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1.5">
+      <p className={`min-w-0 text-base font-bold leading-snug ${tone.title}`}>{item.title}</p>
+      {item.action && item.actionLabel && (<span className={`inline-flex min-h-8 shrink-0 items-center justify-center rounded-button px-2.5 text-xs font-bold ${tone.action}`}>
           {item.actionLabel}
         </span>)}
+      <p className={`col-span-2 text-sm leading-relaxed ${tone.body}`}>{item.body}</p>
     </div>);
     return (<Card>
       <CardHeader className="p-4 pb-3">
@@ -129,11 +152,14 @@ function PriorityList({ title, items, onTitleClick, }: {
           </button>) : (<SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>{title}</SectionHeading>)}
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-2">
-        {items.map((item) => item.action ? (<button key={item.id} type="button" onClick={item.action} className={`w-full rounded-xl p-4 text-start transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${toneClasses(item.tone)}`}>
-              {renderItemContent(item)}
-            </button>) : (<div key={item.id} className={`rounded-xl p-4 ${toneClasses(item.tone)}`}>
-              {renderItemContent(item)}
-            </div>))}
+        {items.map((item) => {
+            const tone = toneClasses(item.tone);
+            return item.action ? (<button key={item.id} type="button" onClick={item.action} className={`w-full rounded-card p-4 text-start transition-all hover:border-border-strong hover:shadow-card-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.99] ${tone.item}`}>
+              {renderItemContent(item, tone)}
+            </button>) : (<div key={item.id} className={`rounded-card p-4 ${tone.item}`}>
+              {renderItemContent(item, tone)}
+            </div>);
+        })}
       </CardContent>
     </Card>);
 }
@@ -398,7 +424,7 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
 
       <ActionStrip actions={primaryActions}/>
 
-      {onOpenPersonalWithdrawal && (<Button onClick={onOpenPersonalWithdrawal} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold border border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary transition-colors active:scale-[0.98]">
+      {onOpenPersonalWithdrawal && (<Button onClick={onOpenPersonalWithdrawal} variant="outline" size="md" className="flex w-full items-center justify-center gap-2 border-primary/20 bg-primary/10 font-bold text-primary hover:bg-primary/20">
           <BanknotesIcon className="h-4 w-4"/>
           <span>Ma dépense du jour</span>
         </Button>)}

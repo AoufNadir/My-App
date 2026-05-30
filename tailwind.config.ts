@@ -75,10 +75,26 @@ const config: Config = {
       spacing: {
         touch: cssVar('--spacing-touch'),
         'touch-lg': cssVar('--spacing-touch-lg'),
+        'button-sm': cssVar('--spacing-button-sm'),
+        'button-md': cssVar('--spacing-button-md'),
+        'button-lg': cssVar('--spacing-button-lg'),
+        'icon-button': cssVar('--spacing-icon-button'),
+        input: cssVar('--spacing-input'),
         'page-x': cssVar('--spacing-page-x'),
         'page-y': cssVar('--spacing-page-y'),
         card: cssVar('--spacing-card'),
         section: cssVar('--spacing-section'),
+      },
+      borderRadius: {
+        button: cssVar('--radius-button'),
+        card: cssVar('--radius-card'),
+      },
+      fontSize: {
+        'mobile-page-title': cssVar('--text-mobile-page-title'),
+        'mobile-section-title': cssVar('--text-mobile-section-title'),
+        'mobile-body': cssVar('--text-mobile-body'),
+        'mobile-small': cssVar('--text-mobile-small'),
+        'mobile-kpi': cssVar('--text-mobile-kpi'),
       },
       boxShadow: {
         card: cssVar('--shadow-card'),

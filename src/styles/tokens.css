@@ -80,6 +80,11 @@
   /* Spacing and touch targets */
   --spacing-touch: 44px;
   --spacing-touch-lg: 52px;
+  --spacing-button-sm: 40px;
+  --spacing-button-md: 44px;
+  --spacing-button-lg: 52px;
+  --spacing-icon-button: 44px;
+  --spacing-input: 48px;
   --spacing-page-x: 16px;
   --spacing-page-y: 20px;
   --spacing-card: 16px;
@@ -90,6 +95,15 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
+  --radius-button: 12px;
+  --radius-card: 16px;
+
+  /* Mobile typography */
+  --text-mobile-page-title: 1.25rem;
+  --text-mobile-section-title: 1rem;
+  --text-mobile-body: 0.9375rem;
+  --text-mobile-small: 0.8125rem;
+  --text-mobile-kpi: 1.75rem;
 
   /* Elevation */
   --shadow-card: 0 1px 2px rgb(17 24 39 / 0.06), 0 1px 1px rgb(17 24 39 / 0.04);

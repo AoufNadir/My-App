@@ -170,7 +170,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, ca
                         </div>
 
                         {/* Inline balance + PAM hint (not a card) */}
-                        <div className={`flex items-center justify-between text-xs ${subtleText} px-1`}>
+                        <div className={`flex items-center justify-between text-xs text-neutral-500 px-1`}>
                             <span>{t('common.balance')}: <span dir="ltr" className="font-semibold text-neutral-700 tabular-nums">{activeStats.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeCurrency}</span></span>
                             <span>PAM: <span dir="ltr" className="font-semibold text-neutral-700 tabular-nums">{activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span></span>
                         </div>
@@ -194,7 +194,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, ca
                                                 <p className={`text-xs text-neutral-500`}>{t('common.dinar')}</p>
                                             </div>
                                         </div>
-                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 ${subtleText}`}/>
+                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400`}/>
                                     </button>
                                     <button type="button" onClick={() => { setBuyUsdtMode('with_eur'); setEurDzdPrice(portfolioStats.eur.avgBuy.toFixed(2)); }} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-start transition-colors bg-surface-muted hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
                                         <div className="flex items-center gap-3 min-w-0">
@@ -206,7 +206,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, ca
                                                 <p className={`text-xs text-neutral-500`}>EUR</p>
                                             </div>
                                         </div>
-                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 ${subtleText}`}/>
+                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400`}/>
                                     </button>
                                 </div>
                             </div>)}
@@ -278,7 +278,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, ca
                                                 <span className="text-xs text-financial-profit">{t('transactions.quantity')} USDT</span>
                                                 <span dir="ltr" className="text-lg font-bold text-financial-profit tabular-nums">{formatNumber(usdtQty, { min: 0, max: 2 })}</span>
                                             </div>
-                                            <div className={`mt-1 flex items-baseline justify-between gap-3 text-xs ${subtleText}`}>
+                                            <div className={`mt-1 flex items-baseline justify-between gap-3 text-xs text-neutral-500`}>
                                                 <span>{t('transactions.newBalance')}</span>
                                                 <span dir="ltr" className="font-semibold tabular-nums">{totalAfter.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
                                             </div>
@@ -289,7 +289,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, ca
                         {/* Sell USDT/EUR */}
                         {isSellMode && (<div className="space-y-3">
                                 {mode === 'sell_usdt' && (<div>
-                                        <p className={`text-xs font-medium mb-1.5 ${subtleText}`}>{t('transactions.settlementCurrency')}</p>
+                                        <p className="text-xs font-medium mb-1.5 text-neutral-500">{t('transactions.settlementCurrency')}</p>
                                         <div className={`flex gap-1 rounded-xl p-1 ${segBase}`}>
                                             <button type="button" onClick={() => {
                         const rate = parseAndEvaluate(sellEurToDzdRate);
@@ -404,7 +404,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, ca
                         setProfitPercent((effectivePriceDzd - activeStats.avgBuy).toFixed(2));
                     }
                 }} className="-mt-2" error={formValidation.errors['sellPrice']}/>
-                                    <div className={`mt-1.5 flex items-center justify-between gap-2 text-xs ${subtleText}`}>
+                                    <div className={`mt-1.5 flex items-center justify-between gap-2 text-xs text-neutral-500`}>
                                         <span dir="ltr" className="tabular-nums">PAM: {activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span>
                                         {parseAndEvaluate(profitPercent) !== 0 && (<span dir="ltr" className={parseAndEvaluate(profitPercent) > 0 ? 'text-financial-profit font-medium tabular-nums' : 'text-financial-loss font-medium tabular-nums'}>
                                                 Marge: {parseAndEvaluate(profitPercent) > 0 ? '+' : ''}{parseAndEvaluate(profitPercent).toFixed(2)} {t('common.dinar')}

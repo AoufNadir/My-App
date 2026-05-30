@@ -70,6 +70,18 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
       </span>
     </button>);
     return (<div className="space-y-4">
+      {hasOverdue && (<button type="button" onClick={() => setIsOverdueModalOpen(true)} className="flex w-full items-center gap-3 rounded-xl border border-danger/30 bg-danger-bg px-4 py-3 text-start transition-opacity hover:opacity-90 active:scale-[0.99]">
+          <AlertTriangleIcon className="h-5 w-5 shrink-0 text-danger"/>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-danger">
+              {overdueCount} client{overdueCount > 1 ? 's' : ''} en retard de paiement
+            </p>
+            <p className="mt-0.5 text-xs text-danger/70">
+              Dette impayée depuis plus de 7 jours — appuyez pour voir le détail
+            </p>
+          </div>
+        </button>)}
+
       <HeroKpiCard accent="sky" icon={<UsersIcon className="w-5 h-5"/>} primaryLabel="Total Clients" primaryValue={filteredClientsDzd.length} primaryCurrency={null} primarySemantic="plain" secondary={[
             { label: 'Dettes', value: clientsWithDebt, currency: null, semantic: 'plain' },
             { label: 'Avances', value: clientsWithAdvance, currency: null, semantic: 'plain' },
@@ -86,12 +98,12 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
               <span className="text-sm text-neutral-500">{filteredClientsDzd.length}</span>
             </div>
 
-            <div className="w-full flex gap-2">
-              <Button onClick={() => openClientModal(null)} variant="outline" className="flex-1 py-3 rounded-xl font-bold border-border bg-surface text-neutral-700 hover:bg-neutral-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+            <div className="flex w-full gap-2">
+              <Button onClick={() => openClientModal(null)} variant="outline" size="md" className="flex-1 font-bold">
                 <UserIcon className="w-5 h-5"/>
                 <span>Nouveau Client</span>
               </Button>
-              {onImportClients && (<Button onClick={() => setImportOpen(true)} variant="outline" aria-label="Importer un CSV" className="shrink-0 px-3 py-3 rounded-xl font-bold border-border bg-surface text-neutral-700 hover:bg-neutral-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+              {onImportClients && (<Button onClick={() => setImportOpen(true)} variant="outline" size="icon" aria-label="Importer un CSV" className="shrink-0 font-bold">
                   <UploadCloudIcon className="w-5 h-5"/>
                 </Button>)}
             </div>
@@ -102,7 +114,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
           <div className="flex gap-2 mb-4">
             <Input type="text" placeholder="Rechercher un client..." value={clientSearchQuery} onChange={(e) => setClientSearchQuery(e.target.value)} className="flex-grow"/>
           </div>
-          <Dropdown trigger={(<Button className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg font-semibold transition-colors bg-neutral-100 text-neutral-700 hover:bg-neutral-200">
+          <Dropdown trigger={(<Button variant="tab" size="md" className="w-full font-semibold">
                 <FilterIcon className="w-4 h-4"/>
                 <span>{CLIENT_SORT_LABELS[clientSortMode]}</span>
               </Button>)}>

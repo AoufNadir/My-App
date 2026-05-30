@@ -3,8 +3,6 @@ export type AnalyticsPageProps = {
     statsView: 'usdt' | 'clients';
     setStatsView: (view: 'usdt' | 'clients') => void;
     setIsSettingsModalOpen: (isOpen: boolean) => void;
-    cardBase: string;
-    subtleText: string;
     portfolioStats: any;
     totalPortfolioValue: number;
     suggestedProfitMargin: string;
@@ -26,7 +24,6 @@ export type AnalyticsPageProps = {
         day: number;
         profit: number;
     } | null) => void;
-    fieldBase: string;
     dzdDashboardStats: any;
     clientsDzd: ClientDzd[];
     clientTransactionsDzd: ClientTransactionDzd[];

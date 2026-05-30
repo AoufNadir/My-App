@@ -124,8 +124,9 @@ export function TransactionsPage({
 
       <Button
         variant="primary"
+        size="lg"
         onClick={() => setIsMenuOpen(true)}
-        className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold shadow-sm transition-all active:scale-[0.98]"
+        className="w-full font-bold"
       >
         <PlusIcon className="w-4 h-4" />
         {t('transactions.newTransaction')}

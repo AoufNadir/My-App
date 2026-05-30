@@ -37,8 +37,9 @@ function PortfolioActionButton({ label, currency, direction, onClick }: Portfoli
   return (
     <Button
       onClick={onClick}
+      size="md"
       className={[
-        'flex min-h-[88px] w-full flex-col items-start justify-between gap-2 rounded-xl px-3 py-3 text-white shadow-sm transition-transform active:scale-[0.97]',
+        'flex min-h-[88px] w-full flex-col items-start justify-between gap-2 rounded-card px-3 py-3 text-white shadow-sm transition-transform active:scale-[0.97]',
         isBuy ? 'bg-action-buy hover:bg-action-buy-hover' : 'bg-action-sell hover:bg-action-sell-hover',
       ].join(' ')}
     >
@@ -65,7 +66,8 @@ function FinancialActionRow({ title, subtitle, icon, onClick }: FinancialActionR
   return (
     <Button
       onClick={onClick}
-      className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-surface-muted px-4 py-3 text-start text-neutral-900 transition-colors hover:bg-neutral-100"
+      size="md"
+      className="group flex w-full items-center justify-between gap-3 rounded-button border border-border bg-surface-muted px-4 text-start text-neutral-900 transition-colors hover:bg-neutral-100"
     >
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -98,7 +100,7 @@ export function NewTransactionMenuDialog({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} className="bg-surface max-w-md">
+    <Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface">
       <ModalHeader onClose={onClose} className="p-4">
         <ModalTitle className="text-lg">{t('transactions.newTransaction')}</ModalTitle>
       </ModalHeader>

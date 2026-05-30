@@ -12,7 +12,7 @@ export function MobileNavLink({ activeView, targetView, colorClass, icon, onSele
     return (<button onClick={() => {
             onSelect(targetView);
             onClose();
-        }} className={`flex items-center gap-4 w-full text-left p-4 rounded-lg text-lg font-semibold transition-colors ${activeView === targetView ? `${colorClass} text-white` : 'text-neutral-700 hover:bg-neutral-100'}`}>
+        }} className={`flex min-h-button-lg w-full items-center gap-4 rounded-button px-4 py-3 text-start text-base font-semibold transition-colors ${activeView === targetView ? `${colorClass} text-white` : 'text-neutral-700 hover:bg-neutral-100'}`}>
             {icon}
             {children}
         </button>);

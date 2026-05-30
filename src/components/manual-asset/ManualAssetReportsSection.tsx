@@ -163,7 +163,7 @@ function RankedClientsBlock({ title, totalClients, rows }: {
                   </p>
                 </div>
 
-                <div className="min-w-[120px] shrink-0 text-end">
+                <div className="min-w-[104px] shrink-0 text-end sm:min-w-[120px]">
                   <p className="text-sm font-bold leading-tight">
                     <CurrencyAmount value={row.serviceRevenue} currency="DZD" semantic="profit" size="md" decimals={2}/>
                   </p>
@@ -261,14 +261,14 @@ export function ManualAssetReportsSection({ assetId, assetName, clients, assetTr
             endTs
         });
     }, [assetId, assetTransactions, clientBalances, clientsById, selectedYear]);
-    const selectClassName = 'mt-2 min-h-touch rounded-lg px-3 text-sm';
+    const selectClassName = 'mt-2 min-h-input rounded-button px-3 text-sm';
     const activeReport = reportView === 'monthly' ? monthlyReport : annualReport;
     const activeTitle = reportView === 'monthly' ? 'Rapport Mensuel' : 'Rapport Annuel';
     const activeSubtitle = reportView === 'monthly'
         ? `${MONTH_LABELS[selectedMonth]} ${selectedYear}`
         : `Annee ${selectedYear}`;
     const activeTopTitle = reportView === 'monthly' ? 'Top 5 du mois' : 'Top 5 de l annee';
-    const pillBase = 'min-h-touch rounded-lg px-3 font-bold text-sm';
+    const pillBase = 'min-h-button-md rounded-button px-3 font-bold text-sm';
     return (<section className="space-y-3">
       <div>
         <SectionHeading icon={<TrendingUpIcon className="w-4 h-4"/>}>

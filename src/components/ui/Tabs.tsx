@@ -17,11 +17,11 @@ export type TabsProps = {
 };
 const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, variant = 'underline', className = '', }) => {
     if (variant === 'pills') {
-        return (<div role="tablist" className={['grid grid-cols-2 gap-2 w-full sm:flex sm:flex-wrap sm:w-auto', className].filter(Boolean).join(' ')}>
+        return (<div role="tablist" className={['grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap', className].filter(Boolean).join(' ')}>
         {tabs.map((tab) => {
                 const isActive = tab.id === activeTab;
                 return (<button key={tab.id} role="tab" type="button" aria-selected={isActive} disabled={tab.disabled} onClick={() => onChange(tab.id)} className={[
-                        'inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 min-h-[44px] w-full text-[13px] sm:text-sm font-semibold transition-colors text-center sm:rounded-full sm:px-4 sm:py-2 sm:w-auto',
+                        'inline-flex min-h-button-md w-full min-w-0 items-center justify-center gap-1.5 rounded-button px-3 py-2 text-center text-[12px] font-semibold leading-tight transition-colors sm:w-auto sm:px-4 sm:text-sm',
                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                         'disabled:opacity-40 disabled:pointer-events-none',
                         isActive
@@ -31,7 +31,7 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, variant = 'under
                         .filter(Boolean)
                         .join(' ')}>
               {tab.icon}
-              <span className="truncate max-w-full">{tab.label}</span>
+              <span className="max-w-full truncate">{tab.label}</span>
               {tab.badge !== undefined && (<span className={[
                             'inline-flex items-center justify-center rounded-full px-1.5 py-0.5',
                             'text-[10px] font-bold leading-none min-w-[18px]',
@@ -45,7 +45,7 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, variant = 'under
     }
     // variant === 'underline' (الافتراضي)
     return (<div role="tablist" className={[
-            'flex overflow-x-auto border-b border-neutral-200 scrollbar-none',
+            'flex max-w-full overflow-x-auto border-b border-neutral-200 scrollbar-none',
             className
         ]
             .filter(Boolean)
@@ -53,8 +53,8 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, variant = 'under
       {tabs.map((tab) => {
             const isActive = tab.id === activeTab;
             return (<button key={tab.id} role="tab" type="button" aria-selected={isActive} disabled={tab.disabled} onClick={() => onChange(tab.id)} className={[
-                    'inline-flex shrink-0 items-center gap-1.5 px-4 min-h-touch',
-                    'text-sm font-medium whitespace-nowrap transition-colors',
+                    'inline-flex min-h-button-md shrink-0 items-center gap-1.5 px-4',
+                    'whitespace-nowrap text-sm font-medium transition-colors',
                     'border-b-2 -mb-px',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
                     'disabled:opacity-40 disabled:pointer-events-none',

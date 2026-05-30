@@ -10,7 +10,7 @@ const VARIANT_CLASSES: Record<CardVariant, string> = {
 };
 // لا padding ثابت — المسافات يتحكم بها المستخدِم عبر className أو عبر children
 const Card = React.forwardRef<HTMLDivElement, CardProps>(({ className, variant = 'default', ...props }, ref) => (<div ref={ref} className={[
-        'rounded-lg',
+        'rounded-card',
         VARIANT_CLASSES[variant],
         className
     ]
