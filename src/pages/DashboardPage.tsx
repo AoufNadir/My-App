@@ -213,38 +213,45 @@ function TodaySummary({ title, items, last7DaysProfit, todaySellCount, onShare, 
         </div>
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          {items.map((item) => (<div key={item.label} className="rounded-xl border border-border bg-surface-muted p-4">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-xs font-semibold text-neutral-500">{item.label}</p>
-                <span className="text-neutral-400">{item.icon}</span>
+        <div className="grid grid-cols-2 gap-2">
+          {items.map((item) => (<div key={item.label} className="rounded-xl border border-border bg-surface-muted px-3 py-3">
+              <div className="flex items-center justify-between gap-1 mb-2">
+                <p className="text-[11px] font-semibold text-neutral-500 truncate">{item.label}</p>
+                <span className="text-neutral-300 shrink-0">{item.icon}</span>
               </div>
-              <div className="mt-3">
-                <CurrencyAmount value={item.value} currency="DZD" semantic={item.semantic ?? 'auto'} size="xl" decimals={0}/>
-              </div>
+              <CurrencyAmount value={item.value} currency="DZD" semantic={item.semantic ?? 'auto'} size="lg" decimals={0}/>
             </div>))}
         </div>
 
         {days.length === 7 && days.some((v) => v !== 0) && (
           <div>
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-neutral-400">7 derniers jours</p>
-            <div className="flex items-end gap-1 h-10">
+            <div className="flex items-end gap-1.5 h-16 mb-1">
               {days.map((profit, i) => {
                 const isToday = i === 6;
-                const barH = profit === 0 ? 0 : Math.max(12, (Math.abs(profit) / maxAbs) * 40);
-                const barColor = profit > 0 ? (isToday ? 'bg-financial-profit' : 'bg-financial-profit/50') : profit < 0 ? 'bg-financial-loss/60' : '';
+                const barH = profit === 0 ? 0 : Math.max(8, (Math.abs(profit) / maxAbs) * 58);
+                const barColor = profit > 0
+                  ? (isToday ? 'bg-financial-profit' : 'bg-financial-profit/40')
+                  : profit < 0 ? 'bg-financial-loss/50' : '';
                 return (
-                  <div key={i} className="flex flex-1 flex-col items-center gap-0.5">
+                  <div key={i} className="flex flex-1 flex-col items-center gap-1">
                     <div className="flex w-full flex-1 items-end justify-center">
-                      {profit !== 0 && (<div className={`w-full max-w-[20px] rounded-sm transition-all ${barColor}`} style={{ height: `${barH}px` }}/>)}
+                      {profit !== 0 ? (
+                        <div
+                          className={`w-2.5 rounded-t-md transition-all ${barColor}`}
+                          style={{ height: `${barH}px` }}
+                        />
+                      ) : (
+                        <div className="w-2.5 h-1 rounded-full bg-neutral-100"/>
+                      )}
                     </div>
-                    <span className={`text-[9px] font-semibold ${isToday ? 'text-primary' : 'text-neutral-400'}`}>
+                    <span className={`text-[9px] font-bold leading-none ${isToday ? 'text-primary' : 'text-neutral-400'}`}>
                       {dayLabels[i]}
                     </span>
                   </div>
                 );
               })}
             </div>
+            <p className="text-[9px] font-medium text-neutral-300 text-end">7 jours</p>
           </div>
         )}
       </CardContent>
@@ -524,10 +531,10 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
         </Button>)}
 
       <TodaySummary title={t('dashboard.profitSummary') as string} last7DaysProfit={dailyOverview.last7DaysProfit} todaySellCount={dailyOverview.todaySellCount} onShare={handleShareDaySummary} shareCopied={shareCopied} items={[
-            { label: t('dashboard.profitYear') as string, value: dailyOverview.yearToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
+            { label: t('dashboard.profitToday') as string, value: dailyOverview.todayProfit, semantic: 'auto', icon: <BriefcaseIcon className="h-4 w-4"/> },
             { label: 'Cette semaine', value: dailyOverview.weekToDateProfit ?? 0, semantic: 'auto', icon: <TrendingUpIcon className="h-4 w-4"/> },
             { label: t('dashboard.profitMonth') as string, value: dailyOverview.monthToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
-            { label: t('dashboard.profitToday') as string, value: dailyOverview.todayProfit, semantic: 'auto', icon: <BriefcaseIcon className="h-4 w-4"/> }
+            { label: t('dashboard.profitYear') as string, value: dailyOverview.yearToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
         ]}/>
 
       {/* Monthly goal progress bar */}
