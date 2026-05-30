@@ -138,11 +138,13 @@ export function TransactionsHistoryCard({
     return dateGroups
       .map(([date, txs]) => [date, txs.filter((tx) => {
         const notes = ((tx.rawTx as any).notes || '') as string;
+        const tags = (Array.isArray((tx.rawTx as any).tags) ? (tx.rawTx as any).tags : []) as string[];
         return (
           tx.typeLabel.toLowerCase().includes(q) ||
           tx.details.toLowerCase().includes(q) ||
           tx.amountLabel.toLowerCase().includes(q) ||
-          notes.toLowerCase().includes(q)
+          notes.toLowerCase().includes(q) ||
+          tags.some((tag) => tag.toLowerCase().includes(q))
         );
       })] as [string, DisplayTx[]])
       .filter(([, txs]) => txs.length > 0);
@@ -386,6 +388,15 @@ export function TransactionsHistoryCard({
                               <p className="text-xs truncate text-neutral-400 italic">
                                 {(tx.rawTx as any).notes}
                               </p>
+                            )}
+                            {Array.isArray((tx.rawTx as any).tags) && (tx.rawTx as any).tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {((tx.rawTx as any).tags as string[]).map((tag: string) => (
+                                  <span key={tag} className="inline-block rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary leading-none">
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
                             )}
                             <p className="text-xs text-neutral-500">{tx.time}</p>
                           </div>

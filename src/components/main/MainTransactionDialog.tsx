@@ -1,3 +1,4 @@
+import React from 'react';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { MoneyField } from '../ui/MoneyField';
@@ -11,8 +12,52 @@ import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { parseAndEvaluate } from '../../utils';
 import { formatNumber } from '../../pages/shared/pageFormat';
 import { getFirstValidationMessage } from '../../utils/financialUx';
+
+const QUICK_TAGS = ['OTC', 'Urgent', 'Gros compte', 'Livraison', 'Crédit'];
+
+function TagInput({ tags, setTags }: { tags: string[]; setTags: (t: string[]) => void }) {
+    const [input, setInput] = React.useState('');
+    const addTag = (raw: string) => {
+        const tag = raw.trim();
+        if (!tag || tags.includes(tag)) return;
+        setTags([...tags, tag]);
+        setInput('');
+    };
+    const removeTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
+    return (
+        <div className="space-y-2">
+            <p className="text-sm font-medium text-neutral-700">Étiquettes</p>
+            {tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                    {tags.map((tag) => (
+                        <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                            {tag}
+                            <button type="button" onClick={() => removeTag(tag)} className="text-primary/60 hover:text-primary" aria-label={`Supprimer ${tag}`}>×</button>
+                        </span>
+                    ))}
+                </div>
+            )}
+            <div className="flex flex-wrap gap-1.5">
+                {QUICK_TAGS.filter((qt) => !tags.includes(qt)).map((qt) => (
+                    <button key={qt} type="button" onClick={() => addTag(qt)} className="rounded-full border border-dashed border-neutral-300 px-2.5 py-1 text-[11px] font-medium text-neutral-500 hover:border-primary hover:text-primary transition-colors">
+                        + {qt}
+                    </button>
+                ))}
+            </div>
+            <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(input); } }}
+                placeholder="Ajouter une étiquette…"
+                className="h-9 w-full rounded-button border border-border bg-surface px-3 text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+        </div>
+    );
+}
+
 type MainTransactionDialogProps = Record<string, any>;
-export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, suggestedSellingPrice, suggestedUsdtEurSellPrice, suggestedSellingPriceEur, suggestedProfitMargin, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving }: MainTransactionDialogProps) {
+export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, suggestedSellingPrice, suggestedUsdtEurSellPrice, suggestedSellingPriceEur, suggestedProfitMargin, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving }: MainTransactionDialogProps) {
     const hasPrimaryClient = Boolean(linkedClientId && linkedClientId !== 'none');
     const selectedClientTotal = hasPrimaryClient
         ? Math.abs(Number(clientBalances?.get?.(linkedClientId) || 0))
@@ -462,17 +507,23 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                 <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} errorMessage={formValidation.errors['linkedClientId']} hasError={!!formValidation.errors['linkedClientId']} errorMessageDzd={formValidation.errors['linkedClientDzdId']} hasErrorDzd={!!formValidation.errors['linkedClientDzdId']}/>
                             </div>)}
 
-                        {/* Notes (optional) */}
-                        {(mode !== 'buy_usdt' || buyUsdtMode) && (
+                        {/* Notes + Tags (optional) */}
+                        {(mode !== 'buy_usdt' || buyUsdtMode) && (<>
                             <Textarea
                                 label={t('common.notesOptional') as string}
                                 value={notes ?? ''}
                                 onChange={(e) => setNotes?.(e.target.value)}
                                 rows={2}
-                                placeholder="Ex: OTC, client urgent, remarque..."
+                                placeholder="Ex: remarque, contexte..."
                                 className="resize-none text-sm"
                             />
-                        )}
+                            {setTxTags && (
+                                <TagInput
+                                    tags={Array.isArray(txTags) ? txTags : []}
+                                    setTags={(newTags) => setTxTags(newTags)}
+                                />
+                            )}
+                        </>)}
 
                         {/* Compact summary (only when there's data) */}
                         {transactionSummary && transactionSummary.profitEstimate !== null && (<div className={`rounded-xl px-3 py-2 text-sm flex items-center justify-between gap-2 ${transactionSummary.profitEstimate >= 0 ? 'bg-financial-profit-bg' : 'bg-financial-loss-bg'}`}>
