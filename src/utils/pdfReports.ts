@@ -278,7 +278,7 @@ function reportShell(opts: {
     .report-shell-body .header {
       padding: 24px;
       border-bottom: 1px solid var(--line);
-      background: linear-gradient(135deg, var(--surface) 0%, color-mix(in srgb, var(--brand-soft) 62%, var(--surface)) 100%);
+      background: var(--surface);
     }
 
     .report-shell-body .brand-row {
@@ -440,53 +440,42 @@ function reportShell(opts: {
     .report-shell-body .movement-card {
       border: 1px solid var(--line);
       border-radius: var(--radius-md);
-      background: var(--surface-raised);
+      background: var(--surface);
       padding: var(--space-card);
-      box-shadow: var(--shadow-card);
+      box-shadow: none;
     }
 
     .report-shell-body .executive-card {
-      min-height: 86px;
-      border-top: 4px solid var(--line-strong);
+      min-height: 80px;
     }
 
-    .report-shell-body .executive-card.primary {
-      border-top-color: var(--brand);
-      background: color-mix(in srgb, var(--brand-soft) 48%, var(--surface));
-    }
-
-    .report-shell-body .executive-card.profit {
-      border-top-color: var(--good);
-      background: color-mix(in srgb, var(--good-bg) 56%, var(--surface));
-    }
-
-    .report-shell-body .executive-card.loss {
-      border-top-color: var(--bad);
-      background: color-mix(in srgb, var(--bad-bg) 56%, var(--surface));
-    }
+    /* Colour variants: text accent only – no coloured backgrounds or thick borders */
+    .report-shell-body .executive-card.primary { }
+    .report-shell-body .executive-card.profit  { }
+    .report-shell-body .executive-card.loss    { }
 
     .report-shell-body .card .label,
     .report-shell-body .executive-card .label,
     .report-shell-body .movement-card .label {
-      margin-bottom: 7px;
+      margin-bottom: 6px;
       color: var(--muted);
-      font-size: 10.5px;
+      font-size: 10px;
       font-weight: 900;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
     }
 
     .report-shell-body .card .value,
     .report-shell-body .executive-card .value {
       color: var(--ink);
-      font-size: 21px;
+      font-size: 20px;
       font-weight: 900;
-      line-height: 1.16;
+      line-height: 1.2;
     }
 
     .report-shell-body .movement-card .value {
       color: var(--ink);
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 900;
       line-height: 1.25;
     }
@@ -670,7 +659,7 @@ function reportShell(opts: {
       justify-content: space-between;
       align-items: flex-end;
       gap: 24px;
-      background: color-mix(in srgb, var(--bad-bg) 36%, var(--surface));
+      background: var(--surface);
       border: 1px solid var(--line);
       border-radius: var(--radius-md);
       padding: 16px 18px;
