@@ -13,6 +13,8 @@ import { WalletIcon } from '../icons/WalletIcon';
 import { InfoIcon } from '../icons/InfoIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { FileSpreadsheetIcon } from '../icons/FileSpreadsheetIcon';
+import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { Investor, InvestorTransaction } from '../../types';
 import { formatNumber } from '../../pages/shared/pageFormat';
@@ -58,8 +60,10 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
     const canReinvest = currentAvailable > 0.01;
     const investmentDays = useMemo(() => diffDaysSince(investor.entryDate), [investor.entryDate]);
     const formattedEntryDate = useMemo(() => new Date(investor.entryDate).toLocaleDateString('fr-FR'), [investor.entryDate]);
-    const primaryActionClass = 'flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-white shadow-sm transition-transform hover:bg-primary-dark active:scale-95';
-    const secondaryActionClass = 'flex w-full items-center justify-center gap-2 rounded-xl bg-neutral-100 py-3 text-sm font-bold text-neutral-700 transition-transform hover:bg-neutral-200 active:scale-95';
+    // Formatted available profit for subtitle
+    const availableFormatted = currentAvailable > 0
+        ? currentAvailable.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' DZD'
+        : null;
     return (<>
       <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel="Capital Investi" primaryValue={investor.capitalInvested} primaryCurrency="DZD" primarySemantic="plain" secondary={[
             { label: 'Profit disponible', value: currentAvailable, currency: 'DZD', semantic: 'auto' },
@@ -84,23 +88,75 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
         ]}/>
 
       <Card>
-        <CardHeader className="p-4 pb-3">
+        <CardHeader className="p-4 pb-2">
           <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>Actions</SectionHeading>
         </CardHeader>
-        <CardContent className="p-4 pt-0">
-          <div className="grid grid-cols-2 gap-3">
-            <Button onClick={onAddCapital} className={primaryActionClass}>
-              <PlusIcon className="w-4 h-4"/> Ajouter Capital
-            </Button>
-            <Button onClick={onWithdrawCapital} className={secondaryActionClass}>
-              <MinusIcon className="w-4 h-4"/> Retirer Capital
-            </Button>
-            <Button onClick={onWithdrawProfit} className={secondaryActionClass}>
-              <WalletIcon className="w-4 h-4"/> Retirer Bénéfices
-            </Button>
-            <Button onClick={onReinvestProfit} disabled={!canReinvest} className={`${primaryActionClass} ${!canReinvest ? 'cursor-not-allowed opacity-40 hover:bg-primary' : ''}`}>
-              <PlusIcon className="w-4 h-4"/> Réinvestir
-            </Button>
+        <CardContent className="p-0">
+          <div className="divide-y divide-neutral-100">
+
+            {/* Ajouter Capital */}
+            <button type="button" onClick={onAddCapital}
+              className="flex w-full items-center gap-4 px-4 py-4 text-start transition-colors hover:bg-neutral-50 active:bg-neutral-100">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-success-bg">
+                <PlusIcon className="w-5 h-5 text-financial-profit"/>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-neutral-900">Ajouter Capital</p>
+                <p className="text-xs text-neutral-400 mt-0.5">Augmenter la mise de l'investisseur</p>
+              </div>
+              <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
+            </button>
+
+            {/* Retirer Capital */}
+            <button type="button" onClick={onWithdrawCapital}
+              className="flex w-full items-center gap-4 px-4 py-4 text-start transition-colors hover:bg-neutral-50 active:bg-neutral-100">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-neutral-100">
+                <MinusIcon className="w-5 h-5 text-neutral-500"/>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-neutral-900">Retirer Capital</p>
+                <p className="text-xs text-neutral-400 mt-0.5">Rembourser une partie du capital</p>
+              </div>
+              <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
+            </button>
+
+            {/* Retirer Bénéfices */}
+            <button type="button" onClick={onWithdrawProfit}
+              className="flex w-full items-center gap-4 px-4 py-4 text-start transition-colors hover:bg-neutral-50 active:bg-neutral-100">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <ArrowUpRightIcon className="w-5 h-5 text-primary"/>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-neutral-900">Retirer Bénéfices</p>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  {availableFormatted
+                    ? <><span className="text-financial-profit font-semibold">{availableFormatted}</span> disponibles</>
+                    : 'Virement du profit au compte'}
+                </p>
+              </div>
+              <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
+            </button>
+
+            {/* Réinvestir */}
+            <button type="button" onClick={canReinvest ? onReinvestProfit : undefined}
+              disabled={!canReinvest}
+              className={`flex w-full items-center gap-4 px-4 py-4 text-start transition-colors ${canReinvest ? 'hover:bg-neutral-50 active:bg-neutral-100' : 'opacity-40 cursor-not-allowed'}`}>
+              <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${canReinvest ? 'bg-secondary/10' : 'bg-neutral-100'}`}>
+                <PlusIcon className={`w-5 h-5 ${canReinvest ? 'text-secondary' : 'text-neutral-400'}`}/>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-neutral-900">Réinvestir les profits</p>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  {canReinvest
+                    ? 'Convertir les bénéfices en capital'
+                    : 'Aucun bénéfice disponible'}
+                </p>
+              </div>
+              {canReinvest
+                ? <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
+                : <span className="text-[10px] font-bold text-neutral-300 shrink-0">—</span>}
+            </button>
+
           </div>
         </CardContent>
       </Card>
