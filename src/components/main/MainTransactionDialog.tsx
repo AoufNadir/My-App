@@ -1,6 +1,7 @@
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { MoneyField } from '../ui/MoneyField';
+import { Textarea } from '../ui/Textarea';
 import { SectionHeading } from '../ui/SectionHeading';
 import { ClientLinker } from './ClientLinker';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -11,7 +12,7 @@ import { parseAndEvaluate } from '../../utils';
 import { formatNumber } from '../../pages/shared/pageFormat';
 import { getFirstValidationMessage } from '../../utils/financialUx';
 type MainTransactionDialogProps = Record<string, any>;
-export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, cardBase, t, subtleText, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, suggestedSellingPrice, suggestedUsdtEurSellPrice, suggestedSellingPriceEur, suggestedProfitMargin, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving }: MainTransactionDialogProps) {
+export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, suggestedSellingPrice, suggestedUsdtEurSellPrice, suggestedSellingPriceEur, suggestedProfitMargin, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving }: MainTransactionDialogProps) {
     const hasPrimaryClient = Boolean(linkedClientId && linkedClientId !== 'none');
     const selectedClientTotal = hasPrimaryClient
         ? Math.abs(Number(clientBalances?.get?.(linkedClientId) || 0))
@@ -460,6 +461,18 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, ca
                 }} currency="DZD" error={formValidation.errors['buyEurTotal']} hint={t('transactions.autoCalc')} placeholder={t('transactions.autoCalc')}/>
                                 <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} errorMessage={formValidation.errors['linkedClientId']} hasError={!!formValidation.errors['linkedClientId']} errorMessageDzd={formValidation.errors['linkedClientDzdId']} hasErrorDzd={!!formValidation.errors['linkedClientDzdId']}/>
                             </div>)}
+
+                        {/* Notes (optional) */}
+                        {(mode !== 'buy_usdt' || buyUsdtMode) && (
+                            <Textarea
+                                label={t('common.notesOptional') as string}
+                                value={notes ?? ''}
+                                onChange={(e) => setNotes?.(e.target.value)}
+                                rows={2}
+                                placeholder="Ex: OTC, client urgent, remarque..."
+                                className="resize-none text-sm"
+                            />
+                        )}
 
                         {/* Compact summary (only when there's data) */}
                         {transactionSummary && transactionSummary.profitEstimate !== null && (<div className={`rounded-xl px-3 py-2 text-sm flex items-center justify-between gap-2 ${transactionSummary.profitEstimate >= 0 ? 'bg-financial-profit-bg' : 'bg-financial-loss-bg'}`}>
