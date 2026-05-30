@@ -111,6 +111,33 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
         }
         return { visibleDateGroups: visibleGroups, hiddenTransactionCount: hidden, totalTransactionCount: total };
     }, [dates, groupedHistory, visibleTransactionCount]);
+    const clientStats = useMemo(() => {
+        const allTxs = Object.values(groupedHistory).flat();
+        let totalReceived = 0;
+        let totalPaid = 0;
+        let lastTs = 0;
+        let firstTs = Infinity;
+        const nowMs = Date.now();
+        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+        let monthCount = 0;
+        for (const tx of allTxs) {
+            const amount = Math.abs(Number(tx.montant || 0));
+            if (tx.type === 'Règlement Reçu') totalReceived += amount;
+            else if (tx.type === 'Paiement Effectué') totalPaid += amount;
+            if (tx.timestamp > lastTs) lastTs = tx.timestamp;
+            if (tx.timestamp < firstTs) firstTs = tx.timestamp;
+            if (tx.timestamp >= monthStart && tx.timestamp <= nowMs) monthCount++;
+        }
+        return {
+            totalReceived,
+            totalPaid,
+            txCount: allTxs.length,
+            monthCount,
+            lastDate: lastTs > 0 ? new Date(lastTs).toLocaleDateString('fr-FR') : null,
+            firstDate: firstTs < Infinity ? new Date(firstTs).toLocaleDateString('fr-FR') : null,
+            daysSinceLast: lastTs > 0 ? Math.floor((nowMs - lastTs) / 86_400_000) : null,
+        };
+    }, [groupedHistory]);
     const balanceStatusLabel = selectedClientBalance > 0.01
         ? 'Avance'
         : selectedClientBalance < -0.01
@@ -196,6 +223,44 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                 </>) : (<EmptyState icon={<InfoIcon className="w-5 h-5"/>} title="Aucune information de contact" subtitle="Modifiez le client pour ajouter telephone, email ou RedotPay ID."/>)}
             </CardContent>
           </Card>
+
+          {clientStats.txCount > 0 && (
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <SectionHeading icon={<FileSpreadsheetIcon className="w-4 h-4"/>}>Résumé financier</SectionHeading>
+              </CardHeader>
+              <CardContent className="p-0 divide-y divide-neutral-100">
+                <div className="flex items-center justify-between gap-3 px-4 py-3">
+                  <span className="text-sm text-neutral-500">Total reçu</span>
+                  <CurrencyAmount value={clientStats.totalReceived} currency="DZD" semantic="profit" size="md" decimals={0}/>
+                </div>
+                <div className="flex items-center justify-between gap-3 px-4 py-3">
+                  <span className="text-sm text-neutral-500">Total payé</span>
+                  <CurrencyAmount value={clientStats.totalPaid} currency="DZD" semantic="loss" size="md" decimals={0}/>
+                </div>
+                <div className="flex items-center justify-between gap-3 px-4 py-3">
+                  <span className="text-sm text-neutral-500">Ce mois</span>
+                  <span className="text-sm font-semibold text-neutral-800">
+                    <span className="tabular-nums">{clientStats.monthCount}</span> op{clientStats.monthCount !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                {clientStats.firstDate && (
+                  <div className="flex items-center justify-between gap-3 px-4 py-3">
+                    <span className="text-sm text-neutral-500">Client depuis</span>
+                    <span className="text-sm font-semibold text-neutral-800" dir="ltr">{clientStats.firstDate}</span>
+                  </div>
+                )}
+                {clientStats.daysSinceLast !== null && (
+                  <div className="flex items-center justify-between gap-3 px-4 py-3">
+                    <span className="text-sm text-neutral-500">Dernière op.</span>
+                    <span className={`text-sm font-semibold ${clientStats.daysSinceLast > 30 ? 'text-financial-loss' : 'text-neutral-800'}`}>
+                      {clientStats.daysSinceLast === 0 ? "Aujourd'hui" : `${clientStats.daysSinceLast}j`}
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>)}
 
       {activeTab === 'history' && (<Card>
