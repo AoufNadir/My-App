@@ -81,7 +81,6 @@ export function AnalyticsReportCard({
     setSelectedHeatmapDay,
 }: AnalyticsReportCardProps) {
     const [activeTab, setActiveTab] = useState<'monthly' | 'clients' | 'exports'>('monthly');
-    const [isClientRankingVisible, setIsClientRankingVisible] = useState(true);
 
     const topProfitableRows = [...monthlyClientRanking.rankedRows]
         .filter((row) => row.sellCount > 0)
@@ -123,6 +122,7 @@ export function AnalyticsReportCard({
         { label: t('portfolio.eurBought'), value: calculatedStats.volEurBought, currency: 'EUR' as const },
         { label: t('portfolio.eurSold'), value: calculatedStats.volEurSold, currency: 'EUR' as const },
     ];
+    // Simplified 3-column table: Name | Ventes USDT | Profit
     const columns: MobileTableColumn<MonthlyClientRank>[] = [
         {
             key: 'client',
@@ -131,42 +131,25 @@ export function AnalyticsReportCard({
                 const index = topProfitableRows.findIndex((item) => item.clientId === row.clientId);
                 return (
                     <div className="flex min-w-0 items-center gap-2">
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-sm font-bold text-neutral-700">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-bold text-neutral-600">
                             {index + 1}
                         </span>
-                        <span className="truncate font-semibold">{row.clientName}</span>
+                        <span className="truncate text-sm font-semibold">{row.clientName}</span>
                     </div>
                 );
             },
         },
         {
-            key: 'buyVolumeUsdt',
-            label: t('portfolio.buyVolumeUsdt'),
-            align: 'end',
-            render: (row) => <CurrencyAmount value={row.buyVolumeUsdt} currency="USDT" semantic="plain" size="sm" decimals={2}/>,
-        },
-        {
             key: 'sellVolumeUsdt',
             label: t('portfolio.sellVolumeUsdt'),
             align: 'end',
-            render: (row) => <CurrencyAmount value={row.sellVolumeUsdt} currency="USDT" semantic="plain" size="sm" decimals={2}/>,
-        },
-        {
-            key: 'totalVolumeUsdt',
-            label: t('portfolio.totalVolumeUsdt'),
-            align: 'end',
-            render: (row) => <CurrencyAmount value={row.totalVolumeUsdt} currency="USDT" semantic="plain" size="sm" decimals={2}/>,
+            render: (row) => <CurrencyAmount value={row.sellVolumeUsdt} currency="USDT" semantic="plain" size="sm" decimals={0}/>,
         },
         {
             key: 'realizedProfit',
             label: t('portfolio.realizedProfit'),
             align: 'end',
-            render: (row) => <CurrencyAmount value={row.realizedProfit} currency="DZD" semantic="auto" showSign size="sm" decimals={2}/>,
-        },
-        {
-            key: 'txCount',
-            label: t('portfolio.txCount'),
-            align: 'end',
+            render: (row) => <CurrencyAmount value={row.realizedProfit} currency="DZD" semantic="auto" showSign size="sm" decimals={0}/>,
         },
     ];
 
@@ -215,8 +198,6 @@ export function AnalyticsReportCard({
                     topProfitableRows={topProfitableRows}
                     monthlyClientRanking={monthlyClientRanking}
                     columns={columns}
-                    isClientRankingVisible={isClientRankingVisible}
-                    setIsClientRankingVisible={setIsClientRankingVisible}
                 />
             )}
 
@@ -325,36 +306,37 @@ type ClientsPanelProps = {
     setIsClientRankingVisible: (value: boolean | ((previous: boolean) => boolean)) => void;
 };
 
-function ClientsPanel({ t, topProfitableRows, monthlyClientRanking, columns, isClientRankingVisible, setIsClientRankingVisible }: ClientsPanelProps) {
+function ClientsPanel({ t, topProfitableRows, monthlyClientRanking, columns }: Omit<ClientsPanelProps, 'isClientRankingVisible' | 'setIsClientRankingVisible'>) {
     return (
         <div className="space-y-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <TopClientTile
-                    label={t('portfolio.topTradedClient')}
-                    client={monthlyClientRanking.topTradedClient}
-                    emptyText={t('portfolio.noClientMonthlyData')}
-                    value={(client) => <CurrencyAmount value={client.totalVolumeUsdt} currency="USDT" semantic="plain" size="lg" decimals={2}/>}
-                    hint={(client) => `${t('portfolio.txCount')}: ${client.txCount}`}
-                />
-                <TopClientTile
-                    label={t('portfolio.topProfitableClient')}
-                    client={monthlyClientRanking.topProfitableClient}
-                    emptyText={t('portfolio.noClientMonthlyData')}
-                    value={(client) => <CurrencyAmount value={client.realizedProfit} currency="DZD" semantic="auto" showSign size="lg" decimals={2}/>}
-                    hint={(client) => `${t('portfolio.sellCount')}: ${client.sellCount}`}
-                />
+            {/* Top 2 summary tiles — compact */}
+            <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-border bg-surface-muted p-3">
+                    <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.topTradedClient')}</p>
+                    {monthlyClientRanking.topTradedClient ? (<>
+                        <p className="text-sm font-bold text-neutral-800 truncate">{monthlyClientRanking.topTradedClient.clientName}</p>
+                        <CurrencyAmount value={monthlyClientRanking.topTradedClient.sellVolumeUsdt} currency="USDT" semantic="plain" size="sm" decimals={0}/>
+                        <p className="text-[9px] text-neutral-400 mt-0.5">{monthlyClientRanking.topTradedClient.sellCount} ventes</p>
+                    </>) : <p className="text-xs text-neutral-400">—</p>}
+                </div>
+                <div className="rounded-xl border border-border bg-surface-muted p-3">
+                    <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.topProfitableClient')}</p>
+                    {monthlyClientRanking.topProfitableClient ? (<>
+                        <p className="text-sm font-bold text-neutral-800 truncate">{monthlyClientRanking.topProfitableClient.clientName}</p>
+                        <CurrencyAmount value={monthlyClientRanking.topProfitableClient.realizedProfit} currency="DZD" semantic="auto" showSign size="sm" decimals={0}/>
+                        <p className="text-[9px] text-neutral-400 mt-0.5">{monthlyClientRanking.topProfitableClient.sellCount} ventes</p>
+                    </>) : <p className="text-xs text-neutral-400">—</p>}
+                </div>
             </div>
 
-            <Card>
-                <CardHeader className="flex-row items-center justify-between gap-3 p-4 pb-3">
-                    <SectionHeading icon={<FileSpreadsheetIcon className="h-4 w-4" />}>
-                        {t('portfolio.topFiveProfit')}
-                    </SectionHeading>
-                    <Button type="button" variant="outline" size="sm" onClick={() => setIsClientRankingVisible((previous) => !previous)}>
-                        {isClientRankingVisible ? t('common.hide') : t('common.show')}
-                    </Button>
-                </CardHeader>
-                {isClientRankingVisible && (
+            {/* Top 5 compact table */}
+            {topProfitableRows.length > 0 && (
+                <Card>
+                    <CardHeader className="p-4 pb-3">
+                        <SectionHeading icon={<UsersIcon className="h-4 w-4" />}>
+                            {t('portfolio.topFiveProfit')}
+                        </SectionHeading>
+                    </CardHeader>
                     <CardContent className="p-4 pt-0">
                         <MobileTable
                             columns={columns}
@@ -364,8 +346,8 @@ function ClientsPanel({ t, topProfitableRows, monthlyClientRanking, columns, isC
                             emptySubtitle={t('portfolio.emptyPeriod')}
                         />
                     </CardContent>
-                )}
-            </Card>
+                </Card>
+            )}
         </div>
     );
 }

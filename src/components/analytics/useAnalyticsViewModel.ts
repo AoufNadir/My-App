@@ -151,13 +151,14 @@ export function useAnalyticsViewModel({ transactions, usdtReportMonth, usdtRepor
             totalVolumeUsdt: row.buyVolumeUsdt + row.sellVolumeUsdt
         }))
             .sort((a, b) => {
-            if (b.totalVolumeUsdt !== a.totalVolumeUsdt)
-                return b.totalVolumeUsdt - a.totalVolumeUsdt;
+            // Sort by sell volume only (not buy+sell)
+            if (b.sellVolumeUsdt !== a.sellVolumeUsdt)
+                return b.sellVolumeUsdt - a.sellVolumeUsdt;
             if (b.realizedProfit !== a.realizedProfit)
                 return b.realizedProfit - a.realizedProfit;
             return a.clientName.localeCompare(b.clientName, 'fr');
         });
-        const topTradedClient = rankedRows.length > 0 ? rankedRows[0] : null;
+        const topTradedClient = rankedRows.filter(r => r.sellVolumeUsdt > 0)[0] ?? null;
         const topProfitableCandidates = rankedRows.filter((row) => row.sellCount > 0);
         const topProfitableClient = topProfitableCandidates.length > 0
             ? [...topProfitableCandidates].sort((a, b) => {
