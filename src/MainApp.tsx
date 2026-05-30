@@ -1738,6 +1738,34 @@ export default function MainApp({ user }: {
         }
         setAlert(`✅ Import: ${added} ajouté${added > 1 ? 's' : ''}, ${skipped} ignoré${skipped > 1 ? 's' : ''}.`);
     };
+    // Client loyalty scores — computed from last 30 days activity
+    const clientLoyaltyMap = useMemo<Map<string, 'vip' | 'regular' | 'new' | 'inactive'>>(() => {
+        const now = Date.now();
+        const thirtyDaysAgo = now - 30 * 86_400_000;
+        // Group txs by clientId
+        const txsByClient = new Map<string, typeof clientTransactionsDzd>();
+        for (const tx of clientTransactionsDzd) {
+            const list = txsByClient.get(tx.clientId) || [];
+            list.push(tx);
+            txsByClient.set(tx.clientId, list);
+        }
+        const result = new Map<string, 'vip' | 'regular' | 'new' | 'inactive'>();
+        for (const client of clientsDzd) {
+            const txs = txsByClient.get(client.id) || [];
+            if (txs.length === 0) { result.set(client.id, 'new'); continue; }
+            const firstTs = Math.min(...txs.map(t => t.timestamp));
+            const lastTs = Math.max(...txs.map(t => t.timestamp));
+            const recentCount = txs.filter(t => t.timestamp >= thirtyDaysAgo).length;
+            const isNew = firstTs >= thirtyDaysAgo;
+            if (isNew && recentCount <= 2) { result.set(client.id, 'new'); continue; }
+            if (lastTs < thirtyDaysAgo) { result.set(client.id, 'inactive'); continue; }
+            if (recentCount >= 10) { result.set(client.id, 'vip'); continue; }
+            if (recentCount >= 3) { result.set(client.id, 'regular'); continue; }
+            result.set(client.id, 'inactive');
+        }
+        return result;
+    }, [clientTransactionsDzd, clientsDzd]);
+
     const clientsPageProps = useMemo(() => ({
         selectedClientId,
         setSelectedClientId,
@@ -1763,12 +1791,13 @@ export default function MainApp({ user }: {
         handleEditClientTx: handleEditLinkedClientTx,
         handleDeleteClientTxClick: handleDeleteLinkedClientTxClick,
         overdueDebtClients,
+        clientLoyaltyMap,
         onImportClients: handleImportClients,
     }), [
         selectedClientId, clientSearchQuery, clientSortMode,
         filteredClientsDzd, clientBalances, selectedClient, selectedClientTransactions, transactions, copiedValue,
         openClientModal, handleTouchStart, handleTouchEnd, handleClientDeleteRequest, handleExportClientReport, openClientTxModal,
-        handleCopy, handleEditLinkedClientTx, handleDeleteLinkedClientTxClick, overdueDebtClients
+        handleCopy, handleEditLinkedClientTx, handleDeleteLinkedClientTxClick, overdueDebtClients, clientLoyaltyMap
     ]);
     if (isInvestorRoute) {
         const investor = derivedInvestors.find(i => i.id === investorIdFromUrl) || derivedInvestors[0];

@@ -59,9 +59,18 @@ type ClientsListViewProps = {
     setClientToDelete: (client: ClientDzd | null) => void;
     setSelectedClientId: (id: string | null) => void;
     overdueDebtClients: OverdueDebtClient[];
+    clientLoyaltyMap?: Map<string, 'vip' | 'regular' | 'new' | 'inactive'>;
     onImportClients?: (rows: Record<string, string>[]) => Promise<void>;
 };
-export function ClientsListView({ openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, setSelectedClientId, overdueDebtClients, onImportClients }: ClientsListViewProps) {
+
+const LOYALTY_CONFIG = {
+    vip:      { label: '🏆 VIP',      cls: 'bg-warning-bg text-warning border border-warning/30' },
+    regular:  { label: '⭐ Régulier', cls: 'bg-primary/10 text-primary border border-primary/20' },
+    new:      { label: '🆕 Nouveau',  cls: 'bg-success-bg text-financial-profit border border-success/30' },
+    inactive: { label: '💤 Inactif',  cls: 'bg-neutral-100 text-neutral-400 border border-neutral-200' },
+} as const;
+
+export function ClientsListView({ openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, setSelectedClientId, overdueDebtClients, clientLoyaltyMap, onImportClients }: ClientsListViewProps) {
     const INITIAL_VISIBLE_CLIENTS = 80;
     const LOAD_MORE_CLIENTS = 80;
     const [visibleClientCount, setVisibleClientCount] = useState(INITIAL_VISIBLE_CLIENTS);
@@ -157,7 +166,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                         <UserIcon className="w-5 h-5"/>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <p className="truncate text-sm font-semibold text-neutral-900">{fullName}</p>
                           {overdue && (<span className="shrink-0 inline-flex items-center gap-0.5 text-financial-loss" title={`${overdue.daysOverdue} jours de retard`}>
                               <AlertTriangleIcon className="w-3.5 h-3.5"/>
@@ -168,11 +177,22 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                             if (!limit || limit <= 0) return null;
                             const debt = -(clientBalances.get(client.id) || 0);
                             if (debt <= limit) return null;
-                            return (<span className="shrink-0 text-warning" title={`Seuil dépassé: ${Math.round(debt).toLocaleString('fr-FR')} / ${Math.round(limit).toLocaleString('fr-FR')} DZD`}>
+                            return (<span className="shrink-0 text-warning" title={`Seuil dépassé`}>
                                 <AlertTriangleIcon className="w-3.5 h-3.5"/>
                               </span>);
                           })()}
                         </div>
+                        {/* Loyalty badge */}
+                        {clientLoyaltyMap && (() => {
+                          const tier = clientLoyaltyMap.get(client.id);
+                          if (!tier || tier === 'inactive') return null; // hide inactive to avoid noise
+                          const cfg = LOYALTY_CONFIG[tier];
+                          return (
+                            <span className={`inline-block mt-0.5 rounded-full px-1.5 py-0 text-[9px] font-bold leading-4 ${cfg.cls}`}>
+                              {cfg.label}
+                            </span>
+                          );
+                        })()}
                       </div>
                       <div className="shrink-0 flex flex-col items-end gap-0.5">
                         {balance !== 0 && (<CurrencyAmount value={Math.abs(balance)} currency="DZD" size="md" className={balance < 0 ? 'text-financial-debt' : 'text-financial-profit'}/>)}
