@@ -443,7 +443,11 @@ export default function MainApp({ user }: {
         const monthStartTs = monthStart.getTime();
         const yearStartTs = yearStart.getTime();
         const nowTs = now.getTime();
+        const dow = now.getDay(); // 0=Sun..6=Sat
+        const daysToMon = dow === 0 ? 6 : dow - 1;
+        const weekStartTs = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToMon, 0, 0, 0, 0).getTime();
         let todayProfit = 0;
+        let weekToDateProfit = 0;
         let monthToDateProfit = 0;
         let yearToDateProfit = 0;
         let allTimeProfit = 0;
@@ -470,6 +474,7 @@ export default function MainApp({ user }: {
                 allTimeEurSold += quantity;
             else
                 allTimeUsdtSold += quantity;
+            if (tx.timestamp >= weekStartTs) weekToDateProfit += derivedProfit;
             if (tx.timestamp >= dayStartTs) {
                 todayProfit += derivedProfit;
                 todaySellCount++;
@@ -510,6 +515,7 @@ export default function MainApp({ user }: {
             activeClients: activeClientIds.size,
             todayProfit,
             todaySellCount,
+            weekToDateProfit,
             monthToDateProfit,
             yearToDateProfit,
             allTimeProfit,

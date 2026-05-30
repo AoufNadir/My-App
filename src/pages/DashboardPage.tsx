@@ -26,6 +26,7 @@ type DashboardPageProps = {
         activeClients: number;
         todayProfit: number;
         todaySellCount?: number;
+        weekToDateProfit?: number;
         monthToDateProfit: number;
         yearToDateProfit: number;
         allTimeProfit: number;
@@ -106,7 +107,7 @@ function renderDebtPriorityBody(template: string, amount: number, days: number, 
     return (<>
       {template.split(/(\{amount\}|\{days\}|\{date\})/g).map((part, index) => {
             if (part === '{amount}') {
-                return <CurrencyAmount key={index} value={amount} currency="DZD" decimals={2} size="sm" className="font-semibold text-danger dark:text-danger-light"/>;
+                return <CurrencyAmount key={index} value={amount} currency="DZD" decimals={2} size="sm" className="font-semibold text-danger"/>;
             }
             if (part === '{days}') {
                 return <span key={index} dir="ltr" className="tabular-nums">{days}</span>;
@@ -474,7 +475,7 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
 
       <TodaySummary title={t('dashboard.profitSummary') as string} last7DaysProfit={dailyOverview.last7DaysProfit} todaySellCount={dailyOverview.todaySellCount} items={[
             { label: t('dashboard.profitYear') as string, value: dailyOverview.yearToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
-            { label: t('dashboard.profitAllTime') as string, value: Number(dailyOverview.allTimeProfit ?? globalNetProfit), semantic: 'auto', icon: <TrendingUpIcon className="h-4 w-4"/> },
+            { label: 'Cette semaine', value: dailyOverview.weekToDateProfit ?? 0, semantic: 'auto', icon: <TrendingUpIcon className="h-4 w-4"/> },
             { label: t('dashboard.profitMonth') as string, value: dailyOverview.monthToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
             { label: t('dashboard.profitToday') as string, value: dailyOverview.todayProfit, semantic: 'auto', icon: <BriefcaseIcon className="h-4 w-4"/> }
         ]}/>
