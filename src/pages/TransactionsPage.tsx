@@ -106,6 +106,7 @@ export function TransactionsPage({
     handleDeleteSavedFilter,
     handleEditDisplayTx,
     handleDeleteDisplayTx,
+    profitByTxId,
   } = useTransactionsViewModel({
     t: t as (key: string) => string,
     filterMode,
@@ -193,6 +194,7 @@ export function TransactionsPage({
         onEditDisplayTx={handleEditDisplayTx}
         onDeleteDisplayTx={handleDeleteDisplayTx}
         formatDzdAmount={formatDzdAmount}
+        profitByTxId={profitByTxId}
       />
 
       <NewTransactionMenuDialog

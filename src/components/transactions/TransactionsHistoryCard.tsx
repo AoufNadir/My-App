@@ -40,6 +40,7 @@ type TransactionsHistoryCardProps = {
   onEditDisplayTx: (tx: DisplayTx) => void;
   onDeleteDisplayTx: (tx: DisplayTx) => void;
   formatDzdAmount: (value: number) => string;
+  profitByTxId?: Record<string, { derivedProfit: number }>;
 };
 
 export function TransactionsHistoryCard({
@@ -59,6 +60,7 @@ export function TransactionsHistoryCard({
   onEditDisplayTx,
   onDeleteDisplayTx,
   formatDzdAmount,
+  profitByTxId,
 }: TransactionsHistoryCardProps) {
   const INITIAL_VISIBLE = 120;
   const LOAD_MORE_COUNT = 120;
@@ -444,6 +446,15 @@ export function TransactionsHistoryCard({
                             {tx.sourceType === 'usdt_tx' && unitPrice > 0 && (
                               <p dir="ltr" className="text-xs text-neutral-500">@ {unitPriceLabel}</p>
                             )}
+                            {tx.sourceType === 'usdt_tx' && cryptoTx.type === 'sell' && profitByTxId?.[cryptoTx.id] && (() => {
+                              const profit = profitByTxId[cryptoTx.id].derivedProfit;
+                              if (Math.abs(profit) < 0.5) return null;
+                              return (
+                                <p dir="ltr" className={`text-[10px] font-bold tabular-nums ${profit >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
+                                  {profit >= 0 ? '+' : ''}{Math.round(profit).toLocaleString('fr-FR')} DZD
+                                </p>
+                              );
+                            })()}
                           </div>
                         </div>
                       </SwipeableListItem>

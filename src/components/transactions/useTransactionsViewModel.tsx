@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx } from '../../types';
+import { computePamLedger } from '../../utils/pamLedger';
 import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
 import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { UsersIcon } from '../icons/UsersIcon';
@@ -564,6 +565,8 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
             return acc;
         }, {} as Record<string, DisplayTx[]>);
     }, [filteredTransactions]);
+    const pamLedger = useMemo(() => computePamLedger(transactions), [transactions]);
+
     return {
         savedFilters,
         txFilterLabels,
@@ -574,6 +577,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
         handleApplySavedFilter,
         handleDeleteSavedFilter,
         handleEditDisplayTx,
-        handleDeleteDisplayTx
+        handleDeleteDisplayTx,
+        profitByTxId: pamLedger.profitByTxId,
     };
 }
