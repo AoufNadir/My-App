@@ -18,7 +18,7 @@ import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
 import { UsersIcon } from '../components/icons/UsersIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
 import { ShareIcon } from '../components/icons/ShareIcon';
-import type { OverdueDebtClient, TreasuryCard } from '../types';
+import type { OverdueDebtClient, Tx, TreasuryCard } from '../types';
 import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
 import { useLanguage } from '../contexts/LanguageContext';
 type DashboardPageProps = {
@@ -61,6 +61,8 @@ type DashboardPageProps = {
     onOpenTreasury: () => void;
     onOpenAnalytics: () => void;
     onOpenPersonalWithdrawal?: () => void;
+    recentTransactions?: Tx[];
+    onOpenTransactions?: () => void;
 };
 type Tone = 'success' | 'warning' | 'danger' | 'info';
 type PriorityItem = {
@@ -356,7 +358,7 @@ function DashboardSyncState({ title, body, actions, }: {
       <ActionStrip actions={actions}/>
     </div>);
 }
-export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, totals, treasuryCards, investorLiability = 0, investorBreakdown, servicesSummary, overdueDebtClients, globalNetProfit, isDataSyncing = false, onNewTransaction, onOpenClients, onOpenClient, onOpenClientDebts, onOpenTreasury, onOpenAnalytics, onOpenPersonalWithdrawal, }: DashboardPageProps) {
+export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, totals, treasuryCards, investorLiability = 0, investorBreakdown, servicesSummary, overdueDebtClients, globalNetProfit, isDataSyncing = false, onNewTransaction, onOpenClients, onOpenClient, onOpenClientDebts, onOpenTreasury, onOpenAnalytics, onOpenPersonalWithdrawal, recentTransactions = [], onOpenTransactions }: DashboardPageProps) {
     const { t } = useLanguage();
     const [shareCopied, setShareCopied] = useState(false);
     const [monthlyGoal, setMonthlyGoal] = useState<number>(() => Number(localStorage.getItem(MONTHLY_GOAL_KEY) || 0));
@@ -561,6 +563,51 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
       <PriorityList title={t('dashboard.attentionNeeded') as string} items={priorities} onTitleClick={onOpenClientDebts}/>
 
       <PortfolioStatusCard title={t('portfolio.currentStatus') as string} stockLabel={t('finance.stock') as string} valueLabel={t('transactions.value') as string} portfolioStats={portfolioStats} stockValue={stockValue}/>
+
+      {/* Recent portfolio transactions */}
+      {recentTransactions.length > 0 && (
+        <Card>
+          <CardHeader className="p-4 pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <SectionHeading icon={<ArrowRightLeftIcon className="w-4 h-4"/>}>Dernières opérations</SectionHeading>
+              {onOpenTransactions && (
+                <button type="button" onClick={onOpenTransactions} className="text-xs font-semibold text-primary hover:underline">
+                  Tout voir
+                </button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="p-0 divide-y divide-neutral-100">
+            {recentTransactions.map((tx) => {
+              const isBuy = tx.type === 'buy';
+              const qty = Number(tx.quantity || 0);
+              const price = Number(tx.price ?? tx.sell ?? 0);
+              const total = Number(tx.total ?? (qty * price));
+              return (
+                <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${isBuy ? 'bg-success-bg text-financial-profit' : 'bg-danger-bg text-financial-loss'}`}>
+                    {isBuy ? '+' : '−'}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold">
+                      {isBuy ? 'Achat' : 'Vente'} <span className="text-neutral-500">{tx.currency}</span>
+                    </p>
+                    <p className="text-xs text-neutral-400">{tx.date} · {tx.time}</p>
+                  </div>
+                  <div className="text-end shrink-0">
+                    <p dir="ltr" className="text-sm font-bold tabular-nums text-neutral-800">
+                      {qty.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} {tx.currency}
+                    </p>
+                    <p dir="ltr" className="text-xs text-neutral-500 tabular-nums">
+                      {price > 0 ? `@ ${price.toFixed(2)}` : ''} {total > 0 ? `= ${Math.round(total).toLocaleString('fr-FR')} DZD` : ''}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       <MoneyMap title={t('dashboard.moneyMap') as string} rows={[
             { label: 'Caisse', value: Number(treasuryStats?.caisse || 0), icon: <WalletIcon className="h-4 w-4"/> },
