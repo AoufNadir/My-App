@@ -1943,7 +1943,13 @@ export default function MainApp({ user }: {
     // Surface a recap of the previous month's realized profit on first
     // visit of a new month. Banner self-dismisses (persisted in localStorage).
     const { recap: monthlyRecap, dismiss: dismissMonthlyRecap } = useMonthlyRecap(transactions, pamLedger);
-    const { recap: weeklyRecap, dismiss: dismissWeeklyRecap } = useWeeklyRecap(transactions, pamLedger);
+    const { recap: weeklyRecap, dismiss: dismissWeeklyRecap } = useWeeklyRecap({
+        transactions,
+        clientTransactionsDzd,
+        clientsDzd,
+        getClientFullName,
+        providedPamLedger: pamLedger,
+    });
     const [isCalcOpen, setIsCalcOpen] = React.useState(false);
 
     const handleExportBackup = React.useCallback(() => {
