@@ -195,7 +195,7 @@ export function useAnalyticsViewModel({ transactions, usdtReportMonth, usdtRepor
             row.txCount += 1;
         });
         const rows = Array.from(ranksByClient.values()).map((r) => ({ ...r, totalVolumeUsdt: r.buyVolumeUsdt + r.sellVolumeUsdt }));
-        const byVolume = [...rows].sort((a, b) => b.totalVolumeUsdt - a.totalVolumeUsdt).slice(0, 5);
+        const byVolume = [...rows].filter((r) => r.sellVolumeUsdt > 0).sort((a, b) => b.sellVolumeUsdt - a.sellVolumeUsdt).slice(0, 5);
         const byProfit = [...rows].filter((r) => r.sellCount > 0).sort((a, b) => b.realizedProfit - a.realizedProfit).slice(0, 5);
         return { byVolume, byProfit };
     }, [transactions, clientTransactionsDzd, clientsDzd, getClientFullName, pamLedger, t]);

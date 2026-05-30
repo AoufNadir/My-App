@@ -63,12 +63,6 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
     const selectedMonthLabel = monthOptions[props.usdtReportMonth] || `${props.usdtReportMonth + 1}`;
     const analyticsReportCardProps = { ...props, t, calculatedStats, monthlyClientRanking, heatmapData };
 
-    // Trend display
-    const trendColor = annualStats.trend === null ? 'text-neutral-500'
-        : annualStats.trend > 0 ? 'text-financial-profit' : 'text-financial-loss';
-    const trendLabel = annualStats.trend === null ? '—'
-        : `${annualStats.trend > 0 ? '+' : ''}${annualStats.trend.toFixed(1)}% vs mois précédent`;
-
     return (
         <div className="anim-page-in space-y-4">
             <PageHeader
@@ -86,7 +80,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                 secondary={[
                     { label: t('portfolio.usdtSold') as string, value: calculatedStats.volUsdtSold, currency: 'USDT', semantic: 'plain' },
                     { label: t('portfolio.eurSold') as string, value: calculatedStats.volEurSold, currency: 'EUR', semantic: 'plain' },
-                    { label: 'Tendance', value: 0, display: <span className={`text-base font-semibold ${trendColor}`}>{trendLabel}</span> },
+                    { label: 'Ventes', value: calculatedStats.sellCount, currency: null, semantic: 'plain' },
                 ]}
             />
 
@@ -129,21 +123,23 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                 </div>
                                 {(() => { const c = pctChange(calculatedStats.avgProfitPerSell, prevMonthStats.avgProfitPerSell); return c ? <p className={`mt-0.5 text-[10px] font-bold ${c.cls}`}>{c.label}</p> : null; })()}
                             </div>
-                            {/* Profit total */}
+                            {/* Best sell */}
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[11px] font-bold uppercase text-neutral-500">Profit total</p>
+                                <p className="text-[11px] font-bold uppercase text-neutral-500">Meilleure vente</p>
                                 <div className="mt-2">
-                                    <CurrencyAmount value={calculatedStats.realizedProfit} currency="DZD" semantic="auto" size="lg" decimals={0}/>
+                                    {calculatedStats.bestSellProfit > 0
+                                        ? <CurrencyAmount value={calculatedStats.bestSellProfit} currency="DZD" semantic="profit" size="lg" decimals={0}/>
+                                        : <span className="text-neutral-400 text-lg font-bold">—</span>}
                                 </div>
-                                {(() => { const c = pctChange(calculatedStats.realizedProfit, prevMonthStats.realizedProfit); return c ? <p className={`mt-0.5 text-[10px] font-bold ${c.cls}`}>{c.label}</p> : null; })()}
+                                <p className="mt-1 text-[10px] text-neutral-400">transaction unique</p>
                             </div>
-                            {/* USDT volume */}
+                            {/* Sell count */}
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[11px] font-bold uppercase text-neutral-500">Volume USDT</p>
+                                <p className="text-[11px] font-bold uppercase text-neutral-500">Nb ventes</p>
                                 <div className="mt-2">
-                                    <CurrencyAmount value={calculatedStats.volUsdtSold} currency="USDT" semantic="plain" size="lg" decimals={0}/>
+                                    <span className="text-2xl font-extrabold tabular-nums text-neutral-800">{calculatedStats.sellCount}</span>
                                 </div>
-                                {(() => { const c = pctChange(calculatedStats.volUsdtSold, prevMonthStats.volUsdtSold); return c ? <p className={`mt-0.5 text-[10px] font-bold ${c.cls}`}>{c.label}</p> : null; })()}
+                                {(() => { const c = pctChange(calculatedStats.sellCount, prevMonthStats.sellCount); return c ? <p className={`mt-0.5 text-[10px] font-bold ${c.cls}`}>{c.label}</p> : null; })()}
                             </div>
                         </div>
                     </CardContent>
@@ -283,22 +279,22 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                         </SectionHeading>
                     </CardHeader>
                     <CardContent className="p-4 pt-0 space-y-4">
-                        {/* By volume */}
+                        {/* By sell volume (sales only) */}
                         {allTimeClientRanking.byVolume.length > 0 && (() => {
-                            const maxVol = Math.max(...allTimeClientRanking.byVolume.map((r) => r.totalVolumeUsdt), 1);
+                            const maxVol = Math.max(...allTimeClientRanking.byVolume.map((r) => r.sellVolumeUsdt), 1);
                             return (
                                 <div>
-                                    <p className="mb-2 text-[11px] font-bold uppercase text-neutral-400">Volume USDT échangé</p>
+                                    <p className="mb-2 text-[11px] font-bold uppercase text-neutral-400">Volume USDT vendu</p>
                                     <div className="space-y-2">
                                         {allTimeClientRanking.byVolume.map((row, i) => (
                                             <div key={row.clientId} className="flex items-center gap-2">
                                                 <span className="w-4 text-[10px] font-bold text-neutral-400 shrink-0">{i + 1}</span>
                                                 <span className="w-24 text-xs font-semibold truncate shrink-0">{row.clientName}</span>
                                                 <div className="flex-1 rounded-full bg-neutral-100 h-1.5">
-                                                    <div className="h-1.5 rounded-full bg-primary/60" style={{ width: `${(row.totalVolumeUsdt / maxVol) * 100}%` }}/>
+                                                    <div className="h-1.5 rounded-full bg-primary/60" style={{ width: `${(row.sellVolumeUsdt / maxVol) * 100}%` }}/>
                                                 </div>
                                                 <span dir="ltr" className="text-[11px] font-semibold text-neutral-600 shrink-0 w-20 text-right tabular-nums">
-                                                    {row.totalVolumeUsdt.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} U
+                                                    {row.sellVolumeUsdt.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} U
                                                 </span>
                                             </div>
                                         ))}
