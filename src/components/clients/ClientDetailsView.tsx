@@ -139,6 +139,46 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             daysSinceLast: lastTs > 0 ? Math.floor((nowMs - lastTs) / 86_400_000) : null,
         };
     }, [groupedHistory]);
+    // Debt aging: FIFO attribution — oldest unpaid debt first
+    const debtAging = useMemo(() => {
+        if (selectedClientBalance >= -0.01) return null; // no debt
+        const allTxs = Object.values(groupedHistory).flat()
+            .sort((a, b) => a.timestamp - b.timestamp); // oldest first
+        // Build debt queue using FIFO
+        const queue: Array<{ amount: number; timestamp: number }> = [];
+        for (const tx of allTxs) {
+            const m = Number(tx.montant || 0);
+            if (tx.affectsBalance === false) continue;
+            if (m < 0) {
+                queue.push({ amount: Math.abs(m), timestamp: tx.timestamp });
+            } else if (m > 0) {
+                let remaining = m;
+                while (remaining > 0.005 && queue.length > 0) {
+                    if (remaining >= queue[0].amount) {
+                        remaining -= queue[0].amount;
+                        queue.shift();
+                    } else {
+                        queue[0].amount -= remaining;
+                        remaining = 0;
+                    }
+                }
+            }
+        }
+        const now = Date.now();
+        // Group by age buckets
+        const buckets = { week: 0, month: 0, twoMonth: 0, old: 0 };
+        for (const item of queue) {
+            const days = (now - item.timestamp) / 86_400_000;
+            if (days <= 7) buckets.week += item.amount;
+            else if (days <= 30) buckets.month += item.amount;
+            else if (days <= 60) buckets.twoMonth += item.amount;
+            else buckets.old += item.amount;
+        }
+        const oldest = queue.length > 0 ? queue[0] : null;
+        const oldestDays = oldest ? Math.floor((now - oldest.timestamp) / 86_400_000) : 0;
+        return { buckets, oldest, oldestDays, total: Math.abs(selectedClientBalance) };
+    }, [groupedHistory, selectedClientBalance]);
+
     const balanceStatusLabel = selectedClientBalance > 0.01
         ? 'Avance'
         : selectedClientBalance < -0.01
@@ -287,6 +327,50 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
               </CardHeader>
               <CardContent className="px-4 pb-4 pt-1">
                 <p className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-700">{selectedClient.notes}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Debt Aging card — only when client has debt */}
+          {debtAging && (
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <div className="flex items-center justify-between gap-2">
+                  <SectionHeading icon={<AlertTriangleIcon className="w-4 h-4"/>}>
+                    Vieillissement de la dette
+                  </SectionHeading>
+                  <span className="text-[10px] font-bold text-neutral-400 uppercase">
+                    {debtAging.oldestDays}j max
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-2">
+                {/* Age buckets */}
+                {([
+                  { label: '0 – 7 jours', amount: debtAging.buckets.week, cls: 'bg-success-bg border-success/30 text-financial-profit' },
+                  { label: '8 – 30 jours', amount: debtAging.buckets.month, cls: 'bg-warning-bg border-warning/30 text-warning' },
+                  { label: '31 – 60 jours', amount: debtAging.buckets.twoMonth, cls: 'bg-danger-bg/50 border-danger/20 text-financial-loss' },
+                  { label: '+ de 60 jours', amount: debtAging.buckets.old, cls: 'bg-danger-bg border-danger/30 text-financial-loss font-extrabold' },
+                ] as const).filter(b => b.amount > 0.005).map((b) => (
+                  <div key={b.label} className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${b.cls}`}>
+                    <span className="text-xs font-semibold">{b.label}</span>
+                    <span dir="ltr" className="text-sm font-bold tabular-nums">
+                      {Math.round(b.amount).toLocaleString('fr-FR')} DZD
+                    </span>
+                  </div>
+                ))}
+                {/* Total + urgency */}
+                <div className="flex items-center justify-between gap-3 border-t border-border pt-2 mt-1">
+                  <span className="text-xs font-bold text-neutral-500 uppercase">Total dette</span>
+                  <span dir="ltr" className="text-base font-extrabold tabular-nums text-financial-loss">
+                    {Math.round(debtAging.total).toLocaleString('fr-FR')} DZD
+                  </span>
+                </div>
+                {debtAging.oldestDays > 30 && (
+                  <p className="text-[10px] text-danger font-semibold text-center mt-1">
+                    ⚠️ Partie du solde impayée depuis {debtAging.oldestDays} jours
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}
