@@ -26,26 +26,27 @@ function exportTransactionsCsv(groupedTransactions: Record<string, DisplayTx[]>,
         return c ? getClientFullName(c) : id;
     };
 
-    const headers = ['Date', 'Heure', 'Catégorie', 'Type', 'Devise', 'Quantité', 'Prix', 'Total DZD', 'Client', 'Source', 'Notes'];
+    const headers = ['Date', 'Heure', 'Catégorie', 'Type', 'Devise', 'Quantité', 'Prix', 'Total DZD', 'Client', 'Source', 'Notes', 'Tags'];
     const rows: string[][] = [];
 
     const allTxs = Object.values(groupedTransactions).flat() as DisplayTx[];
     for (const dtx of allTxs) {
         const raw = dtx.rawTx;
+        const tagsStr = Array.isArray((raw as any).tags) ? ((raw as any).tags as string[]).join(';') : '';
         if (dtx.category === 'crypto') {
             const tx = raw as Tx;
             const qty = tx.quantity ?? 0;
             const price = tx.price ?? tx.sell ?? 0;
             const total = tx.total ?? (qty * price);
-            rows.push([dtx.date, dtx.time, 'Portefeuille', dtx.typeLabel, tx.currency, String(qty), String(price), String(Math.round(total)), getClientName(tx.linkedClientId), '', tx.notes ?? '']);
+            rows.push([dtx.date, dtx.time, 'Portefeuille', dtx.typeLabel, tx.currency, String(qty), String(price), String(Math.round(total)), getClientName(tx.linkedClientId), '', tx.notes ?? '', tagsStr]);
         } else if (dtx.category === 'client') {
             const tx = raw as ClientTransactionDzd;
             const amount = Number(tx.montant ?? 0);
-            rows.push([dtx.date, dtx.time, 'Client', dtx.typeLabel, 'DZD', '', '', String(Math.round(Math.abs(amount))), getClientName(tx.clientId), tx.paymentMethod ?? '', tx.notes ?? '']);
+            rows.push([dtx.date, dtx.time, 'Client', dtx.typeLabel, 'DZD', '', '', String(Math.round(Math.abs(amount))), getClientName(tx.clientId), tx.paymentMethod ?? '', tx.notes ?? '', tagsStr]);
         } else {
             const tx = raw as TreasuryTx;
             const amount = Number(tx.amount ?? 0);
-            rows.push([dtx.date, dtx.time, 'Trésorerie', dtx.typeLabel, 'DZD', '', '', String(Math.round(amount)), '', tx.source ?? '', tx.notes ?? '']);
+            rows.push([dtx.date, dtx.time, 'Trésorerie', dtx.typeLabel, 'DZD', '', '', String(Math.round(amount)), '', tx.source ?? '', tx.notes ?? '', tagsStr]);
         }
     }
 

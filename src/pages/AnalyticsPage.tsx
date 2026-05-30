@@ -16,7 +16,7 @@ const MONTH_LABELS_FR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû
 
 export function AnalyticsPage(props: AnalyticsPageProps) {
     const { t } = useLanguage();
-    const { calculatedStats, heatmapData, monthlyClientRanking, allTimeClientRanking, annualStats } = useAnalyticsViewModel({
+    const { calculatedStats, heatmapData, monthlyClientRanking, allTimeClientRanking, annualStats, allTimeStats } = useAnalyticsViewModel({
         transactions: props.transactions,
         usdtReportMonth: props.usdtReportMonth,
         usdtReportYear: props.usdtReportYear,
@@ -223,6 +223,50 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                 </div>
                             );
                         })()}
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* All-time stats */}
+            {allTimeStats.totalSells > 0 && (
+                <Card>
+                    <CardHeader className="p-4 pb-3">
+                        <SectionHeading icon={<TrendingUpIcon className="w-4 h-4" />}>
+                            Depuis le début
+                        </SectionHeading>
+                    </CardHeader>
+                    <CardContent className="p-0 divide-y divide-neutral-100">
+                        <div className="flex items-center justify-between gap-3 px-4 py-3">
+                            <span className="text-sm text-neutral-500">Profit total</span>
+                            <CurrencyAmount value={allTimeStats.totalProfit} currency="DZD" semantic="auto" size="lg" decimals={0}/>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 px-4 py-3">
+                            <span className="text-sm text-neutral-500">Win rate global</span>
+                            <span className={`text-base font-bold tabular-nums ${(allTimeStats.winRate ?? 0) >= 80 ? 'text-financial-profit' : (allTimeStats.winRate ?? 0) >= 50 ? 'text-warning' : 'text-financial-loss'}`}>
+                                {allTimeStats.winRate !== null ? `${Math.round(allTimeStats.winRate)}%` : '—'}
+                                <span className="ms-1 text-xs font-normal text-neutral-400">sur {allTimeStats.totalSells} ventes</span>
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 px-4 py-3">
+                            <span className="text-sm text-neutral-500">Meilleure vente</span>
+                            <CurrencyAmount value={allTimeStats.bestSellProfit} currency="DZD" semantic="profit" size="md" decimals={0}/>
+                        </div>
+                        {allTimeStats.bestMonthKey && (
+                            <div className="flex items-center justify-between gap-3 px-4 py-3">
+                                <span className="text-sm text-neutral-500">Meilleur mois</span>
+                                <div className="text-end">
+                                    <CurrencyAmount value={allTimeStats.bestMonthProfit} currency="DZD" semantic="profit" size="md" decimals={0}/>
+                                    <p className="text-[10px] text-neutral-400">{allTimeStats.bestMonthKey}</p>
+                                </div>
+                            </div>
+                        )}
+                        <div className="flex items-center justify-between gap-3 px-4 py-3">
+                            <span className="text-sm text-neutral-500">Volume total</span>
+                            <div className="text-end text-sm font-semibold text-neutral-700">
+                                <span dir="ltr">{allTimeStats.usdtTotal.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} USDT</span>
+                                {allTimeStats.eurTotal > 0 && <span dir="ltr" className="ms-2">{allTimeStats.eurTotal.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} EUR</span>}
+                            </div>
+                        </div>
                     </CardContent>
                 </Card>
             )}

@@ -227,11 +227,51 @@ export function useAnalyticsViewModel({ transactions, usdtReportMonth, usdtRepor
             : ((currentMonthProfit - prevMonthProfit) / Math.abs(prevMonthProfit)) * 100;
         return { byMonth, ytdProfit, bestMonth, bestMonthProfit, trend, currentMonthProfit, prevMonthProfit };
     }, [pamLedger, usdtReportYear, usdtReportMonth]);
+    // All-time performance stats
+    const allTimeStats = useMemo(() => {
+        const byMonth = new Map<string, number>(); // "YYYY-MM" → profit
+        let totalProfit = 0;
+        let totalSells = 0;
+        let wins = 0;
+        let bestProfit = 0;
+        let usdtTotal = 0;
+        let eurTotal = 0;
+        for (const row of pamLedger.sellProfitRows) {
+            const p = row.derivedProfit || 0;
+            totalProfit += p;
+            totalSells++;
+            if (p > 0) wins++;
+            if (p > bestProfit) bestProfit = p;
+            if (row.currency === 'USDT') usdtTotal += Number(row.quantity || 0);
+            else if (row.currency === 'EUR') eurTotal += Number(row.quantity || 0);
+            const d = new Date(row.timestamp);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            byMonth.set(key, (byMonth.get(key) || 0) + p);
+        }
+        let bestMonthKey = '';
+        let bestMonthProfit = -Infinity;
+        for (const [k, v] of byMonth.entries()) {
+            if (v > bestMonthProfit) { bestMonthProfit = v; bestMonthKey = k; }
+        }
+        return {
+            totalProfit,
+            totalSells,
+            winRate: totalSells > 0 ? (wins / totalSells) * 100 : null,
+            bestSellProfit: bestProfit,
+            usdtTotal,
+            eurTotal,
+            bestMonthKey,
+            bestMonthProfit: bestMonthKey ? bestMonthProfit : 0,
+            activeDays: byMonth.size, // unique months with activity (approx)
+        };
+    }, [pamLedger]);
+
     return {
         calculatedStats,
         heatmapData,
         monthlyClientRanking,
         allTimeClientRanking,
-        annualStats
+        annualStats,
+        allTimeStats,
     };
 }
