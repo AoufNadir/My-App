@@ -20,6 +20,13 @@ export type MainSearchResult = {
     timestamp: number;
 } | {
     id: string;
+    kind: 'investor';
+    title: string;
+    subtitle: string;
+    investorId: string;
+    timestamp: number;
+} | {
+    id: string;
     kind: 'transaction';
     title: string;
     subtitle: string;
@@ -67,9 +74,11 @@ export function GlobalSearchDialog({ isOpen, onClose, query, setQuery, results, 
         el?.scrollIntoView({ block: 'nearest' });
     }, [selectedIndex]);
     // Group results
+    const investors = results.filter((r) => r.kind === 'investor');
     const clients = results.filter((r) => r.kind === 'client');
     const transactions = results.filter((r) => r.kind === 'transaction');
     const groups = [
+        { label: 'Investisseurs', items: investors, color: 'bg-warning-bg text-warning' },
         { label: clientsText, items: clients, color: 'bg-primary/10 text-primary' },
         { label: transactionsText, items: transactions, color: 'bg-neutral-100 text-neutral-700' },
     ].filter((g) => g.items.length > 0);
@@ -88,7 +97,7 @@ export function GlobalSearchDialog({ isOpen, onClose, query, setQuery, results, 
         <div ref={listRef} className="max-h-[55vh] overflow-y-auto rounded-xl border border-border">
           {!query.trim() ? (<div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
               <span className="text-2xl">🔍</span>
-              <p className="text-sm text-neutral-500">Tapez pour rechercher clients ou transactions</p>
+              <p className="text-sm text-neutral-500">Tapez pour rechercher clients, investisseurs ou transactions</p>
               <p className="text-xs text-neutral-400">Ctrl+K pour ouvrir · Échap pour fermer · ↑↓ pour naviguer</p>
             </div>) : results.length === 0 ? (<div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
               <span className="text-2xl">😕</span>

@@ -229,7 +229,9 @@ export default function MainApp({ user }: {
         setView,
         t,
         transactions,
-        treasuryTransactions
+        treasuryTransactions,
+        investors: derivedInvestors,
+        setSelectedInvestorId,
     });
     const { handleExportClientReport, handleExportInvestorReport, handleExportPersonalExpensesReport, handleExportUsdtReport, reportClient, reportMonth, reportMonthNames, reportYear, setReportClient, setReportMonth, setReportYear, setUsdtReportMonth, setUsdtReportYear, usdtReportMonth, usdtReportYear } = useReportExports({
         clientBalances,

@@ -1,5 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import type { ClientDzd, ClientTransactionDzd, TreasuryTx, Tx } from '../types';
+import type { ClientDzd, ClientTransactionDzd, Investor, TreasuryTx, Tx } from '../types';
 import { formatNumber } from '../pages/shared/pageFormat';
 import type { TransactionFilterMode } from '../components/transactions/transactionsTypes';
 type DateRange = {
@@ -13,6 +13,13 @@ export type GlobalSearchResult = {
     title: string;
     subtitle: string;
     clientId: string;
+    timestamp: number;
+} | {
+    id: string;
+    kind: 'investor';
+    title: string;
+    subtitle: string;
+    investorId: string;
     timestamp: number;
 } | {
     id: string;
@@ -32,11 +39,13 @@ type UseGlobalSearchArgs = {
     t: Translator;
     transactions: Tx[];
     treasuryTransactions: TreasuryTx[];
+    investors?: ReadonlyArray<Investor>;
+    setSelectedInvestorId?: (id: string | null) => void;
 };
 function toText(value: unknown, fallback = '') {
     return typeof value === 'string' ? value : fallback;
 }
-export function useGlobalSearch({ clientTransactionsDzd, clientsDzd, getClientFullName, setDateRange, setFilterMode, setSelectedClientId, setView, t, transactions, treasuryTransactions }: UseGlobalSearchArgs) {
+export function useGlobalSearch({ clientTransactionsDzd, clientsDzd, getClientFullName, setDateRange, setFilterMode, setSelectedClientId, setView, t, transactions, treasuryTransactions, investors = [], setSelectedInvestorId }: UseGlobalSearchArgs) {
     const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
     const deferredGlobalSearchQuery = useDeferredValue(globalSearchQuery);
@@ -104,6 +113,21 @@ export function useGlobalSearch({ clientTransactionsDzd, clientsDzd, getClientFu
             clientId: client.id,
             timestamp: latestClientActivity.get(client.id) || 0
         }));
+
+        const investorResults: GlobalSearchResult[] = (investors ?? [])
+            .filter((inv) => inv.name.toLowerCase().includes(query))
+            .map((inv) => ({
+                id: `search_investor_${inv.id}`,
+                kind: 'investor' as const,
+                title: inv.name,
+                subtitle: [
+                    inv.isManager ? 'Gérant' : 'Investisseur',
+                    inv.isActive ? 'Actif' : 'Inactif',
+                    `Capital: ${Number(inv.capitalInvested || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD`,
+                ].join(' · '),
+                investorId: inv.id,
+                timestamp: new Date(inv.entryDate || 0).getTime(),
+            }));
         const txResults: GlobalSearchResult[] = [];
         for (const tx of transactions) {
             const linkedClientId = tx.id ? linkedClientByTxId.get(tx.id)?.clientId : undefined;
@@ -171,10 +195,10 @@ export function useGlobalSearch({ clientTransactionsDzd, clientsDzd, getClientFu
                 timestamp: tx.timestamp
             });
         }
-        return [...clientResults, ...txResults]
+        return [...investorResults, ...clientResults, ...txResults]
             .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, 20);
-    }, [clientTransactionsDzd, clientsDzd, deferredGlobalSearchQuery, getClientFullName, t, transactions, treasuryTransactions]);
+            .slice(0, 24);
+    }, [clientTransactionsDzd, clientsDzd, deferredGlobalSearchQuery, getClientFullName, t, transactions, treasuryTransactions, investors]);
     const closeGlobalSearch = () => {
         setIsGlobalSearchOpen(false);
         setGlobalSearchQuery('');
@@ -186,9 +210,13 @@ export function useGlobalSearch({ clientTransactionsDzd, clientsDzd, getClientFu
     const handleSelectGlobalSearchResult = (result: GlobalSearchResult) => {
         if (result.kind === 'client') {
             setSelectedClientId(result.clientId);
-            startTransition(() => {
-                setView('dzd');
-            });
+            startTransition(() => setView('dzd'));
+            closeGlobalSearch();
+            return;
+        }
+        if (result.kind === 'investor') {
+            setSelectedInvestorId?.(result.investorId);
+            startTransition(() => setView('investors'));
             closeGlobalSearch();
             return;
         }
