@@ -56,6 +56,7 @@ const InvestorDetailsPage = React.lazy(() => import('./pages/InvestorDetailsPage
 const InvestorDashboardPage = React.lazy(() => import('./pages/InvestorDashboardPage').then((module) => ({ default: module.InvestorDashboardPage })));
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const GlobalSearchDialog = React.lazy(() => import('./components/main/MainDialogs').then((module) => ({ default: module.GlobalSearchDialog })));
+const QuickCalculatorSheet = React.lazy(() => import('./components/calculator/QuickCalculatorSheet').then((m) => ({ default: m.QuickCalculatorSheet })));
 const loadPdfReports = () => import('./utils/pdfReports');
 const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
     derivedInvestors: [],
@@ -1940,6 +1941,7 @@ export default function MainApp({ user }: {
     // Surface a recap of the previous month's realized profit on first
     // visit of a new month. Banner self-dismisses (persisted in localStorage).
     const { recap: monthlyRecap, dismiss: dismissMonthlyRecap } = useMonthlyRecap(transactions, pamLedger);
+    const [isCalcOpen, setIsCalcOpen] = React.useState(false);
     // Per-view quick action wired to the bottom-bar center FAB. Returning
     // undefined hides the FAB on read-mostly views.
     const onFabPress = useMemo(() => {
@@ -1968,6 +1970,28 @@ export default function MainApp({ user }: {
                 <MainContentArea {...mainContentProps}/>
 
                 <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onFabPress={onFabPress} overdueCount={overdueDebtClients.length}/>
+
+                {/* Quick Calculator FAB */}
+                <button
+                    type="button"
+                    onClick={() => setIsCalcOpen(true)}
+                    className="fixed bottom-[76px] end-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-transform hover:bg-primary-dark hover:scale-105 active:scale-95"
+                    aria-label="Calculatrice rapide"
+                    title="Calculatrice rapide"
+                >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <rect x="4" y="2" width="16" height="20" rx="2" strokeLinejoin="round"/>
+                        <line x1="8" y1="8" x2="16" y2="8"/>
+                        <line x1="8" y1="12" x2="10" y2="12"/>
+                        <line x1="14" y1="12" x2="16" y2="12"/>
+                        <line x1="8" y1="16" x2="10" y2="16"/>
+                        <line x1="14" y1="16" x2="16" y2="16"/>
+                    </svg>
+                </button>
+
+                {isCalcOpen && (<Suspense fallback={null}>
+                        <QuickCalculatorSheet isOpen={isCalcOpen} onClose={() => setIsCalcOpen(false)} portfolioStats={portfolioStats}/>
+                    </Suspense>)}
 
                 {isGlobalSearchOpen && (<Suspense fallback={null}>
                         <GlobalSearchDialog {...{ isOpen: isGlobalSearchOpen, onClose: closeGlobalSearch, fieldBase, query: globalSearchQuery, setQuery: setGlobalSearchQuery, results: globalSearchResults, onSelectResult: handleSelectGlobalSearchResult, title: t('common.globalSearch'), placeholder: t('common.searchPlaceholder'), noResultsText: t('common.noResults'), clientsText: t('nav.clients'), transactionsText: t('nav.transactions') }}/>
