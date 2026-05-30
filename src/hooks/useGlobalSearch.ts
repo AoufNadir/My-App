@@ -1,5 +1,6 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { ClientDzd, ClientTransactionDzd, Investor, TreasuryTx, Tx } from '../types';
+import { nameMatchesQuery } from '../utils/nameUtils';
 import { formatNumber } from '../pages/shared/pageFormat';
 import type { TransactionFilterMode } from '../components/transactions/transactionsTypes';
 type DateRange = {
@@ -97,13 +98,10 @@ export function useGlobalSearch({ clientTransactionsDzd, clientsDzd, getClientFu
         }
         const clientResults: GlobalSearchResult[] = clientsDzd
             .filter((client) => {
-            const haystack = [
-                getClientFullName(client),
-                client.phone || '',
-                client.redotpayId || '',
-                client.binanceEmail || ''
-            ].join(' ').toLowerCase();
-            return haystack.includes(query);
+            const name = getClientFullName(client);
+            if (nameMatchesQuery(name, query)) return true;
+            const extras = [client.phone || '', client.redotpayId || '', client.binanceEmail || ''].join(' ').toLowerCase();
+            return extras.includes(query);
         })
             .map((client) => ({
             id: `search_client_${client.id}`,

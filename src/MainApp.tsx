@@ -74,8 +74,11 @@ const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
     },
 };
 type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
+import { reorderClientName, nameMatchesQuery } from './utils/nameUtils';
+
 function getClientDisplayName(client: ClientDzd) {
-    return client.fullName || (client.prenom ? `${client.nom} ${client.prenom}` : client.nom);
+    const raw = client.fullName || (client.prenom ? `${client.nom} ${client.prenom}` : client.nom) || '';
+    return reorderClientName(raw);
 }
 function PageLoadingFallback({ text }: {
     text: string;
@@ -286,7 +289,10 @@ export default function MainApp({ user }: {
         let list = [...clientsDzd];
         const normalizedQuery = clientSearchQuery.trim().toLowerCase();
         if (normalizedQuery) {
-            list = list.filter(c => getClientDisplayName(c).toLowerCase().includes(normalizedQuery) || (c.phone && c.phone.includes(normalizedQuery)));
+            list = list.filter(c =>
+                nameMatchesQuery(getClientDisplayName(c), normalizedQuery) ||
+                (c.phone && c.phone.includes(normalizedQuery))
+            );
         }
         const ZERO_EPSILON = 0.005;
         let oldestDebtByClientId: Map<string, {
