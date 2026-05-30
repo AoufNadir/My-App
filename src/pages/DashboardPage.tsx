@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+const MONTHLY_GOAL_KEY = 'app_monthly_profit_goal';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { SectionHeading } from '../components/ui/SectionHeading';
@@ -358,6 +359,14 @@ function DashboardSyncState({ title, body, actions, }: {
 export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, totals, treasuryCards, investorLiability = 0, investorBreakdown, servicesSummary, overdueDebtClients, globalNetProfit, isDataSyncing = false, onNewTransaction, onOpenClients, onOpenClient, onOpenClientDebts, onOpenTreasury, onOpenAnalytics, onOpenPersonalWithdrawal, }: DashboardPageProps) {
     const { t } = useLanguage();
     const [shareCopied, setShareCopied] = useState(false);
+    const [monthlyGoal, setMonthlyGoal] = useState<number>(() => Number(localStorage.getItem(MONTHLY_GOAL_KEY) || 0));
+    useEffect(() => {
+        const onStorage = (e: StorageEvent) => {
+            if (e.key === MONTHLY_GOAL_KEY) setMonthlyGoal(Number(e.newValue || 0));
+        };
+        window.addEventListener('storage', onStorage);
+        return () => window.removeEventListener('storage', onStorage);
+    }, []);
 
     const handleShareDaySummary = () => {
         const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
@@ -518,6 +527,36 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
             { label: t('dashboard.profitMonth') as string, value: dailyOverview.monthToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
             { label: t('dashboard.profitToday') as string, value: dailyOverview.todayProfit, semantic: 'auto', icon: <BriefcaseIcon className="h-4 w-4"/> }
         ]}/>
+
+      {/* Monthly goal progress bar */}
+      {monthlyGoal > 0 && (() => {
+          const progress = Math.min(100, Math.max(0, (dailyOverview.monthToDateProfit / monthlyGoal) * 100));
+          const isAchieved = dailyOverview.monthToDateProfit >= monthlyGoal;
+          const remaining = monthlyGoal - dailyOverview.monthToDateProfit;
+          return (
+            <div className={`rounded-xl border px-4 py-3 ${isAchieved ? 'border-success/30 bg-success-bg' : 'border-border bg-surface-muted'}`}>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className={`text-xs font-bold uppercase tracking-wide ${isAchieved ? 'text-financial-profit' : 'text-neutral-500'}`}>
+                  {isAchieved ? '✓ Objectif atteint !' : 'Objectif mensuel'}
+                </p>
+                <span className="text-xs font-semibold tabular-nums text-neutral-600">
+                  {Math.round(progress)}%
+                </span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-neutral-200 overflow-hidden">
+                <div
+                  className={`h-2 rounded-full transition-all ${isAchieved ? 'bg-financial-profit' : progress >= 75 ? 'bg-primary' : progress >= 50 ? 'bg-warning' : 'bg-neutral-400'}`}
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-neutral-400">
+                <span dir="ltr">{dailyOverview.monthToDateProfit.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD</span>
+                {!isAchieved && <span dir="ltr">Reste {remaining.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD</span>}
+                <span dir="ltr">/ {monthlyGoal.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD</span>
+              </div>
+            </div>
+          );
+      })()}
 
       <PriorityList title={t('dashboard.attentionNeeded') as string} items={priorities} onTitleClick={onOpenClientDebts}/>
 

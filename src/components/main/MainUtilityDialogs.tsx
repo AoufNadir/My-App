@@ -1,4 +1,5 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
+export const MONTHLY_GOAL_KEY = 'app_monthly_profit_goal';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Input } from '../ui/Input';
@@ -132,7 +133,22 @@ function MainUtilityDialogsComponent({
     const closeCreateAsset = () => setIsCreateAssetModalOpen(false);
     const closeTreasuryCard = () => setIsTreasuryCardModalOpen(false);
 
+    const [monthlyGoalDraft, setMonthlyGoalDraft] = useState('');
+    useEffect(() => {
+        if (isSettingsModalOpen) {
+            const stored = localStorage.getItem(MONTHLY_GOAL_KEY);
+            setMonthlyGoalDraft(stored ? String(Math.round(Number(stored))) : '');
+        }
+    }, [isSettingsModalOpen]);
+
     const handleSaveSettings = async () => {
+        const goalValue = parseFloat(monthlyGoalDraft) || 0;
+        if (goalValue > 0) {
+            localStorage.setItem(MONTHLY_GOAL_KEY, String(goalValue));
+        } else {
+            localStorage.removeItem(MONTHLY_GOAL_KEY);
+        }
+        window.dispatchEvent(new StorageEvent('storage', { key: MONTHLY_GOAL_KEY, newValue: goalValue > 0 ? String(goalValue) : null }));
         try {
             const marginToSave = parseFloat(parseFloat(suggestedProfitMargin).toFixed(2)) || 2;
             const sellPriceToSave = parseFloat(parseFloat(suggestedSellingPrice).toFixed(2)) || 0;
@@ -197,6 +213,18 @@ function MainUtilityDialogsComponent({
                     />
 
                     <PinSettings />
+
+                    <div>
+                        <Label>Objectif mensuel (DZD)</Label>
+                        <MoneyField
+                            label=""
+                            value={monthlyGoalDraft}
+                            onChange={setMonthlyGoalDraft}
+                            currency="DZD"
+                            placeholder="Ex: 500 000"
+                            hint="Barre de progression sur le Dashboard · 0 = désactivé"
+                        />
+                    </div>
                 </ModalContent>
                 <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
                     <div className="flex w-full gap-2">
