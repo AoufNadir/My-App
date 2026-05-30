@@ -1834,12 +1834,8 @@ export function buildClientListPdf(rows: ClientListRow[]): ReportPayload {
     const today = new Date().toLocaleDateString(FR_LOCALE, { day: '2-digit', month: 'long', year: 'numeric' });
     const totalDebt = rows.reduce((s, r) => r.balance < 0 ? s + Math.abs(r.balance) : s, 0);
     const totalAdv = rows.reduce((s, r) => r.balance > 0 ? s + r.balance : s, 0);
-    const kpiHtml = `
-      <div class="cards" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
-        <div class="card"><div class="label">Total clients</div><div class="value">${rows.length}</div></div>
-        <div class="card"><div class="label">Total dettes</div><div class="value bad">${formatNumber(totalDebt, 0)} DZD</div></div>
-        <div class="card"><div class="label">Total avances</div><div class="value good">${formatNumber(totalAdv, 0)} DZD</div></div>
-      </div>`;
+    const withDebt = rows.filter((r) => r.balance < -0.01).length;
+    const withAdv = rows.filter((r) => r.balance > 0.01).length;
     const thead = `<tr><th>#</th><th>Nom complet</th><th>Téléphone</th><th>Email Binance</th><th>Redotpay ID</th><th class="num">Solde DZD</th><th>Statut</th></tr>`;
     const tbody = rows.map((r, i) => {
         const cls = r.balance < -0.01 ? 'bad' : r.balance > 0.01 ? 'good' : 'muted';
@@ -1854,8 +1850,20 @@ export function buildClientListPdf(rows: ClientListRow[]): ReportPayload {
           <td><span class="pill ${cls}">${label}</span></td>
         </tr>`;
     }).join('');
-    const bodyHtml = `${kpiHtml}<div class="section-title">Liste des clients</div><div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
-      <div class="footer"><span>Généré le ${today}</span><span>${rows.length} clients exportés</span></div>`;
+    const bodyHtml = `
+    <section class="section">
+      <h2 class="section-title">Synthèse</h2>
+      <div class="executive-grid">
+        <div class="executive-card primary"><div class="label">Total clients</div><div class="value">${rows.length}</div></div>
+        <div class="executive-card loss"><div class="label">Total dettes</div><div class="value bad">${formatNumber(totalDebt, 0)} DZD</div><div class="muted">${withDebt} client${withDebt > 1 ? 's' : ''}</div></div>
+        <div class="executive-card profit"><div class="label">Total avances</div><div class="value good">${formatNumber(totalAdv, 0)} DZD</div><div class="muted">${withAdv} client${withAdv > 1 ? 's' : ''}</div></div>
+      </div>
+      <div class="pill-row top"><span class="pill">Exporté le ${today}</span><span class="pill">${rows.length} clients</span></div>
+    </section>
+    <section class="section">
+      <h2 class="section-title">Liste des clients</h2>
+      <div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
+    </section>`;
     return reportShell({ fileName: `clients_${new Date().toISOString().slice(0, 10)}.pdf`, title: 'Liste des Clients', subtitle: `Exporté le ${today} · ${rows.length} clients`, bodyHtml });
 }
 
@@ -1873,16 +1881,11 @@ export type InvestorListRow = {
 
 export function buildInvestorListPdf(rows: InvestorListRow[]): ReportPayload {
     const today = new Date().toLocaleDateString(FR_LOCALE, { day: '2-digit', month: 'long', year: 'numeric' });
-    const totalCap = rows.filter(r => r.isActive).reduce((s, r) => s + r.capitalInvested, 0);
+    const activeRows = rows.filter(r => r.isActive && !r.isManager);
+    const totalCap = activeRows.reduce((s, r) => s + r.capitalInvested, 0);
     const totalAvail = rows.reduce((s, r) => s + r.availableProfit, 0);
     const totalGain = rows.reduce((s, r) => s + r.totalProfit, 0);
-    const kpiHtml = `
-      <div class="cards" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
-        <div class="card"><div class="label">Capital total (actifs)</div><div class="value">${formatNumber(totalCap, 0)} DZD</div></div>
-        <div class="card"><div class="label">Profits disponibles</div><div class="value good">${formatNumber(totalAvail, 0)} DZD</div></div>
-        <div class="card"><div class="label">Total gagné (cumulé)</div><div class="value good">${formatNumber(totalGain, 0)} DZD</div></div>
-      </div>`;
-    const thead = `<tr><th>#</th><th>Nom</th><th>Rôle</th><th>Statut</th><th class="num">Capital investi</th><th class="num">Profit dispo.</th><th class="num">Total retiré</th><th class="num">Total gagné</th><th class="num">ROI %</th><th>Entrée</th></tr>`;
+    const thead = `<tr><th>#</th><th>Nom</th><th>Rôle</th><th>Statut</th><th class="num">Capital investi</th><th class="num">Profit dispo.</th><th class="num">Total retiré</th><th class="num">Total gagné</th><th class="num">ROI %</th><th>Date entrée</th></tr>`;
     const tbody = rows.map((r, i) => {
         const roiCls = r.roi !== null ? (r.roi > 0 ? 'good' : r.roi < 0 ? 'bad' : '') : '';
         return `<tr>
@@ -1898,8 +1901,20 @@ export function buildInvestorListPdf(rows: InvestorListRow[]): ReportPayload {
           <td class="muted">${escapeHtml(r.entryDate)}</td>
         </tr>`;
     }).join('');
-    const bodyHtml = `${kpiHtml}<div class="section-title">Liste des investisseurs</div><div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
-      <div class="footer"><span>Généré le ${today}</span><span>${rows.length} investisseurs exportés</span></div>`;
+    const bodyHtml = `
+    <section class="section">
+      <h2 class="section-title">Synthèse</h2>
+      <div class="executive-grid">
+        <div class="executive-card primary"><div class="label">Capital total (actifs)</div><div class="value">${formatNumber(totalCap, 0)} DZD</div><div class="muted">${activeRows.length} investisseur${activeRows.length > 1 ? 's' : ''}</div></div>
+        <div class="executive-card profit"><div class="label">Profits disponibles</div><div class="value good">+${formatNumber(totalAvail, 0)} DZD</div></div>
+        <div class="executive-card profit"><div class="label">Total gagné (cumulé)</div><div class="value good">+${formatNumber(totalGain, 0)} DZD</div></div>
+      </div>
+      <div class="pill-row top"><span class="pill">Exporté le ${today}</span><span class="pill">${rows.length} investisseur${rows.length > 1 ? 's' : ''}</span></div>
+    </section>
+    <section class="section">
+      <h2 class="section-title">Liste des investisseurs</h2>
+      <div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
+    </section>`;
     return reportShell({ fileName: `investisseurs_${new Date().toISOString().slice(0, 10)}.pdf`, title: 'Liste des Investisseurs', subtitle: `Exporté le ${today} · ${rows.length} investisseurs`, bodyHtml, pageSize: 'A4 landscape' });
 }
 
@@ -1919,11 +1934,9 @@ export type TransactionListRow = {
 
 export function buildTransactionListPdf(rows: TransactionListRow[], subtitle: string): ReportPayload {
     const today = new Date().toLocaleDateString(FR_LOCALE, { day: '2-digit', month: 'long', year: 'numeric' });
-    const kpiHtml = `
-      <div class="cards" style="grid-template-columns:repeat(2,1fr);margin-bottom:20px">
-        <div class="card"><div class="label">Total opérations</div><div class="value">${rows.length}</div></div>
-        <div class="card"><div class="label">Période / Filtre</div><div class="value" style="font-size:14px">${escapeHtml(subtitle)}</div></div>
-      </div>`;
+    const cryptoRows = rows.filter(r => r.category === 'Portefeuille');
+    const sellRows = cryptoRows.filter(r => r.type.toLowerCase().includes('vente') || r.type.toLowerCase().includes('sell'));
+    const buyRows = cryptoRows.filter(r => r.type.toLowerCase().includes('achat') || r.type.toLowerCase().includes('buy'));
     const thead = `<tr><th>Date</th><th>Heure</th><th>Catégorie</th><th>Type</th><th>Devise</th><th class="num">Quantité</th><th class="num">Prix</th><th class="num">Total DZD</th><th>Client</th><th>Notes</th><th>Tags</th></tr>`;
     const tbody = rows.map(r => `<tr>
       <td class="muted">${escapeHtml(r.date)}</td>
@@ -1938,8 +1951,20 @@ export function buildTransactionListPdf(rows: TransactionListRow[], subtitle: st
       <td class="muted" style="max-width:140px;white-space:normal;font-size:11px">${escapeHtml(r.notes)}</td>
       <td>${r.tags ? r.tags.split(';').map(t => `<span class="pill small">${escapeHtml(t)}</span>`).join('') : ''}</td>
     </tr>`).join('');
-    const bodyHtml = `${kpiHtml}<div class="section-title">Historique des opérations</div><div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
-      <div class="footer"><span>Généré le ${today}</span><span>${rows.length} opérations · Pro Digital</span></div>`;
+    const bodyHtml = `
+    <section class="section">
+      <h2 class="section-title">Synthèse</h2>
+      <div class="executive-grid">
+        <div class="executive-card primary"><div class="label">Total opérations</div><div class="value">${rows.length}</div></div>
+        <div class="executive-card"><div class="label">Achats portefeuille</div><div class="value good">${buyRows.length}</div></div>
+        <div class="executive-card"><div class="label">Ventes portefeuille</div><div class="value bad">${sellRows.length}</div></div>
+      </div>
+      <div class="pill-row top"><span class="pill">Exporté le ${today}</span><span class="pill">${escapeHtml(subtitle)}</span></div>
+    </section>
+    <section class="section">
+      <h2 class="section-title">Historique des opérations (${rows.length})</h2>
+      <div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
+    </section>`;
     return reportShell({ fileName: `transactions_${new Date().toISOString().slice(0, 10)}.pdf`, title: 'Historique des Opérations', subtitle: `${subtitle} · ${rows.length} opérations`, bodyHtml, pageSize: 'A4 landscape' });
 }
 
@@ -1961,13 +1986,7 @@ export function buildTreasuryPdf(
     const today = new Date().toLocaleDateString(FR_LOCALE, { day: '2-digit', month: 'long', year: 'numeric' });
     const totalIn = rows.reduce((s, r) => r.type === 'Ajout' || r.type === 'Adjustment (+)' ? s + r.amount : s, 0);
     const totalOut = rows.reduce((s, r) => r.type === 'Retrait' || r.type === 'Adjustment (-)' ? s + r.amount : s, 0);
-    const kpiHtml = `
-      <div class="cards" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
-        <div class="card"><div class="label">Caisse</div><div class="value">${formatNumber(balances.caisse, 0)} DZD</div></div>
-        <div class="card"><div class="label">BaridiMob</div><div class="value">${formatNumber(balances.baridi, 0)} DZD</div></div>
-        <div class="card"><div class="label">Total entrées</div><div class="value good">+${formatNumber(totalIn, 0)} DZD</div></div>
-        <div class="card"><div class="label">Total sorties</div><div class="value bad">−${formatNumber(totalOut, 0)} DZD</div></div>
-      </div>`;
+    const netFlow = totalIn - totalOut;
     const thead = `<tr><th>Date</th><th>Heure</th><th>Type</th><th>Source</th><th class="num">Montant DZD</th><th>Notes</th></tr>`;
     const tbody = rows.map(r => {
         const isIn = r.type === 'Ajout' || r.type === 'Adjustment (+)';
@@ -1981,7 +2000,24 @@ export function buildTreasuryPdf(
           <td class="muted" style="max-width:200px;white-space:normal;font-size:11px">${escapeHtml(r.notes)}</td>
         </tr>`;
     }).join('');
-    const bodyHtml = `${kpiHtml}<div class="section-title">Mouvements de trésorerie</div><div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
-      <div class="footer"><span>Généré le ${today}</span><span>${rows.length} mouvements · ${periodLabel}</span></div>`;
+    const bodyHtml = `
+    <section class="section">
+      <h2 class="section-title">Soldes actuels</h2>
+      <div class="executive-grid">
+        <div class="executive-card primary"><div class="label">Caisse</div><div class="value">${formatNumber(balances.caisse, 0)} DZD</div></div>
+        <div class="executive-card primary"><div class="label">BaridiMob</div><div class="value">${formatNumber(balances.baridi, 0)} DZD</div></div>
+        <div class="executive-card ${netFlow >= 0 ? 'profit' : 'loss'}"><div class="label">Flux net (période)</div><div class="value ${netFlow >= 0 ? 'good' : 'bad'}">${netFlow >= 0 ? '+' : ''}${formatNumber(netFlow, 0)} DZD</div></div>
+      </div>
+      <div class="movement-grid" style="margin-top:12px">
+        <div class="movement-card"><div class="label">Total entrées</div><div class="value good">+${formatNumber(totalIn, 0)} DZD</div></div>
+        <div class="movement-card"><div class="label">Total sorties</div><div class="value bad">−${formatNumber(totalOut, 0)} DZD</div></div>
+        <div class="movement-card"><div class="label">Mouvements</div><div class="value">${rows.length}</div></div>
+      </div>
+      <div class="pill-row top"><span class="pill">Exporté le ${today}</span><span class="pill">${periodLabel}</span></div>
+    </section>
+    <section class="section">
+      <h2 class="section-title">Mouvements de trésorerie (${rows.length})</h2>
+      <div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
+    </section>`;
     return reportShell({ fileName: `tresorerie_${new Date().toISOString().slice(0, 10)}.pdf`, title: 'Rapport de Trésorerie', subtitle: `${periodLabel} · ${rows.length} mouvements`, bodyHtml, pageSize: 'A4 landscape' });
 }
