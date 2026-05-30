@@ -11,11 +11,37 @@ import { FilterIcon } from '../icons/FilterIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { UsersIcon } from '../icons/UsersIcon';
 import { UploadCloudIcon } from '../icons/UploadCloudIcon';
+import { DownloadCloudIcon } from '../icons/DownloadCloudIcon';
 import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { CsvImportSheet, type CsvFieldSpec } from '../import/CsvImportSheet';
 import { ClientDzd, OverdueDebtClient } from '../../types';
 import { OverdueDebtsModal } from './OverdueDebtsModal';
+
+function exportClientsCsv(clients: ClientDzd[], balances: Map<string, number>, getName: (c: ClientDzd) => string) {
+    const escape = (v: string | number | undefined | null) => {
+        const s = String(v ?? '');
+        return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const headers = ['Nom complet', 'Téléphone', 'Email Binance', 'Redotpay ID', 'Solde DZD'];
+    const rows = clients.map((c) => [
+        escape(getName(c)),
+        escape(c.phone),
+        escape(c.binanceEmail),
+        escape(c.redotpayId),
+        escape((balances.get(c.id) || 0).toFixed(2)),
+    ].join(','));
+    const csv = [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `clients_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
 const CLIENT_IMPORT_FIELDS: CsvFieldSpec[] = [
     { key: 'fullName', label: 'Nom complet', required: true, aliases: ['name', 'nom', 'fullname'] },
     { key: 'phone', label: 'Téléphone', aliases: ['phone', 'tel', 'mobile'] },
@@ -102,6 +128,9 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
               <Button onClick={() => openClientModal(null)} variant="outline" size="md" className="flex-1 font-bold">
                 <UserIcon className="w-5 h-5"/>
                 <span>Nouveau Client</span>
+              </Button>
+              <Button onClick={() => exportClientsCsv(filteredClientsDzd, clientBalances, getClientFullName)} variant="outline" size="icon" aria-label="Exporter CSV" title="Exporter la liste en CSV" className="shrink-0">
+                <DownloadCloudIcon className="w-5 h-5"/>
               </Button>
               {onImportClients && (<Button onClick={() => setImportOpen(true)} variant="outline" size="icon" aria-label="Importer un CSV" className="shrink-0 font-bold">
                   <UploadCloudIcon className="w-5 h-5"/>
