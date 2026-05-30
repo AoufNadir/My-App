@@ -23,7 +23,9 @@ import { MainAppDialogs } from './components/main/MainAppDialogs';
 import type { TransactionFilterMode } from './components/transactions/transactionsTypes';
 import { OfflineBanner } from './components/ui/OfflineBanner';
 import { MonthlyRecapBanner } from './components/ui/MonthlyRecapBanner';
+import { WeeklyRecapBanner } from './components/ui/WeeklyRecapBanner';
 import { useMonthlyRecap } from './hooks/useMonthlyRecap';
+import { useWeeklyRecap } from './hooks/useWeeklyRecap';
 // Custom Hooks
 import { useAppData } from './hooks/useAppData';
 import { useSettings } from './hooks/useSettings';
@@ -1941,6 +1943,7 @@ export default function MainApp({ user }: {
     // Surface a recap of the previous month's realized profit on first
     // visit of a new month. Banner self-dismisses (persisted in localStorage).
     const { recap: monthlyRecap, dismiss: dismissMonthlyRecap } = useMonthlyRecap(transactions, pamLedger);
+    const { recap: weeklyRecap, dismiss: dismissWeeklyRecap } = useWeeklyRecap(transactions, pamLedger);
     const [isCalcOpen, setIsCalcOpen] = React.useState(false);
 
     const handleExportBackup = React.useCallback(() => {
@@ -2000,6 +2003,7 @@ export default function MainApp({ user }: {
                     <MainHeaderBar {...{ view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), setIsMobileMenuOpen, handleOpenGlobalSearch, onOpenSettings: () => setIsSettingsModalOpen(true), onSignOut: () => signOut(auth), labels: navLabels }}/>
                 <AppMobileMenuNav view={view} onSelect={navigateToView} isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} labels={navLabels} onOpenSettings={() => setIsSettingsModalOpen(true)} handleOpenGlobalSearch={handleOpenGlobalSearch} onSignOut={() => signOut(auth)}/>
 
+                <WeeklyRecapBanner recap={weeklyRecap} onDismiss={dismissWeeklyRecap}/>
                 <MonthlyRecapBanner recap={monthlyRecap} onDismiss={dismissMonthlyRecap}/>
 
                 <MainContentArea {...mainContentProps}/>
