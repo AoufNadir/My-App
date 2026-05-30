@@ -1942,6 +1942,41 @@ export default function MainApp({ user }: {
     // visit of a new month. Banner self-dismisses (persisted in localStorage).
     const { recap: monthlyRecap, dismiss: dismissMonthlyRecap } = useMonthlyRecap(transactions, pamLedger);
     const [isCalcOpen, setIsCalcOpen] = React.useState(false);
+
+    const handleExportBackup = React.useCallback(() => {
+        try {
+            const backup = {
+                version: 1,
+                app: 'Pro Digital',
+                exportedAt: new Date().toISOString(),
+                data: {
+                    transactions,
+                    clientsDzd,
+                    clientTransactionsDzd,
+                    treasuryTransactions,
+                    investors: derivedInvestors,
+                    investorTransactions,
+                    treasuryCards,
+                    manualAssets,
+                    manualAssetClients,
+                    manualAssetTransactions,
+                },
+            };
+            const json = JSON.stringify(backup, null, 2);
+            const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `prodigital_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            setAlert('✅ Sauvegarde téléchargée avec succès.');
+        } catch {
+            setAlert('❌ Erreur lors de la sauvegarde.');
+        }
+    }, [transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, derivedInvestors, investorTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions]);
     // Per-view quick action wired to the bottom-bar center FAB. Returning
     // undefined hides the FAB on read-mostly views.
     const onFabPress = useMemo(() => {
@@ -2110,6 +2145,7 @@ export default function MainApp({ user }: {
         userDocRef,
         isResetModalOpen,
         handleGlobalReset,
+        handleExportBackup,
         isCreateAssetModalOpen, setIsCreateAssetModalOpen,
         newAssetName, setNewAssetName,
         newAssetDescription, setNewAssetDescription,

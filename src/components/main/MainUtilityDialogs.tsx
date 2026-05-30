@@ -104,6 +104,7 @@ function MainUtilityDialogsComponent({
     setAlert,
     isResetModalOpen,
     handleGlobalReset,
+    handleExportBackup,
     isCreateAssetModalOpen,
     setIsCreateAssetModalOpen,
     newAssetName,
@@ -224,6 +225,26 @@ function MainUtilityDialogsComponent({
                             placeholder="Ex: 500 000"
                             hint="Barre de progression sur le Dashboard · 0 = désactivé"
                         />
+                    </div>
+
+                    {/* Backup section */}
+                    <div className="rounded-xl border border-border bg-surface-muted p-3 space-y-2">
+                        <p className="text-xs font-bold uppercase text-neutral-500 tracking-wide">Sauvegarde des données</p>
+                        <p className="text-[11px] text-neutral-400 leading-relaxed">
+                            Exporte toutes vos données (transactions, clients, investisseurs, trésorerie…) en fichier JSON.
+                        </p>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="md"
+                            className="w-full font-semibold gap-2"
+                            onClick={() => typeof handleExportBackup === 'function' && handleExportBackup()}
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                            </svg>
+                            Télécharger sauvegarde JSON
+                        </Button>
                     </div>
                 </ModalContent>
                 <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
