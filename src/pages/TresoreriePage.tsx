@@ -9,6 +9,8 @@ import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { LandmarkIcon } from '../components/icons/LandmarkIcon';
 import { ArrowUpRightIcon } from '../components/icons/ArrowUpRightIcon';
 import { BanknotesIcon } from '../components/icons/BanknotesIcon';
+import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
+import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useLanguage } from '../contexts/LanguageContext';
 import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
@@ -128,7 +130,40 @@ export function TresoreriePage({ caisseBalance, baridiBalance, totalDettes, tota
 
       <Card>
         <CardHeader className="p-4 pb-3">
-          <SectionHeading icon={<BanknotesIcon className="w-4 h-4"/>}>Mouvements récents</SectionHeading>
+          <div className="flex items-center justify-between gap-2">
+            <SectionHeading icon={<BanknotesIcon className="w-4 h-4"/>}>Mouvements récents</SectionHeading>
+            {recentTxs.length > 0 && (
+              <Button
+                variant="icon" size="icon"
+                className="rounded-button bg-neutral-100 hover:bg-neutral-200"
+                aria-label="Exporter PDF trésorerie"
+                title="Exporter en PDF"
+                onClick={async () => {
+                  const { buildTreasuryPdf, openPdfPrintWindow } = await import('../utils/pdfReports');
+                  const allNonInternal = treasuryTransactions
+                    .filter((tx) => tx.type !== 'Transfer')
+                    .sort((a, b) => b.timestamp - a.timestamp);
+                  const rows = allNonInternal.map((tx) => ({
+                    date: tx.date,
+                    time: tx.time,
+                    type: tx.type,
+                    source: tx.source ?? '',
+                    amount: Number(tx.amount || 0),
+                    notes: tx.notes ?? '',
+                    origin: tx.origin,
+                  }));
+                  const report = buildTreasuryPdf(
+                    rows,
+                    { caisse: caisseBalance, baridi: baridiBalance },
+                    `Exporté le ${new Date().toLocaleDateString('fr-FR')}`
+                  );
+                  openPdfPrintWindow(report);
+                }}
+              >
+                <DownloadCloudIcon className="w-4 h-4"/>
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {recentTxs.length === 0 ? (

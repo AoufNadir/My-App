@@ -1942,3 +1942,46 @@ export function buildTransactionListPdf(rows: TransactionListRow[], subtitle: st
       <div class="footer"><span>Généré le ${today}</span><span>${rows.length} opérations · Pro Digital</span></div>`;
     return reportShell({ fileName: `transactions_${new Date().toISOString().slice(0, 10)}.pdf`, title: 'Historique des Opérations', subtitle: `${subtitle} · ${rows.length} opérations`, bodyHtml, pageSize: 'A4 landscape' });
 }
+
+export type TreasuryMovementRow = {
+    date: string;
+    time: string;
+    type: string;
+    source: string;
+    amount: number;
+    notes: string;
+    origin?: string;
+};
+
+export function buildTreasuryPdf(
+    rows: TreasuryMovementRow[],
+    balances: { caisse: number; baridi: number },
+    periodLabel: string
+): ReportPayload {
+    const today = new Date().toLocaleDateString(FR_LOCALE, { day: '2-digit', month: 'long', year: 'numeric' });
+    const totalIn = rows.reduce((s, r) => r.type === 'Ajout' || r.type === 'Adjustment (+)' ? s + r.amount : s, 0);
+    const totalOut = rows.reduce((s, r) => r.type === 'Retrait' || r.type === 'Adjustment (-)' ? s + r.amount : s, 0);
+    const kpiHtml = `
+      <div class="cards" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
+        <div class="card"><div class="label">Caisse</div><div class="value">${formatNumber(balances.caisse, 0)} DZD</div></div>
+        <div class="card"><div class="label">BaridiMob</div><div class="value">${formatNumber(balances.baridi, 0)} DZD</div></div>
+        <div class="card"><div class="label">Total entrées</div><div class="value good">+${formatNumber(totalIn, 0)} DZD</div></div>
+        <div class="card"><div class="label">Total sorties</div><div class="value bad">−${formatNumber(totalOut, 0)} DZD</div></div>
+      </div>`;
+    const thead = `<tr><th>Date</th><th>Heure</th><th>Type</th><th>Source</th><th class="num">Montant DZD</th><th>Notes</th></tr>`;
+    const tbody = rows.map(r => {
+        const isIn = r.type === 'Ajout' || r.type === 'Adjustment (+)';
+        const cls = isIn ? 'good' : r.type === 'Transfer' ? 'muted' : 'bad';
+        return `<tr>
+          <td class="muted">${escapeHtml(r.date)}</td>
+          <td class="muted">${escapeHtml(r.time)}</td>
+          <td><span class="pill ${cls}">${escapeHtml(r.type)}</span></td>
+          <td class="muted">${escapeHtml(r.source)}</td>
+          <td class="num ${cls}">${isIn ? '+' : r.type !== 'Transfer' ? '−' : ''}${formatNumber(r.amount, 0)}</td>
+          <td class="muted" style="max-width:200px;white-space:normal;font-size:11px">${escapeHtml(r.notes)}</td>
+        </tr>`;
+    }).join('');
+    const bodyHtml = `${kpiHtml}<div class="section-title">Mouvements de trésorerie</div><div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
+      <div class="footer"><span>Généré le ${today}</span><span>${rows.length} mouvements · ${periodLabel}</span></div>`;
+    return reportShell({ fileName: `tresorerie_${new Date().toISOString().slice(0, 10)}.pdf`, title: 'Rapport de Trésorerie', subtitle: `${periodLabel} · ${rows.length} mouvements`, bodyHtml, pageSize: 'A4 landscape' });
+}
