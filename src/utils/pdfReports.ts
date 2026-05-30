@@ -1819,3 +1819,126 @@ export function openPdfPrintWindow(report: ReportPayload): boolean {
         return false;
     }
 }
+
+// ─── List export helpers ───────────────────────────────────────────────────
+
+export type ClientListRow = {
+    name: string;
+    phone?: string;
+    email?: string;
+    redotpay?: string;
+    balance: number;
+};
+
+export function buildClientListPdf(rows: ClientListRow[]): ReportPayload {
+    const today = new Date().toLocaleDateString(FR_LOCALE, { day: '2-digit', month: 'long', year: 'numeric' });
+    const totalDebt = rows.reduce((s, r) => r.balance < 0 ? s + Math.abs(r.balance) : s, 0);
+    const totalAdv = rows.reduce((s, r) => r.balance > 0 ? s + r.balance : s, 0);
+    const kpiHtml = `
+      <div class="cards" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
+        <div class="card"><div class="label">Total clients</div><div class="value">${rows.length}</div></div>
+        <div class="card"><div class="label">Total dettes</div><div class="value bad">${formatNumber(totalDebt, 0)} DZD</div></div>
+        <div class="card"><div class="label">Total avances</div><div class="value good">${formatNumber(totalAdv, 0)} DZD</div></div>
+      </div>`;
+    const thead = `<tr><th>#</th><th>Nom complet</th><th>Téléphone</th><th>Email Binance</th><th>Redotpay ID</th><th class="num">Solde DZD</th><th>Statut</th></tr>`;
+    const tbody = rows.map((r, i) => {
+        const cls = r.balance < -0.01 ? 'bad' : r.balance > 0.01 ? 'good' : 'muted';
+        const label = r.balance < -0.01 ? 'Dette' : r.balance > 0.01 ? 'Avance' : 'Nul';
+        return `<tr>
+          <td class="muted">${i + 1}</td>
+          <td><strong>${escapeHtml(r.name)}</strong></td>
+          <td class="muted">${escapeHtml(r.phone || '—')}</td>
+          <td class="muted">${escapeHtml(r.email || '—')}</td>
+          <td class="muted">${escapeHtml(r.redotpay || '—')}</td>
+          <td class="num ${cls}">${r.balance !== 0 ? (r.balance > 0 ? '+' : '') + formatNumber(r.balance, 0) : '0'} DZD</td>
+          <td><span class="pill ${cls}">${label}</span></td>
+        </tr>`;
+    }).join('');
+    const bodyHtml = `${kpiHtml}<div class="section-title">Liste des clients</div><div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
+      <div class="footer"><span>Généré le ${today}</span><span>${rows.length} clients exportés</span></div>`;
+    return reportShell({ fileName: `clients_${new Date().toISOString().slice(0, 10)}.pdf`, title: 'Liste des Clients', subtitle: `Exporté le ${today} · ${rows.length} clients`, bodyHtml });
+}
+
+export type InvestorListRow = {
+    name: string;
+    isManager: boolean;
+    isActive: boolean;
+    capitalInvested: number;
+    availableProfit: number;
+    withdrawnProfit: number;
+    totalProfit: number;
+    roi: number | null;
+    entryDate: string;
+};
+
+export function buildInvestorListPdf(rows: InvestorListRow[]): ReportPayload {
+    const today = new Date().toLocaleDateString(FR_LOCALE, { day: '2-digit', month: 'long', year: 'numeric' });
+    const totalCap = rows.filter(r => r.isActive).reduce((s, r) => s + r.capitalInvested, 0);
+    const totalAvail = rows.reduce((s, r) => s + r.availableProfit, 0);
+    const totalGain = rows.reduce((s, r) => s + r.totalProfit, 0);
+    const kpiHtml = `
+      <div class="cards" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
+        <div class="card"><div class="label">Capital total (actifs)</div><div class="value">${formatNumber(totalCap, 0)} DZD</div></div>
+        <div class="card"><div class="label">Profits disponibles</div><div class="value good">${formatNumber(totalAvail, 0)} DZD</div></div>
+        <div class="card"><div class="label">Total gagné (cumulé)</div><div class="value good">${formatNumber(totalGain, 0)} DZD</div></div>
+      </div>`;
+    const thead = `<tr><th>#</th><th>Nom</th><th>Rôle</th><th>Statut</th><th class="num">Capital investi</th><th class="num">Profit dispo.</th><th class="num">Total retiré</th><th class="num">Total gagné</th><th class="num">ROI %</th><th>Entrée</th></tr>`;
+    const tbody = rows.map((r, i) => {
+        const roiCls = r.roi !== null ? (r.roi > 0 ? 'good' : r.roi < 0 ? 'bad' : '') : '';
+        return `<tr>
+          <td class="muted">${i + 1}</td>
+          <td><strong>${escapeHtml(r.name)}</strong></td>
+          <td class="muted">${r.isManager ? 'Gérant' : 'Investisseur'}</td>
+          <td><span class="pill ${r.isActive ? 'profit' : ''}">${r.isActive ? 'Actif' : 'Inactif'}</span></td>
+          <td class="num">${formatNumber(r.capitalInvested, 0)} DZD</td>
+          <td class="num good">${formatNumber(r.availableProfit, 0)} DZD</td>
+          <td class="num muted">${formatNumber(r.withdrawnProfit, 0)} DZD</td>
+          <td class="num good">${formatNumber(r.totalProfit, 0)} DZD</td>
+          <td class="num ${roiCls}">${r.roi !== null ? (r.roi > 0 ? '+' : '') + formatNumber(r.roi, 2) + ' %' : '—'}</td>
+          <td class="muted">${escapeHtml(r.entryDate)}</td>
+        </tr>`;
+    }).join('');
+    const bodyHtml = `${kpiHtml}<div class="section-title">Liste des investisseurs</div><div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
+      <div class="footer"><span>Généré le ${today}</span><span>${rows.length} investisseurs exportés</span></div>`;
+    return reportShell({ fileName: `investisseurs_${new Date().toISOString().slice(0, 10)}.pdf`, title: 'Liste des Investisseurs', subtitle: `Exporté le ${today} · ${rows.length} investisseurs`, bodyHtml, pageSize: 'A4 landscape' });
+}
+
+export type TransactionListRow = {
+    date: string;
+    time: string;
+    category: string;
+    type: string;
+    currency: string;
+    quantity: string;
+    price: string;
+    totalDzd: string;
+    client: string;
+    notes: string;
+    tags: string;
+};
+
+export function buildTransactionListPdf(rows: TransactionListRow[], subtitle: string): ReportPayload {
+    const today = new Date().toLocaleDateString(FR_LOCALE, { day: '2-digit', month: 'long', year: 'numeric' });
+    const kpiHtml = `
+      <div class="cards" style="grid-template-columns:repeat(2,1fr);margin-bottom:20px">
+        <div class="card"><div class="label">Total opérations</div><div class="value">${rows.length}</div></div>
+        <div class="card"><div class="label">Période / Filtre</div><div class="value" style="font-size:14px">${escapeHtml(subtitle)}</div></div>
+      </div>`;
+    const thead = `<tr><th>Date</th><th>Heure</th><th>Catégorie</th><th>Type</th><th>Devise</th><th class="num">Quantité</th><th class="num">Prix</th><th class="num">Total DZD</th><th>Client</th><th>Notes</th><th>Tags</th></tr>`;
+    const tbody = rows.map(r => `<tr>
+      <td class="muted">${escapeHtml(r.date)}</td>
+      <td class="muted">${escapeHtml(r.time)}</td>
+      <td><span class="pill small">${escapeHtml(r.category)}</span></td>
+      <td><strong>${escapeHtml(r.type)}</strong></td>
+      <td class="muted">${escapeHtml(r.currency)}</td>
+      <td class="num">${escapeHtml(r.quantity)}</td>
+      <td class="num">${escapeHtml(r.price)}</td>
+      <td class="num"><strong>${escapeHtml(r.totalDzd)}</strong></td>
+      <td class="muted">${escapeHtml(r.client)}</td>
+      <td class="muted" style="max-width:140px;white-space:normal;font-size:11px">${escapeHtml(r.notes)}</td>
+      <td>${r.tags ? r.tags.split(';').map(t => `<span class="pill small">${escapeHtml(t)}</span>`).join('') : ''}</td>
+    </tr>`).join('');
+    const bodyHtml = `${kpiHtml}<div class="section-title">Historique des opérations</div><div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
+      <div class="footer"><span>Généré le ${today}</span><span>${rows.length} opérations · Pro Digital</span></div>`;
+    return reportShell({ fileName: `transactions_${new Date().toISOString().slice(0, 10)}.pdf`, title: 'Historique des Opérations', subtitle: `${subtitle} · ${rows.length} opérations`, bodyHtml, pageSize: 'A4 landscape' });
+}

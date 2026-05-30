@@ -11,26 +11,16 @@ import { NewTransactionMenuDialog } from '../components/transactions/NewTransact
 import { TransactionFilterMode, DisplayTx } from '../components/transactions/transactionsTypes';
 import { useTransactionsViewModel } from '../components/transactions/useTransactionsViewModel';
 
-function csvCell(value: string | number | null | undefined): string {
-    const s = String(value ?? '');
-    if (s.includes(',') || s.includes('"') || s.includes('\n'))
-        return `"${s.replace(/"/g, '""')}"`;
-    return s;
-}
-
-function exportTransactionsCsv(groupedTransactions: Record<string, DisplayTx[]>, getClientFullName: (c: ClientDzd) => string, clientsDzd: ClientDzd[]) {
+async function exportTransactionsPdf(groupedTransactions: Record<string, DisplayTx[]>, getClientFullName: (c: ClientDzd) => string, clientsDzd: ClientDzd[], filterLabel: string) {
+    const { buildTransactionListPdf, openPdfPrintWindow } = await import('../utils/pdfReports');
     const clientById = new Map(clientsDzd.map((c) => [c.id, c]));
     const getClientName = (id: string | undefined) => {
         if (!id) return '';
         const c = clientById.get(id);
         return c ? getClientFullName(c) : id;
     };
-
-    const headers = ['Date', 'Heure', 'Catégorie', 'Type', 'Devise', 'Quantité', 'Prix', 'Total DZD', 'Client', 'Source', 'Notes', 'Tags'];
-    const rows: string[][] = [];
-
     const allTxs = Object.values(groupedTransactions).flat() as DisplayTx[];
-    for (const dtx of allTxs) {
+    const rows = allTxs.map((dtx) => {
         const raw = dtx.rawTx;
         const tagsStr = Array.isArray((raw as any).tags) ? ((raw as any).tags as string[]).join(';') : '';
         if (dtx.category === 'crypto') {
@@ -38,28 +28,17 @@ function exportTransactionsCsv(groupedTransactions: Record<string, DisplayTx[]>,
             const qty = tx.quantity ?? 0;
             const price = tx.price ?? tx.sell ?? 0;
             const total = tx.total ?? (qty * price);
-            rows.push([dtx.date, dtx.time, 'Portefeuille', dtx.typeLabel, tx.currency, String(qty), String(price), String(Math.round(total)), getClientName(tx.linkedClientId), '', tx.notes ?? '', tagsStr]);
+            return { date: dtx.date, time: dtx.time, category: 'Portefeuille', type: dtx.typeLabel, currency: tx.currency, quantity: String(qty), price: String(price), totalDzd: String(Math.round(total)), client: getClientName(tx.linkedClientId), notes: tx.notes ?? '', tags: tagsStr };
         } else if (dtx.category === 'client') {
             const tx = raw as ClientTransactionDzd;
-            const amount = Number(tx.montant ?? 0);
-            rows.push([dtx.date, dtx.time, 'Client', dtx.typeLabel, 'DZD', '', '', String(Math.round(Math.abs(amount))), getClientName(tx.clientId), tx.paymentMethod ?? '', tx.notes ?? '', tagsStr]);
+            return { date: dtx.date, time: dtx.time, category: 'Client', type: dtx.typeLabel, currency: 'DZD', quantity: '', price: '', totalDzd: String(Math.round(Math.abs(Number(tx.montant ?? 0)))), client: getClientName(tx.clientId), notes: tx.notes ?? '', tags: tagsStr };
         } else {
             const tx = raw as TreasuryTx;
-            const amount = Number(tx.amount ?? 0);
-            rows.push([dtx.date, dtx.time, 'Trésorerie', dtx.typeLabel, 'DZD', '', '', String(Math.round(amount)), '', tx.source ?? '', tx.notes ?? '', tagsStr]);
+            return { date: dtx.date, time: dtx.time, category: 'Trésorerie', type: dtx.typeLabel, currency: 'DZD', quantity: '', price: '', totalDzd: String(Math.round(Number(tx.amount ?? 0))), client: '', notes: tx.notes ?? '', tags: tagsStr };
         }
-    }
-
-    const csv = [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `transactions_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    });
+    const report = buildTransactionListPdf(rows, filterLabel);
+    openPdfPrintWindow(report);
 }
 
 type TransactionsPageProps = {
@@ -187,13 +166,13 @@ export function TransactionsPage({
         <Button
           variant="outline"
           size="lg"
-          onClick={() => exportTransactionsCsv(groupedTransactions, getClientFullName, clientsDzd)}
+          onClick={() => exportTransactionsPdf(groupedTransactions, getClientFullName, clientsDzd, `${stats.total} opérations`)}
           className="shrink-0 font-semibold px-3"
-          title="Exporter CSV"
-          aria-label="Exporter CSV"
+          title="Exporter PDF"
+          aria-label="Exporter PDF"
         >
           <DownloadCloudIcon className="w-4 h-4" />
-          <span className="hidden sm:inline">CSV</span>
+          <span className="hidden sm:inline">PDF</span>
         </Button>
       </div>
 
