@@ -259,6 +259,17 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             </CardContent>
           </Card>
 
+          {selectedClient.notes && (
+            <Card>
+              <CardHeader className="p-4 pb-2">
+                <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>Notes privées</SectionHeading>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 pt-1">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-700">{selectedClient.notes}</p>
+              </CardContent>
+            </Card>
+          )}
+
           {clientStats.txCount > 0 && (
             <Card>
               <CardHeader className="p-4 pb-3">

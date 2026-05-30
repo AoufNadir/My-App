@@ -2,10 +2,11 @@ import { memo } from 'react';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../ui/Modal';
 import { Label } from '../ui/Label';
 import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
 import { Button } from '../ui/Button';
 import { NumberInput } from '../ui/NumberInput';
 type MainClientCrudDialogsProps = Record<string, any>;
-function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, initialBalance, setInitialBalance, handleSaveClient, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient }: MainClientCrudDialogsProps) {
+function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, initialBalance, setInitialBalance, handleSaveClient, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient }: MainClientCrudDialogsProps) {
     const isBlockedClientDelete = clientDeleteMode === 'blocked';
     const isBalanceOnlyClientDelete = clientDeleteMode === 'balance_only';
     const isClientOnlyCleanupDelete = clientDeleteMode === 'client_only_cleanup';
@@ -80,6 +81,10 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                     <div><Label>{t('transactions.phone')}</Label><Input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className="mt-1"/></div>
                     <div><Label>RedotPay ID</Label><Input value={clientRedotpayId} onChange={e => setClientRedotpayId(e.target.value)} className="mt-1"/></div>
                     <div><Label>Binance Email</Label><Input value={clientBinanceEmail} onChange={e => setClientBinanceEmail(e.target.value)} className="mt-1"/></div>
+                    <div>
+                        <Label>Notes privées</Label>
+                        <Textarea value={clientNotes} onChange={e => setClientNotes(e.target.value)} className="mt-1 resize-none text-sm" rows={3} placeholder="Préférences, disponibilités, remarques importantes…"/>
+                    </div>
                     {!editingClient && (<div>
                             <Label>{t('transactions.initialBalance')} ({t('common.dinar')})</Label>
                             <NumberInput value={initialBalance} onChange={e => setInitialBalance(e.target.value)} className="mt-1" placeholder="0.00"/>

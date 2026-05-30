@@ -62,6 +62,7 @@ export interface ClientDzd {
     phone?: string;
     redotpayId?: string;
     binanceEmail?: string;
+    notes?: string;
     nom?: string; // Legacy support
     prenom?: string; // Legacy support
 }

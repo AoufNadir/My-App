@@ -42,6 +42,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     const [initialBalance, setInitialBalance] = useState('');
     const [clientRedotpayId, setClientRedotpayId] = useState('');
     const [clientBinanceEmail, setClientBinanceEmail] = useState('');
+    const [clientNotes, setClientNotes] = useState('');
     const [clientBalanceInput, setClientBalanceInput] = useState('');
     const openClientModal = (client: ClientDzd | null = null) => {
         setEditingClient(client);
@@ -50,6 +51,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientPhone(client.phone || '');
             setClientRedotpayId(client.redotpayId || '');
             setClientBinanceEmail(client.binanceEmail || '');
+            setClientNotes(client.notes || '');
             const currentBal = clientBalances.get(client.id) || 0;
             setClientBalanceInput(currentBal.toString());
             setInitialBalance('');
@@ -59,6 +61,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientPhone('');
             setClientRedotpayId('');
             setClientBinanceEmail('');
+            setClientNotes('');
             setClientBalanceInput('');
             setInitialBalance('0');
         }
@@ -84,6 +87,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 phone: clientPhone.trim(),
                 redotpayId: clientRedotpayId.trim(),
                 binanceEmail: clientBinanceEmail.trim(),
+                notes: clientNotes.trim() || null,
                 nom: clientFullName.trim()
             };
             if (editingClient) {
@@ -484,7 +488,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         isSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode,
         clientFullName, setClientFullName, clientPhone, setClientPhone,
         initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId,
-        clientBinanceEmail, setClientBinanceEmail, clientBalanceInput, setClientBalanceInput,
+        clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientBalanceInput, setClientBalanceInput,
         openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient,
         isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx,
         clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount,
