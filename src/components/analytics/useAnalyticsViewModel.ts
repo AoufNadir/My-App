@@ -266,6 +266,33 @@ export function useAnalyticsViewModel({ transactions, usdtReportMonth, usdtRepor
         };
     }, [pamLedger]);
 
+    // Previous month stats for comparison
+    const prevMonthStats = useMemo(() => {
+        const prevM = usdtReportMonth === 0 ? 11 : usdtReportMonth - 1;
+        const prevY = usdtReportMonth === 0 ? usdtReportYear - 1 : usdtReportYear;
+        const startDate = new Date(prevY, prevM, 1).getTime();
+        const endDate = new Date(prevY, prevM + 1, 0, 23, 59, 59, 999).getTime();
+        let realizedProfit = 0;
+        let sellCount = 0;
+        let winCount = 0;
+        let volUsdtSold = 0;
+        for (const row of pamLedger.sellProfitRows) {
+            if (row.timestamp < startDate || row.timestamp > endDate) continue;
+            const p = row.derivedProfit || 0;
+            realizedProfit += p;
+            sellCount++;
+            if (p > 0) winCount++;
+            if (row.currency === 'USDT') volUsdtSold += Number(row.quantity || 0);
+        }
+        return {
+            realizedProfit,
+            sellCount,
+            winRate: sellCount > 0 ? (winCount / sellCount) * 100 : null,
+            avgProfitPerSell: sellCount > 0 ? realizedProfit / sellCount : null,
+            volUsdtSold,
+        };
+    }, [pamLedger, usdtReportMonth, usdtReportYear]);
+
     return {
         calculatedStats,
         heatmapData,
@@ -273,5 +300,6 @@ export function useAnalyticsViewModel({ transactions, usdtReportMonth, usdtRepor
         allTimeClientRanking,
         annualStats,
         allTimeStats,
+        prevMonthStats,
     };
 }

@@ -27,6 +27,17 @@ function buildCalendarGrid(year: number, month: number, heatmapData: Map<number,
     return cells;
 }
 
+function pctChange(current: number | null, prev: number | null): { value: number; label: string; cls: string } | null {
+    if (current === null || prev === null || prev === 0) return null;
+    const pct = ((current - prev) / Math.abs(prev)) * 100;
+    const isUp = pct >= 0;
+    return {
+        value: pct,
+        label: `${isUp ? '▲' : '▼'} ${Math.abs(pct).toFixed(1)}%`,
+        cls: isUp ? 'text-financial-profit' : 'text-financial-loss',
+    };
+}
+
 function profitCellClass(profit: number, maxProfit: number): string {
     if (profit === 0) return 'bg-neutral-100 text-neutral-400';
     if (profit < 0) return 'bg-financial-loss/25 text-financial-loss';
@@ -39,7 +50,7 @@ function profitCellClass(profit: number, maxProfit: number): string {
 
 export function AnalyticsPage(props: AnalyticsPageProps) {
     const { t } = useLanguage();
-    const { calculatedStats, heatmapData, monthlyClientRanking, allTimeClientRanking, annualStats, allTimeStats } = useAnalyticsViewModel({
+    const { calculatedStats, heatmapData, monthlyClientRanking, allTimeClientRanking, annualStats, allTimeStats, prevMonthStats } = useAnalyticsViewModel({
         transactions: props.transactions,
         usdtReportMonth: props.usdtReportMonth,
         usdtReportYear: props.usdtReportYear,
@@ -83,9 +94,16 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
             {calculatedStats.sellCount > 0 && (
                 <Card>
                     <CardHeader className="p-4 pb-3">
-                        <SectionHeading icon={<SparklesIcon className="w-4 h-4" />}>
-                            Performance — {selectedMonthLabel}
-                        </SectionHeading>
+                        <div className="flex items-center justify-between gap-2">
+                            <SectionHeading icon={<SparklesIcon className="w-4 h-4" />}>
+                                Performance — {selectedMonthLabel}
+                            </SectionHeading>
+                            {prevMonthStats.sellCount > 0 && (
+                                <span className="shrink-0 text-[10px] font-semibold text-neutral-400">
+                                    vs {MONTH_LABELS_FR[props.usdtReportMonth === 0 ? 11 : props.usdtReportMonth - 1]}
+                                </span>
+                            )}
+                        </div>
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -99,6 +117,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                     {calculatedStats.winRate !== null && <span className="text-sm text-neutral-500">%</span>}
                                 </div>
                                 <p className="mt-1 text-[10px] text-neutral-400">{calculatedStats.sellCount} vente{calculatedStats.sellCount > 1 ? 's' : ''}</p>
+                                {(() => { const c = pctChange(calculatedStats.winRate, prevMonthStats.winRate); return c ? <p className={`mt-0.5 text-[10px] font-bold ${c.cls}`}>{c.label}</p> : null; })()}
                             </div>
                             {/* Avg profit per sell */}
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
@@ -108,17 +127,15 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                         ? <CurrencyAmount value={calculatedStats.avgProfitPerSell} currency="DZD" semantic="auto" size="lg" decimals={0}/>
                                         : <span className="text-neutral-400">—</span>}
                                 </div>
-                                <p className="mt-1 text-[10px] text-neutral-400">profit moyen</p>
+                                {(() => { const c = pctChange(calculatedStats.avgProfitPerSell, prevMonthStats.avgProfitPerSell); return c ? <p className={`mt-0.5 text-[10px] font-bold ${c.cls}`}>{c.label}</p> : null; })()}
                             </div>
-                            {/* Best sell */}
+                            {/* Profit total */}
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[11px] font-bold uppercase text-neutral-500">Meilleure vente</p>
+                                <p className="text-[11px] font-bold uppercase text-neutral-500">Profit total</p>
                                 <div className="mt-2">
-                                    {calculatedStats.bestSellProfit > 0
-                                        ? <CurrencyAmount value={calculatedStats.bestSellProfit} currency="DZD" semantic="profit" size="lg" decimals={0}/>
-                                        : <span className="text-neutral-400">—</span>}
+                                    <CurrencyAmount value={calculatedStats.realizedProfit} currency="DZD" semantic="auto" size="lg" decimals={0}/>
                                 </div>
-                                <p className="mt-1 text-[10px] text-neutral-400">transaction unique</p>
+                                {(() => { const c = pctChange(calculatedStats.realizedProfit, prevMonthStats.realizedProfit); return c ? <p className={`mt-0.5 text-[10px] font-bold ${c.cls}`}>{c.label}</p> : null; })()}
                             </div>
                             {/* USDT volume */}
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
@@ -126,7 +143,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                 <div className="mt-2">
                                     <CurrencyAmount value={calculatedStats.volUsdtSold} currency="USDT" semantic="plain" size="lg" decimals={0}/>
                                 </div>
-                                <p className="mt-1 text-[10px] text-neutral-400">vendus ce mois</p>
+                                {(() => { const c = pctChange(calculatedStats.volUsdtSold, prevMonthStats.volUsdtSold); return c ? <p className={`mt-0.5 text-[10px] font-bold ${c.cls}`}>{c.label}</p> : null; })()}
                             </div>
                         </div>
                     </CardContent>
