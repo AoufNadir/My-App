@@ -1,6 +1,5 @@
-import { useState, type FC } from 'react';
+import { useMemo, useState, type FC } from 'react';
 import type { ReactNode } from 'react';
-import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { EmptyState } from '../ui/EmptyState';
@@ -10,13 +9,15 @@ import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { SectionHeading } from '../ui/SectionHeading';
 import { Select } from '../ui/Select';
 import { Tabs, type Tab } from '../ui/Tabs';
+import { BottomSheet } from '../ui/BottomSheet';
+import { SearchableSelect } from '../ui/SearchableSelect';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { UsersIcon } from '../icons/UsersIcon';
 import { FileSpreadsheetIcon } from '../icons/FileSpreadsheetIcon';
 import { TrendingUpIcon } from '../icons/TrendingUpIcon';
-import { formatNumber } from '../../pages/shared/pageFormat';
+import { DownloadCloudIcon } from '../icons/DownloadCloudIcon';
+import { CalendarIcon } from '../icons/CalendarIcon';
 import type { ClientDzd, ClientTransactionDzd, PortfolioStats, Tx } from '../../types';
-import { AnalyticsExportPanel } from './AnalyticsExportPanel';
 import { CalculatedStats, MonthlyClientRank, MonthlyClientRanking } from './analyticsTypes';
 
 type AnalyticsReportCardProps = {
@@ -80,47 +81,34 @@ export function AnalyticsReportCard({
     selectedHeatmapDay,
     setSelectedHeatmapDay,
 }: AnalyticsReportCardProps) {
-    const [activeTab, setActiveTab] = useState<'monthly' | 'clients' | 'exports'>('monthly');
+    const [activeTab, setActiveTab] = useState<'monthly' | 'clients'>('monthly');
+    const [isExportSheetOpen, setIsExportSheetOpen] = useState(false);
+    // Client report state (local, previously in AnalyticsExportPanel)
+    const [localReportClient, setLocalReportClient] = useState(reportClient);
+    const [localReportMonth, setLocalReportMonth] = useState(reportMonth);
+    const [localReportYear, setLocalReportYear] = useState(reportYear);
 
     const topProfitableRows = [...monthlyClientRanking.rankedRows]
         .filter((row) => row.sellCount > 0)
         .sort((a, b) => {
-            if (b.realizedProfit !== a.realizedProfit) {
-                return b.realizedProfit - a.realizedProfit;
-            }
-            if (b.totalVolumeUsdt !== a.totalVolumeUsdt) {
-                return b.totalVolumeUsdt - a.totalVolumeUsdt;
-            }
+            if (b.realizedProfit !== a.realizedProfit) return b.realizedProfit - a.realizedProfit;
+            if (b.totalVolumeUsdt !== a.totalVolumeUsdt) return b.totalVolumeUsdt - a.totalVolumeUsdt;
             return a.clientName.localeCompare(b.clientName, 'fr');
         })
         .slice(0, 5);
     const monthOptions = reportMonths(usdtReportYear);
+    const clientMonthOptions = reportMonths(localReportYear);
     const selectedMonthLabel = monthOptions[usdtReportMonth] || `${usdtReportMonth + 1}`;
-    const monthlyHasData = Boolean(calculatedStats.volUsdtBought
-        || calculatedStats.volUsdtSold
-        || calculatedStats.volEurBought
-        || calculatedStats.volEurSold
-        || calculatedStats.realizedProfit
-        || heatmapData.size);
-    const bestHeatmapDay = [...heatmapData.entries()]
-        .sort((left, right) => right[1] - left[1])[0] || null;
-    const worstHeatmapDay = [...heatmapData.entries()]
-        .sort((left, right) => left[1] - right[1])[0] || null;
-    const winningDaysCount = [...heatmapData.values()].filter((profit) => profit > 0).length;
-    const monthlyVolumeCount = calculatedStats.volUsdtBought
-        + calculatedStats.volUsdtSold
-        + calculatedStats.volEurBought
-        + calculatedStats.volEurSold;
+    const monthlyHasData = Boolean(calculatedStats.volUsdtBought || calculatedStats.volUsdtSold
+        || calculatedStats.volEurBought || calculatedStats.volEurSold
+        || calculatedStats.realizedProfit || heatmapData.size);
+    const bestHeatmapDay = [...heatmapData.entries()].sort((l, r) => r[1] - l[1])[0] || null;
+    const worstHeatmapDay = [...heatmapData.entries()].sort((l, r) => l[1] - r[1])[0] || null;
+    const winningDaysCount = [...heatmapData.values()].filter((p) => p > 0).length;
+    const sortedClients = useMemo(() => [...clientsDzd].sort((a, b) => getClientFullName(a).localeCompare(getClientFullName(b), 'fr')), [clientsDzd, getClientFullName]);
     const tabItems: Tab[] = [
         { id: 'monthly', label: t('portfolio.tabSynthesis') },
         { id: 'clients', label: t('portfolio.tabClients'), badge: topProfitableRows.length },
-        { id: 'exports', label: t('portfolio.tabExports') },
-    ];
-    const flowMetrics = [
-        { label: t('portfolio.usdtBought'), value: calculatedStats.volUsdtBought, currency: 'USDT' as const },
-        { label: t('portfolio.usdtSold'), value: calculatedStats.volUsdtSold, currency: 'USDT' as const },
-        { label: t('portfolio.eurBought'), value: calculatedStats.volEurBought, currency: 'EUR' as const },
-        { label: t('portfolio.eurSold'), value: calculatedStats.volEurSold, currency: 'EUR' as const },
     ];
     // Simplified 3-column table: Name | Ventes USDT | Profit
     const columns: MobileTableColumn<MonthlyClientRank>[] = [
@@ -157,9 +145,22 @@ export function AnalyticsReportCard({
         <div className="space-y-4">
             <Card>
                 <CardHeader className="p-4 pb-3">
-                    <SectionHeading icon={<SparklesIcon className="h-4 w-4" />}>
-                        {t('portfolio.analysisReports')}
-                    </SectionHeading>
+                    <div className="flex items-center justify-between gap-2">
+                        <SectionHeading icon={<SparklesIcon className="h-4 w-4" />}>
+                            {t('portfolio.analysisReports')}
+                        </SectionHeading>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsExportSheetOpen(true)}
+                            className="shrink-0 gap-1.5 font-semibold"
+                            title="Exporter PDF"
+                        >
+                            <DownloadCloudIcon className="h-4 w-4"/>
+                            PDF
+                        </Button>
+                    </div>
                 </CardHeader>
                 <CardContent className="space-y-4 p-4 pt-0">
                     <div className="grid grid-cols-2 gap-3">
@@ -201,30 +202,83 @@ export function AnalyticsReportCard({
                 />
             )}
 
-            {activeTab === 'exports' && (
-                <AnalyticsExportPanel
-                    t={t}
-                    usdtReportMonth={usdtReportMonth}
-                    usdtReportYear={usdtReportYear}
-                    reportMonths={reportMonths}
-                    reportYears={reportYears}
-                    reportClient={reportClient}
-                    setReportClient={setReportClient}
-                    reportMonth={reportMonth}
-                    setReportMonth={setReportMonth}
-                    reportYear={reportYear}
-                    setReportYear={setReportYear}
-                    clientsDzd={clientsDzd}
-                    clientTransactionsDzd={clientTransactionsDzd}
-                    transactions={transactions}
-                    portfolioStats={portfolioStats}
-                    getClientFullName={getClientFullName}
-                    calculatedStats={calculatedStats}
-                    monthlyClientRanking={monthlyClientRanking}
-                    handleExportUsdtReport={handleExportUsdtReport}
-                    handleExportClientReport={handleExportClientReport}
-                />
-            )}
+            {/* Export PDF BottomSheet */}
+            <BottomSheet isOpen={isExportSheetOpen} onClose={() => setIsExportSheetOpen(false)} title="Exporter un rapport PDF">
+                <div className="px-4 pb-6 space-y-5">
+
+                    {/* Section 1 — Rapport mensuel */}
+                    <div className="rounded-xl border border-border bg-surface-muted p-4 space-y-3">
+                        <div className="flex items-center gap-2">
+                            <CalendarIcon className="w-4 h-4 text-primary shrink-0"/>
+                            <div className="min-w-0">
+                                <p className="text-sm font-bold text-neutral-800">Rapport mensuel</p>
+                                <p className="text-xs text-neutral-500">
+                                    {selectedMonthLabel} {usdtReportYear}
+                                    {calculatedStats.realizedProfit !== 0 && (
+                                        <> · <CurrencyAmount value={calculatedStats.realizedProfit} currency="DZD" semantic="auto" size="sm" decimals={0} showSign/></>
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+                        <Button
+                            type="button"
+                            onClick={() => { handleExportUsdtReport(); setIsExportSheetOpen(false); }}
+                            className="w-full gap-2 font-bold"
+                            disabled={!monthlyHasData}
+                        >
+                            <DownloadCloudIcon className="h-4 w-4"/>
+                            {monthlyHasData ? 'Télécharger rapport mensuel' : 'Aucune donnée ce mois'}
+                        </Button>
+                    </div>
+
+                    {/* Section 2 — Rapport par client */}
+                    <div className="rounded-xl border border-border bg-surface-muted p-4 space-y-3">
+                        <div className="flex items-center gap-2">
+                            <UsersIcon className="w-4 h-4 text-secondary shrink-0"/>
+                            <p className="text-sm font-bold text-neutral-800">Rapport client</p>
+                        </div>
+
+                        <div>
+                            <Label>Client</Label>
+                            <SearchableSelect
+                                value={localReportClient}
+                                onChange={setLocalReportClient}
+                                options={sortedClients.map((c) => ({ value: c.id, label: getClientFullName(c) }))}
+                                fieldClassName="mt-1"
+                                searchPlaceholder="Rechercher un client…"
+                                emptyOptionLabel="Sélectionner un client"
+                                emptyValue=""
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <Label>Mois</Label>
+                                <Select value={localReportMonth} onChange={(e) => setLocalReportMonth(Number(e.target.value))} className="mt-1">
+                                    {clientMonthOptions.map((name, i) => <option key={name} value={i}>{name}</option>)}
+                                </Select>
+                            </div>
+                            <div>
+                                <Label>Année</Label>
+                                <Select value={localReportYear} onChange={(e) => setLocalReportYear(Number(e.target.value))} className="mt-1">
+                                    {reportYears.map((y) => <option key={y} value={y}>{y}</option>)}
+                                </Select>
+                            </div>
+                        </div>
+
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => { if (localReportClient) { handleExportClientReport(localReportClient, localReportMonth, localReportYear); setIsExportSheetOpen(false); } }}
+                            className="w-full gap-2 font-bold"
+                            disabled={!localReportClient}
+                        >
+                            <DownloadCloudIcon className="h-4 w-4"/>
+                            {localReportClient ? 'Télécharger rapport client' : "Choisir un client d'abord"}
+                        </Button>
+                    </div>
+                </div>
+            </BottomSheet>
         </div>
     );
 }
