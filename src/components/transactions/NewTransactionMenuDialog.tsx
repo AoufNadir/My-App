@@ -25,13 +25,12 @@ type NewTransactionMenuDialogProps = {
 };
 
 type PortfolioActionProps = {
-  label: string;
   currency: 'USDT' | 'EUR';
   direction: 'buy' | 'sell';
   onClick: () => void;
 };
 
-function PortfolioActionButton({ label, currency, direction, onClick }: PortfolioActionProps) {
+function PortfolioActionButton({ currency, direction, onClick }: PortfolioActionProps) {
   const isBuy = direction === 'buy';
   const Icon = isBuy ? ArrowDownLeftIcon : ArrowUpRightIcon;
   return (
@@ -39,17 +38,16 @@ function PortfolioActionButton({ label, currency, direction, onClick }: Portfoli
       onClick={onClick}
       size="md"
       className={[
-        'flex min-h-[88px] w-full flex-col items-start justify-between gap-2 rounded-card px-3 py-3 text-white shadow-sm transition-transform active:scale-[0.97]',
+        'flex min-h-[96px] w-full flex-col items-start justify-between gap-3 rounded-card px-4 py-4 text-white shadow-sm transition-transform active:scale-[0.97]',
         isBuy ? 'bg-action-buy hover:bg-action-buy-hover' : 'bg-action-sell hover:bg-action-sell-hover',
       ].join(' ')}
     >
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
+      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/20">
         <Icon className="h-4 w-4" />
       </div>
-      <div className="text-start">
-        <p className="text-xs font-semibold text-white">{isBuy ? 'Acheter' : 'Vendre'}</p>
-        <p className="text-sm font-bold leading-tight">{label}</p>
-        <p className="text-[11px] font-medium text-white mt-0.5">{currency}</p>
+      <div className="text-start leading-tight">
+        <p className="text-sm font-semibold text-white">{isBuy ? 'Acheter' : 'Vendre'}</p>
+        <p className="mt-1 text-lg font-bold tracking-normal">{currency}</p>
       </div>
     </Button>
   );
@@ -64,22 +62,20 @@ type FinancialActionRowProps = {
 
 function FinancialActionRow({ title, subtitle, icon, onClick }: FinancialActionRowProps) {
   return (
-    <Button
+    <button
+      type="button"
       onClick={onClick}
-      size="md"
-      className="group flex w-full items-center justify-between gap-3 rounded-button border border-border bg-surface-muted px-4 text-start text-neutral-900 transition-colors hover:bg-neutral-100"
+      className="group grid min-h-[76px] w-full grid-cols-[44px_minmax(0,1fr)_24px] items-center gap-3 rounded-button border border-border bg-surface-muted px-4 py-3 text-start text-neutral-900 transition-colors hover:bg-neutral-100 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-app-bg"
     >
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          {icon}
-        </div>
-        <div className="min-w-0">
-          <p className="text-base font-semibold text-neutral-900">{title}</p>
-          <p className="text-sm text-neutral-500 truncate">{subtitle}</p>
-        </div>
+      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+        {icon}
       </div>
-      <ChevronRightIcon className="h-5 w-5 shrink-0 text-neutral-400" />
-    </Button>
+      <div className="min-w-0">
+        <p className="text-base font-semibold leading-snug text-neutral-900">{title}</p>
+        <p className="mt-0.5 truncate text-sm leading-snug text-neutral-500">{subtitle}</p>
+      </div>
+      <ChevronRightIcon className="h-5 w-5 justify-self-end text-neutral-400" />
+    </button>
   );
 }
 
@@ -112,25 +108,21 @@ export function NewTransactionMenuDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <PortfolioActionButton
-              label={t('transactions.buyUsdt')}
               currency="USDT"
               direction="buy"
               onClick={() => runAfterClose(() => openForm('buy_usdt'))}
             />
             <PortfolioActionButton
-              label={t('transactions.sellUsdt')}
               currency="USDT"
               direction="sell"
               onClick={() => runAfterClose(() => openForm('sell_usdt'))}
             />
             <PortfolioActionButton
-              label={t('transactions.buyEur')}
               currency="EUR"
               direction="buy"
               onClick={() => runAfterClose(() => openForm('buy_eur'))}
             />
             <PortfolioActionButton
-              label={t('transactions.sellEur')}
               currency="EUR"
               direction="sell"
               onClick={() => runAfterClose(() => openForm('sell_eur'))}
@@ -147,13 +139,13 @@ export function NewTransactionMenuDialog({
             {openPersonalWithdrawalModal && (
               <FinancialActionRow
                 title="Mon prélèvement"
-                subtitle="Dépense personnelle (ton profit seulement)"
+                subtitle="Dépense personnelle"
                 icon={<BanknotesIcon className="h-5 w-5" />}
                 onClick={() => runAfterClose(openPersonalWithdrawalModal)}
               />
             )}
             <FinancialActionRow
-              title={t('transactions.internalTransfer')}
+              title="Virement interne"
               subtitle={t('transactions.caisseAndBaridi')}
               icon={<RefreshCwIcon className="h-5 w-5" />}
               onClick={() => runAfterClose(openWalletTransferModal)}

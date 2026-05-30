@@ -25,6 +25,7 @@ type DashboardPageProps = {
         baridi: number;
         activeClients: number;
         todayProfit: number;
+        todaySellCount?: number;
         monthToDateProfit: number;
         yearToDateProfit: number;
         allTimeProfit: number;
@@ -36,6 +37,7 @@ type DashboardPageProps = {
         yearToDateEurSold: number;
         allTimeUsdtSold: number;
         allTimeEurSold: number;
+        last7DaysProfit?: number[];
     };
     portfolioStats: any;
     treasuryStats: any;
@@ -163,7 +165,8 @@ function PriorityList({ title, items, onTitleClick, }: {
       </CardContent>
     </Card>);
 }
-function TodaySummary({ title, items, }: {
+const DAY_LABELS_SHORT = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+function TodaySummary({ title, items, last7DaysProfit, todaySellCount }: {
     title: string;
     items: Array<{
         label: string;
@@ -171,12 +174,29 @@ function TodaySummary({ title, items, }: {
         semantic?: AmountSemantic;
         icon: ReactNode;
     }>;
+    last7DaysProfit?: number[];
+    todaySellCount?: number;
 }) {
+    const days = last7DaysProfit ?? [];
+    const maxAbs = Math.max(...days.map(Math.abs), 1);
+    // Day labels: compute from today going back 6 days
+    const todayDowIndex = new Date().getDay(); // 0=Sun..6=Sat
+    const dayLabels = Array.from({ length: 7 }, (_, i) => {
+        const dow = (todayDowIndex - 6 + i + 7) % 7;
+        return DAY_LABELS_SHORT[dow === 0 ? 6 : dow - 1]; // Mon=0..Sun=6
+    });
     return (<Card>
       <CardHeader className="p-4 pb-3">
-        <SectionHeading icon={<CalendarIcon className="w-4 h-4"/>}>{title}</SectionHeading>
+        <div className="flex items-center justify-between gap-2">
+          <SectionHeading icon={<CalendarIcon className="w-4 h-4"/>}>{title}</SectionHeading>
+          {typeof todaySellCount === 'number' && todaySellCount > 0 && (
+            <span className="shrink-0 text-xs font-semibold text-neutral-500">
+              <span className="tabular-nums text-primary font-bold">{todaySellCount}</span> op{todaySellCount > 1 ? 's' : ''} auj.
+            </span>
+          )}
+        </div>
       </CardHeader>
-      <CardContent className="p-4 pt-0">
+      <CardContent className="p-4 pt-0 space-y-4">
         <div className="grid grid-cols-2 gap-3">
           {items.map((item) => (<div key={item.label} className="rounded-xl border border-border bg-surface-muted p-4">
               <div className="flex items-start justify-between gap-2">
@@ -188,6 +208,29 @@ function TodaySummary({ title, items, }: {
               </div>
             </div>))}
         </div>
+
+        {days.length === 7 && days.some((v) => v !== 0) && (
+          <div>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-neutral-400">7 derniers jours</p>
+            <div className="flex items-end gap-1 h-10">
+              {days.map((profit, i) => {
+                const isToday = i === 6;
+                const barH = profit === 0 ? 0 : Math.max(12, (Math.abs(profit) / maxAbs) * 40);
+                const barColor = profit > 0 ? (isToday ? 'bg-financial-profit' : 'bg-financial-profit/50') : profit < 0 ? 'bg-financial-loss/60' : '';
+                return (
+                  <div key={i} className="flex flex-1 flex-col items-center gap-0.5">
+                    <div className="flex w-full flex-1 items-end justify-center">
+                      {profit !== 0 && (<div className={`w-full max-w-[20px] rounded-sm transition-all ${barColor}`} style={{ height: `${barH}px` }}/>)}
+                    </div>
+                    <span className={`text-[9px] font-semibold ${isToday ? 'text-primary' : 'text-neutral-400'}`}>
+                      {dayLabels[i]}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>);
 }
@@ -429,7 +472,7 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
           <span>Ma dépense du jour</span>
         </Button>)}
 
-      <TodaySummary title={t('dashboard.profitSummary') as string} items={[
+      <TodaySummary title={t('dashboard.profitSummary') as string} last7DaysProfit={dailyOverview.last7DaysProfit} todaySellCount={dailyOverview.todaySellCount} items={[
             { label: t('dashboard.profitYear') as string, value: dailyOverview.yearToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
             { label: t('dashboard.profitAllTime') as string, value: Number(dailyOverview.allTimeProfit ?? globalNetProfit), semantic: 'auto', icon: <TrendingUpIcon className="h-4 w-4"/> },
             { label: t('dashboard.profitMonth') as string, value: dailyOverview.monthToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },

@@ -584,7 +584,7 @@ function ExpenseRow({
                     {amountLabel && <p className="text-xs text-neutral-500">{amountLabel}</p>}
                     {caption && <p className="text-xs text-neutral-500">{caption}</p>}
                 </div>
-                <div className="flex shrink-0 items-center justify-end gap-2">
+                <div className="flex w-full items-center justify-start gap-2 sm:w-auto sm:justify-end">
                     {action}
                     {onEdit && (
                         <IconButton label="Modifier la depense" size="sm" variant="edit" onClick={() => onEdit(tx)}>
