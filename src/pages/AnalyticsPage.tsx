@@ -13,6 +13,29 @@ import { AnalyticsPageProps } from '../components/analytics/analyticsTypes';
 import { useAnalyticsViewModel } from '../components/analytics/useAnalyticsViewModel';
 
 const MONTH_LABELS_FR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+const FULL_MONTHS_FR = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+const DAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+function buildCalendarGrid(year: number, month: number, heatmapData: Map<number, number>) {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
+    const startOffset = firstDow === 0 ? 6 : firstDow - 1; // Mon=0 offset
+    const cells: Array<{ day: number | null; profit: number }> = [];
+    for (let i = 0; i < startOffset; i++) cells.push({ day: null, profit: 0 });
+    for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d, profit: heatmapData.get(d) || 0 });
+    while (cells.length % 7 !== 0) cells.push({ day: null, profit: 0 });
+    return cells;
+}
+
+function profitCellClass(profit: number, maxProfit: number): string {
+    if (profit === 0) return 'bg-neutral-100 text-neutral-400';
+    if (profit < 0) return 'bg-financial-loss/25 text-financial-loss';
+    const ratio = maxProfit > 0 ? profit / maxProfit : 0;
+    if (ratio < 0.25) return 'bg-financial-profit/20 text-financial-profit';
+    if (ratio < 0.55) return 'bg-financial-profit/45 text-financial-profit';
+    if (ratio < 0.80) return 'bg-financial-profit/70 text-white';
+    return 'bg-financial-profit text-white';
+}
 
 export function AnalyticsPage(props: AnalyticsPageProps) {
     const { t } = useLanguage();
@@ -109,6 +132,73 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                     </CardContent>
                 </Card>
             )}
+
+            {/* Calendrier du mois */}
+            {(() => {
+                const cells = buildCalendarGrid(props.usdtReportYear, props.usdtReportMonth, heatmapData);
+                const vals = Array.from(heatmapData.values()) as number[];
+                const maxProfit = Math.max(...vals.filter(v => v > 0), 1);
+                const totalDaysWithActivity = vals.filter(v => v !== 0).length;
+                const monthProfit = vals.reduce((s, v) => s + v, 0);
+                if (totalDaysWithActivity === 0) return null;
+                return (
+                    <Card>
+                        <CardHeader className="p-4 pb-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <SectionHeading icon={<CalendarIcon className="w-4 h-4" />}>
+                                    {FULL_MONTHS_FR[props.usdtReportMonth]} {props.usdtReportYear}
+                                </SectionHeading>
+                                <div className="text-end shrink-0">
+                                    <p className="text-[10px] font-bold uppercase text-neutral-400">{totalDaysWithActivity} jours actifs</p>
+                                    <CurrencyAmount value={monthProfit} currency="DZD" semantic="auto" size="sm" decimals={0} showSign/>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="px-4 pb-4 pt-0">
+                            {/* Weekday headers */}
+                            <div className="grid grid-cols-7 gap-1 mb-1">
+                                {DAY_LABELS.map((d, i) => (
+                                    <div key={i} className="text-center text-[10px] font-bold text-neutral-400 py-0.5">{d}</div>
+                                ))}
+                            </div>
+                            {/* Calendar cells */}
+                            <div className="grid grid-cols-7 gap-1">
+                                {cells.map((cell, i) => (
+                                    <div
+                                        key={i}
+                                        title={cell.day && cell.profit !== 0 ? `${cell.day}: ${cell.profit >= 0 ? '+' : ''}${Math.round(cell.profit).toLocaleString('fr-FR')} DZD` : undefined}
+                                        className={`aspect-square rounded-md flex flex-col items-center justify-center text-[11px] font-bold transition-colors ${cell.day ? profitCellClass(cell.profit, maxProfit) : 'bg-transparent'}`}
+                                    >
+                                        {cell.day && (
+                                            <>
+                                                <span>{cell.day}</span>
+                                                {cell.profit !== 0 && (
+                                                    <span className="text-[8px] font-semibold opacity-80 leading-none">
+                                                        {cell.profit > 0 ? '+' : ''}
+                                                        {Math.abs(cell.profit) >= 1000
+                                                            ? `${(Math.abs(cell.profit) / 1000).toFixed(0)}k`
+                                                            : Math.round(Math.abs(cell.profit))}
+                                                    </span>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Legend */}
+                            <div className="mt-3 flex items-center justify-end gap-2">
+                                <span className="text-[10px] text-neutral-400">Moins</span>
+                                {['bg-neutral-100', 'bg-financial-profit/20', 'bg-financial-profit/45', 'bg-financial-profit/70', 'bg-financial-profit'].map((cls, i) => (
+                                    <div key={i} className={`h-3 w-3 rounded-sm ${cls}`}/>
+                                ))}
+                                <span className="text-[10px] text-neutral-400">Plus</span>
+                                <div className="h-3 w-3 rounded-sm bg-financial-loss/25 ml-1"/>
+                                <span className="text-[10px] text-neutral-400">Perte</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+                );
+            })()}
 
             {/* Bilan annuel */}
             <Card>
