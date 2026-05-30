@@ -6,7 +6,9 @@ import { Textarea } from '../ui/Textarea';
 import { Button } from '../ui/Button';
 import { NumberInput } from '../ui/NumberInput';
 type MainClientCrudDialogsProps = Record<string, any>;
-function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, initialBalance, setInitialBalance, handleSaveClient, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient }: MainClientCrudDialogsProps) {
+const CLIENT_GROUPS = ['Retail', 'Gros compte', 'OTC', 'Particulier', 'Entreprise', 'Autre'];
+
+function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, initialBalance, setInitialBalance, handleSaveClient, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient }: MainClientCrudDialogsProps) {
     const isBlockedClientDelete = clientDeleteMode === 'blocked';
     const isBalanceOnlyClientDelete = clientDeleteMode === 'balance_only';
     const isClientOnlyCleanupDelete = clientDeleteMode === 'client_only_cleanup';
@@ -81,6 +83,18 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                     <div><Label>{t('transactions.phone')}</Label><Input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className="mt-1"/></div>
                     <div><Label>RedotPay ID</Label><Input value={clientRedotpayId} onChange={e => setClientRedotpayId(e.target.value)} className="mt-1"/></div>
                     <div><Label>Binance Email</Label><Input value={clientBinanceEmail} onChange={e => setClientBinanceEmail(e.target.value)} className="mt-1"/></div>
+                    <div>
+                        <Label>Groupe / Catégorie</Label>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                            {CLIENT_GROUPS.map(g => (
+                                <button key={g} type="button"
+                                    onClick={() => setClientGroup(clientGroup === g ? '' : g)}
+                                    className={`rounded-full px-3 py-1 text-xs font-bold border transition-colors ${clientGroup === g ? 'bg-primary text-white border-primary' : 'border-border text-neutral-600 hover:border-primary/50 hover:text-primary'}`}>
+                                    {g}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                     <div>
                         <Label>Notes privées</Label>
                         <Textarea value={clientNotes} onChange={e => setClientNotes(e.target.value)} className="mt-1 resize-none text-sm" rows={3} placeholder="Préférences, disponibilités, remarques importantes…"/>

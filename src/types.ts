@@ -64,6 +64,7 @@ export interface ClientDzd {
     binanceEmail?: string;
     notes?: string;
     creditLimit?: number;
+    group?: string;
     nom?: string; // Legacy support
     prenom?: string; // Legacy support
 }

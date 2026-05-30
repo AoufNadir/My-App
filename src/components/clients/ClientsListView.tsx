@@ -74,13 +74,25 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
     const INITIAL_VISIBLE_CLIENTS = 80;
     const LOAD_MORE_CLIENTS = 80;
     const [visibleClientCount, setVisibleClientCount] = useState(INITIAL_VISIBLE_CLIENTS);
+    const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
     const [importOpen, setImportOpen] = useState(false);
     const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
     useEffect(() => {
         setVisibleClientCount(INITIAL_VISIBLE_CLIENTS);
     }, [filteredClientsDzd]);
-    const visibleClients = useMemo(() => filteredClientsDzd.slice(0, visibleClientCount), [filteredClientsDzd, visibleClientCount]);
-    const hiddenClientCount = Math.max(0, filteredClientsDzd.length - visibleClientCount);
+    // Available groups + group filter
+    const availableGroups = useMemo(() => {
+        const groups = new Set<string>();
+        filteredClientsDzd.forEach(c => { if (c.group) groups.add(c.group); });
+        return Array.from(groups).sort();
+    }, [filteredClientsDzd]);
+
+    const groupFilteredClients = useMemo(() =>
+        activeGroupFilter ? filteredClientsDzd.filter(c => c.group === activeGroupFilter) : filteredClientsDzd,
+        [filteredClientsDzd, activeGroupFilter]
+    );
+    const visibleClients = useMemo(() => groupFilteredClients.slice(0, visibleClientCount), [groupFilteredClients, visibleClientCount]);
+    const hiddenClientCount = Math.max(0, groupFilteredClients.length - visibleClientCount);
     const overdueByClientId = useMemo(() => new Map(overdueDebtClients.map((client) => [client.clientId, client])), [overdueDebtClients]);
     const clientsWithDebt = useMemo(() => filteredClientsDzd.filter((client) => (clientBalances.get(client.id) || 0) < 0).length, [filteredClientsDzd, clientBalances]);
     const clientsWithAdvance = useMemo(() => filteredClientsDzd.filter((client) => (clientBalances.get(client.id) || 0) > 0).length, [filteredClientsDzd, clientBalances]);
@@ -140,6 +152,19 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
           <div className="flex gap-2 mb-4">
             <Input type="text" placeholder="Rechercher un client..." value={clientSearchQuery} onChange={(e) => setClientSearchQuery(e.target.value)} className="flex-grow"/>
           </div>
+          {/* Group filter chips */}
+          {availableGroups.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {availableGroups.map(g => (
+                <button key={g} type="button"
+                    onClick={() => setActiveGroupFilter(activeGroupFilter === g ? null : g)}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold border transition-colors ${activeGroupFilter === g ? 'bg-primary text-white border-primary' : 'border-border text-neutral-500 hover:border-primary/50 hover:text-primary'}`}>
+                    {g} {activeGroupFilter === g && '×'}
+                </button>
+              ))}
+            </div>
+          )}
+
           <Dropdown trigger={(<Button variant="tab" size="md" className="w-full font-semibold">
                 <FilterIcon className="w-4 h-4"/>
                 <span>{CLIENT_SORT_LABELS[clientSortMode]}</span>
@@ -182,17 +207,24 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                               </span>);
                           })()}
                         </div>
-                        {/* Loyalty badge */}
-                        {clientLoyaltyMap && (() => {
-                          const tier = clientLoyaltyMap.get(client.id);
-                          if (!tier || tier === 'inactive') return null; // hide inactive to avoid noise
-                          const cfg = LOYALTY_CONFIG[tier];
-                          return (
-                            <span className={`inline-block mt-0.5 rounded-full px-1.5 py-0 text-[9px] font-bold leading-4 ${cfg.cls}`}>
-                              {cfg.label}
+                        {/* Loyalty + Group badges */}
+                        <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                          {clientLoyaltyMap && (() => {
+                            const tier = clientLoyaltyMap.get(client.id);
+                            if (!tier || tier === 'inactive') return null;
+                            const cfg = LOYALTY_CONFIG[tier];
+                            return (
+                              <span className={`rounded-full px-1.5 py-0 text-[9px] font-bold leading-4 ${cfg.cls}`}>
+                                {cfg.label}
+                              </span>
+                            );
+                          })()}
+                          {client.group && (
+                            <span className="rounded-full px-1.5 py-0 text-[9px] font-bold leading-4 bg-neutral-100 text-neutral-500 border border-neutral-200">
+                              {client.group}
                             </span>
-                          );
-                        })()}
+                          )}
+                        </div>
                       </div>
                       <div className="shrink-0 flex flex-col items-end gap-0.5">
                         {balance !== 0 && (<CurrencyAmount value={Math.abs(balance)} currency="DZD" size="md" className={balance < 0 ? 'text-financial-debt' : 'text-financial-profit'}/>)}
