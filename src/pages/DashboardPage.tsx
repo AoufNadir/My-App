@@ -537,32 +537,89 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
             { label: t('dashboard.profitYear') as string, value: dailyOverview.yearToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
         ]}/>
 
-      {/* Monthly goal progress bar */}
+      {/* Monthly goal + daily smart target */}
       {monthlyGoal > 0 && (() => {
-          const progress = Math.min(100, Math.max(0, (dailyOverview.monthToDateProfit / monthlyGoal) * 100));
-          const isAchieved = dailyOverview.monthToDateProfit >= monthlyGoal;
-          const remaining = monthlyGoal - dailyOverview.monthToDateProfit;
+          const now = new Date();
+          const dayOfMonth = now.getDate();
+          const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+          const daysRemaining = Math.max(1, daysInMonth - dayOfMonth + 1);
+          const mtdProfit = dailyOverview.monthToDateProfit;
+          const progress = Math.min(100, Math.max(0, (mtdProfit / monthlyGoal) * 100));
+          const isAchieved = mtdProfit >= monthlyGoal;
+          const remaining = monthlyGoal - mtdProfit;
+
+          // Daily pace: average profit per day elapsed
+          const dailyAvg = dayOfMonth > 0 ? mtdProfit / dayOfMonth : 0;
+          // Daily target needed: what you need each remaining day
+          const dailyNeeded = isAchieved ? 0 : Math.ceil(remaining / daysRemaining);
+          // Estimated goal completion day (if pace continues)
+          let estimatedLabel = '';
+          if (!isAchieved && dailyAvg > 0) {
+              const daysToGoal = remaining / dailyAvg;
+              const estimatedDay = Math.ceil(dayOfMonth + daysToGoal);
+              if (estimatedDay <= daysInMonth) {
+                  estimatedLabel = `Prévu le ${estimatedDay}`;
+              } else {
+                  const overDays = Math.round(estimatedDay - daysInMonth);
+                  estimatedLabel = `+${overDays}j après`;
+              }
+          } else if (isAchieved) {
+              estimatedLabel = '✓ Atteint';
+          }
+
+          const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR', { maximumFractionDigits: 0 });
+
           return (
-            <div className={`rounded-xl border px-4 py-3 ${isAchieved ? 'border-success/30 bg-success-bg' : 'border-border bg-surface-muted'}`}>
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <p className={`text-xs font-bold uppercase tracking-wide ${isAchieved ? 'text-financial-profit' : 'text-neutral-500'}`}>
-                  {isAchieved ? '✓ Objectif atteint !' : 'Objectif mensuel'}
-                </p>
-                <span className="text-xs font-semibold tabular-nums text-neutral-600">
-                  {Math.round(progress)}%
-                </span>
+            <div className={`rounded-xl border px-4 py-3 space-y-3 ${isAchieved ? 'border-success/30 bg-success-bg' : 'border-border bg-surface-muted'}`}>
+              {/* Header + progress */}
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className={`text-xs font-bold uppercase tracking-wide ${isAchieved ? 'text-financial-profit' : 'text-neutral-500'}`}>
+                    {isAchieved ? '✓ Objectif atteint !' : 'Objectif mensuel'}
+                  </p>
+                  <span className="text-xs font-semibold tabular-nums text-neutral-600">
+                    {Math.round(progress)}%
+                  </span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-neutral-200 overflow-hidden">
+                  <div
+                    className={`h-2 rounded-full transition-all ${isAchieved ? 'bg-financial-profit' : progress >= 75 ? 'bg-primary' : progress >= 50 ? 'bg-warning' : 'bg-neutral-400'}`}
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-neutral-400">
+                  <span dir="ltr">{fmt(mtdProfit)} DZD</span>
+                  {!isAchieved && <span dir="ltr">Reste {fmt(remaining)} DZD</span>}
+                  <span dir="ltr">/ {fmt(monthlyGoal)} DZD</span>
+                </div>
               </div>
-              <div className="h-2 w-full rounded-full bg-neutral-200 overflow-hidden">
-                <div
-                  className={`h-2 rounded-full transition-all ${isAchieved ? 'bg-financial-profit' : progress >= 75 ? 'bg-primary' : progress >= 50 ? 'bg-warning' : 'bg-neutral-400'}`}
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-neutral-400">
-                <span dir="ltr">{dailyOverview.monthToDateProfit.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD</span>
-                {!isAchieved && <span dir="ltr">Reste {remaining.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD</span>}
-                <span dir="ltr">/ {monthlyGoal.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD</span>
-              </div>
+
+              {/* Smart daily indicators */}
+              {!isAchieved && (
+                <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/50">
+                  <div className="text-center">
+                    <p className="text-[9px] font-bold uppercase text-neutral-400 mb-0.5">Besoin/jour</p>
+                    <p dir="ltr" className={`text-sm font-extrabold tabular-nums ${dailyNeeded > dailyAvg * 1.5 ? 'text-financial-loss' : dailyNeeded > dailyAvg ? 'text-warning' : 'text-financial-profit'}`}>
+                      {fmt(dailyNeeded)}
+                    </p>
+                    <p className="text-[9px] text-neutral-300">DZD</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[9px] font-bold uppercase text-neutral-400 mb-0.5">Rythme actuel</p>
+                    <p dir="ltr" className="text-sm font-extrabold tabular-nums text-neutral-700">
+                      {dailyAvg > 0 ? fmt(dailyAvg) : '—'}
+                    </p>
+                    <p className="text-[9px] text-neutral-300">DZD/j</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[9px] font-bold uppercase text-neutral-400 mb-0.5">Estimation</p>
+                    <p className={`text-sm font-extrabold ${estimatedLabel.startsWith('+') ? 'text-financial-loss' : 'text-primary'}`}>
+                      {estimatedLabel || '—'}
+                    </p>
+                    <p className="text-[9px] text-neutral-300">ce mois</p>
+                  </div>
+                </div>
+              )}
             </div>
           );
       })()}
