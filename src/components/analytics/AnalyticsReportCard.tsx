@@ -81,7 +81,6 @@ export function AnalyticsReportCard({
     setSelectedHeatmapDay,
 }: AnalyticsReportCardProps) {
     const [activeTab, setActiveTab] = useState<'monthly' | 'clients' | 'exports'>('monthly');
-    const [isHeatmapVisible, setIsHeatmapVisible] = useState(false);
     const [isClientRankingVisible, setIsClientRankingVisible] = useState(true);
 
     const topProfitableRows = [...monthlyClientRanking.rankedRows]
@@ -202,21 +201,10 @@ export function AnalyticsReportCard({
             {activeTab === 'monthly' && (
                 <MonthlyPanel
                     t={t}
-                    selectedMonthLabel={selectedMonthLabel}
-                    usdtReportYear={usdtReportYear}
                     monthlyHasData={monthlyHasData}
-                    calculatedStats={calculatedStats}
-                    flowMetrics={flowMetrics}
-                    monthlyVolumeCount={monthlyVolumeCount}
                     bestHeatmapDay={bestHeatmapDay}
                     worstHeatmapDay={worstHeatmapDay}
                     winningDaysCount={winningDaysCount}
-                    heatmapData={heatmapData}
-                    selectedHeatmapDay={selectedHeatmapDay}
-                    setSelectedHeatmapDay={setSelectedHeatmapDay}
-                    usdtReportMonth={usdtReportMonth}
-                    isHeatmapVisible={isHeatmapVisible}
-                    setIsHeatmapVisible={setIsHeatmapVisible}
                     topProfitableClient={monthlyClientRanking.topProfitableClient}
                 />
             )}
@@ -282,79 +270,31 @@ type MonthlyPanelProps = {
 
 function MonthlyPanel({
     t,
-    selectedMonthLabel,
-    usdtReportYear,
     monthlyHasData,
-    calculatedStats,
-    flowMetrics,
-    monthlyVolumeCount,
     bestHeatmapDay,
     worstHeatmapDay,
     winningDaysCount,
-    heatmapData,
-    selectedHeatmapDay,
-    setSelectedHeatmapDay,
-    usdtReportMonth,
-    isHeatmapVisible,
-    setIsHeatmapVisible,
     topProfitableClient,
-}: MonthlyPanelProps) {
+}: Pick<MonthlyPanelProps, 't' | 'monthlyHasData' | 'bestHeatmapDay' | 'worstHeatmapDay' | 'winningDaysCount' | 'topProfitableClient'>) {
+    if (!monthlyHasData) {
+        return (
+            <EmptyState
+                title={t('portfolio.noMonthlyActivity')}
+                subtitle={t('portfolio.emptyPeriod')}
+                className="min-h-[120px] rounded-xl border border-border bg-surface-muted"
+            />
+        );
+    }
+
     return (
         <div className="space-y-3">
+            {/* Compact daily stats card — unique info not shown elsewhere */}
             <Card>
                 <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <p className="text-xs font-medium text-neutral-500">{t('portfolio.monthlySynthesis')}</p>
-                            <p className="mt-1 text-xl font-extrabold leading-tight text-neutral-900">{selectedMonthLabel} {usdtReportYear}</p>
-                        </div>
-                        <Badge variant={monthlyHasData ? 'success' : 'neutral'}>{monthlyHasData ? t('portfolio.activePeriod') : t('portfolio.emptyPeriod')}</Badge>
-                    </div>
-                    <div className="mt-5">
-                        <CurrencyAmount value={calculatedStats.realizedProfit} currency="DZD" semantic="auto" showSign size="hero" decimals={2}/>
-                        <p className="mt-1 text-sm font-semibold text-neutral-500">{t('portfolio.monthlyProfitHint')}</p>
-                    </div>
-                    {!monthlyHasData && (
-                        <EmptyState
-                            title={t('portfolio.noMonthlyActivity')}
-                            subtitle={t('portfolio.emptyPeriod')}
-                            className="mt-4 min-h-[120px] rounded-lg bg-surface-muted"
-                        />
-                    )}
-                </CardContent>
-            </Card>
-
-            <div className="grid grid-cols-2 gap-2">
-                {flowMetrics.map((item) => (
-                    <MetricTile key={`${item.label}-${item.currency}`} label={item.label}>
-                        <CurrencyAmount value={item.value} currency={item.currency} semantic="plain" size="xl" decimals={2}/>
-                    </MetricTile>
-                ))}
-            </div>
-
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <MetricTile label={t('portfolio.totalVolume')}>
-                    <span className="text-lg font-extrabold tabular-nums text-neutral-900" dir="ltr">{formatNumber(monthlyVolumeCount, { min: 2, max: 2 })}</span>
-                </MetricTile>
-                <MetricTile label={t('portfolio.bestDay')}>
-                    <DayProfitValue entry={bestHeatmapDay} />
-                </MetricTile>
-                <MetricTile label={t('portfolio.profitableClient')}>
-                    <span className="block truncate text-lg font-extrabold text-neutral-900">{topProfitableClient?.clientName || '-'}</span>
-                </MetricTile>
-            </div>
-
-            <Card>
-                <CardHeader className="flex-row items-center justify-between gap-3 p-4 pb-3">
-                    <SectionHeading icon={<TrendingUpIcon className="h-4 w-4" />}>
+                    <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-neutral-400">
                         {t('portfolio.profitHeatmap')}
-                    </SectionHeading>
-                    <Button type="button" variant="outline" size="sm" onClick={() => setIsHeatmapVisible((previous) => !previous)}>
-                        {isHeatmapVisible ? t('portfolio.hideCalendar') : t('portfolio.showCalendar')}
-                    </Button>
-                </CardHeader>
-                <CardContent className="space-y-3 p-4 pt-0">
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                         <MetricTile label={t('portfolio.bestDay')}>
                             <DayProfitValue entry={bestHeatmapDay} />
                         </MetricTile>
@@ -362,28 +302,14 @@ function MonthlyPanel({
                             <DayProfitValue entry={worstHeatmapDay} />
                         </MetricTile>
                         <MetricTile label={t('portfolio.winningDays')}>
-                            <span className="text-sm font-bold text-neutral-900">{winningDaysCount}</span>
+                            <span className="text-2xl font-extrabold tabular-nums text-neutral-900">{winningDaysCount}</span>
+                        </MetricTile>
+                        <MetricTile label={t('portfolio.profitableClient')}>
+                            <span className="block truncate text-base font-extrabold text-neutral-900">
+                                {topProfitableClient?.clientName || '—'}
+                            </span>
                         </MetricTile>
                     </div>
-
-                    {isHeatmapVisible && (
-                        <div>
-                            <ProfitHeatmap
-                                t={t}
-                                heatmapData={heatmapData}
-                                selectedHeatmapDay={selectedHeatmapDay}
-                                setSelectedHeatmapDay={setSelectedHeatmapDay}
-                                usdtReportMonth={usdtReportMonth}
-                                usdtReportYear={usdtReportYear}
-                            />
-                            {selectedHeatmapDay && (
-                                <p className="mt-2 rounded-lg bg-surface-muted p-2 text-center text-sm text-neutral-700">
-                                    {t('portfolio.profitOn')} {selectedHeatmapDay.day}/{usdtReportMonth + 1}/{usdtReportYear}:{' '}
-                                    <CurrencyAmount value={selectedHeatmapDay.profit} currency="DZD" semantic="auto" size="sm" decimals={2}/>
-                                </p>
-                            )}
-                        </div>
-                    )}
                 </CardContent>
             </Card>
         </div>
