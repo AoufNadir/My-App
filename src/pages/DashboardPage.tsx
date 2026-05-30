@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { SectionHeading } from '../components/ui/SectionHeading';
@@ -16,6 +16,7 @@ import { SparklesIcon } from '../components/icons/SparklesIcon';
 import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
 import { UsersIcon } from '../components/icons/UsersIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
+import { ShareIcon } from '../components/icons/ShareIcon';
 import type { OverdueDebtClient, TreasuryCard } from '../types';
 import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -167,7 +168,7 @@ function PriorityList({ title, items, onTitleClick, }: {
     </Card>);
 }
 const DAY_LABELS_SHORT = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-function TodaySummary({ title, items, last7DaysProfit, todaySellCount }: {
+function TodaySummary({ title, items, last7DaysProfit, todaySellCount, onShare, shareCopied }: {
     title: string;
     items: Array<{
         label: string;
@@ -177,6 +178,8 @@ function TodaySummary({ title, items, last7DaysProfit, todaySellCount }: {
     }>;
     last7DaysProfit?: number[];
     todaySellCount?: number;
+    onShare?: () => void;
+    shareCopied?: boolean;
 }) {
     const days = last7DaysProfit ?? [];
     const maxAbs = Math.max(...days.map(Math.abs), 1);
@@ -190,11 +193,20 @@ function TodaySummary({ title, items, last7DaysProfit, todaySellCount }: {
       <CardHeader className="p-4 pb-3">
         <div className="flex items-center justify-between gap-2">
           <SectionHeading icon={<CalendarIcon className="w-4 h-4"/>}>{title}</SectionHeading>
-          {typeof todaySellCount === 'number' && todaySellCount > 0 && (
-            <span className="shrink-0 text-xs font-semibold text-neutral-500">
-              <span className="tabular-nums text-primary font-bold">{todaySellCount}</span> op{todaySellCount > 1 ? 's' : ''} auj.
-            </span>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {typeof todaySellCount === 'number' && todaySellCount > 0 && (
+              <span className="text-xs font-semibold text-neutral-500">
+                <span className="tabular-nums text-primary font-bold">{todaySellCount}</span> op{todaySellCount > 1 ? 's' : ''} auj.
+              </span>
+            )}
+            {onShare && (
+              <button type="button" onClick={onShare} className="flex h-8 w-8 items-center justify-center rounded-button bg-neutral-100 text-neutral-500 transition-colors hover:bg-neutral-200 hover:text-neutral-800" aria-label="Partager résumé" title={shareCopied ? 'Copié !' : 'Partager résumé'}>
+                {shareCopied
+                  ? <span className="text-[10px] font-bold text-financial-profit">✓</span>
+                  : <ShareIcon className="w-3.5 h-3.5"/>}
+              </button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-4">
@@ -345,6 +357,33 @@ function DashboardSyncState({ title, body, actions, }: {
 }
 export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, totals, treasuryCards, investorLiability = 0, investorBreakdown, servicesSummary, overdueDebtClients, globalNetProfit, isDataSyncing = false, onNewTransaction, onOpenClients, onOpenClient, onOpenClientDebts, onOpenTreasury, onOpenAnalytics, onOpenPersonalWithdrawal, }: DashboardPageProps) {
     const { t } = useLanguage();
+    const [shareCopied, setShareCopied] = useState(false);
+
+    const handleShareDaySummary = () => {
+        const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
+        const sign = (n: number) => n >= 0 ? `+${fmt(n)}` : fmt(n);
+        const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+        const lines: string[] = [
+            `📊 Résumé ${today}`,
+            ``,
+            `💰 Profit aujourd'hui : ${sign(dailyOverview.todayProfit)} DZD`,
+            dailyOverview.weekToDateProfit !== undefined ? `📅 Cette semaine : ${sign(dailyOverview.weekToDateProfit)} DZD` : '',
+            `📆 Ce mois : ${sign(dailyOverview.monthToDateProfit)} DZD`,
+            ``,
+            `💵 Caisse : ${fmt(Number(treasuryStats?.caisse || 0))} DZD`,
+            `📱 BaridiMob : ${fmt(Number(treasuryStats?.baridi || 0))} DZD`,
+        ].filter(Boolean);
+        if (dailyOverview.todaySellCount) lines.push(``, `🔄 ${dailyOverview.todaySellCount} opération${dailyOverview.todaySellCount > 1 ? 's' : ''} aujourd'hui`);
+        const text = lines.join('\n');
+        if (typeof navigator.share === 'function') {
+            navigator.share({ text }).catch(() => {});
+        } else {
+            navigator.clipboard.writeText(text).then(() => {
+                setShareCopied(true);
+                setTimeout(() => setShareCopied(false), 2000);
+            });
+        }
+    };
     const stockValue = Number(portfolioStats?.usdt?.available || 0) * Number(portfolioStats?.usdt?.avgBuy || 0)
         + Number(portfolioStats?.eur?.available || 0) * Number(portfolioStats?.eur?.avgBuy || 0);
     const servicesCapitalImpact = Number(servicesSummary?.netCapitalImpact || 0);
@@ -473,7 +512,7 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
           <span>Ma dépense du jour</span>
         </Button>)}
 
-      <TodaySummary title={t('dashboard.profitSummary') as string} last7DaysProfit={dailyOverview.last7DaysProfit} todaySellCount={dailyOverview.todaySellCount} items={[
+      <TodaySummary title={t('dashboard.profitSummary') as string} last7DaysProfit={dailyOverview.last7DaysProfit} todaySellCount={dailyOverview.todaySellCount} onShare={handleShareDaySummary} shareCopied={shareCopied} items={[
             { label: t('dashboard.profitYear') as string, value: dailyOverview.yearToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
             { label: 'Cette semaine', value: dailyOverview.weekToDateProfit ?? 0, semantic: 'auto', icon: <TrendingUpIcon className="h-4 w-4"/> },
             { label: t('dashboard.profitMonth') as string, value: dailyOverview.monthToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
