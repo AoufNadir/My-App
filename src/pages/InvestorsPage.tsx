@@ -6,11 +6,13 @@ import { Investor } from '../types';
 import { InvestorsDetailsCard } from '../components/investors/InvestorsDetailsCard';
 import { CommissionEditorModal } from '../components/investors/CommissionEditorModal';
 import { InvestorsListSection } from '../components/investors/InvestorsListSection';
+import { ProfitDistributionSheet } from '../components/investors/ProfitDistributionSheet';
 import { HeroKpiCard } from '../components/ui/HeroKpiCard';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import type { InvestorEconomicsResult } from '../hooks/useInvestorEconomics';
+import type { FirestoreDocumentReference } from '../firebase';
 interface InvestorsPageProps {
     investors: Investor[];
     onOpenInvestor: (investor: Investor) => void;
@@ -20,6 +22,8 @@ interface InvestorsPageProps {
     investorEconomicsTotals: InvestorEconomicsResult['totals'];
     managerFeePercentage: string;
     setManagerFeePercentage: (val: string) => void;
+    userDocRef: FirestoreDocumentReference;
+    setAlert: (msg: string) => void;
 }
 type InvestorsStats = {
     totalCapital: number;
@@ -31,7 +35,7 @@ type InvestorsStats = {
     totalDeliveryExpenses: number;
     netDistributableProfit: number;
 };
-export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, setManagerFeePercentage }) => {
+export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, setManagerFeePercentage, userDocRef, setAlert }) => {
     const stats: InvestorsStats = useMemo(() => {
         const totalCapital = investors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0);
         const totalProfitDistributed = investors.reduce((sum, inv) => sum + (inv.totalProfit || 0), 0);
@@ -41,9 +45,10 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, onOpenI
         const activeCount = investors.filter((inv) => inv.isActive).length;
         const totalDeliveryExpenses = investorEconomicsTotals.totalDeliveryExpenses || 0;
         const netDistributableProfit = investorEconomicsTotals.netDistributableProfit || 0;
-        return { totalCapital, totalProfitDistributed, totalAvailable, managerFee, totalWithdrawn, activeCount, totalDeliveryExpenses, netDistributableProfit };
+        return { totalCapital, totalProfitDistributed, totalAvailable, managerFee, totalWithdrawn, activeCount, totalDeliveryExpenses, netDistributableProfit }; // netDistributableProfit used for distribution banner
     }, [investors, investorEconomicsTotals]);
     const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false);
+    const [isDistributionOpen, setIsDistributionOpen] = useState(false);
     return (<div className="anim-page-in space-y-6">
       <PageHeader title="Investisseurs" subtitle={`${stats.activeCount} actifs`} className="-mx-4 sm:mx-0 sm:rounded-card" actions={(<Button onClick={onAddInvestor} variant="primary" size="md" className="font-semibold">
             <PlusIcon className="h-4 w-4"/>
@@ -57,20 +62,35 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, onOpenI
         ]}/>
 
       {/* Distribution reminder when available profits are significant */}
-      {stats.totalAvailable > 10000 && (<div className="flex items-center gap-3 rounded-xl border border-warning/30 bg-warning-bg px-4 py-3">
-          <BanknotesIcon className="h-5 w-5 shrink-0 text-warning"/>
+      {stats.netDistributableProfit > 5000 && (<button
+          type="button"
+          onClick={() => setIsDistributionOpen(true)}
+          className="flex w-full items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-start transition-colors hover:bg-primary/10 active:scale-[0.99]">
+          <BanknotesIcon className="h-5 w-5 shrink-0 text-primary"/>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-warning">Profits à distribuer</p>
-            <p className="mt-0.5 text-xs text-warning/70">
-              <CurrencyAmount value={stats.totalAvailable} currency="DZD" semantic="plain" size="sm" decimals={0}/> disponibles pour les investisseurs actifs
+            <p className="text-sm font-bold text-primary">Distribuer les profits</p>
+            <p className="mt-0.5 text-xs text-primary/60">
+              Profit net disponible : <CurrencyAmount value={stats.netDistributableProfit} currency="DZD" semantic="plain" size="sm" decimals={0}/> — appuyez pour voir le plan
             </p>
           </div>
-        </div>)}
+          <svg className="w-5 h-5 shrink-0 text-primary/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>)}
 
       <InvestorsDetailsCard stats={stats} managerFeePercentage={managerFeePercentage} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference}/>
 
       <InvestorsListSection investors={investors} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor}/>
 
       <CommissionEditorModal isOpen={isCommissionModalOpen} onClose={() => setIsCommissionModalOpen(false)} value={managerFeePercentage} onChange={setManagerFeePercentage} managerFeeAmount={stats.managerFee}/>
+
+      <ProfitDistributionSheet
+        isOpen={isDistributionOpen}
+        onClose={() => setIsDistributionOpen(false)}
+        investors={investors}
+        suggestedTotal={stats.netDistributableProfit}
+        userDocRef={userDocRef}
+        setAlert={setAlert}
+      />
     </div>);
 };
