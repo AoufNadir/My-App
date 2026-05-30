@@ -44,7 +44,20 @@ export function useAnalyticsViewModel({ transactions, usdtReportMonth, usdtRepor
                 }
             }
         });
-        return { volUsdtBought, volUsdtSold, volEurBought, volEurSold, realizedProfit };
+        // Win rate & sell performance
+        let sellCount = 0;
+        let winCount = 0;
+        let bestSellProfit = 0;
+        for (const row of pamLedger.sellProfitRows) {
+            if (row.timestamp < startDate || row.timestamp > endDate) continue;
+            sellCount++;
+            const p = row.derivedProfit || 0;
+            if (p > 0) winCount++;
+            if (p > bestSellProfit) bestSellProfit = p;
+        }
+        const winRate = sellCount > 0 ? (winCount / sellCount) * 100 : null;
+        const avgProfitPerSell = sellCount > 0 ? realizedProfit / sellCount : null;
+        return { volUsdtBought, volUsdtSold, volEurBought, volEurSold, realizedProfit, sellCount, winRate, avgProfitPerSell, bestSellProfit };
     }, [transactions, usdtReportMonth, usdtReportYear, pamLedger]);
     const heatmapData = useMemo(() => {
         const salesByDay = new Map<number, number>();

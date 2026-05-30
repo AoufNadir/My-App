@@ -59,4 +59,8 @@ export type CalculatedStats = {
     volEurBought: number;
     volEurSold: number;
     realizedProfit: number;
+    sellCount: number;
+    winRate: number | null;
+    avgProfitPerSell: number | null;
+    bestSellProfit: number;
 };

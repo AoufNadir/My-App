@@ -6,6 +6,7 @@ import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
 import { CalendarIcon } from '../components/icons/CalendarIcon';
 import { UsersIcon } from '../components/icons/UsersIcon';
+import { SparklesIcon } from '../components/icons/SparklesIcon';
 import { useLanguage } from '../contexts/LanguageContext';
 import { AnalyticsReportCard } from '../components/analytics/AnalyticsReportCard';
 import { AnalyticsPageProps } from '../components/analytics/analyticsTypes';
@@ -54,6 +55,60 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                     { label: 'Tendance', value: 0, display: <span className={`text-base font-semibold ${trendColor}`}>{trendLabel}</span> },
                 ]}
             />
+
+            {/* Performance du mois */}
+            {calculatedStats.sellCount > 0 && (
+                <Card>
+                    <CardHeader className="p-4 pb-3">
+                        <SectionHeading icon={<SparklesIcon className="w-4 h-4" />}>
+                            Performance — {selectedMonthLabel}
+                        </SectionHeading>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                            {/* Win rate */}
+                            <div className="rounded-xl border border-border bg-surface-muted p-3">
+                                <p className="text-[11px] font-bold uppercase text-neutral-500">Win rate</p>
+                                <div className="mt-2 flex items-baseline gap-1">
+                                    <span className={`text-2xl font-extrabold tabular-nums ${(calculatedStats.winRate ?? 0) >= 80 ? 'text-financial-profit' : (calculatedStats.winRate ?? 0) >= 50 ? 'text-warning' : 'text-financial-loss'}`}>
+                                        {calculatedStats.winRate !== null ? Math.round(calculatedStats.winRate) : '—'}
+                                    </span>
+                                    {calculatedStats.winRate !== null && <span className="text-sm text-neutral-500">%</span>}
+                                </div>
+                                <p className="mt-1 text-[10px] text-neutral-400">{calculatedStats.sellCount} vente{calculatedStats.sellCount > 1 ? 's' : ''}</p>
+                            </div>
+                            {/* Avg profit per sell */}
+                            <div className="rounded-xl border border-border bg-surface-muted p-3">
+                                <p className="text-[11px] font-bold uppercase text-neutral-500">Moy. / vente</p>
+                                <div className="mt-2">
+                                    {calculatedStats.avgProfitPerSell !== null
+                                        ? <CurrencyAmount value={calculatedStats.avgProfitPerSell} currency="DZD" semantic="auto" size="lg" decimals={0}/>
+                                        : <span className="text-neutral-400">—</span>}
+                                </div>
+                                <p className="mt-1 text-[10px] text-neutral-400">profit moyen</p>
+                            </div>
+                            {/* Best sell */}
+                            <div className="rounded-xl border border-border bg-surface-muted p-3">
+                                <p className="text-[11px] font-bold uppercase text-neutral-500">Meilleure vente</p>
+                                <div className="mt-2">
+                                    {calculatedStats.bestSellProfit > 0
+                                        ? <CurrencyAmount value={calculatedStats.bestSellProfit} currency="DZD" semantic="profit" size="lg" decimals={0}/>
+                                        : <span className="text-neutral-400">—</span>}
+                                </div>
+                                <p className="mt-1 text-[10px] text-neutral-400">transaction unique</p>
+                            </div>
+                            {/* USDT volume */}
+                            <div className="rounded-xl border border-border bg-surface-muted p-3">
+                                <p className="text-[11px] font-bold uppercase text-neutral-500">Volume USDT</p>
+                                <div className="mt-2">
+                                    <CurrencyAmount value={calculatedStats.volUsdtSold} currency="USDT" semantic="plain" size="lg" decimals={0}/>
+                                </div>
+                                <p className="mt-1 text-[10px] text-neutral-400">vendus ce mois</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Bilan annuel */}
             <Card>
