@@ -148,6 +148,24 @@ export function TransactionsHistoryCard({
       .filter(([, txs]) => txs.length > 0);
   }, [dateGroups, searchQuery]);
 
+  // Compute total DZD for all filtered transactions when a filter/search is active
+  const filteredSummary = useMemo(() => {
+    const isFiltered = filterMode !== 'all' || searchQuery.trim().length > 0;
+    if (!isFiltered) return null;
+    let totalDzd = 0;
+    let count = 0;
+    for (const [, txs] of filteredDateGroups) {
+      for (const tx of txs) {
+        count++;
+        const raw = tx.rawTx as any;
+        if (tx.sourceType === 'usdt_tx') totalDzd += Math.abs(Number(raw.total ?? (raw.quantity ?? 0) * (raw.price ?? raw.sell ?? 0)));
+        else if (tx.sourceType === 'client_tx') totalDzd += Math.abs(Number(raw.montant ?? 0));
+        else if (tx.sourceType === 'treasury_tx') totalDzd += Math.abs(Number(raw.amount ?? 0));
+      }
+    }
+    return { totalDzd, count };
+  }, [filteredDateGroups, filterMode, searchQuery]);
+
   const { visibleDateGroups, hiddenTransactionCount, totalTransactionCount } = useMemo(() => {
     let remaining = visibleTransactionCount;
     let hidden = 0;
@@ -392,6 +410,22 @@ export function TransactionsHistoryCard({
               title={searchQuery.trim() ? 'Aucun résultat' : t('transactions.noTransactions')}
               subtitle={searchQuery.trim() ? `Aucune opération ne correspond à "${searchQuery.trim()}"` : undefined}
             />
+          )}
+
+          {/* Filtered summary bar */}
+          {filteredSummary && filteredSummary.count > 0 && (
+            <div className="mx-4 mt-2 mb-1 flex items-center justify-between rounded-xl bg-surface-muted px-4 py-2.5 border border-border">
+              <span className="text-xs font-semibold text-neutral-500">
+                {filteredSummary.count} opération{filteredSummary.count > 1 ? 's' : ''}
+              </span>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-neutral-400">Total ≈</span>
+                <span dir="ltr" className="text-sm font-bold text-neutral-800 tabular-nums">
+                  {filteredSummary.totalDzd.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
+                </span>
+                <span className="text-[10px] text-neutral-400">DZD</span>
+              </div>
+            </div>
           )}
 
           {hiddenTransactionCount > 0 && (
