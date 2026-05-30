@@ -163,6 +163,15 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                               <AlertTriangleIcon className="w-3.5 h-3.5"/>
                               <span className="text-xs font-bold">{overdue.daysOverdue}j</span>
                             </span>)}
+                          {(() => {
+                            const limit = client.creditLimit;
+                            if (!limit || limit <= 0) return null;
+                            const debt = -(clientBalances.get(client.id) || 0);
+                            if (debt <= limit) return null;
+                            return (<span className="shrink-0 text-warning" title={`Seuil dépassé: ${Math.round(debt).toLocaleString('fr-FR')} / ${Math.round(limit).toLocaleString('fr-FR')} DZD`}>
+                                <AlertTriangleIcon className="w-3.5 h-3.5"/>
+                              </span>);
+                          })()}
                         </div>
                       </div>
                       <div className="shrink-0 flex flex-col items-end gap-0.5">

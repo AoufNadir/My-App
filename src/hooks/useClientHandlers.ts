@@ -43,6 +43,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     const [clientRedotpayId, setClientRedotpayId] = useState('');
     const [clientBinanceEmail, setClientBinanceEmail] = useState('');
     const [clientNotes, setClientNotes] = useState('');
+    const [clientCreditLimit, setClientCreditLimit] = useState('');
     const [clientBalanceInput, setClientBalanceInput] = useState('');
     const openClientModal = (client: ClientDzd | null = null) => {
         setEditingClient(client);
@@ -52,6 +53,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientRedotpayId(client.redotpayId || '');
             setClientBinanceEmail(client.binanceEmail || '');
             setClientNotes(client.notes || '');
+            setClientCreditLimit(client.creditLimit ? String(client.creditLimit) : '');
             const currentBal = clientBalances.get(client.id) || 0;
             setClientBalanceInput(currentBal.toString());
             setInitialBalance('');
@@ -62,6 +64,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientRedotpayId('');
             setClientBinanceEmail('');
             setClientNotes('');
+            setClientCreditLimit('');
             setClientBalanceInput('');
             setInitialBalance('0');
         }
@@ -82,12 +85,14 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         }
         setIsSaving(true);
         try {
+            const parsedLimit = parseFloat(clientCreditLimit) || 0;
             const data: any = {
                 fullName: clientFullName.trim(),
                 phone: clientPhone.trim(),
                 redotpayId: clientRedotpayId.trim(),
                 binanceEmail: clientBinanceEmail.trim(),
                 notes: clientNotes.trim() || null,
+                creditLimit: parsedLimit > 0 ? parsedLimit : null,
                 nom: clientFullName.trim()
             };
             if (editingClient) {
@@ -488,7 +493,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         isSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode,
         clientFullName, setClientFullName, clientPhone, setClientPhone,
         initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId,
-        clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientBalanceInput, setClientBalanceInput,
+        clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientBalanceInput, setClientBalanceInput,
         openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient,
         isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx,
         clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount,

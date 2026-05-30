@@ -19,6 +19,7 @@ import { WalletIcon } from '../icons/WalletIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { ArrowDownIcon } from '../icons/ArrowDownIcon';
 import { ArrowUpIcon } from '../icons/ArrowUpIcon';
+import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
 import { formatNumber, getRelativeFrDateLabel } from '../../pages/shared/pageFormat';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { normalizeLedgerLabel } from '../../utils/financialUx';
@@ -195,6 +196,26 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
         </div>
       </div>
 
+      {(() => {
+        const limit = selectedClient.creditLimit;
+        if (!limit || limit <= 0 || selectedClientBalance >= 0) return null;
+        const debt = Math.abs(selectedClientBalance);
+        if (debt <= limit) return null;
+        const pct = Math.round((debt / limit) * 100);
+        return (
+          <div className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning-bg px-4 py-3">
+            <AlertTriangleIcon className="h-5 w-5 shrink-0 text-warning mt-0.5"/>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-warning">Seuil de crédit dépassé ({pct}%)</p>
+              <p className="mt-0.5 text-xs text-warning/70">
+                Dette : <span dir="ltr" className="font-semibold">{Math.round(debt).toLocaleString('fr-FR')} DZD</span>
+                {' '}/ Limite : <span dir="ltr" className="font-semibold">{Math.round(limit).toLocaleString('fr-FR')} DZD</span>
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
       <HeroKpiCard accent="sky" icon={<WalletIcon className="w-5 h-5"/>} primaryLabel={t('common.balance') as string} primaryValue={selectedClientBalance} primaryCurrency="DZD" primarySemantic="auto" secondary={[
             {
                 label: 'Statut',
@@ -302,6 +323,12 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                     <span className={`text-sm font-semibold ${clientStats.daysSinceLast > 30 ? 'text-financial-loss' : 'text-neutral-800'}`}>
                       {clientStats.daysSinceLast === 0 ? "Aujourd'hui" : `${clientStats.daysSinceLast}j`}
                     </span>
+                  </div>
+                )}
+                {selectedClient.creditLimit && selectedClient.creditLimit > 0 && (
+                  <div className="flex items-center justify-between gap-3 px-4 py-3">
+                    <span className="text-sm text-neutral-500">Seuil de crédit</span>
+                    <CurrencyAmount value={selectedClient.creditLimit} currency="DZD" semantic="plain" size="md" decimals={0}/>
                   </div>
                 )}
               </CardContent>

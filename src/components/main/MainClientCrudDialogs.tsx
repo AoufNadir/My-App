@@ -6,7 +6,7 @@ import { Textarea } from '../ui/Textarea';
 import { Button } from '../ui/Button';
 import { NumberInput } from '../ui/NumberInput';
 type MainClientCrudDialogsProps = Record<string, any>;
-function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, initialBalance, setInitialBalance, handleSaveClient, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient }: MainClientCrudDialogsProps) {
+function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, initialBalance, setInitialBalance, handleSaveClient, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient }: MainClientCrudDialogsProps) {
     const isBlockedClientDelete = clientDeleteMode === 'blocked';
     const isBalanceOnlyClientDelete = clientDeleteMode === 'balance_only';
     const isClientOnlyCleanupDelete = clientDeleteMode === 'client_only_cleanup';
@@ -84,6 +84,11 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                     <div>
                         <Label>Notes privées</Label>
                         <Textarea value={clientNotes} onChange={e => setClientNotes(e.target.value)} className="mt-1 resize-none text-sm" rows={3} placeholder="Préférences, disponibilités, remarques importantes…"/>
+                    </div>
+                    <div>
+                        <Label>Seuil de crédit (DZD)</Label>
+                        <NumberInput value={clientCreditLimit} onChange={e => setClientCreditLimit(e.target.value)} className="mt-1" placeholder="Ex: 50 000 (0 = illimité)"/>
+                        <p className="mt-1 text-[11px] text-neutral-400">Alerte si la dette dépasse ce montant</p>
                     </div>
                     {!editingClient && (<div>
                             <Label>{t('transactions.initialBalance')} ({t('common.dinar')})</Label>
