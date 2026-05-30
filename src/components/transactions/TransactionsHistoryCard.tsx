@@ -323,6 +323,11 @@ export function TransactionsHistoryCard({
                             <p className="text-xs truncate text-neutral-500">
                               {normalizeLedgerLabel(tx.details)}
                             </p>
+                            {(tx.rawTx as any).notes && (
+                              <p className="text-xs truncate text-neutral-400 italic">
+                                {(tx.rawTx as any).notes}
+                              </p>
+                            )}
                             <p className="text-xs text-neutral-500">{tx.time}</p>
                           </div>
 

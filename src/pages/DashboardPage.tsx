@@ -75,28 +75,28 @@ const PRIORITY_TONE_CLASSES: Record<Tone, {
     action: string;
 }> = {
     danger: {
-        item: 'border border-danger/20 border-s-4 border-s-danger/70 bg-danger-bg text-neutral-900 shadow-sm dark:border-danger-light/20 dark:border-s-danger-light/70 dark:bg-surface-muted',
-        title: 'text-danger dark:text-danger-light',
-        body: 'text-neutral-700 dark:text-neutral-600',
-        action: 'border border-danger/20 bg-surface text-danger dark:border-danger-light/25 dark:bg-danger-light/10 dark:text-danger-light',
+        item: 'border border-danger/20 border-s-4 border-s-danger/70 bg-danger-bg text-neutral-900 shadow-sm',
+        title: 'text-danger',
+        body: 'text-neutral-700',
+        action: 'border border-danger/20 bg-surface text-danger',
     },
     warning: {
         item: 'border border-warning/25 bg-warning-bg text-neutral-900 shadow-sm',
         title: 'text-warning',
-        body: 'text-neutral-700 dark:text-neutral-600',
-        action: 'border border-warning/25 bg-surface text-warning dark:bg-surface-raised',
+        body: 'text-neutral-700',
+        action: 'border border-warning/25 bg-surface text-warning',
     },
     success: {
         item: 'border border-success/20 bg-success-bg text-neutral-900 shadow-sm',
-        title: 'text-success dark:text-success-light',
-        body: 'text-neutral-700 dark:text-neutral-600',
-        action: 'border border-success/20 bg-surface text-success dark:bg-surface-raised dark:text-success-light',
+        title: 'text-success',
+        body: 'text-neutral-700',
+        action: 'border border-success/20 bg-surface text-success',
     },
     info: {
         item: 'border border-info/20 bg-info-bg text-neutral-900 shadow-sm',
         title: 'text-info',
-        body: 'text-neutral-700 dark:text-neutral-600',
-        action: 'border border-info/20 bg-surface text-info dark:bg-surface-raised',
+        body: 'text-neutral-700',
+        action: 'border border-info/20 bg-surface text-info',
     },
 };
 function toneClasses(tone: Tone): typeof PRIORITY_TONE_CLASSES[Tone] {
