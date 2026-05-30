@@ -46,7 +46,7 @@ function profitCellClass(profit: number, maxProfit: number): string {
 
 export function AnalyticsPage(props: AnalyticsPageProps) {
     const { t } = useLanguage();
-    const { calculatedStats, heatmapData, monthlyClientRanking, allTimeClientRanking, annualStats, allTimeStats, prevMonthStats } = useAnalyticsViewModel({
+    const { calculatedStats, heatmapData, monthlyClientRanking, allTimeClientRanking, annualStats, allTimeStats, prevMonthStats, priceHistory } = useAnalyticsViewModel({
         transactions: props.transactions,
         usdtReportMonth: props.usdtReportMonth,
         usdtReportYear: props.usdtReportYear,
@@ -219,6 +219,104 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                     </Card>
                 );
             })()}
+
+            {/* ═══════════════════════════════════════════
+                ZONE 2b — PRIX DE VENTE (Trend des marges)
+            ═══════════════════════════════════════════ */}
+            {priceHistory.current && (
+                <Card>
+                    <CardHeader className="p-4 pb-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <SectionHeading icon={<TrendingUpIcon className="w-4 h-4" />}>
+                                Prix de vente USDT
+                            </SectionHeading>
+                            {priceHistory.prev && (
+                                <span className="text-[10px] font-semibold text-neutral-400">
+                                    vs {MONTH_LABELS_FR[props.usdtReportMonth === 0 ? 11 : props.usdtReportMonth - 1]}
+                                </span>
+                            )}
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0 space-y-4">
+                        {/* KPIs row */}
+                        <div className="grid grid-cols-3 gap-2">
+                            <div className="rounded-xl border border-border bg-surface-muted p-3">
+                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Prix moy. vente</p>
+                                <p dir="ltr" className="text-lg font-extrabold tabular-nums text-neutral-800">
+                                    {priceHistory.current.avgSell.toFixed(2)}
+                                </p>
+                                <p className="text-[9px] text-neutral-400">DZD/USDT</p>
+                                {priceHistory.prev && (() => {
+                                    const c = pctChange(priceHistory.current!.avgSell, priceHistory.prev!.avgSell);
+                                    return c ? <p className={`text-[10px] font-bold mt-0.5 ${c.cls}`}>{c.label}</p> : null;
+                                })()}
+                            </div>
+                            <div className="rounded-xl border border-border bg-surface-muted p-3">
+                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Marge moy.</p>
+                                <p dir="ltr" className={`text-lg font-extrabold tabular-nums ${priceHistory.current.avgMargin >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
+                                    {priceHistory.current.avgMargin >= 0 ? '+' : ''}{priceHistory.current.avgMargin.toFixed(2)}
+                                </p>
+                                <p className="text-[9px] text-neutral-400">DZD/USDT</p>
+                                {priceHistory.prev && (() => {
+                                    const c = pctChange(priceHistory.current!.avgMargin, priceHistory.prev!.avgMargin);
+                                    return c ? <p className={`text-[10px] font-bold mt-0.5 ${c.cls}`}>{c.label}</p> : null;
+                                })()}
+                            </div>
+                            <div className="rounded-xl border border-border bg-surface-muted p-3">
+                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Marge %</p>
+                                <p className={`text-lg font-extrabold tabular-nums ${priceHistory.current.avgMargin >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
+                                    {priceHistory.current.avgSell > 0
+                                        ? `${priceHistory.current.avgMargin >= 0 ? '+' : ''}${((priceHistory.current.avgMargin / priceHistory.current.avgSell) * 100).toFixed(2)}%`
+                                        : '—'}
+                                </p>
+                                <p className="text-[9px] text-neutral-400">sur le prix</p>
+                            </div>
+                        </div>
+
+                        {/* 6-month mini bar chart */}
+                        {priceHistory.trend.some(t => t.data !== null) && (
+                            <div>
+                                <p className="mb-2 text-[10px] font-bold uppercase text-neutral-400">Tendance 6 mois — Marge/USDT (DZD)</p>
+                                <div className="space-y-1">
+                                    {priceHistory.trend.map((item, i) => {
+                                        if (!item.data) return (
+                                            <div key={i} className="flex items-center gap-2">
+                                                <span className={`w-8 text-[10px] font-semibold shrink-0 ${item.monthIdx === props.usdtReportMonth && item.year === props.usdtReportYear ? 'text-primary' : 'text-neutral-300'}`}>
+                                                    {MONTH_LABELS_FR[item.monthIdx]}
+                                                </span>
+                                                <div className="flex-1 rounded-full bg-neutral-100 h-2"/>
+                                                <div className="w-20 text-right shrink-0 text-[10px] text-neutral-300">—</div>
+                                            </div>
+                                        );
+                                        const maxMargin = Math.max(...priceHistory.trend.filter(t => t.data).map(t => Math.abs(t.data!.avgMargin)), 1);
+                                        const isActive = item.monthIdx === props.usdtReportMonth && item.year === props.usdtReportYear;
+                                        const barPct = Math.max(4, (Math.abs(item.data.avgMargin) / maxMargin) * 100);
+                                        return (
+                                            <div key={i} className={`flex items-center gap-2 rounded-lg px-1 py-0.5 ${isActive ? 'bg-primary/5 ring-1 ring-primary/20' : ''}`}>
+                                                <span className={`w-8 text-[10px] font-semibold shrink-0 ${isActive ? 'text-primary' : 'text-neutral-400'}`}>
+                                                    {MONTH_LABELS_FR[item.monthIdx]}
+                                                </span>
+                                                <div className="flex-1 rounded-full bg-neutral-100 h-2">
+                                                    <div
+                                                        className={`h-2 rounded-full ${item.data.avgMargin >= 0 ? 'bg-financial-profit' : 'bg-financial-loss'}`}
+                                                        style={{ width: `${barPct}%` }}
+                                                    />
+                                                </div>
+                                                <div className="w-20 text-right shrink-0">
+                                                    <span dir="ltr" className={`text-[11px] font-semibold tabular-nums ${item.data.avgMargin >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
+                                                        {item.data.avgMargin >= 0 ? '+' : ''}{item.data.avgMargin.toFixed(2)} DZD
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <p className="mt-2 text-[9px] text-neutral-400 text-end">Marge = Prix vente − PAM moyen pondéré</p>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
 
             {/* ═══════════════════════════════════════════
                 ZONE 3 — BILAN ANNUEL

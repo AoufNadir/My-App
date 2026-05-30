@@ -294,6 +294,52 @@ export function useAnalyticsViewModel({ transactions, usdtReportMonth, usdtRepor
         };
     }, [pamLedger, usdtReportMonth, usdtReportYear]);
 
+    // Price history: average sell price + margin per unit, current & prev month + 6-month trend
+    const priceHistory = useMemo(() => {
+        const computeMonth = (year: number, month: number) => {
+            const from = new Date(year, month, 1).getTime();
+            const to = new Date(year, month + 1, 0, 23, 59, 59, 999).getTime();
+            let totalQty = 0;
+            let weightedSell = 0;
+            let weightedMargin = 0;
+            let count = 0;
+            for (const tx of transactions) {
+                if (tx.type !== 'sell' || tx.currency !== 'USDT') continue;
+                if (tx.timestamp < from || tx.timestamp > to) continue;
+                const sellPrice = Number(tx.sell || tx.price || 0);
+                if (sellPrice <= 0 || tx.quantity <= 0) continue;
+                const profit = pamLedger.profitByTxId[tx.id]?.derivedProfit || 0;
+                const marginPerUnit = profit / tx.quantity;
+                weightedSell += sellPrice * tx.quantity;
+                weightedMargin += marginPerUnit * tx.quantity;
+                totalQty += tx.quantity;
+                count++;
+            }
+            if (count === 0 || totalQty === 0) return null;
+            return {
+                avgSell: weightedSell / totalQty,
+                avgMargin: weightedMargin / totalQty,
+                avgPam: (weightedSell - weightedMargin * totalQty) / totalQty,
+                count,
+                qty: totalQty,
+            };
+        };
+        const current = computeMonth(usdtReportYear, usdtReportMonth);
+        const prevM = usdtReportMonth === 0 ? 11 : usdtReportMonth - 1;
+        const prevY = usdtReportMonth === 0 ? usdtReportYear - 1 : usdtReportYear;
+        const prev = computeMonth(prevY, prevM);
+        // Last 6 months trend (oldest first)
+        const trend = Array.from({ length: 6 }, (_, i) => {
+            const offset = 5 - i;
+            let m = usdtReportMonth - offset;
+            let y = usdtReportYear;
+            while (m < 0) { m += 12; y--; }
+            const result = computeMonth(y, m);
+            return { monthIdx: m, year: y, data: result };
+        });
+        return { current, prev, trend };
+    }, [transactions, pamLedger, usdtReportMonth, usdtReportYear]);
+
     return {
         calculatedStats,
         heatmapData,
@@ -302,5 +348,6 @@ export function useAnalyticsViewModel({ transactions, usdtReportMonth, usdtRepor
         annualStats,
         allTimeStats,
         prevMonthStats,
+        priceHistory,
     };
 }
