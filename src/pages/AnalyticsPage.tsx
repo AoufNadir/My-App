@@ -5,6 +5,7 @@ import { SectionHeading } from '../components/ui/SectionHeading';
 import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
 import { CalendarIcon } from '../components/icons/CalendarIcon';
+import { UsersIcon } from '../components/icons/UsersIcon';
 import { useLanguage } from '../contexts/LanguageContext';
 import { AnalyticsReportCard } from '../components/analytics/AnalyticsReportCard';
 import { AnalyticsPageProps } from '../components/analytics/analyticsTypes';
@@ -14,7 +15,7 @@ const MONTH_LABELS_FR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû
 
 export function AnalyticsPage(props: AnalyticsPageProps) {
     const { t } = useLanguage();
-    const { calculatedStats, heatmapData, monthlyClientRanking, annualStats } = useAnalyticsViewModel({
+    const { calculatedStats, heatmapData, monthlyClientRanking, allTimeClientRanking, annualStats } = useAnalyticsViewModel({
         transactions: props.transactions,
         usdtReportMonth: props.usdtReportMonth,
         usdtReportYear: props.usdtReportYear,
@@ -110,6 +111,66 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* All-time top clients */}
+            {(allTimeClientRanking.byVolume.length > 0 || allTimeClientRanking.byProfit.length > 0) && (
+                <Card>
+                    <CardHeader className="p-4 pb-3">
+                        <SectionHeading icon={<UsersIcon className="w-4 h-4" />}>
+                            Top Clients — Tout temps
+                        </SectionHeading>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0 space-y-4">
+                        {/* By volume */}
+                        {allTimeClientRanking.byVolume.length > 0 && (() => {
+                            const maxVol = Math.max(...allTimeClientRanking.byVolume.map((r) => r.totalVolumeUsdt), 1);
+                            return (
+                                <div>
+                                    <p className="mb-2 text-[11px] font-bold uppercase text-neutral-400">Volume USDT échangé</p>
+                                    <div className="space-y-2">
+                                        {allTimeClientRanking.byVolume.map((row, i) => (
+                                            <div key={row.clientId} className="flex items-center gap-2">
+                                                <span className="w-4 text-[10px] font-bold text-neutral-400 shrink-0">{i + 1}</span>
+                                                <span className="w-24 text-xs font-semibold truncate shrink-0">{row.clientName}</span>
+                                                <div className="flex-1 rounded-full bg-neutral-100 h-1.5">
+                                                    <div className="h-1.5 rounded-full bg-primary/60" style={{ width: `${(row.totalVolumeUsdt / maxVol) * 100}%` }}/>
+                                                </div>
+                                                <span dir="ltr" className="text-[11px] font-semibold text-neutral-600 shrink-0 w-20 text-right tabular-nums">
+                                                    {row.totalVolumeUsdt.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} U
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* By profit */}
+                        {allTimeClientRanking.byProfit.length > 0 && (() => {
+                            const maxP = Math.max(...allTimeClientRanking.byProfit.map((r) => r.realizedProfit), 1);
+                            return (
+                                <div>
+                                    <p className="mb-2 text-[11px] font-bold uppercase text-neutral-400">Profit généré (DZD)</p>
+                                    <div className="space-y-2">
+                                        {allTimeClientRanking.byProfit.map((row, i) => (
+                                            <div key={row.clientId} className="flex items-center gap-2">
+                                                <span className="w-4 text-[10px] font-bold text-neutral-400 shrink-0">{i + 1}</span>
+                                                <span className="w-24 text-xs font-semibold truncate shrink-0">{row.clientName}</span>
+                                                <div className="flex-1 rounded-full bg-neutral-100 h-1.5">
+                                                    <div className={`h-1.5 rounded-full ${row.realizedProfit >= 0 ? 'bg-financial-profit/70' : 'bg-financial-loss/70'}`} style={{ width: `${(Math.abs(row.realizedProfit) / maxP) * 100}%` }}/>
+                                                </div>
+                                                <div className="shrink-0 w-24 text-right">
+                                                    <CurrencyAmount value={row.realizedProfit} currency="DZD" semantic="auto" size="sm" decimals={0} showSign/>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </CardContent>
+                </Card>
+            )}
 
             <AnalyticsReportCard {...analyticsReportCardProps} />
         </div>

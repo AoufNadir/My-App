@@ -157,6 +157,35 @@ export function useAnalyticsViewModel({ transactions, usdtReportMonth, usdtRepor
             : null;
         return { rankedRows, topTradedClient, topProfitableClient };
     }, [transactions, clientTransactionsDzd, clientsDzd, getClientFullName, usdtReportMonth, usdtReportYear, t, pamLedger]);
+    // All-time top clients (top 5 by volume, top 5 by profit)
+    const allTimeClientRanking = useMemo<{ byVolume: MonthlyClientRank[]; byProfit: MonthlyClientRank[] }>(() => {
+        const txClientMap = new Map<string, { clientId: string; isSecondary: boolean }>();
+        clientTransactionsDzd.forEach((clientTx) => {
+            if (!clientTx.linkedTxId || !clientTx.clientId) return;
+            const isSecondary = clientTx.linkRole === 'dzd_receiver';
+            const existing = txClientMap.get(clientTx.linkedTxId);
+            if (!existing) { txClientMap.set(clientTx.linkedTxId, { clientId: clientTx.clientId, isSecondary }); return; }
+            if (existing.isSecondary && !isSecondary) txClientMap.set(clientTx.linkedTxId, { clientId: clientTx.clientId, isSecondary });
+        });
+        const clientNameById = new Map(clientsDzd.map((c) => [c.id, getClientFullName(c)]));
+        const ranksByClient = new Map<string, MonthlyClientRank>();
+        transactions.forEach((tx) => {
+            if (tx.type !== 'buy' && tx.type !== 'sell') return;
+            const linkedClient = txClientMap.get(tx.id);
+            if (!linkedClient) return;
+            const clientId = linkedClient.clientId;
+            if (!ranksByClient.has(clientId)) ranksByClient.set(clientId, { clientId, clientName: clientNameById.get(clientId) || '?', buyVolumeUsdt: 0, sellVolumeUsdt: 0, totalVolumeUsdt: 0, realizedProfit: 0, txCount: 0, sellCount: 0 });
+            const row = ranksByClient.get(clientId)!;
+            const qty = Number(tx.quantity || 0);
+            if (tx.type === 'buy' && tx.currency === 'USDT') row.buyVolumeUsdt += qty;
+            if (tx.type === 'sell') { if (tx.currency === 'USDT') row.sellVolumeUsdt += qty; row.realizedProfit += pamLedger.profitByTxId[tx.id]?.derivedProfit || 0; row.sellCount += 1; }
+            row.txCount += 1;
+        });
+        const rows = Array.from(ranksByClient.values()).map((r) => ({ ...r, totalVolumeUsdt: r.buyVolumeUsdt + r.sellVolumeUsdt }));
+        const byVolume = [...rows].sort((a, b) => b.totalVolumeUsdt - a.totalVolumeUsdt).slice(0, 5);
+        const byProfit = [...rows].filter((r) => r.sellCount > 0).sort((a, b) => b.realizedProfit - a.realizedProfit).slice(0, 5);
+        return { byVolume, byProfit };
+    }, [transactions, clientTransactionsDzd, clientsDzd, getClientFullName, pamLedger, t]);
     // Annual summary: profit per month for the selected year
     const annualStats = useMemo(() => {
         const yearStart = new Date(usdtReportYear, 0, 1).getTime();
@@ -189,6 +218,7 @@ export function useAnalyticsViewModel({ transactions, usdtReportMonth, usdtRepor
         calculatedStats,
         heatmapData,
         monthlyClientRanking,
+        allTimeClientRanking,
         annualStats
     };
 }
