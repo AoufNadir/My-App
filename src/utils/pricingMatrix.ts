@@ -98,11 +98,11 @@ export function allTierPrices(
     ) as Record<ClientTierType, { price: number; profitPerUnit: number; bracket: VolumeBracket }>;
 }
 
-/** Volume thresholds for client classification (previous month USDT sold/bought) */
+/** Volume thresholds for client classification (previous month USDT sold) */
 export const VOLUME_THRESHOLDS = {
-    vip:     1000,   // > 1000 USDT/month → VIP
-    regular: 200,    // 200–1000 → Regular
-    petit:   1,      // 1–200   → Petit
-    // < petit or no history → Nouveau
-    inactifDays: 45, // No sell activity in 45 days → treated as Nouveau
+    vip:        5500,  // > 5500 USDT/month → VIP
+    regular:    1000,  // 1000–5500 → Regular
+    petit:      50,    // 50–1000   → Petit
+    // < 50 or no history → Nouveau
+    inactifDays: 45,   // No sell activity in 45 days → treated as Nouveau
 } as const;

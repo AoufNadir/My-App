@@ -160,6 +160,8 @@ export default function MainApp({ user }: {
     const derivedInvestors = investorEconomics.derivedInvestors;
 
     // Early pricing data (needed before useTransactionHandlers)
+    // effectiveMargin = max(historical 90d margin, goal-required margin)
+    // This ensures prices always target the monthly profit goal.
     const earlyAvgMarginPerUsdt = React.useMemo(() => {
         const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
         let totalProfit = 0;
@@ -169,7 +171,19 @@ export default function MainApp({ user }: {
             totalProfit += row.derivedProfit || 0;
             totalQty    += Number(row.quantity || 0);
         }
-        return totalQty > 0 ? totalProfit / totalQty : parseAndEvaluate(suggestedProfitMargin);
+        const historicalMargin = totalQty > 0
+            ? totalProfit / totalQty
+            : parseAndEvaluate(suggestedProfitMargin);
+
+        // Goal-based margin: what margin is needed per USDT to hit the monthly goal
+        const monthlyGoal = Number(localStorage.getItem('app_monthly_profit_goal') || 0);
+        const avgMonthlyVol = totalQty > 0 ? totalQty / 3 : 0; // 90d qty ÷ 3 months
+        const goalMargin = avgMonthlyVol > 0 && monthlyGoal > 0
+            ? monthlyGoal / avgMonthlyVol
+            : 0;
+
+        // Use whichever is higher: historical or goal-required
+        return Math.max(historicalMargin, goalMargin);
     }, [pamLedger, suggestedProfitMargin]);
 
     // Client tier by PREVIOUS MONTH USDT sell volume (via transaction.linkedClientId)
@@ -212,10 +226,10 @@ export default function MainApp({ user }: {
             if (!everSold && lastActivity === 0) { result.set(client.id, 'new'); continue; }
             // No activity in 45 days → Inactif (treated as Nouveau for pricing)
             if (lastActivity < inactifCutoff && lastActivity > 0) { result.set(client.id, 'inactive'); continue; }
-            // Classify by previous month volume
-            if (volume >= 1000) { result.set(client.id, 'vip');     continue; }
-            if (volume >= 200)  { result.set(client.id, 'regular'); continue; }
-            if (volume >= 1)    { result.set(client.id, 'petit');   continue; }
+            // Classify by previous month volume (user-defined thresholds)
+            if (volume >= 5500) { result.set(client.id, 'vip');     continue; }
+            if (volume >= 1000) { result.set(client.id, 'regular'); continue; }
+            if (volume >= 50)   { result.set(client.id, 'petit');   continue; }
             // Had some history but not in previous month
             result.set(client.id, 'inactive');
         }
@@ -2111,14 +2125,24 @@ export default function MainApp({ user }: {
             totalProfit90 += row.derivedProfit || 0;
             totalQty90 += Number(row.quantity || 0);
         }
-        const avgMarginPerUsdt = totalQty90 > 0 ? totalProfit90 / totalQty90 : parseAndEvaluate(suggestedProfitMargin);
+        const historicalMargin = totalQty90 > 0 ? totalProfit90 / totalQty90 : parseAndEvaluate(suggestedProfitMargin);
 
         // Avg monthly USDT sold — last 3 months (approx 90 days)
         const avgMonthlyUsdtSold = totalQty90 > 0 ? totalQty90 / 3 : 0;
 
+        // Goal-based margin: margin needed per USDT to reach monthly goal
+        const goalMargin = avgMonthlyUsdtSold > 0 && monthlyGoal > 0
+            ? monthlyGoal / avgMonthlyUsdtSold
+            : 0;
+
+        // Effective margin = whichever is higher (ensures goal is achievable)
+        const avgMarginPerUsdt = Math.max(historicalMargin, goalMargin);
+
         return {
             dailyNeeded,
-            avgMarginPerUsdt,
+            avgMarginPerUsdt,       // effective (used for pricing)
+            historicalMargin,       // raw historical (for display)
+            goalMargin,             // goal-required margin (for display)
             avgMonthlyUsdtSold,
             monthlyGoal,
             monthToDateProfit: mtdProfit,

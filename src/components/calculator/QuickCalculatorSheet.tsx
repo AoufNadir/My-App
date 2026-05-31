@@ -30,7 +30,9 @@ type PortfolioSide = { available: number; avgBuy: number };
 
 type PricingContext = {
     dailyNeeded: number;
-    avgMarginPerUsdt: number;
+    avgMarginPerUsdt: number;     // effective = max(historical, goal-based)
+    historicalMargin?: number;    // raw historical for display
+    goalMargin?: number;          // goal-required margin for display
     avgMonthlyUsdtSold: number;
     monthlyGoal: number;
     monthToDateProfit: number;
@@ -334,16 +336,12 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
                             </p>
 
                             {/* Context footer */}
-                            <div className="grid grid-cols-3 gap-2 text-center">
+                            <div className="grid grid-cols-2 gap-2 text-center">
                                 <div className="rounded-lg bg-neutral-100 p-2">
                                     <p className="text-[9px] uppercase font-bold text-neutral-400">Besoin/jour</p>
                                     <p dir="ltr" className="text-xs font-bold text-neutral-700">
                                         {assistedData.ctx.dailyNeeded > 0 ? `+${fmt0(assistedData.ctx.dailyNeeded)}` : '—'}
                                     </p>
-                                </div>
-                                <div className="rounded-lg bg-neutral-100 p-2">
-                                    <p className="text-[9px] uppercase font-bold text-neutral-400">Jours restants</p>
-                                    <p className="text-xs font-bold text-neutral-700">{assistedData.ctx.daysRemaining}j</p>
                                 </div>
                                 <div className="rounded-lg bg-neutral-100 p-2">
                                     <p className="text-[9px] uppercase font-bold text-neutral-400">Goal mois</p>
@@ -352,6 +350,15 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
                                     </p>
                                 </div>
                             </div>
+                            {/* Margin source indicator */}
+                            {assistedData.ctx.goalMargin !== undefined && assistedData.ctx.historicalMargin !== undefined && (
+                                <div className={`rounded-lg px-3 py-2 text-center text-[10px] ${assistedData.ctx.goalMargin > assistedData.ctx.historicalMargin ? 'bg-warning-bg text-warning' : 'bg-success-bg text-financial-profit'}`}>
+                                    {assistedData.ctx.goalMargin > assistedData.ctx.historicalMargin
+                                        ? `⚠️ Marge goal (+${fmt2(assistedData.ctx.goalMargin)}/U) > historique (+${fmt2(assistedData.ctx.historicalMargin)}/U) → prix ajustés vers le haut`
+                                        : `✓ Marge historique (+${fmt2(assistedData.ctx.historicalMargin)}/U) suffit pour l'objectif`
+                                    }
+                                </div>
+                            )}
                         </div>
                     )}
                 </>)}
