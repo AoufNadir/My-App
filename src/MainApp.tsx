@@ -159,9 +159,22 @@ export default function MainApp({ user }: {
     }, [shouldSubscribeInvestors, deferredInvestors, deferredInvestorTransactions, managerFeePercentage, deferredTransactions, pamLedger, deliveryExpenses]);
     const derivedInvestors = investorEconomics.derivedInvestors;
 
+    // Reactive monthly goal — updates instantly when changed from InsightsPage or Settings
+    const GOAL_KEY = 'app_monthly_profit_goal';
+    const [monthlyGoalState, setMonthlyGoalState] = React.useState<number>(() =>
+        Number(localStorage.getItem(GOAL_KEY) || 0)
+    );
+    React.useEffect(() => {
+        const handler = (e: StorageEvent) => {
+            if (e.key === GOAL_KEY) setMonthlyGoalState(Number(e.newValue || 0));
+        };
+        window.addEventListener('storage', handler);
+        return () => window.removeEventListener('storage', handler);
+    }, []);
+
     // Early pricing data (needed before useTransactionHandlers)
     // effectiveMargin = max(historical 90d margin, goal-required margin)
-    // This ensures prices always target the monthly profit goal.
+    // Re-computes immediately when monthlyGoalState changes (reactive).
     const earlyAvgMarginPerUsdt = React.useMemo(() => {
         const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
         let totalProfit = 0;
@@ -176,15 +189,14 @@ export default function MainApp({ user }: {
             : parseAndEvaluate(suggestedProfitMargin);
 
         // Goal-based margin: what margin is needed per USDT to hit the monthly goal
-        const monthlyGoal = Number(localStorage.getItem('app_monthly_profit_goal') || 0);
         const avgMonthlyVol = totalQty > 0 ? totalQty / 3 : 0; // 90d qty ÷ 3 months
-        const goalMargin = avgMonthlyVol > 0 && monthlyGoal > 0
-            ? monthlyGoal / avgMonthlyVol
+        const goalMargin = avgMonthlyVol > 0 && monthlyGoalState > 0
+            ? monthlyGoalState / avgMonthlyVol
             : 0;
 
         // Use whichever is higher: historical or goal-required
         return Math.max(historicalMargin, goalMargin);
-    }, [pamLedger, suggestedProfitMargin]);
+    }, [pamLedger, suggestedProfitMargin, monthlyGoalState]);
 
     // Client tier by PREVIOUS MONTH USDT sell volume (via transaction.linkedClientId)
     const earlyClientLoyaltyMap = React.useMemo<Map<string, 'vip' | 'regular' | 'petit' | 'new' | 'inactive'>>(() => {
@@ -2108,7 +2120,7 @@ export default function MainApp({ user }: {
         const dayOfMonth = now.getDate();
         const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
         const daysRemaining = Math.max(1, daysInMonth - dayOfMonth + 1);
-        const monthlyGoal = Number(localStorage.getItem('app_monthly_profit_goal') || 0);
+        const monthlyGoal = monthlyGoalState; // reactive — updates when goal changes
         const mtdProfit = dailyOverview.monthToDateProfit;
         const mtdUsdtSold = dailyOverview.monthToDateUsdtSold;
 
@@ -2152,7 +2164,7 @@ export default function MainApp({ user }: {
             daysRemaining,
             fallbackMargin: parseAndEvaluate(suggestedProfitMargin),
         };
-    }, [pamLedger, dailyOverview, suggestedProfitMargin]);
+    }, [pamLedger, dailyOverview, suggestedProfitMargin, monthlyGoalState]);
 
     const handleExportBackup = React.useCallback(() => {
         try {
