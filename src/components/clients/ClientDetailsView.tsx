@@ -176,7 +176,11 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
         }
         const oldest = queue.length > 0 ? queue[0] : null;
         const oldestDays = oldest ? Math.floor((now - oldest.timestamp) / 86_400_000) : 0;
-        return { buckets, oldest, oldestDays, total: Math.abs(selectedClientBalance) };
+        // Use queue sum for total (consistent with buckets)
+        const queueTotal = Math.round(
+            (buckets.week + buckets.month + buckets.twoMonth + buckets.old) * 100
+        ) / 100;
+        return { buckets, oldest, oldestDays, total: queueTotal || Math.abs(selectedClientBalance) };
     }, [groupedHistory, selectedClientBalance]);
 
     const balanceStatusLabel = selectedClientBalance > 0.01
