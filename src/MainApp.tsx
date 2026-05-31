@@ -24,7 +24,9 @@ import type { TransactionFilterMode } from './components/transactions/transactio
 import { OfflineBanner } from './components/ui/OfflineBanner';
 import { MonthlyRecapBanner } from './components/ui/MonthlyRecapBanner';
 import { WeeklyRecapBanner } from './components/ui/WeeklyRecapBanner';
+import { NotificationPermissionBanner } from './components/ui/NotificationPermissionBanner';
 import { useMonthlyRecap } from './hooks/useMonthlyRecap';
+import { useNotifications } from './hooks/useNotifications';
 import { useWeeklyRecap } from './hooks/useWeeklyRecap';
 // Custom Hooks
 import { useAppData } from './hooks/useAppData';
@@ -2005,6 +2007,36 @@ export default function MainApp({ user }: {
     // Surface a recap of the previous month's realized profit on first
     // visit of a new month. Banner self-dismisses (persisted in localStorage).
     const { recap: monthlyRecap, dismiss: dismissMonthlyRecap } = useMonthlyRecap(transactions, pamLedger);
+
+    // Notifications
+    const [showNotifBanner, setShowNotifBanner] = React.useState(false);
+    const notifications = useNotifications(userDocRef);
+
+    // Show permission banner once (after 30s) if not yet asked and supported
+    React.useEffect(() => {
+        if (!notifications.isSupported || notifications.permAsked || notifications.permission !== 'default') return;
+        const timer = setTimeout(() => setShowNotifBanner(true), 30_000);
+        return () => clearTimeout(timer);
+    }, [notifications.isSupported, notifications.permAsked, notifications.permission]);
+
+    // Auto-trigger overdue + distribution notifications
+    React.useEffect(() => {
+        if (notifications.permission !== 'granted') return;
+        // Overdue
+        if (overdueDebtClients.length > 0) {
+            notifications.notifyOverdueClients(
+                overdueDebtClients.length,
+                overdueDebtClients.map(c => c.fullName)
+            );
+        }
+        // Investor profit
+        const totalAvailable = derivedInvestors
+            .filter(i => i.isActive && !i.isManager)
+            .reduce((s, i) => s + Number(i.availableProfit || 0), 0);
+        if (totalAvailable > 10_000) {
+            notifications.notifyInvestorProfit(totalAvailable);
+        }
+    }, [notifications.permission, overdueDebtClients, derivedInvestors]);
     const { recap: weeklyRecap, dismiss: dismissWeeklyRecap } = useWeeklyRecap({
         transactions,
         clientTransactionsDzd,
@@ -2073,6 +2105,19 @@ export default function MainApp({ user }: {
 
                 <WeeklyRecapBanner recap={weeklyRecap} onDismiss={dismissWeeklyRecap}/>
                 <MonthlyRecapBanner recap={monthlyRecap} onDismiss={dismissMonthlyRecap}/>
+                {showNotifBanner && notifications.permission === 'default' && (
+                    <NotificationPermissionBanner
+                        onRequest={async () => {
+                            const result = await notifications.requestPermission();
+                            setShowNotifBanner(false);
+                            return result;
+                        }}
+                        onDismiss={() => {
+                            setShowNotifBanner(false);
+                            localStorage.setItem('app_notification_perm_asked', '1');
+                        }}
+                    />
+                )}
 
                 <MainContentArea {...mainContentProps}/>
 

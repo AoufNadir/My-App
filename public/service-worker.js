@@ -1,4 +1,38 @@
-const CACHE_NAME = 'prodigital-cache-v9';
+const CACHE_NAME = 'prodigital-cache-v10';
+
+// ─── Push Notifications ───────────────────────────────────────────────────────
+
+self.addEventListener('push', (event) => {
+    if (!event.data) return;
+    let payload;
+    try { payload = event.data.json(); } catch { payload = { title: 'ProDigital', body: event.data.text() }; }
+
+    const title = payload.notification?.title || payload.title || 'ProDigital';
+    const options = {
+        body: payload.notification?.body || payload.body || '',
+        icon: '/pwa-icon.png',
+        badge: '/pwa-icon.png',
+        tag: payload.tag || 'prodigital',
+        requireInteraction: payload.requireInteraction || false,
+        data: payload.data || {},
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    event.waitUntil(
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+            for (const client of clients) {
+                if (client.url.includes(self.location.origin) && 'focus' in client) {
+                    return client.focus();
+                }
+            }
+            return self.clients.openWindow('/');
+        })
+    );
+});
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
