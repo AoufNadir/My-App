@@ -14,7 +14,7 @@ import { CalendarIcon } from '../components/icons/CalendarIcon';
 import { SparklesIcon } from '../components/icons/SparklesIcon';
 import { computePamLedger } from '../utils/pamLedger';
 import { parseAndEvaluate } from '../utils';
-import { roundToMarketPrice, allTierPrices, ClientTierType } from '../utils/pricingMatrix';
+import { roundToMarketPrice, ceilToMarketPrice, allTierPrices, ClientTierType } from '../utils/pricingMatrix';
 import type { Tx, ClientDzd, ClientTransactionDzd, Investor } from '../types';
 
 const fmt0 = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 });
@@ -426,7 +426,9 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
                 // Target price to achieve profit goal at historical volume
                 const neededMargin = avgVol > 0 ? target / avgVol : 0;
                 const targetPriceRaw = pam + neededMargin;
-                const targetPrice = roundToMarketPrice(targetPriceRaw);
+                // Use CEILING rounding so the rounded price always ≥ needed price → goal is guaranteed
+                const targetPrice = ceilToMarketPrice(targetPriceRaw);
+                const actualProfitAtTarget = (targetPrice - pam) * avgVol;
 
                 // Volume needed to achieve profit goal at historical avg sell price
                 const histMargin = yearlyStats.avgSellDzd - pam;
@@ -489,8 +491,13 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
                                             {Number.isInteger(targetPrice) ? targetPrice : fmt2(targetPrice)} DZD
                                         </p>
                                         <p className="text-[11px] text-neutral-500 mt-1">
-                                            soit +{fmt2(neededMargin)} DZD/USDT de marge
+                                            +{fmt2(targetPrice - pam)} DZD/USDT de marge
                                         </p>
+                                        {actualProfitAtTarget > target && (
+                                            <p className="text-[10px] text-financial-profit mt-0.5">
+                                                ≈ +{fmt0(actualProfitAtTarget)} DZD effectif (arrondi ↑)
+                                            </p>
+                                        )}
                                         <Button type="button" size="sm" variant="outline" className="mt-2 w-full text-xs font-bold"
                                             onClick={() => {
                                                 localStorage.setItem('app_insights_suggested_price', String(targetPrice));
@@ -546,15 +553,18 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
                                             {tierOrder.map(tier => {
                                                 const row = tiers[tier];
                                                 const monthlyProfit = row.profitPerUnit * avgVol;
-                                                const isRegular = tier === 'regular';
+                                                const achievesGoal = monthlyProfit >= target;
                                                 const priceStr = Number.isInteger(row.price) ? `${row.price}` : fmt2(row.price);
                                                 return (
-                                                    <div key={tier} className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 px-3 py-2.5 border-b last:border-b-0 border-neutral-100 ${isRegular ? 'bg-primary/5' : ''}`}>
-                                                        <span className={`text-xs font-bold ${isRegular ? 'text-primary' : 'text-neutral-700'}`}>
+                                                    <div key={tier} className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 px-3 py-2.5 border-b last:border-b-0 border-neutral-100 ${achievesGoal ? 'bg-financial-profit-bg/40' : ''}`}>
+                                                        <span className={`text-xs font-bold ${achievesGoal ? 'text-financial-profit' : 'text-neutral-700'}`}>
                                                             {TIER_ICONS[tier]}
-                                                            {isRegular && <span className="ml-1 text-[9px] bg-primary/15 text-primary px-1 rounded-full">= objectif</span>}
+                                                            {achievesGoal
+                                                                ? <span className="ml-1 text-[9px] bg-financial-profit/15 text-financial-profit px-1 rounded-full">✓ objectif</span>
+                                                                : <span className="ml-1 text-[9px] text-neutral-300">{fmt0(target - monthlyProfit)} DZD manquants</span>
+                                                            }
                                                         </span>
-                                                        <span dir="ltr" className={`text-sm font-extrabold tabular-nums text-right ${isRegular ? 'text-primary' : 'text-neutral-800'}`}>
+                                                        <span dir="ltr" className={`text-sm font-extrabold tabular-nums text-right ${achievesGoal ? 'text-financial-profit' : 'text-neutral-800'}`}>
                                                             {priceStr} DZD
                                                         </span>
                                                         <span dir="ltr" className="text-xs font-semibold tabular-nums text-right text-financial-profit">

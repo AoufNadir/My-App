@@ -54,11 +54,28 @@ export function getVolumeBracketLabel(bracket: VolumeBracket): string {
  *
  * Example: 247.26 → 247.50 | 249.18 → 249 | 250.80 → 251
  */
+/**
+ * Round to nearest xxx or xxx.50 (for daily sell price display).
+ */
 export function roundToMarketPrice(price: number): number {
     const whole = Math.floor(price);
     const frac  = price - whole;
     if (frac < 0.25) return whole;
     if (frac < 0.75) return whole + 0.5;
+    return whole + 1;
+}
+
+/**
+ * Round UP to xxx or xxx.50 — used for projection target prices
+ * to guarantee the goal is met (never round down).
+ * frac = 0     → whole (already exact)
+ * frac > 0     → if frac ≤ 0.5 → whole + 0.5, else → whole + 1
+ */
+export function ceilToMarketPrice(price: number): number {
+    const whole = Math.floor(price);
+    const frac  = price - whole;
+    if (frac === 0) return whole;
+    if (frac <= 0.5) return whole + 0.5;
     return whole + 1;
 }
 
