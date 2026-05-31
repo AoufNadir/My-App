@@ -2046,6 +2046,48 @@ export default function MainApp({ user }: {
     });
     const [isCalcOpen, setIsCalcOpen] = React.useState(false);
 
+    // Pricing context for the smart sell assistant
+    const pricingContext = React.useMemo(() => {
+        const now = new Date();
+        const dayOfMonth = now.getDate();
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const daysRemaining = Math.max(1, daysInMonth - dayOfMonth + 1);
+        const monthlyGoal = Number(localStorage.getItem('app_monthly_profit_goal') || 0);
+        const mtdProfit = dailyOverview.monthToDateProfit;
+        const mtdUsdtSold = dailyOverview.monthToDateUsdtSold;
+
+        // Daily needed = remaining goal / remaining days
+        const remaining = monthlyGoal > 0 ? Math.max(0, monthlyGoal - mtdProfit) : 0;
+        const dailyNeeded = monthlyGoal > 0 ? Math.ceil(remaining / daysRemaining) : 0;
+
+        // Avg margin per USDT from last 90 days
+        const ninetyDaysAgo = now.getTime() - 90 * 86_400_000;
+        let totalProfit90 = 0;
+        let totalQty90 = 0;
+        for (const row of pamLedger.sellProfitRows) {
+            if (row.timestamp < ninetyDaysAgo || row.currency !== 'USDT') continue;
+            totalProfit90 += row.derivedProfit || 0;
+            totalQty90 += Number(row.quantity || 0);
+        }
+        const avgMarginPerUsdt = totalQty90 > 0 ? totalProfit90 / totalQty90 : parseAndEvaluate(suggestedProfitMargin);
+
+        // Avg monthly USDT sold — last 3 months (approx 90 days)
+        const avgMonthlyUsdtSold = totalQty90 > 0 ? totalQty90 / 3 : 0;
+
+        return {
+            dailyNeeded,
+            avgMarginPerUsdt,
+            avgMonthlyUsdtSold,
+            monthlyGoal,
+            monthToDateProfit: mtdProfit,
+            monthToDateUsdtSold: mtdUsdtSold,
+            dayOfMonth,
+            daysInMonth,
+            daysRemaining,
+            fallbackMargin: parseAndEvaluate(suggestedProfitMargin),
+        };
+    }, [pamLedger, dailyOverview, suggestedProfitMargin]);
+
     const handleExportBackup = React.useCallback(() => {
         try {
             const backup = {
@@ -2142,7 +2184,7 @@ export default function MainApp({ user }: {
                 </button>
 
                 {isCalcOpen && (<Suspense fallback={null}>
-                        <QuickCalculatorSheet isOpen={isCalcOpen} onClose={() => setIsCalcOpen(false)} portfolioStats={portfolioStats}/>
+                        <QuickCalculatorSheet isOpen={isCalcOpen} onClose={() => setIsCalcOpen(false)} portfolioStats={portfolioStats} pricingContext={pricingContext}/>
                     </Suspense>)}
 
                 {isGlobalSearchOpen && (<Suspense fallback={null}>
