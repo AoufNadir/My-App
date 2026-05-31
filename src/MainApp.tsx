@@ -78,6 +78,7 @@ const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
 };
 type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
 import { reorderClientName, nameMatchesQuery } from './utils/nameUtils';
+import { computeGoalAdjustedBase, getVolumeBracket } from './utils/pricingMatrix';
 
 function getClientDisplayName(client: ClientDzd) {
     const raw = client.fullName || (client.prenom ? `${client.nom} ${client.prenom}` : client.nom) || '';
@@ -190,11 +191,17 @@ export default function MainApp({ user }: {
 
         // Goal-based margin: what margin is needed per USDT to hit the monthly goal
         const avgMonthlyVol = totalQty > 0 ? totalQty / 3 : 0; // 90d qty ÷ 3 months
-        const goalMargin = avgMonthlyVol > 0 && monthlyGoalState > 0
+        const rawGoalMargin = avgMonthlyVol > 0 && monthlyGoalState > 0
             ? monthlyGoalState / avgMonthlyVol
             : 0;
 
-        // Use whichever is higher: historical or goal-required
+        // Adjust so that even VIP (minimum multiplier) achieves the goal
+        const bracket = getVolumeBracket(avgMonthlyVol > 0 ? avgMonthlyVol : portfolioStats.usdt.available);
+        const goalMargin = rawGoalMargin > 0
+            ? computeGoalAdjustedBase(rawGoalMargin, bracket)
+            : 0;
+
+        // Use whichever is higher: historical or goal-adjusted
         return Math.max(historicalMargin, goalMargin);
     }, [pamLedger, suggestedProfitMargin, monthlyGoalState]);
 

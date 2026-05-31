@@ -14,7 +14,7 @@ import { CalendarIcon } from '../components/icons/CalendarIcon';
 import { SparklesIcon } from '../components/icons/SparklesIcon';
 import { computePamLedger } from '../utils/pamLedger';
 import { parseAndEvaluate } from '../utils';
-import { roundToMarketPrice, ceilToMarketPrice, allTierPrices, ClientTierType } from '../utils/pricingMatrix';
+import { roundToMarketPrice, ceilToMarketPrice, allTierPrices, ClientTierType, computeGoalAdjustedBase, getVolumeBracket } from '../utils/pricingMatrix';
 import type { Tx, ClientDzd, ClientTransactionDzd, Investor } from '../types';
 
 const fmt0 = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 });
@@ -535,7 +535,10 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
 
                             {/* Tier price table — goal-aligned */}
                             {neededMargin > 0 && (() => {
-                                const tiers = allTierPrices(pam, avgVol, neededMargin, neededMargin);
+                                // Adjust base so even VIP achieves the goal
+                                const bracket = getVolumeBracket(avgVol);
+                                const adjustedBase = computeGoalAdjustedBase(neededMargin, bracket);
+                                const tiers = allTierPrices(pam, avgVol, adjustedBase, adjustedBase);
                                 const tierOrder: ClientTierType[] = ['vip', 'regular', 'petit', 'new'];
                                 const TIER_ICONS: Record<string, string> = { vip: '🏆 VIP', regular: '⭐ Régulier', petit: '🔸 Petit', new: '🆕 Nouveau' };
                                 return (

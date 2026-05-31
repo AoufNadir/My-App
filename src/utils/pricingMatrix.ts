@@ -80,6 +80,32 @@ export function ceilToMarketPrice(price: number): number {
 }
 
 /**
+ * VIP multipliers per bracket (minimum multiplier = VIP discount).
+ * Used to calibrate the base margin so that even VIP achieves the goal.
+ */
+export const VIP_MULTIPLIERS: Record<VolumeBracket, number> = {
+    small:  MARGIN_MULTIPLIERS.vip.small,   // 0.87
+    medium: MARGIN_MULTIPLIERS.vip.medium,  // 0.72
+    large:  MARGIN_MULTIPLIERS.vip.large,   // 0.58
+};
+
+/**
+ * Compute the adjusted base margin so that even the most discounted tier (VIP)
+ * achieves the monthly goal when selling the full historical volume.
+ *
+ * Formula: adjustedBase = neededMargin / VIP_multiplier[bracket]
+ * → VIP × VIP_mult × adjustedBase × volume = neededMargin × volume = goal ✓
+ * → All other tiers (higher mult) will exceed the goal ✓
+ */
+export function computeGoalAdjustedBase(
+    neededMargin: number,
+    bracket: VolumeBracket
+): number {
+    const vipMult = VIP_MULTIPLIERS[bracket];
+    return vipMult > 0 ? neededMargin / vipMult : neededMargin;
+}
+
+/**
  * Compute the suggested sell price for a given client tier + quantity,
  * rounded to xxx or xxx.50.
  */
