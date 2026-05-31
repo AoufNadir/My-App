@@ -9,7 +9,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
 import { CalendarIcon } from '../components/icons/CalendarIcon';
 import { computePamLedger } from '../utils/pamLedger';
-import type { Tx } from '../types';
+import type { Tx, ClientDzd, ClientTransactionDzd, Investor } from '../types';
 
 const DAY_LABELS_FR = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const TIME_SLOTS = [
@@ -21,6 +21,11 @@ const TIME_SLOTS = [
 
 type InsightsPageProps = {
     transactions: Tx[];
+    clientsDzd?: ClientDzd[];
+    clientTransactionsDzd?: ClientTransactionDzd[];
+    investors?: Investor[];
+    portfolioStats?: { usdt: { avgBuy: number }; eur: { avgBuy: number } };
+    investorReconciliationDiff?: number;
 };
 
 const CHART_COLORS = {
@@ -84,7 +89,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     );
 };
 
-export function InsightsPage({ transactions }: InsightsPageProps) {
+export function InsightsPage({ transactions, clientsDzd = [], clientTransactionsDzd = [], investors = [], portfolioStats, investorReconciliationDiff }: InsightsPageProps) {
     const pamHistoryUsdt = useMemo(() => computePamHistory(transactions, 'USDT'), [transactions]);
     const pamHistoryEur  = useMemo(() => computePamHistory(transactions, 'EUR'), [transactions]);
 
@@ -128,6 +133,87 @@ export function InsightsPage({ transactions }: InsightsPageProps) {
         });
     }, [pamLedger]);
 
+    // Data integrity checks
+    const integrityChecks = useMemo(() => {
+        const checks: Array<{ label: string; status: 'ok' | 'warn' | 'error'; detail: string }> = [];
+
+        // 1. Investor shares sum
+        const activeInvestors = investors.filter(i => i.isActive && !i.isManager);
+        const sharesSum = activeInvestors.reduce((s, i) => s + Number(i.sharePercentage || 0), 0);
+        const sharesPct = Math.round(sharesSum * 100 * 10) / 10;
+        checks.push({
+            label: 'Parts investisseurs',
+            status: Math.abs(sharesSum - 1) < 0.01 ? 'ok' : sharesSum > 1.01 ? 'error' : 'warn',
+            detail: activeInvestors.length === 0 ? 'Aucun investisseur actif' : `${sharesPct}% (doit être 100%)`,
+        });
+
+        // 2. Negative PAM
+        const usdtPam = portfolioStats?.usdt.avgBuy ?? 0;
+        const eurPam = portfolioStats?.eur.avgBuy ?? 0;
+        const pamOk = usdtPam >= 0 && eurPam >= 0;
+        checks.push({
+            label: 'PAM positif (USDT/EUR)',
+            status: pamOk ? 'ok' : 'error',
+            detail: pamOk
+                ? `USDT: ${usdtPam.toFixed(2)} | EUR: ${eurPam.toFixed(2)} DZD`
+                : `PAM négatif détecté!`,
+        });
+
+        // 3. Sells without linked client
+        const sellTxIds = new Set(transactions.filter(tx => tx.type === 'sell').map(tx => tx.id));
+        const linkedSellIds = new Set(clientTransactionsDzd.filter(tx => tx.linkedTxId).map(tx => tx.linkedTxId));
+        const unlinkedSells = [...sellTxIds].filter(id => !linkedSellIds.has(id)).length;
+        checks.push({
+            label: 'Ventes sans client lié',
+            status: unlinkedSells === 0 ? 'ok' : unlinkedSells <= 5 ? 'warn' : 'error',
+            detail: unlinkedSells === 0 ? 'Toutes les ventes sont liées' : `${unlinkedSells} vente${unlinkedSells > 1 ? 's' : ''} sans client`,
+        });
+
+        // 4. Duplicate phone numbers
+        const phoneMap = new Map<string, string[]>();
+        for (const c of clientsDzd) {
+            const phone = c.phone?.trim();
+            if (!phone) continue;
+            const existing = phoneMap.get(phone) || [];
+            existing.push(c.fullName || c.id);
+            phoneMap.set(phone, existing);
+        }
+        const dupPhones = [...phoneMap.entries()].filter(([, names]) => names.length > 1);
+        checks.push({
+            label: 'Doublons de téléphone',
+            status: dupPhones.length === 0 ? 'ok' : 'warn',
+            detail: dupPhones.length === 0
+                ? 'Aucun doublon détecté'
+                : `${dupPhones.length} numéro${dupPhones.length > 1 ? 's' : ''} en double`,
+        });
+
+        // 5. Investor reconciliation
+        if (typeof investorReconciliationDiff === 'number') {
+            const absRec = Math.abs(investorReconciliationDiff);
+            checks.push({
+                label: 'Réconciliation investisseurs',
+                status: absRec < 1 ? 'ok' : absRec < 1000 ? 'warn' : 'error',
+                detail: absRec < 1 ? 'Équilibre parfait'
+                    : `Écart: ${investorReconciliationDiff > 0 ? '+' : ''}${Math.round(investorReconciliationDiff).toLocaleString('fr-FR')} DZD`,
+            });
+        }
+
+        // 6. Transactions with 0 or missing total
+        const badTxs = transactions.filter(tx => (tx.type === 'sell' || tx.type === 'buy') && (!tx.total || tx.total <= 0) && tx.quantity > 0 && (tx.price || tx.sell || 0) > 0);
+        checks.push({
+            label: 'Transactions avec total manquant',
+            status: badTxs.length === 0 ? 'ok' : 'warn',
+            detail: badTxs.length === 0 ? 'Toutes les transactions sont complètes'
+                : `${badTxs.length} transaction${badTxs.length > 1 ? 's' : ''} sans total`,
+        });
+
+        return checks;
+    }, [investors, portfolioStats, transactions, clientTransactionsDzd, clientsDzd, investorReconciliationDiff]);
+
+    const okCount = integrityChecks.filter(c => c.status === 'ok').length;
+    const warnCount = integrityChecks.filter(c => c.status === 'warn').length;
+    const errorCount = integrityChecks.filter(c => c.status === 'error').length;
+
     const bestDay = dayAnalysis.reduce((b, d) => d.profit > b.profit ? d : b, dayAnalysis[0]);
     const bestSlot = timeAnalysis.reduce((b, d) => d.profit > b.profit ? d : b, timeAnalysis[0]);
     const maxDayProfit = Math.max(...dayAnalysis.map(d => d.profit), 1);
@@ -146,6 +232,39 @@ export function InsightsPage({ transactions }: InsightsPageProps) {
     return (
         <div className="anim-page-in space-y-4">
             <PageHeader title="Insights" subtitle="Analyses avancées"/>
+
+            {/* Data Integrity Card */}
+            <Card>
+                <CardHeader className="p-4 pb-3">
+                    <div className="flex items-center justify-between gap-2">
+                        <SectionHeading icon={<TrendingUpIcon className="w-4 h-4"/>}>
+                            Santé des données
+                        </SectionHeading>
+                        <div className="flex items-center gap-2 shrink-0">
+                            {errorCount > 0 && <span className="rounded-full bg-danger-bg border border-danger/30 px-2 py-0.5 text-[10px] font-bold text-financial-loss">{errorCount} erreur{errorCount > 1 ? 's' : ''}</span>}
+                            {warnCount > 0 && <span className="rounded-full bg-warning-bg border border-warning/30 px-2 py-0.5 text-[10px] font-bold text-warning">{warnCount} alerte{warnCount > 1 ? 's' : ''}</span>}
+                            {errorCount === 0 && warnCount === 0 && <span className="rounded-full bg-success-bg border border-success/30 px-2 py-0.5 text-[10px] font-bold text-financial-profit">✓ Tout OK</span>}
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0 divide-y divide-neutral-100">
+                    {integrityChecks.map((check) => {
+                        const icon = check.status === 'ok' ? '✅' : check.status === 'warn' ? '⚠️' : '❌';
+                        const textCls = check.status === 'ok' ? 'text-financial-profit' : check.status === 'warn' ? 'text-warning' : 'text-financial-loss';
+                        return (
+                            <div key={check.label} className="flex items-center justify-between gap-3 px-4 py-3">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-sm shrink-0">{icon}</span>
+                                    <span className="text-sm font-semibold text-neutral-700 truncate">{check.label}</span>
+                                </div>
+                                <span className={`text-xs font-semibold shrink-0 text-right ${textCls}`}>
+                                    {check.detail}
+                                </span>
+                            </div>
+                        );
+                    })}
+                </CardContent>
+            </Card>
 
             {/* PAM USDT History */}
             {pamHistoryUsdt.length >= 2 && (

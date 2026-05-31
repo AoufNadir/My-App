@@ -150,7 +150,14 @@ function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDoc
                     {view === 'statistiques' && <PortfolioPage {...portfolioPageProps}/>}
 
                     {view === 'analytics' && <AnalyticsPage {...portfolioPageProps}/>}
-                    {view === 'insights' && InsightsPage && React.createElement(InsightsPage, { transactions })}
+                    {view === 'insights' && InsightsPage && React.createElement(InsightsPage, {
+                        transactions,
+                        clientsDzd,
+                        clientTransactionsDzd,
+                        investors: derivedInvestors,
+                        portfolioStats,
+                        investorReconciliationDiff: investorEconomicsTotals?.reconciliationDifference,
+                    })}
 
                     {view === 'expenses' && PersonalExpensesPage && (<PersonalExpensesPage personalExpenses={personalExpenses} managerAvailableProfit={managerAvailableProfit} managerExists={managerExists} onOpenReconcile={openReconcileAdvanceModal} onEditExpense={openEditPersonalExpense} onDeleteExpense={setPersonalExpenseToDelete} onExportReport={handleExportPersonalExpensesReport}/>)}
 
