@@ -70,7 +70,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         const pam = portfolioStats.usdt.avgBuy;
         if (pam <= 0) return;
         const rawTier = clientLoyaltyMap.get(linkedClientId);
-        const VALID_TIERS = new Set<string>(['vip', 'regular', 'new']);
+        const VALID_TIERS = new Set<string>(['vip', 'regular', 'petit', 'new']);
         const tier: ClientTierType = (rawTier && VALID_TIERS.has(rawTier)) ? (rawTier as ClientTierType) : 'none';
         const qty = parseAndEvaluate(sellAmount) || portfolioStats.usdt.available;
         const smartPrice = computeSuggestedPrice(pam, qty, tier, avgMarginPerUsdt, parseAndEvaluate(suggestedProfitMargin));

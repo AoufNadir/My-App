@@ -172,31 +172,55 @@ export default function MainApp({ user }: {
         return totalQty > 0 ? totalProfit / totalQty : parseAndEvaluate(suggestedProfitMargin);
     }, [pamLedger, suggestedProfitMargin]);
 
-    const earlyClientLoyaltyMap = React.useMemo<Map<string, 'vip' | 'regular' | 'new' | 'inactive'>>(() => {
-        const now = Date.now();
-        const thirtyDaysAgo = now - 30 * 86_400_000;
-        const txsByClient = new Map<string, typeof clientTransactionsDzd>();
-        for (const tx of clientTransactionsDzd) {
-            const list = txsByClient.get(tx.clientId) || [];
-            list.push(tx);
-            txsByClient.set(tx.clientId, list);
+    // Client tier by PREVIOUS MONTH USDT sell volume (via transaction.linkedClientId)
+    const earlyClientLoyaltyMap = React.useMemo<Map<string, 'vip' | 'regular' | 'petit' | 'new' | 'inactive'>>(() => {
+        const now = new Date();
+        // Previous month boundaries
+        const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+        const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).getTime();
+        const inactifCutoff  = now.getTime() - 45 * 86_400_000;
+
+        // Compute USDT sell volume per client for previous month
+        const volumeByClient = new Map<string, number>();
+        for (const tx of transactions) {
+            if (tx.type !== 'sell' || tx.currency !== 'USDT') continue;
+            if (!tx.linkedClientId) continue;
+            if (tx.timestamp < prevMonthStart || tx.timestamp > prevMonthEnd) continue;
+            volumeByClient.set(tx.linkedClientId, (volumeByClient.get(tx.linkedClientId) || 0) + Number(tx.quantity || 0));
         }
-        const result = new Map<string, 'vip' | 'regular' | 'new' | 'inactive'>();
+
+        // Also check last activity date per client (from clientTransactionsDzd)
+        const lastActivityByClient = new Map<string, number>();
+        for (const tx of clientTransactionsDzd) {
+            const prev = lastActivityByClient.get(tx.clientId) || 0;
+            if (tx.timestamp > prev) lastActivityByClient.set(tx.clientId, tx.timestamp);
+        }
+
+        // Check if client had any sell transaction ever (to distinguish Nouveau from Inactif)
+        const everSoldClients = new Set<string>();
+        for (const tx of transactions) {
+            if (tx.type === 'sell' && tx.linkedClientId) everSoldClients.add(tx.linkedClientId);
+        }
+
+        const result = new Map<string, 'vip' | 'regular' | 'petit' | 'new' | 'inactive'>();
         for (const client of clientsDzd) {
-            const txs = txsByClient.get(client.id) || [];
-            if (txs.length === 0) { result.set(client.id, 'new'); continue; }
-            const firstTs = Math.min(...txs.map(t => t.timestamp));
-            const lastTs  = Math.max(...txs.map(t => t.timestamp));
-            const recentCount = txs.filter(t => t.timestamp >= thirtyDaysAgo).length;
-            const isNew = firstTs >= thirtyDaysAgo;
-            if (isNew && recentCount <= 2) { result.set(client.id, 'new'); continue; }
-            if (lastTs < thirtyDaysAgo)    { result.set(client.id, 'inactive'); continue; }
-            if (recentCount >= 10)         { result.set(client.id, 'vip'); continue; }
-            if (recentCount >= 3)          { result.set(client.id, 'regular'); continue; }
+            const lastActivity = lastActivityByClient.get(client.id) || 0;
+            const volume = volumeByClient.get(client.id) || 0;
+            const everSold = everSoldClients.has(client.id);
+
+            // No history at all → Nouveau
+            if (!everSold && lastActivity === 0) { result.set(client.id, 'new'); continue; }
+            // No activity in 45 days → Inactif (treated as Nouveau for pricing)
+            if (lastActivity < inactifCutoff && lastActivity > 0) { result.set(client.id, 'inactive'); continue; }
+            // Classify by previous month volume
+            if (volume >= 1000) { result.set(client.id, 'vip');     continue; }
+            if (volume >= 200)  { result.set(client.id, 'regular'); continue; }
+            if (volume >= 1)    { result.set(client.id, 'petit');   continue; }
+            // Had some history but not in previous month
             result.set(client.id, 'inactive');
         }
         return result;
-    }, [clientTransactionsDzd, clientsDzd]);
+    }, [transactions, clientTransactionsDzd, clientsDzd]);
 
     // --- 2. BUSINESS LOGIC HOOKS ---
     const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer } = useTransactionHandlers({
@@ -1784,32 +1808,8 @@ export default function MainApp({ user }: {
         setAlert(`✅ Import: ${added} ajouté${added > 1 ? 's' : ''}, ${skipped} ignoré${skipped > 1 ? 's' : ''}.`);
     };
     // Client loyalty scores — computed from last 30 days activity
-    const clientLoyaltyMap = useMemo<Map<string, 'vip' | 'regular' | 'new' | 'inactive'>>(() => {
-        const now = Date.now();
-        const thirtyDaysAgo = now - 30 * 86_400_000;
-        // Group txs by clientId
-        const txsByClient = new Map<string, typeof clientTransactionsDzd>();
-        for (const tx of clientTransactionsDzd) {
-            const list = txsByClient.get(tx.clientId) || [];
-            list.push(tx);
-            txsByClient.set(tx.clientId, list);
-        }
-        const result = new Map<string, 'vip' | 'regular' | 'new' | 'inactive'>();
-        for (const client of clientsDzd) {
-            const txs = txsByClient.get(client.id) || [];
-            if (txs.length === 0) { result.set(client.id, 'new'); continue; }
-            const firstTs = Math.min(...txs.map(t => t.timestamp));
-            const lastTs = Math.max(...txs.map(t => t.timestamp));
-            const recentCount = txs.filter(t => t.timestamp >= thirtyDaysAgo).length;
-            const isNew = firstTs >= thirtyDaysAgo;
-            if (isNew && recentCount <= 2) { result.set(client.id, 'new'); continue; }
-            if (lastTs < thirtyDaysAgo) { result.set(client.id, 'inactive'); continue; }
-            if (recentCount >= 10) { result.set(client.id, 'vip'); continue; }
-            if (recentCount >= 3) { result.set(client.id, 'regular'); continue; }
-            result.set(client.id, 'inactive');
-        }
-        return result;
-    }, [clientTransactionsDzd, clientsDzd]);
+    // Re-use earlyClientLoyaltyMap for badges (same logic, same deps — React will share the result)
+    const clientLoyaltyMap = earlyClientLoyaltyMap;
 
     const clientsPageProps = useMemo(() => ({
         selectedClientId,

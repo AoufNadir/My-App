@@ -28,7 +28,7 @@ type ClientsPageProps = {
     handleEditClientTx: (tx: ClientTransactionDzd) => void;
     handleDeleteClientTxClick: (tx: ClientTransactionDzd) => void;
     overdueDebtClients: OverdueDebtClient[];
-    clientLoyaltyMap?: Map<string, 'vip' | 'regular' | 'new' | 'inactive'>;
+    clientLoyaltyMap?: Map<string, 'vip' | 'regular' | 'petit' | 'new' | 'inactive'>;
     onImportClients?: (rows: Record<string, string>[]) => Promise<void>;
 };
 export function ClientsPage(props: ClientsPageProps) {

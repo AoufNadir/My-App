@@ -9,6 +9,7 @@ import {
     getVolumeBracket,
     getVolumeBracketLabel,
     computeSuggestedPrice,
+    roundToMarketPrice,
 } from '../../utils/pricingMatrix';
 
 const fmt0 = (n: number) => formatNumber(n, { min: 0, max: 0 });
@@ -20,6 +21,7 @@ type Mode = 'normal' | 'inverse' | 'assisted';
 const TIER_LABELS: Record<ClientTierType, string> = {
     vip:     '🏆 VIP',
     regular: '⭐ Régulier',
+    petit:   '🔸 Petit',
     new:     '🆕 Nouveau',
     none:    '— Inconnu',
 };
@@ -271,11 +273,15 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
                                     <span className="text-right">Profit total</span>
                                 </div>
 
-                                {/* Rows */}
-                                {(['vip', 'regular', 'new', 'none'] as ClientTierType[]).map(tier => {
+                                {/* Matrix rows */}
+                                {(['vip', 'regular', 'petit', 'new', 'none'] as ClientTierType[]).map(tier => {
                                     const row = assistedData.tiers[tier];
                                     const isSelected = tier === selectedTier;
                                     const profit = row.profitPerUnit * assistedData.qty;
+                                    // Show price as xxx or xxx.50 (already rounded by pricingMatrix)
+                                    const priceDisplay = Number.isInteger(row.price)
+                                        ? `${row.price}`
+                                        : `${fmt2(row.price)}`;
                                     return (
                                         <button
                                             key={tier}
@@ -288,7 +294,7 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
                                                 {isSelected && <span className="ml-1 text-[9px] font-bold bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">actif</span>}
                                             </span>
                                             <span dir="ltr" className={`text-sm font-extrabold tabular-nums text-right ${isSelected ? 'text-primary' : 'text-neutral-800'}`}>
-                                                {fmt2(row.price)}
+                                                {priceDisplay} DZD
                                             </span>
                                             <span dir="ltr" className="text-xs font-semibold tabular-nums text-right text-financial-profit">
                                                 +{fmt2(row.profitPerUnit)}
@@ -299,6 +305,28 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
                                         </button>
                                     );
                                 })}
+                                {/* Prix plancher — goal reference */}
+                                {assistedData.ctx.dailyNeeded > 0 && (() => {
+                                    const plancherMargin = assistedData.ctx.dailyNeeded / assistedData.qty;
+                                    const plancherRaw = pam + plancherMargin;
+                                    const plancher = roundToMarketPrice(plancherRaw);
+                                    const selectedPrice = assistedData.tiers[selectedTier]?.price ?? 0;
+                                    const isBelow = selectedPrice < plancher;
+                                    return (
+                                        <div className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 px-3 py-2.5 border-t-2 ${isBelow ? 'border-financial-loss/40 bg-financial-loss-bg/50' : 'border-financial-profit/30 bg-financial-profit-bg/30'}`}>
+                                            <span className={`text-[11px] font-bold ${isBelow ? 'text-financial-loss' : 'text-financial-profit'}`}>
+                                                🎯 Plancher goal {isBelow ? '⚠️' : '✓'}
+                                            </span>
+                                            <span dir="ltr" className={`text-sm font-extrabold tabular-nums text-right ${isBelow ? 'text-financial-loss' : 'text-financial-profit'}`}>
+                                                {Number.isInteger(plancher) ? plancher : fmt2(plancher)} DZD
+                                            </span>
+                                            <span dir="ltr" className={`text-xs font-semibold tabular-nums text-right ${isBelow ? 'text-financial-loss' : 'text-financial-profit'}`}>
+                                                +{fmt2(plancherMargin)}
+                                            </span>
+                                            <span className="text-[9px] text-neutral-400 text-right">min/j</span>
+                                        </div>
+                                    );
+                                })()}
                             </div>
 
                             <p className="text-[10px] text-neutral-400 text-center">

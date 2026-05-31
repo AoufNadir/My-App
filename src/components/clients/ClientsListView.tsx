@@ -59,13 +59,14 @@ type ClientsListViewProps = {
     setClientToDelete: (client: ClientDzd | null) => void;
     setSelectedClientId: (id: string | null) => void;
     overdueDebtClients: OverdueDebtClient[];
-    clientLoyaltyMap?: Map<string, 'vip' | 'regular' | 'new' | 'inactive'>;
+    clientLoyaltyMap?: Map<string, 'vip' | 'regular' | 'petit' | 'new' | 'inactive'>;
     onImportClients?: (rows: Record<string, string>[]) => Promise<void>;
 };
 
 const LOYALTY_CONFIG = {
     vip:      { label: '🏆 VIP',      cls: 'bg-warning-bg text-warning border border-warning/30' },
     regular:  { label: '⭐ Régulier', cls: 'bg-primary/10 text-primary border border-primary/20' },
+    petit:    { label: '🔸 Petit',    cls: 'bg-neutral-100 text-neutral-600 border border-neutral-200' },
     new:      { label: '🆕 Nouveau',  cls: 'bg-success-bg text-financial-profit border border-success/30' },
     inactive: { label: '💤 Inactif',  cls: 'bg-neutral-100 text-neutral-400 border border-neutral-200' },
 } as const;
