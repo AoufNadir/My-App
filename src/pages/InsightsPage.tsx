@@ -288,6 +288,7 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
 
     // Projection calculator state
     const [projectionTarget, setProjectionTarget] = useState('');
+    const [minimumTarget, setMinimumTarget] = useState(''); // Option B — minimum obligatoire
 
     const bestDay = dayAnalysis.reduce((b, d) => d.profit > b.profit ? d : b, dayAnalysis[0]);
     const bestSlot = timeAnalysis.reduce((b, d) => d.profit > b.profit ? d : b, timeAnalysis[0]);
@@ -420,19 +421,23 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
                 const pam = portfolioStats.usdt.avgBuy;
                 const avgVol = yearlyStats.avgMonthlyUsdt;
                 const storedGoal = Number(localStorage.getItem('app_monthly_profit_goal') || 0);
+                const histMargin = yearlyStats.avgSellDzd - pam;
+
+                // Option A — objectif ambitieux
                 const targetInput = parseAndEvaluate(projectionTarget);
                 const target = targetInput > 0 ? targetInput : yearlyStats.avgMonthlyProfit;
-
-                // Target price to achieve profit goal at historical volume
-                const neededMargin = avgVol > 0 ? target / avgVol : 0;
-                const targetPriceRaw = pam + neededMargin;
-                // Use CEILING rounding so the rounded price always ≥ needed price → goal is guaranteed
-                const targetPrice = ceilToMarketPrice(targetPriceRaw);
+                const neededMarginA = avgVol > 0 ? target / avgVol : 0;
+                const targetPrice = ceilToMarketPrice(pam + neededMarginA);
                 const actualProfitAtTarget = (targetPrice - pam) * avgVol;
 
-                // Volume needed to achieve profit goal at historical avg sell price
-                const histMargin = yearlyStats.avgSellDzd - pam;
-                const volumeNeeded = histMargin > 0 ? Math.ceil(target / histMargin) : 0;
+                // Option B — minimum obligatoire
+                // Default = 65% of YTD monthly average
+                const defaultMinimum = Math.round(yearlyStats.avgMonthlyProfit * 0.65);
+                const minimumInput = parseAndEvaluate(minimumTarget);
+                const minimum = minimumInput > 0 ? minimumInput : defaultMinimum;
+                const neededMarginB = avgVol > 0 ? minimum / avgVol : 0;
+                const minimumPrice = ceilToMarketPrice(pam + neededMarginB);
+                const actualProfitAtMinimum = (minimumPrice - pam) * avgVol;
 
                 return (
                     <Card>
@@ -458,86 +463,97 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
                                 </div>
                             </div>
 
-                            {/* Objective input */}
-                            <div>
-                                <MoneyField
-                                    label={`Objectif mensuel (DZD) — défaut: votre moyenne +${fmt0(yearlyStats.avgMonthlyProfit)} DZD`}
-                                    value={projectionTarget}
-                                    onChange={setProjectionTarget}
-                                    currency="DZD"
-                                    placeholder={fmt0(yearlyStats.avgMonthlyProfit)}
-                                    hint={storedGoal > 0 ? `Goal défini: ${fmt0(storedGoal)} DZD` : undefined}
-                                />
-                                {storedGoal > 0 && !projectionTarget && (
-                                    <button type="button" onClick={() => setProjectionTarget(String(storedGoal))} className="mt-1 text-xs font-semibold text-primary hover:underline">
-                                        Utiliser mon objectif mensuel ({fmt0(storedGoal)} DZD) →
-                                    </button>
-                                )}
+                            {/* Two side-by-side inputs */}
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                {/* Option A input */}
+                                <div>
+                                    <MoneyField
+                                        label={`🎯 Objectif ambitieux — défaut: moy. +${fmt0(yearlyStats.avgMonthlyProfit)} DZD`}
+                                        value={projectionTarget}
+                                        onChange={setProjectionTarget}
+                                        currency="DZD"
+                                        placeholder={fmt0(yearlyStats.avgMonthlyProfit)}
+                                        hint={storedGoal > 0 ? `Goal actuel: ${fmt0(storedGoal)} DZD` : undefined}
+                                    />
+                                    {storedGoal > 0 && !projectionTarget && (
+                                        <button type="button" onClick={() => setProjectionTarget(String(storedGoal))} className="mt-1 text-xs font-semibold text-primary hover:underline">
+                                            Utiliser mon objectif ({fmt0(storedGoal)} DZD) →
+                                        </button>
+                                    )}
+                                </div>
+                                {/* Option B input */}
+                                <div>
+                                    <MoneyField
+                                        label={`🔒 Minimum obligatoire — défaut: 65% de moy. (${fmt0(defaultMinimum)} DZD)`}
+                                        value={minimumTarget}
+                                        onChange={setMinimumTarget}
+                                        currency="DZD"
+                                        placeholder={fmt0(defaultMinimum)}
+                                        hint="Le plancher absolu que vous ne pouvez pas manquer"
+                                    />
+                                </div>
                             </div>
 
-                            {/* Results */}
-                            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
-                                <p className="text-[11px] font-bold uppercase text-primary tracking-wide">
-                                    Pour réaliser {fmt0(target)} DZD ce mois-ci :
-                                </p>
+                            {/* Results — Option A and B side by side */}
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                {/* Option A — objectif ambitieux */}
+                                <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-2">
+                                    <p className="text-[10px] font-bold uppercase text-primary tracking-wide">
+                                        🎯 Objectif ambitieux — {fmt0(target)} DZD
+                                    </p>
+                                    <p className="text-[10px] text-neutral-400">Même volume ({fmt0(avgVol)} U)</p>
+                                    <p dir="ltr" className="text-2xl font-extrabold tabular-nums text-primary">
+                                        {Number.isInteger(targetPrice) ? targetPrice : fmt2(targetPrice)} DZD
+                                    </p>
+                                    <p className="text-[11px] text-neutral-500">
+                                        +{fmt2(targetPrice - pam)} DZD/USDT de marge
+                                    </p>
+                                    {actualProfitAtTarget > 0 && (
+                                        <p className="text-[10px] text-financial-profit">
+                                            ≈ +{fmt0(actualProfitAtTarget)} DZD effectif
+                                        </p>
+                                    )}
+                                    <Button type="button" size="sm" variant="outline" className="w-full text-xs font-bold border-primary/30 text-primary hover:bg-primary/10"
+                                        onClick={() => {
+                                            localStorage.setItem('app_monthly_profit_goal', String(Math.round(target)));
+                                            window.dispatchEvent(new StorageEvent('storage', { key: 'app_monthly_profit_goal', newValue: String(Math.round(target)) }));
+                                        }}>
+                                        → Activer comme objectif
+                                    </Button>
+                                </div>
 
-                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                    {/* Option A — fix price, historical volume */}
-                                    <div className="rounded-xl border border-border bg-surface p-3">
-                                        <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">
-                                            Option A — même volume ({fmt0(avgVol)} U)
+                                {/* Option B — minimum obligatoire */}
+                                <div className="rounded-xl border border-danger/30 bg-danger-bg/50 p-4 space-y-2">
+                                    <p className="text-[10px] font-bold uppercase text-financial-loss tracking-wide">
+                                        🔒 Minimum obligatoire — {fmt0(minimum)} DZD
+                                    </p>
+                                    <p className="text-[10px] text-neutral-400">Même volume ({fmt0(avgVol)} U)</p>
+                                    <p dir="ltr" className="text-2xl font-extrabold tabular-nums text-financial-loss">
+                                        {Number.isInteger(minimumPrice) ? minimumPrice : fmt2(minimumPrice)} DZD
+                                    </p>
+                                    <p className="text-[11px] text-neutral-500">
+                                        +{fmt2(minimumPrice - pam)} DZD/USDT de marge
+                                    </p>
+                                    {actualProfitAtMinimum > 0 && (
+                                        <p className="text-[10px] text-financial-loss">
+                                            ≈ +{fmt0(actualProfitAtMinimum)} DZD effectif
                                         </p>
-                                        <p dir="ltr" className="text-2xl font-extrabold tabular-nums text-primary">
-                                            {Number.isInteger(targetPrice) ? targetPrice : fmt2(targetPrice)} DZD
-                                        </p>
-                                        <p className="text-[11px] text-neutral-500 mt-1">
-                                            +{fmt2(targetPrice - pam)} DZD/USDT de marge
-                                        </p>
-                                        {actualProfitAtTarget > target && (
-                                            <p className="text-[10px] text-financial-profit mt-0.5">
-                                                ≈ +{fmt0(actualProfitAtTarget)} DZD effectif (arrondi ↑)
-                                            </p>
-                                        )}
-                                        <Button type="button" size="sm" variant="outline" className="mt-2 w-full text-xs font-bold"
-                                            onClick={() => {
-                                                localStorage.setItem('app_insights_suggested_price', String(targetPrice));
-                                                localStorage.setItem('app_monthly_profit_goal', String(Math.round(target)));
-                                                window.dispatchEvent(new StorageEvent('storage', { key: 'app_monthly_profit_goal', newValue: String(Math.round(target)) }));
-                                            }}>
-                                            → Définir comme objectif + prix de référence
-                                        </Button>
-                                    </div>
-
-                                    {/* Option B — historical price, need more volume */}
-                                    <div className="rounded-xl border border-border bg-surface p-3">
-                                        <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">
-                                            Option B — prix historique ({yearlyStats.avgSellDzd > 0 ? fmt2(roundToMarketPrice(yearlyStats.avgSellDzd)) : '—'} DZD)
-                                        </p>
-                                        {volumeNeeded > 0 ? (<>
-                                            <p dir="ltr" className="text-2xl font-extrabold tabular-nums text-secondary">
-                                                {fmt0(volumeNeeded)} USDT
-                                            </p>
-                                            <p className="text-[11px] text-neutral-500 mt-1">
-                                                {volumeNeeded > avgVol
-                                                    ? `+${fmt0(volumeNeeded - avgVol)} U vs votre moyenne (${Math.round((volumeNeeded / avgVol - 1) * 100)}% de plus)`
-                                                    : `−${fmt0(avgVol - volumeNeeded)} U vs votre moyenne`}
-                                            </p>
-                                        </>) : (
-                                            <p className="text-sm text-neutral-400">Données insuffisantes</p>
-                                        )}
-                                    </div>
+                                    )}
+                                    <p className="text-[10px] text-financial-loss/70 font-semibold">
+                                        ⚠️ Ne jamais vendre en dessous de ce prix
+                                    </p>
                                 </div>
                             </div>
 
                             <p className="text-center text-[10px] text-neutral-400">
-                                Formule A: Prix = PAM + Objectif ÷ Volume  ·  Formule B: Volume = Objectif ÷ (PrixHist − PAM)
+                                Les deux prix = PAM + (Objectif ÷ Volume), arrondi au-dessus (xxx ou xxx.50)
                             </p>
 
                             {/* Tier price table — goal-aligned */}
-                            {neededMargin > 0 && (() => {
+                            {neededMarginA > 0 && (() => {
                                 // Adjust base so even VIP achieves the goal
                                 const bracket = getVolumeBracket(avgVol);
-                                const adjustedBase = computeGoalAdjustedBase(neededMargin, bracket);
+                                const adjustedBase = computeGoalAdjustedBase(neededMarginA, bracket);
                                 const tiers = allTierPrices(pam, avgVol, adjustedBase, adjustedBase);
                                 const tierOrder: ClientTierType[] = ['vip', 'regular', 'petit', 'new'];
                                 const TIER_ICONS: Record<string, string> = { vip: '🏆 VIP', regular: '⭐ Régulier', petit: '🔸 Petit', new: '🆕 Nouveau' };
