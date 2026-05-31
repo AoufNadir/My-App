@@ -76,21 +76,41 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
     const LOAD_MORE_CLIENTS = 80;
     const [visibleClientCount, setVisibleClientCount] = useState(INITIAL_VISIBLE_CLIENTS);
     const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
+    const [activeTierFilter, setActiveTierFilter] = useState<string | null>(null);
     const [importOpen, setImportOpen] = useState(false);
     const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
     useEffect(() => {
         setVisibleClientCount(INITIAL_VISIBLE_CLIENTS);
-    }, [filteredClientsDzd]);
-    // Available groups + group filter
+    }, [filteredClientsDzd, activeTierFilter, activeGroupFilter]);
+
+    // Tier counts (for chip badges)
+    const tierCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+        if (!clientLoyaltyMap) return counts;
+        for (const client of filteredClientsDzd) {
+            const tier = clientLoyaltyMap.get(client.id) ?? 'inactive';
+            counts.set(tier, (counts.get(tier) || 0) + 1);
+        }
+        return counts;
+    }, [filteredClientsDzd, clientLoyaltyMap]);
+
+    // Available groups
     const availableGroups = useMemo(() => {
         const groups = new Set<string>();
         filteredClientsDzd.forEach(c => { if (c.group) groups.add(c.group); });
         return Array.from(groups).sort();
     }, [filteredClientsDzd]);
 
+    // Chain: tier filter → group filter → visible
+    const tierFilteredClients = useMemo(() =>
+        activeTierFilter && clientLoyaltyMap
+            ? filteredClientsDzd.filter(c => (clientLoyaltyMap.get(c.id) ?? 'inactive') === activeTierFilter)
+            : filteredClientsDzd,
+        [filteredClientsDzd, activeTierFilter, clientLoyaltyMap]
+    );
     const groupFilteredClients = useMemo(() =>
-        activeGroupFilter ? filteredClientsDzd.filter(c => c.group === activeGroupFilter) : filteredClientsDzd,
-        [filteredClientsDzd, activeGroupFilter]
+        activeGroupFilter ? tierFilteredClients.filter(c => c.group === activeGroupFilter) : tierFilteredClients,
+        [tierFilteredClients, activeGroupFilter]
     );
     const visibleClients = useMemo(() => groupFilteredClients.slice(0, visibleClientCount), [groupFilteredClients, visibleClientCount]);
     const hiddenClientCount = Math.max(0, groupFilteredClients.length - visibleClientCount);
@@ -153,6 +173,26 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
           <div className="flex gap-2 mb-4">
             <Input type="text" placeholder="Rechercher un client..." value={clientSearchQuery} onChange={(e) => setClientSearchQuery(e.target.value)} className="flex-grow"/>
           </div>
+          {/* Tier filter chips — VIP / Régulier / Petit / Nouveau / Inactif */}
+          {clientLoyaltyMap && tierCounts.size > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {(['vip', 'regular', 'petit', 'new', 'inactive'] as const)
+                .filter(tier => (tierCounts.get(tier) || 0) > 0)
+                .map(tier => {
+                  const cfg = LOYALTY_CONFIG[tier];
+                  const count = tierCounts.get(tier) || 0;
+                  const isActive = activeTierFilter === tier;
+                  return (
+                    <button key={tier} type="button"
+                      onClick={() => setActiveTierFilter(isActive ? null : tier)}
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold border transition-colors ${isActive ? `${cfg.cls} opacity-100` : 'border-border text-neutral-500 hover:border-primary/50 hover:text-primary'}`}>
+                      {cfg.label} {count} {isActive && '×'}
+                    </button>
+                  );
+              })}
+            </div>
+          )}
+
           {/* Group filter chips */}
           {availableGroups.length > 0 && (
             <div className="flex flex-wrap gap-1.5">

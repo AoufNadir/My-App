@@ -14,7 +14,7 @@ import { CalendarIcon } from '../components/icons/CalendarIcon';
 import { SparklesIcon } from '../components/icons/SparklesIcon';
 import { computePamLedger } from '../utils/pamLedger';
 import { parseAndEvaluate } from '../utils';
-import { roundToMarketPrice } from '../utils/pricingMatrix';
+import { roundToMarketPrice, allTierPrices, ClientTierType } from '../utils/pricingMatrix';
 import type { Tx, ClientDzd, ClientTransactionDzd, Investor } from '../types';
 
 const fmt0 = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 });
@@ -525,6 +525,54 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
                             <p className="text-center text-[10px] text-neutral-400">
                                 Formule A: Prix = PAM + Objectif ÷ Volume  ·  Formule B: Volume = Objectif ÷ (PrixHist − PAM)
                             </p>
+
+                            {/* Tier price table — goal-aligned */}
+                            {neededMargin > 0 && (() => {
+                                const tiers = allTierPrices(pam, avgVol, neededMargin, neededMargin);
+                                const tierOrder: ClientTierType[] = ['vip', 'regular', 'petit', 'new'];
+                                const TIER_ICONS: Record<string, string> = { vip: '🏆 VIP', regular: '⭐ Régulier', petit: '🔸 Petit', new: '🆕 Nouveau' };
+                                return (
+                                    <div className="border-t border-border pt-3">
+                                        <p className="text-[10px] font-bold uppercase text-neutral-400 mb-2 tracking-wide">
+                                            Prix par type de client · volume moy. {fmt0(avgVol)} USDT/mois
+                                        </p>
+                                        <div className="rounded-xl border border-border overflow-hidden">
+                                            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 bg-surface-muted px-3 py-2 text-[9px] font-bold uppercase text-neutral-400 tracking-wide border-b border-border">
+                                                <span>Type</span>
+                                                <span className="text-right">Prix</span>
+                                                <span className="text-right">+/USDT</span>
+                                                <span className="text-right">Profit/mois</span>
+                                            </div>
+                                            {tierOrder.map(tier => {
+                                                const row = tiers[tier];
+                                                const monthlyProfit = row.profitPerUnit * avgVol;
+                                                const isRegular = tier === 'regular';
+                                                const priceStr = Number.isInteger(row.price) ? `${row.price}` : fmt2(row.price);
+                                                return (
+                                                    <div key={tier} className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 px-3 py-2.5 border-b last:border-b-0 border-neutral-100 ${isRegular ? 'bg-primary/5' : ''}`}>
+                                                        <span className={`text-xs font-bold ${isRegular ? 'text-primary' : 'text-neutral-700'}`}>
+                                                            {TIER_ICONS[tier]}
+                                                            {isRegular && <span className="ml-1 text-[9px] bg-primary/15 text-primary px-1 rounded-full">= objectif</span>}
+                                                        </span>
+                                                        <span dir="ltr" className={`text-sm font-extrabold tabular-nums text-right ${isRegular ? 'text-primary' : 'text-neutral-800'}`}>
+                                                            {priceStr} DZD
+                                                        </span>
+                                                        <span dir="ltr" className="text-xs font-semibold tabular-nums text-right text-financial-profit">
+                                                            +{fmt2(row.profitPerUnit)}
+                                                        </span>
+                                                        <span dir="ltr" className="text-xs font-bold tabular-nums text-right text-financial-profit">
+                                                            +{fmt0(monthlyProfit)} DZD
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        <p className="text-[9px] text-neutral-400 mt-1.5 text-center">
+                                            ✨ Après "Définir comme objectif", le calculateur Assisté utilise ces prix automatiquement
+                                        </p>
+                                    </div>
+                                );
+                            })()}
                         </CardContent>
                     </Card>
                 );
