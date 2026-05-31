@@ -1813,6 +1813,25 @@ export default function MainApp({ user }: {
                 <InvestorDashboardPage investor={investor} transactions={myTransactions} globalNetProfit={globalNetProfit} managerFeePercentage={Number(managerFeePercentage)} totalCapital={totalCapital} onExportReport={(range) => handleExportInvestorReport(investor.id, range)}/>
             </Suspense>);
     }
+    // Quick sell: pre-fills sell form with max qty + PAM+margin price
+    const openQuickSell = React.useCallback(() => {
+        const usdtAvail = portfolioStats.usdt.available;
+        const usdtPam = portfolioStats.usdt.avgBuy;
+        if (usdtAvail <= 0 || usdtPam <= 0) {
+            openForm('sell_usdt');
+            return;
+        }
+        const margin = parseAndEvaluate(suggestedProfitMargin);
+        const suggestedPrice = (usdtPam + (isNaN(margin) ? 2 : margin)).toFixed(2);
+        navigateToView('transactions');
+        setTimeout(() => {
+            openForm('sell_usdt', null, {
+                sellQty: usdtAvail.toFixed(2),
+                sellPrice: suggestedPrice,
+            });
+        }, 80); // let navigation settle first
+    }, [portfolioStats.usdt.available, portfolioStats.usdt.avgBuy, suggestedProfitMargin, openForm, navigateToView]);
+
     const navLabels = useMemo(() => ({
         dashboard: t('nav.dashboard') as string || 'Accueil',
         transactions: t('nav.transactions') as string,
@@ -1868,6 +1887,12 @@ export default function MainApp({ user }: {
         onOpenPersonalWithdrawal: openPersonalWithdrawalModal,
         recentTransactions: transactions.slice(0, 5),
         onOpenTransactions: () => setView('transactions'),
+        onQuickSell: portfolioStats.usdt.available > 0 ? openQuickSell : undefined,
+        quickSellPreview: portfolioStats.usdt.available > 0 ? {
+            qty: portfolioStats.usdt.available,
+            price: portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin),
+            pam: portfolioStats.usdt.avgBuy,
+        } : null,
     };
     const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, view, DashboardPage, dashboardPageProps, InsightsPage, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport };
     const walletTransferDialogProps = useMemo(() => ({

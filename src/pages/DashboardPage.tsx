@@ -63,6 +63,8 @@ type DashboardPageProps = {
     onOpenPersonalWithdrawal?: () => void;
     recentTransactions?: Tx[];
     onOpenTransactions?: () => void;
+    onQuickSell?: () => void;
+    quickSellPreview?: { qty: number; price: number; pam: number } | null;
 };
 type Tone = 'success' | 'warning' | 'danger' | 'info';
 type PriorityItem = {
@@ -365,7 +367,7 @@ function DashboardSyncState({ title, body, actions, }: {
       <ActionStrip actions={actions}/>
     </div>);
 }
-export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, totals, treasuryCards, investorLiability = 0, investorBreakdown, servicesSummary, overdueDebtClients, globalNetProfit, isDataSyncing = false, onNewTransaction, onOpenClients, onOpenClient, onOpenClientDebts, onOpenTreasury, onOpenAnalytics, onOpenPersonalWithdrawal, recentTransactions = [], onOpenTransactions }: DashboardPageProps) {
+export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, totals, treasuryCards, investorLiability = 0, investorBreakdown, servicesSummary, overdueDebtClients, globalNetProfit, isDataSyncing = false, onNewTransaction, onOpenClients, onOpenClient, onOpenClientDebts, onOpenTreasury, onOpenAnalytics, onOpenPersonalWithdrawal, recentTransactions = [], onOpenTransactions, onQuickSell, quickSellPreview }: DashboardPageProps) {
     const { t } = useLanguage();
     const [shareCopied, setShareCopied] = useState(false);
     const [monthlyGoal, setMonthlyGoal] = useState<number>(() => Number(localStorage.getItem(MONTHLY_GOAL_KEY) || 0));
@@ -524,6 +526,26 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
       <HeroKpiCard accent="sky" icon={<LandmarkIcon className="w-5 h-5"/>} primaryLabel={t('dashboard.capitalTotal') as string} primaryValue={financialHealth} primaryCurrency="DZD" primarySemantic="plain" secondary={capitalSecondaryItems}/>
 
       <ActionStrip actions={primaryActions}/>
+
+      {/* Quick Sell button — only when USDT stock available */}
+      {onQuickSell && quickSellPreview && (
+        <button type="button" onClick={onQuickSell}
+          className="flex w-full items-center justify-between gap-3 rounded-xl border border-danger/25 bg-danger-bg px-4 py-3 text-start transition-colors hover:bg-danger-bg/80 active:scale-[0.99]">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-financial-loss">⚡ Vente rapide USDT</p>
+            <p className="text-xs text-neutral-500 mt-0.5" dir="ltr">
+              {quickSellPreview.qty.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} USDT
+              @ {quickSellPreview.price.toFixed(2)} DZD
+              → <span className="text-financial-profit font-semibold">
+                +{Math.round((quickSellPreview.price - quickSellPreview.pam) * quickSellPreview.qty).toLocaleString('fr-FR')} DZD
+              </span>
+            </p>
+          </div>
+          <svg className="w-4 h-4 shrink-0 text-financial-loss/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>
+      )}
 
       {onOpenPersonalWithdrawal && (<Button onClick={onOpenPersonalWithdrawal} variant="outline" size="md" className="flex w-full items-center justify-center gap-2 border-primary/20 bg-primary/10 font-bold text-primary hover:bg-primary/20">
           <BanknotesIcon className="h-4 w-4"/>

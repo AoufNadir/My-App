@@ -157,13 +157,14 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         return { isValid, errors };
     }, [mode, buyUsdtMode, buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, sellSettlementCurrency, sellEurToDzdRate, portfolioStats, editingTx, linkedClientId, linkedClientDzdId, clientPaymentStatus, transactions]);
-    const openForm = (newMode: TransactionFormMode, txToEdit: Tx | null = null) => {
+    type PrefillSell = { sellQty?: string; sellPrice?: string; clientId?: string };
+    const openForm = (newMode: TransactionFormMode, txToEdit: Tx | null = null, prefill?: PrefillSell) => {
         setBuyUsdtAmount('');
         setBuyUsdtPrice('');
         setBuyEurAmount('');
         setBuyEurPrice('');
-        setSellAmount('');
-        setSellPrice('');
+        setSellAmount(prefill?.sellQty ?? '');
+        setSellPrice(prefill?.sellPrice ?? '');
         setSellTotal('');
         setProfitPercent('');
         setNotes('');
@@ -179,7 +180,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setEditingTx(txToEdit);
         setMode(newMode);
         setIsTotalManual(false);
-        setLinkedClientId('none');
+        setLinkedClientId(prefill?.clientId ?? 'none');
         setLinkedClientDzdId('none');
         if (txToEdit) {
             if (txToEdit.type === 'buy') {
