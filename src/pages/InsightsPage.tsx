@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
     ResponsiveContainer, AreaChart, Area, BarChart, Bar,
     XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Cell,
@@ -6,10 +6,19 @@ import {
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { PageHeader } from '../components/ui/PageHeader';
+import { MoneyField } from '../components/ui/MoneyField';
+import { Button } from '../components/ui/Button';
+import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
 import { CalendarIcon } from '../components/icons/CalendarIcon';
+import { SparklesIcon } from '../components/icons/SparklesIcon';
 import { computePamLedger } from '../utils/pamLedger';
+import { parseAndEvaluate } from '../utils';
+import { roundToMarketPrice } from '../utils/pricingMatrix';
 import type { Tx, ClientDzd, ClientTransactionDzd, Investor } from '../types';
+
+const fmt0 = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 });
+const fmt2 = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const DAY_LABELS_FR = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const TIME_SLOTS = [
@@ -214,6 +223,72 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
     const warnCount = integrityChecks.filter(c => c.status === 'warn').length;
     const errorCount = integrityChecks.filter(c => c.status === 'error').length;
 
+    // ── YTD Statistics (current year, Jan → now) ────────────────────────────
+    const yearlyStats = useMemo(() => {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const yearStart = new Date(currentYear, 0, 1).getTime();
+
+        // Accumulate per month
+        const byMonth = new Map<number, {
+            profit: number; usdtQty: number; eurQty: number;
+            usdtRevenueDzd: number; usdtSellPriceSum: number; usdtSellCount: number;
+            eurSellPriceEurSum: number; eurSellCount: number;
+        }>();
+
+        for (const row of pamLedger.sellProfitRows) {
+            if (row.timestamp < yearStart) continue;
+            const m = new Date(row.timestamp).getMonth();
+            const entry = byMonth.get(m) ?? {
+                profit: 0, usdtQty: 0, eurQty: 0,
+                usdtRevenueDzd: 0, usdtSellPriceSum: 0, usdtSellCount: 0,
+                eurSellPriceEurSum: 0, eurSellCount: 0,
+            };
+            const qty = Number((row as any).quantity || 0);
+            const profit = (row as any).derivedProfit || 0;
+            entry.profit += profit;
+            if ((row as any).currency === 'USDT') {
+                entry.usdtQty += qty;
+                const sp = Number((row as any).sellPrice || 0);
+                if (sp > 0) { entry.usdtSellPriceSum += sp * qty; entry.usdtRevenueDzd += sp * qty; }
+                entry.usdtSellCount += 1;
+            } else if ((row as any).currency === 'EUR') {
+                entry.eurQty += qty;
+                const spEur = Number((row as any).sellPriceEur || 0);
+                if (spEur > 0) { entry.eurSellPriceEurSum += spEur; entry.eurSellCount += 1; }
+            }
+            byMonth.set(m, entry);
+        }
+
+        const activeMonths = byMonth.size || 1;
+        const values = Array.from(byMonth.values());
+        const totalProfit   = values.reduce((s, v) => s + v.profit, 0);
+        const totalUsdtQty  = values.reduce((s, v) => s + v.usdtQty, 0);
+        const totalEurQty   = values.reduce((s, v) => s + v.eurQty, 0);
+        const totalUsdtRev  = values.reduce((s, v) => s + v.usdtRevenueDzd, 0);
+        const totalEurPSum  = values.reduce((s, v) => s + v.eurSellPriceEurSum, 0);
+        const totalEurSells = values.reduce((s, v) => s + v.eurSellCount, 0);
+
+        return {
+            activeMonths,
+            currentYear,
+            totalProfit,
+            avgMonthlyProfit: totalProfit / activeMonths,
+            totalUsdtQty,
+            avgMonthlyUsdt: totalUsdtQty / activeMonths,
+            totalEurQty,
+            avgMonthlyEur: totalEurQty / activeMonths,
+            avgSellDzd: totalUsdtQty > 0 ? totalUsdtRev / totalUsdtQty : 0,
+            avgSellEur: totalEurSells > 0 ? totalEurPSum / totalEurSells : 0,
+            avgMarginUsdt: portfolioStats
+                ? (totalUsdtQty > 0 ? (totalUsdtRev / totalUsdtQty) - portfolioStats.usdt.avgBuy : 0)
+                : 0,
+        };
+    }, [pamLedger, portfolioStats]);
+
+    // Projection calculator state
+    const [projectionTarget, setProjectionTarget] = useState('');
+
     const bestDay = dayAnalysis.reduce((b, d) => d.profit > b.profit ? d : b, dayAnalysis[0]);
     const bestSlot = timeAnalysis.reduce((b, d) => d.profit > b.profit ? d : b, timeAnalysis[0]);
     const maxDayProfit = Math.max(...dayAnalysis.map(d => d.profit), 1);
@@ -232,6 +307,228 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
     return (
         <div className="anim-page-in space-y-4">
             <PageHeader title="Insights" subtitle="Analyses avancées"/>
+
+            {/* ═══════════════════════════════════════════════════════════
+                SECTION 1 — 3 STATISTICAL CARDS (YTD)
+            ═══════════════════════════════════════════════════════════ */}
+
+            {/* Card 1 — Avg Monthly Profit */}
+            <Card>
+                <CardHeader className="p-4 pb-3">
+                    <SectionHeading icon={<TrendingUpIcon className="w-4 h-4"/>}>
+                        Profit moyen mensuel — {yearlyStats.currentYear}
+                    </SectionHeading>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-xl border border-border bg-surface-muted p-3">
+                            <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Moyenne/mois</p>
+                            <CurrencyAmount value={yearlyStats.avgMonthlyProfit} currency="DZD" semantic="auto" size="lg" decimals={0}/>
+                            <p className="text-[9px] text-neutral-400 mt-1">sur {yearlyStats.activeMonths} mois actifs</p>
+                        </div>
+                        <div className="rounded-xl border border-border bg-surface-muted p-3">
+                            <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Total YTD</p>
+                            <CurrencyAmount value={yearlyStats.totalProfit} currency="DZD" semantic="auto" size="lg" decimals={0}/>
+                            <p className="text-[9px] text-neutral-400 mt-1">Jan → aujourd'hui</p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Card 2 — Avg Monthly Volume */}
+            <Card>
+                <CardHeader className="p-4 pb-3">
+                    <SectionHeading icon={<CalendarIcon className="w-4 h-4"/>}>
+                        Volume vendu moyen mensuel — {yearlyStats.currentYear}
+                    </SectionHeading>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-xl border border-border bg-surface-muted p-3">
+                            <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">USDT/mois moy.</p>
+                            <p dir="ltr" className="text-xl font-extrabold tabular-nums text-neutral-800">
+                                {fmt0(yearlyStats.avgMonthlyUsdt)}
+                            </p>
+                            <p className="text-[9px] text-neutral-400 mt-1">
+                                Total: {fmt0(yearlyStats.totalUsdtQty)} USDT
+                            </p>
+                        </div>
+                        {yearlyStats.avgMonthlyEur > 0 ? (
+                            <div className="rounded-xl border border-border bg-surface-muted p-3">
+                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">EUR/mois moy.</p>
+                                <p dir="ltr" className="text-xl font-extrabold tabular-nums text-neutral-800">
+                                    {fmt2(yearlyStats.avgMonthlyEur)}
+                                </p>
+                                <p className="text-[9px] text-neutral-400 mt-1">
+                                    Total: {fmt2(yearlyStats.totalEurQty)} EUR
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-border bg-surface-muted p-3 flex items-center justify-center">
+                                <p className="text-[11px] text-neutral-400">Pas de ventes EUR cette année</p>
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Card 3 — Avg Sell Price */}
+            <Card>
+                <CardHeader className="p-4 pb-3">
+                    <SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>
+                        Prix de vente moyen mensuel — {yearlyStats.currentYear}
+                    </SectionHeading>
+                </CardHeader>
+                <CardContent className="p-4 pt-0 space-y-3">
+                    <div className="grid grid-cols-3 gap-2">
+                        <div className="rounded-xl border border-border bg-surface-muted p-3">
+                            <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Moy. vente DZD/USDT</p>
+                            <p dir="ltr" className="text-lg font-extrabold tabular-nums text-neutral-800">
+                                {yearlyStats.avgSellDzd > 0 ? fmt2(yearlyStats.avgSellDzd) : '—'}
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-border bg-surface-muted p-3">
+                            <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">PAM actuel</p>
+                            <p dir="ltr" className="text-lg font-extrabold tabular-nums text-neutral-700">
+                                {portfolioStats ? fmt2(portfolioStats.usdt.avgBuy) : '—'}
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-border bg-surface-muted p-3">
+                            <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Hامarge moy.</p>
+                            <p dir="ltr" className={`text-lg font-extrabold tabular-nums ${yearlyStats.avgSellDzd > 0 && portfolioStats ? 'text-financial-profit' : 'text-neutral-400'}`}>
+                                {yearlyStats.avgSellDzd > 0 && portfolioStats
+                                    ? `+${fmt2(yearlyStats.avgSellDzd - portfolioStats.usdt.avgBuy)}`
+                                    : '—'}
+                            </p>
+                        </div>
+                    </div>
+                    {yearlyStats.avgSellEur > 0 && (
+                        <div className="rounded-xl border border-border bg-surface-muted p-3">
+                            <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Moy. vente EUR/USDT</p>
+                            <p dir="ltr" className="text-base font-bold tabular-nums text-neutral-700">
+                                {fmt2(yearlyStats.avgSellEur)} EUR/USDT
+                            </p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════
+                SECTION 2 — NEXT MONTH PROJECTION CALCULATOR
+            ═══════════════════════════════════════════════════════════ */}
+            {yearlyStats.avgMonthlyUsdt > 0 && portfolioStats && (() => {
+                const pam = portfolioStats.usdt.avgBuy;
+                const avgVol = yearlyStats.avgMonthlyUsdt;
+                const storedGoal = Number(localStorage.getItem('app_monthly_profit_goal') || 0);
+                const targetInput = parseAndEvaluate(projectionTarget);
+                const target = targetInput > 0 ? targetInput : yearlyStats.avgMonthlyProfit;
+
+                // Target price to achieve profit goal at historical volume
+                const neededMargin = avgVol > 0 ? target / avgVol : 0;
+                const targetPriceRaw = pam + neededMargin;
+                const targetPrice = roundToMarketPrice(targetPriceRaw);
+
+                // Volume needed to achieve profit goal at historical avg sell price
+                const histMargin = yearlyStats.avgSellDzd - pam;
+                const volumeNeeded = histMargin > 0 ? Math.ceil(target / histMargin) : 0;
+
+                return (
+                    <Card>
+                        <CardHeader className="p-4 pb-3">
+                            <SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>
+                                🔮 Projection mois prochain
+                            </SectionHeading>
+                        </CardHeader>
+                        <CardContent className="p-4 pt-0 space-y-4">
+                            {/* Context row */}
+                            <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
+                                <div className="rounded-lg bg-surface-muted border border-border p-2">
+                                    <p className="font-bold uppercase text-neutral-400">Vol. moy/mois</p>
+                                    <p dir="ltr" className="font-extrabold text-neutral-800 text-sm mt-0.5">{fmt0(avgVol)} U</p>
+                                </div>
+                                <div className="rounded-lg bg-surface-muted border border-border p-2">
+                                    <p className="font-bold uppercase text-neutral-400">PAM actuel</p>
+                                    <p dir="ltr" className="font-extrabold text-neutral-800 text-sm mt-0.5">{fmt2(pam)} DZD</p>
+                                </div>
+                                <div className="rounded-lg bg-surface-muted border border-border p-2">
+                                    <p className="font-bold uppercase text-neutral-400">Marge hist.</p>
+                                    <p dir="ltr" className="font-extrabold text-financial-profit text-sm mt-0.5">+{fmt2(histMargin > 0 ? histMargin : yearlyStats.avgSellDzd - pam)} DZD/U</p>
+                                </div>
+                            </div>
+
+                            {/* Objective input */}
+                            <div>
+                                <MoneyField
+                                    label={`Objectif mensuel (DZD) — défaut: votre moyenne +${fmt0(yearlyStats.avgMonthlyProfit)} DZD`}
+                                    value={projectionTarget}
+                                    onChange={setProjectionTarget}
+                                    currency="DZD"
+                                    placeholder={fmt0(yearlyStats.avgMonthlyProfit)}
+                                    hint={storedGoal > 0 ? `Goal défini: ${fmt0(storedGoal)} DZD` : undefined}
+                                />
+                                {storedGoal > 0 && !projectionTarget && (
+                                    <button type="button" onClick={() => setProjectionTarget(String(storedGoal))} className="mt-1 text-xs font-semibold text-primary hover:underline">
+                                        Utiliser mon objectif mensuel ({fmt0(storedGoal)} DZD) →
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Results */}
+                            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                                <p className="text-[11px] font-bold uppercase text-primary tracking-wide">
+                                    Pour réaliser {fmt0(target)} DZD ce mois-ci :
+                                </p>
+
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    {/* Option A — fix price, historical volume */}
+                                    <div className="rounded-xl border border-border bg-surface p-3">
+                                        <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">
+                                            Option A — même volume ({fmt0(avgVol)} U)
+                                        </p>
+                                        <p dir="ltr" className="text-2xl font-extrabold tabular-nums text-primary">
+                                            {Number.isInteger(targetPrice) ? targetPrice : fmt2(targetPrice)} DZD
+                                        </p>
+                                        <p className="text-[11px] text-neutral-500 mt-1">
+                                            soit +{fmt2(neededMargin)} DZD/USDT de marge
+                                        </p>
+                                        <Button type="button" size="sm" variant="outline" className="mt-2 w-full text-xs font-bold"
+                                            onClick={() => {
+                                                localStorage.setItem('app_insights_suggested_price', String(targetPrice));
+                                                localStorage.setItem('app_monthly_profit_goal', String(Math.round(target)));
+                                                window.dispatchEvent(new StorageEvent('storage', { key: 'app_monthly_profit_goal', newValue: String(Math.round(target)) }));
+                                            }}>
+                                            → Définir comme objectif + prix de référence
+                                        </Button>
+                                    </div>
+
+                                    {/* Option B — historical price, need more volume */}
+                                    <div className="rounded-xl border border-border bg-surface p-3">
+                                        <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">
+                                            Option B — prix historique ({yearlyStats.avgSellDzd > 0 ? fmt2(roundToMarketPrice(yearlyStats.avgSellDzd)) : '—'} DZD)
+                                        </p>
+                                        {volumeNeeded > 0 ? (<>
+                                            <p dir="ltr" className="text-2xl font-extrabold tabular-nums text-secondary">
+                                                {fmt0(volumeNeeded)} USDT
+                                            </p>
+                                            <p className="text-[11px] text-neutral-500 mt-1">
+                                                {volumeNeeded > avgVol
+                                                    ? `+${fmt0(volumeNeeded - avgVol)} U vs votre moyenne (${Math.round((volumeNeeded / avgVol - 1) * 100)}% de plus)`
+                                                    : `−${fmt0(avgVol - volumeNeeded)} U vs votre moyenne`}
+                                            </p>
+                                        </>) : (
+                                            <p className="text-sm text-neutral-400">Données insuffisantes</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p className="text-center text-[10px] text-neutral-400">
+                                Formule A: Prix = PAM + Objectif ÷ Volume  ·  Formule B: Volume = Objectif ÷ (PrixHist − PAM)
+                            </p>
+                        </CardContent>
+                    </Card>
+                );
+            })()}
 
             {/* Data Integrity Card */}
             <Card>
