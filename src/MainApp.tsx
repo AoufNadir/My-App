@@ -158,11 +158,53 @@ export default function MainApp({ user }: {
         });
     }, [shouldSubscribeInvestors, deferredInvestors, deferredInvestorTransactions, managerFeePercentage, deferredTransactions, pamLedger, deliveryExpenses]);
     const derivedInvestors = investorEconomics.derivedInvestors;
+
+    // Early pricing data (needed before useTransactionHandlers)
+    const earlyAvgMarginPerUsdt = React.useMemo(() => {
+        const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
+        let totalProfit = 0;
+        let totalQty = 0;
+        for (const row of pamLedger.sellProfitRows) {
+            if (row.timestamp < ninetyDaysAgo || row.currency !== 'USDT') continue;
+            totalProfit += row.derivedProfit || 0;
+            totalQty    += Number(row.quantity || 0);
+        }
+        return totalQty > 0 ? totalProfit / totalQty : parseAndEvaluate(suggestedProfitMargin);
+    }, [pamLedger, suggestedProfitMargin]);
+
+    const earlyClientLoyaltyMap = React.useMemo<Map<string, 'vip' | 'regular' | 'new' | 'inactive'>>(() => {
+        const now = Date.now();
+        const thirtyDaysAgo = now - 30 * 86_400_000;
+        const txsByClient = new Map<string, typeof clientTransactionsDzd>();
+        for (const tx of clientTransactionsDzd) {
+            const list = txsByClient.get(tx.clientId) || [];
+            list.push(tx);
+            txsByClient.set(tx.clientId, list);
+        }
+        const result = new Map<string, 'vip' | 'regular' | 'new' | 'inactive'>();
+        for (const client of clientsDzd) {
+            const txs = txsByClient.get(client.id) || [];
+            if (txs.length === 0) { result.set(client.id, 'new'); continue; }
+            const firstTs = Math.min(...txs.map(t => t.timestamp));
+            const lastTs  = Math.max(...txs.map(t => t.timestamp));
+            const recentCount = txs.filter(t => t.timestamp >= thirtyDaysAgo).length;
+            const isNew = firstTs >= thirtyDaysAgo;
+            if (isNew && recentCount <= 2) { result.set(client.id, 'new'); continue; }
+            if (lastTs < thirtyDaysAgo)    { result.set(client.id, 'inactive'); continue; }
+            if (recentCount >= 10)         { result.set(client.id, 'vip'); continue; }
+            if (recentCount >= 3)          { result.set(client.id, 'regular'); continue; }
+            result.set(client.id, 'inactive');
+        }
+        return result;
+    }, [clientTransactionsDzd, clientsDzd]);
+
     // --- 2. BUSINESS LOGIC HOOKS ---
     const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer } = useTransactionHandlers({
         userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, treasuryStats,
         suggestedProfitMargin, suggestedSellingPrice, suggestedSellingPriceEur,
-        setAlert, setSelectedClientId: (id: string | null) => setSelectedClientId(id), setView: (v: string) => setView(v)
+        setAlert, setSelectedClientId: (id: string | null) => setSelectedClientId(id), setView: (v: string) => setView(v),
+        clientLoyaltyMap: earlyClientLoyaltyMap,
+        avgMarginPerUsdt: earlyAvgMarginPerUsdt,
     });
     const { isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert);
     const { isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, setEditingInvestor, investorToDelete, setInvestorToDelete, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorName, setInvestorName, investorInitialCapital, setInvestorInitialCapital, investorNotes, setInvestorNotes, isManager, setIsManager, investorTxType, setInvestorTxType, investorTxAmount, setInvestorTxAmount, investorTxNotes, setInvestorTxNotes, investorTxPaymentSource, setInvestorTxPaymentSource, investorTxToDelete, setInvestorTxToDelete, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, selectedInvestorId, setSelectedInvestorId, handleSaveInvestor, handleSaveInvestorTx, handleReinvestProfit, handleDeleteInvestor, openInvestorModal, closeInvestorModal, 

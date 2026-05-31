@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
 import { Tx, PortfolioStats, ClientDzd, TreasuryTx, ClientTransactionDzd } from '../types';
 import { now, parseAndEvaluate } from '../utils';
 import { roundM } from '../utils/money';
 import { formatNumber } from '../pages/shared/pageFormat';
 import { applyTransactionDelete } from '../transactionService';
+import { computeSuggestedPrice, ClientTierType } from '../utils/pricingMatrix';
 interface HandlerProps {
     userDocRef: FirestoreDocumentReference;
     portfolioStats: PortfolioStats;
@@ -21,11 +22,14 @@ interface HandlerProps {
     setAlert: (msg: string) => void;
     setSelectedClientId: (id: string | null) => void;
     setView: (view: 'transactions' | 'dzd' | 'tresorerie' | 'statistiques' | 'tresorerie' | 'investors') => void;
+    // Smart pricing
+    clientLoyaltyMap?: Map<string, 'vip' | 'regular' | 'new' | 'inactive'>;
+    avgMarginPerUsdt?: number;
 }
 type TransactionFormMode = 'buy_usdt' | 'sell_usdt' | 'buy_eur' | 'sell_eur';
 type PortfolioCurrency = 'USDT' | 'EUR';
 type SettlementCurrency = 'DZD' | 'EUR';
-export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, treasuryStats, suggestedProfitMargin, suggestedSellingPrice, suggestedSellingPriceEur, setAlert, setSelectedClientId, setView }: HandlerProps) {
+export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, treasuryStats, suggestedProfitMargin, suggestedSellingPrice, suggestedSellingPriceEur, setAlert, setSelectedClientId, setView, clientLoyaltyMap, avgMarginPerUsdt }: HandlerProps) {
     const [isSaving, setIsSaving] = useState(false);
     const paymentMethodByStatus: Record<'credit' | 'baridi' | 'cash', 'Crédit' | 'BaridiMob' | 'Espèces'> = {
         credit: 'Crédit',
@@ -56,6 +60,26 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [linkedClientId, setLinkedClientId] = useState('none');
     const [linkedClientDzdId, setLinkedClientDzdId] = useState('none');
     const [clientPaymentStatus, setClientPaymentStatus] = useState<'credit' | 'baridi' | 'cash'>('cash');
+
+    // Auto-detect: when client selected in sell mode, suggest smart price
+    useEffect(() => {
+        if (!linkedClientId || linkedClientId === 'none') return;
+        if (mode !== 'sell_usdt') return;
+        if (!clientLoyaltyMap || !avgMarginPerUsdt || avgMarginPerUsdt <= 0) return;
+        // Only auto-suggest if sell price hasn't been manually set already (check if it equals the default)
+        const pam = portfolioStats.usdt.avgBuy;
+        if (pam <= 0) return;
+        const rawTier = clientLoyaltyMap.get(linkedClientId);
+        const VALID_TIERS = new Set<string>(['vip', 'regular', 'new']);
+        const tier: ClientTierType = (rawTier && VALID_TIERS.has(rawTier)) ? (rawTier as ClientTierType) : 'none';
+        const qty = parseAndEvaluate(sellAmount) || portfolioStats.usdt.available;
+        const smartPrice = computeSuggestedPrice(pam, qty, tier, avgMarginPerUsdt, parseAndEvaluate(suggestedProfitMargin));
+        if (smartPrice > pam) {
+            setSellPrice(smartPrice.toFixed(2));
+            setProfitPercent((smartPrice - pam).toFixed(2));
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [linkedClientId]);
     const [notes, setNotes] = useState('');
     const [txTags, setTxTags] = useState<string[]>([]);
     const [profitPercent, setProfitPercent] = useState('');
