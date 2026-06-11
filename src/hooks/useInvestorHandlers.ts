@@ -525,11 +525,19 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         // Retrait de capital: valider que la trésorerie et le capital sont suffisants.
         if (investorTxType === 'withdraw_capital') {
             const capitalInvested = Number(selectedInvestor.capitalInvested || 0);
+            const availableProfit = Number(selectedInvestor.availableProfit || 0);
             const sourceBalance = investorTxPaymentSource === 'Caisse'
                 ? Number(treasuryStats.caisse || 0)
                 : Number(treasuryStats.baridi || 0);
             if (amount > capitalInvested + 0.005) {
                 setAlert('Amount exceeds invested capital.');
+                return;
+            }
+            // M1: an investor whose accumulated profit went negative (e.g. delivery
+            // expense burden exceeded their share) cannot withdraw capital without
+            // first reconciling that debt — otherwise the project loses money.
+            if (availableProfit < -0.005) {
+                setAlert(`Cet investisseur a un profit négatif (${availableProfit.toFixed(2)} DZD). Régulariser avant retrait de capital.`);
                 return;
             }
             if (amount > sourceBalance + 0.005) {
@@ -671,13 +679,28 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 if (txSnap.empty)
                     break;
                 const batch = db.batch();
+                // M6: a personal expense advance treasury_tx may have a paired
+                // personal_expense_return row. The return is linked to the advance
+                // (not directly to the investor_tx), so we must look it up and
+                // delete it explicitly — otherwise it orphans when the manager
+                // investor is removed.
+                const linkedTreasuryIds: string[] = [];
                 txSnap.docs.forEach((doc) => {
                     const txData = doc.data() as InvestorTransaction;
                     if (txData.linkedTreasuryTxId) {
+                        linkedTreasuryIds.push(txData.linkedTreasuryTxId);
                         batch.delete(userDocRef.collection('treasury_txs').doc(txData.linkedTreasuryTxId));
                     }
                     batch.delete(doc.ref);
                 });
+                for (const treasuryId of linkedTreasuryIds) {
+                    const returnDocs = await userDocRef
+                        .collection('treasury_txs')
+                        .where('linkedTreasuryTxId', '==', treasuryId)
+                        .where('origin', '==', 'personal_expense_return')
+                        .get();
+                    returnDocs.forEach((doc) => batch.delete(doc.ref));
+                }
                 if (!investorDeleted) {
                     batch.delete(investorRef);
                     investorDeleted = true;
