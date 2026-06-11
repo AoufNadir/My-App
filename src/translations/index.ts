@@ -505,7 +505,68 @@ export const translations = {
             email: 'Email',
             password: 'Mot de passe',
             signIn: 'Se connecter',
-        }
+        },
+        // Single source of truth for setAlert / EmptyState copy across the app.
+        // Existing call sites still use the literal strings produced by the U1/U2
+        // unification pass; new sites should read from here via the t() helper so
+        // the Arabic translation phase can fill in `ar.alerts` / `ar.emptyStates`
+        // without touching every component.
+        alerts: {
+            success: {
+                client: { created: '✅ Client ajouté.', updated: '✅ Client mis à jour.', deleted: '✅ Client supprimé.', deletedQuotidien: '✅ Client supprimé (clients quotidiens uniquement).', historyDeleted: '✅ Client et historique supprimés.' },
+                investor: { created: '✅ Investisseur ajouté.', updated: '✅ Investisseur mis à jour.', deleted: '✅ Investisseur supprimé.', txDeleted: '✅ Transaction investisseur supprimée.', withdrawalDeleted: '✅ Retrait investisseur supprimé.' },
+                transaction: { added: '✅ Transaction ajoutée.', saved: '✅ Transaction enregistrée.', updated: '✅ Transaction mise à jour.', deleted: '✅ Transaction supprimée.' },
+                transfer: { saved: '✅ Transfert enregistré.', updated: '✅ Transfert mis à jour.', success: '✅ Transfert réussi.' },
+                expense: { deleted: '✅ Dépense supprimée.', delivery: '✅ Frais de livraison enregistrés.' },
+                service: { created: '✅ Service créé.' },
+                reinvest: { recorded: '✅ Réinvestissement enregistré.' },
+                adjustment: { saved: '✅ Ajustement enregistré.', deleted: '✅ Correction supprimée.' },
+                balance: { updated: '✅ Solde mis à jour.', cleared: '✅ Solde effacé.' },
+                app: { reset: '✅ Application réinitialisée.', backupDownloaded: '✅ Sauvegarde téléchargée avec succès.', imageDownloaded: '✅ Image téléchargée.' },
+            },
+            warning: {
+                amount: { invalid: '⚠️ Montant invalide.', tooLow: '⚠️ Entrez un montant positif.', exceedsProfit: '⚠️ Montant dépasse le profit disponible.', exceedsCapital: '⚠️ Montant dépasse le capital investi.', exceedsAdvance: '⚠️ Le montant dépensé ne peut pas dépasser l’avance.', mustBePositive: '⚠️ Le montant dépensé doit être positif ou zéro.' },
+                balance: { caisseInsufficient: '⚠️ Solde Caisse insuffisant.', baridiInsufficient: '⚠️ Solde BaridiMob insuffisant.', eurInsufficient: '⚠️ Solde EUR insuffisant.', usdtInsufficient: '⚠️ Solde USDT insuffisant.' },
+                notFound: { client: '⚠️ Client introuvable.', investor: '⚠️ Investisseur introuvable.', transaction: '⚠️ Transaction introuvable.', advance: '⚠️ Avance introuvable.', clientTx: '⚠️ Transaction cliente introuvable.', serviceTx: '⚠️ Transaction service introuvable.', linkedTransfer: '⚠️ Impossible de retrouver le transfert lié.' },
+                validation: { selectClient: '⚠️ Sélectionnez un client.', selectTwoClients: '⚠️ Sélectionnez les deux clients.', invalidName: '⚠️ Nom requis.', invalidInvestorName: '⚠️ Nom de l’investisseur invalide.', invalidInitialCapital: '⚠️ Capital initial invalide.', invalidTxData: '⚠️ Données de transaction invalides.', invalidTransferParams: '⚠️ Paramètres de transfert invalides.', incompleteDates: '⚠️ Dates incomplètes.' },
+                blocked: { hasTransactions: '⚠️ Impossible de supprimer : Transactions existantes.', nonZeroBalance: '⚠️ Impossible de supprimer : Solde non nul.', linkedOperation: '⚠️ Suppression bloquée : ce client contient une opération liée.', duplicateClient: '⚠️ Ce client existe déjà.', negativeProfit: '⚠️ Cet investisseur a un profit négatif. Régularisez avant le retrait de capital.' },
+                manager: { missing: '⚠️ Aucun gérant défini. Désignez un investisseur comme gérant.' },
+            },
+            error: {
+                generic: '❌ Une erreur est survenue.',
+                save: '❌ Erreur lors de l’enregistrement.',
+                delete: '❌ Erreur lors de la suppression.',
+                update: '❌ Erreur lors de la mise à jour.',
+                client: { save: '❌ Erreur lors de l’enregistrement du client.', delete: '❌ Erreur lors de la suppression du client.', historyDelete: '❌ Erreur lors de la suppression de l’historique du client.', txSave: '❌ Erreur lors de l’enregistrement de la transaction.' },
+                investor: { save: '❌ Erreur lors de l’enregistrement.', txSave: '❌ Erreur lors de l’enregistrement de la transaction.', delete: '❌ Erreur lors de la suppression de l’investisseur.', reinvest: '❌ Erreur lors du réinvestissement.' },
+                transaction: { buy: '❌ Erreur lors de l’achat.', sell: '❌ Erreur lors de la vente.', adjustment: '❌ Erreur lors de l’ajustement.' },
+                transfer: { save: '❌ Erreur lors du transfert.' },
+                expense: { delivery: '❌ Erreur lors de l’enregistrement.', deletion: '❌ Erreur lors de la suppression.', reconciliation: '❌ Erreur lors de la régularisation.' },
+                service: { create: '❌ Erreur lors de la création du service.', txAdd: '❌ Erreur lors de l’ajout de la transaction.', clientAdd: '❌ Erreur lors de l’ajout du client.', clientUpdate: '❌ Erreur lors de la mise à jour du client.', clientDelete: '❌ Erreur lors de la suppression du client.' },
+                balance: { update: '❌ Erreur lors de la mise à jour du solde.' },
+                pdf: { open: '❌ Impossible d’ouvrir l’aperçu PDF.', export: '❌ Erreur d’export PDF.', image: '❌ Image introuvable.', imageGen: '❌ Génération de l’image impossible. Utilisez PDF.' },
+                app: { reset: '❌ Erreur lors de la réinitialisation.', backup: '❌ Erreur lors de la sauvegarde.', lock: '❌ Erreur lors du verrouillage.' },
+            },
+            info: {
+                txSourceOpened: 'ℹ️ La transaction source a été ouverte dans Services.',
+                noRecentTxToLock: 'ℹ️ Aucune transaction récente à verrouiller.',
+            },
+        },
+        emptyStates: {
+            clients: { title: 'Aucun client trouvé', subtitle: 'Ajoutez un client ou modifiez votre recherche.' },
+            investors: { title: 'Aucun investisseur enregistré', subtitle: 'Ajoutez un investisseur pour suivre son capital et ses bénéfices.' },
+            transactions: { title: 'Aucune transaction', subtitle: 'L’historique des transactions s’affichera ici.' },
+            contact: { title: 'Aucune information de contact', subtitle: 'Modifiez le client pour ajouter téléphone, email ou RedotPay ID.' },
+            expenses: { title: 'Aucune dépense', subtitle: 'Aucune dépense pour cette période.' },
+            results: { title: 'Aucun résultat', subtitleSearch: 'Modifiez votre recherche.' },
+            mouvement: { title: 'Aucun mouvement', subtitle: 'Les entrées et sorties de caisse apparaîtront ici.' },
+            debts: { overdue: 'Aucune dette en retard', noRegulation: 'Aucun règlement' },
+            advances: { toRestitute: 'Aucune avance client à restituer', toRegulate: 'Aucune dette client à régler' },
+            services: { topClient: 'Aucun client', noSales: 'Pas encore de ventes', noActivity: 'Pas encore d’activité' },
+            personal: { noManager: 'Aucun gérant défini. Désignez un investisseur comme gérant pour activer cette fonctionnalité.', noReturn: 'Aucun retour', noPending: 'Aucun montant en attente' },
+            locked: { none: 'Aucun lot bloqué actuellement' },
+            distribution: { noActive: 'Aucun investisseur actif à distribuer.' },
+        },
     },
     ar: {
         // Seed translations — the most-used 50 keys. Anything not defined
