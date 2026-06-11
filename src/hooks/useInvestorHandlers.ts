@@ -18,6 +18,10 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     const [isManager, setIsManager] = useState(false);
     const [investorEmail, setInvestorEmail] = useState('');
     const [investorPhone, setInvestorPhone] = useState('');
+    // M3: payment source for the opening capital. 'none' keeps the legacy
+    // behavior (treat as opening equity, no cash movement). Caisse/BaridiMob
+    // adds a matching treasury_tx so totalCapital reflects the cash inflow.
+    const [investorInitialCapitalSource, setInvestorInitialCapitalSource] = useState<'none' | 'Caisse' | 'BaridiMob'>('none');
     // Transaction state
     const [isInvestorTxModalOpen, setIsInvestorTxModalOpen] = useState(false);
     const [investorTxAmount, setInvestorTxAmount] = useState('');
@@ -421,6 +425,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             setIsManager(false);
             setInvestorEmail('');
             setInvestorPhone('');
+            setInvestorInitialCapitalSource('none');
         }
         setIsInvestorModalOpen(true);
     };
@@ -473,15 +478,37 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 };
                 batch.set(ref, data);
                 if (capital > 0) {
-                    batch.set(userDocRef.collection('investor_transactions').doc(), {
+                    const { date: depositDate, time: depositTime, timestamp: depositTs } = now();
+                    const investorTxRef = userDocRef.collection('investor_transactions').doc();
+                    const investorTxPayload: any = {
                         investorId: ref.id,
                         type: 'deposit_capital',
                         amount: capital,
-                        date: now().date,
-                        time: now().time,
-                        timestamp: now().timestamp,
+                        date: depositDate,
+                        time: depositTime,
+                        timestamp: depositTs,
                         notes: 'Capital Initial'
-                    });
+                    };
+                    // M3: when the user picks Caisse/BaridiMob the cash actually moved
+                    // into the project — record it in treasury so totalCapital reflects
+                    // the inflow. 'none' keeps the legacy opening-equity semantics.
+                    if (investorInitialCapitalSource !== 'none') {
+                        const treasuryRef = userDocRef.collection('treasury_txs').doc();
+                        investorTxPayload.paymentSource = investorInitialCapitalSource;
+                        investorTxPayload.linkedTreasuryTxId = treasuryRef.id;
+                        batch.set(treasuryRef, {
+                            timestamp: depositTs,
+                            date: depositDate,
+                            time: depositTime,
+                            type: 'Ajout',
+                            source: investorInitialCapitalSource,
+                            amount: capital,
+                            notes: `Capital initial: ${investorName.trim()}`,
+                            linkedInvestorTxId: investorTxRef.id,
+                            origin: 'investor_capital_deposit'
+                        });
+                    }
+                    batch.set(investorTxRef, investorTxPayload);
                 }
                 setAlert('Investor added.');
             }
@@ -745,6 +772,8 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         setInvestorEmail,
         investorPhone,
         setInvestorPhone,
+        investorInitialCapitalSource,
+        setInvestorInitialCapitalSource,
         isInvestorTxModalOpen,
         setIsInvestorTxModalOpen,
         investorTxAmount,

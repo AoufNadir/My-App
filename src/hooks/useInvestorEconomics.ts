@@ -28,7 +28,6 @@ export interface InvestorEconomicsResult {
         derivedProfit: number;
         managerShare: number;
         investorShare: number;
-        unallocatedProfit: number;
         reconciliationDifference: number;
         totalDeliveryExpenses: number;
         netDistributableProfit: number;
@@ -165,7 +164,6 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
     let totalDerivedProfit = 0;
     let managerShare = 0;
     let investorShare = 0;
-    let unallocatedProfit = 0;
     for (const sellRow of chronologicalDerivedSells(pamLedger)) {
         const sellTs = toMs(sellRow.timestamp);
         if (!isInPeriod(sellTs, input.periodStartTs, input.periodEndTs))
@@ -306,8 +304,7 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             derivedProfit: totalDerivedProfit,
             managerShare,
             investorShare,
-            unallocatedProfit,
-            reconciliationDifference: subM(netDistributableProfit, addM(addM(managerShare, investorShare), unallocatedProfit)),
+            reconciliationDifference: subM(netDistributableProfit, addM(managerShare, investorShare)),
             totalDeliveryExpenses,
             netDistributableProfit,
         },
