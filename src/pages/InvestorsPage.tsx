@@ -27,6 +27,7 @@ interface InvestorsPageProps {
     setManagerFeePercentage: (val: string) => void;
     userDocRef: FirestoreDocumentReference;
     setAlert: (msg: string) => void;
+    treasuryStats: { caisse: number; baridi: number };
 }
 type InvestorsStats = {
     totalCapital: number;
@@ -38,7 +39,7 @@ type InvestorsStats = {
     totalDeliveryExpenses: number;
     netDistributableProfit: number;
 };
-export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, setManagerFeePercentage, userDocRef, setAlert }) => {
+export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, setManagerFeePercentage, userDocRef, setAlert, treasuryStats }) => {
     const stats: InvestorsStats = useMemo(() => {
         const nonManagerInvestors = investors.filter((inv) => inv.isActive && !inv.isManager);
         const totalCapital = investorBreakdown?.capital ?? nonManagerInvestors.reduce((sum, inv) => sum + Math.max(0, Number(inv.capitalInvested || 0)), 0);
@@ -98,6 +99,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
         suggestedTotal={stats.netDistributableProfit}
         userDocRef={userDocRef}
         setAlert={setAlert}
+        treasuryStats={treasuryStats}
       />
     </div>);
 };

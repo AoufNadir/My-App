@@ -69,7 +69,6 @@ const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
         derivedProfit: 0,
         managerShare: 0,
         investorShare: 0,
-        unallocatedProfit: 0,
         reconciliationDifference: 0,
         totalDeliveryExpenses: 0,
         netDistributableProfit: 0,
@@ -305,7 +304,7 @@ export default function MainApp({ user }: {
         avgMarginPerUsdt: earlyAvgMarginPerUsdt,
     });
     const { isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient, handleZeroOutBalance, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert);
-    const { isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, setEditingInvestor, investorToDelete, setInvestorToDelete, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorName, setInvestorName, investorInitialCapital, setInvestorInitialCapital, investorNotes, setInvestorNotes, isManager, setIsManager, investorTxType, setInvestorTxType, investorTxAmount, setInvestorTxAmount, investorTxNotes, setInvestorTxNotes, investorTxPaymentSource, setInvestorTxPaymentSource, investorTxToDelete, setInvestorTxToDelete, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, selectedInvestorId, setSelectedInvestorId, handleSaveInvestor, handleSaveInvestorTx, handleReinvestProfit, handleDeleteInvestor, openInvestorModal, closeInvestorModal, 
+    const { isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, setEditingInvestor, investorToDelete, setInvestorToDelete, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorName, setInvestorName, investorInitialCapital, setInvestorInitialCapital, investorInitialCapitalSource, setInvestorInitialCapitalSource, investorNotes, setInvestorNotes, isManager, setIsManager, investorTxType, setInvestorTxType, investorTxAmount, setInvestorTxAmount, investorTxNotes, setInvestorTxNotes, investorTxPaymentSource, setInvestorTxPaymentSource, investorTxToDelete, setInvestorTxToDelete, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, selectedInvestorId, setSelectedInvestorId, handleSaveInvestor, handleSaveInvestorTx, handleReinvestProfit, handleDeleteInvestor, openInvestorModal, closeInvestorModal,
     // Personal withdrawal (manager's daily personal expense)
     isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen, personalWithdrawalAmount, setPersonalWithdrawalAmount, personalWithdrawalMethod, setPersonalWithdrawalMethod, personalWithdrawalDate, setPersonalWithdrawalDate, personalWithdrawalNote, setPersonalWithdrawalNote, personalWithdrawalMode, setPersonalWithdrawalMode, editingPersonalExpenseTx, personalExpenseToDelete, setPersonalExpenseToDelete, openEditPersonalExpense, openPersonalWithdrawalModal, closePersonalWithdrawalModal, handleSavePersonalWithdrawal, handleDeletePersonalExpense, managerAvailableProfit, managerExists, 
     // Reconcile advance
@@ -582,9 +581,10 @@ export default function MainApp({ user }: {
         const totalQty = portfolioStats.usdt.purchasedQty + newUsdtQty;
         return totalQty <= 0 ? 0 : totalCost / totalQty;
     }, [shouldComputePortfolioSimulators, simEurQty, simEurDzdPrice, simEurUsdtRate, portfolioStats.usdt]);
-    // Use PAM ledger derivedProfit as the single source of truth for global net profit.
-    // This ensures the Dashboard total matches the amount distributed to investors.
-    const globalNetProfit = Number(pamLedger.totals.derivedProfit || 0);
+    // M2: previously this was pamLedger.totals.derivedProfit (gross trading profit
+    // before delivery expenses). The Dashboard label says "Net", so use the
+    // post-delivery netDistributableProfit from investorEconomics for honesty.
+    const globalNetProfit = Number(investorEconomics.totals.netDistributableProfit || pamLedger.totals.derivedProfit || 0);
     const investorLiability = useMemo(() => calculateInvestorLiability(derivedInvestors), [derivedInvestors]);
     const investorBreakdown = useMemo(() => calculateInvestorBreakdown(derivedInvestors), [derivedInvestors]);
     const dailyOverview = useMemo(() => {
@@ -706,6 +706,12 @@ export default function MainApp({ user }: {
             clientsCount: manualAssetClients.length
         };
     }, [assetClientBalances, manualAssetTransactions, manualAssets.length, manualAssetClients.length]);
+    const managerPendingAdvances = useMemo(
+        () => personalExpenses
+            .filter((tx) => tx.advanceState === 'pending')
+            .reduce((sum, tx) => sum + Math.max(0, Number(tx.amount || 0)), 0),
+        [personalExpenses]
+    );
     const capitalSnapshot = useMemo(() => computeCapitalSnapshot({
         caisseBalance: treasuryStats.caisse,
         baridiBalance: treasuryStats.baridi,
@@ -714,8 +720,9 @@ export default function MainApp({ user }: {
         totalAvances: totals.totalAvances,
         treasuryCards,
         investorLiability,
-        services: servicesSummary
-    }), [treasuryStats, portfolioStats, totals, treasuryCards, investorLiability, servicesSummary]);
+        services: servicesSummary,
+        managerPendingAdvances
+    }), [treasuryStats, portfolioStats, totals, treasuryCards, investorLiability, servicesSummary, managerPendingAdvances]);
     /* Legacy global search logic moved to useGlobalSearch.
                 id: `search_client_${client.id}`,
                 kind: 'client' as const,
@@ -2456,6 +2463,7 @@ export default function MainApp({ user }: {
         handleSaveInvestor,
         investorName, setInvestorName,
         investorInitialCapital, setInvestorInitialCapital,
+        investorInitialCapitalSource, setInvestorInitialCapitalSource,
         investorNotes, setInvestorNotes,
         isManager, setIsManager,
         derivedInvestors,

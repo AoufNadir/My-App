@@ -35,7 +35,9 @@ export function calculateInvestorBreakdown(investors: ReadonlyArray<Investor>): 
     return investors.reduce((acc, inv) => {
         if (inv.isManager) return acc;
         const capital = Number.isFinite(Number(inv.capitalInvested)) ? Math.max(0, Number(inv.capitalInvested || 0)) : 0;
-        const profit  = Number.isFinite(Number(inv.availableProfit))  ? Math.max(0, Number(inv.availableProfit  || 0)) : 0;
+        // M4: keep the sign on profit so a negative balance (investor owes the project)
+        // reduces the breakdown total instead of being silently dropped.
+        const profit  = Number.isFinite(Number(inv.availableProfit))  ? Number(inv.availableProfit  || 0) : 0;
         return { capital: acc.capital + capital, profits: acc.profits + profit, total: acc.total + capital + profit };
     }, { capital: 0, profits: 0, total: 0 });
 }
@@ -49,6 +51,9 @@ type CapitalSnapshotInput = {
     treasuryCards?: ReadonlyArray<TreasuryCard>;
     investorLiability?: number;
     services?: ServicesCapitalInput;
+    /** Sum of pending personal advances (manager has taken cash but not yet reconciled).
+     *  Treated as a receivable so totalCapital stays neutral during the pending period. */
+    managerPendingAdvances?: number;
 };
 
 export type CapitalSnapshot = {
@@ -63,6 +68,7 @@ export type CapitalSnapshot = {
     serviceReceivables: number;
     serviceClientAdvances: number;
     servicesCapitalImpact: number;
+    managerPendingAdvances: number;
     totalCapital: number;
     investorLiability: number;
     netOwnedCapital: number;
@@ -74,8 +80,13 @@ export function calculateInvestorLiability(investors: ReadonlyArray<Investor>): 
             return sum;
         const capitalInvested = Number(investor.capitalInvested || 0);
         const availableProfit = Number(investor.availableProfit || 0);
+        // Capital is always a non-negative debt to the investor.
         const capitalDebt = Number.isFinite(capitalInvested) ? Math.max(0, capitalInvested) : 0;
-        const profitDebt = Number.isFinite(availableProfit) ? Math.max(0, availableProfit) : 0;
+        // M4: profit can be negative (delivery burden exceeded their share). A negative
+        // profit is a receivable owed BY the investor — it offsets the project's debt
+        // to them. Clamping to zero would overstate investorLiability and understate
+        // netOwnedCapital. Use the signed value.
+        const profitDebt = Number.isFinite(availableProfit) ? availableProfit : 0;
         return sum + capitalDebt + profitDebt;
     }, 0);
 }
@@ -107,7 +118,7 @@ export function calculateServicesCapitalImpact(services?: ServicesCapitalInput):
     };
 }
 
-export function computeCapitalSnapshot({ caisseBalance, baridiBalance, portfolioValue, portfolioStats, totalDettes, totalAvances, treasuryCards = [], investorLiability = 0, services }: CapitalSnapshotInput): CapitalSnapshot {
+export function computeCapitalSnapshot({ caisseBalance, baridiBalance, portfolioValue, portfolioStats, totalDettes, totalAvances, treasuryCards = [], investorLiability = 0, services, managerPendingAdvances = 0 }: CapitalSnapshotInput): CapitalSnapshot {
     const normalizedCaisse = toFiniteNumber(caisseBalance);
     const normalizedBaridi = toFiniteNumber(baridiBalance);
     const cashTotal = normalizedCaisse + normalizedBaridi;
@@ -121,11 +132,13 @@ export function computeCapitalSnapshot({ caisseBalance, baridiBalance, portfolio
         serviceClientAdvances,
         servicesCapitalImpact
     } = calculateServicesCapitalImpact(services);
+    const pendingAdvances = Math.max(0, toFiniteNumber(managerPendingAdvances));
     const totalCapital = cashTotal
         + stockValue
         + treasuryCardsTotal
         + netClientPosition
-        + servicesCapitalImpact;
+        + servicesCapitalImpact
+        + pendingAdvances;
     const investorDebt = Math.max(0, toFiniteNumber(investorLiability));
     const netOwnedCapital = totalCapital - investorDebt;
     const normalizeZero = (value: number) => Math.abs(value) < EPSILON ? 0 : value;
@@ -141,6 +154,7 @@ export function computeCapitalSnapshot({ caisseBalance, baridiBalance, portfolio
         serviceReceivables,
         serviceClientAdvances,
         servicesCapitalImpact,
+        managerPendingAdvances: pendingAdvances,
         totalCapital,
         investorLiability: investorDebt,
         netOwnedCapital

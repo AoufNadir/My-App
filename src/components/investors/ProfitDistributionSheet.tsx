@@ -13,13 +13,15 @@ type Props = {
     isOpen: boolean;
     onClose: () => void;
     investors: ActiveInvestor[];
-    suggestedTotal: number;   // netDistributableProfit from economics
+    suggestedTotal: number;
     userDocRef: FirestoreDocumentReference;
     setAlert: (msg: string) => void;
+    treasuryStats: { caisse: number; baridi: number };
 };
 
-export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedTotal, userDocRef, setAlert }: Props) {
+export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedTotal, userDocRef, setAlert, treasuryStats }: Props) {
     const [totalInput, setTotalInput] = useState('');
+    const [paymentSource, setPaymentSource] = useState<'Caisse' | 'BaridiMob'>('Caisse');
     const [isSaving, setIsSaving] = useState(false);
     const [confirmed, setConfirmed] = useState(false);
 
@@ -37,37 +39,56 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
     const distribution = useMemo(() =>
         activeNonManagers.map(inv => {
             const share = Number(inv.sharePercentage || 0);
-            // Normalize relative to non-manager share pool
             const normalizedShare = totalSharePct > 0 ? share / totalSharePct : 0;
             const amount = Math.round(totalAmount * normalizedShare);
-            return { inv, share, normalizedShare, amount };
+            const availableProfit = Math.max(0, Number(inv.availableProfit || 0));
+            const exceedsAvailable = amount > availableProfit + 0.005;
+            return { inv, share, normalizedShare, amount, availableProfit, exceedsAvailable };
         }).filter(d => d.amount > 0),
         [activeNonManagers, totalAmount, totalSharePct]
     );
 
     const totalDistributed = distribution.reduce((s, d) => s + d.amount, 0);
+    const hasExceedingRow = distribution.some(d => d.exceedsAvailable);
+    const sourceBalance = paymentSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+    const exceedsCash = totalDistributed > sourceBalance + 0.005;
+    const canConfirm = distribution.length > 0 && totalDistributed > 0 && !hasExceedingRow && !exceedsCash;
 
     const handleConfirm = async () => {
-        if (distribution.length === 0 || totalDistributed <= 0) return;
+        if (!canConfirm) return;
         setIsSaving(true);
         try {
             const { timestamp, date, time } = now();
             const batch = db.batch();
             for (const { inv, amount } of distribution) {
                 if (amount <= 0) continue;
-                const txRef = userDocRef.collection('investor_transactions').doc();
-                batch.set(txRef, {
+                const investorTxRef = userDocRef.collection('investor_transactions').doc();
+                const treasuryTxRef = userDocRef.collection('treasury_txs').doc();
+                batch.set(investorTxRef, {
                     investorId: inv.id,
-                    type: 'profit_distribution',
+                    type: 'withdraw_profit',
                     amount,
+                    paymentSource,
+                    linkedTreasuryTxId: treasuryTxRef.id,
                     date,
                     time,
                     timestamp,
                     notes: `Distribution groupée — ${date}`,
                 });
+                batch.set(treasuryTxRef, {
+                    timestamp,
+                    date,
+                    time,
+                    type: 'Retrait',
+                    source: paymentSource,
+                    amount,
+                    notes: `Retrait profit investisseur: ${inv.name} (distribution groupée)`,
+                    linkedInvestorTxId: investorTxRef.id,
+                    origin: 'investor_profit_withdrawal'
+                });
             }
             await batch.commit();
-            setAlert(`✅ Distribution enregistrée — ${distribution.length} investisseur${distribution.length > 1 ? 's' : ''} · ${totalDistributed.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD`);
+            setAlert(`✅ Distribution enregistrée — ${distribution.length} investisseur${distribution.length > 1 ? 's' : ''} · ${totalDistributed.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD depuis ${paymentSource}`);
             setConfirmed(false);
             setTotalInput('');
             onClose();
@@ -88,7 +109,6 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
         <BottomSheet isOpen={isOpen} onClose={resetAndClose} title="Plan de distribution">
             <div className="px-4 pb-6 space-y-5">
 
-                {/* Total amount to distribute */}
                 <div>
                     <MoneyField
                         label="Montant total à distribuer (DZD)"
@@ -111,35 +131,51 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                     )}
                 </div>
 
-                {/* Distribution table */}
+                <div>
+                    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-500">Source de paiement</p>
+                    <div className="grid grid-cols-2 gap-2">
+                        {(['Caisse', 'BaridiMob'] as const).map(src => (
+                            <button
+                                key={src}
+                                type="button"
+                                onClick={() => setPaymentSource(src)}
+                                className={`rounded-xl border px-3 py-3 text-sm font-semibold transition-colors ${paymentSource === src ? 'border-primary bg-primary/10 text-primary' : 'border-border text-neutral-500'}`}
+                            >
+                                <span className="block">{src}</span>
+                                <span className="block text-[10px] font-normal text-neutral-400 mt-0.5">
+                                    {(src === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
                 {totalAmount > 0 && distribution.length > 0 && (
                     <div className="rounded-xl border border-border overflow-hidden">
-                        {/* Header */}
                         <div className="grid grid-cols-[1fr_auto_auto] gap-3 bg-surface-muted px-4 py-2 text-[10px] font-bold uppercase text-neutral-400 tracking-wide">
                             <span>Investisseur</span>
                             <span className="text-right">Part</span>
                             <span className="text-right w-28">Montant</span>
                         </div>
-                        {/* Rows */}
                         <div className="divide-y divide-neutral-100">
-                            {distribution.map(({ inv, normalizedShare, amount }) => (
-                                <div key={inv.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3">
+                            {distribution.map(({ inv, normalizedShare, amount, availableProfit, exceedsAvailable }) => (
+                                <div key={inv.id} className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 ${exceedsAvailable ? 'bg-danger/5' : ''}`}>
                                     <div className="min-w-0">
                                         <p className="text-sm font-semibold truncate">{inv.name}</p>
-                                        <p className="text-[10px] text-neutral-400">
-                                            Disponible actuel : {Number(inv.availableProfit || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD
+                                        <p className={`text-[10px] ${exceedsAvailable ? 'text-danger font-semibold' : 'text-neutral-400'}`}>
+                                            Disponible : {availableProfit.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD
+                                            {exceedsAvailable && ' · dépassé'}
                                         </p>
                                     </div>
                                     <span className="text-xs font-bold text-neutral-500 tabular-nums">
                                         {(normalizedShare * 100).toFixed(1)}%
                                     </span>
                                     <div className="text-right w-28">
-                                        <CurrencyAmount value={amount} currency="DZD" semantic="profit" size="md" decimals={0}/>
+                                        <CurrencyAmount value={amount} currency="DZD" semantic={exceedsAvailable ? 'loss' : 'profit'} size="md" decimals={0}/>
                                     </div>
                                 </div>
                             ))}
                         </div>
-                        {/* Total */}
                         <div className="flex items-center justify-between gap-3 border-t border-border bg-surface-muted px-4 py-3">
                             <span className="text-sm font-bold text-neutral-700">Total distribué</span>
                             <CurrencyAmount value={totalDistributed} currency="DZD" semantic="profit" size="lg" decimals={0}/>
@@ -153,12 +189,19 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                     </p>
                 )}
 
-                {/* Action buttons */}
+                {(hasExceedingRow || exceedsCash) && distribution.length > 0 && (
+                    <div className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger font-medium">
+                        {hasExceedingRow && <p>⚠️ Une ou plusieurs lignes dépassent le profit disponible.</p>}
+                        {exceedsCash && <p>⚠️ Solde {paymentSource} insuffisant ({sourceBalance.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD).</p>}
+                    </div>
+                )}
+
                 {distribution.length > 0 && totalDistributed > 0 && (
                     !confirmed ? (
                         <Button
                             type="button"
                             onClick={() => setConfirmed(true)}
+                            disabled={!canConfirm}
                             className="w-full font-bold gap-2"
                         >
                             Confirmer la distribution
@@ -166,7 +209,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                     ) : (
                         <div className="space-y-2">
                             <div className="rounded-xl border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning font-medium text-center">
-                                ⚠️ Cette action va créer {distribution.length} transaction{distribution.length > 1 ? 's' : ''} et ne peut pas être annulée facilement.
+                                ⚠️ Cette action va créer {distribution.length} retrait{distribution.length > 1 ? 's' : ''} de profit + {distribution.length} mouvement{distribution.length > 1 ? 's' : ''} de trésorerie depuis {paymentSource}.
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <Button type="button" variant="outline" onClick={() => setConfirmed(false)} className="w-full">
@@ -175,7 +218,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                                 <Button
                                     type="button"
                                     onClick={handleConfirm}
-                                    disabled={isSaving}
+                                    disabled={isSaving || !canConfirm}
                                     className="w-full font-bold bg-financial-profit text-white hover:bg-financial-profit/90"
                                 >
                                     {isSaving ? 'Enregistrement…' : '✓ Confirmer'}

@@ -9,7 +9,7 @@ import { TransactionPreviewCard, type PreviewRow } from '../ui/TransactionPrevie
 import { parseAndEvaluate } from '../../utils';
 import { formatMoney } from '../../pages/shared/pageFormat';
 type MainInvestorDialogsProps = Record<string, any>;
-export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, handleSaveInvestor, investorName, setInvestorName, fieldBase, investorInitialCapital, setInvestorInitialCapital, investorNotes, setInvestorNotes, isManager, setIsManager, derivedInvestors, selectedInvestorId, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorTxType, investorTxAmount, setInvestorTxAmount, investorTxPaymentSource, setInvestorTxPaymentSource, treasuryStats, investorTxNotes, setInvestorTxNotes, handleInvestorTransaction, t, investorToDelete, setInvestorToDelete, handleDeleteInvestor, investorTxToDelete, setInvestorTxToDelete, handleDeleteInvestorTx, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, handleReinvestProfit, setAlert }: MainInvestorDialogsProps) {
+export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, handleSaveInvestor, investorName, setInvestorName, fieldBase, investorInitialCapital, setInvestorInitialCapital, investorInitialCapitalSource, setInvestorInitialCapitalSource, investorNotes, setInvestorNotes, isManager, setIsManager, derivedInvestors, selectedInvestorId, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorTxType, investorTxAmount, setInvestorTxAmount, investorTxPaymentSource, setInvestorTxPaymentSource, treasuryStats, investorTxNotes, setInvestorTxNotes, handleInvestorTransaction, t, investorToDelete, setInvestorToDelete, handleDeleteInvestor, investorTxToDelete, setInvestorTxToDelete, handleDeleteInvestorTx, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, handleReinvestProfit, setAlert }: MainInvestorDialogsProps) {
     const headerClass = 'sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
     const footerClass = 'sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
     const cancelBtn = 'flex-1 rounded-xl bg-neutral-100 py-3 font-bold text-neutral-700 transition-colors hover:bg-neutral-200';
@@ -34,6 +34,33 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                                 <Label>Capital Initial (DZD)</Label>
                                 <NumberInput value={investorInitialCapital} onChange={e => setInvestorInitialCapital(e.target.value)} className="mt-1" placeholder="0.00"/>
                             </div>)}
+
+                        {!editingInvestor && parseAndEvaluate(investorInitialCapital) > 0 && (
+                            <div>
+                                <Label>Source du capital</Label>
+                                <div className="mt-1 grid grid-cols-3 gap-2">
+                                    {([
+                                        { v: 'none', label: 'Solde d’ouverture' },
+                                        { v: 'Caisse', label: 'Caisse' },
+                                        { v: 'BaridiMob', label: 'BaridiMob' }
+                                    ] as const).map(opt => (
+                                        <button
+                                            key={opt.v}
+                                            type="button"
+                                            onClick={() => setInvestorInitialCapitalSource(opt.v)}
+                                            className={`rounded-xl border px-2 py-2 text-xs font-semibold transition-colors ${investorInitialCapitalSource === opt.v ? 'border-primary bg-primary/10 text-primary' : 'border-border text-neutral-500'}`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="mt-1 text-[10px] text-neutral-400">
+                                    {investorInitialCapitalSource === 'none'
+                                        ? 'Aucun cash ajouté — le capital est traité comme un solde d’ouverture.'
+                                        : `Le capital sera ajouté à ${investorInitialCapitalSource}.`}
+                                </p>
+                            </div>
+                        )}
 
                         <div>
                             <Label>Notes</Label>

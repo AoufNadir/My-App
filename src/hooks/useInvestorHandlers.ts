@@ -18,6 +18,10 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     const [isManager, setIsManager] = useState(false);
     const [investorEmail, setInvestorEmail] = useState('');
     const [investorPhone, setInvestorPhone] = useState('');
+    // M3: payment source for the opening capital. 'none' keeps the legacy
+    // behavior (treat as opening equity, no cash movement). Caisse/BaridiMob
+    // adds a matching treasury_tx so totalCapital reflects the cash inflow.
+    const [investorInitialCapitalSource, setInvestorInitialCapitalSource] = useState<'none' | 'Caisse' | 'BaridiMob'>('none');
     // Transaction state
     const [isInvestorTxModalOpen, setIsInvestorTxModalOpen] = useState(false);
     const [investorTxAmount, setInvestorTxAmount] = useState('');
@@ -421,6 +425,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             setIsManager(false);
             setInvestorEmail('');
             setInvestorPhone('');
+            setInvestorInitialCapitalSource('none');
         }
         setIsInvestorModalOpen(true);
     };
@@ -473,15 +478,37 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 };
                 batch.set(ref, data);
                 if (capital > 0) {
-                    batch.set(userDocRef.collection('investor_transactions').doc(), {
+                    const { date: depositDate, time: depositTime, timestamp: depositTs } = now();
+                    const investorTxRef = userDocRef.collection('investor_transactions').doc();
+                    const investorTxPayload: any = {
                         investorId: ref.id,
                         type: 'deposit_capital',
                         amount: capital,
-                        date: now().date,
-                        time: now().time,
-                        timestamp: now().timestamp,
+                        date: depositDate,
+                        time: depositTime,
+                        timestamp: depositTs,
                         notes: 'Capital Initial'
-                    });
+                    };
+                    // M3: when the user picks Caisse/BaridiMob the cash actually moved
+                    // into the project — record it in treasury so totalCapital reflects
+                    // the inflow. 'none' keeps the legacy opening-equity semantics.
+                    if (investorInitialCapitalSource !== 'none') {
+                        const treasuryRef = userDocRef.collection('treasury_txs').doc();
+                        investorTxPayload.paymentSource = investorInitialCapitalSource;
+                        investorTxPayload.linkedTreasuryTxId = treasuryRef.id;
+                        batch.set(treasuryRef, {
+                            timestamp: depositTs,
+                            date: depositDate,
+                            time: depositTime,
+                            type: 'Ajout',
+                            source: investorInitialCapitalSource,
+                            amount: capital,
+                            notes: `Capital initial: ${investorName.trim()}`,
+                            linkedInvestorTxId: investorTxRef.id,
+                            origin: 'investor_capital_deposit'
+                        });
+                    }
+                    batch.set(investorTxRef, investorTxPayload);
                 }
                 setAlert('Investor added.');
             }
@@ -525,11 +552,19 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         // Retrait de capital: valider que la trésorerie et le capital sont suffisants.
         if (investorTxType === 'withdraw_capital') {
             const capitalInvested = Number(selectedInvestor.capitalInvested || 0);
+            const availableProfit = Number(selectedInvestor.availableProfit || 0);
             const sourceBalance = investorTxPaymentSource === 'Caisse'
                 ? Number(treasuryStats.caisse || 0)
                 : Number(treasuryStats.baridi || 0);
             if (amount > capitalInvested + 0.005) {
                 setAlert('Amount exceeds invested capital.');
+                return;
+            }
+            // M1: an investor whose accumulated profit went negative (e.g. delivery
+            // expense burden exceeded their share) cannot withdraw capital without
+            // first reconciling that debt — otherwise the project loses money.
+            if (availableProfit < -0.005) {
+                setAlert(`Cet investisseur a un profit négatif (${availableProfit.toFixed(2)} DZD). Régulariser avant retrait de capital.`);
                 return;
             }
             if (amount > sourceBalance + 0.005) {
@@ -671,13 +706,28 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 if (txSnap.empty)
                     break;
                 const batch = db.batch();
+                // M6: a personal expense advance treasury_tx may have a paired
+                // personal_expense_return row. The return is linked to the advance
+                // (not directly to the investor_tx), so we must look it up and
+                // delete it explicitly — otherwise it orphans when the manager
+                // investor is removed.
+                const linkedTreasuryIds: string[] = [];
                 txSnap.docs.forEach((doc) => {
                     const txData = doc.data() as InvestorTransaction;
                     if (txData.linkedTreasuryTxId) {
+                        linkedTreasuryIds.push(txData.linkedTreasuryTxId);
                         batch.delete(userDocRef.collection('treasury_txs').doc(txData.linkedTreasuryTxId));
                     }
                     batch.delete(doc.ref);
                 });
+                for (const treasuryId of linkedTreasuryIds) {
+                    const returnDocs = await userDocRef
+                        .collection('treasury_txs')
+                        .where('linkedTreasuryTxId', '==', treasuryId)
+                        .where('origin', '==', 'personal_expense_return')
+                        .get();
+                    returnDocs.forEach((doc) => batch.delete(doc.ref));
+                }
                 if (!investorDeleted) {
                     batch.delete(investorRef);
                     investorDeleted = true;
@@ -722,6 +772,8 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         setInvestorEmail,
         investorPhone,
         setInvestorPhone,
+        investorInitialCapitalSource,
+        setInvestorInitialCapitalSource,
         isInvestorTxModalOpen,
         setIsInvestorTxModalOpen,
         investorTxAmount,

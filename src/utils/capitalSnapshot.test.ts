@@ -139,4 +139,25 @@ const serviceAlreadyInReceivablesSnapshot = computeCapitalSnapshot({
 assert.equal(serviceAlreadyInReceivablesSnapshot.servicesCapitalImpact, 0);
 assert.equal(serviceAlreadyInReceivablesSnapshot.totalCapital, 3324812);
 
+// H2: pending manager advances are tracked as a receivable so totalCapital
+// stays neutral while cash is reduced.
+const pendingAdvanceSnapshot = computeCapitalSnapshot({
+    caisseBalance: 786200 - 10000, // manager took 10k as a pending advance
+    baridiBalance: 9650,
+    portfolioValue: 1520084,
+    totalDettes: -939658,
+    totalAvances: 9880,
+    treasuryCards: [],
+    investorLiability: investorBreakdown.total,
+    services: {
+        amountToReceive: 79100,
+        clientAdvances: 0
+    },
+    managerPendingAdvances: 10000
+});
+
+assert.equal(pendingAdvanceSnapshot.managerPendingAdvances, 10000);
+assert.equal(pendingAdvanceSnapshot.totalCapital, 3324812);
+assert.equal(pendingAdvanceSnapshot.netOwnedCapital, 2916678);
+
 console.log('capitalSnapshot unit tests passed');
