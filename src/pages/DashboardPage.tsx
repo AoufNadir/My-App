@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { CurrencyAmount, type AmountSemantic } from '../components/financial/CurrencyAmount';
 import { HeroKpiCard } from '../components/ui/HeroKpiCard';
+import { Skeleton } from '../components/ui/Skeleton';
 import { AlertTriangleIcon } from '../components/icons/AlertTriangleIcon';
 import { BanknotesIcon } from '../components/icons/BanknotesIcon';
 import { ArrowRightLeftIcon } from '../components/icons/ArrowRightLeftIcon';
@@ -361,7 +362,7 @@ function DashboardSyncState({ title, body, actions, }: {
             </div>
           </div>
           <div className="mt-4 grid gap-2">
-            {[0, 1, 2].map((item) => (<div key={item} className="h-10 animate-pulse rounded-lg bg-neutral-100"/>))}
+            {[0, 1, 2].map((item) => (<Skeleton key={item} height={40} className="rounded-lg"/>))}
           </div>
         </CardContent>
       </Card>

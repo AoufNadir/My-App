@@ -1730,8 +1730,17 @@ export default function MainApp({ user }: {
     };
     const bgApp = "bg-app-bg text-neutral-900";
     const fieldBase = "bg-surface-muted border-border text-neutral-900 focus:ring-primary";
-    const detectAlertTone = (message: string): 'success' | 'error' | 'info' => {
-        const normalized = (message || '')
+    const detectAlertTone = (message: string): 'success' | 'error' | 'warning' | 'info' => {
+        // The U1 unification put a category emoji at the start of every alert,
+        // so emoji-first detection is the cheapest and most reliable signal.
+        const trimmed = (message || '').trim();
+        if (trimmed.startsWith('\u2705')) return 'success';
+        if (trimmed.startsWith('\u274c')) return 'error';
+        if (trimmed.startsWith('\u26a0\ufe0f') || trimmed.startsWith('\u26a0')) return 'warning';
+        if (trimmed.startsWith('\u2139\ufe0f') || trimmed.startsWith('\u2139')) return 'info';
+        // Fallback: classify by accent-stripped keywords for any pre-emoji
+        // messages still in the wild.
+        const normalized = trimmed
             .toLowerCase()
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '');
@@ -1758,7 +1767,9 @@ export default function MainApp({ user }: {
         ? ('border-financial-profit/40 bg-success-bg text-financial-profit')
         : alertTone === 'error'
             ? ('border-financial-loss/40 bg-danger-bg text-financial-loss')
-            : ('border-info/40 bg-info-bg text-info');
+            : alertTone === 'warning'
+                ? ('border-warning/40 bg-warning-bg text-warning')
+                : ('border-info/40 bg-info-bg text-info');
     /* Legacy persisted navigation/search effects moved to hooks.
     useEffect(() => {
         const p = window.location.pathname;
