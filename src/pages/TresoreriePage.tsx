@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { TreasuryCard, TreasuryTx } from '../types';
+import { useMemo, useState } from 'react';
+import { TreasuryCard, TreasuryTx, PortfolioStats } from '../types';
 import { TreasurySummarySection } from '../components/treasury/TreasurySummarySection';
 import { TreasuryCollectionsSection } from '../components/treasury/TreasuryCollectionsSection';
 import { HeroKpiCard } from '../components/ui/HeroKpiCard';
@@ -13,28 +13,226 @@ import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useLanguage } from '../contexts/LanguageContext';
-import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
+import type { CapitalSnapshot } from '../utils/capitalSnapshot';
+
+function formatCountdown(ms: number): string {
+    if (ms <= 0) return '00h 00min';
+    const totalMinutes = Math.floor(ms / 60000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}min`;
+}
+
+function formatTime(ts: number): string {
+    const d = new Date(ts);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function formatUnlockLabel(lockedUntil: number): string {
+    const now = new Date();
+    const unlockDate = new Date(lockedUntil);
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const tomorrowStart = todayStart + 86400000;
+    const dayAfterStart = tomorrowStart + 86400000;
+    const time = formatTime(lockedUntil);
+    if (lockedUntil < tomorrowStart) return `aujourd'hui à ${time}`;
+    if (lockedUntil < dayAfterStart) return `demain à ${time}`;
+    return `le ${unlockDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} à ${time}`;
+}
+
+export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecentBuys, onApplyLock24h }: {
+    transactions?: any[];
+    portfolioStats?: PortfolioStats;
+    hasUnmigratedRecentBuys?: boolean;
+    onApplyLock24h?: () => void;
+}) {
+    const [expanded, setExpanded] = useState(false);
+    const nowMs = Date.now();
+
+    // Compute USDT stats directly from transactions (primary source)
+    let available = 0;
+    let locked = 0;
+    const lockedBatches: Array<{ txId: string; quantity: number; lockedUntil: number }> = [];
+
+    if (transactions && transactions.length > 0) {
+        const usdtTxs = transactions.filter((tx: any) =>
+            (tx.currency === 'USDT' || tx.currency === 'USD' || !tx.currency) &&
+            ['buy', 'sell', 'Ajout Manuel', 'Retrait Manuel'].includes(tx.type)
+        );
+        for (const tx of usdtTxs) {
+            const qty = Math.round(Math.abs(Number(tx.quantity || 0)) * 100) / 100;
+            if (qty <= 0) continue;
+            if (tx.type === 'buy' || tx.type === 'Ajout Manuel') {
+                const isStillLocked = tx.type === 'buy' && tx.lockedUntil && tx.lockedUntil > nowMs;
+                if (isStillLocked) {
+                    locked = Math.round((locked + qty) * 100) / 100;
+                    lockedBatches.push({ txId: tx.id, quantity: qty, lockedUntil: tx.lockedUntil });
+                } else {
+                    available = Math.round((available + qty) * 100) / 100;
+                }
+            } else {
+                available = Math.round((available - qty) * 100) / 100;
+            }
+        }
+        available = Math.max(0, available);
+        locked = Math.max(0, locked);
+    } else if (portfolioStats) {
+        available = portfolioStats.usdt.available;
+        locked = portfolioStats.usdt.locked;
+        portfolioStats.usdt.lockedBatches.forEach(b => lockedBatches.push(b));
+    }
+
+    const total = available + locked;
+
+    if (total < 0.005) return null;
+
+    const sortedBatches = [...lockedBatches].sort((a, b) => a.lockedUntil - b.lockedUntil);
+    const nextBatch = sortedBatches[0];
+    const nextReleaseMs = nextBatch ? nextBatch.lockedUntil - nowMs : 0;
+
+    return (
+        <Card>
+            <CardHeader className="p-4 pb-3">
+                <div className="flex items-center justify-between gap-2">
+                    <SectionHeading icon={<span className="text-sm font-bold text-primary">$</span>}>
+                        Stock USDT
+                    </SectionHeading>
+                </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                {/* Migration banner */}
+                {hasUnmigratedRecentBuys && onApplyLock24h && (
+                    <div className="flex items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                        <div className="min-w-0">
+                            <p className="text-xs font-semibold text-amber-800">Achats récents non verrouillés</p>
+                            <p className="text-xs text-amber-600">Des achats d'aujourd'hui/hier n'ont pas de restriction 24h.</p>
+                        </div>
+                        <button type="button" onClick={onApplyLock24h} className="shrink-0 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-600 transition-colors">
+                            Appliquer
+                        </button>
+                    </div>
+                )}
+
+                {/* Main KPIs */}
+                <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-xl bg-surface-muted p-3 text-center">
+                        <p className="text-[10px] font-medium text-neutral-500 mb-0.5">Total</p>
+                        <p className="text-base font-bold text-neutral-800 tabular-nums" dir="ltr">
+                            {total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-[10px] text-neutral-400">USDT</p>
+                    </div>
+                    <div className="rounded-xl bg-financial-profit-bg p-3 text-center">
+                        <p className="text-[10px] font-medium text-financial-profit mb-0.5">Disponible</p>
+                        <p className="text-base font-bold text-financial-profit tabular-nums" dir="ltr">
+                            {available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-[10px] text-financial-profit/70">USDT</p>
+                    </div>
+                    <div className={`rounded-xl p-3 text-center ${locked > 0 ? 'bg-amber-50' : 'bg-surface-muted'}`}>
+                        <p className={`text-[10px] font-medium mb-0.5 ${locked > 0 ? 'text-amber-600' : 'text-neutral-400'}`}>Bloqué</p>
+                        <p className={`text-base font-bold tabular-nums ${locked > 0 ? 'text-amber-600' : 'text-neutral-400'}`} dir="ltr">
+                            {locked.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className={`text-[10px] ${locked > 0 ? 'text-amber-500/70' : 'text-neutral-400'}`}>USDT</p>
+                    </div>
+                </div>
+
+                {/* Next release banner */}
+                {locked > 0 && nextBatch && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2 min-w-0">
+                                <span className="text-amber-500 text-sm mt-0.5">⏳</span>
+                                <div className="min-w-0">
+                                    <p className="text-xs font-semibold text-amber-700">Prochain déblocage</p>
+                                    <p className="text-xs text-amber-600 tabular-nums mt-0.5" dir="ltr">
+                                        {nextBatch.quantity.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT
+                                    </p>
+                                    <p className="text-xs text-amber-500 mt-0.5">
+                                        Disponible {formatUnlockLabel(nextBatch.lockedUntil)}
+                                    </p>
+                                </div>
+                            </div>
+                            <span className="text-sm font-bold text-amber-700 tabular-nums shrink-0 mt-0.5" dir="ltr">
+                                {formatCountdown(nextReleaseMs)}
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Locked batches list */}
+                {locked > 0 && sortedBatches.length > 0 ? (
+                    <div>
+                        <button
+                            type="button"
+                            onClick={() => setExpanded(e => !e)}
+                            className="flex w-full items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-700 transition-colors py-1"
+                        >
+                            <span className="text-amber-500">🔒</span>
+                            Lots bloqués ({sortedBatches.length})
+                            <span className="ml-auto">{expanded ? '▲' : '▼'}</span>
+                        </button>
+                        {expanded && (
+                            <div className="mt-1 space-y-1.5">
+                                {sortedBatches.map((batch) => {
+                                    const remainingMs = batch.lockedUntil - nowMs;
+                                    const purchaseTime = formatTime(batch.lockedUntil - 24 * 60 * 60 * 1000);
+                                    const unlockLabel = formatUnlockLabel(batch.lockedUntil);
+                                    return (
+                                        <div key={batch.txId} className="rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2.5">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-semibold text-neutral-700 tabular-nums" dir="ltr">
+                                                        {batch.quantity.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT
+                                                    </p>
+                                                    <p className="text-[11px] text-neutral-500 mt-0.5">
+                                                        Achat: <span className="tabular-nums font-medium">{purchaseTime}</span>
+                                                        <span className="mx-1">·</span>
+                                                        Déblocage: <span className="tabular-nums font-medium">{unlockLabel}</span>
+                                                    </p>
+                                                </div>
+                                                <span className="text-xs font-semibold text-amber-600 tabular-nums shrink-0 mt-0.5" dir="ltr">
+                                                    dans {formatCountdown(remainingMs)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                ) : locked === 0 && total > 0 ? (
+                    <div className="flex items-center gap-2 rounded-xl border border-success/20 bg-financial-profit-bg px-3 py-2.5">
+                        <span className="text-financial-profit text-sm">✓</span>
+                        <div>
+                            <p className="text-xs font-semibold text-financial-profit">Aucun lot bloqué actuellement</p>
+                            <p className="text-xs text-financial-profit/70">Tout le stock USDT est disponible</p>
+                        </div>
+                    </div>
+                ) : null}
+            </CardContent>
+        </Card>
+    );
+}
 
 const DAY_SHORT = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
 type TresoreriePageProps = {
     caisseBalance: number;
     baridiBalance: number;
-    totalDettes: number;
-    totalAvances: number;
-    investorLiability?: number;
     investorBreakdown?: { capital: number; profits: number; total: number };
-    portfolioValue: number;
+    capitalSnapshot: CapitalSnapshot;
     openTreasuryModal: () => void;
     treasuryCards: TreasuryCard[];
     openTreasuryCardModal: (card?: TreasuryCard) => void;
     setTreasuryCardToDelete: (card: TreasuryCard | null) => void;
     openTreasuryBalanceEditModal: (asset: 'Caisse' | 'BaridiMob') => void;
     openDeliveryExpenseModal?: () => void;
-    servicesSummary?: { netCapitalImpact?: number };
     treasuryTransactions?: TreasuryTx[];
+    [key: string]: any;
 };
-export function TresoreriePage({ caisseBalance, baridiBalance, totalDettes, totalAvances, investorLiability = 0, investorBreakdown, portfolioValue, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, servicesSummary, treasuryTransactions = [] }: TresoreriePageProps) {
+export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown, capitalSnapshot, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, treasuryTransactions = [] }: TresoreriePageProps) {
     const { t } = useLanguage();
 
     // Last 7 days cash flow
@@ -60,17 +258,6 @@ export function TresoreriePage({ caisseBalance, baridiBalance, totalDettes, tota
         const maxVal = Math.max(...result.flatMap((r) => [r.cashIn, r.cashOut]), 1);
         return { days: result, maxVal, totalIn: result.reduce((s, r) => s + r.cashIn, 0), totalOut: result.reduce((s, r) => s + r.cashOut, 0) };
     }, [treasuryTransactions]);
-    const servicesCapitalImpact = Number(servicesSummary?.netCapitalImpact || 0);
-    const capitalSnapshot = useMemo(() => computeCapitalSnapshot({
-        caisseBalance,
-        baridiBalance,
-        portfolioValue,
-        totalDettes,
-        totalAvances,
-        treasuryCards,
-        investorLiability,
-        servicesCapitalImpact
-    }), [caisseBalance, baridiBalance, portfolioValue, totalDettes, totalAvances, treasuryCards, investorLiability, servicesCapitalImpact]);
     const secondaryItems = [
         { label: t('finance.realCapital') as string, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const },
         // Split investor liability: capital invested vs undistributed profits
@@ -78,7 +265,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, totalDettes, tota
         { label: 'Profits non retirés', value: investorBreakdown?.profits ?? 0, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
         { label: t('common.caisseBalance') as string, value: caisseBalance, currency: 'DZD' as const, semantic: 'plain' as const },
         { label: t('common.baridiBalance') as string, value: baridiBalance, currency: 'DZD' as const, semantic: 'plain' as const },
-        { label: t('finance.stock') as string, value: portfolioValue, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
+        { label: t('finance.stock') as string, value: capitalSnapshot.stockValue, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
         { label: t('finance.treasuryCards') as string, value: capitalSnapshot.treasuryCardsTotal, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
         { label: t('nav.services') as string, value: capitalSnapshot.servicesCapitalImpact, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true },
         { label: t('finance.netPosition') as string, value: capitalSnapshot.netClientPosition, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true }

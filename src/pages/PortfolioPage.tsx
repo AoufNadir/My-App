@@ -10,6 +10,7 @@ import { PencilIcon } from '../components/icons/PencilIcon';
 import { PamSimulatorCard } from '../components/portfolio/PamSimulatorCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Tx, ClientDzd, ClientTransactionDzd } from '../types';
+import { USDTStockCard } from './TresoreriePage';
 
 type PortfolioPageProps = {
     statsView: 'usdt' | 'clients';
@@ -158,11 +159,12 @@ export function PortfolioPage(props: PortfolioPageProps) {
         simSellEurToDzdRate,
         setSimSellEurToDzdRate,
         openPortfolioBalanceEditModal,
+        transactions,
     } = props;
     const { t } = useLanguage();
     const normalizeNearZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : value);
-    const usdtAvail = normalizeNearZero(portfolioStats.usdt.available);
-    const eurAvail = normalizeNearZero(portfolioStats.eur.available);
+    const usdtAvail = normalizeNearZero((portfolioStats.usdt.available || 0) + (portfolioStats.usdt.locked || 0));
+    const eurAvail = normalizeNearZero((portfolioStats.eur.available || 0) + (portfolioStats.eur.locked || 0));
     const usdtValue = usdtAvail * Number(portfolioStats.usdt.avgBuy || 0);
     const eurValue = eurAvail * Number(portfolioStats.eur.avgBuy || 0);
     const stockValue = usdtValue + eurValue;
@@ -230,6 +232,8 @@ export function PortfolioPage(props: PortfolioPageProps) {
                     />
                 </CardContent>
             </Card>
+
+            <USDTStockCard transactions={transactions} portfolioStats={portfolioStats} />
 
             <PamSimulatorCard
                 portfolioStats={portfolioStats}

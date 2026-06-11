@@ -135,10 +135,20 @@ function MainUtilityDialogsComponent({
     const closeTreasuryCard = () => setIsTreasuryCardModalOpen(false);
 
     const [monthlyGoalDraft, setMonthlyGoalDraft] = useState('');
+    const [minGoalDraft, setMinGoalDraft] = useState('');
+    const [tierVipDraft, setTierVipDraft] = useState('');
+    const [tierRegularDraft, setTierRegularDraft] = useState('');
+    const [tierPetitDraft, setTierPetitDraft] = useState('');
+
     useEffect(() => {
         if (isSettingsModalOpen) {
             const stored = localStorage.getItem(MONTHLY_GOAL_KEY);
             setMonthlyGoalDraft(stored ? String(Math.round(Number(stored))) : '');
+            const storedMin = localStorage.getItem('app_min_monthly_goal');
+            setMinGoalDraft(storedMin ? String(Math.round(Number(storedMin))) : '');
+            setTierVipDraft(localStorage.getItem('app_tier_vip') || '5000');
+            setTierRegularDraft(localStorage.getItem('app_tier_regular') || '1000');
+            setTierPetitDraft(localStorage.getItem('app_tier_petit') || '150');
         }
     }, [isSettingsModalOpen]);
 
@@ -150,6 +160,23 @@ function MainUtilityDialogsComponent({
             localStorage.removeItem(MONTHLY_GOAL_KEY);
         }
         window.dispatchEvent(new StorageEvent('storage', { key: MONTHLY_GOAL_KEY, newValue: goalValue > 0 ? String(goalValue) : null }));
+
+        // Minimum monthly goal
+        const minGoalValue = parseFloat(minGoalDraft) || 0;
+        if (minGoalValue > 0) localStorage.setItem('app_min_monthly_goal', String(minGoalValue));
+        else localStorage.removeItem('app_min_monthly_goal');
+        window.dispatchEvent(new StorageEvent('storage', { key: 'app_min_monthly_goal', newValue: minGoalValue > 0 ? String(minGoalValue) : null }));
+
+        // Tier thresholds
+        const saveThreshold = (key: string, val: string, def: number) => {
+            const n = parseFloat(val) || def;
+            localStorage.setItem(key, String(n));
+            window.dispatchEvent(new StorageEvent('storage', { key, newValue: String(n) }));
+        };
+        saveThreshold('app_tier_vip',     tierVipDraft,     5000);
+        saveThreshold('app_tier_regular', tierRegularDraft, 1000);
+        saveThreshold('app_tier_petit',   tierPetitDraft,   150);
+
         try {
             const marginToSave = parseFloat(parseFloat(suggestedProfitMargin).toFixed(2)) || 2;
             const sellPriceToSave = parseFloat(parseFloat(suggestedSellingPrice).toFixed(2)) || 0;
@@ -215,17 +242,57 @@ function MainUtilityDialogsComponent({
 
                     <PinSettings />
 
-                    <div>
-                        <Label>Objectif mensuel (DZD)</Label>
-                        <MoneyField
-                            label=""
-                            value={monthlyGoalDraft}
-                            onChange={setMonthlyGoalDraft}
-                            currency="DZD"
-                            placeholder="Ex: 500 000"
-                            hint="Barre de progression sur le Dashboard · 0 = désactivé"
-                        />
+                    {/* Monthly goals */}
+                    <div className="space-y-3">
+                        <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">Objectifs mensuels</p>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <Label>Objectif ambitieux (DZD)</Label>
+                                <MoneyField
+                                    label=""
+                                    value={monthlyGoalDraft}
+                                    onChange={setMonthlyGoalDraft}
+                                    currency="DZD"
+                                    placeholder="Ex: 200 000"
+                                    hint="Barre de progression Dashboard"
+                                />
+                            </div>
+                            <div>
+                                <Label>Plancher obligatoire (DZD)</Label>
+                                <MoneyField
+                                    label=""
+                                    value={minGoalDraft}
+                                    onChange={setMinGoalDraft}
+                                    currency="DZD"
+                                    placeholder="Ex: 100 000"
+                                    hint="Défaut: 65% de l'objectif"
+                                />
+                            </div>
+                        </div>
                     </div>
+
+                    {/* Tier thresholds */}
+                    <div className="space-y-3">
+                        <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">Seuils de classification client <span className="font-normal normal-case">(USDT/mois précédent)</span></p>
+                        <div className="grid grid-cols-3 gap-2">
+                            <div>
+                                <Label>VIP (min)</Label>
+                                <MoneyField label="" value={tierVipDraft} onChange={setTierVipDraft} currency="USDT" placeholder="5000" hint="> ce seuil = VIP"/>
+                            </div>
+                            <div>
+                                <Label>Régulier (min)</Label>
+                                <MoneyField label="" value={tierRegularDraft} onChange={setTierRegularDraft} currency="USDT" placeholder="1000" hint="Régulier → VIP"/>
+                            </div>
+                            <div>
+                                <Label>Petit (min)</Label>
+                                <MoneyField label="" value={tierPetitDraft} onChange={setTierPetitDraft} currency="USDT" placeholder="150" hint="Petit → Régulier"/>
+                            </div>
+                        </div>
+                        <p className="text-[10px] text-neutral-400">
+                            Nouveau = &lt; {tierPetitDraft || '150'} USDT ou sans historique
+                        </p>
+                    </div>
+
 
                     {/* Backup section */}
                     <div className="rounded-xl border border-border bg-surface-muted p-3 space-y-2">

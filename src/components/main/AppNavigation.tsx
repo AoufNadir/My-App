@@ -200,6 +200,7 @@ function AppBottomNavComponent({ view, onSelect, labels, onFabPress, fabHidden, 
           <div className={sectionLabelClass}>{labels.followUp}</div>
           {moreSheetItem('investors', <UserIcon className="h-5 w-5"/>, labels.investors, 'text-secondary')}
           {moreSheetItem('analytics', <ArrowUpIcon className="h-5 w-5"/>, labels.analytics, 'text-warning')}
+          {moreSheetItem('insights', <TrendingUpIcon className="h-5 w-5"/>, labels.insights, 'text-secondary')}
           {moreSheetItem('expenses', <BanknotesIcon className="h-5 w-5"/>, labels.expenses, 'text-danger')}
           {onOpenSettings && moreSheetAction(<SettingsIcon className="h-5 w-5"/>, labels.settings, 'text-neutral-500', onOpenSettings)}
         </div>

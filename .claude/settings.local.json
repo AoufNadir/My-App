@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node --import tsx scripts/investorEconomics.pamLedger.test.ts)"
+      "Bash(node --import tsx scripts/investorEconomics.pamLedger.test.ts)",
+      "Bash(npx tsc *)"
     ]
   }
 }

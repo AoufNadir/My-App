@@ -422,7 +422,7 @@ export function TransactionsHistoryCard({
                             <p className="text-xs truncate text-neutral-500">
                               {normalizeLedgerLabel(tx.details)}
                             </p>
-                            {(tx.rawTx as any).notes && (
+                            {(tx.rawTx as any).notes && !(tx.details || '').includes((tx.rawTx as any).notes) && (
                               <p className="text-xs truncate text-neutral-400 italic">
                                 {(tx.rawTx as any).notes}
                               </p>
@@ -443,6 +443,11 @@ export function TransactionsHistoryCard({
                             <p dir="ltr" className={`text-base font-semibold tabular-nums ${tx.amountColor}`}>
                               {tx.amountLabel}
                             </p>
+                            {tx.sourceType === 'usdt_tx' && cryptoTx.purchaseFundingCurrency === 'EUR' && Number(cryptoTx.purchaseAmountEur) > 0 && (
+                              <p dir="ltr" className="text-xs text-neutral-500">
+                                ← {Number(cryptoTx.purchaseAmountEur).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR
+                              </p>
+                            )}
                             {tx.sourceType === 'usdt_tx' && unitPrice > 0 && (
                               <p dir="ltr" className="text-xs text-neutral-500">@ {unitPriceLabel}</p>
                             )}

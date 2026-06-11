@@ -57,7 +57,18 @@ function TagInput({ tags, setTags }: { tags: string[]; setTags: (t: string[]) =>
 }
 
 type MainTransactionDialogProps = Record<string, any>;
-export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, suggestedSellingPrice, suggestedUsdtEurSellPrice, suggestedSellingPriceEur, suggestedProfitMargin, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving }: MainTransactionDialogProps) {
+export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, suggestedSellingPrice, suggestedUsdtEurSellPrice, suggestedSellingPriceEur, suggestedProfitMargin, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime }: MainTransactionDialogProps) {
+    const [sellUsdtSourceSelected, setSellUsdtSourceSelected] = React.useState(false);
+    const unlockPreviewTime = React.useMemo(() => {
+        if (!realPurchaseTime || buyRestriction !== 'locked_24h') return null;
+        const parts = realPurchaseTime.split(':');
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1] || '0', 10);
+        if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) return null;
+        const d = new Date();
+        d.setHours(h, m, 0, 0);
+        return new Date(d.getTime() + 24 * 60 * 60 * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    }, [realPurchaseTime, buyRestriction]);
     const hasPrimaryClient = Boolean(linkedClientId && linkedClientId !== 'none');
     const selectedClientTotal = hasPrimaryClient
         ? Math.abs(Number(clientBalances?.get?.(linkedClientId) || 0))
@@ -86,6 +97,9 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
     const sellPriceUnitLabel = isUsdtSellSettledInEur ? 'EUR/USDT' : t('common.dinar');
     const sellTotalCurrencyLabel = isUsdtSellSettledInEur ? 'EUR' : t('common.dinar');
     const formatSellTotalInput = (value: number) => isUsdtSellSettledInEur ? value.toFixed(2) : value.toFixed(0);
+    React.useEffect(() => {
+        setSellUsdtSourceSelected(false);
+    }, [mode, editingTx?.id]);
     const switchOperation = (operation: 'buy' | 'sell') => {
         if (editingTx)
             return;
@@ -143,11 +157,29 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
             setSellTotal(formatSellTotalInput(qty * price));
         }
     };
+    const chooseSellWithDzd = () => {
+        setSellSettlementCurrency('DZD');
+        setIsTotalManual(false);
+        setSellUsdtSourceSelected(true);
+    };
+    const chooseSellWithEur = () => {
+        setSellSettlementCurrency('EUR');
+        setLinkedClientDzdId('none');
+        setClientPaymentStatus('cash');
+        const nextRate = Number(portfolioStats.eur.avgBuy || 0);
+        if (!sellEurToDzdRate && nextRate > 0)
+            setSellEurToDzdRate(nextRate.toFixed(2));
+        setSellPrice('');
+        setSellTotal('');
+        setProfitPercent('');
+        setIsTotalManual(false);
+        setSellUsdtSourceSelected(true);
+    };
     const formatPreviewNumber = (value: number, fractionDigits = 2) => Number.isFinite(value)
         ? value.toLocaleString('fr-FR', { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits })
         : '0';
     const transactionSummary = (() => {
-        if (!mode || (mode === 'buy_usdt' && !buyUsdtMode))
+        if (!mode || (mode === 'buy_usdt' && !buyUsdtMode) || (mode === 'sell_usdt' && !editingTx && !sellUsdtSourceSelected))
             return null;
         const isSell = mode.startsWith('sell');
         const quantity = isSell
@@ -184,6 +216,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
         return { quantity, price, total: totalInput, profitEstimate };
     })();
     const disabledReason = getFirstValidationMessage(formValidation?.errors, t('transactions.validationReason') || t('common.fillAllFields'));
+    const isChoosingSource = (mode === 'buy_usdt' && !buyUsdtMode) || (mode === 'sell_usdt' && !editingTx && !sellUsdtSourceSelected);
     const segBase = 'bg-neutral-100';
     const segItem = (active: boolean, activeClass: string) => `flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${active
         ? activeClass
@@ -257,6 +290,42 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                 </div>
                             </div>)}
 
+                        {/* Sell USDT: choose settlement source */}
+                        {mode === 'sell_usdt' && !sellUsdtSourceSelected && !editingTx && (<div className="space-y-3 pt-1">
+                                <div>
+                                    <SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>
+                                        {t('transactions.saleSourceQuestion')}
+                                    </SectionHeading>
+                                    <p className="mt-1 text-sm text-neutral-500">{t('transactions.saleSourceHint')}</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <button type="button" onClick={chooseSellWithDzd} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-start transition-colors bg-surface-muted hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-financial-asset-bg text-primary">
+                                                <BanknotesIcon className="h-5 w-5"/>
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-base font-semibold">{t('portfolio.sellWithDzd')}</p>
+                                                <p className={`text-xs text-neutral-500`}>{t('common.dinar')}</p>
+                                            </div>
+                                        </div>
+                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400`}/>
+                                    </button>
+                                    <button type="button" onClick={chooseSellWithEur} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-start transition-colors bg-surface-muted hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-financial-asset-bg text-primary">
+                                                <WalletIcon className="h-5 w-5"/>
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-base font-semibold">{t('portfolio.sellWithEur')}</p>
+                                                <p className={`text-xs text-neutral-500`}>EUR</p>
+                                            </div>
+                                        </div>
+                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400`}/>
+                                    </button>
+                                </div>
+                            </div>)}
+
                         {/* Buy USDT with DZD */}
                         {buyUsdtMode === 'with_dzd' && (<div className="space-y-3">
                                 <MoneyField label={t('transactions.quantity')} value={buyUsdtAmount} onChange={(val) => {
@@ -305,6 +374,25 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                         setBuyUsdtTotal(Math.round(total).toString());
                 }} currency="DZD" onMax={applyClientMaxToBuyTotal} maxDisabled={!hasPrimaryClient || selectedClientTotal <= 0} error={formValidation.errors['buyUsdtTotal']} hint={t('transactions.autoCalc')} placeholder={t('transactions.autoCalc')}/>
                                 <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} errorMessage={formValidation.errors['linkedClientId']} hasError={!!formValidation.errors['linkedClientId']} errorMessageDzd={formValidation.errors['linkedClientDzdId']} hasErrorDzd={!!formValidation.errors['linkedClientDzdId']}/>
+                                <div className="space-y-1.5">
+                                    <p className="text-sm font-medium text-neutral-700">Disponibilité USDT</p>
+                                    <div className="flex gap-1 rounded-xl p-1 bg-neutral-100">
+                                        <button type="button" onClick={() => setBuyRestriction('free')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction !== 'locked_24h' ? 'bg-success text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
+                                            Disponible
+                                        </button>
+                                        <button type="button" onClick={() => setBuyRestriction('locked_24h')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction === 'locked_24h' ? 'bg-amber-500 text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
+                                            Bloqué 24h
+                                        </button>
+                                    </div>
+                                    {buyRestriction === 'locked_24h' && (<>
+                                        <p className="text-xs text-amber-600 px-1">Cette quantité sera bloquée 24h avant d'être disponible à la vente.</p>
+                                        <div className="flex items-center gap-2 px-1 pt-0.5">
+                                            <label className="text-xs font-medium text-neutral-600 whitespace-nowrap">Heure d'achat réelle</label>
+                                            <input type="time" value={realPurchaseTime ?? ''} onChange={(e) => setRealPurchaseTime(e.target.value)} className="h-8 rounded-lg border border-border bg-surface px-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"/>
+                                            {unlockPreviewTime && (<span className="text-xs text-amber-600 whitespace-nowrap">→ {unlockPreviewTime}</span>)}
+                                        </div>
+                                    </>)}
+                                </div>
                             </div>)}
 
                         {/* Buy USDT with EUR */}
@@ -330,54 +418,36 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                             </div>
                                         </div>);
                 })()}
+                                <div className="space-y-1.5">
+                                    <p className="text-sm font-medium text-neutral-700">Disponibilité USDT</p>
+                                    <div className="flex gap-1 rounded-xl p-1 bg-neutral-100">
+                                        <button type="button" onClick={() => setBuyRestriction('free')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction !== 'locked_24h' ? 'bg-success text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
+                                            Disponible
+                                        </button>
+                                        <button type="button" onClick={() => setBuyRestriction('locked_24h')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction === 'locked_24h' ? 'bg-amber-500 text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
+                                            Bloqué 24h
+                                        </button>
+                                    </div>
+                                    {buyRestriction === 'locked_24h' && (<>
+                                        <p className="text-xs text-amber-600 px-1">Cette quantité sera bloquée 24h avant d'être disponible à la vente.</p>
+                                        <div className="flex items-center gap-2 px-1 pt-0.5">
+                                            <label className="text-xs font-medium text-neutral-600 whitespace-nowrap">Heure d'achat réelle</label>
+                                            <input type="time" value={realPurchaseTime ?? ''} onChange={(e) => setRealPurchaseTime(e.target.value)} className="h-8 rounded-lg border border-border bg-surface px-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"/>
+                                            {unlockPreviewTime && (<span className="text-xs text-amber-600 whitespace-nowrap">→ {unlockPreviewTime}</span>)}
+                                        </div>
+                                    </>)}
+                                </div>
                             </div>)}
 
                         {/* Sell USDT/EUR */}
-                        {isSellMode && (<div className="space-y-3">
+                        {isSellMode && (mode !== 'sell_usdt' || sellUsdtSourceSelected || !!editingTx) && (<div className="space-y-3">
                                 {mode === 'sell_usdt' && (<div>
                                         <p className="text-xs font-medium mb-1.5 text-neutral-500">{t('transactions.settlementCurrency')}</p>
                                         <div className={`flex gap-1 rounded-xl p-1 ${segBase}`}>
-                                            <button type="button" onClick={() => {
-                        const rate = parseAndEvaluate(sellEurToDzdRate);
-                        const currentPrice = parseAndEvaluate(sellPrice);
-                        const nextPrice = sellSettlementCurrency === 'EUR' && rate > 0 && currentPrice > 0
-                            ? currentPrice * rate
-                            : currentPrice;
-                        setSellSettlementCurrency('DZD');
-                        if (nextPrice > 0)
-                            setSellPrice(nextPrice.toFixed(2));
-                        const qty = parseAndEvaluate(sellAmount);
-                        setIsTotalManual(false);
-                        if (qty > 0 && nextPrice > 0)
-                            setSellTotal((qty * nextPrice).toFixed(0));
-                    }} className={segItem(sellSettlementCurrency !== 'EUR', 'bg-primary text-white shadow-sm')}>
+                                            <button type="button" onClick={chooseSellWithDzd} className={segItem(sellSettlementCurrency !== 'EUR', 'bg-primary text-white shadow-sm')}>
                                                 DZD
                                             </button>
-                                            <button type="button" onClick={() => {
-                        setSellSettlementCurrency('EUR');
-                        setLinkedClientDzdId('none');
-                        setClientPaymentStatus('cash');
-                        const nextRate = Number(portfolioStats.eur.avgBuy || 0);
-                        const nextUsdtEurPrice = parseAndEvaluate(suggestedUsdtEurSellPrice || '0');
-                        if (!sellEurToDzdRate && nextRate > 0)
-                            setSellEurToDzdRate(nextRate.toFixed(2));
-                        if (nextUsdtEurPrice > 0) {
-                            setSellPrice(nextUsdtEurPrice.toFixed(4));
-                            if (nextRate > 0)
-                                setProfitPercent(((nextUsdtEurPrice * nextRate) - activeStats.avgBuy).toFixed(2));
-                            const qty = parseAndEvaluate(sellAmount);
-                            if (qty > 0)
-                                setSellTotal((qty * nextUsdtEurPrice).toFixed(2));
-                            else
-                                setSellTotal('');
-                        }
-                        else {
-                            setSellPrice('');
-                            setSellTotal('');
-                            setProfitPercent('');
-                        }
-                        setIsTotalManual(false);
-                    }} className={segItem(sellSettlementCurrency === 'EUR', 'bg-primary text-white shadow-sm')}>
+                                            <button type="button" onClick={chooseSellWithEur} className={segItem(sellSettlementCurrency === 'EUR', 'bg-primary text-white shadow-sm')}>
                                                 EUR
                                             </button>
                                         </div>
@@ -442,9 +512,14 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                     setSellPrice(val);
                     const price = parseAndEvaluate(val);
                     const qty = parseAndEvaluate(sellAmount);
+                    const total = parseAndEvaluate(sellTotal);
                     setIsTotalManual(false);
-                    if (qty > 0 && price > 0)
-                        setSellTotal(formatSellTotalInput(qty * price));
+                    if (price > 0) {
+                        if (total > 0)
+                            setSellAmount((total / price).toFixed(2));
+                        else if (qty > 0)
+                            setSellTotal(formatSellTotalInput(qty * price));
+                    }
                     if (activeStats.avgBuy > 0 && price > 0) {
                         const effectivePriceDzd = isUsdtSellSettledInEur ? price * sellEurToDzdRateValue : price;
                         setProfitPercent((effectivePriceDzd - activeStats.avgBuy).toFixed(2));
@@ -508,7 +583,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                             </div>)}
 
                         {/* Notes + Tags (optional) */}
-                        {(mode !== 'buy_usdt' || buyUsdtMode) && (<>
+                        {!isChoosingSource && (<>
                             <Textarea
                                 label={t('common.notesOptional') as string}
                                 value={notes ?? ''}
@@ -538,7 +613,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
             </ModalContent>
 
             <ModalFooter className="sticky bottom-0 z-20 border-t border-border backdrop-blur px-4 py-3 sm:px-5 bg-surface/95">
-                {(mode !== 'buy_usdt' || buyUsdtMode) && (<div className="flex gap-2 w-full">
+                {!isChoosingSource && (<div className="flex gap-2 w-full">
                         <Button onClick={closeForm} variant="outline" className="flex-1 py-3 rounded-xl font-bold transition-colors bg-neutral-100 text-neutral-700 hover:bg-neutral-200">
                             {t('common.cancel')}
                         </Button>

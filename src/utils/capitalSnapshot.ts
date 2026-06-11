@@ -1,4 +1,29 @@
-import type { Investor, TreasuryCard } from '../types';
+import type { Investor, PortfolioStats, TreasuryCard } from '../types';
+
+const EPSILON = 0.005;
+
+const toFiniteNumber = (value: unknown): number => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const toAbsoluteAmount = (value: unknown): number => Math.abs(toFiniteNumber(value));
+
+type PortfolioPosition = {
+    available?: number;
+    avgBuy?: number;
+    locked?: number;
+};
+
+export type ServicesCapitalInput = {
+    amountToReceive?: number;
+    clientAdvances?: number;
+    cashReceived?: number;
+    serviceRevenue?: number;
+    receivablesAlreadyIncluded?: boolean;
+    advancesAlreadyIncluded?: boolean;
+};
+
 /** Split of investor liability into capital and undistributed profits. */
 export type InvestorBreakdown = {
     capital: number;   // sum of capitalInvested for non-managers
@@ -17,13 +42,32 @@ export function calculateInvestorBreakdown(investors: ReadonlyArray<Investor>): 
 type CapitalSnapshotInput = {
     caisseBalance: number;
     baridiBalance: number;
-    portfolioValue: number;
+    portfolioValue?: number;
+    portfolioStats?: Pick<PortfolioStats, 'usdt' | 'eur'>;
     totalDettes: number;
     totalAvances: number;
-    treasuryCards: TreasuryCard[];
+    treasuryCards?: ReadonlyArray<TreasuryCard>;
     investorLiability?: number;
-    servicesCapitalImpact?: number;
+    services?: ServicesCapitalInput;
 };
+
+export type CapitalSnapshot = {
+    caisseBalance: number;
+    baridiBalance: number;
+    cashTotal: number;
+    stockValue: number;
+    treasuryCardsTotal: number;
+    receivables: number;
+    clientAdvances: number;
+    netClientPosition: number;
+    serviceReceivables: number;
+    serviceClientAdvances: number;
+    servicesCapitalImpact: number;
+    totalCapital: number;
+    investorLiability: number;
+    netOwnedCapital: number;
+};
+
 export function calculateInvestorLiability(investors: ReadonlyArray<Investor>): number {
     return investors.reduce((sum, investor) => {
         if (investor.isManager)
@@ -35,27 +79,68 @@ export function calculateInvestorLiability(investors: ReadonlyArray<Investor>): 
         return sum + capitalDebt + profitDebt;
     }, 0);
 }
-export function computeCapitalSnapshot({ caisseBalance, baridiBalance, portfolioValue, totalDettes, totalAvances, treasuryCards, investorLiability = 0, servicesCapitalImpact = 0 }: CapitalSnapshotInput) {
-    const cashTotal = (Number(caisseBalance) || 0) + (Number(baridiBalance) || 0);
-    const treasuryCardsTotal = treasuryCards.reduce((sum, card) => sum + (Number(card.value) || 0), 0);
-    const receivables = Math.abs(Number(totalDettes) || 0);
-    const clientAdvances = Math.max(0, Number(totalAvances) || 0);
+
+export function calculateStockValue(portfolioStats?: Pick<PortfolioStats, 'usdt' | 'eur'>): number {
+    const usdt = portfolioStats?.usdt as PortfolioPosition | undefined;
+    const eur = portfolioStats?.eur as PortfolioPosition | undefined;
+    const usdtTotal = toFiniteNumber(usdt?.available) + toFiniteNumber(usdt?.locked);
+    const eurTotal = toFiniteNumber(eur?.available) + toFiniteNumber(eur?.locked);
+    return (usdtTotal * toFiniteNumber(usdt?.avgBuy))
+        + (eurTotal * toFiniteNumber(eur?.avgBuy));
+}
+
+export function calculateServicesCapitalImpact(services?: ServicesCapitalInput): {
+    serviceReceivables: number;
+    serviceClientAdvances: number;
+    servicesCapitalImpact: number;
+} {
+    const serviceReceivables = services?.receivablesAlreadyIncluded
+        ? 0
+        : toAbsoluteAmount(services?.amountToReceive);
+    const serviceClientAdvances = services?.advancesAlreadyIncluded
+        ? 0
+        : toAbsoluteAmount(services?.clientAdvances);
+    return {
+        serviceReceivables,
+        serviceClientAdvances,
+        servicesCapitalImpact: serviceReceivables - serviceClientAdvances
+    };
+}
+
+export function computeCapitalSnapshot({ caisseBalance, baridiBalance, portfolioValue, portfolioStats, totalDettes, totalAvances, treasuryCards = [], investorLiability = 0, services }: CapitalSnapshotInput): CapitalSnapshot {
+    const normalizedCaisse = toFiniteNumber(caisseBalance);
+    const normalizedBaridi = toFiniteNumber(baridiBalance);
+    const cashTotal = normalizedCaisse + normalizedBaridi;
+    const stockValue = portfolioValue === undefined ? calculateStockValue(portfolioStats) : toFiniteNumber(portfolioValue);
+    const treasuryCardsTotal = treasuryCards.reduce((sum, card) => sum + toFiniteNumber(card.value), 0);
+    const receivables = toAbsoluteAmount(totalDettes);
+    const clientAdvances = toAbsoluteAmount(totalAvances);
     const netClientPosition = receivables - clientAdvances;
-    const servicesImpact = Number(servicesCapitalImpact) || 0;
+    const {
+        serviceReceivables,
+        serviceClientAdvances,
+        servicesCapitalImpact
+    } = calculateServicesCapitalImpact(services);
     const totalCapital = cashTotal
-        + (Number(portfolioValue) || 0)
+        + stockValue
         + treasuryCardsTotal
         + netClientPosition
-        + servicesImpact;
-    const investorDebt = Math.max(0, Number(investorLiability) || 0);
+        + servicesCapitalImpact;
+    const investorDebt = Math.max(0, toFiniteNumber(investorLiability));
     const netOwnedCapital = totalCapital - investorDebt;
+    const normalizeZero = (value: number) => Math.abs(value) < EPSILON ? 0 : value;
     return {
+        caisseBalance: normalizedCaisse,
+        baridiBalance: normalizedBaridi,
         cashTotal,
+        stockValue: normalizeZero(stockValue),
         treasuryCardsTotal,
         receivables,
         clientAdvances,
         netClientPosition,
-        servicesCapitalImpact: servicesImpact,
+        serviceReceivables,
+        serviceClientAdvances,
+        servicesCapitalImpact,
         totalCapital,
         investorLiability: investorDebt,
         netOwnedCapital

@@ -28,11 +28,14 @@ type ClientsPageProps = {
     handleEditClientTx: (tx: ClientTransactionDzd) => void;
     handleDeleteClientTxClick: (tx: ClientTransactionDzd) => void;
     overdueDebtClients: OverdueDebtClient[];
-    clientLoyaltyMap?: Map<string, 'vip' | 'regular' | 'petit' | 'new' | 'inactive'>;
+    clientLoyaltyMap?: Map<string, 'vip' | 'regular' | 'petit' | 'new' | 'inactive' | 'fournisseur'>;
+    clientPrevMonthVolume?: Map<string, number>;
+    clientLastSellDate?: Map<string, number>;
+    handleZeroOutBalance?: (clientId: string, balance: number) => Promise<void>;
     onImportClients?: (rows: Record<string, string>[]) => Promise<void>;
 };
 export function ClientsPage(props: ClientsPageProps) {
-    const { selectedClientId, setSelectedClientId, openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, selectedClient, selectedClientTransactions, transactions, handleExportClientReport, openClientTxModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick, overdueDebtClients, clientLoyaltyMap, onImportClients } = props;
+    const { selectedClientId, setSelectedClientId, openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, selectedClient, selectedClientTransactions, transactions, handleExportClientReport, openClientTxModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick, overdueDebtClients, clientLoyaltyMap, clientPrevMonthVolume, clientLastSellDate, handleZeroOutBalance, onImportClients } = props;
     const groupedHistory = useMemo(() => {
         const groups: Record<string, ClientTransactionDzd[]> = {};
         selectedClientTransactions?.forEach((tx) => {
@@ -47,5 +50,5 @@ export function ClientsPage(props: ClientsPageProps) {
         const selectedClientBalance = clientBalances.get(selectedClientId) || 0;
         return (<ClientDetailsView selectedClientId={selectedClientId} selectedClient={selectedClient} selectedClientBalance={selectedClientBalance} groupedHistory={groupedHistory} setSelectedClientId={setSelectedClientId} getClientFullName={getClientFullName} handleTouchStart={handleTouchStart} openClientModal={openClientModal} copiedValue={copiedValue} handleCopy={handleCopy} transactions={transactions} handleEditClientTx={handleEditClientTx} handleDeleteClientTxClick={handleDeleteClientTxClick} openClientTxModal={openClientTxModal} handleExportClientReport={handleExportClientReport}/>);
     }
-    return (<ClientsListView openClientModal={openClientModal} clientSearchQuery={clientSearchQuery} setClientSearchQuery={setClientSearchQuery} clientSortMode={clientSortMode} setClientSortMode={setClientSortMode} filteredClientsDzd={filteredClientsDzd} clientBalances={clientBalances} getClientFullName={getClientFullName} handleTouchStart={handleTouchStart} handleTouchEnd={handleTouchEnd} setClientToDelete={setClientToDelete} setSelectedClientId={setSelectedClientId} overdueDebtClients={overdueDebtClients} clientLoyaltyMap={clientLoyaltyMap} onImportClients={onImportClients}/>);
+    return (<ClientsListView openClientModal={openClientModal} clientSearchQuery={clientSearchQuery} setClientSearchQuery={setClientSearchQuery} clientSortMode={clientSortMode} setClientSortMode={setClientSortMode} filteredClientsDzd={filteredClientsDzd} clientBalances={clientBalances} getClientFullName={getClientFullName} handleTouchStart={handleTouchStart} handleTouchEnd={handleTouchEnd} setClientToDelete={setClientToDelete} setSelectedClientId={setSelectedClientId} overdueDebtClients={overdueDebtClients} clientLoyaltyMap={clientLoyaltyMap} clientPrevMonthVolume={clientPrevMonthVolume} clientLastSellDate={clientLastSellDate} handleZeroOutBalance={handleZeroOutBalance} onImportClients={onImportClients}/>);
 }

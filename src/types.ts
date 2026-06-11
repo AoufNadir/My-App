@@ -26,6 +26,14 @@ export interface Tx {
     linkedClientDzdId?: string;
     clientPaymentStatus?: 'credit' | 'baridi' | 'cash';
     paymentMethod?: 'Espèces' | 'BaridiMob' | 'Crédit';
+    /** Unix ms timestamp after which this purchase becomes available for sale (24h restriction). */
+    lockedUntil?: number;
+}
+
+export interface LockedBatch {
+    txId: string;
+    quantity: number;
+    lockedUntil: number;
 }
 export interface Investor {
     id: string;
@@ -65,6 +73,7 @@ export interface ClientDzd {
     notes?: string;
     creditLimit?: number;
     group?: string;
+    isFournisseur?: boolean;
     nom?: string; // Legacy support
     prenom?: string; // Legacy support
 }
@@ -176,6 +185,8 @@ export interface PortfolioStats {
         avgBuy: number;
         totalProfit: number;
         available: number;
+        locked: number;
+        lockedBatches: LockedBatch[];
     };
     eur: {
         purchasedQty: number;
@@ -183,5 +194,7 @@ export interface PortfolioStats {
         avgBuy: number;
         totalProfit: number;
         available: number;
+        locked: number;
+        lockedBatches: LockedBatch[];
     };
 }

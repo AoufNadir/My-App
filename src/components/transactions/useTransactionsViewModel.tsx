@@ -117,20 +117,7 @@ function isClientAdjustment(rawTx: ClientTransactionDzd) {
     return !isClientTransfer(rawTx)
         && (normalizedType.includes('solde') || normalizedType.includes('ajustement'));
 }
-function isLinkedEurReceiptFromUsdtSale(rawTx: Tx) {
-    return rawTx.type === 'buy'
-        && rawTx.currency === 'EUR'
-        && Boolean(rawTx.linkedTxId)
-        && normalizeText(rawTx.notes).includes('vente')
-        && normalizeText(rawTx.notes).includes('usdt');
-}
-function isLinkedEurSpendForUsdtBuy(rawTx: Tx) {
-    return rawTx.type === 'Retrait Manuel'
-        && rawTx.currency === 'EUR'
-        && Boolean(rawTx.linkedTxId)
-        && normalizeText(rawTx.notes).includes('achat')
-        && normalizeText(rawTx.notes).includes('usdt');
-}
+
 function matchesTransactionFilter(mode: TransactionFilterMode, tx: DisplayTx) {
     const rawTx = tx.rawTx;
     switch (mode) {
@@ -149,8 +136,9 @@ function matchesTransactionFilter(mode: TransactionFilterMode, tx: DisplayTx) {
                 && rawTx.purchaseFundingCurrency !== 'EUR';
         case 'buy_usdt_eur':
             return tx.sourceType === 'usdt_tx'
-                && ((isCryptoBuy(rawTx) && rawTx.currency === 'USDT' && rawTx.purchaseFundingCurrency === 'EUR')
-                    || (isCryptoManual(rawTx) && isLinkedEurSpendForUsdtBuy(rawTx)));
+                && isCryptoBuy(rawTx)
+                && rawTx.currency === 'USDT'
+                && rawTx.purchaseFundingCurrency === 'EUR';
         case 'buy_eur_dzd':
             return tx.sourceType === 'usdt_tx'
                 && isCryptoBuy(rawTx)
@@ -163,8 +151,9 @@ function matchesTransactionFilter(mode: TransactionFilterMode, tx: DisplayTx) {
                 && rawTx.settlementCurrency !== 'EUR';
         case 'sell_usdt_eur':
             return tx.sourceType === 'usdt_tx'
-                && ((isCryptoSell(rawTx) && rawTx.currency === 'USDT' && rawTx.settlementCurrency === 'EUR')
-                    || (isCryptoBuy(rawTx) && isLinkedEurReceiptFromUsdtSale(rawTx)));
+                && isCryptoSell(rawTx)
+                && rawTx.currency === 'USDT'
+                && rawTx.settlementCurrency === 'EUR';
         case 'sell_eur_dzd':
             return tx.sourceType === 'usdt_tx'
                 && isCryptoSell(rawTx)
@@ -415,8 +404,10 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
     const unifiedTransactions = useMemo(() => {
         const all: DisplayTx[] = [];
         transactions.forEach((tx) => {
+            if (tx.linkedTxId) return;
             const isBuy = tx.type === 'buy' || tx.type === 'Ajout Manuel';
             const isUsdtSaleSettledInEur = tx.type === 'sell' && tx.currency === 'USDT' && tx.settlementCurrency === 'EUR';
+            const isBuyFundedByEur = tx.type === 'buy' && tx.currency === 'USDT' && tx.purchaseFundingCurrency === 'EUR';
             const typeLabel = isUsdtSaleSettledInEur
                 ? 'Vente USDT -> EUR'
                 : getPortfolioOperationLabel(tx.type, tx.currency);

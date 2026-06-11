@@ -19,7 +19,7 @@ import { UsersIcon } from '../components/icons/UsersIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
 import { ShareIcon } from '../components/icons/ShareIcon';
 import type { OverdueDebtClient, Tx, TreasuryCard } from '../types';
-import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
+import type { CapitalSnapshot } from '../utils/capitalSnapshot';
 import { useLanguage } from '../contexts/LanguageContext';
 type DashboardPageProps = {
     dailyOverview: {
@@ -48,6 +48,7 @@ type DashboardPageProps = {
     treasuryCards: TreasuryCard[];
     investorLiability?: number;
     investorBreakdown?: { capital: number; profits: number; total: number };
+    capitalSnapshot: CapitalSnapshot;
     servicesSummary?: {
         netCapitalImpact?: number;
     };
@@ -367,13 +368,15 @@ function DashboardSyncState({ title, body, actions, }: {
       <ActionStrip actions={actions}/>
     </div>);
 }
-export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, totals, treasuryCards, investorLiability = 0, investorBreakdown, servicesSummary, overdueDebtClients, globalNetProfit, isDataSyncing = false, onNewTransaction, onOpenClients, onOpenClient, onOpenClientDebts, onOpenTreasury, onOpenAnalytics, onOpenPersonalWithdrawal, recentTransactions = [], onOpenTransactions, onQuickSell, quickSellPreview }: DashboardPageProps) {
+export function DashboardPage({ dailyOverview, portfolioStats, capitalSnapshot, investorBreakdown, overdueDebtClients, globalNetProfit, isDataSyncing = false, onNewTransaction, onOpenClients, onOpenClient, onOpenClientDebts, onOpenTreasury, onOpenAnalytics, onOpenPersonalWithdrawal, recentTransactions = [], onOpenTransactions, onQuickSell, quickSellPreview }: DashboardPageProps) {
     const { t } = useLanguage();
     const [shareCopied, setShareCopied] = useState(false);
     const [monthlyGoal, setMonthlyGoal] = useState<number>(() => Number(localStorage.getItem(MONTHLY_GOAL_KEY) || 0));
+    const [minimumGoal, setMinimumGoal] = useState<number>(() => Number(localStorage.getItem('app_min_monthly_goal') || 0));
     useEffect(() => {
         const onStorage = (e: StorageEvent) => {
             if (e.key === MONTHLY_GOAL_KEY) setMonthlyGoal(Number(e.newValue || 0));
+            if (e.key === 'app_min_monthly_goal') setMinimumGoal(Number(e.newValue || 0));
         };
         window.addEventListener('storage', onStorage);
         return () => window.removeEventListener('storage', onStorage);
@@ -390,8 +393,8 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
             dailyOverview.weekToDateProfit !== undefined ? `📅 Cette semaine : ${sign(dailyOverview.weekToDateProfit)} DZD` : '',
             `📆 Ce mois : ${sign(dailyOverview.monthToDateProfit)} DZD`,
             ``,
-            `💵 Caisse : ${fmt(Number(treasuryStats?.caisse || 0))} DZD`,
-            `📱 BaridiMob : ${fmt(Number(treasuryStats?.baridi || 0))} DZD`,
+            `💵 Caisse : ${fmt(capitalSnapshot.caisseBalance)} DZD`,
+            `📱 BaridiMob : ${fmt(capitalSnapshot.baridiBalance)} DZD`,
         ].filter(Boolean);
         if (dailyOverview.todaySellCount) lines.push(``, `🔄 ${dailyOverview.todaySellCount} opération${dailyOverview.todaySellCount > 1 ? 's' : ''} aujourd'hui`);
         const text = lines.join('\n');
@@ -404,19 +407,7 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
             });
         }
     };
-    const stockValue = Number(portfolioStats?.usdt?.available || 0) * Number(portfolioStats?.usdt?.avgBuy || 0)
-        + Number(portfolioStats?.eur?.available || 0) * Number(portfolioStats?.eur?.avgBuy || 0);
-    const servicesCapitalImpact = Number(servicesSummary?.netCapitalImpact || 0);
-    const capitalSnapshot = useMemo(() => computeCapitalSnapshot({
-        caisseBalance: Number(treasuryStats?.caisse || 0),
-        baridiBalance: Number(treasuryStats?.baridi || 0),
-        portfolioValue: stockValue,
-        totalDettes: Number(totals?.totalDettes || 0),
-        totalAvances: Number(totals?.totalAvances || 0),
-        treasuryCards,
-        investorLiability,
-        servicesCapitalImpact,
-    }), [treasuryStats, stockValue, totals, treasuryCards, investorLiability, servicesCapitalImpact]);
+    const stockValue = capitalSnapshot.stockValue;
     const cashTotal = capitalSnapshot.cashTotal;
     const totalDebt = capitalSnapshot.receivables;
     const totalAdvances = capitalSnapshot.clientAdvances;
@@ -591,9 +582,13 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
 
           const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR', { maximumFractionDigits: 0 });
 
+          const minGoal = minimumGoal > 0 ? minimumGoal : Math.round(monthlyGoal * 0.65);
+          const minProgress = Math.min(100, Math.max(0, (mtdProfit / minGoal) * 100));
+          const minAchieved = mtdProfit >= minGoal;
+
           return (
             <div className={`rounded-xl border px-4 py-3 space-y-3 ${isAchieved ? 'border-success/30 bg-success-bg' : 'border-border bg-surface-muted'}`}>
-              {/* Header + progress */}
+              {/* Header + progress — Objectif */}
               <div>
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <p className={`text-xs font-bold uppercase tracking-wide ${isAchieved ? 'text-financial-profit' : 'text-neutral-500'}`}>
@@ -613,6 +608,24 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
                   <span dir="ltr">{fmt(mtdProfit)} DZD</span>
                   {!isAchieved && <span dir="ltr">Reste {fmt(remaining)} DZD</span>}
                   <span dir="ltr">/ {fmt(monthlyGoal)} DZD</span>
+                </div>
+              </div>
+
+              {/* Plancher bar */}
+              <div className="border-t border-border/40 pt-2">
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <p className={`text-[10px] font-bold uppercase tracking-wide ${minAchieved ? 'text-financial-profit' : 'text-financial-loss/70'}`}>
+                    {minAchieved ? '✓ Plancher atteint' : 'Plancher obligatoire'}
+                  </p>
+                  <span className="text-[10px] font-semibold tabular-nums text-neutral-500">
+                    {fmt(minGoal)} DZD · {Math.round(minProgress)}%
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-neutral-200 overflow-hidden">
+                  <div
+                    className={`h-1.5 rounded-full transition-all ${minAchieved ? 'bg-financial-profit' : 'bg-danger/60'}`}
+                    style={{ width: `${minProgress}%` }}
+                  />
                 </div>
               </div>
 
@@ -696,8 +709,8 @@ export function DashboardPage({ dailyOverview, portfolioStats, treasuryStats, to
       )}
 
       <MoneyMap title={t('dashboard.moneyMap') as string} rows={[
-            { label: 'Caisse', value: Number(treasuryStats?.caisse || 0), icon: <WalletIcon className="h-4 w-4"/> },
-            { label: 'BaridiMob', value: Number(treasuryStats?.baridi || 0), icon: <LandmarkIcon className="h-4 w-4"/> },
+            { label: 'Caisse', value: capitalSnapshot.caisseBalance, icon: <WalletIcon className="h-4 w-4"/> },
+            { label: 'BaridiMob', value: capitalSnapshot.baridiBalance, icon: <LandmarkIcon className="h-4 w-4"/> },
             { label: t('finance.stock') as string, value: stockValue, icon: <BriefcaseIcon className="h-4 w-4"/> },
             { label: t('finance.toReceive') as string, value: totalDebt, semantic: totalDebt > 0 ? 'profit' : 'plain', icon: <ArrowUpRightIcon className="h-4 w-4"/> },
             { label: t('finance.clientAdvance') as string, value: totalAdvances, semantic: totalAdvances > 0 ? 'loss' : 'plain', icon: <AlertTriangleIcon className="h-4 w-4"/> },

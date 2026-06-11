@@ -5,6 +5,7 @@ import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
+import type { CapitalSnapshot } from '../../utils/capitalSnapshot';
 type InvestorsStats = {
     totalCapital: number;
     totalProfitDistributed: number;
@@ -16,6 +17,7 @@ type InvestorsStats = {
 };
 type InvestorsDetailsCardProps = {
     stats: InvestorsStats;
+    capitalSnapshot?: CapitalSnapshot;
     managerFeePercentage: string;
     onOpenCommissionEditor: () => void;
     reconciliationDifference?: number;
@@ -26,7 +28,7 @@ function DetailRow({ label, value, semantic = 'auto' }: { label: string; value: 
       <CurrencyAmount value={value} currency="DZD" semantic={semantic} size="lg" decimals={0}/>
     </div>);
 }
-export function InvestorsDetailsCard({ stats, managerFeePercentage, onOpenCommissionEditor, reconciliationDifference = 0 }: InvestorsDetailsCardProps) {
+export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercentage, onOpenCommissionEditor, reconciliationDifference = 0 }: InvestorsDetailsCardProps) {
     const hasDeliveryExpenses = (stats.totalDeliveryExpenses ?? 0) > 0;
     const hasReconciliationIssue = Math.abs(reconciliationDifference) > 0.05;
     const displayPercentage = managerFeePercentage?.trim() ? managerFeePercentage : '0';
@@ -37,6 +39,12 @@ export function InvestorsDetailsCard({ stats, managerFeePercentage, onOpenCommis
         </SectionHeading>
       </CardHeader>
       <CardContent className="p-0 divide-y divide-neutral-100">
+        {capitalSnapshot && (<>
+            <DetailRow label="Capital Total projet" value={capitalSnapshot.totalCapital} semantic="plain"/>
+            <DetailRow label="Capital réel" value={capitalSnapshot.netOwnedCapital} semantic="plain"/>
+            <DetailRow label="Position nette" value={capitalSnapshot.netClientPosition} semantic="auto"/>
+            <DetailRow label="Stock" value={capitalSnapshot.stockValue} semantic="plain"/>
+          </>)}
         <DetailRow label="Profit distribué" value={stats.totalProfitDistributed} semantic="auto"/>
         <DetailRow label="Profit disponible" value={stats.totalAvailable} semantic="auto"/>
         <DetailRow label="Fee gérant" value={stats.managerFee} semantic="auto"/>

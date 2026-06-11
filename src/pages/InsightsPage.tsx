@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
     ResponsiveContainer, AreaChart, Area, BarChart, Bar,
     XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Cell,
@@ -14,7 +14,7 @@ import { CalendarIcon } from '../components/icons/CalendarIcon';
 import { SparklesIcon } from '../components/icons/SparklesIcon';
 import { computePamLedger } from '../utils/pamLedger';
 import { parseAndEvaluate } from '../utils';
-import { roundToMarketPrice, ceilToMarketPrice, allTierPrices, ClientTierType, computeGoalAdjustedBase, getVolumeBracket } from '../utils/pricingMatrix';
+import { ceilToMarketPrice, ClientTierType, computeGoalAdjustedBase, getVolumeBracket, getMarginMultiplier } from '../utils/pricingMatrix';
 import type { Tx, ClientDzd, ClientTransactionDzd, Investor } from '../types';
 
 const fmt0 = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 });
@@ -35,6 +35,8 @@ type InsightsPageProps = {
     investors?: Investor[];
     portfolioStats?: { usdt: { avgBuy: number }; eur: { avgBuy: number } };
     investorReconciliationDiff?: number;
+    tierThresholds?: { vip: number; regular: number; petit: number };
+    minimumGoal?: number;
 };
 
 const CHART_COLORS = {
@@ -98,7 +100,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     );
 };
 
-export function InsightsPage({ transactions, clientsDzd = [], clientTransactionsDzd = [], investors = [], portfolioStats, investorReconciliationDiff }: InsightsPageProps) {
+export function InsightsPage({ transactions, clientsDzd = [], clientTransactionsDzd = [], investors = [], portfolioStats, investorReconciliationDiff, tierThresholds, minimumGoal: minimumGoalProp = 0 }: InsightsPageProps) {
+    const thr = tierThresholds ?? { vip: 5000, regular: 1000, petit: 150 };
     const pamHistoryUsdt = useMemo(() => computePamHistory(transactions, 'USDT'), [transactions]);
     const pamHistoryEur  = useMemo(() => computePamHistory(transactions, 'EUR'), [transactions]);
 
@@ -142,86 +145,12 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
         });
     }, [pamLedger]);
 
-    // Data integrity checks
-    const integrityChecks = useMemo(() => {
-        const checks: Array<{ label: string; status: 'ok' | 'warn' | 'error'; detail: string }> = [];
-
-        // 1. Investor shares sum
-        const activeInvestors = investors.filter(i => i.isActive && !i.isManager);
-        const sharesSum = activeInvestors.reduce((s, i) => s + Number(i.sharePercentage || 0), 0);
-        const sharesPct = Math.round(sharesSum * 100 * 10) / 10;
-        checks.push({
-            label: 'Parts investisseurs',
-            status: Math.abs(sharesSum - 1) < 0.01 ? 'ok' : sharesSum > 1.01 ? 'error' : 'warn',
-            detail: activeInvestors.length === 0 ? 'Aucun investisseur actif' : `${sharesPct}% (doit être 100%)`,
-        });
-
-        // 2. Negative PAM
-        const usdtPam = portfolioStats?.usdt.avgBuy ?? 0;
-        const eurPam = portfolioStats?.eur.avgBuy ?? 0;
-        const pamOk = usdtPam >= 0 && eurPam >= 0;
-        checks.push({
-            label: 'PAM positif (USDT/EUR)',
-            status: pamOk ? 'ok' : 'error',
-            detail: pamOk
-                ? `USDT: ${usdtPam.toFixed(2)} | EUR: ${eurPam.toFixed(2)} DZD`
-                : `PAM négatif détecté!`,
-        });
-
-        // 3. Sells without linked client
-        const sellTxIds = new Set(transactions.filter(tx => tx.type === 'sell').map(tx => tx.id));
-        const linkedSellIds = new Set(clientTransactionsDzd.filter(tx => tx.linkedTxId).map(tx => tx.linkedTxId));
-        const unlinkedSells = [...sellTxIds].filter(id => !linkedSellIds.has(id)).length;
-        checks.push({
-            label: 'Ventes sans client lié',
-            status: unlinkedSells === 0 ? 'ok' : unlinkedSells <= 5 ? 'warn' : 'error',
-            detail: unlinkedSells === 0 ? 'Toutes les ventes sont liées' : `${unlinkedSells} vente${unlinkedSells > 1 ? 's' : ''} sans client`,
-        });
-
-        // 4. Duplicate phone numbers
-        const phoneMap = new Map<string, string[]>();
-        for (const c of clientsDzd) {
-            const phone = c.phone?.trim();
-            if (!phone) continue;
-            const existing = phoneMap.get(phone) || [];
-            existing.push(c.fullName || c.id);
-            phoneMap.set(phone, existing);
-        }
-        const dupPhones = [...phoneMap.entries()].filter(([, names]) => names.length > 1);
-        checks.push({
-            label: 'Doublons de téléphone',
-            status: dupPhones.length === 0 ? 'ok' : 'warn',
-            detail: dupPhones.length === 0
-                ? 'Aucun doublon détecté'
-                : `${dupPhones.length} numéro${dupPhones.length > 1 ? 's' : ''} en double`,
-        });
-
-        // 5. Investor reconciliation
-        if (typeof investorReconciliationDiff === 'number') {
-            const absRec = Math.abs(investorReconciliationDiff);
-            checks.push({
-                label: 'Réconciliation investisseurs',
-                status: absRec < 1 ? 'ok' : absRec < 1000 ? 'warn' : 'error',
-                detail: absRec < 1 ? 'Équilibre parfait'
-                    : `Écart: ${investorReconciliationDiff > 0 ? '+' : ''}${Math.round(investorReconciliationDiff).toLocaleString('fr-FR')} DZD`,
-            });
-        }
-
-        // 6. Transactions with 0 or missing total
-        const badTxs = transactions.filter(tx => (tx.type === 'sell' || tx.type === 'buy') && (!tx.total || tx.total <= 0) && tx.quantity > 0 && (tx.price || tx.sell || 0) > 0);
-        checks.push({
-            label: 'Transactions avec total manquant',
-            status: badTxs.length === 0 ? 'ok' : 'warn',
-            detail: badTxs.length === 0 ? 'Toutes les transactions sont complètes'
-                : `${badTxs.length} transaction${badTxs.length > 1 ? 's' : ''} sans total`,
-        });
-
-        return checks;
-    }, [investors, portfolioStats, transactions, clientTransactionsDzd, clientsDzd, investorReconciliationDiff]);
-
-    const okCount = integrityChecks.filter(c => c.status === 'ok').length;
-    const warnCount = integrityChecks.filter(c => c.status === 'warn').length;
-    const errorCount = integrityChecks.filter(c => c.status === 'error').length;
+    // Hourly tick — forces yearlyStats to recompute new Date() when month changes
+    const [tick, setTick] = useState(0);
+    useEffect(() => {
+        const id = setInterval(() => setTick(t => t + 1), 3_600_000);
+        return () => clearInterval(id);
+    }, []);
 
     // ── YTD Statistics (current year, Jan → now) ────────────────────────────
     const yearlyStats = useMemo(() => {
@@ -284,11 +213,15 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
                 ? (totalUsdtQty > 0 ? (totalUsdtRev / totalUsdtQty) - portfolioStats.usdt.avgBuy : 0)
                 : 0,
         };
-    }, [pamLedger, portfolioStats]);
+    }, [pamLedger, portfolioStats, tick]);
 
     // Projection calculator state
     const [projectionTarget, setProjectionTarget] = useState('');
     const [minimumTarget, setMinimumTarget] = useState(''); // Option B — minimum obligatoire
+    const [tierTableMode, setTierTableMode] = useState<'A' | 'B'>('A');
+    const [showProjectionInputs, setShowProjectionInputs] = useState(false);
+    const [goalActivated, setGoalActivated] = useState(false);
+    const [plancherActivated, setPlancherActivated] = useState(false);
 
     const bestDay = dayAnalysis.reduce((b, d) => d.profit > b.profit ? d : b, dayAnalysis[0]);
     const bestSlot = timeAnalysis.reduce((b, d) => d.profit > b.profit ? d : b, timeAnalysis[0]);
@@ -423,16 +356,16 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
                 const storedGoal = Number(localStorage.getItem('app_monthly_profit_goal') || 0);
                 const histMargin = yearlyStats.avgSellDzd - pam;
 
-                // Option A — objectif ambitieux
+                // Option A — objectif ambitieux: input → stored Settings goal → YTD avg
                 const targetInput = parseAndEvaluate(projectionTarget);
-                const target = targetInput > 0 ? targetInput : yearlyStats.avgMonthlyProfit;
+                const target = targetInput > 0 ? targetInput : (storedGoal > 0 ? storedGoal : yearlyStats.avgMonthlyProfit);
                 const neededMarginA = avgVol > 0 ? target / avgVol : 0;
                 const targetPrice = ceilToMarketPrice(pam + neededMarginA);
                 const actualProfitAtTarget = (targetPrice - pam) * avgVol;
 
                 // Option B — minimum obligatoire
-                // Default = 65% of YTD monthly average
-                const defaultMinimum = Math.round(yearlyStats.avgMonthlyProfit * 0.65);
+                // Priority: 1. user input field, 2. settings stored minimum, 3. 65% of YTD avg
+                const defaultMinimum = minimumGoalProp > 0 ? minimumGoalProp : Math.round(yearlyStats.avgMonthlyProfit * 0.65);
                 const minimumInput = parseAndEvaluate(minimumTarget);
                 const minimum = minimumInput > 0 ? minimumInput : defaultMinimum;
                 const neededMarginB = avgVol > 0 ? minimum / avgVol : 0;
@@ -441,164 +374,337 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
 
                 return (
                     <Card>
-                        <CardHeader className="p-4 pb-3">
-                            <SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>
-                                🔮 Projection mois prochain
-                            </SectionHeading>
+                        <CardHeader className="p-4 pb-0">
+                            <div className="flex items-start justify-between gap-2">
+                                <SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>
+                                    Projection mois prochain
+                                </SectionHeading>
+                                <button type="button"
+                                    onClick={() => setShowProjectionInputs(v => !v)}
+                                    className="shrink-0 text-[11px] font-semibold text-neutral-400 hover:text-neutral-700 transition-colors mt-0.5">
+                                    {showProjectionInputs ? '✕ Fermer' : '✏️ Modifier'}
+                                </button>
+                            </div>
+                            {/* Context stats — 3-column grid, mobile-friendly */}
+                            <div className="grid grid-cols-3 gap-0 mt-3 mb-1 rounded-xl overflow-hidden border border-border">
+                                <div className="px-3 py-2 bg-surface-muted text-center border-r border-border">
+                                    <p className="text-[9px] font-bold uppercase text-neutral-400 tracking-wide">PAM</p>
+                                    <p dir="ltr" className="text-sm font-extrabold text-neutral-800 tabular-nums mt-0.5">{fmt2(pam)}</p>
+                                    <p className="text-[9px] text-neutral-400">DZD</p>
+                                </div>
+                                <div className="px-3 py-2 bg-surface-muted text-center border-r border-border">
+                                    <p className="text-[9px] font-bold uppercase text-neutral-400 tracking-wide">Vol. moy.</p>
+                                    <p dir="ltr" className="text-sm font-extrabold text-neutral-800 tabular-nums mt-0.5">{fmt0(avgVol)}</p>
+                                    <p className="text-[9px] text-neutral-400">USDT</p>
+                                </div>
+                                <div className="px-3 py-2 bg-surface-muted text-center">
+                                    <p className="text-[9px] font-bold uppercase text-neutral-400 tracking-wide">Histo.</p>
+                                    <p dir="ltr" className="text-sm font-extrabold text-financial-profit tabular-nums mt-0.5">+{fmt2(histMargin > 0 ? histMargin : 0)}</p>
+                                    <p className="text-[9px] text-neutral-400">DZD/U</p>
+                                </div>
+                            </div>
                         </CardHeader>
-                        <CardContent className="p-4 pt-0 space-y-4">
-                            {/* Context row */}
-                            <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
-                                <div className="rounded-lg bg-surface-muted border border-border p-2">
-                                    <p className="font-bold uppercase text-neutral-400">Vol. moy/mois</p>
-                                    <p dir="ltr" className="font-extrabold text-neutral-800 text-sm mt-0.5">{fmt0(avgVol)} U</p>
-                                </div>
-                                <div className="rounded-lg bg-surface-muted border border-border p-2">
-                                    <p className="font-bold uppercase text-neutral-400">PAM actuel</p>
-                                    <p dir="ltr" className="font-extrabold text-neutral-800 text-sm mt-0.5">{fmt2(pam)} DZD</p>
-                                </div>
-                                <div className="rounded-lg bg-surface-muted border border-border p-2">
-                                    <p className="font-bold uppercase text-neutral-400">Marge hist.</p>
-                                    <p dir="ltr" className="font-extrabold text-financial-profit text-sm mt-0.5">+{fmt2(histMargin > 0 ? histMargin : yearlyStats.avgSellDzd - pam)} DZD/U</p>
-                                </div>
-                            </div>
 
-                            {/* Two side-by-side inputs */}
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                {/* Option A input */}
-                                <div>
-                                    <MoneyField
-                                        label={`🎯 Objectif ambitieux — défaut: moy. +${fmt0(yearlyStats.avgMonthlyProfit)} DZD`}
-                                        value={projectionTarget}
-                                        onChange={setProjectionTarget}
-                                        currency="DZD"
-                                        placeholder={fmt0(yearlyStats.avgMonthlyProfit)}
-                                        hint={storedGoal > 0 ? `Goal actuel: ${fmt0(storedGoal)} DZD` : undefined}
-                                    />
-                                    {storedGoal > 0 && !projectionTarget && (
-                                        <button type="button" onClick={() => setProjectionTarget(String(storedGoal))} className="mt-1 text-xs font-semibold text-primary hover:underline">
-                                            Utiliser mon objectif ({fmt0(storedGoal)} DZD) →
-                                        </button>
-                                    )}
-                                </div>
-                                {/* Option B input */}
-                                <div>
-                                    <MoneyField
-                                        label={`🔒 Minimum obligatoire — défaut: 65% de moy. (${fmt0(defaultMinimum)} DZD)`}
-                                        value={minimumTarget}
-                                        onChange={setMinimumTarget}
-                                        currency="DZD"
-                                        placeholder={fmt0(defaultMinimum)}
-                                        hint="Le plancher absolu que vous ne pouvez pas manquer"
-                                    />
-                                </div>
-                            </div>
+                        <CardContent className="px-4 pb-4 pt-3 space-y-3">
 
-                            {/* Results — Option A and B side by side */}
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                {/* Option A — objectif ambitieux */}
-                                <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-2">
-                                    <p className="text-[10px] font-bold uppercase text-primary tracking-wide">
-                                        🎯 Objectif ambitieux — {fmt0(target)} DZD
-                                    </p>
-                                    <p className="text-[10px] text-neutral-400">Même volume ({fmt0(avgVol)} U)</p>
-                                    <p dir="ltr" className="text-2xl font-extrabold tabular-nums text-primary">
-                                        {Number.isInteger(targetPrice) ? targetPrice : fmt2(targetPrice)} DZD
-                                    </p>
-                                    <p className="text-[11px] text-neutral-500">
-                                        +{fmt2(targetPrice - pam)} DZD/USDT de marge
-                                    </p>
-                                    {actualProfitAtTarget > 0 && (
-                                        <p className="text-[10px] text-financial-profit">
-                                            ≈ +{fmt0(actualProfitAtTarget)} DZD effectif
+                            {/* Collapsible inputs */}
+                            {showProjectionInputs && (
+                                <div className="rounded-xl border border-border bg-surface-muted p-3 space-y-3">
+                                    <div>
+                                        <p className="text-[11px] font-semibold text-neutral-500 mb-1.5">
+                                            Objectif ambitieux
+                                            {storedGoal > 0
+                                                ? <span className="font-normal text-neutral-400 ml-1">(actuel: {fmt0(storedGoal)} DZD)</span>
+                                                : <span className="font-normal text-neutral-400 ml-1">(moy: {fmt0(yearlyStats.avgMonthlyProfit)} DZD)</span>
+                                            }
                                         </p>
-                                    )}
-                                    <Button type="button" size="sm" variant="outline" className="w-full text-xs font-bold border-primary/30 text-primary hover:bg-primary/10"
+                                        <MoneyField label="" value={projectionTarget} onChange={setProjectionTarget} currency="DZD" placeholder={fmt0(storedGoal > 0 ? storedGoal : yearlyStats.avgMonthlyProfit)}/>
+                                    </div>
+                                    <div>
+                                        <p className="text-[11px] font-semibold text-neutral-500 mb-1.5">Plancher obligatoire <span className="font-normal text-neutral-400">(défaut: {fmt0(defaultMinimum)} DZD)</span></p>
+                                        <MoneyField label="" value={minimumTarget} onChange={setMinimumTarget} currency="DZD" placeholder={fmt0(defaultMinimum)}/>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Two price cards */}
+                            <div className="grid grid-cols-2 gap-2.5">
+                                {/* Card A — objectif */}
+                                <div className="rounded-2xl border border-primary/20 bg-gradient-to-b from-primary/8 to-primary/3 p-3 flex flex-col">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <p className="text-[9px] font-bold uppercase tracking-widest text-primary/70">Objectif</p>
+                                        {goalActivated && <span className="text-[9px] font-bold text-financial-profit">✓ Activé</span>}
+                                    </div>
+                                    <p className="text-[10px] text-neutral-400 mb-1.5">{fmt0(target)} DZD</p>
+                                    <p dir="ltr" className="text-[1.9rem] font-black tabular-nums text-primary leading-none tracking-tight">
+                                        {Number.isInteger(targetPrice) ? targetPrice : fmt2(targetPrice)}
+                                    </p>
+                                    <p dir="ltr" className="text-[10px] text-neutral-500 mt-1 mb-auto">+{fmt2(targetPrice - pam)} DZD/U</p>
+                                    <button type="button"
+                                        className={`w-full mt-2.5 rounded-xl text-[10px] font-bold py-2 transition-colors ${goalActivated ? 'bg-financial-profit text-white' : 'bg-primary text-white hover:bg-primary/90'}`}
                                         onClick={() => {
                                             localStorage.setItem('app_monthly_profit_goal', String(Math.round(target)));
                                             window.dispatchEvent(new StorageEvent('storage', { key: 'app_monthly_profit_goal', newValue: String(Math.round(target)) }));
+                                            setGoalActivated(true);
+                                            setTimeout(() => setGoalActivated(false), 2000);
                                         }}>
-                                        → Activer comme objectif
-                                    </Button>
+                                        {goalActivated ? '✓ Objectif activé' : '→ Activer objectif'}
+                                    </button>
                                 </div>
-
-                                {/* Option B — minimum obligatoire */}
-                                <div className="rounded-xl border border-danger/30 bg-danger-bg/50 p-4 space-y-2">
-                                    <p className="text-[10px] font-bold uppercase text-financial-loss tracking-wide">
-                                        🔒 Minimum obligatoire — {fmt0(minimum)} DZD
+                                {/* Card B — plancher */}
+                                <div className="rounded-2xl border border-danger/20 bg-gradient-to-b from-danger/8 to-danger/3 p-3 flex flex-col">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <p className="text-[9px] font-bold uppercase tracking-widest text-financial-loss/70">Plancher</p>
+                                        {plancherActivated && <span className="text-[9px] font-bold text-financial-profit">✓ Activé</span>}
+                                    </div>
+                                    <p className="text-[10px] text-neutral-400 mb-1.5">{fmt0(minimum)} DZD</p>
+                                    <p dir="ltr" className="text-[1.9rem] font-black tabular-nums text-financial-loss leading-none tracking-tight">
+                                        {Number.isInteger(minimumPrice) ? minimumPrice : fmt2(minimumPrice)}
                                     </p>
-                                    <p className="text-[10px] text-neutral-400">Même volume ({fmt0(avgVol)} U)</p>
-                                    <p dir="ltr" className="text-2xl font-extrabold tabular-nums text-financial-loss">
-                                        {Number.isInteger(minimumPrice) ? minimumPrice : fmt2(minimumPrice)} DZD
-                                    </p>
-                                    <p className="text-[11px] text-neutral-500">
-                                        +{fmt2(minimumPrice - pam)} DZD/USDT de marge
-                                    </p>
-                                    {actualProfitAtMinimum > 0 && (
-                                        <p className="text-[10px] text-financial-loss">
-                                            ≈ +{fmt0(actualProfitAtMinimum)} DZD effectif
-                                        </p>
-                                    )}
-                                    <p className="text-[10px] text-financial-loss/70 font-semibold">
-                                        ⚠️ Ne jamais vendre en dessous de ce prix
-                                    </p>
+                                    <p dir="ltr" className="text-[10px] text-neutral-500 mt-1 mb-1">+{fmt2(minimumPrice - pam)} DZD/U</p>
+                                    <p className="text-[9px] text-financial-loss/60 font-semibold mb-auto">⚠ Ne pas descendre</p>
+                                    <button type="button"
+                                        className={`w-full mt-2.5 rounded-xl text-[10px] font-bold py-2 transition-colors border ${plancherActivated ? 'bg-financial-profit border-transparent text-white' : 'bg-danger/10 border-danger/25 text-financial-loss hover:bg-danger/20'}`}
+                                        onClick={() => {
+                                            localStorage.setItem('app_min_monthly_goal', String(Math.round(minimum)));
+                                            window.dispatchEvent(new StorageEvent('storage', { key: 'app_min_monthly_goal', newValue: String(Math.round(minimum)) }));
+                                            setPlancherActivated(true);
+                                            setTimeout(() => setPlancherActivated(false), 2000);
+                                        }}>
+                                        {plancherActivated ? '✓ Plancher activé' : '→ Activer plancher'}
+                                    </button>
                                 </div>
                             </div>
 
-                            <p className="text-center text-[10px] text-neutral-400">
-                                Les deux prix = PAM + (Objectif ÷ Volume), arrondi au-dessus (xxx ou xxx.50)
-                            </p>
-
-                            {/* Tier price table — goal-aligned */}
-                            {neededMarginA > 0 && (() => {
-                                // Adjust base so even VIP achieves the goal
+                            {/* Tier price list — toggle A/B */}
+                            {(neededMarginA > 0 || neededMarginB > 0) && (() => {
                                 const bracket = getVolumeBracket(avgVol);
-                                const adjustedBase = computeGoalAdjustedBase(neededMarginA, bracket);
-                                const tiers = allTierPrices(pam, avgVol, adjustedBase, adjustedBase);
+                                const isA = tierTableMode === 'A';
+                                const activeMargin = isA ? neededMarginA : neededMarginB;
+                                const activeGoalForCheck = isA ? target : minimum;
+                                const adjustedBase = computeGoalAdjustedBase(activeMargin, bracket);
+                                // Use ceilToMarketPrice to GUARANTEE all tiers meet the goal (never round down)
                                 const tierOrder: ClientTierType[] = ['vip', 'regular', 'petit', 'new'];
-                                const TIER_ICONS: Record<string, string> = { vip: '🏆 VIP', regular: '⭐ Régulier', petit: '🔸 Petit', new: '🆕 Nouveau' };
+                                const tiers = Object.fromEntries(
+                                    tierOrder.map(tier => {
+                                        const mult = getMarginMultiplier(tier, bracket);
+                                        const price = ceilToMarketPrice(pam + adjustedBase * mult);
+                                        return [tier, { price, profitPerUnit: price - pam }];
+                                    })
+                                ) as Record<ClientTierType, { price: number; profitPerUnit: number }>;
+
+                                type TierMeta = { label: string; volume: string; dot: string };
+                                const fmt0k = (n: number) => n >= 1000 ? `${(n/1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : `${n}`;
+                                const TIER_META: Record<string, TierMeta> = {
+                                    vip:     { label: 'VIP',      volume: `> ${fmt0k(thr.vip)} U/mois`,               dot: 'bg-amber-400' },
+                                    regular: { label: 'Régulier', volume: `${fmt0k(thr.regular)} – ${fmt0k(thr.vip)} U`, dot: 'bg-primary' },
+                                    petit:   { label: 'Petit',    volume: `${fmt0k(thr.petit)} – ${fmt0k(thr.regular)} U`, dot: 'bg-orange-400' },
+                                    new:     { label: 'Nouveau',  volume: `< ${fmt0k(thr.petit)} U ou nouveau`,        dot: 'bg-neutral-300' },
+                                };
+
                                 return (
-                                    <div className="border-t border-border pt-3">
-                                        <p className="text-[10px] font-bold uppercase text-neutral-400 mb-2 tracking-wide">
-                                            Prix par type de client · volume moy. {fmt0(avgVol)} USDT/mois
-                                        </p>
-                                        <div className="rounded-xl border border-border overflow-hidden">
-                                            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 bg-surface-muted px-3 py-2 text-[9px] font-bold uppercase text-neutral-400 tracking-wide border-b border-border">
-                                                <span>Type</span>
-                                                <span className="text-right">Prix</span>
-                                                <span className="text-right">+/USDT</span>
-                                                <span className="text-right">Profit/mois</span>
+                                    <div className="space-y-2">
+                                        {/* Section header with toggle */}
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide">Prix par client</p>
+                                            <div className="flex rounded-lg border border-border overflow-hidden text-[10px] font-bold">
+                                                <button type="button" onClick={() => setTierTableMode('A')}
+                                                    className={`px-2.5 py-1 transition-colors ${isA ? 'bg-primary text-white' : 'text-neutral-400 hover:bg-neutral-50'}`}>
+                                                    Objectif
+                                                </button>
+                                                <button type="button" onClick={() => setTierTableMode('B')}
+                                                    className={`px-2.5 py-1 transition-colors border-l border-border ${!isA ? 'bg-financial-loss text-white' : 'text-neutral-400 hover:bg-neutral-50'}`}>
+                                                    Plancher
+                                                </button>
                                             </div>
+                                        </div>
+
+                                        {/* Clean list */}
+                                        <div className="rounded-xl border border-border overflow-hidden divide-y divide-neutral-100">
                                             {tierOrder.map(tier => {
                                                 const row = tiers[tier];
-                                                const monthlyProfit = row.profitPerUnit * avgVol;
-                                                const achievesGoal = monthlyProfit >= target;
                                                 const priceStr = Number.isInteger(row.price) ? `${row.price}` : fmt2(row.price);
+                                                const { label, volume, dot } = TIER_META[tier];
                                                 return (
-                                                    <div key={tier} className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 px-3 py-2.5 border-b last:border-b-0 border-neutral-100 ${achievesGoal ? 'bg-financial-profit-bg/40' : ''}`}>
-                                                        <span className={`text-xs font-bold ${achievesGoal ? 'text-financial-profit' : 'text-neutral-700'}`}>
-                                                            {TIER_ICONS[tier]}
-                                                            {achievesGoal
-                                                                ? <span className="ml-1 text-[9px] bg-financial-profit/15 text-financial-profit px-1 rounded-full">✓ objectif</span>
-                                                                : <span className="ml-1 text-[9px] text-neutral-300">{fmt0(target - monthlyProfit)} DZD manquants</span>
-                                                            }
-                                                        </span>
-                                                        <span dir="ltr" className={`text-sm font-extrabold tabular-nums text-right ${achievesGoal ? 'text-financial-profit' : 'text-neutral-800'}`}>
-                                                            {priceStr} DZD
-                                                        </span>
-                                                        <span dir="ltr" className="text-xs font-semibold tabular-nums text-right text-financial-profit">
-                                                            +{fmt2(row.profitPerUnit)}
-                                                        </span>
-                                                        <span dir="ltr" className="text-xs font-bold tabular-nums text-right text-financial-profit">
-                                                            +{fmt0(monthlyProfit)} DZD
-                                                        </span>
+                                                    <div key={tier} className="flex items-center justify-between px-4 py-3 bg-white hover:bg-neutral-50/60 transition-colors">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`}/>
+                                                            <div>
+                                                                <p className="text-sm font-semibold text-neutral-800">{label}</p>
+                                                                <p dir="ltr" className="text-[10px] text-neutral-400">{volume}</p>
+                                                            </div>
+                                                        </div>
+                                                        <p dir="ltr" className={`text-base font-extrabold tabular-nums ${isA ? 'text-primary' : 'text-financial-loss'}`}>
+                                                            {priceStr} <span className="text-xs font-normal text-neutral-400">DZD</span>
+                                                        </p>
                                                     </div>
                                                 );
                                             })}
                                         </div>
-                                        <p className="text-[9px] text-neutral-400 mt-1.5 text-center">
-                                            ✨ Après "Définir comme objectif", le calculateur Assisté utilise ces prix automatiquement
-                                        </p>
+
+                                        {isA && (
+                                            <p className="text-[10px] text-neutral-400 text-center pt-0.5">
+                                                Après "Activer comme objectif", la calculatrice Assisté utilise ces prix
+                                            </p>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+
+                            {/* ── Volume Strategy Monitor ───────────────────── */}
+                            {(() => {
+                                const now = new Date();
+                                const dayOfMonth   = now.getDate();
+                                const daysInMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+                                const daysElapsed  = Math.max(1, dayOfMonth);
+                                const daysRemaining = Math.max(1, daysInMonth - dayOfMonth);
+                                const monthStart   = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+                                // Volume sold this month (USDT only)
+                                const currentMonthVol = pamLedger.sellProfitRows
+                                    .filter(r => r.currency === 'USDT' && r.timestamp >= monthStart)
+                                    .reduce((s, r) => s + Number(r.quantity || 0), 0);
+
+                                const dailyPace = currentMonthVol / daysElapsed;
+                                const projectedVol = dailyPace * daysInMonth;
+
+                                // Margins at each strategy price
+                                const marginA = Math.max(0.01, targetPrice - pam);
+                                const marginB = Math.max(0.01, minimumPrice - pam);
+
+                                // Volume needed to hit goals
+                                const volA_goal   = target    / marginA; // objective at A price
+                                const volB_goal   = target    / marginB; // objective at B price
+                                const volB_min    = minimum   / marginB; // minimum at B price
+
+                                const remainA = Math.max(0, volA_goal - currentMonthVol);
+                                const remainB = Math.max(0, volB_min  - currentMonthVol);
+
+                                const paceNeededA = remainA / daysRemaining;
+                                const paceNeededBmin = remainB / daysRemaining;
+
+                                const achievedA    = currentMonthVol >= volA_goal;
+                                const achievedBmin = currentMonthVol >= volB_min;
+                                const projAchievesA    = projectedVol >= volA_goal;
+                                const projAchievesBmin = projectedVol >= volB_min;
+
+                                // Recommendation
+                                type RecLevel = 'success' | 'primary' | 'warning' | 'danger';
+                                let recText = '';
+                                let recLevel: RecLevel = 'primary';
+                                if (achievedA) {
+                                    recText = 'Volume suffisant — maintenez les prix ambitieux. Chaque vente supplémentaire est un bonus.';
+                                    recLevel = 'success';
+                                } else if (projAchievesA) {
+                                    recText = 'L\'objectif est accessible au rythme actuel — maintenez les prix forts (Stratégie A).';
+                                    recLevel = 'primary';
+                                } else if (projAchievesBmin) {
+                                    recText = 'Le plancher sera atteint. Pour l\'objectif ambitieux: baissez légèrement les prix et cherchez plus de volume.';
+                                    recLevel = 'warning';
+                                } else {
+                                    recText = 'Rythme insuffisant — appliquez le prix plancher et recherchez activement des clients pour maximiser le volume.';
+                                    recLevel = 'danger';
+                                }
+
+                                const recColors: Record<RecLevel, string> = {
+                                    success: 'bg-financial-profit-bg border-success/30 text-financial-profit',
+                                    primary: 'bg-primary/5 border-primary/20 text-primary',
+                                    warning: 'bg-warning-bg border-warning/30 text-warning',
+                                    danger:  'bg-danger/5 border-danger/30 text-financial-loss',
+                                };
+                                const volPct = avgVol > 0 ? Math.min(100, (currentMonthVol / avgVol) * 100) : 0;
+
+                                return (
+                                    <div className="border-t border-border pt-3 space-y-3">
+                                        {/* Header */}
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide">Volume ce mois</p>
+                                            <span className="text-[10px] text-neutral-400">{daysRemaining}j restants · {fmt0(daysInMonth)}j total</span>
+                                        </div>
+
+                                        {/* Volume progress bar */}
+                                        <div>
+                                            <div className="flex items-center justify-between text-[10px] mb-1.5">
+                                                <span dir="ltr" className="font-bold text-neutral-700">{fmt0(currentMonthVol)} USDT vendu</span>
+                                                <span className="text-neutral-400">{fmt0(Math.round(volPct))}% de la moy. mensuelle</span>
+                                            </div>
+                                            <div className="relative h-3 w-full rounded-full bg-neutral-100 overflow-visible">
+                                                {/* Current volume bar */}
+                                                <div className={`h-3 rounded-full transition-all ${achievedA ? 'bg-financial-profit' : projAchievesA ? 'bg-primary' : projAchievesBmin ? 'bg-warning' : 'bg-danger/60'}`}
+                                                    style={{ width: `${Math.min(100, volPct)}%` }}/>
+                                                {/* Marker for Strategy A */}
+                                                {volA_goal <= avgVol * 1.5 && (
+                                                    <div className="absolute top-0 h-3 w-0.5 bg-primary/60 rounded-full"
+                                                        style={{ left: `${Math.min(99, (volA_goal / (avgVol * 1.5)) * 100)}%` }}
+                                                        title={`Objectif A: ${fmt0(volA_goal)} U`}/>
+                                                )}
+                                                {/* Marker for Min */}
+                                                {volB_min <= avgVol * 1.5 && (
+                                                    <div className="absolute top-0 h-3 w-0.5 bg-danger/40 rounded-full"
+                                                        style={{ left: `${Math.min(99, (volB_min / (avgVol * 1.5)) * 100)}%` }}
+                                                        title={`Plancher B: ${fmt0(volB_min)} U`}/>
+                                                )}
+                                            </div>
+                                            <div className="flex justify-between text-[9px] text-neutral-400 mt-1">
+                                                <span dir="ltr">Rythme: {fmt0(dailyPace)} U/j · Projection: ~{fmt0(projectedVol)} U</span>
+                                                <span dir="ltr">Moy.: {fmt0(avgVol)} U</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Two strategy cards */}
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {/* Strategy A — prix fort */}
+                                            <div className={`rounded-xl border p-3 space-y-1.5 ${achievedA ? 'border-success/30 bg-financial-profit-bg/40' : projAchievesA ? 'border-primary/20 bg-primary/5' : 'border-neutral-200 bg-neutral-50'}`}>
+                                                <p className="text-[9px] font-bold uppercase tracking-wide text-primary">A · Prix fort</p>
+                                                <p dir="ltr" className="text-xs font-extrabold text-neutral-800">{Number.isInteger(targetPrice) ? targetPrice : fmt2(targetPrice)} DZD</p>
+                                                <div className="space-y-0.5">
+                                                    <p className="text-[9px] text-neutral-500">Vol. pour {fmt0(target)} DZD:</p>
+                                                    <p dir="ltr" className="text-[10px] font-bold text-neutral-700">{fmt0(volA_goal)} USDT</p>
+                                                </div>
+                                                {achievedA ? (
+                                                    <p className="text-[10px] font-bold text-financial-profit">✓ Atteint!</p>
+                                                ) : (
+                                                    <div>
+                                                        <p className="text-[9px] text-neutral-400">Reste: <span className="font-bold text-neutral-700">{fmt0(remainA)} U</span></p>
+                                                        <p dir="ltr" className={`text-[9px] font-bold ${projAchievesA ? 'text-primary' : 'text-financial-loss'}`}>
+                                                            {fmt0(paceNeededA)} U/j nécessaire
+                                                        </p>
+                                                        <p className={`text-[9px] font-bold mt-0.5 ${projAchievesA ? 'text-primary' : 'text-financial-loss'}`}>
+                                                            {projAchievesA ? '✓ Accessible' : '✗ Hors portée'}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Strategy B — volume fort */}
+                                            <div className={`rounded-xl border p-3 space-y-1.5 ${achievedBmin ? 'border-success/30 bg-financial-profit-bg/40' : projAchievesBmin ? 'border-warning/30 bg-warning-bg/30' : 'border-danger/20 bg-danger/5'}`}>
+                                                <p className="text-[9px] font-bold uppercase tracking-wide text-financial-loss">B · Volume fort</p>
+                                                <p dir="ltr" className="text-xs font-extrabold text-neutral-800">{Number.isInteger(minimumPrice) ? minimumPrice : fmt2(minimumPrice)} DZD</p>
+                                                <div className="space-y-0.5">
+                                                    <p className="text-[9px] text-neutral-500">Vol. pour {fmt0(minimum)} DZD:</p>
+                                                    <p dir="ltr" className="text-[10px] font-bold text-neutral-700">{fmt0(volB_min)} USDT</p>
+                                                </div>
+                                                {achievedBmin ? (
+                                                    <p className="text-[10px] font-bold text-financial-profit">✓ Plancher assuré!</p>
+                                                ) : (
+                                                    <div>
+                                                        <p className="text-[9px] text-neutral-400">Reste: <span className="font-bold text-neutral-700">{fmt0(remainB)} U</span></p>
+                                                        <p dir="ltr" className={`text-[9px] font-bold ${projAchievesBmin ? 'text-warning' : 'text-financial-loss'}`}>
+                                                            {fmt0(paceNeededBmin)} U/j nécessaire
+                                                        </p>
+                                                        <p className={`text-[9px] font-bold mt-0.5 ${projAchievesBmin ? 'text-warning' : 'text-financial-loss'}`}>
+                                                            {projAchievesBmin ? '⚠️ Faisable' : '✗ Critique'}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Recommendation */}
+                                        <div className={`rounded-xl border px-3 py-2.5 ${recColors[recLevel]}`}>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide mb-0.5">Recommandation</p>
+                                            <p className="text-[11px] font-semibold leading-relaxed">{recText}</p>
+                                        </div>
                                     </div>
                                 );
                             })()}
@@ -607,38 +713,6 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
                 );
             })()}
 
-            {/* Data Integrity Card */}
-            <Card>
-                <CardHeader className="p-4 pb-3">
-                    <div className="flex items-center justify-between gap-2">
-                        <SectionHeading icon={<TrendingUpIcon className="w-4 h-4"/>}>
-                            Santé des données
-                        </SectionHeading>
-                        <div className="flex items-center gap-2 shrink-0">
-                            {errorCount > 0 && <span className="rounded-full bg-danger-bg border border-danger/30 px-2 py-0.5 text-[10px] font-bold text-financial-loss">{errorCount} erreur{errorCount > 1 ? 's' : ''}</span>}
-                            {warnCount > 0 && <span className="rounded-full bg-warning-bg border border-warning/30 px-2 py-0.5 text-[10px] font-bold text-warning">{warnCount} alerte{warnCount > 1 ? 's' : ''}</span>}
-                            {errorCount === 0 && warnCount === 0 && <span className="rounded-full bg-success-bg border border-success/30 px-2 py-0.5 text-[10px] font-bold text-financial-profit">✓ Tout OK</span>}
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent className="p-0 divide-y divide-neutral-100">
-                    {integrityChecks.map((check) => {
-                        const icon = check.status === 'ok' ? '✅' : check.status === 'warn' ? '⚠️' : '❌';
-                        const textCls = check.status === 'ok' ? 'text-financial-profit' : check.status === 'warn' ? 'text-warning' : 'text-financial-loss';
-                        return (
-                            <div key={check.label} className="flex items-center justify-between gap-3 px-4 py-3">
-                                <div className="flex items-center gap-2 min-w-0">
-                                    <span className="text-sm shrink-0">{icon}</span>
-                                    <span className="text-sm font-semibold text-neutral-700 truncate">{check.label}</span>
-                                </div>
-                                <span className={`text-xs font-semibold shrink-0 text-right ${textCls}`}>
-                                    {check.detail}
-                                </span>
-                            </div>
-                        );
-                    })}
-                </CardContent>
-            </Card>
 
             {/* PAM USDT History */}
             {pamHistoryUsdt.length >= 2 && (

@@ -1,11 +1,10 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
 import { Tx, PortfolioStats, ClientDzd, TreasuryTx, ClientTransactionDzd } from '../types';
 import { now, parseAndEvaluate } from '../utils';
 import { roundM } from '../utils/money';
 import { formatNumber } from '../pages/shared/pageFormat';
 import { applyTransactionDelete } from '../transactionService';
-import { computeSuggestedPrice, ClientTierType } from '../utils/pricingMatrix';
 interface HandlerProps {
     userDocRef: FirestoreDocumentReference;
     portfolioStats: PortfolioStats;
@@ -22,14 +21,14 @@ interface HandlerProps {
     setAlert: (msg: string) => void;
     setSelectedClientId: (id: string | null) => void;
     setView: (view: 'transactions' | 'dzd' | 'tresorerie' | 'statistiques' | 'tresorerie' | 'investors') => void;
-    // Smart pricing
+    // Smart pricing context is used outside the transaction price defaults.
     clientLoyaltyMap?: Map<string, 'vip' | 'regular' | 'new' | 'inactive'>;
     avgMarginPerUsdt?: number;
 }
 type TransactionFormMode = 'buy_usdt' | 'sell_usdt' | 'buy_eur' | 'sell_eur';
 type PortfolioCurrency = 'USDT' | 'EUR';
 type SettlementCurrency = 'DZD' | 'EUR';
-export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, treasuryStats, suggestedProfitMargin, suggestedSellingPrice, suggestedSellingPriceEur, setAlert, setSelectedClientId, setView, clientLoyaltyMap, avgMarginPerUsdt }: HandlerProps) {
+export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, treasuryStats, suggestedProfitMargin, suggestedSellingPrice, suggestedSellingPriceEur, setAlert, setSelectedClientId, setView }: HandlerProps) {
     const [isSaving, setIsSaving] = useState(false);
     const paymentMethodByStatus: Record<'credit' | 'baridi' | 'cash', 'Crédit' | 'BaridiMob' | 'Espèces'> = {
         credit: 'Crédit',
@@ -61,25 +60,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [linkedClientDzdId, setLinkedClientDzdId] = useState('none');
     const [clientPaymentStatus, setClientPaymentStatus] = useState<'credit' | 'baridi' | 'cash'>('cash');
 
-    // Auto-detect: when client selected in sell mode, suggest smart price
-    useEffect(() => {
-        if (!linkedClientId || linkedClientId === 'none') return;
-        if (mode !== 'sell_usdt') return;
-        if (!clientLoyaltyMap || !avgMarginPerUsdt || avgMarginPerUsdt <= 0) return;
-        // Only auto-suggest if sell price hasn't been manually set already (check if it equals the default)
-        const pam = portfolioStats.usdt.avgBuy;
-        if (pam <= 0) return;
-        const rawTier = clientLoyaltyMap.get(linkedClientId);
-        const VALID_TIERS = new Set<string>(['vip', 'regular', 'petit', 'new']);
-        const tier: ClientTierType = (rawTier && VALID_TIERS.has(rawTier)) ? (rawTier as ClientTierType) : 'none';
-        const qty = parseAndEvaluate(sellAmount) || portfolioStats.usdt.available;
-        const smartPrice = computeSuggestedPrice(pam, qty, tier, avgMarginPerUsdt, parseAndEvaluate(suggestedProfitMargin));
-        if (smartPrice > pam) {
-            setSellPrice(smartPrice.toFixed(2));
-            setProfitPercent((smartPrice - pam).toFixed(2));
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [linkedClientId]);
+    const [buyRestriction, setBuyRestriction] = useState<'free' | 'locked_24h'>('free');
+    const [realPurchaseTime, setRealPurchaseTime] = useState('');
     const [notes, setNotes] = useState('');
     const [txTags, setTxTags] = useState<string[]>([]);
     const [profitPercent, setProfitPercent] = useState('');
@@ -193,6 +175,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setProfitPercent('');
         setNotes('');
         setBuyUsdtMode(null);
+        setBuyRestriction('free');
+        setRealPurchaseTime('');
         setBuyEurForUsdtAmount('');
         setEurDzdPrice('');
         setEurUsdtRate('');
@@ -223,6 +207,11 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         setBuyEurForUsdtAmount(eurSpent > 0 ? eurSpent.toFixed(2) : '');
                         setEurUsdtRate(inferredRate > 0 ? inferredRate.toFixed(4) : '');
                         setEurDzdPrice(inferredEurPrice > 0 ? inferredEurPrice.toFixed(2) : '');
+                        if (txToEdit.lockedUntil && txToEdit.lockedUntil > Date.now()) {
+                            setBuyRestriction('locked_24h');
+                            const pd = new Date(txToEdit.lockedUntil - 24 * 60 * 60 * 1000);
+                            setRealPurchaseTime(`${String(pd.getHours()).padStart(2, '0')}:${String(pd.getMinutes()).padStart(2, '0')}`);
+                        }
                     }
                     else {
                         setBuyUsdtMode('with_dzd');
@@ -231,6 +220,11 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         const existingTotal = Number(txToEdit.total || 0);
                         const fallbackTotal = Math.round((txToEdit.quantity || 0) * (txToEdit.price || 0));
                         setBuyUsdtTotal((existingTotal > 0 ? Math.round(existingTotal) : fallbackTotal).toString());
+                        if (txToEdit.lockedUntil && txToEdit.lockedUntil > Date.now()) {
+                            setBuyRestriction('locked_24h');
+                            const pd = new Date(txToEdit.lockedUntil - 24 * 60 * 60 * 1000);
+                            setRealPurchaseTime(`${String(pd.getHours()).padStart(2, '0')}:${String(pd.getMinutes()).padStart(2, '0')}`);
+                        }
                     }
                 }
                 else {
@@ -288,26 +282,23 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         else {
             if (newMode === 'buy_eur' && portfolioStats.eur.avgBuy > 0)
                 setBuyEurPrice(portfolioStats.eur.avgBuy.toFixed(2));
-            if (newMode === 'sell_usdt' || newMode === 'sell_eur') {
-                const sellCurrency: PortfolioCurrency = newMode === 'sell_eur' ? 'EUR' : 'USDT';
-                const sellAssetStats = getPortfolioAssetStats(sellCurrency);
-                if (newMode === 'sell_usdt' && portfolioStats.eur.avgBuy > 0) {
-                    setSellEurToDzdRate(portfolioStats.eur.avgBuy.toFixed(2));
-                }
-                const configuredSuggestedPrice = sellCurrency === 'EUR'
-                    ? suggestedSellingPriceEur
-                    : suggestedSellingPrice;
-                setProfitPercent(suggestedProfitMargin);
-                let suggestedPrice = sellAssetStats.avgBuy + parseAndEvaluate(suggestedProfitMargin);
-                if (configuredSuggestedPrice && parseFloat(configuredSuggestedPrice) > 0) {
-                    suggestedPrice = parseFloat(configuredSuggestedPrice);
-                    setProfitPercent((suggestedPrice - sellAssetStats.avgBuy).toFixed(2));
-                }
-                setSellPrice(suggestedPrice.toFixed(2));
-            }
+            if (newMode === 'sell_usdt' && portfolioStats.eur.avgBuy > 0)
+                setSellEurToDzdRate(portfolioStats.eur.avgBuy.toFixed(2));
         }
     };
-    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setSellSettlementCurrency('DZD'); setSellEurToDzdRate(''); setLinkedClientDzdId('none'); setIsTotalManual(false); setTxTags([]); };
+    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setBuyRestriction('free'); setRealPurchaseTime(''); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setSellSettlementCurrency('DZD'); setSellEurToDzdRate(''); setLinkedClientDzdId('none'); setIsTotalManual(false); setTxTags([]); };
+    const computeLockedUntil = (baseTs: number): number => {
+        const t = realPurchaseTime.trim();
+        if (!t) return baseTs + 24 * 60 * 60 * 1000;
+        const parts = t.split(':');
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1] || '0', 10);
+        if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59)
+            return baseTs + 24 * 60 * 60 * 1000;
+        const d = new Date(baseTs);
+        d.setHours(h, m, 0, 0);
+        return d.getTime() + 24 * 60 * 60 * 1000;
+    };
     const handleBuy = async () => {
         if (!formValidation.isValid || isSaving)
             return;
@@ -385,6 +376,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     purchaseAmountEur: fieldValueDelete(),
                     eurToDzdRateAtPurchase: fieldValueDelete(),
                     eurPerUsdtAtPurchase: fieldValueDelete(),
+                    lockedUntil: buyRestriction === 'locked_24h'
+                        ? computeLockedUntil(editingTx?.timestamp ?? timestamp)
+                        : fieldValueDelete(),
                     currency, clientPaymentStatus: clientPaymentStatus,
                     ...buyMetadata
                 });
@@ -429,6 +423,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     timestamp, type: 'buy', quantity, price, total: totalCost,
                     date, time, notes: notes.trim(),
                     ...(txTags.length > 0 ? { tags: txTags } : {}),
+                    ...(buyRestriction === 'locked_24h' ? { lockedUntil: computeLockedUntil(timestamp) } : {}),
                     currency, clientPaymentStatus: clientPaymentStatus,
                     ...buyMetadata
                 });
@@ -1076,12 +1071,46 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         setTxToDelete(null);
     };
+    const handleApplyLock24hToRecentBuys = async () => {
+        const nowMs = Date.now();
+        const oneDayMs = 24 * 60 * 60 * 1000;
+        const twoDaysMs = 48 * 60 * 60 * 1000;
+        const toUpdate = transactions.filter(tx =>
+            tx.type === 'buy' &&
+            tx.currency === 'USDT' &&
+            !tx.lockedUntil &&
+            (nowMs - tx.timestamp) <= twoDaysMs
+        );
+        if (toUpdate.length === 0) {
+            setAlert('ℹ️ Aucune transaction récente à verrouiller.');
+            return;
+        }
+        if (isSaving) return;
+        setIsSaving(true);
+        try {
+            const batch = db.batch();
+            for (const tx of toUpdate) {
+                batch.update(userDocRef.collection('usdt_txs').doc(tx.id), {
+                    lockedUntil: tx.timestamp + oneDayMs
+                });
+            }
+            await batch.commit();
+            setAlert(`✅ ${toUpdate.length} achat(s) marqué(s) comme bloqués 24h.`);
+        } catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur lors du verrouillage.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
     return {
         isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual,
         buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal,
         buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal,
         sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal,
         sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate,
+        buyRestriction, setBuyRestriction,
+        realPurchaseTime, setRealPurchaseTime,
         buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount,
         eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate,
         linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus,
@@ -1102,6 +1131,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount,
         transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId,
         transferNotes, setTransferNotes, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer: handleSaveTransferWithEditing,
-        transferFromBalance, transferToBalance
+        transferFromBalance, transferToBalance,
+        handleApplyLock24hToRecentBuys
     };
 }

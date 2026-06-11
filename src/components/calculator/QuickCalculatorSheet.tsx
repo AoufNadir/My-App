@@ -10,13 +10,19 @@ import {
     getVolumeBracketLabel,
     computeSuggestedPrice,
     roundToMarketPrice,
+    ceilToMarketPrice,
+    computeGoalAdjustedBase,
+    getMarginMultiplier,
 } from '../../utils/pricingMatrix';
 
 const fmt0 = (n: number) => formatNumber(n, { min: 0, max: 0 });
 const fmt2 = (n: number) => formatNumber(n, { min: 2, max: 2 });
 
 type Currency = 'USDT' | 'EUR';
-type Mode = 'normal' | 'inverse' | 'assisted';
+type Mode = 'normal' | 'inverse' | 'assisted' | 'client';
+
+type ClientEntry = { id: string; name: string; group?: string };
+type TxEntry    = { type: string; currency: string; linkedClientId?: string; quantity: number; sell?: number; price?: number; timestamp: number; total?: number };
 
 const TIER_LABELS: Record<ClientTierType, string> = {
     vip:     '🏆 VIP',
@@ -48,9 +54,13 @@ type QuickCalculatorSheetProps = {
     onClose: () => void;
     portfolioStats: { usdt: PortfolioSide; eur: PortfolioSide };
     pricingContext?: PricingContext;
+    clients?: ClientEntry[];
+    clientLoyaltyMap?: Map<string, 'vip' | 'regular' | 'petit' | 'new' | 'inactive'>;
+    transactions?: TxEntry[];
+    minimumGoal?: number;
 };
 
-export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingContext }: QuickCalculatorSheetProps) {
+export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingContext, clients = [], clientLoyaltyMap, transactions = [], minimumGoal = 0 }: QuickCalculatorSheetProps) {
     const [currency, setCurrency] = useState<Currency>('USDT');
     const [mode, setMode]         = useState<Mode>('normal');
     const [quantity, setQuantity] = useState('');
@@ -58,6 +68,9 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
     const [targetProfit, setTargetProfit] = useState('');
     // Assisté: selected tier row (highlight)
     const [selectedTier, setSelectedTier] = useState<ClientTierType>('regular');
+    // Client mode
+    const [clientSearch, setClientSearch] = useState('');
+    const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
     const stats    = currency === 'USDT' ? portfolioStats.usdt : portfolioStats.eur;
     const pam      = stats.avgBuy;
@@ -112,6 +125,66 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
         return { tiers, qty, bracket, bracketLabel, baseMargin, goalPct, ctx: pricingContext };
     }, [mode, pam, available, pricingContext, assistedQty]);
 
+    // ── Client mode ───────────────────────────────────────────────────────────
+    const filteredClients = useMemo(() => {
+        if (!clientSearch.trim()) return clients.slice(0, 6);
+        const q = clientSearch.toLowerCase();
+        return clients.filter(c => c.name.toLowerCase().includes(q)).slice(0, 8);
+    }, [clients, clientSearch]);
+
+    const selectedClient = useMemo(() => clients.find(c => c.id === selectedClientId) ?? null, [clients, selectedClientId]);
+
+    const rawClientTier = selectedClientId ? (clientLoyaltyMap?.get(selectedClientId) ?? 'new') : null;
+    const clientTier: ClientTierType = rawClientTier === 'inactive' ? 'new' : (rawClientTier ?? 'new');
+
+    const clientPrevMonthVolume = useMemo(() => {
+        if (!selectedClientId) return 0;
+        const now = new Date();
+        const prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+        const prevEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).getTime();
+        return transactions
+            .filter(tx => tx.type === 'sell' && tx.currency === 'USDT' && tx.linkedClientId === selectedClientId && tx.timestamp >= prevStart && tx.timestamp <= prevEnd)
+            .reduce((s, tx) => s + Number(tx.quantity || 0), 0);
+    }, [selectedClientId, transactions]);
+
+    const lastSellToClient = useMemo(() => {
+        if (!selectedClientId) return null;
+        return transactions
+            .filter(tx => tx.type === 'sell' && tx.currency === 'USDT' && tx.linkedClientId === selectedClientId)
+            .sort((a, b) => b.timestamp - a.timestamp)[0] ?? null;
+    }, [selectedClientId, transactions]);
+
+    const clientModeData = useMemo(() => {
+        if (mode !== 'client' || !selectedClientId || !pricingContext || pam <= 0) return null;
+        const qty = parseAndEvaluate(quantity);
+        if (qty <= 0) return null;
+
+        const bracket = getVolumeBracket(qty);
+        const tierMult = getMarginMultiplier(clientTier, bracket);
+
+        const avgVol = pricingContext.avgMonthlyUsdtSold > 0 ? pricingContext.avgMonthlyUsdtSold : qty;
+
+        // Goal A — ambitious
+        const goalA = pricingContext.monthlyGoal > 0 ? pricingContext.monthlyGoal : 0;
+        const neededMarginA = goalA > 0 ? goalA / avgVol : pricingContext.avgMarginPerUsdt;
+        const adjBaseA = computeGoalAdjustedBase(neededMarginA, bracket);
+        const priceA = ceilToMarketPrice(pam + adjBaseA * tierMult);
+        const profitA = (priceA - pam) * qty;
+
+        // Goal B — minimum floor
+        const goalB = minimumGoal > 0 ? minimumGoal : Math.round(goalA * 0.65);
+        const neededMarginB = goalB > 0 ? goalB / avgVol : neededMarginA * 0.65;
+        const adjBaseB = computeGoalAdjustedBase(neededMarginB, bracket);
+        const priceB = ceilToMarketPrice(pam + adjBaseB * tierMult);
+        const profitB = (priceB - pam) * qty;
+
+        // Monthly impact
+        const remainingGoal = Math.max(0, goalA - pricingContext.monthToDateProfit);
+        const coveragePct = remainingGoal > 0 ? Math.min(100, Math.round((profitA / remainingGoal) * 100)) : 100;
+
+        return { priceA, priceB, profitA, profitB, qty, bracket, tierMult, goalA, goalB, remainingGoal, coveragePct };
+    }, [mode, selectedClientId, quantity, pam, pricingContext, minimumGoal, clientTier]);
+
     const segBtn = (active: boolean) =>
         `flex-1 min-h-[40px] rounded-lg text-sm font-bold transition-colors ${active ? 'bg-primary text-white' : 'text-neutral-600 hover:text-neutral-800'}`;
 
@@ -136,12 +209,13 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
                 </div>
 
                 {/* Mode */}
-                <div className="flex gap-2">
+                <div className="flex gap-1.5 flex-wrap">
                     <button type="button" onClick={() => { setMode('normal');   resetInputs(); }} className={modeBtn(mode === 'normal',   'bg-primary/10 text-primary')}>📊 Normal</button>
                     <button type="button" onClick={() => { setMode('inverse');  resetInputs(); }} className={modeBtn(mode === 'inverse',  'bg-secondary/10 text-secondary')}>🎯 Inverse</button>
-                    {currency === 'USDT' && (
+                    {currency === 'USDT' && (<>
                         <button type="button" onClick={() => { setMode('assisted'); resetInputs(); }} className={modeBtn(mode === 'assisted', 'bg-warning/10 text-warning border-warning/30')}>✨ Assisté</button>
-                    )}
+                        <button type="button" onClick={() => { setMode('client'); resetInputs(); setClientSearch(''); setSelectedClientId(null); }} className={modeBtn(mode === 'client', 'bg-teal-500/10 text-teal-600 border-teal-300/50')}>🧑 Client</button>
+                    </>)}
                 </div>
 
                 {/* PAM info */}
@@ -234,6 +308,159 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
                         </div>
                     ) : (
                         <div className="rounded-xl border border-dashed border-border py-6 text-center text-sm text-neutral-400">Entrez une quantité et un profit cible</div>
+                    )}
+                </>)}
+
+                {/* ── CLIENT MODE ── */}
+                {mode === 'client' && (<>
+                    <div className="rounded-xl border border-teal-300/40 bg-teal-50/60 px-3 py-2 text-xs text-teal-700 font-medium">
+                        🧑 Sélectionnez un client → entrez la quantité → obtenez ses prix personnalisés
+                    </div>
+
+                    {/* Client search */}
+                    <div className="space-y-2">
+                        <input
+                            type="text"
+                            value={clientSearch}
+                            onChange={e => { setClientSearch(e.target.value); setSelectedClientId(null); }}
+                            placeholder="🔍 Rechercher un client..."
+                            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-400/50"
+                        />
+                        {/* Client list */}
+                        {!selectedClientId && filteredClients.length > 0 && (
+                            <div className="rounded-xl border border-border overflow-hidden divide-y divide-neutral-100">
+                                {filteredClients.map(c => {
+                                    const tier = clientLoyaltyMap?.get(c.id) ?? 'new';
+                                    const tierIcon = { vip: '🏆', regular: '⭐', petit: '🔸', new: '🆕', inactive: '💤' }[tier];
+                                    return (
+                                        <button key={c.id} type="button"
+                                            onClick={() => { setSelectedClientId(c.id); setClientSearch(c.name); }}
+                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-start hover:bg-neutral-50 transition-colors">
+                                            <span className="text-base">{tierIcon}</span>
+                                            <span className="flex-1 font-semibold text-neutral-800">{c.name}</span>
+                                            {c.group && <span className="text-[10px] text-neutral-400">{c.group}</span>}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Selected client info panel */}
+                    {selectedClient && (() => {
+                        const tierLabel = { vip: '🏆 VIP', regular: '⭐ Régulier', petit: '🔸 Petit', new: '🆕 Nouveau', inactive: '💤 Inactif' }[rawClientTier ?? 'new'];
+                        const tierColor = { vip: 'text-amber-600 bg-amber-50 border-amber-200', regular: 'text-primary bg-primary/5 border-primary/20', petit: 'text-orange-600 bg-orange-50 border-orange-200', new: 'text-neutral-600 bg-neutral-50 border-neutral-200', inactive: 'text-neutral-400 bg-neutral-50 border-neutral-200' }[rawClientTier ?? 'new'];
+                        const lastPrice = lastSellToClient ? (lastSellToClient.sell ?? lastSellToClient.price ?? 0) : 0;
+                        const lastDate  = lastSellToClient ? new Date(lastSellToClient.timestamp).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : null;
+                        return (
+                            <div className="rounded-xl border border-border bg-surface-muted p-3 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-extrabold text-neutral-800">{selectedClient.name}</span>
+                                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${tierColor}`}>{tierLabel}</span>
+                                </div>
+                                <div className="flex gap-3 text-[10px] text-neutral-500">
+                                    <span>Vol. mois précédent: <span className="font-bold text-neutral-700">{fmt0(clientPrevMonthVolume)} USDT</span></span>
+                                    {lastPrice > 0 && lastDate && (
+                                        <span>Dernier prix: <span className="font-bold text-neutral-700">{Number.isInteger(lastPrice) ? lastPrice : fmt2(lastPrice)} DZD</span> le {lastDate}</span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* Quantity input */}
+                    {selectedClientId && (
+                        <MoneyField
+                            label="Quantité souhaitée (USDT)"
+                            value={quantity}
+                            onChange={setQuantity}
+                            currency="USDT"
+                            onMax={() => setQuantity(available.toFixed(2))}
+                            placeholder="Ex: 500"
+                        />
+                    )}
+
+                    {/* Price recommendation */}
+                    {clientModeData && (() => {
+                        const { priceA, priceB, profitA, profitB, qty, goalA, goalB, remainingGoal, coveragePct } = clientModeData;
+                        const fmtP = (p: number) => Number.isInteger(p) ? `${p}` : fmt2(p);
+                        return (
+                            <div className="space-y-3">
+                                {/* Two price cards */}
+                                <div className="grid grid-cols-2 gap-2">
+                                    {/* Card A — objectif */}
+                                    <div className="rounded-xl border border-primary/25 bg-primary/5 p-3 space-y-1.5">
+                                        <p className="text-[9px] font-bold uppercase text-primary tracking-wide">🎯 Objectif</p>
+                                        <p className="text-[9px] text-neutral-400">{fmt0(goalA)} DZD</p>
+                                        <p dir="ltr" className="text-2xl font-extrabold text-primary tabular-nums">{fmtP(priceA)}</p>
+                                        <p className="text-[10px] text-neutral-500">+{fmt2(priceA - pam)} DZD/USDT</p>
+                                        <p className="text-[10px] text-financial-profit font-semibold">+{fmt0(profitA)} DZD</p>
+                                        <button type="button"
+                                            onClick={() => navigator.clipboard?.writeText(fmtP(priceA))}
+                                            className="w-full mt-1 rounded-lg bg-primary/10 text-primary text-[10px] font-bold py-1.5 hover:bg-primary/20 transition-colors">
+                                            📋 Copier
+                                        </button>
+                                    </div>
+                                    {/* Card B — minimum */}
+                                    <div className="rounded-xl border border-danger/25 bg-danger/5 p-3 space-y-1.5">
+                                        <p className="text-[9px] font-bold uppercase text-financial-loss tracking-wide">🔒 Minimum</p>
+                                        <p className="text-[9px] text-neutral-400">{fmt0(goalB)} DZD</p>
+                                        <p dir="ltr" className="text-2xl font-extrabold text-financial-loss tabular-nums">{fmtP(priceB)}</p>
+                                        <p className="text-[10px] text-neutral-500">+{fmt2(priceB - pam)} DZD/USDT</p>
+                                        <p className="text-[10px] text-financial-loss font-semibold">+{fmt0(profitB)} DZD</p>
+                                        <button type="button"
+                                            onClick={() => navigator.clipboard?.writeText(fmtP(priceB))}
+                                            className="w-full mt-1 rounded-lg bg-danger/10 text-financial-loss text-[10px] font-bold py-1.5 hover:bg-danger/20 transition-colors">
+                                            📋 Copier
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Negotiation range */}
+                                {priceA !== priceB && (
+                                    <div className="rounded-xl border border-border bg-surface-muted px-4 py-3">
+                                        <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1.5">↔ Marge de négociation</p>
+                                        <div className="flex items-center gap-2">
+                                            <span dir="ltr" className="text-sm font-extrabold text-financial-loss tabular-nums">{fmtP(priceB)}</span>
+                                            <div className="flex-1 h-2 rounded-full bg-gradient-to-r from-danger/30 via-warning/40 to-primary/40 relative">
+                                                <div className="absolute inset-y-0 right-0 w-2 h-2 rounded-full bg-primary"/>
+                                            </div>
+                                            <span dir="ltr" className="text-sm font-extrabold text-primary tabular-nums">{fmtP(priceA)}</span>
+                                        </div>
+                                        <p className="text-[9px] text-neutral-400 mt-1 text-center">
+                                            Vous pouvez baisser jusqu'à {fmtP(priceB)} sans sacrifier le minimum
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Monthly goal impact */}
+                                {goalA > 0 && (
+                                    <div className="rounded-xl border border-border bg-surface-muted px-4 py-3 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[10px] font-bold uppercase text-neutral-400">📈 Impact sur le mois</p>
+                                            <span className={`text-[11px] font-bold ${coveragePct >= 100 ? 'text-financial-profit' : 'text-neutral-600'}`}>{coveragePct}% de l'objectif restant</span>
+                                        </div>
+                                        <div className="w-full h-2 rounded-full bg-neutral-200 overflow-hidden">
+                                            <div className={`h-full rounded-full transition-all ${coveragePct >= 100 ? 'bg-financial-profit' : 'bg-primary'}`} style={{ width: `${Math.min(100, coveragePct)}%` }}/>
+                                        </div>
+                                        <div className="flex justify-between text-[9px] text-neutral-400">
+                                            <span>Cette vente: <span className="font-bold text-financial-profit">+{fmt0(profitA)} DZD</span></span>
+                                            <span>Reste: <span className="font-bold text-neutral-600">{fmt0(Math.max(0, remainingGoal - profitA))} DZD</span></span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <p className="text-center text-[9px] text-neutral-400">
+                                    PAM: {fmt2(pam)} DZD · {qty} USDT · {TIER_LABELS[clientTier]}
+                                </p>
+                            </div>
+                        );
+                    })()}
+
+                    {selectedClientId && !clientModeData && (
+                        <div className="rounded-xl border border-dashed border-border py-6 text-center text-sm text-neutral-400">
+                            Entrez la quantité pour voir les prix recommandés
+                        </div>
                     )}
                 </>)}
 

@@ -8,7 +8,7 @@ import { NumberInput } from '../ui/NumberInput';
 type MainClientCrudDialogsProps = Record<string, any>;
 const CLIENT_GROUPS = ['Retail', 'Gros compte', 'OTC', 'Particulier', 'Entreprise', 'Autre'];
 
-function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, initialBalance, setInitialBalance, handleSaveClient, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient }: MainClientCrudDialogsProps) {
+function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, initialBalance, setInitialBalance, handleSaveClient, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient }: MainClientCrudDialogsProps) {
     const isBlockedClientDelete = clientDeleteMode === 'blocked';
     const isBalanceOnlyClientDelete = clientDeleteMode === 'balance_only';
     const isClientOnlyCleanupDelete = clientDeleteMode === 'client_only_cleanup';
@@ -95,6 +95,19 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                             ))}
                         </div>
                     </div>
+                    {/* Fournisseur toggle */}
+                    <div className="flex items-center justify-between rounded-xl border border-border bg-surface-muted px-4 py-3">
+                        <div>
+                            <p className="text-sm font-semibold text-neutral-700">Ce contact est un fournisseur</p>
+                            <p className="text-[11px] text-neutral-400 mt-0.5">Aucune fiche de fئة — exclut du classement client</p>
+                        </div>
+                        <button type="button"
+                            onClick={() => setClientIsFournisseur(!clientIsFournisseur)}
+                            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${clientIsFournisseur ? 'bg-teal-500' : 'bg-neutral-300'}`}
+                            aria-pressed={clientIsFournisseur}>
+                            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${clientIsFournisseur ? 'translate-x-5' : 'translate-x-0'}`}/>
+                        </button>
+                    </div>
                     <div>
                         <Label>Notes privées</Label>
                         <Textarea value={clientNotes} onChange={e => setClientNotes(e.target.value)} className="mt-1 resize-none text-sm" rows={3} placeholder="Préférences, disponibilités, remarques importantes…"/>
@@ -162,6 +175,10 @@ const areMainClientCrudDialogsPropsEqual = (prev: MainClientCrudDialogsProps, ne
             && prev.clientPhone === next.clientPhone
             && prev.clientRedotpayId === next.clientRedotpayId
             && prev.clientBinanceEmail === next.clientBinanceEmail
+            && prev.clientNotes === next.clientNotes
+            && prev.clientCreditLimit === next.clientCreditLimit
+            && prev.clientGroup === next.clientGroup
+            && prev.clientIsFournisseur === next.clientIsFournisseur
             && prev.initialBalance === next.initialBalance);
     }
     return true;

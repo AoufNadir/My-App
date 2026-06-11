@@ -4,6 +4,7 @@ import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
 import { BanknotesIcon } from './icons/BanknotesIcon';
 import { CreditCardIcon } from './icons/CreditCardIcon';
 import { UsersIcon as UserGroupIcon } from './icons/UsersIcon';
+import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
 // --- Placeholders for Missing Components (To be implemented in next steps) ---
 const ClientList = ({ clients, filter, searchTerm }: any) => (<div className="rounded-lg border border-dashed border-border bg-surface p-8 text-center">
     <UserGroupIcon className="w-12 h-12 text-neutral-400 mx-auto mb-3"/>
@@ -37,9 +38,15 @@ const ClientsView: React.FC<ClientsViewProps> = ({ userProfile, clients }) => {
     const totalAvances = (clients || []).reduce((acc, client) => {
         return (client.balance || 0) > 0 ? acc + client.balance : acc;
     }, 0);
-    const positionNette = totalAvances - totalDettes;
-    // --- 3. Calculate Total Capital ---
-    const capitalTotal = caisseBalance + baridiBalance + positionNette;
+    const capitalSnapshot = computeCapitalSnapshot({
+        caisseBalance,
+        baridiBalance,
+        totalDettes,
+        totalAvances,
+        treasuryCards: []
+    });
+    const positionNette = capitalSnapshot.netClientPosition;
+    const capitalTotal = capitalSnapshot.totalCapital;
     return (<div className="space-y-6 animate-fade-in">
 
       {/* Header & Add Button */}

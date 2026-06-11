@@ -44,7 +44,7 @@ import { useReportExports } from './hooks/useReportExports';
 // Shared Utils
 import { now, parseAndEvaluate } from './utils';
 import { computePamLedger } from './utils/pamLedger';
-import { calculateInvestorLiability, calculateInvestorBreakdown } from './utils/capitalSnapshot';
+import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot } from './utils/capitalSnapshot';
 import { formatNumber } from './pages/shared/pageFormat';
 const TransactionsPage = React.lazy(() => import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage })));
 const PortfolioPage = React.lazy(() => import('./pages/PortfolioPage').then((module) => ({ default: module.PortfolioPage })));
@@ -61,7 +61,6 @@ const InvestorDashboardPage = React.lazy(() => import('./pages/InvestorDashboard
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const InsightsPage = React.lazy(() => import('./pages/InsightsPage').then((module) => ({ default: module.InsightsPage })));
 const GlobalSearchDialog = React.lazy(() => import('./components/main/MainDialogs').then((module) => ({ default: module.GlobalSearchDialog })));
-const QuickCalculatorSheet = React.lazy(() => import('./components/calculator/QuickCalculatorSheet').then((m) => ({ default: m.QuickCalculatorSheet })));
 const loadPdfReports = () => import('./utils/pdfReports');
 const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
     derivedInvestors: [],
@@ -160,14 +159,31 @@ export default function MainApp({ user }: {
     }, [shouldSubscribeInvestors, deferredInvestors, deferredInvestorTransactions, managerFeePercentage, deferredTransactions, pamLedger, deliveryExpenses]);
     const derivedInvestors = investorEconomics.derivedInvestors;
 
-    // Reactive monthly goal — updates instantly when changed from InsightsPage or Settings
+    // Reactive monthly goal + tier thresholds — update instantly when changed from Settings
     const GOAL_KEY = 'app_monthly_profit_goal';
     const [monthlyGoalState, setMonthlyGoalState] = React.useState<number>(() =>
         Number(localStorage.getItem(GOAL_KEY) || 0)
     );
+    const [minimumGoalState, setMinimumGoalState] = React.useState<number>(() =>
+        Number(localStorage.getItem('app_min_monthly_goal') || 0)
+    );
+    const [tierThresholds, setTierThresholds] = React.useState(() => ({
+        vip:     Number(localStorage.getItem('app_tier_vip')     || 5000),
+        regular: Number(localStorage.getItem('app_tier_regular') || 1000),
+        petit:   Number(localStorage.getItem('app_tier_petit')   || 150),
+    }));
     React.useEffect(() => {
         const handler = (e: StorageEvent) => {
             if (e.key === GOAL_KEY) setMonthlyGoalState(Number(e.newValue || 0));
+            if (e.key === 'app_min_monthly_goal') setMinimumGoalState(Number(e.newValue || 0));
+
+            if (e.key === 'app_tier_vip' || e.key === 'app_tier_regular' || e.key === 'app_tier_petit') {
+                setTierThresholds({
+                    vip:     Number(localStorage.getItem('app_tier_vip')     || 5000),
+                    regular: Number(localStorage.getItem('app_tier_regular') || 1000),
+                    petit:   Number(localStorage.getItem('app_tier_petit')   || 150),
+                });
+            }
         };
         window.addEventListener('storage', handler);
         return () => window.removeEventListener('storage', handler);
@@ -205,65 +221,90 @@ export default function MainApp({ user }: {
         return Math.max(historicalMargin, goalMargin);
     }, [pamLedger, suggestedProfitMargin, monthlyGoalState]);
 
-    // Client tier by PREVIOUS MONTH USDT sell volume (via transaction.linkedClientId)
-    const earlyClientLoyaltyMap = React.useMemo<Map<string, 'vip' | 'regular' | 'petit' | 'new' | 'inactive'>>(() => {
+    // Client tier by rolling 30-day USDT sell volume (via transaction.linkedClientId)
+    const earlyClientLoyaltyMap = React.useMemo<Map<string, 'vip' | 'regular' | 'petit' | 'new' | 'inactive' | 'fournisseur'>>(() => {
         const now = new Date();
-        // Previous month boundaries
-        const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
-        const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).getTime();
-        const inactifCutoff  = now.getTime() - 45 * 86_400_000;
+        const rollingStart  = now.getTime() - 30 * 86_400_000; // last 30 days
+        const inactifCutoff = now.getTime() - 45 * 86_400_000; // 45 days = inactive
 
-        // Compute USDT sell volume per client for previous month
         const volumeByClient = new Map<string, number>();
         for (const tx of transactions) {
             if (tx.type !== 'sell' || tx.currency !== 'USDT') continue;
             if (!tx.linkedClientId) continue;
-            if (tx.timestamp < prevMonthStart || tx.timestamp > prevMonthEnd) continue;
+            if (tx.timestamp < rollingStart) continue;
             volumeByClient.set(tx.linkedClientId, (volumeByClient.get(tx.linkedClientId) || 0) + Number(tx.quantity || 0));
         }
 
-        // Also check last activity date per client (from clientTransactionsDzd)
         const lastActivityByClient = new Map<string, number>();
         for (const tx of clientTransactionsDzd) {
             const prev = lastActivityByClient.get(tx.clientId) || 0;
             if (tx.timestamp > prev) lastActivityByClient.set(tx.clientId, tx.timestamp);
         }
 
-        // Check if client had any sell transaction ever (to distinguish Nouveau from Inactif)
         const everSoldClients = new Set<string>();
+        const everBoughtFromClients = new Set<string>();
         for (const tx of transactions) {
             if (tx.type === 'sell' && tx.linkedClientId) everSoldClients.add(tx.linkedClientId);
+            if (tx.type === 'buy'  && tx.linkedClientId) everBoughtFromClients.add(tx.linkedClientId);
         }
 
-        const result = new Map<string, 'vip' | 'regular' | 'petit' | 'new' | 'inactive'>();
+        const result = new Map<string, 'vip' | 'regular' | 'petit' | 'new' | 'inactive' | 'fournisseur'>();
         for (const client of clientsDzd) {
             const lastActivity = lastActivityByClient.get(client.id) || 0;
             const volume = volumeByClient.get(client.id) || 0;
             const everSold = everSoldClients.has(client.id);
+            // Auto-detect supplier: linked to buy transactions but never to sell transactions
+            // Manual fournisseur flag overrides all classification
+            if ((client as any).isFournisseur) { result.set(client.id, 'fournisseur'); continue; }
+            // Auto-detect: linked to buy transactions but never to sell transactions
+            if (everBoughtFromClients.has(client.id) && !everSold) { result.set(client.id, 'fournisseur'); continue; }
 
             // No history at all → Nouveau
             if (!everSold && lastActivity === 0) { result.set(client.id, 'new'); continue; }
             // No activity in 45 days → Inactif (treated as Nouveau for pricing)
             if (lastActivity < inactifCutoff && lastActivity > 0) { result.set(client.id, 'inactive'); continue; }
-            // Classify by previous month volume (user-defined thresholds)
-            if (volume >= 5500) { result.set(client.id, 'vip');     continue; }
-            if (volume >= 1000) { result.set(client.id, 'regular'); continue; }
-            if (volume >= 50)   { result.set(client.id, 'petit');   continue; }
+            // Classify by previous month volume (user-editable thresholds)
+            if (volume >= tierThresholds.vip)     { result.set(client.id, 'vip');     continue; }
+            if (volume >= tierThresholds.regular) { result.set(client.id, 'regular'); continue; }
+            if (volume >= tierThresholds.petit)   { result.set(client.id, 'petit');   continue; }
             // Had some history but not in previous month
             result.set(client.id, 'inactive');
         }
         return result;
-    }, [transactions, clientTransactionsDzd, clientsDzd]);
+    }, [transactions, clientTransactionsDzd, clientsDzd, tierThresholds]);
+
+    // Rolling 30-day USDT volume sold per client (for client card display)
+    const earlyClientPrevMonthVolumeMap = React.useMemo(() => {
+        const rollingStart = Date.now() - 30 * 86_400_000;
+        const map = new Map<string, number>();
+        for (const tx of transactions) {
+            if (tx.type !== 'sell' || tx.currency !== 'USDT' || !tx.linkedClientId) continue;
+            if (tx.timestamp < rollingStart) continue;
+            map.set(tx.linkedClientId, (map.get(tx.linkedClientId) || 0) + Number(tx.quantity || 0));
+        }
+        return map;
+    }, [transactions]);
+
+    // Last USDT sell date per client
+    const earlyClientLastSellDateMap = React.useMemo(() => {
+        const map = new Map<string, number>();
+        for (const tx of transactions) {
+            if (tx.type !== 'sell' || !tx.linkedClientId) continue;
+            const prev = map.get(tx.linkedClientId) || 0;
+            if (tx.timestamp > prev) map.set(tx.linkedClientId, tx.timestamp);
+        }
+        return map;
+    }, [transactions]);
 
     // --- 2. BUSINESS LOGIC HOOKS ---
-    const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer } = useTransactionHandlers({
+    const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer, handleApplyLock24hToRecentBuys, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime } = useTransactionHandlers({
         userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, treasuryStats,
         suggestedProfitMargin, suggestedSellingPrice, suggestedSellingPriceEur,
         setAlert, setSelectedClientId: (id: string | null) => setSelectedClientId(id), setView: (v: string) => setView(v),
         clientLoyaltyMap: earlyClientLoyaltyMap,
         avgMarginPerUsdt: earlyAvgMarginPerUsdt,
     });
-    const { isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert);
+    const { isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient, handleZeroOutBalance, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert);
     const { isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, setEditingInvestor, investorToDelete, setInvestorToDelete, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorName, setInvestorName, investorInitialCapital, setInvestorInitialCapital, investorNotes, setInvestorNotes, isManager, setIsManager, investorTxType, setInvestorTxType, investorTxAmount, setInvestorTxAmount, investorTxNotes, setInvestorTxNotes, investorTxPaymentSource, setInvestorTxPaymentSource, investorTxToDelete, setInvestorTxToDelete, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, selectedInvestorId, setSelectedInvestorId, handleSaveInvestor, handleSaveInvestorTx, handleReinvestProfit, handleDeleteInvestor, openInvestorModal, closeInvestorModal, 
     // Personal withdrawal (manager's daily personal expense)
     isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen, personalWithdrawalAmount, setPersonalWithdrawalAmount, personalWithdrawalMethod, setPersonalWithdrawalMethod, personalWithdrawalDate, setPersonalWithdrawalDate, personalWithdrawalNote, setPersonalWithdrawalNote, personalWithdrawalMode, setPersonalWithdrawalMode, editingPersonalExpenseTx, personalExpenseToDelete, setPersonalExpenseToDelete, openEditPersonalExpense, openPersonalWithdrawalModal, closePersonalWithdrawalModal, handleSavePersonalWithdrawal, handleDeletePersonalExpense, managerAvailableProfit, managerExists, 
@@ -654,16 +695,27 @@ export default function MainApp({ user }: {
         });
         const cashReceived = manualAssetTransactions.reduce((sum, tx) => sum + (tx.type === 'payment_received' ? Math.abs(Number(tx.amount || 0)) : 0), 0);
         const serviceRevenue = manualAssetTransactions.reduce((sum, tx) => sum + ((tx.type === 'service' || tx.type === 'invoice') ? Math.abs(Number(tx.amount || 0)) : 0), 0);
+        const { servicesCapitalImpact } = calculateServicesCapitalImpact({ amountToReceive, clientAdvances });
         return {
             amountToReceive,
             clientAdvances,
             cashReceived,
             serviceRevenue,
-            netCapitalImpact: amountToReceive - clientAdvances,
+            netCapitalImpact: servicesCapitalImpact,
             servicesCount: manualAssets.length,
             clientsCount: manualAssetClients.length
         };
     }, [assetClientBalances, manualAssetTransactions, manualAssets.length, manualAssetClients.length]);
+    const capitalSnapshot = useMemo(() => computeCapitalSnapshot({
+        caisseBalance: treasuryStats.caisse,
+        baridiBalance: treasuryStats.baridi,
+        portfolioStats,
+        totalDettes: totals.totalDettes,
+        totalAvances: totals.totalAvances,
+        treasuryCards,
+        investorLiability,
+        services: servicesSummary
+    }), [treasuryStats, portfolioStats, totals, treasuryCards, investorLiability, servicesSummary]);
     /* Legacy global search logic moved to useGlobalSearch.
                 id: `search_client_${client.id}`,
                 kind: 'client' as const,
@@ -1731,7 +1783,7 @@ export default function MainApp({ user }: {
         setStatsView,
         setIsSettingsModalOpen,
         portfolioStats,
-        totalPortfolioValue: (portfolioStats.usdt.available * portfolioStats.usdt.avgBuy + portfolioStats.eur.available * portfolioStats.eur.avgBuy),
+        totalPortfolioValue: ((portfolioStats.usdt.available + (portfolioStats.usdt.locked || 0)) * portfolioStats.usdt.avgBuy + (portfolioStats.eur.available + (portfolioStats.eur.locked || 0)) * portfolioStats.eur.avgBuy),
         suggestedProfitMargin,
         suggestedSellingPrice,
         suggestedUsdtEurSellPrice,
@@ -1870,12 +1922,16 @@ export default function MainApp({ user }: {
         handleDeleteClientTxClick: handleDeleteLinkedClientTxClick,
         overdueDebtClients,
         clientLoyaltyMap,
+        clientPrevMonthVolume: earlyClientPrevMonthVolumeMap,
+        clientLastSellDate: earlyClientLastSellDateMap,
+        handleZeroOutBalance,
         onImportClients: handleImportClients,
     }), [
         selectedClientId, clientSearchQuery, clientSortMode,
         filteredClientsDzd, clientBalances, selectedClient, selectedClientTransactions, transactions, copiedValue,
         openClientModal, handleTouchStart, handleTouchEnd, handleClientDeleteRequest, handleExportClientReport, openClientTxModal,
-        handleCopy, handleEditLinkedClientTx, handleDeleteLinkedClientTxClick, overdueDebtClients, clientLoyaltyMap
+        handleCopy, handleEditLinkedClientTx, handleDeleteLinkedClientTxClick, overdueDebtClients, clientLoyaltyMap,
+        earlyClientPrevMonthVolumeMap, earlyClientLastSellDateMap, handleZeroOutBalance
     ]);
     if (isInvestorRoute) {
         const investor = derivedInvestors.find(i => i.id === investorIdFromUrl) || derivedInvestors[0];
@@ -1899,15 +1955,17 @@ export default function MainApp({ user }: {
             return;
         }
         const margin = parseAndEvaluate(suggestedProfitMargin);
-        const suggestedPrice = (usdtPam + (isNaN(margin) ? 2 : margin)).toFixed(2);
+        const configuredPrice = parseAndEvaluate(suggestedSellingPrice || '0');
+        const suggestedPrice = (configuredPrice > 0
+            ? configuredPrice
+            : usdtPam + (isNaN(margin) ? 2 : margin)).toFixed(2);
         navigateToView('transactions');
         setTimeout(() => {
             openForm('sell_usdt', null, {
                 sellQty: usdtAvail.toFixed(2),
-                sellPrice: suggestedPrice,
             });
         }, 80); // let navigation settle first
-    }, [portfolioStats.usdt.available, portfolioStats.usdt.avgBuy, suggestedProfitMargin, openForm, navigateToView]);
+    }, [portfolioStats.usdt.available, portfolioStats.usdt.avgBuy, suggestedProfitMargin, suggestedSellingPrice, openForm, navigateToView]);
 
     const navLabels = useMemo(() => ({
         dashboard: t('nav.dashboard') as string || 'Accueil',
@@ -1951,6 +2009,7 @@ export default function MainApp({ user }: {
         treasuryCards,
         investorLiability,
         investorBreakdown,
+        capitalSnapshot,
         servicesSummary,
         globalNetProfit,
         overdueDebtClients: dashboardDebtClients,
@@ -1971,7 +2030,7 @@ export default function MainApp({ user }: {
             pam: portfolioStats.usdt.avgBuy,
         } : null,
     };
-    const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, view, DashboardPage, dashboardPageProps, InsightsPage, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport };
+    const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, view, DashboardPage, dashboardPageProps, InsightsPage, insightsTierThresholds: tierThresholds, insightsMinimumGoal: minimumGoalState, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys };
     const walletTransferDialogProps = useMemo(() => ({
         isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSource,
@@ -2119,7 +2178,6 @@ export default function MainApp({ user }: {
         getClientFullName,
         providedPamLedger: pamLedger,
     });
-    const [isCalcOpen, setIsCalcOpen] = React.useState(false);
 
     // Pricing context for the smart sell assistant
     const pricingContext = React.useMemo(() => {
@@ -2250,27 +2308,6 @@ export default function MainApp({ user }: {
 
                 <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onFabPress={onFabPress} overdueCount={overdueDebtClients.length}/>
 
-                {/* Quick Calculator FAB */}
-                <button
-                    type="button"
-                    onClick={() => setIsCalcOpen(true)}
-                    className="fixed bottom-[76px] end-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-transform hover:bg-primary-dark hover:scale-105 active:scale-95"
-                    aria-label="Calculatrice rapide"
-                    title="Calculatrice rapide"
-                >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                        <rect x="4" y="2" width="16" height="20" rx="2" strokeLinejoin="round"/>
-                        <line x1="8" y1="8" x2="16" y2="8"/>
-                        <line x1="8" y1="12" x2="10" y2="12"/>
-                        <line x1="14" y1="12" x2="16" y2="12"/>
-                        <line x1="8" y1="16" x2="10" y2="16"/>
-                        <line x1="14" y1="16" x2="16" y2="16"/>
-                    </svg>
-                </button>
-
-                {isCalcOpen && (<Suspense fallback={null}>
-                        <QuickCalculatorSheet isOpen={isCalcOpen} onClose={() => setIsCalcOpen(false)} portfolioStats={portfolioStats} pricingContext={pricingContext}/>
-                    </Suspense>)}
 
                 {isGlobalSearchOpen && (<Suspense fallback={null}>
                         <GlobalSearchDialog {...{ isOpen: isGlobalSearchOpen, onClose: closeGlobalSearch, fieldBase, query: globalSearchQuery, setQuery: setGlobalSearchQuery, results: globalSearchResults, onSelectResult: handleSelectGlobalSearchResult, title: t('common.globalSearch'), placeholder: t('common.searchPlaceholder'), noResultsText: t('common.noResults'), clientsText: t('nav.clients'), transactionsText: t('nav.transactions') }}/>
@@ -2361,6 +2398,8 @@ export default function MainApp({ user }: {
         buyEurPrice, setBuyEurPrice,
         buyEurTotal, setBuyEurTotal,
         handleBuy, handleSell,
+        buyRestriction, setBuyRestriction,
+        realPurchaseTime, setRealPurchaseTime,
         isClientCrudDialogsOpen,
         txToDelete, setTxToDelete,
         handleDeleteConfirm,
@@ -2375,6 +2414,7 @@ export default function MainApp({ user }: {
         clientNotes, setClientNotes,
         clientCreditLimit, setClientCreditLimit,
         clientGroup, setClientGroup,
+        clientIsFournisseur, setClientIsFournisseur,
         initialBalance, setInitialBalance,
         handleSaveClient,
         clientToDelete, clientDeleteMode,

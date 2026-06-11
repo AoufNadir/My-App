@@ -192,7 +192,7 @@ function findEurConversionRelatedTxIds(transactions: InternalTx[], conversionWin
 function buildPortfolioStats(statsByCurrency: Record<PamCurrency, WorkingStats>, zeroEpsilon: number): PortfolioStats {
     const usdt = toLedgerStats(statsByCurrency.USDT, zeroEpsilon);
     const eur = toLedgerStats(statsByCurrency.EUR, zeroEpsilon);
-    return { usdt, eur };
+    return { usdt: { ...usdt, locked: 0, lockedBatches: [] }, eur: { ...eur, locked: 0, lockedBatches: [] } };
 }
 export function computePamLedger(transactions: Tx[], options: PamLedgerOptions = {}): PamLedgerResult {
     const toleranceDzd = options.toleranceDzd ?? DEFAULT_TOLERANCE_DZD;

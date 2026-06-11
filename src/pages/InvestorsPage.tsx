@@ -13,8 +13,11 @@ import { Button } from '../components/ui/Button';
 import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import type { InvestorEconomicsResult } from '../hooks/useInvestorEconomics';
 import type { FirestoreDocumentReference } from '../firebase';
+import type { CapitalSnapshot, InvestorBreakdown } from '../utils/capitalSnapshot';
 interface InvestorsPageProps {
     investors: Investor[];
+    capitalSnapshot?: CapitalSnapshot;
+    investorBreakdown?: InvestorBreakdown;
     onOpenInvestor: (investor: Investor) => void;
     onAddInvestor: () => void;
     onEditInvestor: (investor: Investor) => void;
@@ -35,18 +38,19 @@ type InvestorsStats = {
     totalDeliveryExpenses: number;
     netDistributableProfit: number;
 };
-export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, setManagerFeePercentage, userDocRef, setAlert }) => {
+export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, setManagerFeePercentage, userDocRef, setAlert }) => {
     const stats: InvestorsStats = useMemo(() => {
-        const totalCapital = investors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0);
+        const nonManagerInvestors = investors.filter((inv) => inv.isActive && !inv.isManager);
+        const totalCapital = investorBreakdown?.capital ?? nonManagerInvestors.reduce((sum, inv) => sum + Math.max(0, Number(inv.capitalInvested || 0)), 0);
         const totalProfitDistributed = investors.reduce((sum, inv) => sum + (inv.totalProfit || 0), 0);
-        const totalAvailable = investors.reduce((sum, inv) => sum + (inv.availableProfit || 0), 0);
+        const totalAvailable = investorBreakdown?.profits ?? nonManagerInvestors.reduce((sum, inv) => sum + Math.max(0, Number(inv.availableProfit || 0)), 0);
         const totalWithdrawn = investors.reduce((sum, inv) => sum + (inv.withdrawnProfit || 0), 0);
         const managerFee = investorEconomicsTotals.managerShare;
         const activeCount = investors.filter((inv) => inv.isActive).length;
         const totalDeliveryExpenses = investorEconomicsTotals.totalDeliveryExpenses || 0;
         const netDistributableProfit = investorEconomicsTotals.netDistributableProfit || 0;
         return { totalCapital, totalProfitDistributed, totalAvailable, managerFee, totalWithdrawn, activeCount, totalDeliveryExpenses, netDistributableProfit }; // netDistributableProfit used for distribution banner
-    }, [investors, investorEconomicsTotals]);
+    }, [investors, investorBreakdown, investorEconomicsTotals]);
     const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false);
     const [isDistributionOpen, setIsDistributionOpen] = useState(false);
     return (<div className="anim-page-in space-y-6">
@@ -55,9 +59,12 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, onOpenI
             <span className="hidden sm:inline">Ajouter</span>
           </Button>)}/>
 
-      <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel="Capital total investisseurs" primaryValue={stats.totalCapital} primaryCurrency="DZD" primarySemantic="plain" secondary={[
-            { label: 'Profit distribué', value: stats.totalProfitDistributed, currency: 'DZD', semantic: 'auto' },
-            { label: 'Profit disponible', value: stats.totalAvailable, currency: 'DZD', semantic: 'auto' },
+      <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel="Capital investisseurs" primaryValue={stats.totalCapital} primaryCurrency="DZD" primarySemantic="plain" secondary={[
+            ...(capitalSnapshot ? [
+                { label: 'Capital Total projet', value: capitalSnapshot.totalCapital, currency: 'DZD' as const, semantic: 'plain' as const },
+                { label: 'Capital réel', value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const }
+            ] : []),
+            { label: 'Profits non retirés', value: stats.totalAvailable, currency: 'DZD', semantic: 'auto' },
             { label: 'Fee gérant', value: stats.managerFee, currency: 'DZD', semantic: 'auto' }
         ]}/>
 
@@ -78,7 +85,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, onOpenI
           </svg>
         </button>)}
 
-      <InvestorsDetailsCard stats={stats} managerFeePercentage={managerFeePercentage} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference}/>
+      <InvestorsDetailsCard stats={stats} capitalSnapshot={capitalSnapshot} managerFeePercentage={managerFeePercentage} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference}/>
 
       <InvestorsListSection investors={investors} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor}/>
 

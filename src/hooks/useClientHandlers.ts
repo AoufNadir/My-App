@@ -46,6 +46,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     const [clientCreditLimit, setClientCreditLimit] = useState('');
     const [clientGroup, setClientGroup] = useState('');
     const [clientBalanceInput, setClientBalanceInput] = useState('');
+    const [clientIsFournisseur, setClientIsFournisseur] = useState(false);
     const openClientModal = (client: ClientDzd | null = null) => {
         setEditingClient(client);
         if (client) {
@@ -56,6 +57,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientNotes(client.notes || '');
             setClientCreditLimit(client.creditLimit ? String(client.creditLimit) : '');
             setClientGroup(client.group || '');
+            setClientIsFournisseur(client.isFournisseur || false);
             const currentBal = clientBalances.get(client.id) || 0;
             setClientBalanceInput(currentBal.toString());
             setInitialBalance('');
@@ -68,6 +70,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientNotes('');
             setClientCreditLimit('');
             setClientGroup('');
+            setClientIsFournisseur(false);
             setClientBalanceInput('');
             setInitialBalance('0');
         }
@@ -97,6 +100,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 notes: clientNotes.trim() || null,
                 creditLimit: parsedLimit > 0 ? parsedLimit : null,
                 group: clientGroup.trim() || null,
+                isFournisseur: clientIsFournisseur || null,
                 nom: clientFullName.trim()
             };
             if (editingClient) {
@@ -493,12 +497,34 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientTxToDelete(null);
         }
     };
+    // Zero out a small residual balance — creates an audit entry without touching treasury
+    const handleZeroOutBalance = async (clientId: string, balance: number) => {
+        if (Math.abs(balance) < 0.001) return;
+        const { date, time, timestamp } = now();
+        // balance < 0 → client owes us → create a credit (remise de dette)
+        // balance > 0 → we owe client → create a debit (remise d'avance)
+        const montant = -balance; // opposite sign zeroes the balance
+        try {
+            await userDocRef.collection('dzd_client_txs').add({
+                clientId,
+                timestamp, date, time,
+                type: 'Remise solde',
+                montant,
+                notes: `Effacement solde résiduel (${balance > 0 ? '+' : ''}${balance.toFixed(2)} DZD)`,
+                paymentMethod: 'Remise',
+            });
+            setAlert('✅ Solde effacé.');
+        } catch {
+            setAlert('❌ Erreur lors de l\'effacement.');
+        }
+    };
+
     return {
         isSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode,
         clientFullName, setClientFullName, clientPhone, setClientPhone,
         initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId,
-        clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientBalanceInput, setClientBalanceInput,
-        openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient,
+        clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, clientBalanceInput, setClientBalanceInput,
+        openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient, handleZeroOutBalance,
         isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx,
         clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount,
         clientTxType, setClientTxType, clientTxNotes, setClientTxNotes,

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
 import type { AppUser } from '../firebaseAuth';
-import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction } from '../types';
+import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction, LockedBatch } from '../types';
 type UseAppDataOptions = {
     subscribeManualAssets?: boolean;
     subscribeInvestors?: boolean;
@@ -211,7 +211,8 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     }, [userDocRef, refreshKey, subscribeManualAssets, subscribeInvestors, subscribeTreasuryCards, activeCollectionKeys]);
     // Derived Calculations
     const portfolioStats = useMemo(() => {
-        const createInitialStats = () => ({ costBasis: 0, purchasedQty: 0, available: 0, totalProfit: 0, avgBuy: 0 });
+        const nowMs = Date.now();
+        const createInitialStats = () => ({ costBasis: 0, purchasedQty: 0, available: 0, totalProfit: 0, avgBuy: 0, locked: 0, lockedBatches: [] as LockedBatch[] });
         const round2 = (value: number) => Number(value.toFixed(2));
         const normalizeZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : round2(value));
         let usdtStats = createInitialStats();
@@ -223,7 +224,13 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             if (txQuantity <= 0)
                 continue;
             if (tx.type === 'buy' || tx.type === 'Ajout Manuel') {
-                stats.available = round2(stats.available + txQuantity);
+                const isStillLocked = tx.type === 'buy' && tx.lockedUntil && tx.lockedUntil > nowMs;
+                if (isStillLocked) {
+                    stats.locked = round2(stats.locked + txQuantity);
+                    stats.lockedBatches.push({ txId: tx.id, quantity: txQuantity, lockedUntil: tx.lockedUntil! });
+                } else {
+                    stats.available = round2(stats.available + txQuantity);
+                }
             }
             else {
                 stats.available = round2(stats.available - txQuantity);
@@ -257,10 +264,10 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
                     stats.costBasis = 0;
                 }
             }
-            // When a position closes mid-history (available returns to ~0), drop any
+            // When a position closes mid-history (available + locked returns to ~0), drop any
             // residue from cumulative rounding so the next buy starts from a clean PAM.
             // totalProfit is preserved — it is cumulative realized profit, not position state.
-            if (Math.abs(stats.available) < 0.005) {
+            if (Math.abs(stats.available) < 0.005 && stats.locked < 0.005) {
                 stats.available = 0;
                 stats.purchasedQty = 0;
                 stats.costBasis = 0;
@@ -268,13 +275,14 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         }
         usdtStats.available = normalizeZero(usdtStats.available);
         eurStats.available = normalizeZero(eurStats.available);
-        // If displayed available quantity is zero, consider the position fully closed.
-        // This prevents stale PAM from remaining when only microscopic residue exists.
-        if (usdtStats.available === 0) {
+        usdtStats.locked = normalizeZero(usdtStats.locked);
+        eurStats.locked = normalizeZero(eurStats.locked);
+        // If displayed total (available + locked) is zero, consider the position fully closed.
+        if (usdtStats.available === 0 && usdtStats.locked === 0) {
             usdtStats.purchasedQty = 0;
             usdtStats.costBasis = 0;
         }
-        if (eurStats.available === 0) {
+        if (eurStats.available === 0 && eurStats.locked === 0) {
             eurStats.purchasedQty = 0;
             eurStats.costBasis = 0;
         }
