@@ -154,6 +154,14 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
         distributedProfitByInvestor.set(inv.id, 0);
         warningsByInvestor.set(inv.id, []);
     }
+    const managerInvestor = investorsBase.find((inv) => inv.isManager === true) || null;
+    const creditManager = (amount: number) => {
+        if (!managerInvestor || amount === 0) return;
+        distributedProfitByInvestor.set(
+            managerInvestor.id,
+            addM(distributedProfitByInvestor.get(managerInvestor.id) || 0, amount)
+        );
+    };
     let totalDerivedProfit = 0;
     let managerShare = 0;
     let investorShare = 0;
@@ -172,8 +180,8 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
         if (totalCapAtSell <= 0) {
             // Accounting rule: profit generated before any investor joined belongs
             // entirely to the manager (sole capital owner at that moment).
-            // Previously suspended in unallocatedProfit — now correctly routed to managerShare.
             managerShare = addM(managerShare, derivedProfit);
+            creditManager(derivedProfit);
             continue;
         }
         const investorPool = roundM(derivedProfit * (1 - managerFeeRatio));
@@ -182,6 +190,10 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
         const rowManagerShare = subM(derivedProfit, distributedToInvestors);
         managerShare = addM(managerShare, rowManagerShare);
         investorShare = addM(investorShare, distributedToInvestors);
+        // H1 fix: manager's fee share is part of the manager's withdrawable profit.
+        // Previously it accumulated in managerShare totals only and could never be
+        // spent via withdraw_profit/personal_expense (which validate against availableProfit).
+        creditManager(rowManagerShare);
         if (derivedProfit < 0) {
             for (const item of eligible) {
                 addWarning(warnings, warningsByInvestor, {
@@ -235,6 +247,10 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
         const managerBurden = subM(amount, investorBurden);
         managerShare = subM(managerShare, managerBurden);
         investorShare = subM(investorShare, investorBurden);
+        // H1 fix: mirror the manager fee accounting from sells — delivery expenses
+        // reduce manager's distributable profit proportionally so personal expenses
+        // / withdraw_profit validation reflects the true post-expense entitlement.
+        creditManager(-managerBurden);
         const burdenShares = distributeProportionally(investorBurden, eligible.map((item) => item.cap));
         eligible.forEach((item, index) => {
             distributedProfitByInvestor.set(item.id, subM(distributedProfitByInvestor.get(item.id) || 0, burdenShares[index]));
