@@ -115,7 +115,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                         notes: 'Mise à jour manuelle du solde', paymentMethod: 'Crédit'
                     });
                 }
-                setAlert('✅ Client modifié.');
+                setAlert('✅ Client mis à jour.');
             }
             else {
                 const duplicate = clientsDzd.find(c => (data.fullName && c.fullName?.toLowerCase() === data.fullName.toLowerCase()) ||
@@ -141,7 +141,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de l’enregistrement du client.');
             return false;
         }
         finally {
@@ -242,13 +242,13 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setIsSaving(true);
             try {
                 await commitDeleteRefs([{ collection: 'dzd_clients', id: client.id }]);
-                setAlert('Client supprime avec succes.');
+                setAlert('✅ Client supprimé.');
                 closeClientDeleteDialog();
                 return true;
             }
             catch (e) {
                 console.error(e);
-                setAlert('Erreur lors de la suppression du client.');
+                setAlert('❌ Erreur lors de la suppression du client.');
                 return false;
             }
             finally {
@@ -273,13 +273,13 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     { collection: 'dzd_clients', id: clientToDelete.id },
                     ...clientHistory.map((tx) => ({ collection: 'dzd_client_txs', id: tx.id }))
                 ]);
-                setAlert('Client supprime des clients quotidiens seulement.');
+                setAlert('✅ Client supprimé (clients quotidiens uniquement).');
                 closeClientDeleteDialog();
                 return true;
             }
             if (clientDeleteMode === 'balance_only' && !isBalanceOnlyClientHistory(clientHistory)) {
                 setClientDeleteMode('blocked');
-                setAlert("Suppression bloquee: ce client contient maintenant une operation liee.");
+                setAlert("⚠️ Suppression bloquée : ce client contient une opération liée.");
                 return false;
             }
             for (const tx of clientHistory) {
@@ -306,13 +306,13 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 ...Array.from(treasuryTxIdsToDelete, (id) => ({ collection: 'treasury_txs', id }))
             ];
             await commitDeleteRefs(deleteRefs);
-            setAlert('Client et historique supprimes avec succes.');
+            setAlert('✅ Client et historique supprimés.');
             closeClientDeleteDialog();
             return true;
         }
         catch (e) {
             console.error(e);
-            setAlert('Erreur lors de la suppression de l historique du client.');
+            setAlert('❌ Erreur lors de la suppression de l’historique du client.');
             return false;
         }
         finally {
@@ -471,7 +471,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             return true;
         }
         catch (e) {
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de l’enregistrement de la transaction.');
             return false;
         }
         finally {
@@ -485,12 +485,12 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         try {
             const result = await applyTransactionDelete(clientTxToDelete.id, 'client_tx', userDocRef);
             if (result.success)
-                setAlert('✅ Supprimé.');
+                setAlert('✅ Transaction supprimée.');
             else
-                setAlert('❌ Erreur.');
+                setAlert('❌ Erreur lors de la suppression.');
         }
         catch (e) {
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de la suppression.');
         }
         finally {
             setIsSaving(false);

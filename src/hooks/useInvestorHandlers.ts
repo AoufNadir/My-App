@@ -180,7 +180,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             ? Number(editingPersonalExpenseTx.settledAmount ?? editingPersonalExpenseTx.amount ?? 0)
             : 0;
         if (!isAdvance && amountNum > managerAvailableProfit + currentExpenseCredit + epsilon) {
-            setAlert('⚠️ Montant dépasse ton profit disponible.');
+            setAlert('⚠️ Montant dépasse le profit disponible.');
             return;
         }
         const currentSourceCredit = editingPersonalExpenseTx?.source === personalWithdrawalMethod
@@ -265,7 +265,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de l’enregistrement.');
         }
         finally {
             setIsSaving(false);
@@ -402,7 +402,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur pendant la suppression.');
+            setAlert('❌ Erreur lors de la suppression.');
         }
         finally {
             setIsSaving(false);
@@ -436,11 +436,11 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     const handleSaveInvestor = async () => {
         const capital = parseAndEvaluate(investorInitialCapital);
         if (!investorName.trim()) {
-            setAlert('Invalid investor name.');
+            setAlert('⚠️ Nom de l’investisseur invalide.');
             return;
         }
         if (isNaN(capital) || capital < 0) {
-            setAlert('Invalid initial capital.');
+            setAlert('⚠️ Capital initial invalide.');
             return;
         }
         setIsSaving(true);
@@ -456,7 +456,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     linkedClientId: fieldValueDelete()
                 };
                 batch.update(userDocRef.collection('investors').doc(editingInvestor.id), updatePayload);
-                setAlert('Investor updated.');
+                setAlert('✅ Investisseur mis à jour.');
             }
             else {
                 const ref = userDocRef.collection('investors').doc();
@@ -510,14 +510,14 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     }
                     batch.set(investorTxRef, investorTxPayload);
                 }
-                setAlert('Investor added.');
+                setAlert('✅ Investisseur ajouté.');
             }
             await batch.commit();
             closeInvestorModal();
             return true;
         }
         catch (e) {
-            setAlert('Error while saving investor.');
+            setAlert('❌ Erreur lors de l’enregistrement.');
             return false;
         }
         finally {
@@ -527,12 +527,12 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     const handleSaveInvestorTx = async () => {
         const amount = parseAndEvaluate(investorTxAmount);
         if (!selectedInvestorId || isNaN(amount) || amount <= 0) {
-            setAlert('Invalid transaction data.');
+            setAlert('⚠️ Données de transaction invalides.');
             return;
         }
         const selectedInvestor = derivedInvestors.find((investor) => investor.id === selectedInvestorId);
         if (!selectedInvestor) {
-            setAlert('Investor not found.');
+            setAlert('⚠️ Investisseur introuvable.');
             return;
         }
         if (investorTxType === 'withdraw_profit') {
@@ -541,11 +541,11 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 ? Number(treasuryStats.caisse || 0)
                 : Number(treasuryStats.baridi || 0);
             if (amount > availableProfit + 0.005) {
-                setAlert('Amount exceeds available profit.');
+                setAlert('⚠️ Montant dépasse le profit disponible.');
                 return;
             }
             if (amount > sourceBalance + 0.005) {
-                setAlert(investorTxPaymentSource === 'Caisse' ? 'Solde Caisse insuffisant.' : 'Solde BaridiMob insuffisant.');
+                setAlert(investorTxPaymentSource === 'Caisse' ? '⚠️ Solde Caisse insuffisant.' : '⚠️ Solde BaridiMob insuffisant.');
                 return;
             }
         }
@@ -557,18 +557,18 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 ? Number(treasuryStats.caisse || 0)
                 : Number(treasuryStats.baridi || 0);
             if (amount > capitalInvested + 0.005) {
-                setAlert('Amount exceeds invested capital.');
+                setAlert('⚠️ Montant dépasse le capital investi.');
                 return;
             }
             // M1: an investor whose accumulated profit went negative (e.g. delivery
             // expense burden exceeded their share) cannot withdraw capital without
             // first reconciling that debt — otherwise the project loses money.
             if (availableProfit < -0.005) {
-                setAlert(`Cet investisseur a un profit négatif (${availableProfit.toFixed(2)} DZD). Régulariser avant retrait de capital.`);
+                setAlert(`⚠️ Cet investisseur a un profit négatif (${availableProfit.toFixed(2)} DZD). Régularisez avant le retrait de capital.`);
                 return;
             }
             if (amount > sourceBalance + 0.005) {
-                setAlert(investorTxPaymentSource === 'Caisse' ? 'Solde Caisse insuffisant.' : 'Solde BaridiMob insuffisant.');
+                setAlert(investorTxPaymentSource === 'Caisse' ? '⚠️ Solde Caisse insuffisant.' : '⚠️ Solde BaridiMob insuffisant.');
                 return;
             }
         }
@@ -642,7 +642,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             }
             batch.set(txRef, investorTxPayload);
             await batch.commit();
-            setAlert('Transaction saved.');
+            setAlert('✅ Transaction enregistrée.');
             setIsInvestorTxModalOpen(false);
             setInvestorTxAmount('');
             setInvestorTxNotes('');
@@ -650,7 +650,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             return true;
         }
         catch (e) {
-            setAlert('Error while saving transaction.');
+            setAlert('❌ Erreur lors de l’enregistrement de la transaction.');
             return false;
         }
         finally {
@@ -677,11 +677,11 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 notes: 'Reinvestissement profit'
             });
             await batch.commit();
-            setAlert('Reinvestment recorded.');
+            setAlert('✅ Réinvestissement enregistré.');
             return true;
         }
         catch (e) {
-            setAlert('Error while reinvesting.');
+            setAlert('❌ Erreur lors du réinvestissement.');
             return false;
         }
         finally {
@@ -691,7 +691,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     const handleDeleteInvestor = async (investorId?: string) => {
         const targetInvestorId = investorId || investorToDelete?.id;
         if (!targetInvestorId) {
-            setAlert('Investor not found.');
+            setAlert('⚠️ Investisseur introuvable.');
             return false;
         }
         setIsSaving(true);
@@ -740,12 +740,12 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             if (!investorDeleted) {
                 await investorRef.delete();
             }
-            setAlert(`Investor deleted (${deletedTxCount} transaction(s) removed).`);
+            setAlert(`✅ Investisseur supprimé (${deletedTxCount} transaction${deletedTxCount > 1 ? 's' : ''}).`);
             setInvestorToDelete(null);
             return true;
         }
         catch (e) {
-            setAlert('Error while deleting investor.');
+            setAlert('❌ Erreur lors de la suppression de l’investisseur.');
             return false;
         }
         finally {

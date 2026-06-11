@@ -45,7 +45,7 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
     const reportPamLedger = useMemo(() => providedPamLedger || computePamLedger(transactions), [providedPamLedger, transactions]);
     const handleExportClientReport = async (clientId: string, month: number, year: number) => {
         if (!clientId) {
-            setAlert('Selectionnez un client.');
+            setAlert('⚠️ Sélectionnez un client.');
             return;
         }
         const monthLabels = getMonthLabels(t);
@@ -64,12 +64,12 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
             getClientName: getClientFullName
         });
         if (!report) {
-            setAlert('Client introuvable.');
+            setAlert('⚠️ Client introuvable.');
             return;
         }
         const opened = openPdfPrintWindow(report);
         if (!opened) {
-            setAlert("Impossible d'ouvrir l'apercu PDF.");
+            setAlert("❌ Impossible d’ouvrir l’aperçu PDF.");
             return;
         }
         setAlert(isMobileDevice()
@@ -93,7 +93,7 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
         });
         const opened = openPdfPrintWindow(report);
         if (!opened) {
-            setAlert("Impossible d'ouvrir l'apercu PDF.");
+            setAlert("❌ Impossible d’ouvrir l’aperçu PDF.");
             return;
         }
         setAlert(isMobileDevice()
@@ -113,7 +113,7 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
         });
         const investor = periodEconomics.derivedInvestors.find((item) => item.id === investorId);
         if (!investor) {
-            setAlert('Investisseur introuvable.');
+            setAlert('⚠️ Investisseur introuvable.');
             return;
         }
         const { buildInvestorPdfReport, openPdfPrintWindow } = await loadPdfReports();
@@ -125,7 +125,7 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
         });
         const opened = openPdfPrintWindow(report);
         if (!opened) {
-            setAlert("Impossible d'ouvrir l'apercu PDF.");
+            setAlert("❌ Impossible d’ouvrir l’aperçu PDF.");
             return;
         }
         setAlert(isMobileDevice()
@@ -231,7 +231,7 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
         });
         const opened = openPdfPrintWindow(report);
         if (!opened) {
-            setAlert("Impossible d'ouvrir l'apercu PDF.");
+            setAlert("❌ Impossible d’ouvrir l’aperçu PDF.");
             return;
         }
         setAlert(isMobileDevice()

@@ -468,7 +468,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de l’achat.');
         }
         finally {
             setIsSaving(false);
@@ -658,7 +658,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de la vente.');
         }
         finally {
             setIsSaving(false);
@@ -763,7 +763,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 }
             }
             await batch.commit();
-            setAlert('✅ Opération réussie.');
+            setAlert('✅ Ajustement enregistré.');
             setIsAdjustmentModalOpen(false);
             if (adjustmentClientId) {
                 setTimeout(() => {
@@ -774,7 +774,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de l’ajustement.');
         }
         finally {
             setIsSaving(false);
@@ -785,13 +785,13 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         try {
             const result = await applyTransactionDelete(txId, type, userDocRef);
             if (result.success)
-                setAlert('✅ Supprimé.');
+                setAlert('✅ Transaction supprimée.');
             else
-                setAlert(`❌ ${result.error || 'Erreur.'}`);
+                setAlert(`❌ ${result.error || 'Erreur lors de la suppression.'}`);
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de la suppression.');
         }
         finally {
             setIsSaving(false);
@@ -889,7 +889,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de l’enregistrement.');
         }
         finally {
             setIsSaving(false);
@@ -1000,7 +1000,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur transfert.');
+            setAlert('❌ Erreur lors du transfert.');
         }
         finally {
             setIsSaving(false);
@@ -1053,7 +1053,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur transfert.');
+            setAlert('❌ Erreur lors du transfert.');
         }
         finally {
             setIsSaving(false);
