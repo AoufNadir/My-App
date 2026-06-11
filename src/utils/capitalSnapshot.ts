@@ -35,7 +35,9 @@ export function calculateInvestorBreakdown(investors: ReadonlyArray<Investor>): 
     return investors.reduce((acc, inv) => {
         if (inv.isManager) return acc;
         const capital = Number.isFinite(Number(inv.capitalInvested)) ? Math.max(0, Number(inv.capitalInvested || 0)) : 0;
-        const profit  = Number.isFinite(Number(inv.availableProfit))  ? Math.max(0, Number(inv.availableProfit  || 0)) : 0;
+        // M4: keep the sign on profit so a negative balance (investor owes the project)
+        // reduces the breakdown total instead of being silently dropped.
+        const profit  = Number.isFinite(Number(inv.availableProfit))  ? Number(inv.availableProfit  || 0) : 0;
         return { capital: acc.capital + capital, profits: acc.profits + profit, total: acc.total + capital + profit };
     }, { capital: 0, profits: 0, total: 0 });
 }
@@ -78,8 +80,13 @@ export function calculateInvestorLiability(investors: ReadonlyArray<Investor>): 
             return sum;
         const capitalInvested = Number(investor.capitalInvested || 0);
         const availableProfit = Number(investor.availableProfit || 0);
+        // Capital is always a non-negative debt to the investor.
         const capitalDebt = Number.isFinite(capitalInvested) ? Math.max(0, capitalInvested) : 0;
-        const profitDebt = Number.isFinite(availableProfit) ? Math.max(0, availableProfit) : 0;
+        // M4: profit can be negative (delivery burden exceeded their share). A negative
+        // profit is a receivable owed BY the investor — it offsets the project's debt
+        // to them. Clamping to zero would overstate investorLiability and understate
+        // netOwnedCapital. Use the signed value.
+        const profitDebt = Number.isFinite(availableProfit) ? availableProfit : 0;
         return sum + capitalDebt + profitDebt;
     }, 0);
 }
