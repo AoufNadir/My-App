@@ -582,9 +582,10 @@ export default function MainApp({ user }: {
         const totalQty = portfolioStats.usdt.purchasedQty + newUsdtQty;
         return totalQty <= 0 ? 0 : totalCost / totalQty;
     }, [shouldComputePortfolioSimulators, simEurQty, simEurDzdPrice, simEurUsdtRate, portfolioStats.usdt]);
-    // Use PAM ledger derivedProfit as the single source of truth for global net profit.
-    // This ensures the Dashboard total matches the amount distributed to investors.
-    const globalNetProfit = Number(pamLedger.totals.derivedProfit || 0);
+    // M2: previously this was pamLedger.totals.derivedProfit (gross trading profit
+    // before delivery expenses). The Dashboard label says "Net", so use the
+    // post-delivery netDistributableProfit from investorEconomics for honesty.
+    const globalNetProfit = Number(investorEconomics.totals.netDistributableProfit || pamLedger.totals.derivedProfit || 0);
     const investorLiability = useMemo(() => calculateInvestorLiability(derivedInvestors), [derivedInvestors]);
     const investorBreakdown = useMemo(() => calculateInvestorBreakdown(derivedInvestors), [derivedInvestors]);
     const dailyOverview = useMemo(() => {
