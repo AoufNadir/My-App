@@ -38,7 +38,7 @@ const PERIOD_TABS: Tab[] = [
     { id: 'day', label: 'Jour' },
     { id: 'week', label: 'Semaine' },
     { id: 'month', label: 'Mois' },
-    { id: 'year', label: 'Annee' },
+    { id: 'year', label: 'Année' },
 ];
 
 function startOfDay(ts: number): number {

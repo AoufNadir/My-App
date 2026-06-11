@@ -72,7 +72,7 @@ const LOYALTY_CONFIG: Record<TierKey, { label: string; dot: string; chipCls: str
     regular:    { label: 'Régulier',   dot: 'bg-primary',     chipCls: 'border-primary/25 text-primary bg-primary/5',     badgeCls: 'bg-primary/8 text-primary border-primary/20' },
     petit:      { label: 'Petit',      dot: 'bg-orange-400',  chipCls: 'border-orange-200 text-orange-700 bg-orange-50',  badgeCls: 'bg-orange-50 text-orange-700 border-orange-200' },
     new:        { label: 'Nouveau',    dot: 'bg-neutral-400', chipCls: 'border-neutral-200 text-neutral-600 bg-neutral-50', badgeCls: 'bg-neutral-50 text-neutral-500 border-neutral-200' },
-    inactive:   { label: 'Inactif',   dot: 'bg-neutral-300', chipCls: 'border-neutral-200 text-neutral-400 bg-white',    badgeCls: 'bg-white text-neutral-400 border-neutral-200' },
+    inactive:   { label: 'Inactif',   dot: 'bg-neutral-300', chipCls: 'border-neutral-200 text-neutral-400 bg-surface', badgeCls: 'bg-surface text-neutral-400 border-neutral-200' },
     fournisseur:{ label: 'Fournisseur',dot: 'bg-teal-400',    chipCls: 'border-teal-200 text-teal-700 bg-teal-50',       badgeCls: 'bg-teal-50 text-teal-700 border-teal-200' },
 };
 
@@ -190,7 +190,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
           {/* Tier filter — dropdown */}
           {clientLoyaltyMap && tierCounts.size > 0 && (
             <Dropdown trigger={(
-              <button type="button" className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors w-full ${activeTierFilter ? LOYALTY_CONFIG[activeTierFilter as TierKey].chipCls : 'border-border bg-white text-neutral-600 hover:border-neutral-300'}`}>
+              <button type="button" className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors w-full ${activeTierFilter ? LOYALTY_CONFIG[activeTierFilter as TierKey].chipCls : 'border-border bg-surface text-neutral-600 hover:border-neutral-300'}`}>
                 {activeTierFilter ? (
                   <>
                     <span className={`w-2 h-2 rounded-full shrink-0 ${LOYALTY_CONFIG[activeTierFilter as TierKey].dot}`}/>
@@ -329,7 +329,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                               e.stopPropagation();
                               setSolderTarget({ clientId: client.id, name: fullName, balance });
                             }}
-                            className="mt-1 text-[10px] font-semibold text-neutral-500 hover:text-primary border border-neutral-200 hover:border-primary/30 rounded-lg px-2 py-0.5 transition-colors bg-white">
+                            className="mt-1 text-[10px] font-semibold text-neutral-500 hover:text-primary border border-neutral-200 hover:border-primary/30 rounded-lg px-2 py-0.5 transition-colors bg-surface">
                             Solder
                           </button>
                         )}
@@ -357,7 +357,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
       {solderTarget && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setSolderTarget(null)}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"/>
-          <div className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
+          <div className="relative w-full max-w-sm rounded-2xl bg-surface shadow-2xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
             {/* Icon */}
             <div className="flex justify-center">
               <div className="w-14 h-14 rounded-full bg-neutral-100 flex items-center justify-center">

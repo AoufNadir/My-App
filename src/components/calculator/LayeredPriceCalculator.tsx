@@ -49,7 +49,7 @@ function NumberEdit({ label, value, onChange }: { label: string; value: string; 
             <span className="text-[10px] text-neutral-400">{label}</span>
             <input type="number" value={value} step="0.5" min="0" max="5"
                 onChange={e => onChange(e.target.value)}
-                className="w-full rounded-lg border border-border bg-white px-2 py-1.5 text-sm font-bold text-neutral-800 text-center focus:outline-none focus:ring-1 focus:ring-primary/50"/>
+                className="w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm font-bold text-neutral-800 text-center focus:outline-none focus:ring-1 focus:ring-primary/50"/>
         </div>
     );
 }
@@ -150,7 +150,7 @@ export function LayeredPriceCalculator({ isOpen, onClose, portfolioStats, client
                         value={vipInput}
                         onChange={e => handleVipChange(e.target.value)}
                         placeholder="Ex: 248"
-                        className="w-full rounded-xl border border-border bg-white px-4 py-2.5 text-xl font-extrabold text-neutral-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-xl font-extrabold text-neutral-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/40"
                     />
                     {vipParsed > 0 && pam > 0 && (
                         <div dir="ltr" className="flex gap-3 text-[11px] text-neutral-400">
@@ -195,7 +195,7 @@ export function LayeredPriceCalculator({ isOpen, onClose, portfolioStats, client
                     <div className="flex items-center gap-2">
                         <input type="number" value={qty} onChange={e => setQty(e.target.value)}
                             placeholder={`Quantité ${currency}`}
-                            className="flex-1 rounded-xl border border-border bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary/40"/>
+                            className="flex-1 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary/40"/>
                         <button type="button" onClick={() => setQty(side.available.toFixed(2))}
                             className="rounded-xl bg-primary/10 text-primary text-xs font-bold px-3 py-2.5">MAX</button>
                     </div>
@@ -215,7 +215,7 @@ export function LayeredPriceCalculator({ isOpen, onClose, portfolioStats, client
                     <input type="text" value={search}
                         onChange={e => { setSearch(e.target.value); setSelectedId(null); }}
                         placeholder="Rechercher un client"
-                        className="w-full rounded-xl border border-border bg-white px-4 py-2.5 text-sm font-medium text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary/40"/>
+                        className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-medium text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary/40"/>
                     {!selectedId && search.trim() && filteredClients.length > 0 && (
                         <div className="rounded-xl border border-border overflow-hidden divide-y divide-neutral-100">
                             {filteredClients.map(c => (
@@ -287,7 +287,7 @@ export function LayeredPriceCalculator({ isOpen, onClose, portfolioStats, client
                         </div>
 
                         {/* Breakdown */}
-                        <div className="rounded-xl bg-white/70 border border-border overflow-hidden text-[12px]">
+                        <div className="rounded-xl bg-surface/70 border border-border overflow-hidden text-[12px]">
                             <div className="flex items-center justify-between px-3 py-2 bg-neutral-50 border-b border-neutral-100">
                                 <span className="font-semibold text-neutral-600">Base VIP</span>
                                 <span dir="ltr" className="font-bold text-neutral-800">{fmtPrice(result.vipPrice)} DZD</span>

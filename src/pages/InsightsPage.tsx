@@ -526,7 +526,7 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
                                                 const priceStr = Number.isInteger(row.price) ? `${row.price}` : fmt2(row.price);
                                                 const { label, volume, dot } = TIER_META[tier];
                                                 return (
-                                                    <div key={tier} className="flex items-center justify-between px-4 py-3 bg-white hover:bg-neutral-50/60 transition-colors">
+                                                    <div key={tier} className="flex items-center justify-between px-4 py-3 bg-surface hover:bg-neutral-50/60 transition-colors">
                                                         <div className="flex items-center gap-2.5">
                                                             <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`}/>
                                                             <div>

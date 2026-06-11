@@ -268,7 +268,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                 {balanceStatusLabel}
               </span>),
             },
-            { label: 'Operations', value: totalTransactionCount, currency: null, semantic: 'plain' }
+            { label: 'Opérations', value: totalTransactionCount, currency: null, semantic: 'plain' }
         ]}/>
 
       <Card>
