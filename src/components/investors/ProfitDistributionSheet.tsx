@@ -3,8 +3,10 @@ import { BottomSheet } from '../ui/BottomSheet';
 import { Button } from '../ui/Button';
 import { MoneyField } from '../ui/MoneyField';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
+import { Badge } from '../ui/Badge';
 import { db, FirestoreDocumentReference } from '../../firebase';
 import { now, parseAndEvaluate } from '../../utils';
+import { buildProfitDistributionPlan } from '../../utils/profitDistribution';
 import type { Investor } from '../../types';
 
 type ActiveInvestor = Investor & { isManager?: boolean };
@@ -25,27 +27,14 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
     const [isSaving, setIsSaving] = useState(false);
     const [confirmed, setConfirmed] = useState(false);
 
-    const activeNonManagers = useMemo(
-        () => investors.filter(inv => inv.isActive && !inv.isManager),
-        [investors]
-    );
-    const totalSharePct = useMemo(
-        () => activeNonManagers.reduce((s, inv) => s + Number(inv.sharePercentage || 0), 0),
-        [activeNonManagers]
-    );
-
-    const totalAmount = parseAndEvaluate(totalInput) || suggestedTotal;
+    const parsedTotalInput = parseAndEvaluate(totalInput);
+    const totalAmount = totalInput.trim()
+        ? (Number.isFinite(parsedTotalInput) ? parsedTotalInput : 0)
+        : suggestedTotal;
 
     const distribution = useMemo(() =>
-        activeNonManagers.map(inv => {
-            const share = Number(inv.sharePercentage || 0);
-            const normalizedShare = totalSharePct > 0 ? share / totalSharePct : 0;
-            const amount = Math.round(totalAmount * normalizedShare);
-            const availableProfit = Math.max(0, Number(inv.availableProfit || 0));
-            const exceedsAvailable = amount > availableProfit + 0.005;
-            return { inv, share, normalizedShare, amount, availableProfit, exceedsAvailable };
-        }).filter(d => d.amount > 0),
-        [activeNonManagers, totalAmount, totalSharePct]
+        buildProfitDistributionPlan(investors, totalAmount),
+        [investors, totalAmount]
     );
 
     const totalDistributed = distribution.reduce((s, d) => s + d.amount, 0);
@@ -111,13 +100,13 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
 
                 <div>
                     <MoneyField
-                        label="Montant total à distribuer (DZD)"
+                        label="Montant total à distribuer"
                         value={totalInput}
                         onChange={setTotalInput}
                         currency="DZD"
                         placeholder={suggestedTotal > 0 ? String(Math.round(suggestedTotal)) : '0'}
                         hint={suggestedTotal > 0
-                            ? `Profit net disponible : ${suggestedTotal.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD`
+                            ? `Profit disponible à retirer : ${suggestedTotal.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD`
                             : 'Entrez le montant à distribuer'}
                     />
                     {!totalInput && suggestedTotal > 0 && (
@@ -126,7 +115,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                             onClick={() => setTotalInput(String(Math.round(suggestedTotal)))}
                             className="mt-1 text-xs font-semibold text-primary hover:underline"
                         >
-                            Utiliser le profit net disponible →
+                            Utiliser le profit disponible →
                         </button>
                     )}
                 </div>
@@ -161,7 +150,10 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                             {distribution.map(({ inv, normalizedShare, amount, availableProfit, exceedsAvailable }) => (
                                 <div key={inv.id} className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 ${exceedsAvailable ? 'bg-danger/5' : ''}`}>
                                     <div className="min-w-0">
-                                        <p className="text-sm font-semibold truncate">{inv.name}</p>
+                                        <div className="flex min-w-0 items-center gap-1.5">
+                                            <p className="truncate text-sm font-semibold">{inv.name}</p>
+                                            {inv.isManager && <Badge variant="warning" size="sm">Gérant</Badge>}
+                                        </div>
                                         <p className={`text-[10px] ${exceedsAvailable ? 'text-danger font-semibold' : 'text-neutral-400'}`}>
                                             Disponible : {availableProfit.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD
                                             {exceedsAvailable && ' · dépassé'}
