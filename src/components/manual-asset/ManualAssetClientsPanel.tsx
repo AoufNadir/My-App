@@ -55,7 +55,7 @@ export function ManualAssetClientsPanel({ searchQuery, setSearchQuery, onOpenCre
                   </div>
                 </SwipeableListItem>
               </div>);
-        })) : (<EmptyState icon={<UserIcon className="w-6 h-6"/>} title="Aucun client trouvé." subtitle="Ajoutez un client pour commencer le suivi."/>)}
+        })) : (<EmptyState icon={<UserIcon className="w-6 h-6"/>} title="Aucun client trouvé" subtitle="Ajoutez un client pour commencer le suivi."/>)}
       </div>
     </div>);
 }

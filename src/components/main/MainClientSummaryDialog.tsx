@@ -118,7 +118,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
             return;
         const exportNode = exportCardRef.current;
         if (!exportNode) {
-            setAlert('Erreur: image introuvable.');
+            setAlert('❌ Image introuvable.');
             return;
         }
         try {
@@ -189,7 +189,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                 }
             }
             if (!blob) {
-                setAlert('Erreur: generation image impossible. Utilisez PDF.');
+                setAlert('❌ Génération de l’image impossible. Utilisez PDF.');
                 return;
             }
             const shareText = `Releve client de ${getClientFullName(summaryClient)} (3 dernieres operations)`;
@@ -214,12 +214,12 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                 a.href = url; a.download = baseName;
                 document.body.appendChild(a); a.click();
                 document.body.removeChild(a); URL.revokeObjectURL(url);
-                setAlert('Image telechargee.');
+                setAlert('✅ Image téléchargée.');
             }
         }
         catch (error: any) {
             console.error(error);
-            setAlert(`Erreur capture: ${error?.message || ''}`);
+            setAlert(`❌ Erreur de capture : ${error?.message || ''}`);
         }
         finally {
             setIsSharing(false);
@@ -229,7 +229,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
         if (!summaryClient || isOpeningPdf)
             return;
         if (typeof handleExportClientReport !== 'function') {
-            setAlert("Erreur export PDF.");
+            setAlert("❌ Erreur d’export PDF.");
             return;
         }
         setIsOpeningPdf(true);
@@ -294,7 +294,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                       </div>
                       {details ? (<div className="mt-1 text-sm font-semibold text-neutral-600">{details}</div>) : null}
                       <div className="mt-1 text-[13px] font-semibold text-neutral-500">{tx.date} a {tx.time}</div>
-                    </div>)) : (<div className="p-5 text-center font-semibold text-neutral-500">Aucune operation.</div>)}
+                    </div>)) : (<div className="p-5 text-center font-semibold text-neutral-500">Aucune opération.</div>)}
                 </div>
 
                 <div className="mt-5 flex items-center justify-between border-t border-border pt-4 text-xs font-bold text-neutral-500">

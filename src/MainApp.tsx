@@ -977,7 +977,7 @@ export default function MainApp({ user }: {
             closeTreasuryBalanceEditModal();
         }
         catch (e) {
-            setAlert("❌ Erreur.");
+            setAlert("❌ Erreur lors de la mise à jour du solde.");
         }
         finally {
             setIsSaving(false);
@@ -1246,7 +1246,7 @@ export default function MainApp({ user }: {
             closeWalletTransferModal();
         }
         catch (e) {
-            setAlert("❌ Erreur.");
+            setAlert("❌ Erreur lors du transfert.");
         }
         finally {
             setIsSaving(false);
@@ -1561,7 +1561,7 @@ export default function MainApp({ user }: {
             const txRef = userDocRef.collection('actifTransactions').doc(txId);
             const existingDoc = await txRef.get();
             if (!existingDoc.exists) {
-                setAlert("Erreur: Transaction introuvable.");
+                setAlert("⚠️ Transaction introuvable.");
                 return;
             }
             const existing = existingDoc.data() as any;
@@ -1615,7 +1615,7 @@ export default function MainApp({ user }: {
             const txRef = userDocRef.collection('actifTransactions').doc(id);
             const docSnap = await txRef.get();
             if (!docSnap.exists) {
-                setAlert("Erreur: Transaction introuvable.");
+                setAlert("⚠️ Transaction introuvable.");
                 return;
             }
             const txData = docSnap.data() as any;
@@ -1660,11 +1660,11 @@ export default function MainApp({ user }: {
                     batch.delete(userDocRef.collection('dzd_client_txs').doc(counterpart.id));
                 }
                 await batch.commit();
-                setAlert("✅ Supprimé.");
+                setAlert("✅ Transaction supprimée.");
             }
             catch (e) {
                 console.error(e);
-                setAlert("❌ Erreur.");
+                setAlert("❌ Erreur lors de la suppression.");
             }
             finally {
                 setIsSaving(false);
@@ -1717,12 +1717,12 @@ export default function MainApp({ user }: {
                 }
                 await batch.commit();
             }
-            setAlert("✅ Réinitialisé.");
+            setAlert("✅ Application réinitialisée.");
             setRefreshKey(prev => prev + 1);
             setIsResetModalOpen(false);
         }
         catch (e) {
-            setAlert("❌ Erreur.");
+            setAlert("❌ Erreur lors de la réinitialisation.");
         }
         finally {
             setIsSaving(false);

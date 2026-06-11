@@ -28,7 +28,7 @@ const normalizeText = (value: string) => value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
-function SearchableSelectComponent({ value, onChange, options, fieldClassName, searchInputClassName, selectClassName, searchPlaceholder = 'Rechercher...', emptyOptionLabel, emptyValue = '', noResultsLabel = 'Aucun resultat', id, disabled = false, clearable = false, clearLabel = 'Effacer', minSearchLength = 1 }: SearchableSelectProps) {
+function SearchableSelectComponent({ value, onChange, options, fieldClassName, searchInputClassName, selectClassName, searchPlaceholder = 'Rechercher...', emptyOptionLabel, emptyValue = '', noResultsLabel = 'Aucun résultat', id, disabled = false, clearable = false, clearLabel = 'Effacer', minSearchLength = 1 }: SearchableSelectProps) {
     const wrapperRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const generatedId = useId();

@@ -176,21 +176,21 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     const maxButtonTitle = maxDisabled
         ? (usesClientMax
             ? (adjustmentTab === 'add'
-                ? 'Aucune dette client a regler'
-                : 'Aucune avance client a restituer')
+                ? 'Aucune dette client à régler'
+                : 'Aucune avance client à restituer')
             : (adjustmentTab === 'add' && isDzdAdjustment
-                ? 'Selectionnez un client'
+                ? 'Sélectionnez un client'
                 : 'Aucune valeur maximale disponible'))
         : 'Utiliser la valeur maximale';
     const amountHint = usesClientMax
         ? (linkedClientMax > 0
-            ? `MAX client: ${formatDisplayMetric(linkedClientMax)} DZD.`
+            ? `MAX client : ${formatDisplayMetric(linkedClientMax)} DZD.`
             : (adjustmentTab === 'add'
-                ? 'Aucune dette client a regler.'
-                : 'Aucune avance client a restituer.'))
+                ? 'Aucune dette client à régler.'
+                : 'Aucune avance client à restituer.'))
         : adjustmentTab === 'add' && isDzdAdjustment
-            ? 'MAX disponible apres selection client.'
-            : `MAX selon ${selectedAssetLabel}: ${formatDisplayMetric(selectedAssetMax)} ${isCryptoAdjustment ? adjustmentAsset : 'DZD'}.`;
+            ? 'MAX disponible après sélection du client.'
+            : `MAX selon ${selectedAssetLabel} : ${formatDisplayMetric(selectedAssetMax)} ${isCryptoAdjustment ? adjustmentAsset : 'DZD'}.`;
     const confirmHelperText = isSaving
         ? 'Traitement en cours...'
         : !adjustmentAmount || parsedAdjustmentAmount <= 0
@@ -407,7 +407,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     {isDzdAdjustment && (<div>
                             <Label>{t('transactions.linkedClientOptional')} <span className="text-xs font-normal text-neutral-400">(Optionnel)</span></Label>
                             <div className="mt-1">
-                                <SearchableSelect value={adjustmentClientId} onChange={setAdjustmentClientId} options={(clientsDzd || []).map((client: any) => ({ value: client.id, label: getClientFullName(client) }))} searchPlaceholder="Rechercher un client..." emptyOptionLabel="Aucun client" emptyValue="" noResultsLabel="Aucun client trouve" clearable clearLabel="Supprimer le client lie"/>
+                                <SearchableSelect value={adjustmentClientId} onChange={setAdjustmentClientId} options={(clientsDzd || []).map((client: any) => ({ value: client.id, label: getClientFullName(client) }))} searchPlaceholder="Rechercher un client..." emptyOptionLabel="Aucun client" emptyValue="" noResultsLabel="Aucun client trouvé" clearable clearLabel="Supprimer le client lié"/>
                             </div>
                         </div>)}
 

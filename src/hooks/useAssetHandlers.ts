@@ -52,7 +52,7 @@ export function useAssetHandlers(userDocRef: FirestoreDocumentReference, manualA
             return true;
         }
         catch (e) {
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de la création du service.');
             return false;
         }
         finally {
@@ -67,11 +67,11 @@ export function useAssetHandlers(userDocRef: FirestoreDocumentReference, manualA
         setIsSaving(true);
         try {
             await userDocRef.collection('manual_assets').doc(assetId).delete();
-            setAlert('✅ Supprimé.');
+            setAlert('✅ Service supprimé.');
             return true;
         }
         catch (e) {
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de la suppression.');
             return false;
         }
         finally {
@@ -115,7 +115,7 @@ export function useAssetHandlers(userDocRef: FirestoreDocumentReference, manualA
             return true;
         }
         catch (e) {
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de l’ajout de la transaction.');
             return false;
         }
         finally {
@@ -160,7 +160,7 @@ export function useAssetHandlers(userDocRef: FirestoreDocumentReference, manualA
             return true;
         }
         catch (e) {
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de l’ajout du client.');
             return false;
         }
         finally {
@@ -203,7 +203,7 @@ export function useAssetHandlers(userDocRef: FirestoreDocumentReference, manualA
             return true;
         }
         catch (e) {
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de la mise à jour du client.');
             return false;
         }
         finally {
@@ -262,7 +262,7 @@ export function useAssetHandlers(userDocRef: FirestoreDocumentReference, manualA
             return true;
         }
         catch (e) {
-            setAlert('❌ Erreur.');
+            setAlert('❌ Erreur lors de la suppression du client.');
             return false;
         }
         finally {

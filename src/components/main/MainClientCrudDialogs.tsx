@@ -99,7 +99,7 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                     <div className="flex items-center justify-between rounded-xl border border-border bg-surface-muted px-4 py-3">
                         <div>
                             <p className="text-sm font-semibold text-neutral-700">Ce contact est un fournisseur</p>
-                            <p className="text-[11px] text-neutral-400 mt-0.5">Aucune fiche de fئة — exclut du classement client</p>
+                            <p className="text-[11px] text-neutral-400 mt-0.5">Aucune fiche de dette — exclu du classement client</p>
                         </div>
                         <button type="button"
                             onClick={() => setClientIsFournisseur(!clientIsFournisseur)}

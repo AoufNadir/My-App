@@ -35,8 +35,8 @@ export function OverdueDebtsModal({ isOpen, onClose, overdueDebtors, onOpenClien
                   </p>
                   <p className="text-xs mt-0.5 text-neutral-500">
                     {debtor.lastPaymentTimestamp
-                ? `Dernier reglement: ${new Date(debtor.lastPaymentTimestamp).toLocaleDateString('fr-FR')}`
-                : 'Aucun reglement'}
+                ? `Dernier règlement : ${new Date(debtor.lastPaymentTimestamp).toLocaleDateString('fr-FR')}`
+                : 'Aucun règlement'}
                   </p>
                 </div>
                 <div className="text-end shrink-0">
