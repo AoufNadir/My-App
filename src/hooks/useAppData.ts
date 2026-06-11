@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
 import type { AppUser } from '../firebaseAuth';
-import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction, LockedBatch } from '../types';
+import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction } from '../types';
+import { computePamLedger } from '../utils/pamLedger';
 type UseAppDataOptions = {
     subscribeManualAssets?: boolean;
     subscribeInvestors?: boolean;
@@ -210,98 +211,12 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         };
     }, [userDocRef, refreshKey, subscribeManualAssets, subscribeInvestors, subscribeTreasuryCards, activeCollectionKeys]);
     // Derived Calculations
-    const portfolioStats = useMemo(() => {
-        const nowMs = Date.now();
-        const createInitialStats = () => ({ costBasis: 0, purchasedQty: 0, available: 0, totalProfit: 0, avgBuy: 0, locked: 0, lockedBatches: [] as LockedBatch[] });
-        const round2 = (value: number) => Number(value.toFixed(2));
-        const normalizeZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : round2(value));
-        let usdtStats = createInitialStats();
-        let eurStats = createInitialStats();
-        for (const tx of transactions) {
-            const stats = tx.currency === 'USDT' ? usdtStats : eurStats;
-            const txQuantity = round2(Math.abs(Number(tx.quantity || 0)));
-            const txTotal = round2(Number(tx.total || 0));
-            if (txQuantity <= 0)
-                continue;
-            if (tx.type === 'buy' || tx.type === 'Ajout Manuel') {
-                const isStillLocked = tx.type === 'buy' && tx.lockedUntil && tx.lockedUntil > nowMs;
-                if (isStillLocked) {
-                    stats.locked = round2(stats.locked + txQuantity);
-                    stats.lockedBatches.push({ txId: tx.id, quantity: txQuantity, lockedUntil: tx.lockedUntil! });
-                } else {
-                    stats.available = round2(stats.available + txQuantity);
-                }
-            }
-            else {
-                stats.available = round2(stats.available - txQuantity);
-            }
-            if (tx.type === 'Ajout Manuel' && txTotal > 0) {
-                stats.purchasedQty = round2(stats.purchasedQty + txQuantity);
-                stats.costBasis = round2(stats.costBasis + txTotal);
-            }
-            else if (tx.type === 'buy') {
-                stats.purchasedQty = round2(stats.purchasedQty + txQuantity);
-                stats.costBasis = round2(stats.costBasis + txTotal);
-            }
-            else if (tx.type === 'sell' || tx.type === 'Retrait Manuel') {
-                const avgBuy = (stats.purchasedQty > 0) ? (stats.costBasis / stats.purchasedQty) : 0;
-                const removedQty = Math.min(txQuantity, stats.purchasedQty);
-                if (tx.type === 'sell') {
-                    const sellPrice = Number(tx.sell);
-                    if (removedQty > 0 && Number.isFinite(sellPrice) && sellPrice > 0) {
-                        const realized = (sellPrice - avgBuy) * removedQty;
-                        stats.totalProfit = round2(stats.totalProfit + realized);
-                    }
-                    else {
-                        // Fallback for historical/legacy rows with no recoverable cost basis.
-                        stats.totalProfit = round2(stats.totalProfit + Number(tx.profit || 0));
-                    }
-                }
-                stats.purchasedQty = round2(stats.purchasedQty - removedQty);
-                stats.costBasis = round2(stats.costBasis - (removedQty * avgBuy));
-                if (stats.purchasedQty < 0.00001) {
-                    stats.purchasedQty = 0;
-                    stats.costBasis = 0;
-                }
-            }
-            // When a position closes mid-history (available + locked returns to ~0), drop any
-            // residue from cumulative rounding so the next buy starts from a clean PAM.
-            // totalProfit is preserved — it is cumulative realized profit, not position state.
-            if (Math.abs(stats.available) < 0.005 && stats.locked < 0.005) {
-                stats.available = 0;
-                stats.purchasedQty = 0;
-                stats.costBasis = 0;
-            }
-        }
-        usdtStats.available = normalizeZero(usdtStats.available);
-        eurStats.available = normalizeZero(eurStats.available);
-        usdtStats.locked = normalizeZero(usdtStats.locked);
-        eurStats.locked = normalizeZero(eurStats.locked);
-        // If displayed total (available + locked) is zero, consider the position fully closed.
-        if (usdtStats.available === 0 && usdtStats.locked === 0) {
-            usdtStats.purchasedQty = 0;
-            usdtStats.costBasis = 0;
-        }
-        if (eurStats.available === 0 && eurStats.locked === 0) {
-            eurStats.purchasedQty = 0;
-            eurStats.costBasis = 0;
-        }
-        usdtStats.purchasedQty = normalizeZero(usdtStats.purchasedQty);
-        eurStats.purchasedQty = normalizeZero(eurStats.purchasedQty);
-        usdtStats.costBasis = normalizeZero(usdtStats.costBasis);
-        eurStats.costBasis = normalizeZero(eurStats.costBasis);
-        if (usdtStats.purchasedQty === 0)
-            usdtStats.costBasis = 0;
-        if (eurStats.purchasedQty === 0)
-            eurStats.costBasis = 0;
-        usdtStats.avgBuy = (usdtStats.purchasedQty > 0) ? usdtStats.costBasis / usdtStats.purchasedQty : 0;
-        eurStats.avgBuy = (eurStats.purchasedQty > 0) ? eurStats.costBasis / eurStats.purchasedQty : 0;
-        usdtStats.avgBuy = normalizeZero(usdtStats.avgBuy);
-        eurStats.avgBuy = normalizeZero(eurStats.avgBuy);
-        usdtStats.totalProfit = normalizeZero(usdtStats.totalProfit);
-        eurStats.totalProfit = normalizeZero(eurStats.totalProfit);
-        return { usdt: usdtStats, eur: eurStats };
-    }, [transactions]);
+    // L2: portfolioStats was previously computed inline here, duplicating the math
+    // in utils/pamLedger.ts. Both implementations had to be kept in sync (locked
+    // support lived only here; cost basis math lived in both). Delegate to
+    // computePamLedger so there is a single source of truth — it now supports
+    // locked/lockedBatches natively.
+    const portfolioStats = useMemo(() => computePamLedger(transactions).portfolioStats, [transactions]);
     const treasuryStats = useMemo(() => {
         const normalizeZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : Number(value.toFixed(2)));
         const resolveWallet = (raw: any): 'Caisse' | 'BaridiMob' | null => {

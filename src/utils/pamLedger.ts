@@ -1,4 +1,4 @@
-import type { PortfolioStats, Tx } from '../types';
+import type { LockedBatch, PortfolioStats, Tx } from '../types';
 export type PamCurrency = 'USDT' | 'EUR';
 export type PamLedgerWarningCode = 'stored_mismatch' | 'oversell' | 'manual_total_present' | 'quantity_only_adjustment' | 'uncosted_quantity_sold' | 'legacy_fallback' | 'eur_conversion_related' | 'missing_buy_total';
 export type PamLedgerWarningSeverity = 'info' | 'warning' | 'high';
@@ -6,6 +6,8 @@ export interface PamLedgerOptions {
     toleranceDzd?: number;
     zeroEpsilon?: number;
     conversionWindowMs?: number;
+    /** Clock used to evaluate buy.lockedUntil (24h restriction). Defaults to Date.now(). */
+    nowMs?: number;
 }
 export interface PamLedgerFlags {
     storedMismatch: boolean;
@@ -88,6 +90,8 @@ type WorkingStats = {
     costBasis: number;
     totalProfit: number;
     available: number;
+    locked: number;
+    lockedBatches: LockedBatch[];
 };
 type InternalTx = Tx & {
     __ledgerIndex: number;
@@ -114,7 +118,7 @@ function isFinitePositive(value: unknown): boolean {
     return Number.isFinite(Number(value)) && Number(value) > 0;
 }
 function createWorkingStats(): WorkingStats {
-    return { purchasedQty: 0, costBasis: 0, totalProfit: 0, available: 0 };
+    return { purchasedQty: 0, costBasis: 0, totalProfit: 0, available: 0, locked: 0, lockedBatches: [] };
 }
 function toLedgerStats(stats: WorkingStats, zeroEpsilon: number): PamLedgerStats {
     const purchasedQty = normalizeZero(stats.purchasedQty, zeroEpsilon);
@@ -192,12 +196,16 @@ function findEurConversionRelatedTxIds(transactions: InternalTx[], conversionWin
 function buildPortfolioStats(statsByCurrency: Record<PamCurrency, WorkingStats>, zeroEpsilon: number): PortfolioStats {
     const usdt = toLedgerStats(statsByCurrency.USDT, zeroEpsilon);
     const eur = toLedgerStats(statsByCurrency.EUR, zeroEpsilon);
-    return { usdt: { ...usdt, locked: 0, lockedBatches: [] }, eur: { ...eur, locked: 0, lockedBatches: [] } };
+    return {
+        usdt: { ...usdt, locked: normalizeZero(statsByCurrency.USDT.locked, zeroEpsilon), lockedBatches: statsByCurrency.USDT.lockedBatches },
+        eur: { ...eur, locked: normalizeZero(statsByCurrency.EUR.locked, zeroEpsilon), lockedBatches: statsByCurrency.EUR.lockedBatches },
+    };
 }
 export function computePamLedger(transactions: Tx[], options: PamLedgerOptions = {}): PamLedgerResult {
     const toleranceDzd = options.toleranceDzd ?? DEFAULT_TOLERANCE_DZD;
     const zeroEpsilon = options.zeroEpsilon ?? DEFAULT_ZERO_EPSILON;
     const conversionWindowMs = options.conversionWindowMs ?? DEFAULT_CONVERSION_WINDOW_MS;
+    const nowMs = options.nowMs ?? Date.now();
     const orderedTransactions = sortTransactions(transactions);
     const eurConversionRelatedIds = findEurConversionRelatedTxIds(orderedTransactions, conversionWindowMs);
     const statsByCurrency: Record<PamCurrency, WorkingStats> = {
@@ -297,7 +305,13 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
             stats.totalProfit = round2(stats.totalProfit + derivedProfit);
         }
         if (tx.type === 'buy' || tx.type === 'Ajout Manuel') {
-            stats.available = round2(stats.available + quantity);
+            const isStillLocked = tx.type === 'buy' && isFinitePositive(tx.lockedUntil) && Number(tx.lockedUntil) > nowMs;
+            if (isStillLocked) {
+                stats.locked = round2(stats.locked + quantity);
+                stats.lockedBatches.push({ txId: tx.id, quantity, lockedUntil: Number(tx.lockedUntil) });
+            } else {
+                stats.available = round2(stats.available + quantity);
+            }
             quantityChange = quantity;
         }
         else {
@@ -331,7 +345,10 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
                 stats.costBasis = 0;
             }
         }
-        if (Math.abs(stats.available) < zeroEpsilon) {
+        // Mirror useAppData's in-loop reset: only wipe cost basis when BOTH
+        // available and locked have drained, otherwise a freshly locked buy
+        // followed by a sell of older stock would erase the locked batch's basis.
+        if (Math.abs(stats.available) < zeroEpsilon && stats.locked < zeroEpsilon) {
             stats.available = 0;
             stats.purchasedQty = 0;
             stats.costBasis = 0;
@@ -372,7 +389,8 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
     for (const currency of CURRENCIES) {
         const stats = statsByCurrency[currency];
         stats.available = normalizeZero(stats.available, zeroEpsilon);
-        if (stats.available === 0) {
+        stats.locked = normalizeZero(stats.locked, zeroEpsilon);
+        if (stats.available === 0 && stats.locked === 0) {
             stats.purchasedQty = 0;
             stats.costBasis = 0;
         }
