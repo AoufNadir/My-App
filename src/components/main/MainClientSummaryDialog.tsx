@@ -294,7 +294,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                       </div>
                       {details ? (<div className="mt-1 text-sm font-semibold text-neutral-600">{details}</div>) : null}
                       <div className="mt-1 text-[13px] font-semibold text-neutral-500">{tx.date} a {tx.time}</div>
-                    </div>)) : (<div className="p-5 text-center font-semibold text-neutral-500">Aucune operation.</div>)}
+                    </div>)) : (<div className="p-5 text-center font-semibold text-neutral-500">Aucune opération.</div>)}
                 </div>
 
                 <div className="mt-5 flex items-center justify-between border-t border-border pt-4 text-xs font-bold text-neutral-500">

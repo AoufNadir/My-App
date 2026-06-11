@@ -68,7 +68,7 @@ export function PersonalWithdrawalModal({
     const exceedsBalance = parsedAmount > availableBalance + 0.005;
     const hasError = !managerExists || (parsedAmount > 0 && (exceedsProfit || exceedsBalance));
     const errorTitle = !managerExists
-        ? 'Aucun gerant defini. Designez un investisseur comme gerant.'
+        ? 'Aucun gérant défini. Désignez un investisseur comme gérant.'
         : exceedsProfit
             ? 'Depasse ton profit disponible'
             : exceedsBalance

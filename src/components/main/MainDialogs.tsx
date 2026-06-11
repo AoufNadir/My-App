@@ -305,7 +305,7 @@ export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromCli
         <div>
           <Label>{fromLabel}</Label>
           <div className="mt-1">
-            <SearchableSelect value={fromClientId} onChange={setFromClientId} options={clients.map((client) => ({ value: client.id, label: client.label }))} fieldClassName="" searchPlaceholder="Rechercher un client..." emptyOptionLabel={`-- ${filterClientsLabel} --`} emptyValue="" noResultsLabel="Aucun client trouve" clearable clearLabel="Supprimer le client source"/>
+            <SearchableSelect value={fromClientId} onChange={setFromClientId} options={clients.map((client) => ({ value: client.id, label: client.label }))} fieldClassName="" searchPlaceholder="Rechercher un client..." emptyOptionLabel={`-- ${filterClientsLabel} --`} emptyValue="" noResultsLabel="Aucun client trouvé" clearable clearLabel="Supprimer le client source"/>
           </div>
           {fromClientId && (<p className="mt-1 text-xs text-neutral-500">
               {balanceLabel}: {formatMoney(fromBalance, 'DZD')}
@@ -314,7 +314,7 @@ export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromCli
         <div>
           <Label>{toLabel}</Label>
           <div className="mt-1">
-            <SearchableSelect value={toClientId} onChange={setToClientId} options={clients.map((client) => ({ value: client.id, label: client.label }))} fieldClassName="" searchPlaceholder="Rechercher un client..." emptyOptionLabel={`-- ${filterClientsLabel} --`} emptyValue="" noResultsLabel="Aucun client trouve" clearable clearLabel="Supprimer le client destination"/>
+            <SearchableSelect value={toClientId} onChange={setToClientId} options={clients.map((client) => ({ value: client.id, label: client.label }))} fieldClassName="" searchPlaceholder="Rechercher un client..." emptyOptionLabel={`-- ${filterClientsLabel} --`} emptyValue="" noResultsLabel="Aucun client trouvé" clearable clearLabel="Supprimer le client destination"/>
           </div>
           {toClientId && (<p className="mt-1 text-xs text-neutral-500">
               {balanceLabel}: {formatMoney(toBalance, 'DZD')}
@@ -349,7 +349,7 @@ export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromCli
             const buttonLabel = sameClient
                 ? 'Source = destination'
                 : (!fromClientId || !toClientId)
-                    ? 'Selectionnez les deux clients'
+                    ? 'Sélectionnez les deux clients'
                     : confirmLabel;
             return (<div className="flex gap-2 w-full">
               <Button onClick={onClose} variant="outline" className="flex-1">

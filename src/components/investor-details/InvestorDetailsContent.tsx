@@ -215,7 +215,7 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
             <span className="text-sm text-neutral-500">{orderedTransactions.length} opérations</span>
           </CardHeader>
           <CardContent className="p-0">
-            {orderedTransactions.length === 0 ? (<EmptyState icon={<FileSpreadsheetIcon className="w-5 h-5"/>} title="Aucune transaction."/>) : (<div className="divide-y divide-neutral-100">
+            {orderedTransactions.length === 0 ? (<EmptyState icon={<FileSpreadsheetIcon className="w-5 h-5"/>} title="Aucune transaction"/>) : (<div className="divide-y divide-neutral-100">
                 {orderedTransactions.map((tx) => {
                     const meta = getTxMeta(tx);
                     const signedAmount = (meta.isPositive ? 1 : -1) * Math.abs(tx.amount);

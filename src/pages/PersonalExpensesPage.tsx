@@ -344,7 +344,7 @@ export function PersonalExpensesPage({
                 <Card className="border-warning/20 bg-warning-bg p-4 text-sm text-warning">
                     <div className="flex items-start gap-3">
                         <AlertTriangleIcon className="mt-0.5 h-5 w-5 shrink-0" />
-                        <p>Aucun gerant defini. Designez un investisseur comme gerant pour activer cette fonctionnalite.</p>
+                        <p>Aucun gérant défini. Désignez un investisseur comme gérant pour activer cette fonctionnalité.</p>
                     </div>
                 </Card>
             )}
@@ -471,8 +471,8 @@ export function PersonalExpensesPage({
                     {filteredExpenses.length === 0 ? (
                         <EmptyState
                             icon={<FileSpreadsheetIcon className="h-6 w-6" />}
-                            title="Aucune depense"
-                            subtitle="Aucune depense pour cette periode."
+                            title="Aucune dépense"
+                            subtitle="Aucune dépense pour cette période."
                         />
                     ) : (
                         <div className="divide-y divide-border">

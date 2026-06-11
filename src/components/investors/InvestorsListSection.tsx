@@ -50,7 +50,7 @@ export function InvestorsListSection({ investors, activeCount, onOpenInvestor, o
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        {investors.length === 0 ? (<EmptyState icon={<UsersIcon className="w-6 h-6"/>} title="Aucun investisseur enregistré." subtitle="Ajoutez un investisseur pour suivre son capital et ses bénéfices."/>) : (<div className="divide-y divide-neutral-100">
+        {investors.length === 0 ? (<EmptyState icon={<UsersIcon className="w-6 h-6"/>} title="Aucun investisseur enregistré" subtitle="Ajoutez un investisseur pour suivre son capital et ses bénéfices."/>) : (<div className="divide-y divide-neutral-100">
             {investors.map((investor) => {
                 const availableProfit = Number(investor.availableProfit || 0);
                 return (<React.Fragment key={investor.id}>
