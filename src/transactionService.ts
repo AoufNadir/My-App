@@ -204,6 +204,32 @@ export async function applyTransactionDelete(transactionId: string, transactionT
                 batch.delete(userDocRef.collection('treasury_txs').doc(assetTxData.linkedTreasuryTxId));
             }
         }
+        // M5: personal_expense treasury_txs are linked to investor_transactions
+        // (linkedInvestorTxId) and optionally a return treasury_tx (linkedReturnTxId).
+        // findLinkedTransactions only searches by linkedTxId, so without this block
+        // a generic delete of a personal_expense leaves the investor_tx and any
+        // return tx orphaned. Mirror the cleanup done by handleDeletePersonalExpense.
+        if (transactionType === 'treasury_tx') {
+            const treasuryDoc = await userDocRef.collection('treasury_txs').doc(transactionId).get();
+            const treasuryData = treasuryDoc.data() as any;
+            if (treasuryData?.origin === 'personal_expense') {
+                if (treasuryData.linkedInvestorTxId) {
+                    batch.delete(userDocRef.collection('investor_transactions').doc(treasuryData.linkedInvestorTxId));
+                } else {
+                    const reverseInvestor = await userDocRef
+                        .collection('investor_transactions')
+                        .where('linkedTreasuryTxId', '==', transactionId)
+                        .get();
+                    reverseInvestor.forEach((doc) => batch.delete(doc.ref));
+                }
+                const returnDocs = await userDocRef
+                    .collection('treasury_txs')
+                    .where('linkedTreasuryTxId', '==', transactionId)
+                    .where('origin', '==', 'personal_expense_return')
+                    .get();
+                returnDocs.forEach((doc) => batch.delete(doc.ref));
+            }
+        }
         await batch.commit();
         return { success: true };
     }
