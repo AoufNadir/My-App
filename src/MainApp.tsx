@@ -706,6 +706,12 @@ export default function MainApp({ user }: {
             clientsCount: manualAssetClients.length
         };
     }, [assetClientBalances, manualAssetTransactions, manualAssets.length, manualAssetClients.length]);
+    const managerPendingAdvances = useMemo(
+        () => personalExpenses
+            .filter((tx) => tx.advanceState === 'pending')
+            .reduce((sum, tx) => sum + Math.max(0, Number(tx.amount || 0)), 0),
+        [personalExpenses]
+    );
     const capitalSnapshot = useMemo(() => computeCapitalSnapshot({
         caisseBalance: treasuryStats.caisse,
         baridiBalance: treasuryStats.baridi,
@@ -714,8 +720,9 @@ export default function MainApp({ user }: {
         totalAvances: totals.totalAvances,
         treasuryCards,
         investorLiability,
-        services: servicesSummary
-    }), [treasuryStats, portfolioStats, totals, treasuryCards, investorLiability, servicesSummary]);
+        services: servicesSummary,
+        managerPendingAdvances
+    }), [treasuryStats, portfolioStats, totals, treasuryCards, investorLiability, servicesSummary, managerPendingAdvances]);
     /* Legacy global search logic moved to useGlobalSearch.
                 id: `search_client_${client.id}`,
                 kind: 'client' as const,

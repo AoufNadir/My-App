@@ -49,6 +49,9 @@ type CapitalSnapshotInput = {
     treasuryCards?: ReadonlyArray<TreasuryCard>;
     investorLiability?: number;
     services?: ServicesCapitalInput;
+    /** Sum of pending personal advances (manager has taken cash but not yet reconciled).
+     *  Treated as a receivable so totalCapital stays neutral during the pending period. */
+    managerPendingAdvances?: number;
 };
 
 export type CapitalSnapshot = {
@@ -63,6 +66,7 @@ export type CapitalSnapshot = {
     serviceReceivables: number;
     serviceClientAdvances: number;
     servicesCapitalImpact: number;
+    managerPendingAdvances: number;
     totalCapital: number;
     investorLiability: number;
     netOwnedCapital: number;
@@ -107,7 +111,7 @@ export function calculateServicesCapitalImpact(services?: ServicesCapitalInput):
     };
 }
 
-export function computeCapitalSnapshot({ caisseBalance, baridiBalance, portfolioValue, portfolioStats, totalDettes, totalAvances, treasuryCards = [], investorLiability = 0, services }: CapitalSnapshotInput): CapitalSnapshot {
+export function computeCapitalSnapshot({ caisseBalance, baridiBalance, portfolioValue, portfolioStats, totalDettes, totalAvances, treasuryCards = [], investorLiability = 0, services, managerPendingAdvances = 0 }: CapitalSnapshotInput): CapitalSnapshot {
     const normalizedCaisse = toFiniteNumber(caisseBalance);
     const normalizedBaridi = toFiniteNumber(baridiBalance);
     const cashTotal = normalizedCaisse + normalizedBaridi;
@@ -121,11 +125,13 @@ export function computeCapitalSnapshot({ caisseBalance, baridiBalance, portfolio
         serviceClientAdvances,
         servicesCapitalImpact
     } = calculateServicesCapitalImpact(services);
+    const pendingAdvances = Math.max(0, toFiniteNumber(managerPendingAdvances));
     const totalCapital = cashTotal
         + stockValue
         + treasuryCardsTotal
         + netClientPosition
-        + servicesCapitalImpact;
+        + servicesCapitalImpact
+        + pendingAdvances;
     const investorDebt = Math.max(0, toFiniteNumber(investorLiability));
     const netOwnedCapital = totalCapital - investorDebt;
     const normalizeZero = (value: number) => Math.abs(value) < EPSILON ? 0 : value;
@@ -141,6 +147,7 @@ export function computeCapitalSnapshot({ caisseBalance, baridiBalance, portfolio
         serviceReceivables,
         serviceClientAdvances,
         servicesCapitalImpact,
+        managerPendingAdvances: pendingAdvances,
         totalCapital,
         investorLiability: investorDebt,
         netOwnedCapital
