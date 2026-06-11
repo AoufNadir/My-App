@@ -108,7 +108,7 @@ export interface TreasuryTx {
     linkedTxId?: string; // ID of the USDT/EUR transaction if applicable
     linkedInvestorTxId?: string;
     linkedTreasuryTxId?: string; // For personal_expense_return: links back to original advance
-    origin?: 'manual_asset' | 'client_tx' | 'usdt_tx' | 'balance_edit' | 'delivery_expense' | 'investor_profit_withdrawal' | 'personal_expense' | 'personal_expense_return'; // Source of the transaction
+    origin?: 'manual_asset' | 'client_tx' | 'usdt_tx' | 'balance_edit' | 'delivery_expense' | 'investor_profit_withdrawal' | 'investor_capital_deposit' | 'investor_capital_withdrawal' | 'personal_expense' | 'personal_expense_return'; // Source of the transaction
     linkedAssetTxId?: string; // Link back to actifTransactions
     // Personal expense imprest system (origin === 'personal_expense' only)
     advanceState?: 'pending' | 'settled';
