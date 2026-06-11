@@ -214,7 +214,7 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
                     <button type="button" onClick={() => { setMode('inverse');  resetInputs(); }} className={modeBtn(mode === 'inverse',  'bg-secondary/10 text-secondary')}>🎯 Inverse</button>
                     {currency === 'USDT' && (<>
                         <button type="button" onClick={() => { setMode('assisted'); resetInputs(); }} className={modeBtn(mode === 'assisted', 'bg-warning/10 text-warning border-warning/30')}>✨ Assisté</button>
-                        <button type="button" onClick={() => { setMode('client'); resetInputs(); setClientSearch(''); setSelectedClientId(null); }} className={modeBtn(mode === 'client', 'bg-teal-500/10 text-teal-600 border-teal-300/50')}>🧑 Client</button>
+                        <button type="button" onClick={() => { setMode('client'); resetInputs(); setClientSearch(''); setSelectedClientId(null); }} className={modeBtn(mode === 'client', 'bg-secondary/10 text-secondary border-secondary/30')}>🧑 Client</button>
                     </>)}
                 </div>
 
@@ -313,7 +313,7 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
 
                 {/* ── CLIENT MODE ── */}
                 {mode === 'client' && (<>
-                    <div className="rounded-xl border border-teal-300/40 bg-teal-50/60 px-3 py-2 text-xs text-teal-700 font-medium">
+                    <div className="rounded-xl border border-secondary/30 bg-secondary/10 px-3 py-2 text-xs text-secondary font-medium">
                         🧑 Sélectionnez un client → entrez la quantité → obtenez ses prix personnalisés
                     </div>
 
@@ -324,7 +324,7 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
                             value={clientSearch}
                             onChange={e => { setClientSearch(e.target.value); setSelectedClientId(null); }}
                             placeholder="🔍 Rechercher un client..."
-                            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-400/50"
+                            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-secondary/40"
                         />
                         {/* Client list */}
                         {!selectedClientId && filteredClients.length > 0 && (

@@ -102,12 +102,12 @@ export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecen
             <CardContent className="px-4 pb-4 pt-0 space-y-3">
                 {/* Migration banner */}
                 {hasUnmigratedRecentBuys && onApplyLock24h && (
-                    <div className="flex items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2 rounded-xl border border-warning/30 bg-warning-bg px-3 py-2.5">
                         <div className="min-w-0">
-                            <p className="text-xs font-semibold text-amber-800">Achats récents non verrouillés</p>
-                            <p className="text-xs text-amber-600">Des achats d'aujourd'hui/hier n'ont pas de restriction 24h.</p>
+                            <p className="text-xs font-semibold text-warning">Achats récents non verrouillés</p>
+                            <p className="text-xs text-warning">Des achats d'aujourd'hui/hier n'ont pas de restriction 24h.</p>
                         </div>
-                        <button type="button" onClick={onApplyLock24h} className="shrink-0 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-600 transition-colors">
+                        <button type="button" onClick={onApplyLock24h} className="shrink-0 rounded-lg bg-warning px-3 py-1.5 text-xs font-bold text-white hover:bg-warning/90 transition-colors">
                             Appliquer
                         </button>
                     </div>
@@ -129,32 +129,32 @@ export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecen
                         </p>
                         <p className="text-[10px] text-financial-profit/70">USDT</p>
                     </div>
-                    <div className={`rounded-xl p-3 text-center ${locked > 0 ? 'bg-amber-50' : 'bg-surface-muted'}`}>
-                        <p className={`text-[10px] font-medium mb-0.5 ${locked > 0 ? 'text-amber-600' : 'text-neutral-400'}`}>Bloqué</p>
-                        <p className={`text-base font-bold tabular-nums ${locked > 0 ? 'text-amber-600' : 'text-neutral-400'}`} dir="ltr">
+                    <div className={`rounded-xl p-3 text-center ${locked > 0 ? 'bg-warning-bg' : 'bg-surface-muted'}`}>
+                        <p className={`text-[10px] font-medium mb-0.5 ${locked > 0 ? 'text-warning' : 'text-neutral-400'}`}>Bloqué</p>
+                        <p className={`text-base font-bold tabular-nums ${locked > 0 ? 'text-warning' : 'text-neutral-400'}`} dir="ltr">
                             {locked.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
-                        <p className={`text-[10px] ${locked > 0 ? 'text-amber-500/70' : 'text-neutral-400'}`}>USDT</p>
+                        <p className={`text-[10px] ${locked > 0 ? 'text-warning-light/70' : 'text-neutral-400'}`}>USDT</p>
                     </div>
                 </div>
 
                 {/* Next release banner */}
                 {locked > 0 && nextBatch && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                    <div className="rounded-xl border border-warning/30 bg-warning-bg px-3 py-2.5">
                         <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-2 min-w-0">
-                                <span className="text-amber-500 text-sm mt-0.5">⏳</span>
+                                <span className="text-warning-light text-sm mt-0.5">⏳</span>
                                 <div className="min-w-0">
-                                    <p className="text-xs font-semibold text-amber-700">Prochain déblocage</p>
-                                    <p className="text-xs text-amber-600 tabular-nums mt-0.5" dir="ltr">
+                                    <p className="text-xs font-semibold text-warning">Prochain déblocage</p>
+                                    <p className="text-xs text-warning tabular-nums mt-0.5" dir="ltr">
                                         {nextBatch.quantity.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT
                                     </p>
-                                    <p className="text-xs text-amber-500 mt-0.5">
+                                    <p className="text-xs text-warning-light mt-0.5">
                                         Disponible {formatUnlockLabel(nextBatch.lockedUntil)}
                                     </p>
                                 </div>
                             </div>
-                            <span className="text-sm font-bold text-amber-700 tabular-nums shrink-0 mt-0.5" dir="ltr">
+                            <span className="text-sm font-bold text-warning tabular-nums shrink-0 mt-0.5" dir="ltr">
                                 {formatCountdown(nextReleaseMs)}
                             </span>
                         </div>
@@ -169,7 +169,7 @@ export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecen
                             onClick={() => setExpanded(e => !e)}
                             className="flex w-full items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-700 transition-colors py-1"
                         >
-                            <span className="text-amber-500">🔒</span>
+                            <span className="text-warning-light">🔒</span>
                             Lots bloqués ({sortedBatches.length})
                             <span className="ml-auto">{expanded ? '▲' : '▼'}</span>
                         </button>
@@ -180,7 +180,7 @@ export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecen
                                     const purchaseTime = formatTime(batch.lockedUntil - 24 * 60 * 60 * 1000);
                                     const unlockLabel = formatUnlockLabel(batch.lockedUntil);
                                     return (
-                                        <div key={batch.txId} className="rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2.5">
+                                        <div key={batch.txId} className="rounded-lg border border-warning/20 bg-warning-bg/50 px-3 py-2.5">
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="min-w-0">
                                                     <p className="text-sm font-semibold text-neutral-700 tabular-nums" dir="ltr">
@@ -192,7 +192,7 @@ export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecen
                                                         Déblocage: <span className="tabular-nums font-medium">{unlockLabel}</span>
                                                     </p>
                                                 </div>
-                                                <span className="text-xs font-semibold text-amber-600 tabular-nums shrink-0 mt-0.5" dir="ltr">
+                                                <span className="text-xs font-semibold text-warning tabular-nums shrink-0 mt-0.5" dir="ltr">
                                                     dans {formatCountdown(remainingMs)}
                                                 </span>
                                             </div>

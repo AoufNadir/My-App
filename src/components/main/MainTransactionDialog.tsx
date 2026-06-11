@@ -380,16 +380,16 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                         <button type="button" onClick={() => setBuyRestriction('free')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction !== 'locked_24h' ? 'bg-success text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
                                             Disponible
                                         </button>
-                                        <button type="button" onClick={() => setBuyRestriction('locked_24h')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction === 'locked_24h' ? 'bg-amber-500 text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
+                                        <button type="button" onClick={() => setBuyRestriction('locked_24h')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction === 'locked_24h' ? 'bg-warning text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
                                             Bloqué 24h
                                         </button>
                                     </div>
                                     {buyRestriction === 'locked_24h' && (<>
-                                        <p className="text-xs text-amber-600 px-1">Cette quantité sera bloquée 24h avant d'être disponible à la vente.</p>
+                                        <p className="text-xs text-warning px-1">Cette quantité sera bloquée 24h avant d'être disponible à la vente.</p>
                                         <div className="flex items-center gap-2 px-1 pt-0.5">
                                             <label className="text-xs font-medium text-neutral-600 whitespace-nowrap">Heure d'achat réelle</label>
                                             <input type="time" value={realPurchaseTime ?? ''} onChange={(e) => setRealPurchaseTime(e.target.value)} className="h-8 rounded-lg border border-border bg-surface px-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"/>
-                                            {unlockPreviewTime && (<span className="text-xs text-amber-600 whitespace-nowrap">→ {unlockPreviewTime}</span>)}
+                                            {unlockPreviewTime && (<span className="text-xs text-warning whitespace-nowrap">→ {unlockPreviewTime}</span>)}
                                         </div>
                                     </>)}
                                 </div>
@@ -424,16 +424,16 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                         <button type="button" onClick={() => setBuyRestriction('free')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction !== 'locked_24h' ? 'bg-success text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
                                             Disponible
                                         </button>
-                                        <button type="button" onClick={() => setBuyRestriction('locked_24h')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction === 'locked_24h' ? 'bg-amber-500 text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
+                                        <button type="button" onClick={() => setBuyRestriction('locked_24h')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction === 'locked_24h' ? 'bg-warning text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
                                             Bloqué 24h
                                         </button>
                                     </div>
                                     {buyRestriction === 'locked_24h' && (<>
-                                        <p className="text-xs text-amber-600 px-1">Cette quantité sera bloquée 24h avant d'être disponible à la vente.</p>
+                                        <p className="text-xs text-warning px-1">Cette quantité sera bloquée 24h avant d'être disponible à la vente.</p>
                                         <div className="flex items-center gap-2 px-1 pt-0.5">
                                             <label className="text-xs font-medium text-neutral-600 whitespace-nowrap">Heure d'achat réelle</label>
                                             <input type="time" value={realPurchaseTime ?? ''} onChange={(e) => setRealPurchaseTime(e.target.value)} className="h-8 rounded-lg border border-border bg-surface px-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"/>
-                                            {unlockPreviewTime && (<span className="text-xs text-amber-600 whitespace-nowrap">→ {unlockPreviewTime}</span>)}
+                                            {unlockPreviewTime && (<span className="text-xs text-warning whitespace-nowrap">→ {unlockPreviewTime}</span>)}
                                         </div>
                                     </>)}
                                 </div>

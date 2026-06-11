@@ -103,7 +103,7 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                         </div>
                         <button type="button"
                             onClick={() => setClientIsFournisseur(!clientIsFournisseur)}
-                            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${clientIsFournisseur ? 'bg-teal-500' : 'bg-neutral-300'}`}
+                            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${clientIsFournisseur ? 'bg-secondary' : 'bg-neutral-300'}`}
                             aria-pressed={clientIsFournisseur}>
                             <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${clientIsFournisseur ? 'translate-x-5' : 'translate-x-0'}`}/>
                         </button>
