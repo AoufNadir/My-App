@@ -164,7 +164,7 @@ function AppBottomNavComponent({ view, onSelect, labels, onFabPress, fabHidden, 
     return (<>
       {onFabPress && !fabHidden && (<Fab position="inline" icon={<PlusIcon className="h-5 w-5"/>} onClick={onFabPress} wrapperClassName="sm:hidden fixed end-[calc(100vw-100dvw+1rem)] z-[46] bottom-[calc(4.5rem+env(safe-area-inset-bottom))]" className="h-11 w-11 !bg-fab-bg hover:!bg-fab-bg-hover text-white shadow-card-hover" ariaLabel="Action rapide"/>)}
 
-      <nav aria-label="Navigation principale" className="fixed bottom-0 left-0 z-[45] w-[100dvw] border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
+      <nav aria-label="Navigation principale" className="fixed bottom-0 start-0 z-[45] w-[100dvw] border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
         <div className="grid grid-cols-4 gap-1 px-3 py-1.5">
           <button type="button" onClick={() => onSelect('dashboard')} className={tabBtn(view === 'dashboard')} aria-label={labels.dashboard}>
             <LayoutDashboardIcon className="h-[18px] w-[18px]"/>
@@ -178,7 +178,7 @@ function AppBottomNavComponent({ view, onSelect, labels, onFabPress, fabHidden, 
           <button type="button" onClick={() => onSelect('dzd')} className={tabBtn(view === 'dzd')} aria-label={labels.clients}>
             <span className="relative inline-flex">
               <UsersIcon className="h-[18px] w-[18px]"/>
-              {overdueCount > 0 && (<span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[9px] font-bold text-white">
+              {overdueCount > 0 && (<span className="absolute -end-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[9px] font-bold text-white">
                   {overdueCount > 9 ? '9+' : overdueCount}
                 </span>)}
             </span>

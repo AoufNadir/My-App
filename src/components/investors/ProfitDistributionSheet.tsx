@@ -143,8 +143,8 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                     <div className="rounded-xl border border-border overflow-hidden">
                         <div className="grid grid-cols-[1fr_auto_auto] gap-3 bg-surface-muted px-4 py-2 text-[10px] font-bold uppercase text-neutral-400 tracking-wide">
                             <span>Investisseur</span>
-                            <span className="text-right">Part</span>
-                            <span className="text-right w-28">Montant</span>
+                            <span className="text-end">Part</span>
+                            <span className="text-end w-28">Montant</span>
                         </div>
                         <div className="divide-y divide-neutral-100">
                             {distribution.map(({ inv, normalizedShare, amount, availableProfit, exceedsAvailable }) => (
@@ -162,7 +162,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                                     <span className="text-xs font-bold text-neutral-500 tabular-nums">
                                         {(normalizedShare * 100).toFixed(1)}%
                                     </span>
-                                    <div className="text-right w-28">
+                                    <div className="text-end w-28">
                                         <CurrencyAmount value={amount} currency="DZD" semantic={exceedsAvailable ? 'loss' : 'profit'} size="md" decimals={0}/>
                                     </div>
                                 </div>

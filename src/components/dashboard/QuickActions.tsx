@@ -48,7 +48,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ onAction }) => {
             hover:shadow-md hover:scale-[1.02]
           `}>
                     <div className={`
-            absolute top-0 left-0 w-1 h-full
+            absolute top-0 start-0 w-1 h-full
             ${action.color}
           `}/>
 

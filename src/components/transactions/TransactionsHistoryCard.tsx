@@ -290,7 +290,7 @@ export function TransactionsHistoryCard({
               ].join(' ')}
               aria-label="Filtrer par date"
             >
-              <CalendarIcon className="w-4 h-4 sm:mr-1" />
+              <CalendarIcon className="w-4 h-4 sm:me-1" />
               <span className="hidden sm:inline">Dates</span>
             </Button>
 

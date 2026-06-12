@@ -212,7 +212,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                     <div key={i} className={`h-3 w-3 rounded-sm ${cls}`}/>
                                 ))}
                                 <span className="text-[10px] text-neutral-400">Plus</span>
-                                <div className="h-3 w-3 rounded-sm bg-financial-loss/25 ml-1"/>
+                                <div className="h-3 w-3 rounded-sm bg-financial-loss/25 ms-1"/>
                                 <span className="text-[10px] text-neutral-400">Perte</span>
                             </div>
                         </CardContent>
@@ -285,7 +285,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                                     {MONTH_LABELS_FR[item.monthIdx]}
                                                 </span>
                                                 <div className="flex-1 rounded-full bg-neutral-100 h-2"/>
-                                                <div className="w-20 text-right shrink-0 text-[10px] text-neutral-300">—</div>
+                                                <div className="w-20 text-end shrink-0 text-[10px] text-neutral-300">—</div>
                                             </div>
                                         );
                                         const maxMargin = Math.max(...priceHistory.trend.filter(t => t.data).map(t => Math.abs(t.data!.avgMargin)), 1);
@@ -302,7 +302,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                                         style={{ width: `${barPct}%` }}
                                                     />
                                                 </div>
-                                                <div className="w-20 text-right shrink-0">
+                                                <div className="w-20 text-end shrink-0">
                                                     <span dir="ltr" className={`text-[11px] font-semibold tabular-nums ${item.data.avgMargin >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
                                                         {item.data.avgMargin >= 0 ? '+' : ''}{item.data.avgMargin.toFixed(2)} DZD
                                                     </span>
@@ -362,7 +362,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                     <div className="flex-1 rounded-full bg-neutral-100 h-2">
                                         {profit !== 0 && (<div className={`h-2 rounded-full transition-all ${profit > 0 ? 'bg-financial-profit' : 'bg-financial-loss'}`} style={{ width: `${profit > 0 ? barPct : Math.min(barPct, 30)}%` }}/>)}
                                     </div>
-                                    <div className="w-24 text-right shrink-0">
+                                    <div className="w-24 text-end shrink-0">
                                         {profit !== 0
                                             ? <CurrencyAmount value={profit} currency="DZD" semantic="auto" size="sm" decimals={0} showSign/>
                                             : <span className="text-[10px] text-neutral-300">—</span>}
@@ -471,7 +471,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                                             <div className="flex-1 rounded-full bg-neutral-100 h-1.5">
                                                                 <div className="h-1.5 rounded-full bg-primary/50" style={{ width: `${(row.sellVolumeUsdt / maxVol) * 100}%` }}/>
                                                             </div>
-                                                            <span dir="ltr" className="text-[11px] font-semibold text-neutral-600 shrink-0 w-14 text-right tabular-nums">
+                                                            <span dir="ltr" className="text-[11px] font-semibold text-neutral-600 shrink-0 w-14 text-end tabular-nums">
                                                                 {row.sellVolumeUsdt.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} U
                                                             </span>
                                                         </div>

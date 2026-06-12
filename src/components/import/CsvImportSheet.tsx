@@ -146,7 +146,7 @@ export function CsvImportSheet({ isOpen, onClose, title = 'Importer un CSV', fie
                                 <table className="w-full text-xs">
                                     <thead>
                                         <tr className="bg-surface-muted">
-                                            {fields.map(f => (<th key={f.key} className="px-2 py-1 text-left font-medium">{f.label}</th>))}
+                                            {fields.map(f => (<th key={f.key} className="px-2 py-1 text-start font-medium">{f.label}</th>))}
                                         </tr>
                                     </thead>
                                     <tbody>

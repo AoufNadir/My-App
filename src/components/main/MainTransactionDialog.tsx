@@ -527,7 +527,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                 }} className="-mt-2" error={formValidation.errors['sellPrice']}/>
                                     <div className="mt-1.5 grid gap-1 text-xs text-neutral-500 sm:grid-cols-2 sm:items-center">
                                         <span dir="ltr" className="min-w-0 tabular-nums">PAM: {activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span>
-                                        {parseAndEvaluate(profitPercent) !== 0 && (<span dir="ltr" className={`min-w-0 tabular-nums sm:text-right ${parseAndEvaluate(profitPercent) > 0 ? 'text-financial-profit font-medium' : 'text-financial-loss font-medium'}`}>
+                                        {parseAndEvaluate(profitPercent) !== 0 && (<span dir="ltr" className={`min-w-0 tabular-nums sm:text-end ${parseAndEvaluate(profitPercent) > 0 ? 'text-financial-profit font-medium' : 'text-financial-loss font-medium'}`}>
                                                 Marge: {parseAndEvaluate(profitPercent) > 0 ? '+' : ''}{parseAndEvaluate(profitPercent).toFixed(2)} {t('common.dinar')}
                                             </span>)}
                                     </div>

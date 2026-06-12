@@ -68,7 +68,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ userProfile, clients }) => {
           <p className="relative z-10 mb-1 text-xs font-medium uppercase tracking-wider text-white/80">Capital Total (Estimé)</p>
           <h2 className="relative z-10 text-3xl font-bold text-white" dir="ltr">
             {capitalTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            <span className="ml-1 text-sm font-normal text-white/80">DZD</span>
+            <span className="ms-1 text-sm font-normal text-white/80">DZD</span>
           </h2>
         </div>
 
@@ -132,8 +132,8 @@ const ClientsView: React.FC<ClientsViewProps> = ({ userProfile, clients }) => {
 
         {/* Search Bar */}
         <div className="relative mb-4">
-          <MagnifyingGlassIcon className="absolute left-3 top-3.5 h-5 w-5 text-neutral-400"/>
-          <input type="text" placeholder="Rechercher un client..." className="min-h-touch w-full rounded-lg border border-border bg-surface py-3 pl-10 pr-4 text-neutral-900 placeholder-neutral-400 transition-all focus:outline-none focus:ring-2 focus:ring-primary" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/>
+          <MagnifyingGlassIcon className="absolute start-3 top-3.5 h-5 w-5 text-neutral-400"/>
+          <input type="text" placeholder="Rechercher un client..." className="min-h-touch w-full rounded-lg border border-border bg-surface py-3 ps-10 pe-4 text-neutral-900 placeholder-neutral-400 transition-all focus:outline-none focus:ring-2 focus:ring-primary" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/>
         </div>
 
         {/* Client List Component */}

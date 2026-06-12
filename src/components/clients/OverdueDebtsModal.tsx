@@ -23,7 +23,7 @@ export function OverdueDebtsModal({ isOpen, onClose, overdueDebtors, onOpenClien
           Total: <CurrencyAmount value={-totalOverdue} currency="DZD" semantic="loss" decimals={2} className="font-bold"/>
         </div>
 
-        <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1">
+        <div className="space-y-2 max-h-[55vh] overflow-y-auto pe-1">
           {overdueDebtors.length > 0 ? overdueDebtors.map((debtor, index) => (<button key={debtor.clientId} type="button" onClick={() => openClientFromModal(debtor.clientId)} className="w-full min-h-touch text-start p-3 rounded-xl border border-border bg-surface-muted hover:bg-neutral-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">

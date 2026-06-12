@@ -307,7 +307,7 @@ function PortfolioStatusCard({ title, stockLabel, valueLabel, portfolioStats, st
     return (<Card>
       <CardHeader className="p-4 pb-3 flex flex-row items-start justify-between gap-3">
         <SectionHeading icon={<BriefcaseIcon className="w-4 h-4"/>}>{title}</SectionHeading>
-        <div className="text-right shrink-0">
+        <div className="text-end shrink-0">
           <p className="text-xs font-medium text-neutral-500">{stockLabel}</p>
           <CurrencyAmount value={stockValue} currency="DZD" size="md" decimals={0}/>
         </div>
@@ -325,7 +325,7 @@ function PortfolioStatusCard({ title, stockLabel, valueLabel, portfolioStats, st
                     <CurrencyAmount value={asset.qty} currency={asset.currency} size="lg"/>
                   </div>
                 </div>
-                <div className="text-right shrink-0">
+                <div className="text-end shrink-0">
                   <p className="text-xs font-medium text-neutral-500">PAM</p>
                   <CurrencyAmount value={asset.pam} currency="DZD" size="sm" decimals={2}/>
                 </div>

@@ -31,8 +31,8 @@ export function MoneyField({ label, value, onChange, currency, hint, error, plac
     return (<div className={className}>
             <Label>{fullLabel}</Label>
             <div className="relative">
-                <NumberInput value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} autoFocus={autoFocus} placeholder={placeholder} className={`min-h-input w-full rounded-button border border-border-strong bg-surface px-3 py-2 text-neutral-900 ${hasError ? 'border-danger ring-1 ring-danger' : ''} ${onMax ? 'pr-20' : ''}`}/>
-                {onMax && (<button type="button" onClick={onMax} disabled={maxDisabled} className={`absolute right-1 top-1/2 flex h-button-sm min-w-button-sm -translate-y-1/2 items-center justify-center rounded-button px-2 text-xs font-bold transition-colors ${maxDisabled
+                <NumberInput value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} autoFocus={autoFocus} placeholder={placeholder} className={`min-h-input w-full rounded-button border border-border-strong bg-surface px-3 py-2 text-neutral-900 ${hasError ? 'border-danger ring-1 ring-danger' : ''} ${onMax ? 'pe-20' : ''}`}/>
+                {onMax && (<button type="button" onClick={onMax} disabled={maxDisabled} className={`absolute end-1 top-1/2 flex h-button-sm min-w-button-sm -translate-y-1/2 items-center justify-center rounded-button px-2 text-xs font-bold transition-colors ${maxDisabled
                 ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
                 : 'bg-primary text-white hover:bg-primary-dark'}`}>
                         {maxLabel}

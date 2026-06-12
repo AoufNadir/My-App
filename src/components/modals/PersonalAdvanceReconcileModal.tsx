@@ -159,7 +159,7 @@ function DetailLine({ label, value }: DetailLineProps) {
     return (
         <div className="flex items-center justify-between gap-3">
             <dt className="text-neutral-500">{label}</dt>
-            <dd className="min-w-0 truncate text-right font-medium text-neutral-700">
+            <dd className="min-w-0 truncate text-end font-medium text-neutral-700">
                 {value}
             </dd>
         </div>

@@ -23,8 +23,8 @@ export function ManualAssetClientsPanel({ searchQuery, setSearchQuery, onOpenCre
     return (<div className="overflow-hidden rounded-xl border border-border bg-surface">
       <div className="flex flex-col items-center justify-between gap-3 border-b border-border p-3 sm:flex-row">
         <div className="relative w-full sm:w-auto flex-1">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400"/>
-          <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9" placeholder="Rechercher un client..."/>
+          <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400"/>
+          <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full ps-9" placeholder="Rechercher un client..."/>
         </div>
         <Button onClick={onOpenCreateModal} variant="primary" size="md" className="w-full font-bold sm:w-auto">
           <PlusIcon className="w-4 h-4"/> Nouveau Client

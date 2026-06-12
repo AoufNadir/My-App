@@ -403,7 +403,7 @@ export function PersonalExpensesPage({
                             A regulariser
                             <Badge variant="warning" size="sm">{pendingAdvances.length}</Badge>
                         </SectionHeading>
-                        <div className="shrink-0 text-right">
+                        <div className="shrink-0 text-end">
                             <p className="text-xs font-medium text-neutral-500">En cours</p>
                             <CurrencyAmount value={pendingTotal} currency="DZD" semantic="neutral" size="lg" decimals={0}/>
                         </div>
@@ -460,7 +460,7 @@ export function PersonalExpensesPage({
                     <SectionHeading icon={<CalendarIcon className="h-4 w-4" />}>
                         {periodLabel(period)}
                     </SectionHeading>
-                    <div className="shrink-0 text-right">
+                    <div className="shrink-0 text-end">
                         <p className="text-xs font-medium text-neutral-500">
                             Total · {filteredExpenses.length} op{filteredExpenses.length > 1 ? 's' : ''}
                         </p>

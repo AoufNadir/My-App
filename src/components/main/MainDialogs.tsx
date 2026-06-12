@@ -89,8 +89,8 @@ export function GlobalSearchDialog({ isOpen, onClose, query, setQuery, results, 
       </ModalHeader>
       <ModalContent className="p-4 space-y-3">
         <div className="relative">
-          <Input value={query} onChange={(e) => { setQuery(e.target.value); }} placeholder={placeholder} autoFocus className="pr-16"/>
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-border bg-surface-muted px-1.5 py-0.5 text-[10px] font-bold text-neutral-400 hidden sm:block">
+          <Input value={query} onChange={(e) => { setQuery(e.target.value); }} placeholder={placeholder} autoFocus className="pe-16"/>
+          <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 rounded border border-border bg-surface-muted px-1.5 py-0.5 text-[10px] font-bold text-neutral-400 hidden sm:block">
             Ctrl K
           </span>
         </div>

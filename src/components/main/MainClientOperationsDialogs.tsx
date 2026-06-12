@@ -270,12 +270,12 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                         </div>) : (<div>
                             <Label>{t('transactions.amountDzd')}</Label>
                             <div className="relative">
-                                <Input type="text" inputMode="decimal" value={clientTxAmount} onChange={e => setClientTxAmount(e.target.value)} className="pr-20" placeholder="+/- Montant"/>
+                                <Input type="text" inputMode="decimal" value={clientTxAmount} onChange={e => setClientTxAmount(e.target.value)} className="pe-20" placeholder="+/- Montant"/>
                                 {isClientSettlementTx && (<button type="button" onClick={() => {
                     if (clientTxMaxDisabled)
                         return;
                     setClientTxAmount(formatCardValue(clientTxMaxAmount));
-                }} disabled={clientTxMaxDisabled} className={`absolute right-1 top-1/2 flex min-h-touch min-w-touch -translate-y-1/2 items-center justify-center rounded-md px-2 text-xs font-bold transition-colors ${clientTxMaxDisabled
+                }} disabled={clientTxMaxDisabled} className={`absolute end-1 top-1/2 flex min-h-touch min-w-touch -translate-y-1/2 items-center justify-center rounded-md px-2 text-xs font-bold transition-colors ${clientTxMaxDisabled
                     ? 'cursor-not-allowed bg-neutral-200 text-neutral-400'
                     : 'bg-primary text-white hover:bg-primary-dark'}`}>
                                         {t('common.max')}
@@ -387,10 +387,10 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     <div>
                         <Label>{t('transactions.assetType')}</Label>
                         <div className="relative mt-1">
-                            <Select value={adjustmentAsset} onChange={e => handleAdjustmentAssetChange(e.target.value as any)} className="h-12 appearance-none pr-10">
+                            <Select value={adjustmentAsset} onChange={e => handleAdjustmentAssetChange(e.target.value as any)} className="h-12 appearance-none pe-10">
                                 {adjustmentAssetOptions.map((option) => (<option key={option.value} value={option.value}>{option.label}</option>))}
                             </Select>
-                            <ArrowDownIcon className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500"/>
+                            <ArrowDownIcon className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500"/>
                         </div>
                     </div>
 

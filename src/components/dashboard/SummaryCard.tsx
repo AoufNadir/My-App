@@ -32,7 +32,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ title, value, subValue
                 </div>
 
                 {trend && trendValue && (<div className="mt-4 flex items-center text-xs">
-                        <span className={`font-medium mr-2 flex items-center ${trend === 'up' ? 'text-financial-profit' :
+                        <span className={`font-medium me-2 flex items-center ${trend === 'up' ? 'text-financial-profit' :
                 trend === 'down' ? 'text-financial-loss' :
                     'text-neutral-500'}`}>
                             {trend === 'up' ? '↑' : trend === 'down' ? '↓' : '•'} {trendValue}

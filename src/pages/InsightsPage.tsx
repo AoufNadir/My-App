@@ -414,8 +414,8 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
                                         <p className="text-[11px] font-semibold text-neutral-500 mb-1.5">
                                             Objectif ambitieux
                                             {storedGoal > 0
-                                                ? <span className="font-normal text-neutral-400 ml-1">(actuel: {fmt0(storedGoal)} DZD)</span>
-                                                : <span className="font-normal text-neutral-400 ml-1">(moy: {fmt0(yearlyStats.avgMonthlyProfit)} DZD)</span>
+                                                ? <span className="font-normal text-neutral-400 ms-1">(actuel: {fmt0(storedGoal)} DZD)</span>
+                                                : <span className="font-normal text-neutral-400 ms-1">(moy: {fmt0(yearlyStats.avgMonthlyProfit)} DZD)</span>
                                             }
                                         </p>
                                         <MoneyField label="" value={projectionTarget} onChange={setProjectionTarget} currency="DZD" placeholder={fmt0(storedGoal > 0 ? storedGoal : yearlyStats.avgMonthlyProfit)}/>
@@ -853,7 +853,7 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
                                     <div className="flex-1 rounded-full bg-neutral-100 h-2">
                                         {d.profit > 0 && <div className={`h-2 rounded-full ${isBest ? 'bg-financial-profit' : 'bg-financial-profit/40'}`} style={{ width: `${barPct}%` }}/>}
                                     </div>
-                                    <div className="w-28 text-right shrink-0">
+                                    <div className="w-28 text-end shrink-0">
                                         {d.count > 0 ? (
                                             <span dir="ltr" className={`text-[11px] font-semibold tabular-nums ${isBest ? 'text-financial-profit' : 'text-neutral-600'}`}>
                                                 +{d.profit.toLocaleString('fr-FR')} DZD
@@ -862,7 +862,7 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
                                             <span className="text-[10px] text-neutral-300">—</span>
                                         )}
                                     </div>
-                                    <span className="text-[9px] text-neutral-400 shrink-0 w-8 text-right">{d.count}op</span>
+                                    <span className="text-[9px] text-neutral-400 shrink-0 w-8 text-end">{d.count}op</span>
                                 </div>
                             );
                         })}

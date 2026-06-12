@@ -272,7 +272,7 @@ export function LayeredPriceCalculator({ isOpen, onClose, portfolioStats, client
                             <div>
                                 <p dir="ltr" className="text-[2.8rem] leading-none font-black tabular-nums text-primary tracking-tight">
                                     {fmtPrice(result.finalPrice)}
-                                    <span className="text-base font-bold text-neutral-400 ml-1">DZD</span>
+                                    <span className="text-base font-bold text-neutral-400 ms-1">DZD</span>
                                 </p>
                                 {result.premiumAboveVip > 0.01 ? (
                                     <p dir="ltr" className="text-[12px] font-semibold mt-1 text-financial-loss">+{fmt2(result.premiumAboveVip)} DZD vs VIP</p>

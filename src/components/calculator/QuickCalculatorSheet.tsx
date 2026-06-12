@@ -423,7 +423,7 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
                                         <div className="flex items-center gap-2">
                                             <span dir="ltr" className="text-sm font-extrabold text-financial-loss tabular-nums">{fmtP(priceB)}</span>
                                             <div className="flex-1 h-2 rounded-full bg-gradient-to-r from-danger/30 via-warning/40 to-primary/40 relative">
-                                                <div className="absolute inset-y-0 right-0 w-2 h-2 rounded-full bg-primary"/>
+                                                <div className="absolute inset-y-0 end-0 w-2 h-2 rounded-full bg-primary"/>
                                             </div>
                                             <span dir="ltr" className="text-sm font-extrabold text-primary tabular-nums">{fmtP(priceA)}</span>
                                         </div>
@@ -497,9 +497,9 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
                                 {/* Header */}
                                 <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 bg-surface-muted px-3 py-2 text-[9px] font-bold uppercase text-neutral-400 tracking-wide border-b border-border">
                                     <span>Type client</span>
-                                    <span className="text-right">Prix</span>
-                                    <span className="text-right">+/USDT</span>
-                                    <span className="text-right">Profit total</span>
+                                    <span className="text-end">Prix</span>
+                                    <span className="text-end">+/USDT</span>
+                                    <span className="text-end">Profit total</span>
                                 </div>
 
                                 {/* Matrix rows */}
@@ -520,15 +520,15 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
                                         >
                                             <span className={`text-sm font-bold ${isSelected ? 'text-primary' : 'text-neutral-700'}`}>
                                                 {TIER_LABELS[tier]}
-                                                {isSelected && <span className="ml-1 text-[9px] font-bold bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">actif</span>}
+                                                {isSelected && <span className="ms-1 text-[9px] font-bold bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">actif</span>}
                                             </span>
-                                            <span dir="ltr" className={`text-sm font-extrabold tabular-nums text-right ${isSelected ? 'text-primary' : 'text-neutral-800'}`}>
+                                            <span dir="ltr" className={`text-sm font-extrabold tabular-nums text-end ${isSelected ? 'text-primary' : 'text-neutral-800'}`}>
                                                 {priceDisplay} DZD
                                             </span>
-                                            <span dir="ltr" className="text-xs font-semibold tabular-nums text-right text-financial-profit">
+                                            <span dir="ltr" className="text-xs font-semibold tabular-nums text-end text-financial-profit">
                                                 +{fmt2(row.profitPerUnit)}
                                             </span>
-                                            <span dir="ltr" className="text-xs font-bold tabular-nums text-right text-financial-profit">
+                                            <span dir="ltr" className="text-xs font-bold tabular-nums text-end text-financial-profit">
                                                 +{fmt0(profit)} DZD
                                             </span>
                                         </button>
@@ -546,13 +546,13 @@ export function QuickCalculatorSheet({ isOpen, onClose, portfolioStats, pricingC
                                             <span className={`text-[11px] font-bold ${isBelow ? 'text-financial-loss' : 'text-financial-profit'}`}>
                                                 🎯 Plancher goal {isBelow ? '⚠️' : '✓'}
                                             </span>
-                                            <span dir="ltr" className={`text-sm font-extrabold tabular-nums text-right ${isBelow ? 'text-financial-loss' : 'text-financial-profit'}`}>
+                                            <span dir="ltr" className={`text-sm font-extrabold tabular-nums text-end ${isBelow ? 'text-financial-loss' : 'text-financial-profit'}`}>
                                                 {Number.isInteger(plancher) ? plancher : fmt2(plancher)} DZD
                                             </span>
-                                            <span dir="ltr" className={`text-xs font-semibold tabular-nums text-right ${isBelow ? 'text-financial-loss' : 'text-financial-profit'}`}>
+                                            <span dir="ltr" className={`text-xs font-semibold tabular-nums text-end ${isBelow ? 'text-financial-loss' : 'text-financial-profit'}`}>
                                                 +{fmt2(plancherMargin)}
                                             </span>
-                                            <span className="text-[9px] text-neutral-400 text-right">min/j</span>
+                                            <span className="text-[9px] text-neutral-400 text-end">min/j</span>
                                         </div>
                                     );
                                 })()}

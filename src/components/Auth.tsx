@@ -19,7 +19,7 @@ const EyeSlashIcon = ({ className }: {
     <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/>
   </svg>);
 // Google Icon
-const GoogleIcon = () => (<svg className="mr-3 h-5 w-5 text-primary" viewBox="0 0 24 24" aria-hidden="true">
+const GoogleIcon = () => (<svg className="me-3 h-5 w-5 text-primary" viewBox="0 0 24 24" aria-hidden="true">
     <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
     <path className="fill-success" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
     <path className="fill-warning" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
@@ -116,7 +116,7 @@ export function Auth() {
     const containerClass = "min-h-screen flex flex-col items-center justify-center p-6 bg-app-bg text-neutral-900";
     const cardClass = "w-full max-w-sm space-y-6";
     const inputClass = "bg-surface border border-border text-neutral-900 text-sm rounded-lg h-12 px-4 w-full placeholder-neutral-400 focus:ring-2 focus:ring-primary focus:border-primary transition-all";
-    const labelClass = "mb-1.5 ml-1 block text-xs font-medium text-neutral-600";
+    const labelClass = "mb-1.5 ms-1 block text-xs font-medium text-neutral-600";
     const primaryBtnClass = "w-full h-12 rounded-lg text-sm";
     const googleBtnClass = "w-full h-12 rounded-lg border border-border bg-surface text-neutral-700 font-medium text-sm flex items-center justify-center hover:bg-neutral-50 transition-all";
     return (<div className={containerClass}>
@@ -161,8 +161,8 @@ export function Auth() {
             <div>
               <Label htmlFor="password" className={labelClass}>Mot de passe</Label>
               <div className="relative">
-                <Input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required autoComplete={isLogin ? 'current-password' : 'new-password'} enterKeyHint={isLogin ? 'go' : 'next'} className={`${inputClass} pr-10`}/>
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 min-h-touch min-w-touch -translate-y-1/2 text-neutral-500 transition-colors hover:text-neutral-700">
+                <Input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required autoComplete={isLogin ? 'current-password' : 'new-password'} enterKeyHint={isLogin ? 'go' : 'next'} className={`${inputClass} pe-10`}/>
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute end-3 top-1/2 min-h-touch min-w-touch -translate-y-1/2 text-neutral-500 transition-colors hover:text-neutral-700">
                   {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
                 </button>
               </div>
