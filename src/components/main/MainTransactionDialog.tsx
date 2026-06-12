@@ -57,8 +57,12 @@ function TagInput({ tags, setTags }: { tags: string[]; setTags: (t: string[]) =>
 }
 
 type MainTransactionDialogProps = Record<string, any>;
+type LastEditedSellField = 'eurReceived' | 'quantity' | 'total' | 'price';
+type SellCalculationBasis = Exclude<LastEditedSellField, 'price'>;
 export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, suggestedSellingPrice, suggestedUsdtEurSellPrice, suggestedSellingPriceEur, suggestedProfitMargin, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime }: MainTransactionDialogProps) {
     const [sellUsdtSourceSelected, setSellUsdtSourceSelected] = React.useState(false);
+    const [lastEditedSellField, setLastEditedSellField] = React.useState<LastEditedSellField>('quantity');
+    const sellCalculationBasisRef = React.useRef<SellCalculationBasis>('quantity');
     const unlockPreviewTime = React.useMemo(() => {
         if (!realPurchaseTime || buyRestriction !== 'locked_24h') return null;
         const parts = realPurchaseTime.split(':');
@@ -80,26 +84,80 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
     const activeStats = activeCurrency === 'EUR' ? portfolioStats.eur : portfolioStats.usdt;
     const isUsdtSellSettledInEur = mode === 'sell_usdt' && sellSettlementCurrency === 'EUR';
     const sellEurToDzdRateValue = parseAndEvaluate(sellEurToDzdRate);
+    const pamEurToDzdRate = Number(portfolioStats.eur.avgBuy || 0);
+    const pamEurToDzdRateInput = pamEurToDzdRate > 0 ? pamEurToDzdRate.toFixed(2) : '';
+    const effectiveSellEurToDzdRateValue = isUsdtSellSettledInEur ? pamEurToDzdRate : sellEurToDzdRateValue;
     const activeSuggestedSellingPrice = activeCurrency === 'EUR' ? suggestedSellingPriceEur : suggestedSellingPrice;
     const baseSuggestedPriceDzd = activeSuggestedSellingPrice && parseFloat(activeSuggestedSellingPrice) > 0
         ? parseFloat(activeSuggestedSellingPrice)
         : (activeStats.avgBuy + parseAndEvaluate(suggestedProfitMargin));
     const configuredUsdtEurPrice = parseFloat(suggestedUsdtEurSellPrice || '0');
     const hasUsdtEurSuggested = isUsdtSellSettledInEur && configuredUsdtEurPrice > 0;
-    const sellSuggestedPrice = hasUsdtEurSuggested && sellEurToDzdRateValue > 0
-        ? configuredUsdtEurPrice * sellEurToDzdRateValue
+    const sellSuggestedPrice = hasUsdtEurSuggested && effectiveSellEurToDzdRateValue > 0
+        ? configuredUsdtEurPrice * effectiveSellEurToDzdRateValue
         : baseSuggestedPriceDzd;
     const displayedSellSuggestedPrice = hasUsdtEurSuggested
         ? configuredUsdtEurPrice
-        : isUsdtSellSettledInEur && sellEurToDzdRateValue > 0
-            ? sellSuggestedPrice / sellEurToDzdRateValue
+        : isUsdtSellSettledInEur && effectiveSellEurToDzdRateValue > 0
+            ? sellSuggestedPrice / effectiveSellEurToDzdRateValue
             : sellSuggestedPrice;
     const sellPriceUnitLabel = isUsdtSellSettledInEur ? 'EUR/USDT' : t('common.dinar');
     const sellTotalCurrencyLabel = isUsdtSellSettledInEur ? 'EUR' : t('common.dinar');
     const formatSellTotalInput = (value: number) => isUsdtSellSettledInEur ? value.toFixed(2) : value.toFixed(0);
+    const formatSellQuantityInput = (value: number) => {
+        if (!Number.isFinite(value) || value <= 0)
+            return '';
+        return value.toFixed(2);
+    };
+    const activeSellTotalField = (): 'eurReceived' | 'total' => isUsdtSellSettledInEur ? 'eurReceived' : 'total';
+    const markSellFieldEdited = (field: LastEditedSellField) => {
+        setLastEditedSellField(field);
+        if (field !== 'price')
+            sellCalculationBasisRef.current = field;
+    };
+    const updateSellTotalFromQuantity = (quantity: number, price: number) => {
+        if (quantity > 0 && price > 0)
+            setSellTotal(formatSellTotalInput(quantity * price));
+        else if (quantity <= 0)
+            setSellTotal('');
+    };
+    const updateSellQuantityFromTotal = (total: number, price: number) => {
+        if (total > 0 && price > 0)
+            setSellAmount(formatSellQuantityInput(total / price));
+        else if (total <= 0)
+            setSellAmount('');
+    };
+    const updateSellPriceMargin = (price: number) => {
+        if (activeStats.avgBuy <= 0 || price <= 0)
+            return;
+        const effectivePriceDzd = isUsdtSellSettledInEur ? price * effectiveSellEurToDzdRateValue : price;
+        setProfitPercent((effectivePriceDzd - activeStats.avgBuy).toFixed(2));
+    };
+    const updateSellLinkedFieldsAfterPriceChange = (price: number) => {
+        if (price <= 0)
+            return;
+        const calculationBasis = lastEditedSellField === 'price'
+            ? sellCalculationBasisRef.current
+            : lastEditedSellField;
+        if (calculationBasis === 'total' || calculationBasis === 'eurReceived') {
+            setIsTotalManual(true);
+            updateSellQuantityFromTotal(parseAndEvaluate(sellTotal), price);
+            return;
+        }
+        setIsTotalManual(false);
+        updateSellTotalFromQuantity(parseAndEvaluate(sellAmount), price);
+    };
     React.useEffect(() => {
         setSellUsdtSourceSelected(false);
+        setLastEditedSellField('quantity');
+        sellCalculationBasisRef.current = 'quantity';
     }, [mode, editingTx?.id]);
+    React.useEffect(() => {
+        if (!isUsdtSellSettledInEur)
+            return;
+        if (sellEurToDzdRate !== pamEurToDzdRateInput)
+            setSellEurToDzdRate(pamEurToDzdRateInput);
+    }, [isUsdtSellSettledInEur, pamEurToDzdRateInput, sellEurToDzdRate, setSellEurToDzdRate]);
     const switchOperation = (operation: 'buy' | 'sell') => {
         if (editingTx)
             return;
@@ -133,29 +191,29 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
             return;
         if (!hasPrimaryClient || selectedClientTotal <= 0)
             return;
+        markSellFieldEdited('total');
         setSellTotal(selectedClientTotalLabel);
         setIsTotalManual(true);
         const price = parseAndEvaluate(sellPrice);
         if (price > 0) {
-            setSellAmount((selectedClientTotal / price).toFixed(2));
+            updateSellQuantityFromTotal(selectedClientTotal, price);
         }
     };
     const applySellBalanceMax = () => {
+        markSellFieldEdited('quantity');
         setSellAmount(activeStats.available.toFixed(2));
         const price = parseAndEvaluate(sellPrice);
         if (price > 0) {
-            setSellTotal(formatSellTotalInput(activeStats.available * price));
+            setIsTotalManual(false);
+            updateSellTotalFromQuantity(activeStats.available, price);
         }
     };
     const applySuggestedSellPrice = () => {
         const price = displayedSellSuggestedPrice;
+        markSellFieldEdited('price');
         setSellPrice(price.toFixed(isUsdtSellSettledInEur ? 4 : 2));
-        setProfitPercent((sellSuggestedPrice - activeStats.avgBuy).toFixed(2));
-        const qty = parseAndEvaluate(sellAmount);
-        setIsTotalManual(false);
-        if (qty > 0) {
-            setSellTotal(formatSellTotalInput(qty * price));
-        }
+        updateSellPriceMargin(price);
+        updateSellLinkedFieldsAfterPriceChange(price);
     };
     const chooseSellWithDzd = () => {
         setSellSettlementCurrency('DZD');
@@ -166,9 +224,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
         setSellSettlementCurrency('EUR');
         setLinkedClientDzdId('none');
         setClientPaymentStatus('cash');
-        const nextRate = Number(portfolioStats.eur.avgBuy || 0);
-        if (!sellEurToDzdRate && nextRate > 0)
-            setSellEurToDzdRate(nextRate.toFixed(2));
+        setSellEurToDzdRate(pamEurToDzdRateInput);
         setSellPrice('');
         setSellTotal('');
         setProfitPercent('');
@@ -205,7 +261,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                 ? buyEurTotalEffective
                 : buyUsdtTotalEffective;
         const saleValueDzd = isSell && isUsdtSellSettledInEur
-            ? totalInput * sellEurToDzdRateValue
+            ? totalInput * effectiveSellEurToDzdRateValue
             : totalInput;
         const soldCostDzd = isSell ? quantity * activeStats.avgBuy : 0;
         const profitEstimate = isSell && price > 0 && activeStats.avgBuy > 0
@@ -221,6 +277,74 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
     const segItem = (active: boolean, activeClass: string) => `flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${active
         ? activeClass
         : ('text-neutral-600 hover:text-neutral-800')} ${editingTx ? 'cursor-not-allowed opacity-70' : ''}`;
+    const renderSellQuantityField = () => (
+        <MoneyField label={t('transactions.quantity')} value={sellAmount} onChange={(val) => {
+            markSellFieldEdited('quantity');
+            setSellAmount(val);
+            const qty = parseAndEvaluate(val);
+            const price = parseAndEvaluate(sellPrice);
+            setIsTotalManual(false);
+            updateSellTotalFromQuantity(qty, price);
+        }} onBlur={() => {
+            const qty = parseAndEvaluate(sellAmount);
+            if (!isNaN(qty) && qty > 0)
+                setSellAmount(qty.toFixed(2));
+        }} currency={activeCurrency as 'USDT' | 'EUR'} onMax={applySellBalanceMax} hint={`${t('common.balance')}: ${activeStats.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${activeCurrency}`} error={formValidation.errors['sellAmount']}/>
+    );
+    const renderSellPriceField = () => (
+        <div>
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+                <span className="text-sm text-neutral-700">{t('transactions.sellPrice')} ({sellPriceUnitLabel})</span>
+                {sellSuggestedPrice > 0 && (<button type="button" onClick={applySuggestedSellPrice} className="min-h-touch text-xs font-semibold px-2 py-1 rounded-md transition-colors bg-info-bg text-info hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                        PAM +{(sellSuggestedPrice - activeStats.avgBuy).toFixed(2)}
+                    </button>)}
+            </div>
+            <MoneyField label="" value={sellPrice} onChange={(val) => {
+                markSellFieldEdited('price');
+                setSellPrice(val);
+                const price = parseAndEvaluate(val);
+                updateSellLinkedFieldsAfterPriceChange(price);
+                updateSellPriceMargin(price);
+            }} className="-mt-2" error={formValidation.errors['sellPrice']}/>
+            <div className="mt-1.5 grid gap-1 text-xs text-neutral-500 sm:grid-cols-2 sm:items-center">
+                <span dir="ltr" className="min-w-0 tabular-nums">PAM: {activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span>
+                {parseAndEvaluate(profitPercent) !== 0 && (<span dir="ltr" className={`min-w-0 tabular-nums sm:text-end ${parseAndEvaluate(profitPercent) > 0 ? 'text-financial-profit font-medium' : 'text-financial-loss font-medium'}`}>
+                        Marge: {parseAndEvaluate(profitPercent) > 0 ? '+' : ''}{parseAndEvaluate(profitPercent).toFixed(2)} {t('common.dinar')}
+                    </span>)}
+            </div>
+        </div>
+    );
+    const renderSellTotalField = () => (
+        <MoneyField label={isUsdtSellSettledInEur ? t('transactions.eurReceived') : t('transactions.totalAmount')} value={sellTotal} onChange={(val) => {
+            markSellFieldEdited(activeSellTotalField());
+            setSellTotal(val);
+            if (val) {
+                setIsTotalManual(true);
+                const total = parseAndEvaluate(val);
+                const price = parseAndEvaluate(sellPrice);
+                updateSellQuantityFromTotal(total, price);
+            }
+            else {
+                setIsTotalManual(false);
+            }
+        }} onBlur={() => {
+            const total = parseAndEvaluate(sellTotal);
+            if (!isNaN(total) && total > 0)
+                setSellTotal(isUsdtSellSettledInEur ? total.toFixed(2) : Math.round(total).toString());
+        }} currency={sellTotalCurrencyLabel === 'EUR' ? 'EUR' : 'DZD'} onMax={isUsdtSellSettledInEur ? undefined : applyClientMaxToSellTotal} maxDisabled={!hasPrimaryClient || selectedClientTotal <= 0} error={formValidation.errors['sellTotal']}/>
+    );
+    const renderReadonlyEurRateField = () => (
+        <div>
+            <p className="mb-1.5 text-sm font-medium text-neutral-700">{t('portfolio.rateEurDzd')} (DZD)</p>
+            <div className={`flex min-h-input w-full items-center justify-between rounded-button border px-3 py-2 ${formValidation.errors['sellEurToDzdRate'] ? 'border-danger ring-1 ring-danger' : 'border-border-strong'} bg-surface-muted text-neutral-600`}>
+                <span dir="ltr" className="tabular-nums">{pamEurToDzdRateInput || '0.00'}</span>
+                <span className="text-xs text-neutral-400">DZD</span>
+            </div>
+            <p className={`mt-1 text-xs ${formValidation.errors['sellEurToDzdRate'] ? 'font-medium text-danger' : 'text-neutral-500'}`}>
+                {formValidation.errors['sellEurToDzdRate'] || `Lecture seule depuis PAM EUR: ${pamEurToDzdRateInput || '0.00'} DZD`}
+            </p>
+        </div>
+    );
     return (<Modal isOpen={mode !== null} onClose={closeForm} className="bg-surface max-w-md">
             <ModalHeader onClose={closeForm} className="sticky top-0 z-20 border-b border-border backdrop-blur px-4 py-3 sm:px-5 bg-surface/95">
                 <ModalTitle className="text-base sm:text-lg">{editingTx ? t('common.edit') : t('transactions.newTransaction')}</ModalTitle>
@@ -453,85 +577,16 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                         </div>
                                     </div>)}
 
-                                <MoneyField label={t('transactions.quantity')} value={sellAmount} onChange={(val) => {
-                    setSellAmount(val);
-                    const qty = parseAndEvaluate(val);
-                    const price = parseAndEvaluate(sellPrice);
-                    setIsTotalManual(false);
-                    if (qty > 0 && price > 0)
-                        setSellTotal(formatSellTotalInput(qty * price));
-                }} onBlur={() => {
-                    const qty = parseAndEvaluate(sellAmount);
-                    if (!isNaN(qty) && qty > 0)
-                        setSellAmount(qty.toFixed(2));
-                }} currency={activeCurrency as 'USDT' | 'EUR'} onMax={applySellBalanceMax} hint={`${t('common.balance')}: ${activeStats.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${activeCurrency}`} error={formValidation.errors['sellAmount']}/>
-
-                                <MoneyField label={isUsdtSellSettledInEur ? t('transactions.eurReceived') : t('transactions.totalAmount')} value={sellTotal} onChange={(val) => {
-                    setSellTotal(val);
-                    if (val) {
-                        setIsTotalManual(true);
-                        const total = parseAndEvaluate(val);
-                        const price = parseAndEvaluate(sellPrice);
-                        if (total > 0 && price > 0)
-                            setSellAmount((total / price).toFixed(2));
-                    }
-                    else {
-                        setIsTotalManual(false);
-                        const qty = parseAndEvaluate(sellAmount);
-                        const price = parseAndEvaluate(sellPrice);
-                        if (qty > 0 && price > 0)
-                            setSellTotal(formatSellTotalInput(qty * price));
-                    }
-                }} onBlur={() => {
-                    const total = parseAndEvaluate(sellTotal);
-                    if (!isNaN(total) && total > 0)
-                        setSellTotal(isUsdtSellSettledInEur ? total.toFixed(2) : Math.round(total).toString());
-                }} currency={sellTotalCurrencyLabel === 'EUR' ? 'EUR' : 'DZD'} onMax={applyClientMaxToSellTotal} maxDisabled={isUsdtSellSettledInEur || !hasPrimaryClient || selectedClientTotal <= 0} error={formValidation.errors['sellTotal']}/>
-
-                                {isUsdtSellSettledInEur && (<MoneyField label={t('portfolio.rateEurDzd')} value={sellEurToDzdRate} onChange={(val) => {
-                        setSellEurToDzdRate(val);
-                        const rate = parseAndEvaluate(val);
-                        const priceEur = parseAndEvaluate(sellPrice);
-                        const qty = parseAndEvaluate(sellAmount);
-                        if (rate > 0 && priceEur > 0)
-                            setProfitPercent(((priceEur * rate) - activeStats.avgBuy).toFixed(2));
-                        setIsTotalManual(false);
-                        if (qty > 0 && priceEur > 0)
-                            setSellTotal((qty * priceEur).toFixed(2));
-                    }} currency="DZD" placeholder="Ex: 250" error={formValidation.errors['sellEurToDzdRate']} hint={`PAM EUR: ${(portfolioStats.eur.avgBuy || 0).toFixed(2)} ${t('common.dinar')}`}/>)}
-
-                                {/* Price field with suggested button + margin hint */}
-                                <div>
-                                    <div className="mb-1.5 flex items-center justify-between gap-2">
-                                        <span className="text-sm text-neutral-700">{t('transactions.sellPrice')} ({sellPriceUnitLabel})</span>
-                                        {sellSuggestedPrice > 0 && (<button type="button" onClick={applySuggestedSellPrice} className="min-h-touch text-xs font-semibold px-2 py-1 rounded-md transition-colors bg-info-bg text-info hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                                                PAM +{(sellSuggestedPrice - activeStats.avgBuy).toFixed(2)}
-                                            </button>)}
-                                    </div>
-                                    <MoneyField label="" value={sellPrice} onChange={(val) => {
-                    setSellPrice(val);
-                    const price = parseAndEvaluate(val);
-                    const qty = parseAndEvaluate(sellAmount);
-                    const total = parseAndEvaluate(sellTotal);
-                    setIsTotalManual(false);
-                    if (price > 0) {
-                        if (total > 0)
-                            setSellAmount((total / price).toFixed(2));
-                        else if (qty > 0)
-                            setSellTotal(formatSellTotalInput(qty * price));
-                    }
-                    if (activeStats.avgBuy > 0 && price > 0) {
-                        const effectivePriceDzd = isUsdtSellSettledInEur ? price * sellEurToDzdRateValue : price;
-                        setProfitPercent((effectivePriceDzd - activeStats.avgBuy).toFixed(2));
-                    }
-                }} className="-mt-2" error={formValidation.errors['sellPrice']}/>
-                                    <div className="mt-1.5 grid gap-1 text-xs text-neutral-500 sm:grid-cols-2 sm:items-center">
-                                        <span dir="ltr" className="min-w-0 tabular-nums">PAM: {activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span>
-                                        {parseAndEvaluate(profitPercent) !== 0 && (<span dir="ltr" className={`min-w-0 tabular-nums sm:text-end ${parseAndEvaluate(profitPercent) > 0 ? 'text-financial-profit font-medium' : 'text-financial-loss font-medium'}`}>
-                                                Marge: {parseAndEvaluate(profitPercent) > 0 ? '+' : ''}{parseAndEvaluate(profitPercent).toFixed(2)} {t('common.dinar')}
-                                            </span>)}
-                                    </div>
-                                </div>
+                                {isUsdtSellSettledInEur ? (<>
+                                    {renderSellTotalField()}
+                                    {renderSellPriceField()}
+                                    {renderSellQuantityField()}
+                                    {renderReadonlyEurRateField()}
+                                </>) : (<>
+                                    {renderSellQuantityField()}
+                                    {renderSellPriceField()}
+                                    {renderSellTotalField()}
+                                </>)}
 
                                 <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} allowBaridiDzdLink hidePaymentStatus={isUsdtSellSettledInEur} hideLinkedDzdClient={isUsdtSellSettledInEur} errorMessage={formValidation.errors['linkedClientId']} hasError={!!formValidation.errors['linkedClientId']} errorMessageDzd={formValidation.errors['linkedClientDzdId']} hasErrorDzd={!!formValidation.errors['linkedClientDzdId']}/>
                             </div>)}

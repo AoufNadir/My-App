@@ -144,13 +144,14 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             const sellCurrency: PortfolioCurrency = mode === 'sell_eur' ? 'EUR' : 'USDT';
             const isUsdtSettledInEur = sellCurrency === 'USDT' && sellSettlementCurrency === 'EUR';
             const canUseLinkedDzdClient = !isUsdtSettledInEur && (clientPaymentStatus === 'cash' || clientPaymentStatus === 'baridi');
+            const readOnlyEurToDzdRate = Number(portfolioStats.eur.avgBuy || 0);
             if (amt <= 0)
                 addError('sellAmount', 'Quantité requise');
             if (parseAndEvaluate(sellPrice) <= 0)
                 addError('sellPrice', 'Prix requis');
             if (parseAndEvaluate(sellTotal) <= 0)
                 addError('sellTotal', 'Montant total invalide');
-            if (isUsdtSettledInEur && parseAndEvaluate(sellEurToDzdRate) <= 0)
+            if (isUsdtSettledInEur && readOnlyEurToDzdRate <= 0)
                 addError('sellEurToDzdRate', 'Taux EUR/DZD requis');
             const avail = getPortfolioAssetStats(sellCurrency).available + (editingTx?.type === 'sell' ? editingTx.quantity : 0);
             if (amt > avail)
@@ -486,7 +487,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             // FIX-10 (Q2 reversal): preserve up to 2 decimals (see handleBuy comment).
             const quantity = roundM(parseAndEvaluate(sellAmount));
             const inputSellPrice = parseAndEvaluate(sellPrice);
-            const eurToDzdRateAtSale = parseAndEvaluate(sellEurToDzdRate);
+            const eurToDzdRateAtSale = isUsdtSettledInEur
+                ? Number(portfolioStats.eur.avgBuy || 0)
+                : parseAndEvaluate(sellEurToDzdRate);
             const avg = sellAssetStats.avgBuy;
             const totalInput = parseAndEvaluate(sellTotal);
             let saleValueEur = 0;
@@ -495,11 +498,11 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             if (isUsdtSettledInEur) {
                 saleValueEur = isTotalManual && totalInput > 0 ? totalInput : quantity * inputSellPrice;
                 saleValueDzd = saleValueEur * eurToDzdRateAtSale;
-                sell = quantity > 0 ? saleValueDzd / quantity : inputSellPrice * eurToDzdRateAtSale;
+                sell = inputSellPrice * eurToDzdRateAtSale;
             }
             else {
                 saleValueDzd = isTotalManual && totalInput > 0 ? totalInput : quantity * inputSellPrice;
-                sell = quantity > 0 ? saleValueDzd / quantity : inputSellPrice;
+                sell = inputSellPrice;
             }
             const totalRevenue = Math.round(saleValueDzd);
             const profit = Number((saleValueDzd - (avg * quantity)).toFixed(2));
