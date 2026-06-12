@@ -407,10 +407,9 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
             if (tx.linkedTxId) return;
             const isBuy = tx.type === 'buy' || tx.type === 'Ajout Manuel';
             const isUsdtSaleSettledInEur = tx.type === 'sell' && tx.currency === 'USDT' && tx.settlementCurrency === 'EUR';
-            const isBuyFundedByEur = tx.type === 'buy' && tx.currency === 'USDT' && tx.purchaseFundingCurrency === 'EUR';
             const typeLabel = isUsdtSaleSettledInEur
-                ? 'Vente USDT -> EUR'
-                : getPortfolioOperationLabel(tx.type, tx.currency);
+                ? t('ledger.sellUsdtEur')
+                : getPortfolioOperationLabel(tx.type, tx.currency, t);
             const txClientCandidates = tx.id ? (linkedClientTxsByTransactionId.get(tx.id) || []) : [];
             const txClient = txClientCandidates.find((clientTx) => clientTx.linkRole !== 'dzd_receiver') || txClientCandidates[0];
             const client = txClient ? clientsById.get(txClient.clientId) : undefined;
@@ -467,7 +466,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 timestamp: tx.timestamp,
                 date: tx.date,
                 time: tx.time,
-                typeLabel: getClientOperationLabel(tx.type),
+                typeLabel: getClientOperationLabel(tx.type, t),
                 amountLabel: formatDzdAmount(Math.abs(tx.montant)),
                 amountColor: isTransfer ? 'text-primary' : (isPositive ? 'text-financial-profit' : 'text-financial-loss'),
                 icon: (<div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-neutral-100 text-neutral-600">
@@ -492,8 +491,8 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 ? `${transferFrom} -> ${transferTo}`
                 : (txData.source || txData.asset || 'N/A');
             const typeLabel = isTransfer
-                ? 'Virement Interne (Caisse <-> Baridi)'
-                : getTreasuryOperationLabel(tx.type);
+                ? t('ledger.internalTransfer')
+                : getTreasuryOperationLabel(tx.type, t);
             all.push({
                 id: `treasury_${tx.id}`,
                 originalId: tx.id || '',
@@ -519,7 +518,8 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
         treasuryTransactions,
         linkedClientTxsByTransactionId,
         clientsById,
-        getClientFullName
+        getClientFullName,
+        t
     ]);
     const filteredTransactions = useMemo(() => {
         return unifiedTransactions.filter((tx) => {

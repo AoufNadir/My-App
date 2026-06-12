@@ -288,16 +288,16 @@ export function TransactionsHistoryCard({
                   ? 'bg-primary/10 text-primary hover:bg-primary/20'
                   : 'bg-neutral-200 hover:bg-neutral-300 text-neutral-700',
               ].join(' ')}
-              aria-label="Filtrer par date"
+              aria-label={t('transactions.filterByDate')}
             >
               <CalendarIcon className="w-4 h-4 sm:me-1" />
-              <span className="hidden sm:inline">Dates</span>
+              <span className="hidden sm:inline">{t('transactions.dates')}</span>
             </Button>
 
             <Dropdown
               trigger={(
                 <Button className="min-h-touch px-3 text-xs rounded-lg font-bold transition-colors bg-primary/10 hover:bg-primary/20 text-primary">
-                  <span>Vues</span>
+                  <span>{t('transactions.views')}</span>
                 </Button>
               )}
             >
@@ -337,7 +337,7 @@ export function TransactionsHistoryCard({
         <div className="relative">
           <Input
             type="search"
-            placeholder="Rechercher : client, type, notes, tag, montant..."
+            placeholder={t('transactions.searchLedgerPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pe-8 text-sm"
@@ -347,7 +347,7 @@ export function TransactionsHistoryCard({
               type="button"
               onClick={() => setSearchQuery('')}
               className="absolute end-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600"
-              aria-label="Effacer la recherche"
+              aria-label={t('transactions.clearSearch')}
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
@@ -470,8 +470,8 @@ export function TransactionsHistoryCard({
             ))
           ) : (
             <EmptyState
-              title={searchQuery.trim() ? 'Aucun résultat' : t('transactions.noTransactions')}
-              subtitle={searchQuery.trim() ? `Aucune opération ne correspond à "${searchQuery.trim()}"` : undefined}
+              title={searchQuery.trim() ? t('emptyStates.results.title') : t('transactions.noTransactions')}
+              subtitle={searchQuery.trim() ? `${t('transactions.noSearchMatch')} "${searchQuery.trim()}"` : undefined}
             />
           )}
 
@@ -479,10 +479,10 @@ export function TransactionsHistoryCard({
           {filteredSummary && filteredSummary.count > 0 && (
             <div className="mx-4 mt-2 mb-1 flex items-center justify-between rounded-xl bg-surface-muted px-4 py-2.5 border border-border">
               <span className="text-xs font-semibold text-neutral-500">
-                {filteredSummary.count} opération{filteredSummary.count > 1 ? 's' : ''}
+                {filteredSummary.count} {t('transactions.operationsWord')}
               </span>
               <div className="flex items-center gap-1">
-                <span className="text-[10px] text-neutral-400">Total ≈</span>
+                <span className="text-[10px] text-neutral-400">{t('transactions.totalApprox')}</span>
                 <span dir="ltr" className="text-sm font-bold text-neutral-800 tabular-nums">
                   {filteredSummary.totalDzd.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
                 </span>
@@ -498,7 +498,7 @@ export function TransactionsHistoryCard({
                 variant="outline"
                 className="w-full rounded-xl px-4 py-3 font-semibold bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
               >
-                Afficher plus ({Math.min(hiddenTransactionCount, LOAD_MORE_COUNT)})
+                {t('transactions.showMore')} ({Math.min(hiddenTransactionCount, LOAD_MORE_COUNT)})
               </Button>
               <p className="mt-2 text-center text-xs text-neutral-500">
                 {totalTransactionCount - hiddenTransactionCount} / {totalTransactionCount}
