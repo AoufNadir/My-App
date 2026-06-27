@@ -198,3 +198,166 @@ export interface PortfolioStats {
         lockedBatches: LockedBatch[];
     };
 }
+
+// ===== Order System (Pro Digital Orders) =====
+// New top-level Firestore collections (po_*) layered on top of the existing
+// single-operator app. These power the client-facing order flow, the agent
+// cash-handover flow, and admin order management. See plan: RBAC foundation.
+
+export type PoRole = 'admin' | 'client' | 'agent';
+export type PoUserStatus = 'pending' | 'approved' | 'blocked';
+
+/** Profile / role doc. Doc id === Firebase Auth uid. Collection: po_users. */
+export interface PoUser {
+    uid: string;
+    role: PoRole;
+    status: PoUserStatus;
+    email: string;
+    displayName?: string;
+    phone?: string;
+    operatorUid: string;
+    /** Clients: link to an existing ClientDzd (users/{operatorUid}/dzd_clients). */
+    linkedClientId?: string;
+    /** Agents: stable agent id + the cash location they may confirm for. */
+    agentId?: string;
+    assignedCashLocationId?: string;
+    /** Per-client debt POLICY (the balance itself is derived from the ledger). */
+    debtEnabled?: boolean;
+    debtLimitDzd?: number;
+    createdAt: number;
+    approvedAt?: number;
+    approvedBy?: string;
+}
+
+export type PoOrderStatus =
+    | 'NEW'
+    | 'WAITING_PAYMENT'
+    | 'PAYMENT_PROOF_SUBMITTED'
+    | 'WAITING_ADMIN_CONFIRMATION'
+    | 'PAYMENT_CONFIRMED'
+    | 'WAITING_DELIVERY'
+    | 'DELIVERED'
+    | 'CANCELLED'
+    | 'REJECTED'
+    | 'DEBT_ACTIVE'
+    | 'DEBT_PAID';
+
+export type PoPaymentType = 'prepaid' | 'debt';
+
+/** Collection: po_orders. */
+export interface PoOrder {
+    id: string;
+    /** Display-only code, e.g. "PD-4821". The Firestore doc id is the real key. */
+    orderCode: string;
+    operatorUid: string;
+    /** Auth uid of the ordering client (authorization key). */
+    clientUid: string;
+    /** ClientDzd id, linked/confirmed by the admin. */
+    clientId?: string;
+    currencyId: string;
+    quantity: number;
+    /** Snapshotted at quote time — never recomputed from live tiers. */
+    unitPriceDzd: number;
+    totalDzd: number;
+    pricingTierId?: string;
+    quoteCreatedAt: number;
+    quoteExpiresAt: number;
+    status: PoOrderStatus;
+    paymentType: PoPaymentType;
+    paymentMethodId?: string;
+    cashLocationId?: string;
+    agentId?: string;
+    proofUrl?: string;
+    clientNote?: string;
+    adminNote?: string;
+    /** Set on admin completion → links to the generated ledger rows (idempotency). */
+    linkedUsdtTxId?: string;
+    linkedClientTxId?: string;
+    createdAt: number;
+    updatedAt: number;
+}
+
+/** Collection: po_currencies. Code matches real inventory (PRD "USD" → USDT). */
+export interface PoCurrency {
+    id: string;
+    code: 'USDT' | 'EUR';
+    label: string;
+    active: boolean;
+    minOrder: number;
+    maxOrder: number;
+    /** Admin escape hatch; otherwise availability is derived from PortfolioStats. */
+    manualAvailableOverride?: number | null;
+    operatorUid: string;
+}
+
+/** Collection: po_pricing_tiers. */
+export interface PoPricingTier {
+    id: string;
+    currencyId: string;
+    minQty: number;
+    maxQty: number;
+    unitPriceDzd: number;
+    requiresAdminApproval: boolean;
+    active: boolean;
+    operatorUid: string;
+}
+
+export type PoPaymentMethodType = 'baridimob' | 'cash' | 'bank_transfer' | 'other';
+
+/** Collection: po_payment_methods. */
+export interface PoPaymentMethod {
+    id: string;
+    type: PoPaymentMethodType;
+    label: string;
+    /** Serialized method-specific fields (RIP/CCP, beneficiary, bank details...). */
+    detailsJson?: string;
+    active: boolean;
+    operatorUid: string;
+}
+
+/** Collection: po_cash_locations. */
+export interface PoCashLocation {
+    id: string;
+    label: string;
+    address?: string;
+    agentId?: string;
+    instructions?: string;
+    active: boolean;
+    operatorUid: string;
+}
+
+/** Collection: po_agent_confirmations. Agent confirm ≠ final; admin must confirm. */
+export interface PoAgentConfirmation {
+    id: string;
+    orderId: string;
+    agentUid: string;
+    cashLocationId: string;
+    amountDzd: number;
+    confirmedByAdmin: boolean;
+    notes?: string;
+    createdAt: number;
+}
+
+export type PoAuditAction =
+    | 'order_created'
+    | 'proof_submitted'
+    | 'agent_confirmed'
+    | 'admin_approved_user'
+    | 'admin_blocked_user'
+    | 'admin_confirmed_payment'
+    | 'admin_marked_delivered'
+    | 'order_cancelled'
+    | 'order_rejected'
+    | 'debt_activated'
+    | 'debt_paid';
+
+/** Collection: po_audit_logs. Append-only (immutable). */
+export interface PoAuditLog {
+    id: string;
+    action: PoAuditAction;
+    actorUid: string;
+    targetType: 'order' | 'user' | 'confirmation';
+    targetId: string;
+    detailsJson?: string;
+    createdAt: number;
+}
