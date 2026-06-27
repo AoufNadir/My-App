@@ -1,0 +1,26 @@
+rules_version = '2';
+
+// Pro Digital — Firestore security rules.
+//
+// IMPORTANT: before this file existed the database had NO rules, which left the
+// operator's `users/{uid}` subtree readable/writable by ANY authenticated user.
+// The match below closes that hole. Order-system (`po_*`) collections and the
+// admin/client/agent role model are added in a later change.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Operator's existing single-tenant data: strictly owner-only.
+    match /users/{ownerUid}/{document=**} {
+      allow read, write: if signedIn() && request.auth.uid == ownerUid;
+    }
+
+    // Default deny. Anything not explicitly allowed above is rejected.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

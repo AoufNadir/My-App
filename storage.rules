@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// Pro Digital — Cloud Storage security rules.
+//
+// Payment proofs uploaded by clients live under po_proofs/{uid}/{orderId}/...
+// Each file is owner-read/write only. The admin reads a proof through the
+// tokenized download URL stored on the order document (a role-aware Storage
+// rule would require a backend / custom claims, deferred).
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    match /po_proofs/{uid}/{orderId}/{fileName} {
+      allow write: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*|application/pdf');
+      allow read: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Default deny.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
