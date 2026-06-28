@@ -1,12 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { useLanguage } from '../contexts/LanguageContext';
 import { usePoAdminData } from '../hooks/usePoAdminData';
-import type { PoOrder, PoOrderStatus } from '../types';
+import { usePoOrderHandlers, type ApproveUserOptions } from '../hooks/usePoOrderHandlers';
+import { Button } from '../components/ui/Button';
+import type { ClientDzd, PoCashLocation, PoOrder, PoOrderStatus, PoRole, PoUser } from '../types';
 
 type OrdersAdminPageProps = {
     user: User;
     setAlert: (message: string) => void;
+    clientsDzd: ClientDzd[];
 };
 
 type Tone = 'neutral' | 'pending' | 'info' | 'success' | 'danger';
@@ -61,12 +64,168 @@ function formatDzd(value: number): string {
     return `${Math.round(value || 0).toLocaleString('fr-FR')} DZD`;
 }
 
+const fieldClass = 'h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-neutral-900 focus:border-primary focus:ring-2 focus:ring-primary';
+
+type Strings = {
+    title: string; subtitle: string; notConfiguredTitle: string; notConfigured: string;
+    total: string; waitingPayment: string; waitingAdmin: string; debts: string; delivered: string; pendingUsers: string;
+    pendingHeader: string; approvedHeader: string; ordersHeader: string; empty: string; loading: string;
+    qty: string; noPending: string; noApproved: string; role: string; client: string; agent: string;
+    linkClient: string; none: string; cashLocation: string; enableDebt: string; debtLimit: string;
+    approve: string; block: string; reactivate: string; blocked: string; pendingTag: string;
+    approveOk: string; blockOk: string; reactivateOk: string; error: string;
+};
+
+function buildStrings(lang: 'fr' | 'ar'): Strings {
+    return lang === 'ar'
+        ? {
+            title: 'الطلبات', subtitle: 'إدارة طلبات العملاء',
+            notConfiguredTitle: 'نظام الطلبات غير مُهيّأ',
+            notConfigured: 'يجب ضبط معرّف المشغّل (OPERATOR_UID) في src/config/orderSystem.ts وفي firestore.rules قبل تفعيل الطلبات.',
+            total: 'إجمالي الطلبات', waitingPayment: 'بانتظار الدفع', waitingAdmin: 'بانتظار التأكيد',
+            debts: 'ديون نشطة', delivered: 'تم التسليم', pendingUsers: 'حسابات بانتظار الموافقة',
+            pendingHeader: 'حسابات بانتظار الموافقة', approvedHeader: 'الحسابات المعتمدة',
+            ordersHeader: 'الطلبات الأخيرة', empty: 'لا توجد طلبات بعد.', loading: 'جارٍ التحميل…',
+            qty: 'الكمية', noPending: 'لا توجد حسابات بانتظار الموافقة.', noApproved: 'لا توجد حسابات معتمدة.',
+            role: 'الدور', client: 'عميل', agent: 'وكيل', linkClient: 'ربط بعميل', none: 'بدون',
+            cashLocation: 'نقطة الكاش', enableDebt: 'تفعيل الدين', debtLimit: 'سقف الدين (دج)',
+            approve: 'موافقة', block: 'حظر', reactivate: 'إعادة التفعيل', blocked: 'محظور', pendingTag: 'قيد الانتظار',
+            approveOk: 'تمت الموافقة على الحساب.', blockOk: 'تم حظر الحساب.', reactivateOk: 'تمت إعادة تفعيل الحساب.',
+            error: 'حدث خطأ. حاول مرة أخرى.',
+        }
+        : {
+            title: 'Commandes', subtitle: 'Gestion des commandes clients',
+            notConfiguredTitle: 'Système de commandes non configuré',
+            notConfigured: "Définissez OPERATOR_UID dans src/config/orderSystem.ts et dans firestore.rules pour activer les commandes.",
+            total: 'Total commandes', waitingPayment: 'En attente de paiement', waitingAdmin: 'À confirmer',
+            debts: 'Dettes actives', delivered: 'Livrées', pendingUsers: 'Comptes à approuver',
+            pendingHeader: 'Comptes à approuver', approvedHeader: 'Comptes approuvés',
+            ordersHeader: 'Commandes récentes', empty: 'Aucune commande pour le moment.', loading: 'Chargement…',
+            qty: 'Quantité', noPending: 'Aucun compte en attente.', noApproved: 'Aucun compte approuvé.',
+            role: 'Rôle', client: 'Client', agent: 'Agent', linkClient: 'Lier à un client', none: 'Aucun',
+            cashLocation: 'Point cash', enableDebt: 'Activer la dette', debtLimit: 'Plafond de dette (DZD)',
+            approve: 'Approuver', block: 'Bloquer', reactivate: 'Réactiver', blocked: 'Bloqué', pendingTag: 'En attente',
+            approveOk: 'Compte approuvé.', blockOk: 'Compte bloqué.', reactivateOk: 'Compte réactivé.',
+            error: 'Une erreur est survenue. Réessayez.',
+        };
+}
+
+type PendingUserRowProps = {
+    target: PoUser;
+    clientsDzd: ClientDzd[];
+    cashLocations: PoCashLocation[];
+    strings: Strings;
+    onApprove: (target: PoUser, opts: ApproveUserOptions) => Promise<void>;
+    onBlock: (target: PoUser) => Promise<void>;
+};
+
+const PendingUserRow: React.FC<PendingUserRowProps> = ({
+    target, clientsDzd, cashLocations, strings, onApprove, onBlock,
+}) => {
+    const [role, setRole] = useState<PoRole>('client');
+    const [linkedClientId, setLinkedClientId] = useState('');
+    const [assignedCashLocationId, setAssignedCashLocationId] = useState('');
+    const [debtEnabled, setDebtEnabled] = useState(false);
+    const [debtLimitDzd, setDebtLimitDzd] = useState('');
+    const [busy, setBusy] = useState(false);
+
+    const submit = async () => {
+        setBusy(true);
+        await onApprove(target, {
+            role,
+            linkedClientId: role === 'client' && linkedClientId ? linkedClientId : undefined,
+            assignedCashLocationId: role === 'agent' && assignedCashLocationId ? assignedCashLocationId : undefined,
+            debtEnabled: role === 'client' ? debtEnabled : undefined,
+            debtLimitDzd: role === 'client' && debtEnabled && debtLimitDzd ? Number(debtLimitDzd) : undefined,
+        });
+        setBusy(false);
+    };
+
+    return (
+        <li className="space-y-3 py-3">
+            <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                    <div className="truncate font-semibold text-neutral-900">{target.displayName || target.email}</div>
+                    <div className="truncate text-xs text-neutral-500">{target.email}</div>
+                </div>
+                <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${TONE_CLASS.pending}`}>
+                    {strings.pendingTag}
+                </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <label className="text-xs font-medium text-neutral-600">
+                    {strings.role}
+                    <select className={`${fieldClass} mt-1`} value={role} onChange={(e) => setRole(e.target.value as PoRole)}>
+                        <option value="client">{strings.client}</option>
+                        <option value="agent">{strings.agent}</option>
+                    </select>
+                </label>
+
+                {role === 'client' && (
+                    <label className="text-xs font-medium text-neutral-600">
+                        {strings.linkClient}
+                        <select className={`${fieldClass} mt-1`} value={linkedClientId} onChange={(e) => setLinkedClientId(e.target.value)}>
+                            <option value="">{strings.none}</option>
+                            {clientsDzd.map((c) => (
+                                <option key={c.id} value={c.id}>{c.fullName}</option>
+                            ))}
+                        </select>
+                    </label>
+                )}
+
+                {role === 'agent' && (
+                    <label className="text-xs font-medium text-neutral-600">
+                        {strings.cashLocation}
+                        <select className={`${fieldClass} mt-1`} value={assignedCashLocationId} onChange={(e) => setAssignedCashLocationId(e.target.value)}>
+                            <option value="">{strings.none}</option>
+                            {cashLocations.map((loc) => (
+                                <option key={loc.id} value={loc.id}>{loc.label}</option>
+                            ))}
+                        </select>
+                    </label>
+                )}
+
+                {role === 'client' && (
+                    <label className="flex items-center gap-2 text-xs font-medium text-neutral-600 sm:mt-5">
+                        <input type="checkbox" checked={debtEnabled} onChange={(e) => setDebtEnabled(e.target.checked)} className="h-4 w-4" />
+                        {strings.enableDebt}
+                    </label>
+                )}
+
+                {role === 'client' && debtEnabled && (
+                    <label className="text-xs font-medium text-neutral-600">
+                        {strings.debtLimit}
+                        <input type="number" inputMode="numeric" className={`${fieldClass} mt-1`} value={debtLimitDzd} onChange={(e) => setDebtLimitDzd(e.target.value)} />
+                    </label>
+                )}
+            </div>
+
+            <div className="flex gap-2">
+                <Button variant="success" size="sm" loading={busy} onClick={submit}>{strings.approve}</Button>
+                <Button variant="outline" size="sm" disabled={busy} onClick={() => onBlock(target)}>{strings.block}</Button>
+            </div>
+        </li>
+    );
+};
+
 // Admin order-management surface (operator-only — MainApp is gated to the
-// operator). Read-only in this phase: it lists incoming orders and pending
-// accounts. Approval/confirmation/completion actions land in later commits.
-export function OrdersAdminPage({ user: _user, setAlert: _setAlert }: OrdersAdminPageProps) {
+// operator). Lists incoming orders, approves/links/blocks accounts, and writes
+// audit entries. Order completion → ledger lands in a later commit.
+export function OrdersAdminPage({ user, setAlert, clientsDzd }: OrdersAdminPageProps) {
     const { lang } = useLanguage();
     const data = usePoAdminData(true);
+    const handlers = usePoOrderHandlers(user.uid);
+    const strings = useMemo(() => buildStrings(lang), [lang]);
+
+    const clientName = useMemo(() => {
+        const map = new Map<string, string>();
+        clientsDzd.forEach((c) => map.set(c.id, c.fullName));
+        return map;
+    }, [clientsDzd]);
+
+    const pendingUsers = useMemo(() => data.users.filter((u) => u.status === 'pending'), [data.users]);
+    const managedUsers = useMemo(() => data.users.filter((u) => u.status !== 'pending' && u.uid !== user.uid), [data.users, user.uid]);
 
     const summary = useMemo(() => {
         const byStatus = (s: PoOrderStatus) => data.orders.filter((o) => o.status === s).length;
@@ -76,43 +235,9 @@ export function OrdersAdminPage({ user: _user, setAlert: _setAlert }: OrdersAdmi
             waitingAdmin: byStatus('WAITING_ADMIN_CONFIRMATION'),
             debts: byStatus('DEBT_ACTIVE'),
             delivered: byStatus('DELIVERED'),
-            pendingUsers: data.users.filter((u) => u.status === 'pending').length,
+            pendingUsers: pendingUsers.length,
         };
-    }, [data.orders, data.users]);
-
-    const tr = lang === 'ar'
-        ? {
-            title: 'الطلبات',
-            subtitle: 'إدارة طلبات العملاء',
-            notConfiguredTitle: 'نظام الطلبات غير مُهيّأ',
-            notConfigured: 'يجب ضبط معرّف المشغّل (OPERATOR_UID) في src/config/orderSystem.ts وفي firestore.rules قبل تفعيل الطلبات.',
-            total: 'إجمالي الطلبات',
-            waitingPayment: 'بانتظار الدفع',
-            waitingAdmin: 'بانتظار التأكيد',
-            debts: 'ديون نشطة',
-            delivered: 'تم التسليم',
-            pendingUsers: 'حسابات بانتظار الموافقة',
-            ordersHeader: 'الطلبات الأخيرة',
-            empty: 'لا توجد طلبات بعد.',
-            loading: 'جارٍ التحميل…',
-            qty: 'الكمية',
-        }
-        : {
-            title: 'Commandes',
-            subtitle: 'Gestion des commandes clients',
-            notConfiguredTitle: 'Système de commandes non configuré',
-            notConfigured: "Définissez OPERATOR_UID dans src/config/orderSystem.ts et dans firestore.rules pour activer les commandes.",
-            total: 'Total commandes',
-            waitingPayment: 'En attente de paiement',
-            waitingAdmin: 'À confirmer',
-            debts: 'Dettes actives',
-            delivered: 'Livrées',
-            pendingUsers: 'Comptes à approuver',
-            ordersHeader: 'Commandes récentes',
-            empty: 'Aucune commande pour le moment.',
-            loading: 'Chargement…',
-            qty: 'Quantité',
-        };
+    }, [data.orders, pendingUsers.length]);
 
     const cardClass = 'rounded-xl border border-border bg-surface p-4 shadow-card';
 
@@ -120,12 +245,37 @@ export function OrdersAdminPage({ user: _user, setAlert: _setAlert }: OrdersAdmi
         return (
             <div className="py-4">
                 <div className="rounded-xl border border-warning/30 bg-warning-bg p-4 text-warning">
-                    <h2 className="mb-1 text-base font-bold">{tr.notConfiguredTitle}</h2>
-                    <p className="text-sm leading-relaxed">{tr.notConfigured}</p>
+                    <h2 className="mb-1 text-base font-bold">{strings.notConfiguredTitle}</h2>
+                    <p className="text-sm leading-relaxed">{strings.notConfigured}</p>
                 </div>
             </div>
         );
     }
+
+    const handleApprove = async (target: PoUser, opts: ApproveUserOptions) => {
+        try {
+            await handlers.approveUser(target, opts);
+            setAlert(`✅ ${strings.approveOk}`);
+        } catch {
+            setAlert(`❌ ${strings.error}`);
+        }
+    };
+    const handleBlock = async (target: PoUser) => {
+        try {
+            await handlers.blockUser(target);
+            setAlert(`✅ ${strings.blockOk}`);
+        } catch {
+            setAlert(`❌ ${strings.error}`);
+        }
+    };
+    const handleReactivate = async (target: PoUser) => {
+        try {
+            await handlers.reactivateUser(target);
+            setAlert(`✅ ${strings.reactivateOk}`);
+        } catch {
+            setAlert(`❌ ${strings.error}`);
+        }
+    };
 
     const stat = (label: string, value: number, tone: Tone) => (
         <div className={cardClass}>
@@ -139,25 +289,76 @@ export function OrdersAdminPage({ user: _user, setAlert: _setAlert }: OrdersAdmi
     return (
         <div className="space-y-4 py-2">
             <div>
-                <h1 className="text-xl font-extrabold text-neutral-900">{tr.title}</h1>
-                <p className="text-sm text-neutral-500">{tr.subtitle}</p>
+                <h1 className="text-xl font-extrabold text-neutral-900">{strings.title}</h1>
+                <p className="text-sm text-neutral-500">{strings.subtitle}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {stat(tr.total, summary.total, 'neutral')}
-                {stat(tr.waitingPayment, summary.waitingPayment, 'pending')}
-                {stat(tr.waitingAdmin, summary.waitingAdmin, 'pending')}
-                {stat(tr.debts, summary.debts, 'danger')}
-                {stat(tr.delivered, summary.delivered, 'success')}
-                {stat(tr.pendingUsers, summary.pendingUsers, 'pending')}
+                {stat(strings.total, summary.total, 'neutral')}
+                {stat(strings.waitingPayment, summary.waitingPayment, 'pending')}
+                {stat(strings.waitingAdmin, summary.waitingAdmin, 'pending')}
+                {stat(strings.debts, summary.debts, 'danger')}
+                {stat(strings.delivered, summary.delivered, 'success')}
+                {stat(strings.pendingUsers, summary.pendingUsers, 'pending')}
             </div>
 
+            {/* Pending accounts */}
             <div className={cardClass}>
-                <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-neutral-500">{tr.ordersHeader}</h2>
+                <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-neutral-500">{strings.pendingHeader}</h2>
+                {pendingUsers.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-neutral-400">{strings.noPending}</p>
+                ) : (
+                    <ul className="divide-y divide-border">
+                        {pendingUsers.map((u) => (
+                            <PendingUserRow
+                                key={u.uid}
+                                target={u}
+                                clientsDzd={clientsDzd}
+                                cashLocations={data.cashLocations}
+                                strings={strings}
+                                onApprove={handleApprove}
+                                onBlock={handleBlock}
+                            />
+                        ))}
+                    </ul>
+                )}
+            </div>
+
+            {/* Approved / managed accounts */}
+            <div className={cardClass}>
+                <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-neutral-500">{strings.approvedHeader}</h2>
+                {managedUsers.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-neutral-400">{strings.noApproved}</p>
+                ) : (
+                    <ul className="divide-y divide-border">
+                        {managedUsers.map((u) => (
+                            <li key={u.uid} className="flex items-center justify-between gap-3 py-3">
+                                <div className="min-w-0">
+                                    <div className="truncate font-semibold text-neutral-900">{u.displayName || u.email}</div>
+                                    <div className="truncate text-xs text-neutral-500">
+                                        {u.role === 'agent' ? strings.agent : strings.client}
+                                        {u.linkedClientId && clientName.get(u.linkedClientId) ? ` · ${clientName.get(u.linkedClientId)}` : ''}
+                                        {u.status === 'blocked' ? ` · ${strings.blocked}` : ''}
+                                    </div>
+                                </div>
+                                {u.status === 'blocked' ? (
+                                    <Button variant="outline" size="sm" onClick={() => handleReactivate(u)}>{strings.reactivate}</Button>
+                                ) : (
+                                    <Button variant="outline" size="sm" onClick={() => handleBlock(u)}>{strings.block}</Button>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+
+            {/* Orders */}
+            <div className={cardClass}>
+                <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-neutral-500">{strings.ordersHeader}</h2>
                 {!data.isLoaded ? (
-                    <p className="py-6 text-center text-sm text-neutral-400">{tr.loading}</p>
+                    <p className="py-6 text-center text-sm text-neutral-400">{strings.loading}</p>
                 ) : data.orders.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-neutral-400">{tr.empty}</p>
+                    <p className="py-6 text-center text-sm text-neutral-400">{strings.empty}</p>
                 ) : (
                     <ul className="divide-y divide-border">
                         {data.orders.map((order: PoOrder) => (
@@ -168,7 +369,8 @@ export function OrdersAdminPage({ user: _user, setAlert: _setAlert }: OrdersAdmi
                                         <StatusBadge status={order.status} lang={lang} />
                                     </div>
                                     <div className="mt-0.5 truncate text-xs text-neutral-500">
-                                        {tr.qty}: {order.quantity} {order.currencyId} · {new Date(order.createdAt).toLocaleDateString(lang === 'ar' ? 'ar' : 'fr-FR')}
+                                        {order.clientId && clientName.get(order.clientId) ? `${clientName.get(order.clientId)} · ` : ''}
+                                        {strings.qty}: {order.quantity} {order.currencyId} · {new Date(order.createdAt).toLocaleDateString(lang === 'ar' ? 'ar' : 'fr-FR')}
                                     </div>
                                 </div>
                                 <div className="shrink-0 text-end text-sm font-bold text-neutral-900">
