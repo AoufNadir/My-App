@@ -48,6 +48,7 @@ export type PoOrderHandlers = {
     rejectOrder: (order: PoOrder) => Promise<void>;
     cancelOrder: (order: PoOrder) => Promise<void>;
     completeOrder: (order: PoOrder, ctx: CompleteOrderContext) => Promise<void>;
+    seedCatalog: () => Promise<void>;
 };
 
 /**
@@ -200,6 +201,37 @@ export function usePoOrderHandlers(actorUid: string): PoOrderHandlers {
             );
         };
 
+        // One-time default catalog: EUR/USDT currencies, sample EUR pricing
+        // tiers, BaridiMob + Cash payment methods, and one cash location.
+        const seedCatalog: PoOrderHandlers['seedCatalog'] = async () => {
+            const operatorUid = actorUid;
+            const batch = db.batch();
+
+            const eurRef = db.collection('po_currencies').doc();
+            batch.set(eurRef, { code: 'EUR', label: 'Euro', active: true, minOrder: 50, maxOrder: 5000, operatorUid });
+            const usdtRef = db.collection('po_currencies').doc();
+            batch.set(usdtRef, { code: 'USDT', label: 'USDT', active: true, minOrder: 50, maxOrder: 10000, operatorUid });
+
+            const eurTiers: Array<[number, number, number]> = [
+                [1, 100, 250],
+                [101, 500, 249],
+                [501, 1000, 248],
+            ];
+            eurTiers.forEach(([minQty, maxQty, unitPriceDzd]) => {
+                batch.set(db.collection('po_pricing_tiers').doc(), {
+                    currencyId: eurRef.id, minQty, maxQty, unitPriceDzd,
+                    requiresAdminApproval: false, active: true, operatorUid,
+                });
+            });
+
+            batch.set(db.collection('po_payment_methods').doc(), { type: 'baridimob', label: 'BaridiMob', active: true, operatorUid });
+            batch.set(db.collection('po_payment_methods').doc(), { type: 'cash', label: 'Cash / Espèces', active: true, operatorUid });
+
+            batch.set(db.collection('po_cash_locations').doc(), { label: 'Point principal', active: true, operatorUid });
+
+            await batch.commit();
+        };
+
         return {
             logAudit,
             approveUser,
@@ -209,6 +241,7 @@ export function usePoOrderHandlers(actorUid: string): PoOrderHandlers {
             rejectOrder,
             cancelOrder,
             completeOrder,
+            seedCatalog,
         };
     }, [actorUid]);
 }

@@ -81,6 +81,8 @@ type Strings = {
     confirm: string; deliver: string; reject: string;
     confirmOk: string; deliverOk: string; rejectOk: string;
     alreadyCompleted: string; clientRequired: string;
+    catalogHeader: string; seedCatalog: string; seedOk: string; seedHint: string;
+    currenciesLabel: string; tiersLabel: string; methodsLabel: string; locationsLabel: string;
 };
 
 function buildStrings(lang: 'fr' | 'ar'): Strings {
@@ -102,6 +104,9 @@ function buildStrings(lang: 'fr' | 'ar'): Strings {
             confirm: 'تأكيد الدفع', deliver: 'تسليم', reject: 'رفض',
             confirmOk: 'تم تأكيد الدفع.', deliverOk: 'تم تسليم الطلب وتسجيله.', rejectOk: 'تم رفض الطلب.',
             alreadyCompleted: 'تم تسجيل هذا الطلب مسبقًا.', clientRequired: 'يجب ربط الطلب بعميل قبل تسجيل دين.',
+            catalogHeader: 'الكتالوج', seedCatalog: 'إنشاء كتالوج افتراضي', seedOk: 'تم إنشاء الكتالوج الافتراضي.',
+            seedHint: 'لا توجد عملات بعد. أنشئ كتالوجًا افتراضيًا للبدء.',
+            currenciesLabel: 'العملات', tiersLabel: 'شرائح الأسعار', methodsLabel: 'طرق الدفع', locationsLabel: 'نقاط الكاش',
         }
         : {
             title: 'Commandes', subtitle: 'Gestion des commandes clients',
@@ -120,6 +125,9 @@ function buildStrings(lang: 'fr' | 'ar'): Strings {
             confirm: 'Confirmer paiement', deliver: 'Livrer', reject: 'Rejeter',
             confirmOk: 'Paiement confirmé.', deliverOk: 'Commande livrée et enregistrée.', rejectOk: 'Commande rejetée.',
             alreadyCompleted: 'Cette commande est déjà enregistrée.', clientRequired: 'Liez la commande à un client avant d’enregistrer une dette.',
+            catalogHeader: 'Catalogue', seedCatalog: 'Créer un catalogue par défaut', seedOk: 'Catalogue par défaut créé.',
+            seedHint: 'Aucune devise pour le moment. Créez un catalogue par défaut pour démarrer.',
+            currenciesLabel: 'Devises', tiersLabel: 'Paliers de prix', methodsLabel: 'Moyens de paiement', locationsLabel: 'Points cash',
         };
 }
 
@@ -391,6 +399,19 @@ export function OrdersAdminPage({ user, setAlert, clientsDzd, portfolioStats }: 
         }
     };
 
+    const [seeding, setSeeding] = useState(false);
+    const handleSeed = async () => {
+        setSeeding(true);
+        try {
+            await handlers.seedCatalog();
+            setAlert(`✅ ${strings.seedOk}`);
+        } catch {
+            setAlert(`❌ ${strings.error}`);
+        } finally {
+            setSeeding(false);
+        }
+    };
+
     const stat = (label: string, value: number, tone: Tone) => (
         <div className={cardClass}>
             <div className={`text-2xl font-extrabold ${tone === 'danger' ? 'text-danger' : tone === 'pending' ? 'text-warning' : tone === 'success' ? 'text-success' : 'text-neutral-900'}`}>
@@ -463,6 +484,24 @@ export function OrdersAdminPage({ user, setAlert, clientsDzd, portfolioStats }: 
                             </li>
                         ))}
                     </ul>
+                )}
+            </div>
+
+            {/* Catalog */}
+            <div className={cardClass}>
+                <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-neutral-500">{strings.catalogHeader}</h2>
+                {data.currencies.length === 0 ? (
+                    <div className="space-y-3">
+                        <p className="text-sm text-neutral-500">{strings.seedHint}</p>
+                        <Button variant="primary" size="sm" loading={seeding} onClick={handleSeed}>{strings.seedCatalog}</Button>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                        <div><span className="font-bold text-neutral-900">{data.currencies.length}</span> <span className="text-neutral-500">{strings.currenciesLabel}</span></div>
+                        <div><span className="font-bold text-neutral-900">{data.pricingTiers.length}</span> <span className="text-neutral-500">{strings.tiersLabel}</span></div>
+                        <div><span className="font-bold text-neutral-900">{data.paymentMethods.length}</span> <span className="text-neutral-500">{strings.methodsLabel}</span></div>
+                        <div><span className="font-bold text-neutral-900">{data.cashLocations.length}</span> <span className="text-neutral-500">{strings.locationsLabel}</span></div>
+                    </div>
                 )}
             </div>
 
