@@ -149,6 +149,14 @@ export class FirestoreDocumentReference {
     delete() {
         return deleteDoc(this.nativeRef);
     }
+    onSnapshot(callback: (snapshot: FirestoreDocumentSnapshot) => void, options?: {
+        includeMetadataChanges?: boolean;
+    }): Unsubscribe {
+        if (options) {
+            return onSnapshot(this.nativeRef, options, (snap) => callback(new FirestoreDocumentSnapshot(snap, this.compatDb)));
+        }
+        return onSnapshot(this.nativeRef, (snap) => callback(new FirestoreDocumentSnapshot(snap, this.compatDb)));
+    }
 }
 class FirestoreDocumentSnapshot {
     constructor(private readonly nativeSnapshot: Awaited<ReturnType<typeof getDoc>>, private readonly compatDb: FirestoreCompat) { }
