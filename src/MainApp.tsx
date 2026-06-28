@@ -60,6 +60,7 @@ const InvestorDetailsPage = React.lazy(() => import('./pages/InvestorDetailsPage
 const InvestorDashboardPage = React.lazy(() => import('./pages/InvestorDashboardPage').then((module) => ({ default: module.InvestorDashboardPage })));
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const InsightsPage = React.lazy(() => import('./pages/InsightsPage').then((module) => ({ default: module.InsightsPage })));
+const OrdersAdminPage = React.lazy(() => import('./pages/OrdersAdminPage').then((module) => ({ default: module.OrdersAdminPage })));
 const GlobalSearchDialog = React.lazy(() => import('./components/main/MainDialogs').then((module) => ({ default: module.GlobalSearchDialog })));
 const loadPdfReports = () => import('./utils/pdfReports');
 const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
@@ -1932,6 +1933,7 @@ export default function MainApp({ user }: {
         selectedClient,
         selectedClientTransactions,
         transactions,
+        profitByTxId: pamLedger.profitByTxId,
         handleExportClientReport,
         openClientTxModal,
         copiedValue,
@@ -1946,7 +1948,7 @@ export default function MainApp({ user }: {
         onImportClients: handleImportClients,
     }), [
         selectedClientId, clientSearchQuery, clientSortMode,
-        filteredClientsDzd, clientBalances, selectedClient, selectedClientTransactions, transactions, copiedValue,
+        filteredClientsDzd, clientBalances, selectedClient, selectedClientTransactions, transactions, pamLedger.profitByTxId, copiedValue,
         openClientModal, handleTouchStart, handleTouchEnd, handleClientDeleteRequest, handleExportClientReport, openClientTxModal,
         handleCopy, handleEditLinkedClientTx, handleDeleteLinkedClientTxClick, overdueDebtClients, clientLoyaltyMap,
         earlyClientPrevMonthVolumeMap, earlyClientLastSellDateMap, handleZeroOutBalance
@@ -1995,6 +1997,7 @@ export default function MainApp({ user }: {
         treasury: t('nav.treasury') as string,
         services: t('nav.services') as string || 'Services',
         investors: t('nav.investors') as string || 'Investisseurs',
+        orders: t('nav.orders') as string || 'Commandes',
         insights: 'Insights',
         more: t('nav.more') as string || 'Menu',
         settings: t('common.settings') as string || 'Parametres',
@@ -2039,7 +2042,20 @@ export default function MainApp({ user }: {
         onOpenTreasury: () => setView('tresorerie'),
         onOpenAnalytics: () => setView('analytics'),
         onOpenPersonalWithdrawal: openPersonalWithdrawalModal,
-        recentTransactions: transactions.slice(0, 5),
+        transactions,
+        clientTransactionsDzd,
+        clientsDzd,
+        treasuryTransactions,
+        getRelativeDateLabel,
+        getClientFullName,
+        openForm,
+        openAdjustmentModal,
+        setTxToDelete,
+        handleEditPortfolioTx,
+        handleEditClientTx: handleEditLinkedClientTx,
+        handleEditTreasuryTx,
+        handleDeleteClientTxClick: handleDeleteLinkedClientTxClick,
+        setTreasuryTxToDelete,
         onOpenTransactions: () => setView('transactions'),
         onQuickSell: portfolioStats.usdt.available > 0 ? openQuickSell : undefined,
         quickSellPreview: portfolioStats.usdt.available > 0 ? {
@@ -2322,7 +2338,13 @@ export default function MainApp({ user }: {
                     />
                 )}
 
-                <MainContentArea {...mainContentProps}/>
+                {view === 'orders' ? (
+                    <Suspense fallback={<PageLoadingFallback text={t('common.loading')} />}>
+                        <OrdersAdminPage user={user} setAlert={setAlert} />
+                    </Suspense>
+                ) : (
+                    <MainContentArea {...mainContentProps}/>
+                )}
 
                 <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onFabPress={onFabPress} overdueCount={overdueDebtClients.length}/>
 

@@ -1,8 +1,29 @@
 import { startTransition, useEffect, useState } from 'react';
+const VIEW_ALIASES: Record<string, string> = {
+    clients: 'dzd',
+    client: 'dzd',
+    reports: 'analytics',
+    portfolio: 'statistiques',
+    operations: 'transactions',
+};
+const VALID_VIEWS = new Set([
+    'dashboard',
+    'transactions',
+    'dzd',
+    'statistiques',
+    'analytics',
+    'insights',
+    'expenses',
+    'tresorerie',
+    'services',
+    'investors',
+    'orders',
+]);
 function normalizeView(value: string | null | undefined, fallback = 'dashboard') {
     if (!value)
         return fallback;
-    return value === 'reports' ? 'analytics' : value;
+    const normalized = VIEW_ALIASES[value] || value;
+    return VALID_VIEWS.has(normalized) ? normalized : fallback;
 }
 function getStoredValue(key: string, fallback: string) {
     if (typeof window === 'undefined')
