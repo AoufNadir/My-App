@@ -2,15 +2,19 @@ import React, { useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { useLanguage } from '../contexts/LanguageContext';
 import { usePoAdminData } from '../hooks/usePoAdminData';
-import { usePoOrderHandlers, type ApproveUserOptions } from '../hooks/usePoOrderHandlers';
+import { usePoOrderHandlers, type ApproveUserOptions, type CompleteOrderContext } from '../hooks/usePoOrderHandlers';
 import { Button } from '../components/ui/Button';
-import type { ClientDzd, PoCashLocation, PoOrder, PoOrderStatus, PoRole, PoUser } from '../types';
+import type { ClientDzd, PoCashLocation, PoOrder, PoOrderStatus, PoRole, PoUser, PortfolioStats } from '../types';
 
 type OrdersAdminPageProps = {
     user: User;
     setAlert: (message: string) => void;
     clientsDzd: ClientDzd[];
+    portfolioStats: PortfolioStats;
 };
+
+const FINAL_STATUSES: PoOrderStatus[] = ['DELIVERED', 'CANCELLED', 'REJECTED', 'DEBT_ACTIVE', 'DEBT_PAID'];
+const CONFIRMABLE_STATUSES: PoOrderStatus[] = ['NEW', 'WAITING_PAYMENT', 'PAYMENT_PROOF_SUBMITTED', 'WAITING_ADMIN_CONFIRMATION'];
 
 type Tone = 'neutral' | 'pending' | 'info' | 'success' | 'danger';
 
@@ -74,6 +78,9 @@ type Strings = {
     linkClient: string; none: string; cashLocation: string; enableDebt: string; debtLimit: string;
     approve: string; block: string; reactivate: string; blocked: string; pendingTag: string;
     approveOk: string; blockOk: string; reactivateOk: string; error: string;
+    confirm: string; deliver: string; reject: string;
+    confirmOk: string; deliverOk: string; rejectOk: string;
+    alreadyCompleted: string; clientRequired: string;
 };
 
 function buildStrings(lang: 'fr' | 'ar'): Strings {
@@ -92,6 +99,9 @@ function buildStrings(lang: 'fr' | 'ar'): Strings {
             approve: 'موافقة', block: 'حظر', reactivate: 'إعادة التفعيل', blocked: 'محظور', pendingTag: 'قيد الانتظار',
             approveOk: 'تمت الموافقة على الحساب.', blockOk: 'تم حظر الحساب.', reactivateOk: 'تمت إعادة تفعيل الحساب.',
             error: 'حدث خطأ. حاول مرة أخرى.',
+            confirm: 'تأكيد الدفع', deliver: 'تسليم', reject: 'رفض',
+            confirmOk: 'تم تأكيد الدفع.', deliverOk: 'تم تسليم الطلب وتسجيله.', rejectOk: 'تم رفض الطلب.',
+            alreadyCompleted: 'تم تسجيل هذا الطلب مسبقًا.', clientRequired: 'يجب ربط الطلب بعميل قبل تسجيل دين.',
         }
         : {
             title: 'Commandes', subtitle: 'Gestion des commandes clients',
@@ -107,6 +117,9 @@ function buildStrings(lang: 'fr' | 'ar'): Strings {
             approve: 'Approuver', block: 'Bloquer', reactivate: 'Réactiver', blocked: 'Bloqué', pendingTag: 'En attente',
             approveOk: 'Compte approuvé.', blockOk: 'Compte bloqué.', reactivateOk: 'Compte réactivé.',
             error: 'Une erreur est survenue. Réessayez.',
+            confirm: 'Confirmer paiement', deliver: 'Livrer', reject: 'Rejeter',
+            confirmOk: 'Paiement confirmé.', deliverOk: 'Commande livrée et enregistrée.', rejectOk: 'Commande rejetée.',
+            alreadyCompleted: 'Cette commande est déjà enregistrée.', clientRequired: 'Liez la commande à un client avant d’enregistrer une dette.',
         };
 }
 
@@ -209,10 +222,63 @@ const PendingUserRow: React.FC<PendingUserRowProps> = ({
     );
 };
 
+type OrderRowProps = {
+    order: PoOrder;
+    clientLabel: string;
+    strings: Strings;
+    lang: 'fr' | 'ar';
+    onConfirm: (order: PoOrder) => Promise<void>;
+    onReject: (order: PoOrder) => Promise<void>;
+    onDeliver: (order: PoOrder) => Promise<void>;
+};
+
+const OrderRow: React.FC<OrderRowProps> = ({ order, clientLabel, strings, lang, onConfirm, onReject, onDeliver }) => {
+    const [busy, setBusy] = useState(false);
+    const run = async (fn: (o: PoOrder) => Promise<void>) => {
+        setBusy(true);
+        try {
+            await fn(order);
+        } finally {
+            setBusy(false);
+        }
+    };
+    const isFinal = FINAL_STATUSES.includes(order.status);
+    const canConfirm = CONFIRMABLE_STATUSES.includes(order.status);
+    const canDeliver = order.status === 'PAYMENT_CONFIRMED' || order.status === 'WAITING_DELIVERY';
+    return (
+        <li className="space-y-2 py-3">
+            <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                        <span className="font-bold text-neutral-900">{order.orderCode}</span>
+                        <StatusBadge status={order.status} lang={lang} />
+                    </div>
+                    <div className="mt-0.5 truncate text-xs text-neutral-500">
+                        {clientLabel ? `${clientLabel} · ` : ''}
+                        {strings.qty}: {order.quantity} {order.currencyId} · {new Date(order.createdAt).toLocaleDateString(lang === 'ar' ? 'ar' : 'fr-FR')}
+                    </div>
+                </div>
+                <div className="shrink-0 text-end text-sm font-bold text-neutral-900">{formatDzd(order.totalDzd)}</div>
+            </div>
+            {!isFinal && (
+                <div className="flex flex-wrap gap-2">
+                    {canConfirm && (
+                        <Button variant="primary" size="sm" loading={busy} onClick={() => run(onConfirm)}>{strings.confirm}</Button>
+                    )}
+                    {canDeliver && (
+                        <Button variant="success" size="sm" loading={busy} onClick={() => run(onDeliver)}>{strings.deliver}</Button>
+                    )}
+                    <Button variant="outline" size="sm" disabled={busy} onClick={() => run(onReject)}>{strings.reject}</Button>
+                </div>
+            )}
+        </li>
+    );
+};
+
 // Admin order-management surface (operator-only — MainApp is gated to the
-// operator). Lists incoming orders, approves/links/blocks accounts, and writes
-// audit entries. Order completion → ledger lands in a later commit.
-export function OrdersAdminPage({ user, setAlert, clientsDzd }: OrdersAdminPageProps) {
+// operator). Lists incoming orders, approves/links/blocks accounts, completes
+// orders into the existing ledger, and writes audit entries.
+export function OrdersAdminPage({ user, setAlert, clientsDzd, portfolioStats }: OrdersAdminPageProps) {
     const { lang } = useLanguage();
     const data = usePoAdminData(true);
     const handlers = usePoOrderHandlers(user.uid);
@@ -274,6 +340,54 @@ export function OrdersAdminPage({ user, setAlert, clientsDzd }: OrdersAdminPageP
             setAlert(`✅ ${strings.reactivateOk}`);
         } catch {
             setAlert(`❌ ${strings.error}`);
+        }
+    };
+
+    const currencyById = useMemo(() => {
+        const m = new Map<string, 'USDT' | 'EUR'>();
+        data.currencies.forEach((c) => m.set(c.id, c.code));
+        return m;
+    }, [data.currencies]);
+
+    const resolveCtx = (order: PoOrder): CompleteOrderContext => {
+        const code = currencyById.get(order.currencyId) || 'USDT';
+        const avgBuy = code === 'EUR' ? portfolioStats.eur.avgBuy : portfolioStats.usdt.avgBuy;
+        let clientPaymentStatus: 'credit' | 'baridi' | 'cash';
+        if (order.paymentType === 'debt') {
+            clientPaymentStatus = 'credit';
+        } else if (order.cashLocationId) {
+            clientPaymentStatus = 'cash';
+        } else {
+            const method = data.paymentMethods.find((pm) => pm.id === order.paymentMethodId);
+            clientPaymentStatus = method?.type === 'cash' ? 'cash' : 'baridi';
+        }
+        return { currencyCode: code, avgBuy, clientPaymentStatus };
+    };
+
+    const handleConfirm = async (order: PoOrder) => {
+        try {
+            await handlers.confirmPayment(order);
+            setAlert(`✅ ${strings.confirmOk}`);
+        } catch {
+            setAlert(`❌ ${strings.error}`);
+        }
+    };
+    const handleReject = async (order: PoOrder) => {
+        try {
+            await handlers.rejectOrder(order);
+            setAlert(`✅ ${strings.rejectOk}`);
+        } catch {
+            setAlert(`❌ ${strings.error}`);
+        }
+    };
+    const handleDeliver = async (order: PoOrder) => {
+        try {
+            await handlers.completeOrder(order, resolveCtx(order));
+            setAlert(`✅ ${strings.deliverOk}`);
+        } catch (e: any) {
+            if (e?.message === 'ALREADY_COMPLETED') setAlert(`⚠️ ${strings.alreadyCompleted}`);
+            else if (e?.message === 'CLIENT_REQUIRED') setAlert(`⚠️ ${strings.clientRequired}`);
+            else setAlert(`❌ ${strings.error}`);
         }
     };
 
@@ -362,21 +476,16 @@ export function OrdersAdminPage({ user, setAlert, clientsDzd }: OrdersAdminPageP
                 ) : (
                     <ul className="divide-y divide-border">
                         {data.orders.map((order: PoOrder) => (
-                            <li key={order.id} className="flex items-center justify-between gap-3 py-3">
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-bold text-neutral-900">{order.orderCode}</span>
-                                        <StatusBadge status={order.status} lang={lang} />
-                                    </div>
-                                    <div className="mt-0.5 truncate text-xs text-neutral-500">
-                                        {order.clientId && clientName.get(order.clientId) ? `${clientName.get(order.clientId)} · ` : ''}
-                                        {strings.qty}: {order.quantity} {order.currencyId} · {new Date(order.createdAt).toLocaleDateString(lang === 'ar' ? 'ar' : 'fr-FR')}
-                                    </div>
-                                </div>
-                                <div className="shrink-0 text-end text-sm font-bold text-neutral-900">
-                                    {formatDzd(order.totalDzd)}
-                                </div>
-                            </li>
+                            <OrderRow
+                                key={order.id}
+                                order={order}
+                                clientLabel={order.clientId ? (clientName.get(order.clientId) || '') : ''}
+                                strings={strings}
+                                lang={lang}
+                                onConfirm={handleConfirm}
+                                onReject={handleReject}
+                                onDeliver={handleDeliver}
+                            />
                         ))}
                     </ul>
                 )}

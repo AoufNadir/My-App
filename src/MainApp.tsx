@@ -2340,7 +2340,7 @@ export default function MainApp({ user }: {
 
                 {view === 'orders' ? (
                     <Suspense fallback={<PageLoadingFallback text={t('common.loading')} />}>
-                        <OrdersAdminPage user={user} setAlert={setAlert} clientsDzd={clientsDzd} />
+                        <OrdersAdminPage user={user} setAlert={setAlert} clientsDzd={clientsDzd} portfolioStats={portfolioStats} />
                     </Suspense>
                 ) : (
                     <MainContentArea {...mainContentProps}/>
