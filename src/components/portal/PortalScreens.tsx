@@ -9,7 +9,7 @@ type Tone = 'pending' | 'blocked' | 'info';
 // Phase-1 placeholder surfaces for non-operator roles. Text is inline bilingual
 // (FR/AR) so each screen is self-contained; admin order management lives inside
 // MainApp for the operator. Full client/agent portals arrive in later phases.
-function PortalShell({ title, message, tone }: { title: string; message: string; tone: Tone }) {
+function PortalShell({ title, message, tone, uid }: { title: string; message: string; tone: Tone; uid?: string }) {
     const { lang } = useLanguage();
     const toneClass = tone === 'blocked'
         ? 'text-danger'
@@ -28,6 +28,16 @@ function PortalShell({ title, message, tone }: { title: string; message: string;
                     <h1 className={`text-xl font-bold ${toneClass}`}>{title}</h1>
                     <p className="text-sm leading-relaxed text-neutral-600">{message}</p>
                 </div>
+                {uid && (
+                    <div className="space-y-1">
+                        <p className="text-[11px] font-medium text-neutral-400">
+                            {lang === 'ar' ? 'معرّف هذا الحساب (UID):' : 'Identifiant de ce compte (UID) :'}
+                        </p>
+                        <code className="block select-all overflow-x-auto rounded-lg border border-border bg-surface px-3 py-2 text-[11px] text-neutral-600">
+                            {uid}
+                        </code>
+                    </div>
+                )}
                 <Button variant="outline" onClick={() => signOut(auth)} className="h-12 w-full rounded-lg text-sm">
                     {lang === 'ar' ? 'تسجيل الخروج' : 'Se déconnecter'}
                 </Button>
@@ -36,10 +46,11 @@ function PortalShell({ title, message, tone }: { title: string; message: string;
     );
 }
 
-export function AwaitingApprovalScreen() {
+export function AwaitingApprovalScreen({ uid }: { uid?: string }) {
     const { lang } = useLanguage();
     return (
         <PortalShell
+            uid={uid}
             tone="pending"
             title={lang === 'ar' ? 'في انتظار الموافقة' : "En attente d'approbation"}
             message={lang === 'ar'
@@ -49,10 +60,11 @@ export function AwaitingApprovalScreen() {
     );
 }
 
-export function BlockedScreen() {
+export function BlockedScreen({ uid }: { uid?: string }) {
     const { lang } = useLanguage();
     return (
         <PortalShell
+            uid={uid}
             tone="blocked"
             title={lang === 'ar' ? 'تم حظر الحساب' : 'Compte bloqué'}
             message={lang === 'ar'
@@ -62,10 +74,11 @@ export function BlockedScreen() {
     );
 }
 
-export function ClientPortalPlaceholder() {
+export function ClientPortalPlaceholder({ uid }: { uid?: string }) {
     const { lang } = useLanguage();
     return (
         <PortalShell
+            uid={uid}
             tone="info"
             title={lang === 'ar' ? 'بوابة العميل قريبًا' : 'Espace client bientôt disponible'}
             message={lang === 'ar'
@@ -75,10 +88,11 @@ export function ClientPortalPlaceholder() {
     );
 }
 
-export function AgentDashboardPlaceholder() {
+export function AgentDashboardPlaceholder({ uid }: { uid?: string }) {
     const { lang } = useLanguage();
     return (
         <PortalShell
+            uid={uid}
             tone="info"
             title={lang === 'ar' ? 'لوحة الوكيل قريبًا' : 'Espace agent bientôt disponible'}
             message={lang === 'ar'

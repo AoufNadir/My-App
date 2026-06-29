@@ -56,16 +56,16 @@ export default function AppContent() {
     }
     // Non-operator users routed by their order-system role/status.
     if (!profile || profile.status === 'pending') {
-        return <AwaitingApprovalScreen />;
+        return <AwaitingApprovalScreen uid={user.uid} />;
     }
     if (profile.status === 'blocked') {
-        return <BlockedScreen />;
+        return <BlockedScreen uid={user.uid} />;
     }
     if (profile.role === 'admin') {
         return operatorView;
     }
     if (profile.role === 'agent') {
-        return <AgentDashboardPlaceholder />;
+        return <AgentDashboardPlaceholder uid={user.uid} />;
     }
-    return <ClientPortalPlaceholder />;
+    return <ClientPortalPlaceholder uid={user.uid} />;
 }
