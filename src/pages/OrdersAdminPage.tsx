@@ -83,6 +83,7 @@ type Strings = {
     alreadyCompleted: string; clientRequired: string;
     catalogHeader: string; seedCatalog: string; seedOk: string; seedHint: string;
     currenciesLabel: string; tiersLabel: string; methodsLabel: string; locationsLabel: string;
+    yourUidLabel: string; copy: string; copied: string;
 };
 
 function buildStrings(lang: 'fr' | 'ar'): Strings {
@@ -107,6 +108,7 @@ function buildStrings(lang: 'fr' | 'ar'): Strings {
             catalogHeader: 'الكتالوج', seedCatalog: 'إنشاء كتالوج افتراضي', seedOk: 'تم إنشاء الكتالوج الافتراضي.',
             seedHint: 'لا توجد عملات بعد. أنشئ كتالوجًا افتراضيًا للبدء.',
             currenciesLabel: 'العملات', tiersLabel: 'شرائح الأسعار', methodsLabel: 'طرق الدفع', locationsLabel: 'نقاط الكاش',
+            yourUidLabel: 'معرّف حسابك (UID) — انسخه وضعه في الملفين أعلاه:', copy: 'نسخ', copied: 'تم نسخ المعرّف.',
         }
         : {
             title: 'Commandes', subtitle: 'Gestion des commandes clients',
@@ -128,6 +130,7 @@ function buildStrings(lang: 'fr' | 'ar'): Strings {
             catalogHeader: 'Catalogue', seedCatalog: 'Créer un catalogue par défaut', seedOk: 'Catalogue par défaut créé.',
             seedHint: 'Aucune devise pour le moment. Créez un catalogue par défaut pour démarrer.',
             currenciesLabel: 'Devises', tiersLabel: 'Paliers de prix', methodsLabel: 'Moyens de paiement', locationsLabel: 'Points cash',
+            yourUidLabel: 'Votre identifiant opérateur (UID) — copiez-le dans les deux fichiers ci-dessus :', copy: 'Copier', copied: 'Identifiant copié.',
         };
 }
 
@@ -321,6 +324,20 @@ export function OrdersAdminPage({ user, setAlert, clientsDzd, portfolioStats }: 
                 <div className="rounded-xl border border-warning/30 bg-warning-bg p-4 text-warning">
                     <h2 className="mb-1 text-base font-bold">{strings.notConfiguredTitle}</h2>
                     <p className="text-sm leading-relaxed">{strings.notConfigured}</p>
+                    <p className="mt-3 text-xs font-medium">{strings.yourUidLabel}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                        <code className="block flex-1 select-all overflow-x-auto rounded-lg border border-border bg-surface px-3 py-2 text-xs text-neutral-700">{user.uid}</code>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                                navigator.clipboard?.writeText(user.uid);
+                                setAlert(`✅ ${strings.copied}`);
+                            }}
+                        >
+                            {strings.copy}
+                        </Button>
+                    </div>
                 </div>
             </div>
         );
