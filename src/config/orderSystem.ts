@@ -10,7 +10,7 @@
 //
 // Typed as `string` (not the literal) so the configured/placeholder comparison
 // below type-checks.
-export const OPERATOR_UID: string = 'OPERATOR_UID';
+export const OPERATOR_UID: string = 'JIz5y9XWhuc1hsoL3uOFjQ338cb2';
 
 /** True once a real operator uid has been configured. */
 export const ORDER_SYSTEM_CONFIGURED = OPERATOR_UID !== 'OPERATOR_UID';

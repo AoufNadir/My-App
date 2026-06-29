@@ -16,7 +16,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function operatorUid() {
-      return 'OPERATOR_UID';
+      return 'JIz5y9XWhuc1hsoL3uOFjQ338cb2';
     }
 
     function signedIn() {
