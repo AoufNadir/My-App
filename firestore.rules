@@ -50,8 +50,14 @@ service cloud.firestore {
     }
 
     // ── Operator's existing single-tenant data: strictly owner-only. ──
-    match /users/{ownerUid}/{document=**} {
+    // Covers the users/{uid} document itself (settings, fcmToken,
+    // managerFeePercentage…) AND every nested subcollection. The bare
+    // /{document=**} wildcard alone does NOT match the parent document.
+    match /users/{ownerUid} {
       allow read, write: if signedIn() && request.auth.uid == ownerUid;
+      match /{document=**} {
+        allow read, write: if signedIn() && request.auth.uid == ownerUid;
+      }
     }
 
     // ── Role / profile docs. ──
