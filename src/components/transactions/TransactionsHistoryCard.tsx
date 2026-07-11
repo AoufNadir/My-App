@@ -14,9 +14,7 @@ import { CreditCardIcon } from '../icons/CreditCardIcon';
 import { FilterIcon } from '../icons/FilterIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { UsersIcon } from '../icons/UsersIcon';
-import { SwipeableListItem } from '../ui/SwipeableListItem';
-import { Tx } from '../../types';
-import { normalizeLedgerLabel } from '../../utils/financialUx';
+import { TransactionDisplayList } from './TransactionDisplayList';
 import {
   DisplayTx,
   SavedTransactionFilter,
@@ -210,7 +208,7 @@ export function TransactionsHistoryCard({
       hiddenTransactionCount: hidden,
       totalTransactionCount: total,
     };
-  }, [dateGroups, visibleTransactionCount]);
+  }, [filteredDateGroups, visibleTransactionCount]);
 
   return (
     <Card>
@@ -380,94 +378,15 @@ export function TransactionsHistoryCard({
       <CardContent className="p-0">
         <div className="pb-2">
           {visibleDateGroups.length > 0 ? (
-            visibleDateGroups.map(([date, txsOnDate]: [string, DisplayTx[]]) => (
-              <div key={date}>
-                <div className="sticky top-0 z-10 px-4 py-2 text-xs font-semibold uppercase bg-surface/95 text-neutral-500 backdrop-blur-sm">
-                  {getRelativeDateLabel(date)}
-                </div>
-                <div className="divide-y divide-neutral-100">
-                  {txsOnDate.map((tx) => {
-                    const cryptoTx = tx.rawTx as Tx;
-                    const isUsdtSaleSettledInEur =
-                      cryptoTx.type === 'sell'
-                      && cryptoTx.currency === 'USDT'
-                      && cryptoTx.settlementCurrency === 'EUR';
-                    const unitPrice = Number(
-                      isUsdtSaleSettledInEur
-                        ? cryptoTx.sellPriceEur
-                        : (cryptoTx.price || cryptoTx.sell || 0)
-                    );
-                    const unitPriceLabel = isUsdtSaleSettledInEur
-                      ? `${unitPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} EUR/USDT`
-                      : formatDzdAmount(unitPrice);
-
-                    return (
-                      <SwipeableListItem
-                        key={tx.id}
-                        onEdit={() => onEditDisplayTx(tx)}
-                        onDelete={() => onDeleteDisplayTx(tx)}
-                        disableSwipe={false}
-                      >
-                        <div
-                          className="flex items-center gap-3 py-3 px-4 bg-surface"
-                          // Technical exception: content-visibility keeps long transaction lists responsive.
-                          style={{ contentVisibility: 'auto', containIntrinsicSize: '76px' }}
-                        >
-                          {tx.icon}
-
-                          <div className="flex-grow min-w-0">
-                            <p className="text-base font-semibold truncate">
-                              {normalizeLedgerLabel(tx.typeLabel)}
-                            </p>
-                            <p className="text-xs truncate text-neutral-500">
-                              {normalizeLedgerLabel(tx.details)}
-                            </p>
-                            {(tx.rawTx as any).notes && !(tx.details || '').includes((tx.rawTx as any).notes) && (
-                              <p className="text-xs truncate text-neutral-400 italic">
-                                {(tx.rawTx as any).notes}
-                              </p>
-                            )}
-                            {Array.isArray((tx.rawTx as any).tags) && (tx.rawTx as any).tags.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-0.5">
-                                {((tx.rawTx as any).tags as string[]).map((tag: string) => (
-                                  <span key={tag} className="inline-block rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary leading-none">
-                                    {tag}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            <p className="text-xs text-neutral-500">{tx.time}</p>
-                          </div>
-
-                          <div className="text-end shrink-0">
-                            <p dir="ltr" className={`text-base font-semibold tabular-nums ${tx.amountColor}`}>
-                              {tx.amountLabel}
-                            </p>
-                            {tx.sourceType === 'usdt_tx' && cryptoTx.purchaseFundingCurrency === 'EUR' && Number(cryptoTx.purchaseAmountEur) > 0 && (
-                              <p dir="ltr" className="text-xs text-neutral-500">
-                                ← {Number(cryptoTx.purchaseAmountEur).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR
-                              </p>
-                            )}
-                            {tx.sourceType === 'usdt_tx' && unitPrice > 0 && (
-                              <p dir="ltr" className="text-xs text-neutral-500">@ {unitPriceLabel}</p>
-                            )}
-                            {tx.sourceType === 'usdt_tx' && cryptoTx.type === 'sell' && profitByTxId?.[cryptoTx.id] && (() => {
-                              const profit = profitByTxId[cryptoTx.id].derivedProfit;
-                              if (Math.abs(profit) < 0.5) return null;
-                              return (
-                                <p dir="ltr" className={`text-[10px] font-bold tabular-nums ${profit >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
-                                  {profit >= 0 ? '+' : ''}{Math.round(profit).toLocaleString('fr-FR')} DZD
-                                </p>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      </SwipeableListItem>
-                    );
-                  })}
-                </div>
-              </div>
-            ))
+            <TransactionDisplayList
+              dateGroups={visibleDateGroups}
+              getRelativeDateLabel={getRelativeDateLabel}
+              onEditDisplayTx={onEditDisplayTx}
+              onDeleteDisplayTx={onDeleteDisplayTx}
+              onOpenDisplayTx={onEditDisplayTx}
+              formatDzdAmount={formatDzdAmount}
+              profitByTxId={profitByTxId}
+            />
           ) : (
             <EmptyState
               title={searchQuery.trim() ? t('emptyStates.results.title') : t('transactions.noTransactions')}

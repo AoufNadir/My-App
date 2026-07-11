@@ -18,7 +18,11 @@ export interface DisplayTx {
     details: string;
     category: 'crypto' | 'client' | 'treasury';
     rawTx: DisplayRawTx;
+    actionRawTx?: DisplayRawTx;
     sourceType: TransactionSourceType;
+    rightMiddleLabel?: string;
+    rightBottomLabel?: string;
+    rightBottomClassName?: string;
 }
 export interface SavedTransactionFilter {
     id: string;

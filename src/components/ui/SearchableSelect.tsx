@@ -2,6 +2,7 @@ import { memo, type KeyboardEvent, useEffect, useId, useMemo, useRef, useState }
 import { Input } from './Input';
 import { SearchIcon } from '../icons/SearchIcon';
 import { XIcon } from '../icons/XIcon';
+import { useLanguage } from '../../contexts/LanguageContext';
 export type SearchableSelectOption = {
     value: string;
     label: string;
@@ -28,7 +29,11 @@ const normalizeText = (value: string) => value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
-function SearchableSelectComponent({ value, onChange, options, fieldClassName, searchInputClassName, selectClassName, searchPlaceholder = 'Rechercher...', emptyOptionLabel, emptyValue = '', noResultsLabel = 'Aucun résultat', id, disabled = false, clearable = false, clearLabel = 'Effacer', minSearchLength = 1 }: SearchableSelectProps) {
+function SearchableSelectComponent({ value, onChange, options, fieldClassName, searchInputClassName, selectClassName, searchPlaceholder, emptyOptionLabel, emptyValue = '', noResultsLabel, id, disabled = false, clearable = false, clearLabel, minSearchLength = 1 }: SearchableSelectProps) {
+    const { t } = useLanguage();
+    const resolvedSearchPlaceholder = searchPlaceholder ?? t('common.search');
+    const resolvedNoResultsLabel = noResultsLabel ?? t('common.noResults');
+    const resolvedClearLabel = clearLabel ?? t('transactions.clear');
     const wrapperRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const generatedId = useId();
@@ -151,11 +156,11 @@ function SearchableSelectComponent({ value, onChange, options, fieldClassName, s
             if (selectedOption && query === selectedOption.label) {
                 requestAnimationFrame(() => inputRef.current?.select());
             }
-        }} placeholder={searchPlaceholder} className={`${inputClassName} ps-10 ${clearButtonVisible ? 'pe-11' : 'pe-4'}`} role="combobox" aria-expanded={shouldShowDropdown} aria-controls={listboxId} aria-autocomplete="list" aria-haspopup="listbox" aria-activedescendant={shouldShowDropdown && filteredOptions[highlightedIndex]
+        }} placeholder={resolvedSearchPlaceholder} className={`${inputClassName} ps-10 ${clearButtonVisible ? 'pe-11' : 'pe-4'}`} role="combobox" aria-expanded={shouldShowDropdown} aria-controls={listboxId} aria-autocomplete="list" aria-haspopup="listbox" aria-activedescendant={shouldShowDropdown && filteredOptions[highlightedIndex]
             ? `${listboxId}-option-${highlightedIndex}`
             : undefined} autoComplete="off" disabled={disabled}/>
 
-        {clearButtonVisible && (<button type="button" onMouseDown={(event) => event.preventDefault()} onClick={handleClear} className="absolute end-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-100" aria-label={clearLabel} title={clearLabel}>
+        {clearButtonVisible && (<button type="button" onMouseDown={(event) => event.preventDefault()} onClick={handleClear} className="absolute end-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-100" aria-label={resolvedClearLabel} title={resolvedClearLabel}>
             <XIcon className="h-4 w-4"/>
           </button>)}
 
@@ -165,7 +170,7 @@ function SearchableSelectComponent({ value, onChange, options, fieldClassName, s
                 return (<button key={option.value} id={`${listboxId}-option-${index}`} type="button" role="option" aria-selected={option.value === value} onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => setHighlightedIndex(index)} onClick={() => handleSelect(option.value)} className={`w-full px-3 py-2 text-start text-sm transition-colors ${isActive ? optionActiveClassName : optionBaseClassName}`}>
                     {option.label}
                   </button>);
-            })) : (<div className={`px-3 py-2 text-sm ${helperClassName}`}>{noResultsLabel}</div>)}
+            })) : (<div className={`px-3 py-2 text-sm ${helperClassName}`}>{resolvedNoResultsLabel}</div>)}
           </div>)}
       </div>
     </div>);

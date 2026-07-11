@@ -5,6 +5,8 @@ import { MoneyField } from '../ui/MoneyField';
 import { Textarea } from '../ui/Textarea';
 import { SectionHeading } from '../ui/SectionHeading';
 import { ClientLinker } from './ClientLinker';
+import { SmartPricePanel } from './SmartPricePanel';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { WalletIcon } from '../icons/WalletIcon';
@@ -59,7 +61,7 @@ function TagInput({ tags, setTags }: { tags: string[]; setTags: (t: string[]) =>
 type MainTransactionDialogProps = Record<string, any>;
 type LastEditedSellField = 'eurReceived' | 'quantity' | 'total' | 'price';
 type SellCalculationBasis = Exclude<LastEditedSellField, 'price'>;
-export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, suggestedSellingPrice, suggestedUsdtEurSellPrice, suggestedSellingPriceEur, suggestedProfitMargin, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime }: MainTransactionDialogProps) {
+export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, smartPricingByCurrency, smartQuoteRef }: MainTransactionDialogProps) {
     const [sellUsdtSourceSelected, setSellUsdtSourceSelected] = React.useState(false);
     const [lastEditedSellField, setLastEditedSellField] = React.useState<LastEditedSellField>('quantity');
     const sellCalculationBasisRef = React.useRef<SellCalculationBasis>('quantity');
@@ -87,20 +89,6 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
     const pamEurToDzdRate = Number(portfolioStats.eur.avgBuy || 0);
     const pamEurToDzdRateInput = pamEurToDzdRate > 0 ? pamEurToDzdRate.toFixed(2) : '';
     const effectiveSellEurToDzdRateValue = isUsdtSellSettledInEur ? pamEurToDzdRate : sellEurToDzdRateValue;
-    const activeSuggestedSellingPrice = activeCurrency === 'EUR' ? suggestedSellingPriceEur : suggestedSellingPrice;
-    const baseSuggestedPriceDzd = activeSuggestedSellingPrice && parseFloat(activeSuggestedSellingPrice) > 0
-        ? parseFloat(activeSuggestedSellingPrice)
-        : (activeStats.avgBuy + parseAndEvaluate(suggestedProfitMargin));
-    const configuredUsdtEurPrice = parseFloat(suggestedUsdtEurSellPrice || '0');
-    const hasUsdtEurSuggested = isUsdtSellSettledInEur && configuredUsdtEurPrice > 0;
-    const sellSuggestedPrice = hasUsdtEurSuggested && effectiveSellEurToDzdRateValue > 0
-        ? configuredUsdtEurPrice * effectiveSellEurToDzdRateValue
-        : baseSuggestedPriceDzd;
-    const displayedSellSuggestedPrice = hasUsdtEurSuggested
-        ? configuredUsdtEurPrice
-        : isUsdtSellSettledInEur && effectiveSellEurToDzdRateValue > 0
-            ? sellSuggestedPrice / effectiveSellEurToDzdRateValue
-            : sellSuggestedPrice;
     const sellPriceUnitLabel = isUsdtSellSettledInEur ? 'EUR/USDT' : t('common.dinar');
     const sellTotalCurrencyLabel = isUsdtSellSettledInEur ? 'EUR' : t('common.dinar');
     const formatSellTotalInput = (value: number) => isUsdtSellSettledInEur ? value.toFixed(2) : value.toFixed(0);
@@ -148,7 +136,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
         updateSellTotalFromQuantity(parseAndEvaluate(sellAmount), price);
     };
     React.useEffect(() => {
-        setSellUsdtSourceSelected(false);
+        setSellUsdtSourceSelected(mode === 'sell_usdt' && (!!sellAmount || !!sellPrice));
         setLastEditedSellField('quantity');
         sellCalculationBasisRef.current = 'quantity';
     }, [mode, editingTx?.id]);
@@ -207,13 +195,6 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
             setIsTotalManual(false);
             updateSellTotalFromQuantity(activeStats.available, price);
         }
-    };
-    const applySuggestedSellPrice = () => {
-        const price = displayedSellSuggestedPrice;
-        markSellFieldEdited('price');
-        setSellPrice(price.toFixed(isUsdtSellSettledInEur ? 4 : 2));
-        updateSellPriceMargin(price);
-        updateSellLinkedFieldsAfterPriceChange(price);
     };
     const chooseSellWithDzd = () => {
         setSellSettlementCurrency('DZD');
@@ -295,9 +276,6 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
         <div>
             <div className="mb-1.5 flex items-center justify-between gap-2">
                 <span className="text-sm text-neutral-700">{t('transactions.sellPrice')} ({sellPriceUnitLabel})</span>
-                {sellSuggestedPrice > 0 && (<button type="button" onClick={applySuggestedSellPrice} className="min-h-touch text-xs font-semibold px-2 py-1 rounded-md transition-colors bg-info-bg text-info hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                        PAM +{(sellSuggestedPrice - activeStats.avgBuy).toFixed(2)}
-                    </button>)}
             </div>
             <MoneyField label="" value={sellPrice} onChange={(val) => {
                 markSellFieldEdited('price');
@@ -345,7 +323,22 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
             </p>
         </div>
     );
-    return (<Modal isOpen={mode !== null} onClose={closeForm} className="bg-surface max-w-md">
+    const activeSmartPricing = smartPricingByCurrency?.[activeCurrency as 'USDT' | 'EUR'];
+    // Learned repayment behavior of the linked client (DZD ledger, currency-independent).
+    const linkedDebtState = hasPrimaryClient ? activeSmartPricing?.debtByClientId?.get(linkedClientId) : undefined;
+    const learnedSettleDays = linkedDebtState && linkedDebtState.avgSettleDays !== null && linkedDebtState.settledLotCount > 0
+        ? Math.max(1, Math.round(linkedDebtState.avgSettleDays))
+        : null;
+    // Credit due-date prefill: today + the client's average settle delay.
+    // Only fills an EMPTY field (user edits always win); clients without
+    // settled credit history keep it empty — the engine prices by policy default.
+    React.useEffect(() => {
+        if (!isSellMode || isUsdtSellSettledInEur || editingTx) return;
+        if (clientPaymentStatus !== 'credit' || creditDueDate) return;
+        if (learnedSettleDays === null) return;
+        setCreditDueDate(new Date(Date.now() + learnedSettleDays * 86_400_000).toISOString().slice(0, 10));
+    }, [isSellMode, isUsdtSellSettledInEur, editingTx, clientPaymentStatus, linkedClientId, creditDueDate, learnedSettleDays, setCreditDueDate]);
+    return (<><Modal isOpen={mode !== null} onClose={closeForm} className="bg-surface max-w-md">
             <ModalHeader onClose={closeForm} className="sticky top-0 z-20 border-b border-border backdrop-blur px-4 py-3 sm:px-5 bg-surface/95">
                 <ModalTitle className="text-base sm:text-lg">{editingTx ? t('common.edit') : t('transactions.newTransaction')}</ModalTitle>
             </ModalHeader>
@@ -522,15 +515,21 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                         {/* Buy USDT with EUR */}
                         {buyUsdtMode === 'with_eur' && (<div className="space-y-3">
                                 <MoneyField label={t('transactions.quantity')} value={buyEurForUsdtAmount} onChange={setBuyEurForUsdtAmount} currency="EUR" onMax={() => setBuyEurForUsdtAmount(portfolioStats.eur.available.toString())} error={formValidation.errors['buyEurForUsdtAmount']} hint={`${t('portfolio.currentBalanceEur')}: ${portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} EUR`}/>
-                                <MoneyField label={t('portfolio.buyPriceEur')} value={eurDzdPrice} onChange={setEurDzdPrice} currency="DZD" error={formValidation.errors['eurDzdPrice']} hint={t('transactions.basedOnPamEur')}/>
                                 <MoneyField label={t('portfolio.rateEurUsdt')} value={eurUsdtRate} onChange={setEurUsdtRate} error={formValidation.errors['eurUsdtRate']} placeholder="Ex: 0.92"/>
+                                <MoneyField label={t('portfolio.buyPriceEur')} value={eurDzdPrice} onChange={setEurDzdPrice} currency="DZD" error={formValidation.errors['eurDzdPrice']} hint={t('transactions.basedOnPamEur')} readOnly/>
                                 {(() => {
                     const eurQty = parseAndEvaluate(buyEurForUsdtAmount);
+                    const eurPrice = parseAndEvaluate(eurDzdPrice);
                     const rate = parseAndEvaluate(eurUsdtRate);
                     const usdtQty = (eurQty > 0 && rate > 0) ? (eurQty / rate) : 0;
                     if (usdtQty <= 0)
                         return null;
                     const totalAfter = portfolioStats.usdt.available + usdtQty;
+                    const incomingUnitCostDzd = eurPrice > 0 && rate > 0 ? eurPrice * rate : 0;
+                    const projectedPamUsdt = incomingUnitCostDzd > 0
+                        ? (Number(portfolioStats.usdt.costBasis || 0) + (usdtQty * incomingUnitCostDzd))
+                          / (Number(portfolioStats.usdt.purchasedQty || 0) + usdtQty)
+                        : 0;
                     return (<div className="rounded-xl border border-success/20 bg-financial-profit-bg p-3">
                                             <div className="flex items-baseline justify-between gap-3">
                                                 <span className="text-xs text-financial-profit">{t('transactions.quantity')} USDT</span>
@@ -540,6 +539,12 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                                 <span>{t('transactions.newBalance')}</span>
                                                 <span dir="ltr" className="font-semibold tabular-nums">{totalAfter.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
                                             </div>
+                                            {projectedPamUsdt > 0 && (
+                                                <div className="mt-1 flex items-baseline justify-between gap-3 text-xs text-neutral-500">
+                                                    <span>PAM USDT</span>
+                                                    <span dir="ltr" className="font-semibold tabular-nums">{formatNumber(projectedPamUsdt, { min: 2, max: 2 })} DZD</span>
+                                                </div>
+                                            )}
                                         </div>);
                 })()}
                                 <div className="space-y-1.5">
@@ -589,6 +594,45 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                 </>)}
 
                                 <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} allowBaridiDzdLink hidePaymentStatus={isUsdtSellSettledInEur} hideLinkedDzdClient={isUsdtSellSettledInEur} errorMessage={formValidation.errors['linkedClientId']} hasError={!!formValidation.errors['linkedClientId']} errorMessageDzd={formValidation.errors['linkedClientDzdId']} hasErrorDzd={!!formValidation.errors['linkedClientDzdId']}/>
+                                {!isUsdtSellSettledInEur && clientPaymentStatus === 'credit' && (
+                                    <label className="block text-sm font-medium text-neutral-700">
+                                        {t('smartPricing.dueDate')}
+                                        <input
+                                            type="date"
+                                            value={creditDueDate || ''}
+                                            min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
+                                            onChange={(event) => setCreditDueDate(event.target.value)}
+                                            className={`mt-1.5 min-h-input w-full rounded-xl border bg-surface px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 ${formValidation.errors.creditDueDate ? 'border-danger' : 'border-border'}`}
+                                            aria-invalid={!!formValidation.errors.creditDueDate}
+                                        />
+                                        {formValidation.errors.creditDueDate && <span role="alert" className="mt-1 block text-xs text-financial-loss">{formValidation.errors.creditDueDate}</span>}
+                                        {learnedSettleDays !== null && (
+                                            <span className="mt-1 block text-xs font-normal text-neutral-500">
+                                                {(t('smartPricing.avgSettleHint') as string).replace('{days}', String(learnedSettleDays))}
+                                            </span>
+                                        )}
+                                    </label>
+                                )}
+                                {!isUsdtSellSettledInEur && activeSmartPricing && (
+                                    <SmartPricePanel
+                                        smartPricing={activeSmartPricing}
+                                        currency={activeCurrency as 'USDT' | 'EUR'}
+                                        clientId={linkedClientId || 'none'}
+                                        quantity={parseAndEvaluate(sellAmount)}
+                                        payment={(clientPaymentStatus || 'cash') as 'cash' | 'baridi' | 'credit'}
+                                        creditDueDate={creditDueDate}
+                                        available={activeStats.available}
+                                        currentPrice={parseAndEvaluate(sellPrice)}
+                                        isEditing={!!editingTx}
+                                        onApplyPrice={(p: number) => {
+                                            markSellFieldEdited('price');
+                                            setSellPrice(p.toFixed(2));
+                                            updateSellPriceMargin(p);
+                                            updateSellLinkedFieldsAfterPriceChange(p);
+                                        }}
+                                        smartQuoteRef={smartQuoteRef}
+                                    />
+                                )}
                             </div>)}
 
                         {/* Buy EUR */}
@@ -680,5 +724,17 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                         </Button>
                     </div>)}
             </ModalFooter>
-        </Modal>);
+        </Modal>
+        <ConfirmDialog
+            isOpen={!!pendingCreditRisk}
+            onClose={cancelCreditRisk}
+            onConfirm={confirmCreditRisk}
+            title={t('smartPricing.creditRiskTitle')}
+            description={pendingCreditRisk ? `${t('smartPricing.creditRiskDescription')} ${t('smartPricing.projectedDebt')}: ${formatNumber(pendingCreditRisk.creditRisk.projectedDebt, { min: 0, max: 0 })} DZD · ${t('smartPricing.creditLimit')}: ${formatNumber(pendingCreditRisk.creditRisk.creditLimit, { min: 0, max: 0 })} DZD · ${t('smartPricing.overdueDays')}: ${pendingCreditRisk.creditRisk.oldestOverdueDays}` : ''}
+            confirmLabel={t('smartPricing.creditRiskConfirm')}
+            cancelLabel={t('common.cancel')}
+            variant="warning"
+            loading={isSaving}
+        />
+    </>);
 }

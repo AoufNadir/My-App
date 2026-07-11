@@ -359,8 +359,9 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
             const isInvalid = (isVenteUsdt || isAchatEur)
                 ? (qtyVal <= 0 || priceVal <= 0 || exceedsUsdt)
                 : (!Number.isFinite(amtVal) || amtVal === 0 || (isClientSettlementTx && amtVal <= 0) || clientSettlementWalletInsufficient);
-            return (<Button onClick={() => handleSaveClientTx(selectedClientId)} disabled={isInvalid} className={`w-full rounded-xl py-3 font-bold text-white ${isInvalid ? 'bg-neutral-400 cursor-not-allowed' : 'bg-success hover:opacity-95'}`}>
-                                {exceedsUsdt ? 'Solde USDT insuffisant' : t('common.save')}
+            const isDisabled = isSaving || isInvalid;
+            return (<Button onClick={() => handleSaveClientTx(selectedClientId)} disabled={isDisabled} className={`w-full rounded-xl py-3 font-bold text-white ${isDisabled ? 'bg-neutral-400 cursor-not-allowed' : 'bg-success hover:opacity-95'}`}>
+                                {isSaving ? t('common.processing') : exceedsUsdt ? 'Solde USDT insuffisant' : t('common.save')}
                             </Button>);
         })()}
                 </ModalFooter>

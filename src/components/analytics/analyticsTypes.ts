@@ -5,8 +5,6 @@ export type AnalyticsPageProps = {
     setIsSettingsModalOpen: (isOpen: boolean) => void;
     portfolioStats: any;
     totalPortfolioValue: number;
-    suggestedProfitMargin: string;
-    suggestedSellingPrice?: string;
     parseAndEvaluate: (expr: string) => number;
     usdtReportMonth: number;
     setUsdtReportMonth: (month: number) => void;

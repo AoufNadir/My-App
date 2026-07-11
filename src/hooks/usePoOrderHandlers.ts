@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { db } from '../firebase';
 import { now } from '../utils';
 import { roundM } from '../utils/money';
-import type { PoAuditAction, PoOrder, PoOrderStatus, PoRole, PoUser } from '../types';
+import type { PoAuditAction, PoCurrencyCode, PoOrder, PoOrderStatus, PoPaymentMethodType, PoRole, PoUser } from '../types';
 
 /** Drop undefined keys — Firestore rejects undefined field values. */
 function clean(obj: Record<string, any>): Record<string, any> {
@@ -34,6 +34,11 @@ export type CompleteOrderContext = {
     clientPaymentStatus: 'credit' | 'baridi' | 'cash';
 };
 
+export type AddCurrencyInput = { code: PoCurrencyCode; label: string; minOrder: number; maxOrder: number };
+export type AddPricingTierInput = { currencyId: string; minQty: number; maxQty: number; unitPriceDzd: number };
+export type AddPaymentMethodInput = { type: PoPaymentMethodType; label: string };
+export type AddCashLocationInput = { label: string };
+
 export type PoOrderHandlers = {
     logAudit: (
         action: PoAuditAction,
@@ -49,6 +54,15 @@ export type PoOrderHandlers = {
     cancelOrder: (order: PoOrder) => Promise<void>;
     completeOrder: (order: PoOrder, ctx: CompleteOrderContext) => Promise<void>;
     seedCatalog: () => Promise<void>;
+    addCurrency: (input: AddCurrencyInput) => Promise<void>;
+    setCurrencyActive: (id: string, active: boolean) => Promise<void>;
+    updateCurrencyLimits: (id: string, minOrder: number, maxOrder: number) => Promise<void>;
+    addPricingTier: (input: AddPricingTierInput) => Promise<void>;
+    setTierActive: (id: string, active: boolean) => Promise<void>;
+    addPaymentMethod: (input: AddPaymentMethodInput) => Promise<void>;
+    setPaymentMethodActive: (id: string, active: boolean) => Promise<void>;
+    addCashLocation: (input: AddCashLocationInput) => Promise<void>;
+    setCashLocationActive: (id: string, active: boolean) => Promise<void>;
 };
 
 /**
@@ -232,6 +246,34 @@ export function usePoOrderHandlers(actorUid: string): PoOrderHandlers {
             await batch.commit();
         };
 
+        const addCurrency: PoOrderHandlers['addCurrency'] = async (input) => {
+            await db.collection('po_currencies').add({ ...input, active: true, operatorUid: actorUid });
+        };
+        const setCurrencyActive: PoOrderHandlers['setCurrencyActive'] = (id, active) =>
+            db.collection('po_currencies').doc(id).update({ active });
+        const updateCurrencyLimits: PoOrderHandlers['updateCurrencyLimits'] = (id, minOrder, maxOrder) =>
+            db.collection('po_currencies').doc(id).update({ minOrder, maxOrder });
+
+        const addPricingTier: PoOrderHandlers['addPricingTier'] = async (input) => {
+            await db.collection('po_pricing_tiers').add({
+                ...input, requiresAdminApproval: false, active: true, operatorUid: actorUid,
+            });
+        };
+        const setTierActive: PoOrderHandlers['setTierActive'] = (id, active) =>
+            db.collection('po_pricing_tiers').doc(id).update({ active });
+
+        const addPaymentMethod: PoOrderHandlers['addPaymentMethod'] = async (input) => {
+            await db.collection('po_payment_methods').add({ ...input, active: true, operatorUid: actorUid });
+        };
+        const setPaymentMethodActive: PoOrderHandlers['setPaymentMethodActive'] = (id, active) =>
+            db.collection('po_payment_methods').doc(id).update({ active });
+
+        const addCashLocation: PoOrderHandlers['addCashLocation'] = async (input) => {
+            await db.collection('po_cash_locations').add({ ...input, active: true, operatorUid: actorUid });
+        };
+        const setCashLocationActive: PoOrderHandlers['setCashLocationActive'] = (id, active) =>
+            db.collection('po_cash_locations').doc(id).update({ active });
+
         return {
             logAudit,
             approveUser,
@@ -242,6 +284,15 @@ export function usePoOrderHandlers(actorUid: string): PoOrderHandlers {
             cancelOrder,
             completeOrder,
             seedCatalog,
+            addCurrency,
+            setCurrencyActive,
+            updateCurrencyLimits,
+            addPricingTier,
+            setTierActive,
+            addPaymentMethod,
+            setPaymentMethodActive,
+            addCashLocation,
+            setCashLocationActive,
         };
     }, [actorUid]);
 }

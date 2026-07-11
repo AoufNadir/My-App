@@ -6,16 +6,14 @@ import {
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { PageHeader } from '../components/ui/PageHeader';
-import { MoneyField } from '../components/ui/MoneyField';
-import { Button } from '../components/ui/Button';
 import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
 import { CalendarIcon } from '../components/icons/CalendarIcon';
 import { SparklesIcon } from '../components/icons/SparklesIcon';
 import { computePamLedger } from '../utils/pamLedger';
-import { parseAndEvaluate } from '../utils';
-import { ceilToMarketPrice, ClientTierType, computeGoalAdjustedBase, getVolumeBracket, getMarginMultiplier } from '../utils/pricingMatrix';
 import type { Tx, ClientDzd, ClientTransactionDzd, Investor } from '../types';
+import { quoteSale, type PricingContext } from '../services/smartPricingEngine';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const fmt0 = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 });
 const fmt2 = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -35,8 +33,7 @@ type InsightsPageProps = {
     investors?: Investor[];
     portfolioStats?: { usdt: { avgBuy: number }; eur: { avgBuy: number } };
     investorReconciliationDiff?: number;
-    tierThresholds?: { vip: number; regular: number; petit: number };
-    minimumGoal?: number;
+    pricingContext?: PricingContext;
 };
 
 const CHART_COLORS = {
@@ -100,8 +97,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     );
 };
 
-export function InsightsPage({ transactions, clientsDzd = [], clientTransactionsDzd = [], investors = [], portfolioStats, investorReconciliationDiff, tierThresholds, minimumGoal: minimumGoalProp = 0 }: InsightsPageProps) {
-    const thr = tierThresholds ?? { vip: 5000, regular: 1000, petit: 150 };
+export function InsightsPage({ transactions, clientsDzd = [], clientTransactionsDzd = [], investors = [], portfolioStats, investorReconciliationDiff, pricingContext }: InsightsPageProps) {
+    const { t } = useLanguage();
     const pamHistoryUsdt = useMemo(() => computePamHistory(transactions, 'USDT'), [transactions]);
     const pamHistoryEur  = useMemo(() => computePamHistory(transactions, 'EUR'), [transactions]);
 
@@ -215,14 +212,6 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
         };
     }, [pamLedger, portfolioStats, tick]);
 
-    // Projection calculator state
-    const [projectionTarget, setProjectionTarget] = useState('');
-    const [minimumTarget, setMinimumTarget] = useState(''); // Option B — minimum obligatoire
-    const [tierTableMode, setTierTableMode] = useState<'A' | 'B'>('A');
-    const [showProjectionInputs, setShowProjectionInputs] = useState(false);
-    const [goalActivated, setGoalActivated] = useState(false);
-    const [plancherActivated, setPlancherActivated] = useState(false);
-
     const bestDay = dayAnalysis.reduce((b, d) => d.profit > b.profit ? d : b, dayAnalysis[0]);
     const bestSlot = timeAnalysis.reduce((b, d) => d.profit > b.profit ? d : b, timeAnalysis[0]);
     const maxDayProfit = Math.max(...dayAnalysis.map(d => d.profit), 1);
@@ -237,10 +226,37 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
     const trendUsdt = pamHistoryUsdt.length >= 2
         ? pamHistoryUsdt.at(-1)!.pam - pamHistoryUsdt[0].pam
         : null;
+    const canonicalReference = pricingContext && pricingContext.pam > 0
+        ? quoteSale(pricingContext, { currency: 'USDT', clientId: null, quantity: 300, payment: { kind: 'cash' } })
+        : null;
 
     return (
         <div className="anim-page-in space-y-4">
             <PageHeader title="Insights" subtitle="Analyses avancées"/>
+
+            {canonicalReference && (
+                <Card>
+                    <CardHeader className="p-4 pb-3">
+                        <SectionHeading icon={<SparklesIcon className="h-4 w-4"/>}>{t('smartPricing.title')}</SectionHeading>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-3 gap-2 p-4 pt-0">
+                        {([
+                            [t('smartPricing.opening'), canonicalReference.corridor.openingPrice],
+                            [t('smartPricing.target'), canonicalReference.corridor.targetPrice],
+                            [t('smartPricing.floor'), canonicalReference.corridor.floorPrice],
+                        ] as Array<[string, number]>).map(([label, value]) => (
+                            <div key={label} className="rounded-xl bg-surface-muted p-3 text-center">
+                                <p className="text-[10px] font-bold text-neutral-400">{label}</p>
+                                <p dir="ltr" className="text-lg font-black tabular-nums text-primary">{fmt2(value)}</p>
+                            </div>
+                        ))}
+                        <p className="col-span-3 text-[11px] text-neutral-500">
+                            {t(`smartPricing.reasons.market_${canonicalReference.market.effective}`)}{' '}
+                            {canonicalReference.goal.volumeMissing ? t('smartPricing.reasons.goal_volume_missing') : t('smartPricing.subtitle')}
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* ═══════════════════════════════════════════════════════════
                 SECTION 1 — 3 STATISTICAL CARDS (YTD)
@@ -346,372 +362,6 @@ export function InsightsPage({ transactions, clientsDzd = [], clientTransactions
                     )}
                 </CardContent>
             </Card>
-
-            {/* ═══════════════════════════════════════════════════════════
-                SECTION 2 — NEXT MONTH PROJECTION CALCULATOR
-            ═══════════════════════════════════════════════════════════ */}
-            {yearlyStats.avgMonthlyUsdt > 0 && portfolioStats && (() => {
-                const pam = portfolioStats.usdt.avgBuy;
-                const avgVol = yearlyStats.avgMonthlyUsdt;
-                const storedGoal = Number(localStorage.getItem('app_monthly_profit_goal') || 0);
-                const histMargin = yearlyStats.avgSellDzd - pam;
-
-                // Option A — objectif ambitieux: input → stored Settings goal → YTD avg
-                const targetInput = parseAndEvaluate(projectionTarget);
-                const target = targetInput > 0 ? targetInput : (storedGoal > 0 ? storedGoal : yearlyStats.avgMonthlyProfit);
-                const neededMarginA = avgVol > 0 ? target / avgVol : 0;
-                const targetPrice = ceilToMarketPrice(pam + neededMarginA);
-                const actualProfitAtTarget = (targetPrice - pam) * avgVol;
-
-                // Option B — minimum obligatoire
-                // Priority: 1. user input field, 2. settings stored minimum, 3. 65% of YTD avg
-                const defaultMinimum = minimumGoalProp > 0 ? minimumGoalProp : Math.round(yearlyStats.avgMonthlyProfit * 0.65);
-                const minimumInput = parseAndEvaluate(minimumTarget);
-                const minimum = minimumInput > 0 ? minimumInput : defaultMinimum;
-                const neededMarginB = avgVol > 0 ? minimum / avgVol : 0;
-                const minimumPrice = ceilToMarketPrice(pam + neededMarginB);
-                const actualProfitAtMinimum = (minimumPrice - pam) * avgVol;
-
-                return (
-                    <Card>
-                        <CardHeader className="p-4 pb-0">
-                            <div className="flex items-start justify-between gap-2">
-                                <SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>
-                                    Projection mois prochain
-                                </SectionHeading>
-                                <button type="button"
-                                    onClick={() => setShowProjectionInputs(v => !v)}
-                                    className="shrink-0 text-[11px] font-semibold text-neutral-400 hover:text-neutral-700 transition-colors mt-0.5">
-                                    {showProjectionInputs ? '✕ Fermer' : '✏️ Modifier'}
-                                </button>
-                            </div>
-                            {/* Context stats — 3-column grid, mobile-friendly */}
-                            <div className="grid grid-cols-3 gap-0 mt-3 mb-1 rounded-xl overflow-hidden border border-border">
-                                <div className="px-3 py-2 bg-surface-muted text-center border-r border-border">
-                                    <p className="text-[9px] font-bold uppercase text-neutral-400 tracking-wide">PAM</p>
-                                    <p dir="ltr" className="text-sm font-extrabold text-neutral-800 tabular-nums mt-0.5">{fmt2(pam)}</p>
-                                    <p className="text-[9px] text-neutral-400">DZD</p>
-                                </div>
-                                <div className="px-3 py-2 bg-surface-muted text-center border-r border-border">
-                                    <p className="text-[9px] font-bold uppercase text-neutral-400 tracking-wide">Vol. moy.</p>
-                                    <p dir="ltr" className="text-sm font-extrabold text-neutral-800 tabular-nums mt-0.5">{fmt0(avgVol)}</p>
-                                    <p className="text-[9px] text-neutral-400">USDT</p>
-                                </div>
-                                <div className="px-3 py-2 bg-surface-muted text-center">
-                                    <p className="text-[9px] font-bold uppercase text-neutral-400 tracking-wide">Histo.</p>
-                                    <p dir="ltr" className="text-sm font-extrabold text-financial-profit tabular-nums mt-0.5">+{fmt2(histMargin > 0 ? histMargin : 0)}</p>
-                                    <p className="text-[9px] text-neutral-400">DZD/U</p>
-                                </div>
-                            </div>
-                        </CardHeader>
-
-                        <CardContent className="px-4 pb-4 pt-3 space-y-3">
-
-                            {/* Collapsible inputs */}
-                            {showProjectionInputs && (
-                                <div className="rounded-xl border border-border bg-surface-muted p-3 space-y-3">
-                                    <div>
-                                        <p className="text-[11px] font-semibold text-neutral-500 mb-1.5">
-                                            Objectif ambitieux
-                                            {storedGoal > 0
-                                                ? <span className="font-normal text-neutral-400 ms-1">(actuel: {fmt0(storedGoal)} DZD)</span>
-                                                : <span className="font-normal text-neutral-400 ms-1">(moy: {fmt0(yearlyStats.avgMonthlyProfit)} DZD)</span>
-                                            }
-                                        </p>
-                                        <MoneyField label="" value={projectionTarget} onChange={setProjectionTarget} currency="DZD" placeholder={fmt0(storedGoal > 0 ? storedGoal : yearlyStats.avgMonthlyProfit)}/>
-                                    </div>
-                                    <div>
-                                        <p className="text-[11px] font-semibold text-neutral-500 mb-1.5">Plancher obligatoire <span className="font-normal text-neutral-400">(défaut: {fmt0(defaultMinimum)} DZD)</span></p>
-                                        <MoneyField label="" value={minimumTarget} onChange={setMinimumTarget} currency="DZD" placeholder={fmt0(defaultMinimum)}/>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Two price cards */}
-                            <div className="grid grid-cols-2 gap-2.5">
-                                {/* Card A — objectif */}
-                                <div className="rounded-2xl border border-primary/20 bg-gradient-to-b from-primary/8 to-primary/3 p-3 flex flex-col">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <p className="text-[9px] font-bold uppercase tracking-widest text-primary/70">Objectif</p>
-                                        {goalActivated && <span className="text-[9px] font-bold text-financial-profit">✓ Activé</span>}
-                                    </div>
-                                    <p className="text-[10px] text-neutral-400 mb-1.5">{fmt0(target)} DZD</p>
-                                    <p dir="ltr" className="text-[1.9rem] font-black tabular-nums text-primary leading-none tracking-tight">
-                                        {Number.isInteger(targetPrice) ? targetPrice : fmt2(targetPrice)}
-                                    </p>
-                                    <p dir="ltr" className="text-[10px] text-neutral-500 mt-1 mb-auto">+{fmt2(targetPrice - pam)} DZD/U</p>
-                                    <button type="button"
-                                        className={`w-full mt-2.5 rounded-xl text-[10px] font-bold py-2 transition-colors ${goalActivated ? 'bg-financial-profit text-white' : 'bg-primary text-white hover:bg-primary/90'}`}
-                                        onClick={() => {
-                                            localStorage.setItem('app_monthly_profit_goal', String(Math.round(target)));
-                                            window.dispatchEvent(new StorageEvent('storage', { key: 'app_monthly_profit_goal', newValue: String(Math.round(target)) }));
-                                            setGoalActivated(true);
-                                            setTimeout(() => setGoalActivated(false), 2000);
-                                        }}>
-                                        {goalActivated ? '✓ Objectif activé' : '→ Activer objectif'}
-                                    </button>
-                                </div>
-                                {/* Card B — plancher */}
-                                <div className="rounded-2xl border border-danger/20 bg-gradient-to-b from-danger/8 to-danger/3 p-3 flex flex-col">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <p className="text-[9px] font-bold uppercase tracking-widest text-financial-loss/70">Plancher</p>
-                                        {plancherActivated && <span className="text-[9px] font-bold text-financial-profit">✓ Activé</span>}
-                                    </div>
-                                    <p className="text-[10px] text-neutral-400 mb-1.5">{fmt0(minimum)} DZD</p>
-                                    <p dir="ltr" className="text-[1.9rem] font-black tabular-nums text-financial-loss leading-none tracking-tight">
-                                        {Number.isInteger(minimumPrice) ? minimumPrice : fmt2(minimumPrice)}
-                                    </p>
-                                    <p dir="ltr" className="text-[10px] text-neutral-500 mt-1 mb-1">+{fmt2(minimumPrice - pam)} DZD/U</p>
-                                    <p className="text-[9px] text-financial-loss/60 font-semibold mb-auto">⚠ Ne pas descendre</p>
-                                    <button type="button"
-                                        className={`w-full mt-2.5 rounded-xl text-[10px] font-bold py-2 transition-colors border ${plancherActivated ? 'bg-financial-profit border-transparent text-white' : 'bg-danger/10 border-danger/25 text-financial-loss hover:bg-danger/20'}`}
-                                        onClick={() => {
-                                            localStorage.setItem('app_min_monthly_goal', String(Math.round(minimum)));
-                                            window.dispatchEvent(new StorageEvent('storage', { key: 'app_min_monthly_goal', newValue: String(Math.round(minimum)) }));
-                                            setPlancherActivated(true);
-                                            setTimeout(() => setPlancherActivated(false), 2000);
-                                        }}>
-                                        {plancherActivated ? '✓ Plancher activé' : '→ Activer plancher'}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Tier price list — toggle A/B */}
-                            {(neededMarginA > 0 || neededMarginB > 0) && (() => {
-                                const bracket = getVolumeBracket(avgVol);
-                                const isA = tierTableMode === 'A';
-                                const activeMargin = isA ? neededMarginA : neededMarginB;
-                                const activeGoalForCheck = isA ? target : minimum;
-                                const adjustedBase = computeGoalAdjustedBase(activeMargin, bracket);
-                                // Use ceilToMarketPrice to GUARANTEE all tiers meet the goal (never round down)
-                                const tierOrder: ClientTierType[] = ['vip', 'regular', 'petit', 'new'];
-                                const tiers = Object.fromEntries(
-                                    tierOrder.map(tier => {
-                                        const mult = getMarginMultiplier(tier, bracket);
-                                        const price = ceilToMarketPrice(pam + adjustedBase * mult);
-                                        return [tier, { price, profitPerUnit: price - pam }];
-                                    })
-                                ) as Record<ClientTierType, { price: number; profitPerUnit: number }>;
-
-                                type TierMeta = { label: string; volume: string; dot: string };
-                                const fmt0k = (n: number) => n >= 1000 ? `${(n/1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : `${n}`;
-                                const TIER_META: Record<string, TierMeta> = {
-                                    vip:     { label: 'VIP',      volume: `> ${fmt0k(thr.vip)} U/mois`,               dot: 'bg-amber-400' },
-                                    regular: { label: 'Régulier', volume: `${fmt0k(thr.regular)} – ${fmt0k(thr.vip)} U`, dot: 'bg-primary' },
-                                    petit:   { label: 'Petit',    volume: `${fmt0k(thr.petit)} – ${fmt0k(thr.regular)} U`, dot: 'bg-orange-400' },
-                                    new:     { label: 'Nouveau',  volume: `< ${fmt0k(thr.petit)} U ou nouveau`,        dot: 'bg-neutral-300' },
-                                };
-
-                                return (
-                                    <div className="space-y-2">
-                                        {/* Section header with toggle */}
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide">Prix par client</p>
-                                            <div className="flex rounded-lg border border-border overflow-hidden text-[10px] font-bold">
-                                                <button type="button" onClick={() => setTierTableMode('A')}
-                                                    className={`px-2.5 py-1 transition-colors ${isA ? 'bg-primary text-white' : 'text-neutral-400 hover:bg-neutral-50'}`}>
-                                                    Objectif
-                                                </button>
-                                                <button type="button" onClick={() => setTierTableMode('B')}
-                                                    className={`px-2.5 py-1 transition-colors border-l border-border ${!isA ? 'bg-financial-loss text-white' : 'text-neutral-400 hover:bg-neutral-50'}`}>
-                                                    Plancher
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {/* Clean list */}
-                                        <div className="rounded-xl border border-border overflow-hidden divide-y divide-neutral-100">
-                                            {tierOrder.map(tier => {
-                                                const row = tiers[tier];
-                                                const priceStr = Number.isInteger(row.price) ? `${row.price}` : fmt2(row.price);
-                                                const { label, volume, dot } = TIER_META[tier];
-                                                return (
-                                                    <div key={tier} className="flex items-center justify-between px-4 py-3 bg-surface hover:bg-neutral-50/60 transition-colors">
-                                                        <div className="flex items-center gap-2.5">
-                                                            <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`}/>
-                                                            <div>
-                                                                <p className="text-sm font-semibold text-neutral-800">{label}</p>
-                                                                <p dir="ltr" className="text-[10px] text-neutral-400">{volume}</p>
-                                                            </div>
-                                                        </div>
-                                                        <p dir="ltr" className={`text-base font-extrabold tabular-nums ${isA ? 'text-primary' : 'text-financial-loss'}`}>
-                                                            {priceStr} <span className="text-xs font-normal text-neutral-400">DZD</span>
-                                                        </p>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-
-                                        {isA && (
-                                            <p className="text-[10px] text-neutral-400 text-center pt-0.5">
-                                                Après "Activer comme objectif", la calculatrice Assisté utilise ces prix
-                                            </p>
-                                        )}
-                                    </div>
-                                );
-                            })()}
-
-                            {/* ── Volume Strategy Monitor ───────────────────── */}
-                            {(() => {
-                                const now = new Date();
-                                const dayOfMonth   = now.getDate();
-                                const daysInMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-                                const daysElapsed  = Math.max(1, dayOfMonth);
-                                const daysRemaining = Math.max(1, daysInMonth - dayOfMonth);
-                                const monthStart   = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-
-                                // Volume sold this month (USDT only)
-                                const currentMonthVol = pamLedger.sellProfitRows
-                                    .filter(r => r.currency === 'USDT' && r.timestamp >= monthStart)
-                                    .reduce((s, r) => s + Number(r.quantity || 0), 0);
-
-                                const dailyPace = currentMonthVol / daysElapsed;
-                                const projectedVol = dailyPace * daysInMonth;
-
-                                // Margins at each strategy price
-                                const marginA = Math.max(0.01, targetPrice - pam);
-                                const marginB = Math.max(0.01, minimumPrice - pam);
-
-                                // Volume needed to hit goals
-                                const volA_goal   = target    / marginA; // objective at A price
-                                const volB_goal   = target    / marginB; // objective at B price
-                                const volB_min    = minimum   / marginB; // minimum at B price
-
-                                const remainA = Math.max(0, volA_goal - currentMonthVol);
-                                const remainB = Math.max(0, volB_min  - currentMonthVol);
-
-                                const paceNeededA = remainA / daysRemaining;
-                                const paceNeededBmin = remainB / daysRemaining;
-
-                                const achievedA    = currentMonthVol >= volA_goal;
-                                const achievedBmin = currentMonthVol >= volB_min;
-                                const projAchievesA    = projectedVol >= volA_goal;
-                                const projAchievesBmin = projectedVol >= volB_min;
-
-                                // Recommendation
-                                type RecLevel = 'success' | 'primary' | 'warning' | 'danger';
-                                let recText = '';
-                                let recLevel: RecLevel = 'primary';
-                                if (achievedA) {
-                                    recText = 'Volume suffisant — maintenez les prix ambitieux. Chaque vente supplémentaire est un bonus.';
-                                    recLevel = 'success';
-                                } else if (projAchievesA) {
-                                    recText = 'L\'objectif est accessible au rythme actuel — maintenez les prix forts (Stratégie A).';
-                                    recLevel = 'primary';
-                                } else if (projAchievesBmin) {
-                                    recText = 'Le plancher sera atteint. Pour l\'objectif ambitieux: baissez légèrement les prix et cherchez plus de volume.';
-                                    recLevel = 'warning';
-                                } else {
-                                    recText = 'Rythme insuffisant — appliquez le prix plancher et recherchez activement des clients pour maximiser le volume.';
-                                    recLevel = 'danger';
-                                }
-
-                                const recColors: Record<RecLevel, string> = {
-                                    success: 'bg-financial-profit-bg border-success/30 text-financial-profit',
-                                    primary: 'bg-primary/5 border-primary/20 text-primary',
-                                    warning: 'bg-warning-bg border-warning/30 text-warning',
-                                    danger:  'bg-danger/5 border-danger/30 text-financial-loss',
-                                };
-                                const volPct = avgVol > 0 ? Math.min(100, (currentMonthVol / avgVol) * 100) : 0;
-
-                                return (
-                                    <div className="border-t border-border pt-3 space-y-3">
-                                        {/* Header */}
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide">Volume ce mois</p>
-                                            <span className="text-[10px] text-neutral-400">{daysRemaining}j restants · {fmt0(daysInMonth)}j total</span>
-                                        </div>
-
-                                        {/* Volume progress bar */}
-                                        <div>
-                                            <div className="flex items-center justify-between text-[10px] mb-1.5">
-                                                <span dir="ltr" className="font-bold text-neutral-700">{fmt0(currentMonthVol)} USDT vendu</span>
-                                                <span className="text-neutral-400">{fmt0(Math.round(volPct))}% de la moy. mensuelle</span>
-                                            </div>
-                                            <div className="relative h-3 w-full rounded-full bg-neutral-100 overflow-visible">
-                                                {/* Current volume bar */}
-                                                <div className={`h-3 rounded-full transition-all ${achievedA ? 'bg-financial-profit' : projAchievesA ? 'bg-primary' : projAchievesBmin ? 'bg-warning' : 'bg-danger/60'}`}
-                                                    style={{ width: `${Math.min(100, volPct)}%` }}/>
-                                                {/* Marker for Strategy A */}
-                                                {volA_goal <= avgVol * 1.5 && (
-                                                    <div className="absolute top-0 h-3 w-0.5 bg-primary/60 rounded-full"
-                                                        style={{ left: `${Math.min(99, (volA_goal / (avgVol * 1.5)) * 100)}%` }}
-                                                        title={`Objectif A: ${fmt0(volA_goal)} U`}/>
-                                                )}
-                                                {/* Marker for Min */}
-                                                {volB_min <= avgVol * 1.5 && (
-                                                    <div className="absolute top-0 h-3 w-0.5 bg-danger/40 rounded-full"
-                                                        style={{ left: `${Math.min(99, (volB_min / (avgVol * 1.5)) * 100)}%` }}
-                                                        title={`Plancher B: ${fmt0(volB_min)} U`}/>
-                                                )}
-                                            </div>
-                                            <div className="flex justify-between text-[9px] text-neutral-400 mt-1">
-                                                <span dir="ltr">Rythme: {fmt0(dailyPace)} U/j · Projection: ~{fmt0(projectedVol)} U</span>
-                                                <span dir="ltr">Moy.: {fmt0(avgVol)} U</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Two strategy cards */}
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {/* Strategy A — prix fort */}
-                                            <div className={`rounded-xl border p-3 space-y-1.5 ${achievedA ? 'border-success/30 bg-financial-profit-bg/40' : projAchievesA ? 'border-primary/20 bg-primary/5' : 'border-neutral-200 bg-neutral-50'}`}>
-                                                <p className="text-[9px] font-bold uppercase tracking-wide text-primary">A · Prix fort</p>
-                                                <p dir="ltr" className="text-xs font-extrabold text-neutral-800">{Number.isInteger(targetPrice) ? targetPrice : fmt2(targetPrice)} DZD</p>
-                                                <div className="space-y-0.5">
-                                                    <p className="text-[9px] text-neutral-500">Vol. pour {fmt0(target)} DZD:</p>
-                                                    <p dir="ltr" className="text-[10px] font-bold text-neutral-700">{fmt0(volA_goal)} USDT</p>
-                                                </div>
-                                                {achievedA ? (
-                                                    <p className="text-[10px] font-bold text-financial-profit">✓ Atteint!</p>
-                                                ) : (
-                                                    <div>
-                                                        <p className="text-[9px] text-neutral-400">Reste: <span className="font-bold text-neutral-700">{fmt0(remainA)} U</span></p>
-                                                        <p dir="ltr" className={`text-[9px] font-bold ${projAchievesA ? 'text-primary' : 'text-financial-loss'}`}>
-                                                            {fmt0(paceNeededA)} U/j nécessaire
-                                                        </p>
-                                                        <p className={`text-[9px] font-bold mt-0.5 ${projAchievesA ? 'text-primary' : 'text-financial-loss'}`}>
-                                                            {projAchievesA ? '✓ Accessible' : '✗ Hors portée'}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Strategy B — volume fort */}
-                                            <div className={`rounded-xl border p-3 space-y-1.5 ${achievedBmin ? 'border-success/30 bg-financial-profit-bg/40' : projAchievesBmin ? 'border-warning/30 bg-warning-bg/30' : 'border-danger/20 bg-danger/5'}`}>
-                                                <p className="text-[9px] font-bold uppercase tracking-wide text-financial-loss">B · Volume fort</p>
-                                                <p dir="ltr" className="text-xs font-extrabold text-neutral-800">{Number.isInteger(minimumPrice) ? minimumPrice : fmt2(minimumPrice)} DZD</p>
-                                                <div className="space-y-0.5">
-                                                    <p className="text-[9px] text-neutral-500">Vol. pour {fmt0(minimum)} DZD:</p>
-                                                    <p dir="ltr" className="text-[10px] font-bold text-neutral-700">{fmt0(volB_min)} USDT</p>
-                                                </div>
-                                                {achievedBmin ? (
-                                                    <p className="text-[10px] font-bold text-financial-profit">✓ Plancher assuré!</p>
-                                                ) : (
-                                                    <div>
-                                                        <p className="text-[9px] text-neutral-400">Reste: <span className="font-bold text-neutral-700">{fmt0(remainB)} U</span></p>
-                                                        <p dir="ltr" className={`text-[9px] font-bold ${projAchievesBmin ? 'text-warning' : 'text-financial-loss'}`}>
-                                                            {fmt0(paceNeededBmin)} U/j nécessaire
-                                                        </p>
-                                                        <p className={`text-[9px] font-bold mt-0.5 ${projAchievesBmin ? 'text-warning' : 'text-financial-loss'}`}>
-                                                            {projAchievesBmin ? '⚠️ Faisable' : '✗ Critique'}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Recommendation */}
-                                        <div className={`rounded-xl border px-3 py-2.5 ${recColors[recLevel]}`}>
-                                            <p className="text-[10px] font-bold uppercase tracking-wide mb-0.5">Recommandation</p>
-                                            <p className="text-[11px] font-semibold leading-relaxed">{recText}</p>
-                                        </div>
-                                    </div>
-                                );
-                            })()}
-                        </CardContent>
-                    </Card>
-                );
-            })()}
 
 
             {/* PAM USDT History */}

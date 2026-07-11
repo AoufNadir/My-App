@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { ClientDzd, ClientTransactionDzd, OverdueDebtClient } from '../types';
+import { computeClientDebtState } from '../utils/clientDebt';
 type UseOverdueDebtClientsArgs = {
     clients: ClientDzd[];
     clientTransactions: ClientTransactionDzd[];
@@ -7,13 +8,7 @@ type UseOverdueDebtClientsArgs = {
     getClientFullName: (client: ClientDzd) => string;
     minDays?: number;
 };
-const DAY_MS = 24 * 60 * 60 * 1000;
 const EPSILON = 0.005;
-type DebtLot = {
-    timestamp: number;
-    date: string;
-    remaining: number;
-};
 export function useOverdueDebtClients({ clients, clientTransactions, clientBalances, getClientFullName, minDays = 7 }: UseOverdueDebtClientsArgs) {
     return useMemo<OverdueDebtClient[]>(() => {
         const nowTs = Date.now();
@@ -33,64 +28,19 @@ export function useOverdueDebtClients({ clients, clientTransactions, clientBalan
             const clientTxs = txByClient.get(client.id) || [];
             if (clientTxs.length === 0)
                 continue;
-            const debtQueue: DebtLot[] = [];
-            let availableCredit = 0;
-            let lastPaymentTimestamp: number | null = null;
-            for (const tx of clientTxs) {
-                const amount = Number(tx.montant || 0);
-                if (!Number.isFinite(amount) || Math.abs(amount) <= EPSILON)
-                    continue;
-                if (amount < 0) {
-                    let incomingDebt = Math.abs(amount);
-                    // Positive balance built before a debt should reduce that debt immediately.
-                    if (availableCredit > EPSILON) {
-                        const consumedCredit = Math.min(availableCredit, incomingDebt);
-                        availableCredit -= consumedCredit;
-                        incomingDebt -= consumedCredit;
-                    }
-                    if (incomingDebt > EPSILON) {
-                        debtQueue.push({
-                            timestamp: tx.timestamp,
-                            date: tx.date,
-                            remaining: incomingDebt
-                        });
-                    }
-                    continue;
-                }
-                if (lastPaymentTimestamp === null || tx.timestamp > lastPaymentTimestamp) {
-                    lastPaymentTimestamp = tx.timestamp;
-                }
-                let remainingPayment = amount;
-                while (remainingPayment > EPSILON && debtQueue.length > 0) {
-                    const oldestDebt = debtQueue[0];
-                    const consumed = Math.min(remainingPayment, oldestDebt.remaining);
-                    oldestDebt.remaining -= consumed;
-                    remainingPayment -= consumed;
-                    if (oldestDebt.remaining <= EPSILON) {
-                        debtQueue.shift();
-                    }
-                }
-                // Remaining positive amount becomes advance and can offset future debts.
-                if (remainingPayment > EPSILON) {
-                    availableCredit += remainingPayment;
-                }
-            }
-            const overdueLots = debtQueue.filter((lot) => {
-                if (lot.remaining <= EPSILON)
-                    return false;
-                const days = Math.floor((nowTs - lot.timestamp) / DAY_MS);
-                return days > minDays;
-            });
+            // New rows age from their explicit due date; legacy rows use the
+            // caller's historical grace period.
+            const debtState = computeClientDebtState(clientTxs, nowTs, Math.max(0, minDays));
+            const overdueLots = debtState.openLots.filter((lot) => nowTs > lot.dueTimestamp);
             if (overdueLots.length === 0)
                 continue;
-            // FIX-4 (Q5): show only the actually-overdue lots (>minDays old), not the full negative
-            // balance. Recent debts inside the grace window stay hidden from the overdue total.
             const overdueRemainingSum = overdueLots.reduce((sum, lot) => sum + lot.remaining, 0);
             const overdueAmount = Number(overdueRemainingSum.toFixed(2));
             if (overdueAmount <= EPSILON)
                 continue;
             const oldestUnpaidTimestamp = overdueLots.reduce((min, lot) => Math.min(min, lot.timestamp), overdueLots[0].timestamp);
-            const daysOverdue = Math.floor((nowTs - oldestUnpaidTimestamp) / DAY_MS);
+            const oldestDueTimestamp = overdueLots.reduce((min, lot) => Math.min(min, lot.dueTimestamp), overdueLots[0].dueTimestamp);
+            const daysOverdue = Math.max(0, Math.floor((nowTs - oldestDueTimestamp) / 86_400_000));
             results.push({
                 clientId: client.id,
                 fullName: getClientFullName(client),
@@ -99,7 +49,7 @@ export function useOverdueDebtClients({ clients, clientTransactions, clientBalan
                 daysOverdue,
                 oldestUnpaidTimestamp,
                 oldestUnpaidDate: new Date(oldestUnpaidTimestamp).toLocaleDateString('fr-FR'),
-                lastPaymentTimestamp,
+                lastPaymentTimestamp: debtState.lastPaymentTimestamp,
                 balance: currentBalance
             });
         }

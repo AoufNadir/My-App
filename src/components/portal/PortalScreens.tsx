@@ -74,20 +74,6 @@ export function BlockedScreen({ uid }: { uid?: string }) {
     );
 }
 
-export function ClientPortalPlaceholder({ uid }: { uid?: string }) {
-    const { lang } = useLanguage();
-    return (
-        <PortalShell
-            uid={uid}
-            tone="info"
-            title={lang === 'ar' ? 'بوابة العميل قريبًا' : 'Espace client bientôt disponible'}
-            message={lang === 'ar'
-                ? 'تمت الموافقة على حسابك. ميزة إنشاء الطلبات ستكون متاحة قريبًا.'
-                : "Votre compte est approuvé. La création de commandes sera disponible très prochainement."}
-        />
-    );
-}
-
 export function AgentDashboardPlaceholder({ uid }: { uid?: string }) {
     const { lang } = useLanguage();
     return (

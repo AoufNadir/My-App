@@ -4,6 +4,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { usePoAdminData } from '../hooks/usePoAdminData';
 import { usePoOrderHandlers, type ApproveUserOptions, type CompleteOrderContext } from '../hooks/usePoOrderHandlers';
 import { Button } from '../components/ui/Button';
+import { CatalogManager } from '../components/orders/CatalogManager';
 import type { ClientDzd, PoCashLocation, PoOrder, PoOrderStatus, PoRole, PoUser, PortfolioStats } from '../types';
 
 type OrdersAdminPageProps = {
@@ -81,9 +82,9 @@ type Strings = {
     confirm: string; deliver: string; reject: string;
     confirmOk: string; deliverOk: string; rejectOk: string;
     alreadyCompleted: string; clientRequired: string;
-    catalogHeader: string; seedCatalog: string; seedOk: string; seedHint: string;
-    currenciesLabel: string; tiersLabel: string; methodsLabel: string; locationsLabel: string;
+    catalogHeader: string;
     yourUidLabel: string; copy: string; copied: string;
+    deliveryTo: string; addressCopied: string;
 };
 
 function buildStrings(lang: 'fr' | 'ar'): Strings {
@@ -105,10 +106,9 @@ function buildStrings(lang: 'fr' | 'ar'): Strings {
             confirm: 'تأكيد الدفع', deliver: 'تسليم', reject: 'رفض',
             confirmOk: 'تم تأكيد الدفع.', deliverOk: 'تم تسليم الطلب وتسجيله.', rejectOk: 'تم رفض الطلب.',
             alreadyCompleted: 'تم تسجيل هذا الطلب مسبقًا.', clientRequired: 'يجب ربط الطلب بعميل قبل تسجيل دين.',
-            catalogHeader: 'الكتالوج', seedCatalog: 'إنشاء كتالوج افتراضي', seedOk: 'تم إنشاء الكتالوج الافتراضي.',
-            seedHint: 'لا توجد عملات بعد. أنشئ كتالوجًا افتراضيًا للبدء.',
-            currenciesLabel: 'العملات', tiersLabel: 'شرائح الأسعار', methodsLabel: 'طرق الدفع', locationsLabel: 'نقاط الكاش',
+            catalogHeader: 'الكتالوج',
             yourUidLabel: 'معرّف حسابك (UID) — انسخه وضعه في الملفين أعلاه:', copy: 'نسخ', copied: 'تم نسخ المعرّف.',
+            deliveryTo: 'التسليم إلى', addressCopied: 'تم نسخ العنوان.',
         }
         : {
             title: 'Commandes', subtitle: 'Gestion des commandes clients',
@@ -127,10 +127,9 @@ function buildStrings(lang: 'fr' | 'ar'): Strings {
             confirm: 'Confirmer paiement', deliver: 'Livrer', reject: 'Rejeter',
             confirmOk: 'Paiement confirmé.', deliverOk: 'Commande livrée et enregistrée.', rejectOk: 'Commande rejetée.',
             alreadyCompleted: 'Cette commande est déjà enregistrée.', clientRequired: 'Liez la commande à un client avant d’enregistrer une dette.',
-            catalogHeader: 'Catalogue', seedCatalog: 'Créer un catalogue par défaut', seedOk: 'Catalogue par défaut créé.',
-            seedHint: 'Aucune devise pour le moment. Créez un catalogue par défaut pour démarrer.',
-            currenciesLabel: 'Devises', tiersLabel: 'Paliers de prix', methodsLabel: 'Moyens de paiement', locationsLabel: 'Points cash',
+            catalogHeader: 'Catalogue',
             yourUidLabel: 'Votre identifiant opérateur (UID) — copiez-le dans les deux fichiers ci-dessus :', copy: 'Copier', copied: 'Identifiant copié.',
+            deliveryTo: 'Livraison à', addressCopied: 'Adresse copiée.',
         };
 }
 
@@ -238,12 +237,13 @@ type OrderRowProps = {
     clientLabel: string;
     strings: Strings;
     lang: 'fr' | 'ar';
+    setAlert: (message: string) => void;
     onConfirm: (order: PoOrder) => Promise<void>;
     onReject: (order: PoOrder) => Promise<void>;
     onDeliver: (order: PoOrder) => Promise<void>;
 };
 
-const OrderRow: React.FC<OrderRowProps> = ({ order, clientLabel, strings, lang, onConfirm, onReject, onDeliver }) => {
+const OrderRow: React.FC<OrderRowProps> = ({ order, clientLabel, strings, lang, setAlert, onConfirm, onReject, onDeliver }) => {
     const [busy, setBusy] = useState(false);
     const run = async (fn: (o: PoOrder) => Promise<void>) => {
         setBusy(true);
@@ -271,6 +271,22 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, clientLabel, strings, lang, 
                 </div>
                 <div className="shrink-0 text-end text-sm font-bold text-neutral-900">{formatDzd(order.totalDzd)}</div>
             </div>
+            {order.deliveryAddress && (
+                <button
+                    type="button"
+                    onClick={() => {
+                        navigator.clipboard?.writeText(order.deliveryAddress);
+                        setAlert(`✅ ${strings.addressCopied}`);
+                    }}
+                    className="block w-full truncate rounded-lg border border-border bg-app-bg px-2.5 py-1.5 text-start text-xs text-neutral-600 hover:border-primary/40"
+                    title={order.deliveryAddress}
+                >
+                    <span className="font-medium text-neutral-500">
+                        {strings.deliveryTo}{order.deliveryNetwork ? ` (${order.deliveryNetwork})` : ''}:
+                    </span>{' '}
+                    {order.deliveryAddress}
+                </button>
+            )}
             {!isFinal && (
                 <div className="flex flex-wrap gap-2">
                     {canConfirm && (
@@ -416,19 +432,6 @@ export function OrdersAdminPage({ user, setAlert, clientsDzd, portfolioStats }: 
         }
     };
 
-    const [seeding, setSeeding] = useState(false);
-    const handleSeed = async () => {
-        setSeeding(true);
-        try {
-            await handlers.seedCatalog();
-            setAlert(`✅ ${strings.seedOk}`);
-        } catch {
-            setAlert(`❌ ${strings.error}`);
-        } finally {
-            setSeeding(false);
-        }
-    };
-
     const stat = (label: string, value: number, tone: Tone) => (
         <div className={cardClass}>
             <div className={`text-2xl font-extrabold ${tone === 'danger' ? 'text-danger' : tone === 'pending' ? 'text-warning' : tone === 'success' ? 'text-success' : 'text-neutral-900'}`}>
@@ -507,19 +510,15 @@ export function OrdersAdminPage({ user, setAlert, clientsDzd, portfolioStats }: 
             {/* Catalog */}
             <div className={cardClass}>
                 <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-neutral-500">{strings.catalogHeader}</h2>
-                {data.currencies.length === 0 ? (
-                    <div className="space-y-3">
-                        <p className="text-sm text-neutral-500">{strings.seedHint}</p>
-                        <Button variant="primary" size="sm" loading={seeding} onClick={handleSeed}>{strings.seedCatalog}</Button>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                        <div><span className="font-bold text-neutral-900">{data.currencies.length}</span> <span className="text-neutral-500">{strings.currenciesLabel}</span></div>
-                        <div><span className="font-bold text-neutral-900">{data.pricingTiers.length}</span> <span className="text-neutral-500">{strings.tiersLabel}</span></div>
-                        <div><span className="font-bold text-neutral-900">{data.paymentMethods.length}</span> <span className="text-neutral-500">{strings.methodsLabel}</span></div>
-                        <div><span className="font-bold text-neutral-900">{data.cashLocations.length}</span> <span className="text-neutral-500">{strings.locationsLabel}</span></div>
-                    </div>
-                )}
+                <CatalogManager
+                    lang={lang}
+                    currencies={data.currencies}
+                    pricingTiers={data.pricingTiers}
+                    paymentMethods={data.paymentMethods}
+                    cashLocations={data.cashLocations}
+                    handlers={handlers}
+                    setAlert={setAlert}
+                />
             </div>
 
             {/* Orders */}
@@ -538,6 +537,7 @@ export function OrdersAdminPage({ user, setAlert, clientsDzd, portfolioStats }: 
                                 clientLabel={order.clientId ? (clientName.get(order.clientId) || '') : ''}
                                 strings={strings}
                                 lang={lang}
+                                setAlert={setAlert}
                                 onConfirm={handleConfirm}
                                 onReject={handleReject}
                                 onDeliver={handleDeliver}

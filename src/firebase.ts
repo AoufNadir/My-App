@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteField, deleteDoc, doc, getDoc, getDocs, getFirestore, initializeFirestore, limit, onSnapshot, orderBy, persistentLocalCache, persistentMultipleTabManager, query, setDoc, updateDoc, where, writeBatch, type DocumentData, type DocumentReference as NativeDocumentReference, type Firestore, type OrderByDirection, type Query as NativeQuery, type QueryConstraint, type QuerySnapshot as NativeQuerySnapshot, type SetOptions, type Unsubscribe, type WhereFilterOp, type WriteBatch as NativeWriteBatch, } from 'firebase/firestore';
+import { addDoc, collection, deleteField, deleteDoc, doc, getDoc, getDocs, getFirestore, initializeFirestore, limit, onSnapshot, orderBy, persistentLocalCache, persistentMultipleTabManager, query, serverTimestamp, setDoc, updateDoc, where, writeBatch, type DocumentData, type DocumentReference as NativeDocumentReference, type Firestore, type OrderByDirection, type Query as NativeQuery, type QueryConstraint, type QuerySnapshot as NativeQuerySnapshot, type SetOptions, type Unsubscribe, type WhereFilterOp, type WriteBatch as NativeWriteBatch, } from 'firebase/firestore';
 import { app } from './firebaseApp';
 // FIX-PERF (Phase 3): enable IndexedDB-backed persistent cache so cold starts
 // hydrate instantly from local storage while the live snapshot listeners
@@ -10,11 +10,16 @@ try {
         localCache: persistentLocalCache({
             tabManager: persistentMultipleTabManager(),
         }),
+        // A single stray `undefined` in a nested map (e.g. pricing snapshots)
+        // must not abort a whole sale batch. Writers still strip undefined
+        // explicitly; this is the safety net.
+        ignoreUndefinedProperties: true,
     });
 }
 catch {
     // initializeFirestore throws if called twice (HMR) or if the environment
-    // does not support persistence — fall back to the default in-memory cache.
+    // does not support persistence — fall back to the default in-memory cache
+    // (without ignoreUndefinedProperties; dev-only path).
     firestore = getFirestore(app);
 }
 export type { AppUser } from './firebaseAuth';
@@ -184,3 +189,4 @@ class FirestoreCompat {
 }
 export const db = new FirestoreCompat(firestore);
 export const fieldValueDelete = () => deleteField();
+export const fieldValueServerTimestamp = () => serverTimestamp();

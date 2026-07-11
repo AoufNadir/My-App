@@ -16,13 +16,15 @@ import { UserIcon } from '../icons/UserIcon';
 import { InfoIcon } from '../icons/InfoIcon';
 import { FileSpreadsheetIcon } from '../icons/FileSpreadsheetIcon';
 import { WalletIcon } from '../icons/WalletIcon';
-import { SwipeableListItem } from '../ui/SwipeableListItem';
-import { ArrowDownIcon } from '../icons/ArrowDownIcon';
-import { ArrowUpIcon } from '../icons/ArrowUpIcon';
+import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
+import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
+import { UsersIcon } from '../icons/UsersIcon';
 import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
-import { formatNumber, getRelativeFrDateLabel } from '../../pages/shared/pageFormat';
+import { formatDzd, formatNumber, getRelativeFrDateLabel } from '../../pages/shared/pageFormat';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { normalizeLedgerLabel } from '../../utils/financialUx';
+import { TransactionDisplayList } from '../transactions/TransactionDisplayList';
+import type { DisplayTx } from '../transactions/transactionsTypes';
+import { getClientOperationLabel, getPortfolioOperationLabel } from '../../utils/transactionTerminology';
 type ClientDetailsViewProps = {
     selectedClientId: string;
     selectedClient: ClientDzd;
@@ -35,6 +37,7 @@ type ClientDetailsViewProps = {
     copiedValue: string | null;
     handleCopy: (text: string) => void;
     transactions: Tx[];
+    profitByTxId?: Record<string, { derivedProfit: number }>;
     handleEditClientTx: (tx: ClientTransactionDzd) => void;
     handleDeleteClientTxClick: (tx: ClientTransactionDzd) => void;
     openClientTxModal: (tx: ClientTransactionDzd | null, presetType?: string, selectedClientId?: string) => void;
@@ -84,6 +87,7 @@ function openWhatsAppMessenger(phone: string, text?: string): void {
     window.open(buildWhatsAppWebUrl(intl, text), '_blank', 'noopener');
 }
 function ContactRow({ label, value, copiedValue, onCopy, isPhone }: ContactRowProps) {
+    const { t } = useLanguage();
     if (!value)
         return null;
     const isCopied = copiedValue === value;
@@ -99,13 +103,13 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone }: ContactRowPr
               <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.122 1.532 5.852L.054 23.5l5.782-1.519A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.9a9.877 9.877 0 01-5.031-1.375l-.361-.214-3.737.981 1.001-3.648-.235-.374A9.855 9.855 0 012.1 12c0-5.467 4.433-9.9 9.9-9.9 5.467 0 9.9 4.433 9.9 9.9s-4.433 9.9-9.9 9.9z"/>
             </svg>
           </button>)}
-        <Button onClick={() => onCopy(value)} variant="icon" size="icon" className={`rounded-button ${isCopied ? 'bg-success-bg text-financial-profit' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`} aria-label={`Copier ${label}`}>
+        <Button onClick={() => onCopy(value)} variant="icon" size="icon" className={`rounded-button ${isCopied ? 'bg-success-bg text-financial-profit' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`} aria-label={`${t('common.copy')} ${label}`}>
           {isCopied ? <CheckIcon className="w-4 h-4"/> : <CopyIcon className="w-4 h-4"/>}
         </Button>
       </div>
     </div>);
 }
-export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, handleExportClientReport }: ClientDetailsViewProps) {
+export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, handleExportClientReport }: ClientDetailsViewProps) {
     const { t } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 120;
     const LOAD_MORE_TRANSACTIONS = 120;
@@ -143,6 +147,64 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
         }
         return { visibleDateGroups: visibleGroups, hiddenTransactionCount: hidden, totalTransactionCount: total };
     }, [dates, groupedHistory, visibleTransactionCount]);
+    const visibleDisplayDateGroups = useMemo<Array<[string, DisplayTx[]]>>(() => {
+        return visibleDateGroups.map(([date, txsForDate]) => [
+            date,
+            txsForDate.map((tx): DisplayTx => {
+                const linkedUsdtTx = tx.linkedTxId ? (linkedTransactionsById.get(tx.linkedTxId) || null) : null;
+                const isCredit = tx.montant > 0;
+                const isTransfer = tx.type === 'Transfert Entrant' || tx.type === 'Transfert Sortant';
+                const isLinkedPortfolioTx = Boolean(linkedUsdtTx && (linkedUsdtTx.type === 'buy' || linkedUsdtTx.type === 'sell'));
+                const icon = isTransfer
+                    ? <UsersIcon className="w-5 h-5"/>
+                    : isCredit
+                        ? <ArrowDownLeftIcon className="w-5 h-5"/>
+                        : <ArrowUpRightIcon className="w-5 h-5"/>;
+                const iconNode = (
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-neutral-100 text-neutral-600">
+                        {icon}
+                    </div>
+                );
+
+                if (linkedUsdtTx && isLinkedPortfolioTx) {
+                    const isBuy = linkedUsdtTx.type === 'buy';
+                    return {
+                        id: `client_linked_${tx.id}`,
+                        originalId: tx.id,
+                        timestamp: tx.timestamp,
+                        date: tx.date,
+                        time: tx.time,
+                        typeLabel: getPortfolioOperationLabel(linkedUsdtTx.type, linkedUsdtTx.currency, t as (key: string) => string),
+                        amountLabel: `${formatNumber(Number(linkedUsdtTx.quantity || 0), { min: 0, max: 2 })} ${linkedUsdtTx.currency}`,
+                        amountColor: isBuy ? 'text-financial-profit' : 'text-financial-loss',
+                        icon: iconNode,
+                        details: tx.notes || '',
+                        category: 'crypto',
+                        rawTx: linkedUsdtTx,
+                        actionRawTx: tx,
+                        sourceType: 'usdt_tx',
+                    };
+                }
+
+                return {
+                    id: `client_${tx.id}`,
+                    originalId: tx.id,
+                    timestamp: tx.timestamp,
+                    date: tx.date,
+                    time: tx.time,
+                    typeLabel: getClientOperationLabel(tx.type, t as (key: string) => string),
+                    amountLabel: formatDzd(Math.abs(Number(tx.montant || 0)), { min: 2, max: 2 }),
+                    amountColor: isTransfer ? 'text-primary' : (isCredit ? 'text-financial-profit' : 'text-financial-loss'),
+                    icon: iconNode,
+                    details: tx.notes || '',
+                    category: 'client',
+                    rawTx: tx,
+                    actionRawTx: tx,
+                    sourceType: 'client_tx',
+                };
+            }),
+        ]);
+    }, [linkedTransactionsById, t, visibleDateGroups]);
     const clientStats = useMemo(() => {
         const allTxs = Object.values(groupedHistory).flat();
         let totalReceived = 0;
@@ -215,10 +277,10 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
     }, [groupedHistory, selectedClientBalance]);
 
     const balanceStatusLabel = selectedClientBalance > 0.01
-        ? 'Avance'
+        ? t('finance.advance')
         : selectedClientBalance < -0.01
-            ? 'Dette'
-            : 'Solde Nul';
+            ? t('finance.debt')
+            : t('clients.zeroBalance');
     const balanceStatusColor = selectedClientBalance > 0.01
         ? 'text-financial-profit'
         : selectedClientBalance < -0.01
@@ -233,7 +295,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
         const amount = Math.abs(selectedClientBalance);
         const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
         const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-        const msg = `📋 Rappel de solde\n\nClient : ${name}\nMontant dû : ${fmt(amount)} DZD\nDate : ${today}\n\nMerci de régulariser votre solde.`;
+        const msg = `📋 ${t('clients.reminderTitle')}\n\n${t('clients.clientWord')} : ${name}\n${t('clients.amountDue')} : ${fmt(amount)} DZD\n${t('common.dateWord')} : ${today}\n\n${t('clients.reminderFooter')}`;
         if (selectedClient.phone) {
             openWhatsAppMessenger(selectedClient.phone, msg);
         } else if (typeof navigator.share === 'function') {
@@ -256,10 +318,10 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <Button onClick={() => handleTouchStart(selectedClient)} variant="icon" size="icon" className="rounded-full hover:bg-neutral-100" aria-label="Partager">
+          <Button onClick={() => handleTouchStart(selectedClient)} variant="icon" size="icon" className="rounded-full hover:bg-neutral-100" aria-label={t('clients.share')}>
             <ShareIcon className="w-5 h-5"/>
           </Button>
-          <Button onClick={() => openClientModal(selectedClient)} variant="icon" size="icon" className="rounded-full hover:bg-neutral-100" aria-label="Modifier le client">
+          <Button onClick={() => openClientModal(selectedClient)} variant="icon" size="icon" className="rounded-full hover:bg-neutral-100" aria-label={t('transactions.editClient')}>
             <PencilIcon className="w-5 h-5"/>
           </Button>
           <Button onClick={exportCurrentMonthReport} variant="primary" size="sm" className="ms-1">
@@ -279,10 +341,10 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
           <div className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning-bg px-4 py-3">
             <AlertTriangleIcon className="h-5 w-5 shrink-0 text-warning mt-0.5"/>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-warning">Seuil de crédit dépassé ({pct}%)</p>
+              <p className="text-sm font-bold text-warning">{t('clients.creditLimitExceeded')} ({pct}%)</p>
               <p className="mt-0.5 text-xs text-warning/70">
-                Dette : <span dir="ltr" className="font-semibold">{Math.round(debt).toLocaleString('fr-FR')} DZD</span>
-                {' '}/ Limite : <span dir="ltr" className="font-semibold">{Math.round(limit).toLocaleString('fr-FR')} DZD</span>
+                {t('finance.debt')} : <span dir="ltr" className="font-semibold">{Math.round(debt).toLocaleString('fr-FR')} DZD</span>
+                {' '}/ {t('clients.limitWord')} : <span dir="ltr" className="font-semibold">{Math.round(limit).toLocaleString('fr-FR')} DZD</span>
               </p>
             </div>
           </div>
@@ -291,27 +353,27 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
 
       <HeroKpiCard accent="sky" icon={<WalletIcon className="w-5 h-5"/>} primaryLabel={t('common.balance') as string} primaryValue={selectedClientBalance} primaryCurrency="DZD" primarySemantic="auto" secondary={[
             {
-                label: 'Statut',
+                label: t('clients.status') as string,
                 value: 0,
                 display: (<span className={`text-lg font-semibold ${balanceStatusColor}`}>
                 {balanceStatusLabel}
               </span>),
             },
-            { label: 'Opérations', value: totalTransactionCount, currency: null, semantic: 'plain' }
+            { label: t('reports.operations') as string, value: totalTransactionCount, currency: null, semantic: 'plain' }
         ]}/>
 
       <Card>
         <CardHeader className="p-4 pb-3">
-          <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>Actions</SectionHeading>
+          <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>{t('clients.actions')}</SectionHeading>
         </CardHeader>
         <CardContent className="p-4 pt-0 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <Button onClick={() => openClientTxModal(null, 'Règlement Reçu', selectedClientId)} variant="primary" size="md" className="w-full font-bold">
-              <ArrowDownIcon className="w-4 h-4"/>
+              <ArrowDownLeftIcon className="w-4 h-4"/>
               {t('transactions.paymentReceived')}
             </Button>
             <Button onClick={() => openClientTxModal(null, 'Paiement Effectué', selectedClientId)} variant="tab" size="md" className="w-full font-bold">
-              <ArrowUpIcon className="w-4 h-4"/>
+              <ArrowUpRightIcon className="w-4 h-4"/>
               {t('transactions.paymentMade')}
             </Button>
           </div>
@@ -326,7 +388,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                 <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.122 1.532 5.852L.054 23.5l5.782-1.519A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.9a9.877 9.877 0 01-5.031-1.375l-.361-.214-3.737.981 1.001-3.648-.235-.374A9.855 9.855 0 012.1 12c0-5.467 4.433-9.9 9.9-9.9 5.467 0 9.9 4.433 9.9 9.9s-4.433 9.9-9.9 9.9z"/>
               </svg>
               <span>
-                {hasPhone ? 'Envoyer rappel WhatsApp' : 'Copier rappel de solde'}
+                {hasPhone ? t('clients.sendWhatsAppReminder') : t('clients.copyBalanceReminder')}
                 {' '}— {Math.round(Math.abs(selectedClientBalance)).toLocaleString('fr-FR')} DZD
               </span>
             </button>
@@ -335,28 +397,28 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
       </Card>
 
       <Tabs tabs={[
-            { id: 'overview', label: 'Apercu' },
-            { id: 'history', label: 'Historique', badge: totalTransactionCount }
+            { id: 'overview', label: t('clients.overview') as string },
+            { id: 'history', label: t('clients.history') as string, badge: totalTransactionCount }
         ]} activeTab={activeTab} onChange={(id) => setActiveTab(id as 'overview' | 'history')} variant="underline"/>
 
       {activeTab === 'overview' && (<div className="space-y-4">
           <Card>
             <CardHeader className="p-4 pb-3">
-              <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>Informations</SectionHeading>
+              <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>{t('clients.information')}</SectionHeading>
             </CardHeader>
             <CardContent className="p-0 divide-y divide-neutral-100">
               {hasContactInfo ? (<>
                   <ContactRow label={t('transactions.phone') as string} value={selectedClient.phone || ''} copiedValue={copiedValue} onCopy={handleCopy} isPhone/>
                   <ContactRow label="RedotPay ID" value={selectedClient.redotpayId || ''} copiedValue={copiedValue} onCopy={handleCopy}/>
                   <ContactRow label="Binance Email" value={selectedClient.binanceEmail || ''} copiedValue={copiedValue} onCopy={handleCopy}/>
-                </>) : (<EmptyState icon={<InfoIcon className="w-5 h-5"/>} title="Aucune information de contact" subtitle="Modifiez le client pour ajouter téléphone, email ou RedotPay ID."/>)}
+                </>) : (<EmptyState icon={<InfoIcon className="w-5 h-5"/>} title={t('emptyStates.contact.title')} subtitle={t('emptyStates.contact.subtitle')}/>)}
             </CardContent>
           </Card>
 
           {selectedClient.notes && (
             <Card>
               <CardHeader className="p-4 pb-2">
-                <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>Notes privées</SectionHeading>
+                <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>{t('clients.privateNotes')}</SectionHeading>
               </CardHeader>
               <CardContent className="px-4 pb-4 pt-1">
                 <p className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-700">{selectedClient.notes}</p>
@@ -370,20 +432,20 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
               <CardHeader className="p-4 pb-3">
                 <div className="flex items-center justify-between gap-2">
                   <SectionHeading icon={<AlertTriangleIcon className="w-4 h-4"/>}>
-                    Vieillissement de la dette
+                    {t('clients.debtAging')}
                   </SectionHeading>
                   <span className="text-[10px] font-bold text-neutral-400 uppercase">
-                    {debtAging.oldestDays}j max
+                    {debtAging.oldestDays} {t('clients.daysMaxWord')}
                   </span>
                 </div>
               </CardHeader>
               <CardContent className="p-4 pt-0 space-y-2">
                 {/* Age buckets */}
                 {([
-                  { label: '0 – 7 jours', amount: debtAging.buckets.week, cls: 'bg-success-bg border-success/30 text-financial-profit' },
-                  { label: '8 – 30 jours', amount: debtAging.buckets.month, cls: 'bg-warning-bg border-warning/30 text-warning' },
-                  { label: '31 – 60 jours', amount: debtAging.buckets.twoMonth, cls: 'bg-danger-bg/50 border-danger/20 text-financial-loss' },
-                  { label: '+ de 60 jours', amount: debtAging.buckets.old, cls: 'bg-danger-bg border-danger/30 text-financial-loss font-extrabold' },
+                  { label: `0 – 7 ${t('clients.daysWord')}`, amount: debtAging.buckets.week, cls: 'bg-success-bg border-success/30 text-financial-profit' },
+                  { label: `8 – 30 ${t('clients.daysWord')}`, amount: debtAging.buckets.month, cls: 'bg-warning-bg border-warning/30 text-warning' },
+                  { label: `31 – 60 ${t('clients.daysWord')}`, amount: debtAging.buckets.twoMonth, cls: 'bg-danger-bg/50 border-danger/20 text-financial-loss' },
+                  { label: `+ 60 ${t('clients.daysWord')}`, amount: debtAging.buckets.old, cls: 'bg-danger-bg border-danger/30 text-financial-loss font-extrabold' },
                 ] as const).filter(b => b.amount > 0.005).map((b) => (
                   <div key={b.label} className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${b.cls}`}>
                     <span className="text-xs font-semibold">{b.label}</span>
@@ -394,14 +456,14 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                 ))}
                 {/* Total + urgency */}
                 <div className="flex items-center justify-between gap-3 border-t border-border pt-2 mt-1">
-                  <span className="text-xs font-bold text-neutral-500 uppercase">Total dette</span>
+                  <span className="text-xs font-bold text-neutral-500 uppercase">{t('clients.totalDebt')}</span>
                   <span dir="ltr" className="text-base font-extrabold tabular-nums text-financial-loss">
                     {Math.round(debtAging.total).toLocaleString('fr-FR')} DZD
                   </span>
                 </div>
                 {debtAging.oldestDays > 30 && (
                   <p className="text-[10px] text-danger font-semibold text-center mt-1">
-                    ⚠️ Partie du solde impayée depuis {debtAging.oldestDays} jours
+                    ⚠️ {t('clients.agingWarning')} {debtAging.oldestDays} {t('clients.daysWord')}
                   </p>
                 )}
               </CardContent>
@@ -411,40 +473,40 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
           {clientStats.txCount > 0 && (
             <Card>
               <CardHeader className="p-4 pb-3">
-                <SectionHeading icon={<FileSpreadsheetIcon className="w-4 h-4"/>}>Résumé financier</SectionHeading>
+                <SectionHeading icon={<FileSpreadsheetIcon className="w-4 h-4"/>}>{t('clients.financialSummary')}</SectionHeading>
               </CardHeader>
               <CardContent className="p-0 divide-y divide-neutral-100">
                 <div className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-sm text-neutral-500">Total reçu</span>
+                  <span className="text-sm text-neutral-500">{t('reports.totalReceived')}</span>
                   <CurrencyAmount value={clientStats.totalReceived} currency="DZD" semantic="profit" size="md" decimals={0}/>
                 </div>
                 <div className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-sm text-neutral-500">Total payé</span>
+                  <span className="text-sm text-neutral-500">{t('reports.totalPaid')}</span>
                   <CurrencyAmount value={clientStats.totalPaid} currency="DZD" semantic="loss" size="md" decimals={0}/>
                 </div>
                 <div className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-sm text-neutral-500">Ce mois</span>
+                  <span className="text-sm text-neutral-500">{t('dashboard.thisMonth')}</span>
                   <span className="text-sm font-semibold text-neutral-800">
-                    <span className="tabular-nums">{clientStats.monthCount}</span> op{clientStats.monthCount !== 1 ? 's' : ''}
+                    <span className="tabular-nums">{clientStats.monthCount}</span> {t('common.opsShort')}
                   </span>
                 </div>
                 {clientStats.firstDate && (
                   <div className="flex items-center justify-between gap-3 px-4 py-3">
-                    <span className="text-sm text-neutral-500">Client depuis</span>
+                    <span className="text-sm text-neutral-500">{t('clients.clientSince')}</span>
                     <span className="text-sm font-semibold text-neutral-800" dir="ltr">{clientStats.firstDate}</span>
                   </div>
                 )}
                 {clientStats.daysSinceLast !== null && (
                   <div className="flex items-center justify-between gap-3 px-4 py-3">
-                    <span className="text-sm text-neutral-500">Dernière op.</span>
+                    <span className="text-sm text-neutral-500">{t('clients.lastOp')}</span>
                     <span className={`text-sm font-semibold ${clientStats.daysSinceLast > 30 ? 'text-financial-loss' : 'text-neutral-800'}`}>
-                      {clientStats.daysSinceLast === 0 ? "Aujourd'hui" : `${clientStats.daysSinceLast}j`}
+                      {clientStats.daysSinceLast === 0 ? t('transactions.today') : `${clientStats.daysSinceLast}${t('common.dayShort')}`}
                     </span>
                   </div>
                 )}
                 {selectedClient.creditLimit && selectedClient.creditLimit > 0 && (
                   <div className="flex items-center justify-between gap-3 px-4 py-3">
-                    <span className="text-sm text-neutral-500">Seuil de crédit</span>
+                    <span className="text-sm text-neutral-500">{t('clients.creditLimit')}</span>
                     <CurrencyAmount value={selectedClient.creditLimit} currency="DZD" semantic="plain" size="md" decimals={0}/>
                   </div>
                 )}
@@ -458,60 +520,22 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             <SectionHeading icon={<FileSpreadsheetIcon className="w-4 h-4"/>}>
               {t('transactions.recentTransactions')}
             </SectionHeading>
-            <span className="text-sm text-neutral-500">{totalTransactionCount} operations</span>
+            <span className="text-sm text-neutral-500">{totalTransactionCount} {t('transactions.operationsWord')}</span>
           </CardHeader>
           <CardContent className="p-0">
             {dates.length > 0 ? (<div className="pb-2">
-                {visibleDateGroups.map(([date, txsForDate]) => (<div key={date}>
-                    <div className="sticky top-0 z-10 px-4 py-2 text-xs font-semibold uppercase bg-surface/95 text-neutral-500 backdrop-blur-sm">
-                      {getRelativeFrDateLabel(date)} <span className="font-normal normal-case opacity-70 ms-1">({date})</span>
-                    </div>
-
-                    <div className="divide-y divide-neutral-100">
-                      {txsForDate.map((tx) => {
-                        const linkedUsdtTx = tx.linkedTxId ? (linkedTransactionsById.get(tx.linkedTxId) || null) : null;
-                        const isCredit = tx.montant > 0;
-                        let typeLabel = tx.type;
-                        let calcDetails = '';
-                        if (linkedUsdtTx?.type === 'buy') {
-                            typeLabel = `${t('transactions.buy')} ${linkedUsdtTx.currency}`;
-                            calcDetails = `${formatNumber(linkedUsdtTx.quantity, { min: 0, max: 2 })} x ${formatNumber(linkedUsdtTx.price || 0, { min: 2, max: 2 })}`;
-                        }
-                        else if (linkedUsdtTx?.type === 'sell') {
-                            typeLabel = `${t('transactions.sell')} ${linkedUsdtTx.currency}`;
-                            calcDetails = `${formatNumber(linkedUsdtTx.quantity, { min: 0, max: 2 })} x ${formatNumber(linkedUsdtTx.sell || 0, { min: 2, max: 2 })}`;
-                        }
-                        typeLabel = normalizeLedgerLabel(typeLabel);
-                        return (<SwipeableListItem key={tx.id} onEdit={() => handleEditClientTx(tx)} onDelete={() => handleDeleteClientTxClick(tx)}>
-                            <div className="flex items-center gap-3 w-full px-4 py-3 bg-surface" 
-                            // Technical exception: content-visibility keeps long client histories responsive.
-                            style={{ contentVisibility: 'auto', containIntrinsicSize: '76px' }}>
-                              <div className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center bg-neutral-100 text-neutral-600">
-                                {isCredit ? <ArrowDownIcon className="w-5 h-5"/> : <ArrowUpIcon className="w-5 h-5"/>}
-                              </div>
-
-                              <div className="flex-1 min-w-0">
-                                <p className="text-base font-semibold truncate leading-tight">{typeLabel}</p>
-                                <p className="text-xs text-neutral-500 mt-0.5">
-                                  {tx.time}
-                                  {calcDetails && (<span dir="ltr" className="ms-2 font-mono opacity-70">{calcDetails}</span>)}
-                                </p>
-                                {tx.notes && (<p className="text-xs italic mt-0.5 truncate text-financial-debt">
-                                    {tx.notes}
-                                  </p>)}
-                              </div>
-
-                              <div className="text-end shrink-0">
-                                <CurrencyAmount value={tx.montant} currency="DZD" semantic="auto" size="lg" showSign/>
-                              </div>
-                            </div>
-                          </SwipeableListItem>);
-                    })}
-                    </div>
-                  </div>))}
+                <TransactionDisplayList
+                  dateGroups={visibleDisplayDateGroups}
+                  getRelativeDateLabel={getRelativeFrDateLabel}
+                  onEditDisplayTx={(displayTx) => handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
+                  onDeleteDisplayTx={(displayTx) => handleDeleteClientTxClick((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
+                  onOpenDisplayTx={(displayTx) => handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
+                  formatDzdAmount={(value) => formatDzd(value, { min: 2, max: 2 })}
+                  profitByTxId={profitByTxId}
+                />
                 {hiddenTransactionCount > 0 && (<div className="px-4 pt-4 pb-3">
                     <Button onClick={() => setVisibleTransactionCount((prev) => prev + LOAD_MORE_TRANSACTIONS)} variant="outline" className="w-full rounded-xl px-4 py-3 font-semibold bg-neutral-100 text-neutral-700 hover:bg-neutral-200">
-                      Afficher plus ({Math.min(hiddenTransactionCount, LOAD_MORE_TRANSACTIONS)})
+                      {t('transactions.showMore')} ({Math.min(hiddenTransactionCount, LOAD_MORE_TRANSACTIONS)})
                     </Button>
                     <p className="mt-2 text-center text-xs text-neutral-500">
                       {totalTransactionCount - hiddenTransactionCount} / {totalTransactionCount}

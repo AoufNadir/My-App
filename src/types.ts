@@ -26,8 +26,94 @@ export interface Tx {
     linkedClientDzdId?: string;
     clientPaymentStatus?: 'credit' | 'baridi' | 'cash';
     paymentMethod?: 'Espèces' | 'BaridiMob' | 'Crédit';
+    /** ISO yyyy-mm-dd. Required for new credit sales; legacy credit rows may omit it. */
+    creditDueDate?: string;
     /** Unix ms timestamp after which this purchase becomes available for sale (24h restriction). */
     lockedUntil?: number;
+    // ── Smart Pricing snapshot (sell only) — what the engine suggested at
+    //    sale time. Actual price lives in `sell`; the delta is the
+    //    negotiation loss. See services/smartPricingEngine.ts.
+    spOpeningPrice?: number;
+    spTargetPrice?: number;
+    spMinPrice?: number;
+    spMarketStatus?: 'rising' | 'falling' | 'stable' | 'volatile' | 'unknown';
+    spSegment?: 'vip' | 'good' | 'normal' | 'weak' | 'risky' | 'new';
+    spScore?: number;
+    /** Versioned, auditable recommendation used for this sale. */
+    spSnapshot?: SmartPricingSnapshot;
+}
+
+export type PricingMarketStatus = 'rising' | 'falling' | 'stable' | 'volatile' | 'unknown';
+export type PricingCustomerSegment = 'vip' | 'good' | 'normal' | 'weak' | 'risky' | 'new';
+export type PricingPaymentKind = 'cash' | 'baridi' | 'credit';
+
+export interface SmartPricingSnapshot {
+    modelVersion: string;
+    quotedAt: number;
+    currency: 'USDT' | 'EUR';
+    clientId: string | null;
+    quantity: number;
+    pam: number;
+    payment: {
+        kind: PricingPaymentKind;
+        dueDate?: string;
+        termDays: number;
+        /** How termDays was derived: promised date, learned behavior, or policy default. */
+        termSource?: 'explicit' | 'learned' | 'default';
+    };
+    corridor: {
+        openingPrice: number;
+        targetPrice: number;
+        floorPrice: number;
+    };
+    market: {
+        automatic: PricingMarketStatus;
+        effective: PricingMarketStatus;
+        overridden: boolean;
+    };
+    client: {
+        automaticSegment: PricingCustomerSegment;
+        effectiveSegment: PricingCustomerSegment;
+        pricedAs: PricingCustomerSegment;
+        score: number | null;
+        overridden: boolean;
+    };
+    breakdown: {
+        marketBand: [number, number];
+        quantityAdjustment: number;
+        financingPremium: number;
+        targetGoalShift: number;
+        floorGoalShift: number;
+        negotiationBuffer: number;
+    };
+    goal: {
+        remainingGoal: number;
+        expectedProfit: number;
+        coveragePct: number | null;
+        feasible: boolean;
+    };
+    creditRisk: {
+        projectedDebt: number;
+        creditLimit: number;
+        utilizationPct: number | null;
+        oldestOverdueDays: number;
+        requiresAcknowledgement: boolean;
+        acknowledged: boolean;
+        acknowledgedAt?: number;
+        reasons: string[];
+    };
+    actual: {
+        source: 'opening' | 'target' | 'floor' | 'manual';
+        unitPrice: number;
+        deviationPerUnit: number;
+        negotiationLoss: number;
+        belowFloor: boolean;
+        belowPam: boolean;
+    };
+    reasonCodes: string[];
+    configRevision?: number;
+    planRevision?: number;
+    overrideIds?: string[];
 }
 
 export interface LockedBatch {
@@ -91,6 +177,8 @@ export interface ClientTransactionDzd {
     linkedTxId?: string; // ID of the USDT/EUR transaction if applicable
     linkRole?: 'primary' | 'dzd_receiver';
     paymentMethod?: 'Espèces' | 'BaridiMob' | 'Crédit';
+    /** ISO yyyy-mm-dd due date for credit debt lots. */
+    creditDueDate?: string;
     affectsBalance?: boolean; // false = history-only row that should not alter client balance
     origin?: 'adjustment';
 }
@@ -244,6 +332,9 @@ export type PoOrderStatus =
 
 export type PoPaymentType = 'prepaid' | 'debt';
 
+/** Crypto network the client's wallet address is on (USDT orders only). */
+export type PoDeliveryNetwork = 'TRC20' | 'BEP20' | 'ERC20' | 'TON' | 'other';
+
 /** Collection: po_orders. */
 export interface PoOrder {
     id: string;
@@ -268,6 +359,11 @@ export interface PoOrder {
     cashLocationId?: string;
     agentId?: string;
     proofUrl?: string;
+    /** Where the admin must deliver the purchased currency — wallet address
+     * (crypto) or bank/RIP details (EUR). Required at order creation. */
+    deliveryAddress: string;
+    /** Network of deliveryAddress, only meaningful for crypto currencies. */
+    deliveryNetwork?: PoDeliveryNetwork;
     clientNote?: string;
     adminNote?: string;
     /** Set on admin completion → links to the generated ledger rows (idempotency). */
@@ -277,10 +373,12 @@ export interface PoOrder {
     updatedAt: number;
 }
 
+export type PoCurrencyCode = 'USDT' | 'EUR';
+
 /** Collection: po_currencies. Code matches real inventory (PRD "USD" → USDT). */
 export interface PoCurrency {
     id: string;
-    code: 'USDT' | 'EUR';
+    code: PoCurrencyCode;
     label: string;
     active: boolean;
     minOrder: number;
@@ -300,6 +398,11 @@ export interface PoPricingTier {
     requiresAdminApproval: boolean;
     active: boolean;
     operatorUid: string;
+    pricingModelVersion?: string;
+    pricingConfigRevision?: number;
+    pricingPlanRevision?: number;
+    publishedAt?: number;
+    publishedBy?: string;
 }
 
 export type PoPaymentMethodType = 'baridimob' | 'cash' | 'bank_transfer' | 'other';
@@ -349,14 +452,15 @@ export type PoAuditAction =
     | 'order_cancelled'
     | 'order_rejected'
     | 'debt_activated'
-    | 'debt_paid';
+    | 'debt_paid'
+    | 'catalog_generated';
 
 /** Collection: po_audit_logs. Append-only (immutable). */
 export interface PoAuditLog {
     id: string;
     action: PoAuditAction;
     actorUid: string;
-    targetType: 'order' | 'user' | 'confirmation';
+    targetType: 'order' | 'user' | 'confirmation' | 'catalog';
     targetId: string;
     detailsJson?: string;
     createdAt: number;

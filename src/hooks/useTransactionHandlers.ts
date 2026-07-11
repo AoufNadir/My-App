@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type MutableRefObject } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
 import { Tx, PortfolioStats, ClientDzd, TreasuryTx, ClientTransactionDzd } from '../types';
 import { now, parseAndEvaluate } from '../utils';
 import { roundM } from '../utils/money';
 import { formatNumber } from '../pages/shared/pageFormat';
 import { applyTransactionDelete } from '../transactionService';
+import type { SmartSaleSnapshot } from '../services/smartPricingEngine';
 interface HandlerProps {
     userDocRef: FirestoreDocumentReference;
     portfolioStats: PortfolioStats;
@@ -15,20 +16,42 @@ interface HandlerProps {
         caisse: number;
         baridi: number;
     };
-    suggestedProfitMargin: string;
-    suggestedSellingPrice: string;
-    suggestedSellingPriceEur: string;
     setAlert: (msg: string) => void;
     setSelectedClientId: (id: string | null) => void;
     setView: (view: 'transactions' | 'dzd' | 'tresorerie' | 'statistiques' | 'tresorerie' | 'investors') => void;
-    // Smart pricing context is used outside the transaction price defaults.
-    clientLoyaltyMap?: Map<string, 'vip' | 'regular' | 'new' | 'inactive'>;
-    avgMarginPerUsdt?: number;
+    /** Live smart-pricing quote for the open sell form (SmartPricePanel keeps it current). */
+    smartQuoteRef?: MutableRefObject<SmartSaleSnapshot | null>;
 }
 type TransactionFormMode = 'buy_usdt' | 'sell_usdt' | 'buy_eur' | 'sell_eur';
 type PortfolioCurrency = 'USDT' | 'EUR';
 type SettlementCurrency = 'DZD' | 'EUR';
-export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, treasuryStats, suggestedProfitMargin, suggestedSellingPrice, suggestedSellingPriceEur, setAlert, setSelectedClientId, setView }: HandlerProps) {
+const pricingRiskFingerprint = (snapshot: SmartSaleSnapshot) => JSON.stringify([
+    snapshot.currency, snapshot.clientId, snapshot.quantity,
+    snapshot.payment.kind, snapshot.payment.dueDate || '', snapshot.actual.unitPrice,
+    snapshot.creditRisk.projectedDebt, snapshot.creditRisk.creditLimit,
+    snapshot.creditRisk.oldestOverdueDays,
+]);
+/** Firestore rejects undefined. Safe ONLY for pure-JSON values (never for
+ *  payloads carrying fieldValueDelete() sentinels). */
+function stripUndefinedDeep<T>(value: T): T {
+    if (Array.isArray(value)) return value.map(stripUndefinedDeep) as T;
+    if (value && typeof value === 'object') {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(value)) {
+            if (v !== undefined) out[k] = stripUndefinedDeep(v);
+        }
+        return out as T;
+    }
+    return value;
+}
+export type PrefillSell = {
+    sellQty?: string;
+    sellPrice?: string;
+    clientId?: string;
+    paymentStatus?: 'credit' | 'baridi' | 'cash';
+    creditDueDate?: string;
+};
+export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, treasuryStats, setAlert, setSelectedClientId, setView, smartQuoteRef }: HandlerProps) {
     const [isSaving, setIsSaving] = useState(false);
     const paymentMethodByStatus: Record<'credit' | 'baridi' | 'cash', 'Crédit' | 'BaridiMob' | 'Espèces'> = {
         credit: 'Crédit',
@@ -59,6 +82,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [linkedClientId, setLinkedClientId] = useState('none');
     const [linkedClientDzdId, setLinkedClientDzdId] = useState('none');
     const [clientPaymentStatus, setClientPaymentStatus] = useState<'credit' | 'baridi' | 'cash'>('cash');
+    const [creditDueDate, setCreditDueDate] = useState('');
+    const [pendingCreditRisk, setPendingCreditRisk] = useState<SmartSaleSnapshot | null>(null);
 
     const [buyRestriction, setBuyRestriction] = useState<'free' | 'locked_24h'>('free');
     const [realPurchaseTime, setRealPurchaseTime] = useState('');
@@ -135,6 +160,12 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 addError('buyEurTotal', 'Montant total invalide');
             if (!linkedClientId || linkedClientId === '' || linkedClientId === 'none')
                 addError('linkedClientId', 'Veuillez sélectionner un client');
+            if (clientPaymentStatus === 'credit') {
+                if (!creditDueDate)
+                    addError('creditDueDate', "Date d'échéance requise");
+                else if (Date.parse(`${creditDueDate}T23:59:59`) <= Date.now())
+                    addError('creditDueDate', "L'échéance doit être future");
+            }
             if (clientPaymentStatus === 'cash' && linkedClientDzdId && linkedClientDzdId !== 'none' && linkedClientDzdId === linkedClientId) {
                 addError('linkedClientDzdId', 'Le client DZD doit etre different du client principal');
             }
@@ -163,8 +194,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             }
         }
         return { isValid, errors };
-    }, [mode, buyUsdtMode, buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, sellSettlementCurrency, sellEurToDzdRate, portfolioStats, editingTx, linkedClientId, linkedClientDzdId, clientPaymentStatus, transactions]);
-    type PrefillSell = { sellQty?: string; sellPrice?: string; clientId?: string };
+    }, [mode, buyUsdtMode, buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, sellSettlementCurrency, sellEurToDzdRate, portfolioStats, editingTx, linkedClientId, linkedClientDzdId, clientPaymentStatus, creditDueDate, transactions]);
     const openForm = (newMode: TransactionFormMode, txToEdit: Tx | null = null, prefill?: PrefillSell) => {
         setBuyUsdtAmount('');
         setBuyUsdtPrice('');
@@ -172,7 +202,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setBuyEurPrice('');
         setSellAmount(prefill?.sellQty ?? '');
         setSellPrice(prefill?.sellPrice ?? '');
-        setSellTotal('');
+        const prefillQty = parseAndEvaluate(prefill?.sellQty || '');
+        const prefillPrice = parseAndEvaluate(prefill?.sellPrice || '');
+        setSellTotal(prefillQty > 0 && prefillPrice > 0 ? String(Math.round(prefillQty * prefillPrice)) : '');
         setProfitPercent('');
         setNotes('');
         setBuyUsdtMode(null);
@@ -185,7 +217,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setSellEurToDzdRate('');
         setBuyUsdtTotal('');
         setBuyEurTotal('');
-        setClientPaymentStatus('cash');
+        setClientPaymentStatus(prefill?.paymentStatus ?? 'cash');
+        setCreditDueDate(prefill?.creditDueDate ?? '');
+        setPendingCreditRisk(null);
         setEditingTx(txToEdit);
         setMode(newMode);
         setIsTotalManual(false);
@@ -275,6 +309,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 if (txToEdit.clientPaymentStatus)
                     setClientPaymentStatus(txToEdit.clientPaymentStatus);
             }
+            setCreditDueDate(txToEdit.creditDueDate || primaryLinkedTx?.creditDueDate || '');
             if (linkedDzdCollectorTx)
                 setLinkedClientDzdId(linkedDzdCollectorTx.clientId);
             else if (txToEdit.linkedClientDzdId)
@@ -287,7 +322,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 setSellEurToDzdRate(portfolioStats.eur.avgBuy.toFixed(2));
         }
     };
-    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setBuyRestriction('free'); setRealPurchaseTime(''); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setSellSettlementCurrency('DZD'); setSellEurToDzdRate(''); setLinkedClientDzdId('none'); setIsTotalManual(false); setTxTags([]); };
+    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setBuyRestriction('free'); setRealPurchaseTime(''); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setSellSettlementCurrency('DZD'); setSellEurToDzdRate(''); setLinkedClientDzdId('none'); setCreditDueDate(''); setPendingCreditRisk(null); setIsTotalManual(false); setTxTags([]); };
     const computeLockedUntil = (baseTs: number): number => {
         const t = realPurchaseTime.trim();
         if (!t) return baseTs + 24 * 60 * 60 * 1000;
@@ -475,7 +510,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             setIsSaving(false);
         }
     };
-    const handleSell = async () => {
+    const executeSell = async (acknowledgedFingerprint?: string) => {
         if (!formValidation.isValid || isSaving)
             return;
         setIsSaving(true);
@@ -506,6 +541,27 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             }
             const totalRevenue = Math.round(saleValueDzd);
             const profit = Number((saleValueDzd - (avg * quantity)).toFixed(2));
+            const liveSnapshot = smartQuoteRef?.current;
+            const validSnapshot = liveSnapshot
+                && liveSnapshot.currency === sellCurrency
+                && !isUsdtSettledInEur
+                && (liveSnapshot.clientId ?? 'none') === linkedClientId
+                ? liveSnapshot
+                : null;
+            const currentRiskFingerprint = validSnapshot ? pricingRiskFingerprint(validSnapshot) : '';
+            const riskAcknowledged = !!validSnapshot && acknowledgedFingerprint === currentRiskFingerprint;
+            if (validSnapshot?.creditRisk.requiresAcknowledgement && !riskAcknowledged) {
+                setPendingCreditRisk(validSnapshot);
+                return;
+            }
+            const pricingSnapshot = validSnapshot ? stripUndefinedDeep({
+                ...validSnapshot,
+                creditRisk: {
+                    ...validSnapshot.creditRisk,
+                    acknowledged: validSnapshot.creditRisk.requiresAcknowledgement ? riskAcknowledged : false,
+                    ...(riskAcknowledged ? { acknowledgedAt: Date.now() } : {}),
+                },
+            }) : null;
             const { date, time, timestamp } = now();
             const shouldLinkSettlementToDzdClient = !isUsdtSettledInEur && (clientPaymentStatus === 'cash' || clientPaymentStatus === 'baridi') && linkedClientDzdId !== 'none';
             const batch = db.batch();
@@ -562,8 +618,18 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     eurToDzdRateAtPurchase: fieldValueDelete(),
                     eurPerUsdtAtPurchase: fieldValueDelete(),
                     currency: sellCurrency, linkedClientId, clientPaymentStatus: clientPaymentStatus,
+                    creditDueDate: clientPaymentStatus === 'credit' && !isUsdtSettledInEur ? creditDueDate : fieldValueDelete(),
                     ...settlementMetadata
                 };
+                if (pricingSnapshot) {
+                    mainSellUpdate.spSnapshot = pricingSnapshot;
+                    mainSellUpdate.spOpeningPrice = pricingSnapshot.openingPrice;
+                    mainSellUpdate.spTargetPrice = pricingSnapshot.targetPrice;
+                    mainSellUpdate.spMinPrice = pricingSnapshot.minimumAllowedPrice;
+                    mainSellUpdate.spMarketStatus = pricingSnapshot.marketStatus;
+                    mainSellUpdate.spSegment = pricingSnapshot.segment;
+                    mainSellUpdate.spScore = pricingSnapshot.score ?? fieldValueDelete();
+                }
                 if (shouldLinkSettlementToDzdClient) {
                     mainSellUpdate.linkedClientDzdId = linkedClientDzdId;
                 }
@@ -585,7 +651,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         linkedTxId: editingTx.id,
                         linkRole: 'primary',
                         paymentMethod: isUsdtSettledInEur ? paymentMethodByStatus['cash'] : paymentMethodByStatus[clientPaymentStatus],
-                        affectsBalance: isUsdtSettledInEur ? false : affectsClientBalance(clientPaymentStatus)
+                        affectsBalance: isUsdtSettledInEur ? false : affectsClientBalance(clientPaymentStatus),
+                        ...(clientPaymentStatus === 'credit' && !isUsdtSettledInEur ? { creditDueDate } : {}),
                     });
                 }
                 if (shouldLinkSettlementToDzdClient) {
@@ -614,8 +681,20 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     date, time, notes: notes.trim(), currency: sellCurrency,
                     ...(txTags.length > 0 ? { tags: txTags } : {}),
                     linkedClientId, clientPaymentStatus: clientPaymentStatus,
+                    ...(clientPaymentStatus === 'credit' && !isUsdtSettledInEur ? { creditDueDate } : {}),
                     ...settlementMetadataForCreate
                 };
+                // Smart-pricing snapshot: what the engine suggested for THIS deal.
+                // sell vs spTargetPrice = negotiation loss (never blocks the sale).
+                if (pricingSnapshot) {
+                    mainSellCreate.spSnapshot = pricingSnapshot;
+                    mainSellCreate.spOpeningPrice = pricingSnapshot.openingPrice;
+                    mainSellCreate.spTargetPrice = pricingSnapshot.targetPrice;
+                    mainSellCreate.spMinPrice = pricingSnapshot.minimumAllowedPrice;
+                    mainSellCreate.spMarketStatus = pricingSnapshot.marketStatus;
+                    mainSellCreate.spSegment = pricingSnapshot.segment;
+                    if (pricingSnapshot.score !== null) mainSellCreate.spScore = pricingSnapshot.score;
+                }
                 if (shouldLinkSettlementToDzdClient) {
                     mainSellCreate.linkedClientDzdId = linkedClientDzdId;
                 }
@@ -635,7 +714,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         linkedTxId: ref.id,
                         linkRole: 'primary',
                         paymentMethod: isUsdtSettledInEur ? paymentMethodByStatus['cash'] : paymentMethodByStatus[clientPaymentStatus],
-                        affectsBalance: isUsdtSettledInEur ? false : affectsClientBalance(clientPaymentStatus)
+                        affectsBalance: isUsdtSettledInEur ? false : affectsClientBalance(clientPaymentStatus),
+                        ...(clientPaymentStatus === 'credit' && !isUsdtSettledInEur ? { creditDueDate } : {}),
                     });
                 }
                 if (shouldLinkSettlementToDzdClient) {
@@ -667,6 +747,13 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             setIsSaving(false);
         }
     };
+    const handleSell = () => executeSell();
+    const confirmCreditRisk = async () => {
+        const fingerprint = pendingCreditRisk ? pricingRiskFingerprint(pendingCreditRisk) : undefined;
+        setPendingCreditRisk(null);
+        await executeSell(fingerprint);
+    };
+    const cancelCreditRisk = () => setPendingCreditRisk(null);
     const handleGlobalAdjustment = async () => {
         const amountNum = parseAndEvaluate(adjustmentAmount);
         if (isNaN(amountNum) || amountNum <= 0) {
@@ -970,6 +1057,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setIsTransferModalOpen(true);
     };
     const handleSaveTransfer = async () => {
+        if (isSaving)
+            return;
         const amt = parseAndEvaluate(transferAmount);
         if (amt <= 0 || !transferFromClientId || !transferToClientId || transferFromClientId === transferToClientId) {
             setAlert('⚠️ Paramètres de transfert invalides.');
@@ -981,17 +1070,19 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             const batch = db.batch();
             const fromC = clientsDzd.find(c => c.id === transferFromClientId);
             const toC = clientsDzd.find(c => c.id === transferToClientId);
+            const outgoingTransferRef = userDocRef.collection('dzd_client_txs').doc();
+            const incomingTransferRef = userDocRef.collection('dzd_client_txs').doc();
             // Source (De) advances money -> Credit (+amt)
-            batch.set(userDocRef.collection('dzd_client_txs').doc(), {
+            batch.set(outgoingTransferRef, {
                 clientId: transferFromClientId, timestamp, date, time, montant: amt,
                 type: 'Transfert Sortant', notes: transferNotes.trim() || `Transfert vers ${toC?.fullName || 'Client'}`,
                 paymentMethod: 'Crédit'
             });
             // Destination (À) receives benefit -> Debit (-amt)
-            batch.set(userDocRef.collection('dzd_client_txs').doc(), {
+            batch.set(incomingTransferRef, {
                 clientId: transferToClientId, timestamp: timestamp + 1, date, time, montant: -amt,
                 type: 'Transfert Entrant', notes: transferNotes.trim() || `Transfert de ${fromC?.fullName || 'Client'}`,
-                paymentMethod: 'Crédit'
+                paymentMethod: 'Crédit', linkedTxId: outgoingTransferRef.id
             });
             await batch.commit();
             setAlert('✅ Transfert réussi.');
@@ -1010,6 +1101,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
     };
     const handleSaveTransferWithEditing = async () => {
+        if (isSaving)
+            return;
         const amt = parseAndEvaluate(transferAmount);
         if (amt <= 0 || !transferFromClientId || !transferToClientId || transferFromClientId === transferToClientId) {
             setAlert('⚠️ Paramètres de transfert invalides.');
@@ -1048,7 +1141,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 montant: -amt,
                 type: 'Transfert Entrant',
                 notes: transferNotes.trim() || `Transfert de ${fromC?.fullName || 'Client'}`,
-                paymentMethod: 'Crédit'
+                paymentMethod: 'Crédit',
+                linkedTxId: editingTransferTx.id
             });
             await batch.commit();
             setAlert('✅ Transfert mis à jour.');
@@ -1117,6 +1211,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount,
         eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate,
         linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus,
+        creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk,
         notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent,
         isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab,
         adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount,

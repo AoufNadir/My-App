@@ -1,5 +1,4 @@
-import { memo, useEffect, useState } from 'react';
-export const MONTHLY_GOAL_KEY = 'app_monthly_profit_goal';
+import { memo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Input } from '../ui/Input';
@@ -90,15 +89,6 @@ function MainUtilityDialogsComponent({
     isSettingsModalOpen,
     setIsSettingsModalOpen,
     t,
-    suggestedProfitMargin,
-    setSuggestedProfitMargin,
-    suggestedSellingPrice,
-    setSuggestedSellingPrice,
-    suggestedUsdtEurSellPrice,
-    setSuggestedUsdtEurSellPrice,
-    suggestedSellingPriceEur,
-    setSuggestedSellingPriceEur,
-    portfolioStats,
     setIsResetModalOpen,
     userDocRef,
     setAlert,
@@ -134,71 +124,6 @@ function MainUtilityDialogsComponent({
     const closeCreateAsset = () => setIsCreateAssetModalOpen(false);
     const closeTreasuryCard = () => setIsTreasuryCardModalOpen(false);
 
-    const [monthlyGoalDraft, setMonthlyGoalDraft] = useState('');
-    const [minGoalDraft, setMinGoalDraft] = useState('');
-    const [tierVipDraft, setTierVipDraft] = useState('');
-    const [tierRegularDraft, setTierRegularDraft] = useState('');
-    const [tierPetitDraft, setTierPetitDraft] = useState('');
-
-    useEffect(() => {
-        if (isSettingsModalOpen) {
-            const stored = localStorage.getItem(MONTHLY_GOAL_KEY);
-            setMonthlyGoalDraft(stored ? String(Math.round(Number(stored))) : '');
-            const storedMin = localStorage.getItem('app_min_monthly_goal');
-            setMinGoalDraft(storedMin ? String(Math.round(Number(storedMin))) : '');
-            setTierVipDraft(localStorage.getItem('app_tier_vip') || '5000');
-            setTierRegularDraft(localStorage.getItem('app_tier_regular') || '1000');
-            setTierPetitDraft(localStorage.getItem('app_tier_petit') || '150');
-        }
-    }, [isSettingsModalOpen]);
-
-    const handleSaveSettings = async () => {
-        const goalValue = parseFloat(monthlyGoalDraft) || 0;
-        if (goalValue > 0) {
-            localStorage.setItem(MONTHLY_GOAL_KEY, String(goalValue));
-        } else {
-            localStorage.removeItem(MONTHLY_GOAL_KEY);
-        }
-        window.dispatchEvent(new StorageEvent('storage', { key: MONTHLY_GOAL_KEY, newValue: goalValue > 0 ? String(goalValue) : null }));
-
-        // Minimum monthly goal
-        const minGoalValue = parseFloat(minGoalDraft) || 0;
-        if (minGoalValue > 0) localStorage.setItem('app_min_monthly_goal', String(minGoalValue));
-        else localStorage.removeItem('app_min_monthly_goal');
-        window.dispatchEvent(new StorageEvent('storage', { key: 'app_min_monthly_goal', newValue: minGoalValue > 0 ? String(minGoalValue) : null }));
-
-        // Tier thresholds
-        const saveThreshold = (key: string, val: string, def: number) => {
-            const n = parseFloat(val) || def;
-            localStorage.setItem(key, String(n));
-            window.dispatchEvent(new StorageEvent('storage', { key, newValue: String(n) }));
-        };
-        saveThreshold('app_tier_vip',     tierVipDraft,     5000);
-        saveThreshold('app_tier_regular', tierRegularDraft, 1000);
-        saveThreshold('app_tier_petit',   tierPetitDraft,   150);
-
-        try {
-            const marginToSave = parseFloat(parseFloat(suggestedProfitMargin).toFixed(2)) || 2;
-            const sellPriceToSave = parseFloat(parseFloat(suggestedSellingPrice).toFixed(2)) || 0;
-            const usdtEurSellPriceToSave = parseFloat(parseFloat(suggestedUsdtEurSellPrice).toFixed(4)) || 0;
-            const sellPriceEurToSave = parseFloat(parseFloat(suggestedSellingPriceEur).toFixed(2)) || 0;
-
-            await userDocRef.set({
-                suggestedProfitMargin: marginToSave,
-                suggestedSellingPrice: sellPriceToSave,
-                suggestedUsdtEurSellPrice: usdtEurSellPriceToSave,
-                suggestedSellingPriceEur: sellPriceEurToSave,
-                settingsUpdatedAt: Date.now(),
-            }, { merge: true });
-
-            setAlert('✅ ' + t('common.settingsSaved'));
-            setIsSettingsModalOpen(false);
-        } catch (e: any) {
-            console.error('Error saving settings:', e);
-            setAlert('❌ ' + t('common.error') + ': ' + (e.message || 'Erreur inconnue'));
-        }
-    };
-
     return (
         <>
             <Modal isOpen={isSettingsModalOpen} onClose={closeSettings} className="max-w-sm bg-surface text-neutral-900">
@@ -206,93 +131,7 @@ function MainUtilityDialogsComponent({
                     <ModalTitle className="text-base sm:text-lg">{t('settings.salesSettings')}</ModalTitle>
                 </ModalHeader>
                 <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
-                    <MoneyField
-                        label={t('settings.salePriceUsdtDzd')}
-                        value={suggestedSellingPrice}
-                        onChange={setSuggestedSellingPrice}
-                        currency="DZD"
-                        placeholder="250.00"
-                        hint={t('settings.usedForTransactionsAndSimulator')}
-                    />
-
-                    <MoneyField
-                        label={t('settings.salePriceUsdtEur')}
-                        value={suggestedUsdtEurSellPrice}
-                        onChange={setSuggestedUsdtEurSellPrice}
-                        currency="EUR"
-                        placeholder="0.8650"
-                    />
-
-                    <MoneyField
-                        label={t('settings.salePriceEurDzd')}
-                        value={suggestedSellingPriceEur}
-                        onChange={setSuggestedSellingPriceEur}
-                        currency="DZD"
-                        placeholder="0.00"
-                        hint={`${t('portfolio.avgBuyPriceEur')}: ${(portfolioStats.eur.avgBuy || 0).toFixed(2)} ${t('common.dinar')}`}
-                    />
-
-                    <MoneyField
-                        label={t('settings.defaultMarginDzd')}
-                        value={suggestedProfitMargin}
-                        onChange={setSuggestedProfitMargin}
-                        currency="DZD"
-                        placeholder="2.00"
-                    />
-
                     <PinSettings />
-
-                    {/* Monthly goals */}
-                    <div className="space-y-3">
-                        <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">Objectifs mensuels</p>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <Label>Objectif ambitieux (DZD)</Label>
-                                <MoneyField
-                                    label=""
-                                    value={monthlyGoalDraft}
-                                    onChange={setMonthlyGoalDraft}
-                                    currency="DZD"
-                                    placeholder="Ex: 200 000"
-                                    hint="Barre de progression Dashboard"
-                                />
-                            </div>
-                            <div>
-                                <Label>Plancher obligatoire (DZD)</Label>
-                                <MoneyField
-                                    label=""
-                                    value={minGoalDraft}
-                                    onChange={setMinGoalDraft}
-                                    currency="DZD"
-                                    placeholder="Ex: 100 000"
-                                    hint="Défaut: 65% de l'objectif"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Tier thresholds */}
-                    <div className="space-y-3">
-                        <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">Seuils de classification client <span className="font-normal normal-case">(USDT/mois précédent)</span></p>
-                        <div className="grid grid-cols-3 gap-2">
-                            <div>
-                                <Label>VIP (min)</Label>
-                                <MoneyField label="" value={tierVipDraft} onChange={setTierVipDraft} currency="USDT" placeholder="5000" hint="> ce seuil = VIP"/>
-                            </div>
-                            <div>
-                                <Label>Régulier (min)</Label>
-                                <MoneyField label="" value={tierRegularDraft} onChange={setTierRegularDraft} currency="USDT" placeholder="1000" hint="Régulier → VIP"/>
-                            </div>
-                            <div>
-                                <Label>Petit (min)</Label>
-                                <MoneyField label="" value={tierPetitDraft} onChange={setTierPetitDraft} currency="USDT" placeholder="150" hint="Petit → Régulier"/>
-                            </div>
-                        </div>
-                        <p className="text-[10px] text-neutral-400">
-                            Nouveau = &lt; {tierPetitDraft || '150'} USDT ou sans historique
-                        </p>
-                    </div>
-
 
                     {/* Backup section */}
                     <div className="rounded-xl border border-border bg-surface-muted p-3 space-y-2">
@@ -315,14 +154,7 @@ function MainUtilityDialogsComponent({
                     </div>
                 </ModalContent>
                 <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
-                    <div className="flex w-full gap-2">
-                        <Button type="button" variant="outline" className="flex-1" onClick={closeSettings}>
-                            {t('common.cancel')}
-                        </Button>
-                        <Button type="button" className="flex-1" onClick={handleSaveSettings}>
-                            {t('common.save')}
-                        </Button>
-                    </div>
+                    <Button type="button" variant="outline" className="w-full" onClick={closeSettings}>{t('common.cancel')}</Button>
                 </ModalFooter>
             </Modal>
 
@@ -444,16 +276,6 @@ const areMainUtilityDialogsPropsEqual = (prev: MainUtilityDialogsProps, next: Ma
         || prevTreasuryCardDeleteOpen !== nextTreasuryCardDeleteOpen
         || prevTreasuryTxDeleteOpen !== nextTreasuryTxDeleteOpen) {
         return false;
-    }
-    if (next.isSettingsModalOpen) {
-        const sameSettings = prev.suggestedProfitMargin === next.suggestedProfitMargin
-            && prev.suggestedSellingPrice === next.suggestedSellingPrice
-            && prev.suggestedUsdtEurSellPrice === next.suggestedUsdtEurSellPrice
-            && prev.suggestedSellingPriceEur === next.suggestedSellingPriceEur
-            && prev.portfolioStats === next.portfolioStats;
-        if (!sameSettings) {
-            return false;
-        }
     }
     if (next.isCreateAssetModalOpen) {
         const sameCreateAsset = prev.newAssetName === next.newAssetName

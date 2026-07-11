@@ -31,7 +31,8 @@ import { useWeeklyRecap } from './hooks/useWeeklyRecap';
 // Custom Hooks
 import { useAppData } from './hooks/useAppData';
 import { useSettings } from './hooks/useSettings';
-import { useTransactionHandlers } from './hooks/useTransactionHandlers';
+import { useSmartPricingPlan } from './hooks/useSmartPricingPlan';
+import { useTransactionHandlers, type PrefillSell } from './hooks/useTransactionHandlers';
 import { useClientHandlers } from './hooks/useClientHandlers';
 import { useAssetHandlers } from './hooks/useAssetHandlers';
 import { useGlobalSearch } from './hooks/useGlobalSearch';
@@ -77,7 +78,8 @@ const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
 };
 type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
 import { reorderClientName, nameMatchesQuery } from './utils/nameUtils';
-import { computeGoalAdjustedBase, getVolumeBracket } from './utils/pricingMatrix';
+import { MonthPlanSheet } from './components/calculator/MonthPlanSheet';
+import { buildPricingContext, quoteSale, type SmartSaleSnapshot } from './services/smartPricingEngine';
 
 function getClientDisplayName(client: ClientDzd) {
     const raw = client.fullName || (client.prenom ? `${client.nom} ${client.prenom}` : client.nom) || '';
@@ -134,7 +136,8 @@ export default function MainApp({ user }: {
         subscribeTreasuryCards: shouldSubscribeTreasuryCards
     });
     // 1.2 Settings
-    const { suggestedProfitMargin, setSuggestedProfitMargin, suggestedSellingPrice, setSuggestedSellingPrice, suggestedUsdtEurSellPrice, setSuggestedUsdtEurSellPrice, suggestedSellingPriceEur, setSuggestedSellingPriceEur, managerFeePercentage, setManagerFeePercentage } = useSettings(userDocRef);
+    const { managerFeePercentage, setManagerFeePercentage } = useSettings(userDocRef);
+    const pricingPlanSync = useSmartPricingPlan(userDocRef);
     // 1.3 Derived Data
     // FIX-PERF (Phase 3): defer heavy computations so list/UI updates stay
     // interactive on weak phones. React renders with the previous pamLedger /
@@ -159,67 +162,40 @@ export default function MainApp({ user }: {
     }, [shouldSubscribeInvestors, deferredInvestors, deferredInvestorTransactions, managerFeePercentage, deferredTransactions, pamLedger, deliveryExpenses]);
     const derivedInvestors = investorEconomics.derivedInvestors;
 
-    // Reactive monthly goal + tier thresholds — update instantly when changed from Settings
-    const GOAL_KEY = 'app_monthly_profit_goal';
-    const [monthlyGoalState, setMonthlyGoalState] = React.useState<number>(() =>
-        Number(localStorage.getItem(GOAL_KEY) || 0)
-    );
-    const [minimumGoalState, setMinimumGoalState] = React.useState<number>(() =>
-        Number(localStorage.getItem('app_min_monthly_goal') || 0)
-    );
-    const [tierThresholds, setTierThresholds] = React.useState(() => ({
-        vip:     Number(localStorage.getItem('app_tier_vip')     || 5000),
-        regular: Number(localStorage.getItem('app_tier_regular') || 1000),
-        petit:   Number(localStorage.getItem('app_tier_petit')   || 150),
-    }));
-    React.useEffect(() => {
-        const handler = (e: StorageEvent) => {
-            if (e.key === GOAL_KEY) setMonthlyGoalState(Number(e.newValue || 0));
-            if (e.key === 'app_min_monthly_goal') setMinimumGoalState(Number(e.newValue || 0));
+    const monthlyGoalState = pricingPlanSync.plan.monthlyGoal;
+    const minimumGoalState = pricingPlanSync.plan.minimumGoal;
+    const tierThresholds = React.useMemo(() => ({
+        vip: pricingPlanSync.policy.vipVolumeThreshold,
+        regular: pricingPlanSync.policy.regularVolumeThreshold,
+        petit: pricingPlanSync.policy.smallVolumeThreshold,
+    }), [pricingPlanSync.policy.vipVolumeThreshold, pricingPlanSync.policy.regularVolumeThreshold, pricingPlanSync.policy.smallVolumeThreshold]);
 
-            if (e.key === 'app_tier_vip' || e.key === 'app_tier_regular' || e.key === 'app_tier_petit') {
-                setTierThresholds({
-                    vip:     Number(localStorage.getItem('app_tier_vip')     || 5000),
-                    regular: Number(localStorage.getItem('app_tier_regular') || 1000),
-                    petit:   Number(localStorage.getItem('app_tier_petit')   || 150),
-                });
-            }
-        };
-        window.addEventListener('storage', handler);
-        return () => window.removeEventListener('storage', handler);
-    }, []);
-
-    // Early pricing data (needed before useTransactionHandlers)
-    // effectiveMargin = max(historical 90d margin, goal-required margin)
-    // Re-computes immediately when monthlyGoalState changes (reactive).
-    const earlyAvgMarginPerUsdt = React.useMemo(() => {
+    // Rolling history normalized by the actual observed calendar span. Short
+    // histories stay low-confidence and are not extrapolated into a fake plan.
+    const salesHistory90 = React.useMemo(() => {
         const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
+        const rows = pamLedger.sellProfitRows
+            .filter((row) => row.timestamp >= ninetyDaysAgo && row.currency === 'USDT')
+            .sort((a, b) => a.timestamp - b.timestamp);
         let totalProfit = 0;
         let totalQty = 0;
-        for (const row of pamLedger.sellProfitRows) {
-            if (row.timestamp < ninetyDaysAgo || row.currency !== 'USDT') continue;
+        for (const row of rows) {
             totalProfit += row.derivedProfit || 0;
             totalQty    += Number(row.quantity || 0);
         }
-        const historicalMargin = totalQty > 0
-            ? totalProfit / totalQty
-            : parseAndEvaluate(suggestedProfitMargin);
-
-        // Goal-based margin: what margin is needed per USDT to hit the monthly goal
-        const avgMonthlyVol = totalQty > 0 ? totalQty / 3 : 0; // 90d qty ÷ 3 months
-        const rawGoalMargin = avgMonthlyVol > 0 && monthlyGoalState > 0
-            ? monthlyGoalState / avgMonthlyVol
+        const observedDays = rows.length > 0
+            ? Math.min(90, Math.max(1, Math.ceil((Date.now() - rows[0].timestamp) / 86_400_000)))
             : 0;
-
-        // Adjust so that even VIP (minimum multiplier) achieves the goal
-        const bracket = getVolumeBracket(avgMonthlyVol > 0 ? avgMonthlyVol : portfolioStats.usdt.available);
-        const goalMargin = rawGoalMargin > 0
-            ? computeGoalAdjustedBase(rawGoalMargin, bracket)
-            : 0;
-
-        // Use whichever is higher: historical or goal-adjusted
-        return Math.max(historicalMargin, goalMargin);
-    }, [pamLedger, suggestedProfitMargin, monthlyGoalState]);
+        const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+        const historyReady = observedDays >= pricingPlanSync.policy.minHistoryDays
+            && rows.length >= pricingPlanSync.policy.minHistoryDeals;
+        return {
+            avgMonthlyVol: historyReady ? totalQty / observedDays * daysInMonth : 0,
+            avgMonthlyProfit: historyReady ? totalProfit / observedDays * daysInMonth : 0,
+            observedDays,
+            dealCount: rows.length,
+        };
+    }, [pamLedger, pricingPlanSync.policy.minHistoryDays, pricingPlanSync.policy.minHistoryDeals]);
 
     // Client tier by rolling 30-day USDT sell volume (via transaction.linkedClientId)
     const earlyClientLoyaltyMap = React.useMemo<Map<string, 'vip' | 'regular' | 'petit' | 'new' | 'inactive' | 'fournisseur'>>(() => {
@@ -285,6 +261,13 @@ export default function MainApp({ user }: {
         return map;
     }, [transactions]);
 
+    const monthPlanClients = React.useMemo(
+        () => clientsDzd
+            .filter((client) => earlyClientLoyaltyMap.get(client.id) !== 'fournisseur')
+            .map((client) => ({ id: client.id, name: getClientDisplayName(client) })),
+        [clientsDzd, earlyClientLoyaltyMap],
+    );
+
     // Last USDT sell date per client
     const earlyClientLastSellDateMap = React.useMemo(() => {
         const map = new Map<string, number>();
@@ -297,12 +280,13 @@ export default function MainApp({ user }: {
     }, [transactions]);
 
     // --- 2. BUSINESS LOGIC HOOKS ---
-    const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer, handleApplyLock24hToRecentBuys, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime } = useTransactionHandlers({
+    // Live smart-pricing quote of the open sell form — persisted on the Tx
+    // by handleSell as the sp* snapshot (negotiation-loss tracking).
+    const smartQuoteRef = React.useRef<SmartSaleSnapshot | null>(null);
+    const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer, handleApplyLock24hToRecentBuys, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime } = useTransactionHandlers({
         userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, treasuryStats,
-        suggestedProfitMargin, suggestedSellingPrice, suggestedSellingPriceEur,
         setAlert, setSelectedClientId: (id: string | null) => setSelectedClientId(id), setView: (v: string) => setView(v),
-        clientLoyaltyMap: earlyClientLoyaltyMap,
-        avgMarginPerUsdt: earlyAvgMarginPerUsdt,
+        smartQuoteRef,
     });
     const { isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient, handleZeroOutBalance, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert);
     const { isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, setEditingInvestor, investorToDelete, setInvestorToDelete, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorName, setInvestorName, investorInitialCapital, setInvestorInitialCapital, investorInitialCapitalSource, setInvestorInitialCapitalSource, investorNotes, setInvestorNotes, isManager, setIsManager, investorTxType, setInvestorTxType, investorTxAmount, setInvestorTxAmount, investorTxNotes, setInvestorTxNotes, investorTxPaymentSource, setInvestorTxPaymentSource, investorTxToDelete, setInvestorTxToDelete, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, selectedInvestorId, setSelectedInvestorId, handleSaveInvestor, handleSaveInvestorTx, handleReinvestProfit, handleDeleteInvestor, openInvestorModal, closeInvestorModal,
@@ -313,6 +297,7 @@ export default function MainApp({ user }: {
     const { isAssetModalOpen, setIsAssetModalOpen, editingAsset, setEditingAsset, isAssetClientModalOpen, setIsAssetClientModalOpen, editingAssetClient, setEditingAssetClient, isCreateAssetModalOpen, setIsCreateAssetModalOpen, newAssetName, setNewAssetName, newAssetDescription, setNewAssetDescription, assetClientBalance, setAssetClientBalance, handleCreateAsset, handleDeleteAsset, openAssetClientModal, closeAssetClientModal, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, handleCreateAssetTransaction } = useAssetHandlers(userDocRef, manualAssets, manualAssetClients, assetClientBalances, setAlert);
     // --- 3. LOCAL UI STATE ---
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isMonthPlanOpen, setIsMonthPlanOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isTreasuryCardModalOpen, setIsTreasuryCardModalOpen] = useState(false);
@@ -352,16 +337,6 @@ export default function MainApp({ user }: {
     const [portfolioBalanceEditValue, setPortfolioBalanceEditValue] = useState('');
     const [portfolioBalanceEditNotes, setPortfolioBalanceEditNotes] = useState('');
     const [editingPortfolioBalanceTx, setEditingPortfolioBalanceTx] = useState<Tx | null>(null);
-    const [simMode, setSimMode] = useState<'dzd' | 'eur' | 'sell_dzd' | 'sell_eur'>('dzd');
-    const [simBuyQty, setSimBuyQty] = useState('');
-    const [simBuyPrice, setSimBuyPrice] = useState('');
-    const [simEurQty, setSimEurQty] = useState('');
-    const [simEurDzdPrice, setSimEurDzdPrice] = useState('');
-    const [simEurUsdtRate, setSimEurUsdtRate] = useState('');
-    const [simSellUsdtQty, setSimSellUsdtQty] = useState('');
-    const [simSellDzdPrice, setSimSellDzdPrice] = useState('');
-    const [simSellEurPrice, setSimSellEurPrice] = useState('');
-    const [simSellEurToDzdRate, setSimSellEurToDzdRate] = useState('');
     const [copiedValue, setCopiedValue] = useState<string | null>(null);
     const [summaryClient, setSummaryClient] = useState<ClientDzd | null>(null);
     const [treasuryTxToDelete, setTreasuryTxToDelete] = useState<TreasuryTx | null>(null);
@@ -557,31 +532,6 @@ export default function MainApp({ user }: {
         getClientFullName: getClientDisplayName,
         minDays: -1
     });
-    const shouldComputePortfolioSimulators = view === 'dashboard' || view === 'statistiques' || view === 'analytics';
-    const newPamFromDzdSimulator = useMemo(() => {
-        if (!shouldComputePortfolioSimulators)
-            return null;
-        const qty = parseAndEvaluate(simBuyQty);
-        const price = parseAndEvaluate(simBuyPrice);
-        if (qty <= 0 || price <= 0)
-            return null;
-        const totalCost = portfolioStats.usdt.costBasis + (qty * price);
-        const totalQty = portfolioStats.usdt.purchasedQty + qty;
-        return totalQty <= 0 ? 0 : totalCost / totalQty;
-    }, [shouldComputePortfolioSimulators, simBuyQty, simBuyPrice, portfolioStats.usdt]);
-    const newPamFromEurSimulator = useMemo(() => {
-        if (!shouldComputePortfolioSimulators)
-            return null;
-        const eurQty = parseAndEvaluate(simEurQty);
-        const eurPriceDzd = parseAndEvaluate(simEurDzdPrice);
-        const rate = parseAndEvaluate(simEurUsdtRate);
-        if (eurQty <= 0 || eurPriceDzd <= 0 || rate <= 0)
-            return null;
-        const newUsdtQty = eurQty / rate;
-        const totalCost = portfolioStats.usdt.costBasis + (newUsdtQty * eurPriceDzd * rate);
-        const totalQty = portfolioStats.usdt.purchasedQty + newUsdtQty;
-        return totalQty <= 0 ? 0 : totalCost / totalQty;
-    }, [shouldComputePortfolioSimulators, simEurQty, simEurDzdPrice, simEurUsdtRate, portfolioStats.usdt]);
     // M2: previously this was pamLedger.totals.derivedProfit (gross trading profit
     // before delivery expenses). The Dashboard label says "Net", so use the
     // post-delivery netDistributableProfit from investorEconomics for honesty.
@@ -685,6 +635,52 @@ export default function MainApp({ user }: {
             last7DaysProfit,
         };
     }, [pamLedger, clientTransactionsDzd, treasuryStats]);
+    const pricingMtdProfit = useMemo(() => {
+        const d = new Date();
+        const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+        const byCurrency = { USDT: 0, EUR: 0 };
+        for (const row of pamLedger.sellProfitRows) {
+            if (row.timestamp < monthStart) continue;
+            byCurrency[row.currency] += Number(row.derivedProfit || 0);
+        }
+        return byCurrency;
+    }, [pamLedger]);
+    const derivedProfitLookup = useMemo(() => pamLedger.profitByTxId, [pamLedger]);
+    // One canonical context per currency. V1 exposes USDT in the month-plan UI;
+    // EUR keeps baseline pricing for the existing direct-sale flow.
+    const smartPricingByCurrency = useMemo(() => ({
+        USDT: buildPricingContext({
+            transactions,
+            clients: clientsDzd,
+            clientTransactions: clientTransactionsDzd,
+            currency: 'USDT',
+            pam: portfolioStats.usdt.avgBuy,
+            available: portfolioStats.usdt.available,
+            plan: pricingPlanSync.plan,
+            mtdProfit: pricingMtdProfit.USDT,
+            policy: pricingPlanSync.policy,
+            overrides: pricingPlanSync.overrides,
+            derivedProfits: derivedProfitLookup,
+        }),
+        EUR: buildPricingContext({
+            transactions,
+            clients: clientsDzd,
+            clientTransactions: clientTransactionsDzd,
+            currency: 'EUR',
+            pam: portfolioStats.eur.avgBuy,
+            available: portfolioStats.eur.available,
+            plan: {
+                ...pricingPlanSync.plan,
+                monthlyGoal: 0,
+                minimumGoal: 0,
+            },
+            mtdProfit: pricingMtdProfit.EUR,
+            policy: pricingPlanSync.policy,
+            overrides: pricingPlanSync.overrides,
+            derivedProfits: derivedProfitLookup,
+        }),
+    }), [transactions, clientsDzd, clientTransactionsDzd, portfolioStats.usdt.avgBuy, portfolioStats.usdt.available, portfolioStats.eur.avgBuy, portfolioStats.eur.available, pricingPlanSync.plan, pricingPlanSync.policy, pricingPlanSync.overrides, pricingMtdProfit, derivedProfitLookup]);
+    const smartPricingCtx = smartPricingByCurrency.USDT;
     const servicesSummary = useMemo(() => {
         let amountToReceive = 0;
         let clientAdvances = 0;
@@ -1036,12 +1032,7 @@ export default function MainApp({ user }: {
                         return Number(latestPricedTx.sell || 0);
                     return Number(latestPricedTx.price || 0);
                 }
-                const configuredSuggestedPrice = currency === 'EUR'
-                    ? (parseFloat(suggestedSellingPriceEur || '0') || 0)
-                    : (parseFloat(suggestedSellingPrice || '0') || 0);
-                const margin = parseAndEvaluate(suggestedProfitMargin || '0');
-                const derivedAvg = configuredSuggestedPrice - (isNaN(margin) ? 0 : margin);
-                return derivedAvg > 0 ? derivedAvg : 0;
+                return 0;
             };
             const referencePrice = avgBuy > 0 ? avgBuy : getFallbackPrice(portfolioBalanceEditAsset);
             const txPayload: any = {
@@ -1797,16 +1788,22 @@ export default function MainApp({ user }: {
     }, [t]);
 
     */
+    // Smart-engine reference sell prices (target for a normal cash deal) —
+    // the single pricing source since the legacy suggested-price system was removed.
+    const smartTargetPrices = useMemo(() => {
+        const target = (currency: 'USDT' | 'EUR') => quoteSale(smartPricingByCurrency[currency], {
+            currency, clientId: null, quantity: 300, payment: { kind: 'cash' },
+        }).targetPrice;
+        return { usdt: target('USDT'), eur: target('EUR') };
+    }, [smartPricingByCurrency]);
     const portfolioPageProps = useMemo(() => ({
         statsView,
         setStatsView,
         setIsSettingsModalOpen,
         portfolioStats,
         totalPortfolioValue: ((portfolioStats.usdt.available + (portfolioStats.usdt.locked || 0)) * portfolioStats.usdt.avgBuy + (portfolioStats.eur.available + (portfolioStats.eur.locked || 0)) * portfolioStats.eur.avgBuy),
-        suggestedProfitMargin,
-        suggestedSellingPrice,
-        suggestedUsdtEurSellPrice,
-        suggestedSellingPriceEur,
+        smartTargetUsdt: smartTargetPrices.usdt,
+        smartTargetEur: smartTargetPrices.eur,
         parseAndEvaluate,
         usdtReportMonth,
         setUsdtReportMonth,
@@ -1818,21 +1815,7 @@ export default function MainApp({ user }: {
         transactions,
         selectedHeatmapDay,
         setSelectedHeatmapDay,
-        simMode,
-        setSimMode,
-        simBuyQty,
-        setSimBuyQty,
-        simBuyPrice,
-        setSimBuyPrice,
         fieldBase,
-        newPamFromDzdSimulator,
-        simEurQty,
-        setSimEurQty,
-        simEurDzdPrice,
-        setSimEurDzdPrice,
-        simEurUsdtRate,
-        setSimEurUsdtRate,
-        newPamFromEurSimulator,
         handleExportUsdtReport,
         dzdDashboardStats: null,
         reportClient,
@@ -1845,20 +1828,12 @@ export default function MainApp({ user }: {
         reportYear,
         setReportYear,
         handleExportClientReport,
-        simSellUsdtQty,
-        setSimSellUsdtQty,
-        simSellDzdPrice,
-        setSimSellDzdPrice,
-        simSellEurPrice,
-        setSimSellEurPrice,
-        simSellEurToDzdRate,
-        setSimSellEurToDzdRate,
         openPortfolioBalanceEditModal
     }), [
-        statsView, portfolioStats, suggestedProfitMargin, suggestedSellingPrice, suggestedUsdtEurSellPrice, suggestedSellingPriceEur,
-        usdtReportMonth, usdtReportYear, transactions, clientTransactionsDzd, selectedHeatmapDay, simMode, simBuyQty, simBuyPrice,
-        fieldBase, newPamFromDzdSimulator, simEurQty, simEurDzdPrice, simEurUsdtRate, newPamFromEurSimulator,
-        reportClient, clientsDzd, reportMonth, reportYear, simSellUsdtQty, simSellDzdPrice, simSellEurPrice, simSellEurToDzdRate, reportMonthNames,
+        statsView, portfolioStats, smartTargetPrices,
+        usdtReportMonth, usdtReportYear, transactions, clientTransactionsDzd, selectedHeatmapDay,
+        fieldBase,
+        reportClient, clientsDzd, reportMonth, reportYear, reportMonthNames,
         getClientFullName, handleExportClientReport, handleExportUsdtReport, openPortfolioBalanceEditModal
     ]);
     // Bulk-import clients from CSV. Skips duplicates by name or phone, creates
@@ -1966,7 +1941,7 @@ export default function MainApp({ user }: {
                 <InvestorDashboardPage investor={investor} transactions={myTransactions} globalNetProfit={globalNetProfit} managerFeePercentage={Number(managerFeePercentage)} totalCapital={totalCapital} onExportReport={(range) => handleExportInvestorReport(investor.id, range)}/>
             </Suspense>);
     }
-    // Quick sell: pre-fills sell form with max qty + PAM+margin price
+    // Quick sell: pre-fills sell form with max qty (price comes from the smart panel)
     const openQuickSell = React.useCallback(() => {
         const usdtAvail = portfolioStats.usdt.available;
         const usdtPam = portfolioStats.usdt.avgBuy;
@@ -1974,18 +1949,17 @@ export default function MainApp({ user }: {
             openForm('sell_usdt');
             return;
         }
-        const margin = parseAndEvaluate(suggestedProfitMargin);
-        const configuredPrice = parseAndEvaluate(suggestedSellingPrice || '0');
-        const suggestedPrice = (configuredPrice > 0
-            ? configuredPrice
-            : usdtPam + (isNaN(margin) ? 2 : margin)).toFixed(2);
         navigateToView('transactions');
         setTimeout(() => {
             openForm('sell_usdt', null, {
                 sellQty: usdtAvail.toFixed(2),
             });
         }, 80); // let navigation settle first
-    }, [portfolioStats.usdt.available, portfolioStats.usdt.avgBuy, suggestedProfitMargin, suggestedSellingPrice, openForm, navigateToView]);
+    }, [portfolioStats.usdt.available, portfolioStats.usdt.avgBuy, openForm, navigateToView]);
+    const openSmartSale = React.useCallback((prefill: PrefillSell) => {
+        navigateToView('transactions');
+        window.setTimeout(() => openForm('sell_usdt', null, prefill), 80);
+    }, [navigateToView, openForm]);
 
     const navLabels = useMemo(() => ({
         dashboard: t('nav.dashboard') as string || 'Accueil',
@@ -2060,11 +2034,13 @@ export default function MainApp({ user }: {
         onQuickSell: portfolioStats.usdt.available > 0 ? openQuickSell : undefined,
         quickSellPreview: portfolioStats.usdt.available > 0 ? {
             qty: portfolioStats.usdt.available,
-            price: portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin),
+            price: smartTargetPrices.usdt > 0 ? smartTargetPrices.usdt : portfolioStats.usdt.avgBuy,
             pam: portfolioStats.usdt.avgBuy,
         } : null,
+        onOpenMonthPlan: () => setIsMonthPlanOpen(true),
+        monthlyGoal: monthlyGoalState,
     };
-    const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, view, DashboardPage, dashboardPageProps, InsightsPage, insightsTierThresholds: tierThresholds, insightsMinimumGoal: minimumGoalState, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys };
+    const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, view, DashboardPage, dashboardPageProps, InsightsPage, smartPricingCtx, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys };
     const walletTransferDialogProps = useMemo(() => ({
         isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSource,
@@ -2214,61 +2190,10 @@ export default function MainApp({ user }: {
     });
 
     // Pricing context for the smart sell assistant
-    const pricingContext = React.useMemo(() => {
-        const now = new Date();
-        const dayOfMonth = now.getDate();
-        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-        const daysRemaining = Math.max(1, daysInMonth - dayOfMonth + 1);
-        const monthlyGoal = monthlyGoalState; // reactive — updates when goal changes
-        const mtdProfit = dailyOverview.monthToDateProfit;
-        const mtdUsdtSold = dailyOverview.monthToDateUsdtSold;
-
-        // Daily needed = remaining goal / remaining days
-        const remaining = monthlyGoal > 0 ? Math.max(0, monthlyGoal - mtdProfit) : 0;
-        const dailyNeeded = monthlyGoal > 0 ? Math.ceil(remaining / daysRemaining) : 0;
-
-        // Avg margin per USDT from last 90 days
-        const ninetyDaysAgo = now.getTime() - 90 * 86_400_000;
-        let totalProfit90 = 0;
-        let totalQty90 = 0;
-        for (const row of pamLedger.sellProfitRows) {
-            if (row.timestamp < ninetyDaysAgo || row.currency !== 'USDT') continue;
-            totalProfit90 += row.derivedProfit || 0;
-            totalQty90 += Number(row.quantity || 0);
-        }
-        const historicalMargin = totalQty90 > 0 ? totalProfit90 / totalQty90 : parseAndEvaluate(suggestedProfitMargin);
-
-        // Avg monthly USDT sold — last 3 months (approx 90 days)
-        const avgMonthlyUsdtSold = totalQty90 > 0 ? totalQty90 / 3 : 0;
-
-        // Goal-based margin: margin needed per USDT to reach monthly goal
-        const goalMargin = avgMonthlyUsdtSold > 0 && monthlyGoal > 0
-            ? monthlyGoal / avgMonthlyUsdtSold
-            : 0;
-
-        // Effective margin = whichever is higher (ensures goal is achievable)
-        const avgMarginPerUsdt = Math.max(historicalMargin, goalMargin);
-
-        return {
-            dailyNeeded,
-            avgMarginPerUsdt,       // effective (used for pricing)
-            historicalMargin,       // raw historical (for display)
-            goalMargin,             // goal-required margin (for display)
-            avgMonthlyUsdtSold,
-            monthlyGoal,
-            monthToDateProfit: mtdProfit,
-            monthToDateUsdtSold: mtdUsdtSold,
-            dayOfMonth,
-            daysInMonth,
-            daysRemaining,
-            fallbackMargin: parseAndEvaluate(suggestedProfitMargin),
-        };
-    }, [pamLedger, dailyOverview, suggestedProfitMargin, monthlyGoalState]);
-
     const handleExportBackup = React.useCallback(() => {
         try {
             const backup = {
-                version: 1,
+                version: 2,
                 app: 'Pro Digital',
                 exportedAt: new Date().toISOString(),
                 data: {
@@ -2282,6 +2207,11 @@ export default function MainApp({ user }: {
                     manualAssets,
                     manualAssetClients,
                     manualAssetTransactions,
+                    pricing: {
+                        policy: pricingPlanSync.policy,
+                        plan: pricingPlanSync.plan,
+                        overrides: pricingPlanSync.overrides,
+                    },
                 },
             };
             const json = JSON.stringify(backup, null, 2);
@@ -2298,7 +2228,7 @@ export default function MainApp({ user }: {
         } catch {
             setAlert('❌ Erreur lors de la sauvegarde.');
         }
-    }, [transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, derivedInvestors, investorTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions]);
+    }, [transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, derivedInvestors, investorTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, pricingPlanSync.policy, pricingPlanSync.plan, pricingPlanSync.overrides]);
     // Per-view quick action wired to the bottom-bar center FAB. Returning
     // undefined hides the FAB on read-mostly views.
     const onFabPress = useMemo(() => {
@@ -2352,6 +2282,21 @@ export default function MainApp({ user }: {
                 {isGlobalSearchOpen && (<Suspense fallback={null}>
                         <GlobalSearchDialog {...{ isOpen: isGlobalSearchOpen, onClose: closeGlobalSearch, fieldBase, query: globalSearchQuery, setQuery: setGlobalSearchQuery, results: globalSearchResults, onSelectResult: handleSelectGlobalSearchResult, title: t('common.globalSearch'), placeholder: t('common.searchPlaceholder'), noResultsText: t('common.noResults'), clientsText: t('nav.clients'), transactionsText: t('nav.transactions') }}/>
                     </Suspense>)}
+
+                <MonthPlanSheet
+                    isOpen={isMonthPlanOpen}
+                    onClose={() => setIsMonthPlanOpen(false)}
+                    context={smartPricingCtx}
+                    suggestedGoal={Math.round(salesHistory90.avgMonthlyProfit)}
+                    clients={monthPlanClients}
+                    syncState={pricingPlanSync.syncState}
+                    onSavePlan={pricingPlanSync.savePlan}
+                    onSavePolicy={pricingPlanSync.savePolicy}
+                    onSaveDailyMarketOverride={pricingPlanSync.saveDailyMarketOverride}
+                    onSaveDailyClientOverride={pricingPlanSync.saveDailyClientOverride}
+                    onClearOverride={pricingPlanSync.clearOverride}
+                    onUseInSale={openSmartSale}
+                />
             </div>
 
             <MainAppDialogs {...{
@@ -2423,6 +2368,8 @@ export default function MainApp({ user }: {
         linkedClientDzdId, setLinkedClientDzdId,
         openClientModal,
         clientPaymentStatus, setClientPaymentStatus,
+        creditDueDate, setCreditDueDate,
+        pendingCreditRisk, confirmCreditRisk, cancelCreditRisk,
         notes, setNotes,
         txTags, setTxTags,
         buyEurForUsdtAmount, setBuyEurForUsdtAmount,
@@ -2432,7 +2379,6 @@ export default function MainApp({ user }: {
         sellTotal, setSellTotal,
         sellSettlementCurrency, setSellSettlementCurrency,
         sellEurToDzdRate, setSellEurToDzdRate,
-        suggestedSellingPrice, suggestedUsdtEurSellPrice, suggestedSellingPriceEur, suggestedProfitMargin,
         profitPercent, setProfitPercent,
         buyEurAmount, setBuyEurAmount,
         buyEurPrice, setBuyEurPrice,
@@ -2440,6 +2386,7 @@ export default function MainApp({ user }: {
         handleBuy, handleSell,
         buyRestriction, setBuyRestriction,
         realPurchaseTime, setRealPurchaseTime,
+        smartPricingByCurrency, smartQuoteRef,
         isClientCrudDialogsOpen,
         txToDelete, setTxToDelete,
         handleDeleteConfirm,
@@ -2462,10 +2409,6 @@ export default function MainApp({ user }: {
         handleDeleteClient,
         isUtilityDialogsOpen,
         isSettingsModalOpen, setIsSettingsModalOpen,
-        setSuggestedProfitMargin,
-        setSuggestedSellingPrice,
-        setSuggestedUsdtEurSellPrice,
-        setSuggestedSellingPriceEur,
         setIsResetModalOpen,
         userDocRef,
         isResetModalOpen,

@@ -55,6 +55,53 @@ function isClientTransfer(rawTx: DisplayRawTx) {
     const type = (rawTx as ClientTransactionDzd).type;
     return type === 'Transfert Entrant' || type === 'Transfert Sortant';
 }
+function isClientTxLinkedToPortfolio(tx: ClientTransactionDzd, portfolioTxIds: Set<string>) {
+    return Boolean(tx.linkedTxId && portfolioTxIds.has(tx.linkedTxId));
+}
+function isClientTxLinkedToClient(tx: ClientTransactionDzd, clientTxIds: Set<string>) {
+    return Boolean(tx.linkedTxId && clientTxIds.has(tx.linkedTxId));
+}
+function isInternalTreasuryEffect(tx: TreasuryTx) {
+    const normalizedNotes = normalizeText(tx.notes);
+    const isLinkedPortfolioTreasuryEffect = Boolean(tx.linkedTxId)
+        && (
+            tx.origin === 'usdt_tx'
+            || tx.origin === 'client_tx'
+            || normalizedNotes.startsWith('achat ')
+            || normalizedNotes.startsWith('vente ')
+        );
+    return isLinkedPortfolioTreasuryEffect
+        || Boolean(tx.linkedAssetTxId && tx.origin === 'manual_asset')
+        || tx.origin === 'personal_expense_return';
+}
+function getTreasuryEffectDirection(tx: TreasuryTx) {
+    return tx.type === 'Ajout' || tx.type === 'Adjustment (+)' ? 'in' : 'out';
+}
+function getTreasuryEffectWallet(tx: TreasuryTx) {
+    const data = tx as TreasuryTx & { asset?: string };
+    return data.source || data.destination || data.asset || '';
+}
+function findClientTransferCounterpart(tx: ClientTransactionDzd, clientTransactionsDzd: ClientTransactionDzd[]) {
+    if (tx.type !== 'Transfert Sortant' && tx.type !== 'Transfert Entrant')
+        return null;
+    if (tx.linkedTxId) {
+        const linked = clientTransactionsDzd.find((candidate) => candidate.id === tx.linkedTxId);
+        if (linked)
+            return linked;
+    }
+    const counterpartType = tx.type === 'Transfert Sortant' ? 'Transfert Entrant' : 'Transfert Sortant';
+    const counterpartAmount = -Number(tx.montant || 0);
+    return clientTransactionsDzd
+        .filter((candidate) => candidate.id !== tx.id
+        && candidate.clientId !== tx.clientId
+        && candidate.type === counterpartType
+        && candidate.date === tx.date
+        && candidate.time === tx.time
+        && Math.abs(Number(candidate.montant || 0) - counterpartAmount) <= 0.01
+        && Math.abs(Number(candidate.timestamp || 0) - Number(tx.timestamp || 0)) <= 2000)
+        .sort((left, right) => Math.abs(Number(left.timestamp || 0) - Number(tx.timestamp || 0))
+        - Math.abs(Number(right.timestamp || 0) - Number(tx.timestamp || 0)))[0] || null;
+}
 function isTreasuryTransfer(rawTx: DisplayRawTx) {
     const tx = rawTx as TreasuryTx;
     return tx.type === 'Transfer' || Boolean(tx.notes?.includes('Virement'));
@@ -270,6 +317,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
     });
     const formatDzdAmount = (value: number) => formatDzd(value, { min: 2, max: 2 });
     const formatAssetAmount = (value: number) => formatNumber(value, { min: 0, max: 2 });
+    const formatEurPerUsdtRate = (value: number) => formatNumber(value, { min: 2, max: 4 });
     useEffect(() => {
         localStorage.setItem(SAVED_FILTERS_STORAGE_KEY, JSON.stringify(savedFilters));
     }, [savedFilters]);
@@ -403,10 +451,41 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
     }, [clientTransactionsDzd]);
     const unifiedTransactions = useMemo(() => {
         const all: DisplayTx[] = [];
+        const portfolioTxIds = new Set(transactions.map((tx) => tx.id).filter(Boolean));
+        const clientTxIds = new Set(clientTransactionsDzd.map((tx) => tx.id).filter(Boolean));
+        const treasuryEffectsByLinkedTxId = new Map<string, TreasuryTx>();
+        for (const treasuryTx of treasuryTransactions || []) {
+            if (!treasuryTx.linkedTxId || !isInternalTreasuryEffect(treasuryTx))
+                continue;
+            if (!treasuryEffectsByLinkedTxId.has(treasuryTx.linkedTxId)) {
+                treasuryEffectsByLinkedTxId.set(treasuryTx.linkedTxId, treasuryTx);
+            }
+        }
+        const hiddenClientTransferIds = new Set<string>();
+        for (const tx of clientTransactionsDzd) {
+            if (tx.type !== 'Transfert Entrant')
+                continue;
+            const counterpart = findClientTransferCounterpart(tx, clientTransactionsDzd);
+            if (counterpart?.type === 'Transfert Sortant')
+                hiddenClientTransferIds.add(tx.id);
+        }
         transactions.forEach((tx) => {
             if (tx.linkedTxId) return;
             const isBuy = tx.type === 'buy' || tx.type === 'Ajout Manuel';
             const isUsdtSaleSettledInEur = tx.type === 'sell' && tx.currency === 'USDT' && tx.settlementCurrency === 'EUR';
+            const saleValueEur = Number(tx.saleValueEur || 0);
+            const purchaseAmountEur = Number(tx.purchaseAmountEur || 0);
+            const isUsdtPurchaseFundedByEur = tx.type === 'buy'
+                && tx.currency === 'USDT'
+                && tx.purchaseFundingCurrency === 'EUR'
+                && purchaseAmountEur > 0;
+            const eurPerUsdtRate = Number(tx.eurPerUsdtAtPurchase || 0) > 0
+                ? Number(tx.eurPerUsdtAtPurchase)
+                : (tx.quantity > 0 ? purchaseAmountEur / tx.quantity : 0);
+            const linkedTreasuryEffect = tx.id ? treasuryEffectsByLinkedTxId.get(tx.id) : undefined;
+            const showLinkedTreasuryOut = tx.type === 'buy'
+                && linkedTreasuryEffect
+                && getTreasuryEffectDirection(linkedTreasuryEffect) === 'out';
             const typeLabel = isUsdtSaleSettledInEur
                 ? t('ledger.sellUsdtEur')
                 : getPortfolioOperationLabel(tx.type, tx.currency, t);
@@ -415,18 +494,20 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
             const client = txClient ? clientsById.get(txClient.clientId) : undefined;
             let details = client ? getClientFullName(client) : (tx.notes || '');
             if (isUsdtSaleSettledInEur) {
-                const saleValueEur = Number(tx.saleValueEur || 0);
                 const eurRate = Number(tx.eurToDzdRateAtSale || 0);
                 const saleValueDzd = Number(tx.total || 0);
                 details = [
                     details,
-                    saleValueEur > 0 ? `${formatAssetAmount(saleValueEur)} EUR` : null,
+                    `${formatAssetAmount(tx.quantity)} USDT`,
                     eurRate > 0 ? `EUR/DZD ${formatDzdAmount(eurRate)}` : null,
                     saleValueDzd > 0 ? `${formatDzdAmount(saleValueDzd)}` : null
                 ].filter(Boolean).join(' - ');
             }
             if (tx.price && (tx.type === 'Ajout Manuel' || tx.type === 'Retrait Manuel')) {
                 details = `${details} - Prix: ${formatDzdAmount(tx.price)}`;
+            }
+            if (showLinkedTreasuryOut) {
+                details = [details, getTreasuryEffectWallet(linkedTreasuryEffect)].filter(Boolean).join(' - ');
             }
             all.push({
                 id: `crypto_${tx.id}`,
@@ -436,8 +517,10 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 time: tx.time,
                 typeLabel,
                 amountLabel: isUsdtSaleSettledInEur
-                    ? `${formatAssetAmount(tx.quantity)} USDT -> ${formatAssetAmount(Number(tx.saleValueEur || 0))} EUR`
-                    : `${formatAssetAmount(tx.quantity)} ${tx.currency}`,
+                    ? (saleValueEur > 0 ? `${formatAssetAmount(saleValueEur)} EUR` : `${formatAssetAmount(tx.quantity)} USDT`)
+                    : isUsdtPurchaseFundedByEur
+                        ? `${formatAssetAmount(purchaseAmountEur)} EUR`
+                        : `${formatAssetAmount(tx.quantity)} ${tx.currency}`,
                 amountColor: isBuy ? 'text-financial-profit' : 'text-financial-loss',
                 icon: (<div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-neutral-100 text-neutral-600">
             {isBuy ? <ArrowDownLeftIcon className="w-5 h-5"/> : <ArrowUpRightIcon className="w-5 h-5"/>}
@@ -445,16 +528,36 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 details,
                 category: 'crypto',
                 rawTx: tx,
-                sourceType: 'usdt_tx'
+                sourceType: 'usdt_tx',
+                rightMiddleLabel: isUsdtPurchaseFundedByEur
+                    ? `@ ${formatEurPerUsdtRate(eurPerUsdtRate)} EUR/USDT`
+                    : undefined,
+                rightBottomLabel: isUsdtPurchaseFundedByEur
+                    ? `→ ${formatAssetAmount(tx.quantity)} USDT`
+                    : showLinkedTreasuryOut
+                        ? `← ${formatDzdAmount(linkedTreasuryEffect.amount)}`
+                        : undefined,
+                rightBottomClassName: showLinkedTreasuryOut ? 'text-financial-loss' : undefined
             });
         });
         clientTransactionsDzd.forEach((tx) => {
-            if (tx.linkedTxId)
+            if (isClientTxLinkedToPortfolio(tx, portfolioTxIds)
+                || isClientTxLinkedToClient(tx, clientTxIds)
+                || tx.origin === 'adjustment'
+                || hiddenClientTransferIds.has(tx.id))
                 return;
             const client = clientsById.get(tx.clientId);
             const clientName = client ? getClientFullName(client) : 'Client Inconnu';
             const isPositive = tx.montant > 0;
             const isTransfer = tx.type === 'Transfert Entrant' || tx.type === 'Transfert Sortant';
+            const transferCounterpart = isTransfer ? findClientTransferCounterpart(tx, clientTransactionsDzd) : null;
+            const counterpartClient = transferCounterpart ? clientsById.get(transferCounterpart.clientId) : undefined;
+            const counterpartName = counterpartClient ? getClientFullName(counterpartClient) : '';
+            const transferDetails = tx.type === 'Transfert Sortant' && counterpartName
+                ? `${clientName} -> ${counterpartName}${tx.notes ? ` - ${tx.notes}` : ''}`
+                : tx.type === 'Transfert Entrant' && counterpartName
+                    ? `${counterpartName} -> ${clientName}${tx.notes ? ` - ${tx.notes}` : ''}`
+                    : `${clientName} ${tx.notes ? `- ${tx.notes}` : ''}`;
             const icon = isTransfer
                 ? <UsersIcon className="w-5 h-5"/>
                 : isPositive
@@ -472,13 +575,15 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 icon: (<div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-neutral-100 text-neutral-600">
             {icon}
           </div>),
-                details: `${clientName} ${tx.notes ? `- ${tx.notes}` : ''}`,
+                details: transferDetails,
                 category: 'client',
                 rawTx: tx,
                 sourceType: 'client_tx'
             });
         });
         treasuryTransactions?.forEach((tx) => {
+            if (isInternalTreasuryEffect(tx))
+                return;
             const txData = tx as any;
             const isEntry = tx.type === 'Ajout' || tx.type === 'Adjustment (+)';
             const isTransfer = tx.type === 'Transfer' || tx.notes?.includes('Virement');

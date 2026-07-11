@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { LandmarkIcon } from '../components/icons/LandmarkIcon';
+import { WalletIcon } from '../components/icons/WalletIcon';
 import { ArrowUpRightIcon } from '../components/icons/ArrowUpRightIcon';
 import { BanknotesIcon } from '../components/icons/BanknotesIcon';
 import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
@@ -28,16 +29,16 @@ function formatTime(ts: number): string {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-function formatUnlockLabel(lockedUntil: number): string {
+function formatUnlockLabel(lockedUntil: number, t: (key: string) => string): string {
     const now = new Date();
     const unlockDate = new Date(lockedUntil);
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const tomorrowStart = todayStart + 86400000;
     const dayAfterStart = tomorrowStart + 86400000;
     const time = formatTime(lockedUntil);
-    if (lockedUntil < tomorrowStart) return `aujourd'hui à ${time}`;
-    if (lockedUntil < dayAfterStart) return `demain à ${time}`;
-    return `le ${unlockDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} à ${time}`;
+    if (lockedUntil < tomorrowStart) return `${t('treasury.todayAt')} ${time}`;
+    if (lockedUntil < dayAfterStart) return `${t('treasury.tomorrowAt')} ${time}`;
+    return `${t('treasury.onDay')} ${unlockDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} ${t('treasury.atTime')} ${time}`;
 }
 
 export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecentBuys, onApplyLock24h }: {
@@ -46,6 +47,7 @@ export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecen
     hasUnmigratedRecentBuys?: boolean;
     onApplyLock24h?: () => void;
 }) {
+    const { t } = useLanguage();
     const [expanded, setExpanded] = useState(false);
     const nowMs = Date.now();
 
@@ -91,11 +93,11 @@ export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecen
     const nextReleaseMs = nextBatch ? nextBatch.lockedUntil - nowMs : 0;
 
     return (
-        <Card>
-            <CardHeader className="p-4 pb-3">
+        <Card className="overflow-hidden">
+            <CardHeader className="p-4 pb-2">
                 <div className="flex items-center justify-between gap-2">
-                    <SectionHeading icon={<span className="text-sm font-bold text-primary">$</span>}>
-                        Stock USDT
+                    <SectionHeading icon={<WalletIcon className="h-4 w-4 text-primary" />}>
+                        {t('treasury.usdtStock')}
                     </SectionHeading>
                 </div>
             </CardHeader>
@@ -104,57 +106,57 @@ export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecen
                 {hasUnmigratedRecentBuys && onApplyLock24h && (
                     <div className="flex items-center justify-between gap-2 rounded-xl border border-warning/30 bg-warning-bg px-3 py-2.5">
                         <div className="min-w-0">
-                            <p className="text-xs font-semibold text-warning">Achats récents non verrouillés</p>
-                            <p className="text-xs text-warning">Des achats d'aujourd'hui/hier n'ont pas de restriction 24h.</p>
+                            <p className="text-xs font-semibold text-warning">{t('treasury.unlockedBuysTitle')}</p>
+                            <p className="text-xs text-warning">{t('treasury.unlockedBuysBody')}</p>
                         </div>
                         <button type="button" onClick={onApplyLock24h} className="shrink-0 rounded-lg bg-warning px-3 py-1.5 text-xs font-bold text-white hover:bg-warning/90 transition-colors">
-                            Appliquer
+                            {t('transactions.apply')}
                         </button>
                     </div>
                 )}
 
                 {/* Main KPIs */}
                 <div className="grid grid-cols-3 gap-2">
-                    <div className="rounded-xl bg-surface-muted p-3 text-center">
-                        <p className="text-[10px] font-medium text-neutral-500 mb-0.5">Total</p>
-                        <p className="text-base font-bold text-neutral-800 tabular-nums" dir="ltr">
+                    <div className="rounded-xl border border-neutral-100 bg-neutral-50/80 p-3 text-center">
+                        <p className="mb-0.5 text-[10px] font-semibold uppercase text-neutral-500">{t('treasury.total')}</p>
+                        <p className="text-base font-extrabold text-neutral-900 tabular-nums" dir="ltr">
                             {total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
-                        <p className="text-[10px] text-neutral-400">USDT</p>
+                        <p className="text-[10px] font-medium text-neutral-400">USDT</p>
                     </div>
-                    <div className="rounded-xl bg-financial-profit-bg p-3 text-center">
-                        <p className="text-[10px] font-medium text-financial-profit mb-0.5">Disponible</p>
-                        <p className="text-base font-bold text-financial-profit tabular-nums" dir="ltr">
+                    <div className="rounded-xl border border-success/15 bg-financial-profit-bg p-3 text-center">
+                        <p className="mb-0.5 text-[10px] font-semibold uppercase text-financial-profit">{t('treasury.available')}</p>
+                        <p className="text-base font-extrabold text-financial-profit tabular-nums" dir="ltr">
                             {available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
-                        <p className="text-[10px] text-financial-profit/70">USDT</p>
+                        <p className="text-[10px] font-medium text-financial-profit/60">USDT</p>
                     </div>
-                    <div className={`rounded-xl p-3 text-center ${locked > 0 ? 'bg-warning-bg' : 'bg-surface-muted'}`}>
-                        <p className={`text-[10px] font-medium mb-0.5 ${locked > 0 ? 'text-warning' : 'text-neutral-400'}`}>Bloqué</p>
-                        <p className={`text-base font-bold tabular-nums ${locked > 0 ? 'text-warning' : 'text-neutral-400'}`} dir="ltr">
+                    <div className={`rounded-xl border p-3 text-center ${locked > 0 ? 'border-primary/15 bg-primary/5' : 'border-neutral-100 bg-neutral-50/80'}`}>
+                        <p className={`mb-0.5 text-[10px] font-semibold uppercase ${locked > 0 ? 'text-primary' : 'text-neutral-400'}`}>{t('treasury.locked')}</p>
+                        <p className={`text-base font-extrabold tabular-nums ${locked > 0 ? 'text-primary' : 'text-neutral-400'}`} dir="ltr">
                             {locked.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
-                        <p className={`text-[10px] ${locked > 0 ? 'text-warning-light/70' : 'text-neutral-400'}`}>USDT</p>
+                        <p className={`text-[10px] font-medium ${locked > 0 ? 'text-primary/60' : 'text-neutral-400'}`}>USDT</p>
                     </div>
                 </div>
 
                 {/* Next release banner */}
                 {locked > 0 && nextBatch && (
-                    <div className="rounded-xl border border-warning/30 bg-warning-bg px-3 py-2.5">
+                    <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5">
                         <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-2 min-w-0">
-                                <span className="text-warning-light text-sm mt-0.5">⏳</span>
+                                <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
                                 <div className="min-w-0">
-                                    <p className="text-xs font-semibold text-warning">Prochain déblocage</p>
-                                    <p className="text-xs text-warning tabular-nums mt-0.5" dir="ltr">
+                                    <p className="text-xs font-bold text-primary">{t('treasury.nextUnlock')}</p>
+                                    <p className="mt-0.5 text-sm font-extrabold text-neutral-900 tabular-nums" dir="ltr">
                                         {nextBatch.quantity.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT
                                     </p>
-                                    <p className="text-xs text-warning-light mt-0.5">
-                                        Disponible {formatUnlockLabel(nextBatch.lockedUntil)}
+                                    <p className="mt-0.5 text-xs text-neutral-500">
+                                        {t('treasury.available')} {formatUnlockLabel(nextBatch.lockedUntil, t)}
                                     </p>
                                 </div>
                             </div>
-                            <span className="text-sm font-bold text-warning tabular-nums shrink-0 mt-0.5" dir="ltr">
+                            <span className="shrink-0 rounded-lg bg-surface px-2.5 py-1 text-sm font-extrabold text-primary tabular-nums shadow-sm" dir="ltr">
                                 {formatCountdown(nextReleaseMs)}
                             </span>
                         </div>
@@ -167,33 +169,33 @@ export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecen
                         <button
                             type="button"
                             onClick={() => setExpanded(e => !e)}
-                            className="flex w-full items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-700 transition-colors py-1"
+                            className="flex w-full items-center gap-2 py-1 text-xs font-semibold text-neutral-500 transition-colors hover:text-primary"
                         >
-                            <span className="text-warning-light">🔒</span>
-                            Lots bloqués ({sortedBatches.length})
-                            <span className="ml-auto">{expanded ? '▲' : '▼'}</span>
+                            <span className="h-1.5 w-1.5 rounded-full bg-primary/60" />
+                            {t('treasury.lockedBatches')} ({sortedBatches.length})
+                            <span className="ms-auto">{expanded ? '▲' : '▼'}</span>
                         </button>
                         {expanded && (
                             <div className="mt-1 space-y-1.5">
                                 {sortedBatches.map((batch) => {
                                     const remainingMs = batch.lockedUntil - nowMs;
                                     const purchaseTime = formatTime(batch.lockedUntil - 24 * 60 * 60 * 1000);
-                                    const unlockLabel = formatUnlockLabel(batch.lockedUntil);
+                                    const unlockLabel = formatUnlockLabel(batch.lockedUntil, t);
                                     return (
-                                        <div key={batch.txId} className="rounded-lg border border-warning/20 bg-warning-bg/50 px-3 py-2.5">
+                                        <div key={batch.txId} className="rounded-lg border border-primary/10 bg-surface-muted px-3 py-2.5">
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="min-w-0">
                                                     <p className="text-sm font-semibold text-neutral-700 tabular-nums" dir="ltr">
                                                         {batch.quantity.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT
                                                     </p>
                                                     <p className="text-[11px] text-neutral-500 mt-0.5">
-                                                        Achat: <span className="tabular-nums font-medium">{purchaseTime}</span>
+                                                        {t('treasury.purchaseAt')} <span className="tabular-nums font-medium">{purchaseTime}</span>
                                                         <span className="mx-1">·</span>
-                                                        Déblocage: <span className="tabular-nums font-medium">{unlockLabel}</span>
+                                                        {t('treasury.unlockAt')} <span className="tabular-nums font-medium">{unlockLabel}</span>
                                                     </p>
                                                 </div>
-                                                <span className="text-xs font-semibold text-warning tabular-nums shrink-0 mt-0.5" dir="ltr">
-                                                    dans {formatCountdown(remainingMs)}
+                                                <span className="text-xs font-semibold text-primary tabular-nums shrink-0 mt-0.5" dir="ltr">
+                                                    {t('treasury.inWord')} {formatCountdown(remainingMs)}
                                                 </span>
                                             </div>
                                         </div>
@@ -206,8 +208,8 @@ export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecen
                     <div className="flex items-center gap-2 rounded-xl border border-success/20 bg-financial-profit-bg px-3 py-2.5">
                         <span className="text-financial-profit text-sm">✓</span>
                         <div>
-                            <p className="text-xs font-semibold text-financial-profit">Aucun lot bloqué actuellement</p>
-                            <p className="text-xs text-financial-profit/70">Tout le stock USDT est disponible</p>
+                            <p className="text-xs font-semibold text-financial-profit">{t('emptyStates.locked.none')}</p>
+                            <p className="text-xs text-financial-profit/70">{t('treasury.allStockAvailable')}</p>
                         </div>
                     </div>
                 ) : null}
@@ -261,8 +263,8 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
     const secondaryItems = [
         { label: t('finance.realCapital') as string, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const },
         // Split investor liability: capital invested vs undistributed profits
-        { label: 'Capital investisseurs', value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
-        { label: 'Profits non retirés', value: investorBreakdown?.profits ?? 0, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
+        { label: t('treasury.investorCapital') as string, value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
+        { label: t('treasury.profitsNotWithdrawn') as string, value: investorBreakdown?.profits ?? 0, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
         { label: t('common.caisseBalance') as string, value: caisseBalance, currency: 'DZD' as const, semantic: 'plain' as const },
         { label: t('common.baridiBalance') as string, value: baridiBalance, currency: 'DZD' as const, semantic: 'plain' as const },
         { label: t('finance.stock') as string, value: capitalSnapshot.stockValue, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
@@ -323,8 +325,8 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
               <Button
                 variant="icon" size="icon"
                 className="rounded-button bg-neutral-100 hover:bg-neutral-200"
-                aria-label="Exporter PDF trésorerie"
-                title="Exporter en PDF"
+                aria-label={t('treasury.exportPdf')}
+                title={t('treasury.exportPdf')}
                 onClick={async () => {
                   const { buildTreasuryPdf, openPdfPrintWindow } = await import('../utils/pdfReports');
                   const allNonInternal = treasuryTransactions
@@ -342,7 +344,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
                   const report = buildTreasuryPdf(
                     rows,
                     { caisse: caisseBalance, baridi: baridiBalance },
-                    `Exporté le ${new Date().toLocaleDateString('fr-FR')}`
+                    `${t('treasury.exportedOn')} ${new Date().toLocaleDateString('fr-FR')}`
                   );
                   openPdfPrintWindow(report);
                 }}
@@ -354,13 +356,13 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
         </CardHeader>
         <CardContent className="p-0">
           {recentTxs.length === 0 ? (
-            <EmptyState icon={<BanknotesIcon className="w-5 h-5"/>} title="Aucun mouvement" subtitle="Les entrées et sorties de caisse apparaîtront ici."/>
+            <EmptyState icon={<BanknotesIcon className="w-5 h-5"/>} title={t('emptyStates.mouvement.title')} subtitle={t('emptyStates.mouvement.subtitle')}/>
           ) : (
             <div className="divide-y divide-neutral-100">
               {recentTxs.map((tx) => {
                 const isIn = tx.type === 'Ajout' || tx.type === 'Adjustment (+)';
                 const amount = Number(tx.amount || 0);
-                const label = tx.type === 'Ajout' ? 'Entrée' : tx.type === 'Retrait' ? 'Sortie' : tx.type;
+                const label = tx.type === 'Ajout' ? t('treasury.inShort') : tx.type === 'Retrait' ? t('treasury.outShort') : tx.type;
                 return (
                   <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
                     <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isIn ? 'bg-success-bg text-financial-profit' : 'bg-danger-bg text-financial-loss'}`}>

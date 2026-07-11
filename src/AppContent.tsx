@@ -9,9 +9,9 @@ import { usePoProfile } from './hooks/usePoProfile';
 import {
     AwaitingApprovalScreen,
     BlockedScreen,
-    ClientPortalPlaceholder,
     AgentDashboardPlaceholder,
 } from './components/portal/PortalScreens';
+import { ClientPortalPage } from './pages/ClientPortalPage';
 const MainApp = lazy(() => import('./MainApp'));
 export default function AppContent() {
     const { t } = useLanguage();
@@ -67,5 +67,5 @@ export default function AppContent() {
     if (profile.role === 'agent') {
         return <AgentDashboardPlaceholder uid={user.uid} />;
     }
-    return <ClientPortalPlaceholder uid={user.uid} />;
+    return <ClientPortalPage user={user} profile={profile} />;
 }

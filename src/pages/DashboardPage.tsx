@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-const MONTHLY_GOAL_KEY = 'app_monthly_profit_goal';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { SectionHeading } from '../components/ui/SectionHeading';
@@ -19,9 +18,13 @@ import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
 import { UsersIcon } from '../components/icons/UsersIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
 import { ShareIcon } from '../components/icons/ShareIcon';
-import type { OverdueDebtClient, Tx, TreasuryCard } from '../types';
+import { TransactionDisplayList } from '../components/transactions/TransactionDisplayList';
+import { useTransactionsViewModel } from '../components/transactions/useTransactionsViewModel';
+import type { DisplayTx, TransactionFilterMode } from '../components/transactions/transactionsTypes';
+import type { ClientDzd, ClientTransactionDzd, OverdueDebtClient, TreasuryCard, TreasuryTx, Tx } from '../types';
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
 import { useLanguage } from '../contexts/LanguageContext';
+const RECENT_TRANSACTION_LIMIT = 5;
 type DashboardPageProps = {
     dailyOverview: {
         caisse: number;
@@ -63,10 +66,26 @@ type DashboardPageProps = {
     onOpenTreasury: () => void;
     onOpenAnalytics: () => void;
     onOpenPersonalWithdrawal?: () => void;
-    recentTransactions?: Tx[];
+    transactions: Tx[];
+    clientTransactionsDzd: ClientTransactionDzd[];
+    clientsDzd: ClientDzd[];
+    treasuryTransactions: TreasuryTx[];
+    getRelativeDateLabel: (dateString: string) => string;
+    getClientFullName: (client: ClientDzd) => string;
+    openForm: (newMode: 'buy_usdt' | 'sell_usdt' | 'buy_eur' | 'sell_eur', txToEdit?: Tx | null) => void;
+    openAdjustmentModal: (type: 'add' | 'subtract', txToEdit?: TreasuryTx | null) => void;
+    setTxToDelete: (tx: Tx | null) => void;
+    handleEditPortfolioTx?: (tx: Tx) => void;
+    handleEditClientTx?: (tx: ClientTransactionDzd) => void;
+    handleEditTreasuryTx?: (tx: TreasuryTx) => void;
+    handleDeleteClientTxClick?: (tx: ClientTransactionDzd) => void;
+    setTreasuryTxToDelete?: (tx: TreasuryTx | null) => void;
     onOpenTransactions?: () => void;
     onQuickSell?: () => void;
     quickSellPreview?: { qty: number; price: number; pam: number } | null;
+    onOpenMonthPlan?: () => void;
+    monthlyGoal?: number;
+    /** Avg monthly USDT volume (90d ÷ 3) — drives the required-margin chip. */
 };
 type Tone = 'success' | 'warning' | 'danger' | 'info';
 type PriorityItem = {
@@ -188,6 +207,7 @@ function TodaySummary({ title, items, last7DaysProfit, todaySellCount, onShare, 
     onShare?: () => void;
     shareCopied?: boolean;
 }) {
+    const { t } = useLanguage();
     const days = last7DaysProfit ?? [];
     const maxAbs = Math.max(...days.map(Math.abs), 1);
     // Day labels: compute from today going back 6 days
@@ -203,11 +223,11 @@ function TodaySummary({ title, items, last7DaysProfit, todaySellCount, onShare, 
           <div className="flex items-center gap-2 shrink-0">
             {typeof todaySellCount === 'number' && todaySellCount > 0 && (
               <span className="text-xs font-semibold text-neutral-500">
-                <span className="tabular-nums text-primary font-bold">{todaySellCount}</span> op{todaySellCount > 1 ? 's' : ''} auj.
+                <span className="tabular-nums text-primary font-bold">{todaySellCount}</span> {t('dashboard.opsShort')}
               </span>
             )}
             {onShare && (
-              <button type="button" onClick={onShare} className="flex h-8 w-8 items-center justify-center rounded-button bg-neutral-100 text-neutral-500 transition-colors hover:bg-neutral-200 hover:text-neutral-800" aria-label="Partager résumé" title={shareCopied ? 'Copié !' : 'Partager résumé'}>
+              <button type="button" onClick={onShare} className="flex h-8 w-8 items-center justify-center rounded-button bg-neutral-100 text-neutral-500 transition-colors hover:bg-neutral-200 hover:text-neutral-800" aria-label={t('dashboard.shareSummary')} title={shareCopied ? t('common.copied') : t('dashboard.shareSummary')}>
                 {shareCopied
                   ? <span className="text-[10px] font-bold text-financial-profit">✓</span>
                   : <ShareIcon className="w-3.5 h-3.5"/>}
@@ -369,35 +389,104 @@ function DashboardSyncState({ title, body, actions, }: {
       <ActionStrip actions={actions}/>
     </div>);
 }
-export function DashboardPage({ dailyOverview, portfolioStats, capitalSnapshot, investorBreakdown, overdueDebtClients, globalNetProfit, isDataSyncing = false, onNewTransaction, onOpenClients, onOpenClient, onOpenClientDebts, onOpenTreasury, onOpenAnalytics, onOpenPersonalWithdrawal, recentTransactions = [], onOpenTransactions, onQuickSell, quickSellPreview }: DashboardPageProps) {
+export function DashboardPage({
+    dailyOverview,
+    portfolioStats,
+    capitalSnapshot,
+    investorBreakdown,
+    overdueDebtClients,
+    globalNetProfit,
+    isDataSyncing = false,
+    onNewTransaction,
+    onOpenClients,
+    onOpenClient,
+    onOpenClientDebts,
+    onOpenTreasury,
+    onOpenAnalytics,
+    onOpenPersonalWithdrawal,
+    transactions,
+    clientTransactionsDzd,
+    clientsDzd,
+    treasuryTransactions,
+    getRelativeDateLabel,
+    getClientFullName,
+    openForm,
+    openAdjustmentModal,
+    setTxToDelete,
+    handleEditPortfolioTx,
+    handleEditClientTx,
+    handleEditTreasuryTx,
+    handleDeleteClientTxClick,
+    setTreasuryTxToDelete,
+    onOpenTransactions,
+    onQuickSell,
+    quickSellPreview,
+    onOpenMonthPlan,
+    monthlyGoal = 0,
+}: DashboardPageProps) {
     const { t } = useLanguage();
     const [shareCopied, setShareCopied] = useState(false);
-    const [monthlyGoal, setMonthlyGoal] = useState<number>(() => Number(localStorage.getItem(MONTHLY_GOAL_KEY) || 0));
-    const [minimumGoal, setMinimumGoal] = useState<number>(() => Number(localStorage.getItem('app_min_monthly_goal') || 0));
-    useEffect(() => {
-        const onStorage = (e: StorageEvent) => {
-            if (e.key === MONTHLY_GOAL_KEY) setMonthlyGoal(Number(e.newValue || 0));
-            if (e.key === 'app_min_monthly_goal') setMinimumGoal(Number(e.newValue || 0));
-        };
-        window.addEventListener('storage', onStorage);
-        return () => window.removeEventListener('storage', onStorage);
-    }, []);
+    const [recentFilterMode, setRecentFilterMode] = useState<TransactionFilterMode>('all');
+    const [recentDateRange, setRecentDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
+    const {
+        groupedTransactions: recentGroupedTransactions,
+        formatDzdAmount: formatRecentDzdAmount,
+        handleEditDisplayTx: handleOpenRecentDisplayTx,
+        handleDeleteDisplayTx: handleDeleteRecentDisplayTx,
+        profitByTxId: recentProfitByTxId,
+    } = useTransactionsViewModel({
+        t: t as (key: string) => string,
+        filterMode: recentFilterMode,
+        setFilterMode: setRecentFilterMode,
+        dateRange: recentDateRange,
+        setDateRange: setRecentDateRange,
+        transactions,
+        clientTransactionsDzd,
+        clientsDzd,
+        treasuryTransactions,
+        getClientFullName,
+        openForm,
+        openAdjustmentModal,
+        setTxToDelete,
+        handleEditPortfolioTx,
+        handleEditClientTx,
+        handleEditTreasuryTx,
+        handleDeleteClientTxClick,
+        setTreasuryTxToDelete,
+    });
+    const recentTransactionGroups = useMemo<Array<[string, DisplayTx[]]>>(() => {
+        const groups: Array<[string, DisplayTx[]]> = [];
+        let remaining = RECENT_TRANSACTION_LIMIT;
+        for (const [date, txs] of Object.entries(recentGroupedTransactions) as Array<[string, DisplayTx[]]>) {
+            if (remaining <= 0) break;
+            const visibleTxs = txs.slice(0, remaining);
+            if (visibleTxs.length > 0) {
+                groups.push([date, visibleTxs]);
+                remaining -= visibleTxs.length;
+            }
+        }
+        return groups;
+    }, [recentGroupedTransactions]);
+    const recentTransactionCount = useMemo(
+        () => recentTransactionGroups.reduce((count, [, txs]) => count + txs.length, 0),
+        [recentTransactionGroups]
+    );
 
     const handleShareDaySummary = () => {
         const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
         const sign = (n: number) => n >= 0 ? `+${fmt(n)}` : fmt(n);
         const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
         const lines: string[] = [
-            `📊 Résumé ${today}`,
+            `📊 ${t('dashboard.summaryWord')} ${today}`,
             ``,
-            `💰 Profit aujourd'hui : ${sign(dailyOverview.todayProfit)} DZD`,
-            dailyOverview.weekToDateProfit !== undefined ? `📅 Cette semaine : ${sign(dailyOverview.weekToDateProfit)} DZD` : '',
-            `📆 Ce mois : ${sign(dailyOverview.monthToDateProfit)} DZD`,
+            `💰 ${t('common.todayProfit')} : ${sign(dailyOverview.todayProfit)} DZD`,
+            dailyOverview.weekToDateProfit !== undefined ? `📅 ${t('dashboard.thisWeek')} : ${sign(dailyOverview.weekToDateProfit)} DZD` : '',
+            `📆 ${t('dashboard.thisMonth')} : ${sign(dailyOverview.monthToDateProfit)} DZD`,
             ``,
             `💵 Caisse : ${fmt(capitalSnapshot.caisseBalance)} DZD`,
             `📱 BaridiMob : ${fmt(capitalSnapshot.baridiBalance)} DZD`,
         ].filter(Boolean);
-        if (dailyOverview.todaySellCount) lines.push(``, `🔄 ${dailyOverview.todaySellCount} opération${dailyOverview.todaySellCount > 1 ? 's' : ''} aujourd'hui`);
+        if (dailyOverview.todaySellCount) lines.push(``, `🔄 ${dailyOverview.todaySellCount} ${t('transactions.operationsWord')}`);
         const text = lines.join('\n');
         if (typeof navigator.share === 'function') {
             navigator.share({ text }).catch(() => {});
@@ -415,8 +504,8 @@ export function DashboardPage({ dailyOverview, portfolioStats, capitalSnapshot, 
     const financialHealth = capitalSnapshot.totalCapital;
     const capitalSecondaryItems = [
         { label: t('finance.realCapital') as string, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const },
-        { label: 'Capital investisseurs', value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
-        { label: 'Profits non retirés', value: investorBreakdown?.profits ?? 0, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
+        { label: t('treasury.investorCapital') as string, value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
+        { label: t('treasury.profitsNotWithdrawn') as string, value: investorBreakdown?.profits ?? 0, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
         { label: t('finance.liquidity') as string, value: cashTotal, currency: 'DZD' as const, semantic: 'plain' as const },
         { label: t('finance.stock') as string, value: stockValue, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
         { label: t('finance.treasuryCards') as string, value: capitalSnapshot.treasuryCardsTotal, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
@@ -551,160 +640,58 @@ export function DashboardPage({ dailyOverview, portfolioStats, capitalSnapshot, 
             { label: t('dashboard.profitYear') as string, value: dailyOverview.yearToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
         ]}/>
 
-      {/* Monthly goal + daily smart target */}
-      {monthlyGoal > 0 && (() => {
-          const now = new Date();
-          const dayOfMonth = now.getDate();
-          const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-          const daysRemaining = Math.max(1, daysInMonth - dayOfMonth + 1);
-          const mtdProfit = dailyOverview.monthToDateProfit;
-          const progress = Math.min(100, Math.max(0, (mtdProfit / monthlyGoal) * 100));
-          const isAchieved = mtdProfit >= monthlyGoal;
-          const remaining = monthlyGoal - mtdProfit;
+      {/* Month plan — entry to the smart pricing hub (progress + prices live inside) */}
+      {monthlyGoal > 0 && onOpenMonthPlan && (
+        <button type="button" onClick={onOpenMonthPlan}
+          className="flex w-full items-center justify-between rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-start transition-colors hover:bg-primary/10 active:scale-[0.99]">
+          <span className="text-sm font-bold text-primary">📋 {t('smartPricing.monthPlan')}</span>
+          <svg className="w-4 h-4 shrink-0 text-primary/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>
+      )}
 
-          // Daily pace: average profit per day elapsed
-          const dailyAvg = dayOfMonth > 0 ? mtdProfit / dayOfMonth : 0;
-          // Daily target needed: what you need each remaining day
-          const dailyNeeded = isAchieved ? 0 : Math.ceil(remaining / daysRemaining);
-          // Estimated goal completion day (if pace continues)
-          let estimatedLabel = '';
-          if (!isAchieved && dailyAvg > 0) {
-              const daysToGoal = remaining / dailyAvg;
-              const estimatedDay = Math.ceil(dayOfMonth + daysToGoal);
-              if (estimatedDay <= daysInMonth) {
-                  estimatedLabel = `Prévu le ${estimatedDay}`;
-              } else {
-                  const overDays = Math.round(estimatedDay - daysInMonth);
-                  estimatedLabel = `+${overDays}j après`;
-              }
-          } else if (isAchieved) {
-              estimatedLabel = '✓ Atteint';
-          }
-
-          const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR', { maximumFractionDigits: 0 });
-
-          const minGoal = minimumGoal > 0 ? minimumGoal : Math.round(monthlyGoal * 0.65);
-          const minProgress = Math.min(100, Math.max(0, (mtdProfit / minGoal) * 100));
-          const minAchieved = mtdProfit >= minGoal;
-
-          return (
-            <div className={`rounded-xl border px-4 py-3 space-y-3 ${isAchieved ? 'border-success/30 bg-success-bg' : 'border-border bg-surface-muted'}`}>
-              {/* Header + progress — Objectif */}
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <p className={`text-xs font-bold uppercase tracking-wide ${isAchieved ? 'text-financial-profit' : 'text-neutral-500'}`}>
-                    {isAchieved ? '✓ Objectif atteint !' : 'Objectif mensuel'}
-                  </p>
-                  <span className="text-xs font-semibold tabular-nums text-neutral-600">
-                    {Math.round(progress)}%
-                  </span>
-                </div>
-                <div className="h-2 w-full rounded-full bg-neutral-200 overflow-hidden">
-                  <div
-                    className={`h-2 rounded-full transition-all ${isAchieved ? 'bg-financial-profit' : progress >= 75 ? 'bg-primary' : progress >= 50 ? 'bg-warning' : 'bg-neutral-400'}`}
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-neutral-400">
-                  <span dir="ltr">{fmt(mtdProfit)} DZD</span>
-                  {!isAchieved && <span dir="ltr">Reste {fmt(remaining)} DZD</span>}
-                  <span dir="ltr">/ {fmt(monthlyGoal)} DZD</span>
-                </div>
-              </div>
-
-              {/* Plancher bar */}
-              <div className="border-t border-border/40 pt-2">
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <p className={`text-[10px] font-bold uppercase tracking-wide ${minAchieved ? 'text-financial-profit' : 'text-financial-loss/70'}`}>
-                    {minAchieved ? '✓ Plancher atteint' : 'Plancher obligatoire'}
-                  </p>
-                  <span className="text-[10px] font-semibold tabular-nums text-neutral-500">
-                    {fmt(minGoal)} DZD · {Math.round(minProgress)}%
-                  </span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-neutral-200 overflow-hidden">
-                  <div
-                    className={`h-1.5 rounded-full transition-all ${minAchieved ? 'bg-financial-profit' : 'bg-danger/60'}`}
-                    style={{ width: `${minProgress}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Smart daily indicators */}
-              {!isAchieved && (
-                <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/50">
-                  <div className="text-center">
-                    <p className="text-[9px] font-bold uppercase text-neutral-400 mb-0.5">Besoin/jour</p>
-                    <p dir="ltr" className={`text-sm font-extrabold tabular-nums ${dailyNeeded > dailyAvg * 1.5 ? 'text-financial-loss' : dailyNeeded > dailyAvg ? 'text-warning' : 'text-financial-profit'}`}>
-                      {fmt(dailyNeeded)}
-                    </p>
-                    <p className="text-[9px] text-neutral-300">DZD</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-[9px] font-bold uppercase text-neutral-400 mb-0.5">Rythme actuel</p>
-                    <p dir="ltr" className="text-sm font-extrabold tabular-nums text-neutral-700">
-                      {dailyAvg > 0 ? fmt(dailyAvg) : '—'}
-                    </p>
-                    <p className="text-[9px] text-neutral-300">DZD/j</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-[9px] font-bold uppercase text-neutral-400 mb-0.5">Estimation</p>
-                    <p className={`text-sm font-extrabold ${estimatedLabel.startsWith('+') ? 'text-financial-loss' : 'text-primary'}`}>
-                      {estimatedLabel || '—'}
-                    </p>
-                    <p className="text-[9px] text-neutral-300">ce mois</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-      })()}
+      {/* No goal yet → CTA to open the month plan and set one */}
+      {monthlyGoal <= 0 && onOpenMonthPlan && (
+        <button type="button" onClick={onOpenMonthPlan}
+          className="flex w-full items-center justify-between rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 text-start transition-colors hover:bg-primary/10 active:scale-[0.99]">
+          <div>
+            <p className="text-sm font-bold text-primary">🎯 {t('smartPricing.title')}</p>
+            <p className="text-xs text-neutral-500 mt-0.5">{t('smartPricing.subtitle')}</p>
+          </div>
+          <svg className="w-4 h-4 shrink-0 text-primary/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>
+      )}
 
       <PriorityList title={t('dashboard.attentionNeeded') as string} items={priorities} onTitleClick={onOpenClientDebts}/>
 
       <PortfolioStatusCard title={t('portfolio.currentStatus') as string} stockLabel={t('finance.stock') as string} valueLabel={t('transactions.value') as string} portfolioStats={portfolioStats} stockValue={stockValue}/>
 
-      {/* Recent portfolio transactions */}
-      {recentTransactions.length > 0 && (
+      {/* Same operation feed as Journal des Opérations, limited to the latest rows. */}
+      {recentTransactionCount > 0 && (
         <Card>
           <CardHeader className="p-4 pb-3">
             <div className="flex items-center justify-between gap-2">
-              <SectionHeading icon={<ArrowRightLeftIcon className="w-4 h-4"/>}>Dernières opérations</SectionHeading>
+              <SectionHeading icon={<ArrowRightLeftIcon className="w-4 h-4"/>}>{t('dashboard.lastOperations')}</SectionHeading>
               {onOpenTransactions && (
                 <button type="button" onClick={onOpenTransactions} className="text-xs font-semibold text-primary hover:underline">
-                  Tout voir
+                  {t('dashboard.seeAll')}
                 </button>
               )}
             </div>
           </CardHeader>
-          <CardContent className="p-0 divide-y divide-neutral-100">
-            {recentTransactions.map((tx) => {
-              const isBuy = tx.type === 'buy';
-              const qty = Number(tx.quantity || 0);
-              const price = Number(tx.price ?? tx.sell ?? 0);
-              const total = Number(tx.total ?? (qty * price));
-              return (
-                <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${isBuy ? 'bg-success-bg text-financial-profit' : 'bg-danger-bg text-financial-loss'}`}>
-                    {isBuy ? '+' : '−'}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold">
-                      {isBuy ? 'Achat' : 'Vente'} <span className="text-neutral-500">{tx.currency}</span>
-                    </p>
-                    <p className="text-xs text-neutral-400">{tx.date} · {tx.time}</p>
-                  </div>
-                  <div className="text-end shrink-0">
-                    <p dir="ltr" className="text-sm font-bold tabular-nums text-neutral-800">
-                      {qty.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} {tx.currency}
-                    </p>
-                    <p dir="ltr" className="text-xs text-neutral-500 tabular-nums">
-                      {price > 0 ? `@ ${price.toFixed(2)}` : ''} {total > 0 ? `= ${Math.round(total).toLocaleString('fr-FR')} DZD` : ''}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
+          <CardContent className="p-0">
+            <TransactionDisplayList
+              dateGroups={recentTransactionGroups}
+              getRelativeDateLabel={getRelativeDateLabel}
+              onEditDisplayTx={handleOpenRecentDisplayTx}
+              onDeleteDisplayTx={handleDeleteRecentDisplayTx}
+              onOpenDisplayTx={handleOpenRecentDisplayTx}
+              formatDzdAmount={formatRecentDzdAmount}
+              profitByTxId={recentProfitByTxId}
+            />
           </CardContent>
         </Card>
       )}
@@ -715,8 +702,8 @@ export function DashboardPage({ dailyOverview, portfolioStats, capitalSnapshot, 
             { label: t('finance.stock') as string, value: stockValue, icon: <BriefcaseIcon className="h-4 w-4"/> },
             { label: t('finance.toReceive') as string, value: totalDebt, semantic: totalDebt > 0 ? 'profit' : 'plain', icon: <ArrowUpRightIcon className="h-4 w-4"/> },
             { label: t('finance.clientAdvance') as string, value: totalAdvances, semantic: totalAdvances > 0 ? 'loss' : 'plain', icon: <AlertTriangleIcon className="h-4 w-4"/> },
-            { label: 'Capital investisseurs', value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, semantic: 'loss', icon: <UsersIcon className="h-4 w-4"/> },
-            { label: 'Profits non retirés', value: investorBreakdown?.profits ?? 0, semantic: 'loss', icon: <UsersIcon className="h-4 w-4"/> }
+            { label: t('treasury.investorCapital') as string, value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, semantic: 'loss', icon: <UsersIcon className="h-4 w-4"/> },
+            { label: t('treasury.profitsNotWithdrawn') as string, value: investorBreakdown?.profits ?? 0, semantic: 'loss', icon: <UsersIcon className="h-4 w-4"/> }
         ]}/>
     </div>);
 }

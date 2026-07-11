@@ -93,12 +93,15 @@ service cloud.firestore {
         || (isApprovedClient() && resource.data.clientUid == request.auth.uid)
         || (isAgent() && resource.data.cashLocationId == profile().assignedCashLocationId);
 
-      // Client creates own order, forced to NEW.
+      // Client creates own order, forced to NEW. deliveryAddress (wallet/bank
+      // info the admin must send the currency to) is mandatory.
       allow create: if isApprovedClient()
         && request.resource.data.clientUid == request.auth.uid
         && request.resource.data.status == 'NEW'
         && request.resource.data.operatorUid == operatorUid()
-        && request.resource.data.paymentType in ['prepaid', 'debt'];
+        && request.resource.data.paymentType in ['prepaid', 'debt']
+        && request.resource.data.deliveryAddress is string
+        && request.resource.data.deliveryAddress.size() > 0;
 
       // Client: submit proof or cancel. Financial fields are immutable
       // (excluded from the affectedKeys allowlist).

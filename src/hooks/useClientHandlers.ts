@@ -368,6 +368,8 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         setIsClientTxModalOpen(true);
     };
     const handleSaveClientTx = async (selectedClientId: string | null) => {
+        if (isSaving)
+            return;
         const targetClientId = linkedClientId !== 'none' ? linkedClientId : selectedClientId;
         if (!targetClientId || targetClientId === 'none') {
             setAlert('⚠️ Veuillez sélectionner un client.');

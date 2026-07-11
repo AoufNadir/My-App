@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
 const DRAG_DISMISS_VELOCITY = 0.6; // px/ms
 export interface BottomSheetProps {
     isOpen: boolean;
@@ -18,7 +19,11 @@ export interface BottomSheetProps {
  * framer-motion dependency), and respects the safe-area inset.
  */
 export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, children, className = '', title, disableDrag = false, closeThreshold = 100 }) => {
+    const { lang } = useLanguage();
     const sheetRef = useRef<HTMLDivElement | null>(null);
+    const closeRef = useRef<HTMLButtonElement | null>(null);
+    const previousFocusRef = useRef<HTMLElement | null>(null);
+    const titleId = useId();
     const dragState = useRef<{
         startY: number;
         startTs: number;
@@ -30,13 +35,24 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, child
             return;
         // Technical exception: lock document scrolling while bottom-sheet content is active.
         document.body.style.overflow = 'hidden';
-        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape')
-            onClose(); };
+        previousFocusRef.current = document.activeElement as HTMLElement | null;
+        requestAnimationFrame(() => (closeRef.current || sheetRef.current)?.focus());
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') { onClose(); return; }
+            if (e.key !== 'Tab' || !sheetRef.current) return;
+            const focusable = [...sheetRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')];
+            if (focusable.length === 0) { e.preventDefault(); sheetRef.current.focus(); return; }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        };
         document.addEventListener('keydown', onKey);
         return () => {
             // Technical exception: restore document scrolling after bottom-sheet unmount.
             document.body.style.overflow = 'unset';
             document.removeEventListener('keydown', onKey);
+            previousFocusRef.current?.focus?.();
         };
     }, [isOpen, onClose]);
     useEffect(() => {
@@ -104,12 +120,13 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, child
     if (!isOpen)
         return null;
     return (<div onClick={onClose} className="anim-backdrop-in fixed inset-0 bg-overlay z-50 flex items-end justify-center">
-      <div ref={sheetRef} onClick={(e: React.MouseEvent) => e.stopPropagation()} className={`anim-sheet-in relative max-h-[95dvh] w-full max-w-full overflow-hidden rounded-t-2xl bg-surface pb-[env(safe-area-inset-bottom)] text-neutral-900 shadow-dialog sm:max-w-md ${className}`}>
+      <div ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined} tabIndex={-1} onClick={(e: React.MouseEvent) => e.stopPropagation()} className={`anim-sheet-in relative max-h-[95dvh] w-full max-w-full overflow-hidden rounded-t-2xl bg-surface pb-[env(safe-area-inset-bottom)] text-neutral-900 shadow-dialog sm:max-w-md ${className}`}>
         <div data-drag-handle="true" className="pt-2 pb-1 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none" aria-hidden="true">
           <span className="block h-1.5 w-10 rounded-full bg-neutral-300"/>
         </div>
-        {title && (<div className="px-5 pt-1 pb-3 border-b border-border">
-            <h2 className="text-base font-semibold">{title}</h2>
+        {title && (<div className="flex items-center justify-between gap-3 border-b border-border px-5 pb-3 pt-1">
+            <h2 id={titleId} className="text-base font-semibold">{title}</h2>
+            <button ref={closeRef} type="button" onClick={onClose} aria-label={lang === 'ar' ? 'إغلاق' : 'Fermer'} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl text-neutral-500 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary/40">×</button>
           </div>)}
         <div className="overflow-y-auto max-h-[calc(95dvh-56px)]">
           {children}

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'prodigital-cache-v10';
+const CACHE_NAME = 'prodigital-cache-v11';
 
 // ─── Push Notifications ───────────────────────────────────────────────────────
 

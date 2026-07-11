@@ -17,6 +17,7 @@ import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { CsvImportSheet, type CsvFieldSpec } from '../import/CsvImportSheet';
 import { ClientDzd, OverdueDebtClient } from '../../types';
 import { OverdueDebtsModal } from './OverdueDebtsModal';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 async function exportClientsPdf(clients: ClientDzd[], balances: Map<string, number>, getName: (c: ClientDzd) => string) {
     const { buildClientListPdf, openPdfPrintWindow } = await import('../../utils/pdfReports');
@@ -38,12 +39,12 @@ const CLIENT_IMPORT_FIELDS: CsvFieldSpec[] = [
     { key: 'initialBalance', label: 'Solde initial (DZD)', aliases: ['solde', 'balance', 'initial'] }
 ];
 type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
-const CLIENT_SORT_LABELS: Record<ClientSortMode, string> = {
-    all: 'Tous',
-    advances: 'Avances',
-    debts: 'Dettes',
-    debts_oldest_highest: 'Dettes anciennes',
-    zero_balance: 'Solde Nul'
+const CLIENT_SORT_LABEL_KEYS: Record<ClientSortMode, string> = {
+    all: 'clients.sortAll',
+    advances: 'clients.sortAdvances',
+    debts: 'clients.sortDebts',
+    debts_oldest_highest: 'clients.sortDebtsOldest',
+    zero_balance: 'clients.zeroBalance'
 };
 type ClientsListViewProps = {
     openClientModal: (client: ClientDzd | null) => void;
@@ -68,15 +69,16 @@ type ClientsListViewProps = {
 
 type TierKey = 'vip' | 'regular' | 'petit' | 'new' | 'inactive' | 'fournisseur';
 const LOYALTY_CONFIG: Record<TierKey, { label: string; dot: string; chipCls: string; badgeCls: string }> = {
-    vip:        { label: 'VIP',        dot: 'bg-amber-400',   chipCls: 'border-amber-200 text-amber-700 bg-amber-50',     badgeCls: 'bg-amber-50 text-amber-700 border-amber-200' },
-    regular:    { label: 'Régulier',   dot: 'bg-primary',     chipCls: 'border-primary/25 text-primary bg-primary/5',     badgeCls: 'bg-primary/8 text-primary border-primary/20' },
-    petit:      { label: 'Petit',      dot: 'bg-orange-400',  chipCls: 'border-orange-200 text-orange-700 bg-orange-50',  badgeCls: 'bg-orange-50 text-orange-700 border-orange-200' },
-    new:        { label: 'Nouveau',    dot: 'bg-neutral-400', chipCls: 'border-neutral-200 text-neutral-600 bg-neutral-50', badgeCls: 'bg-neutral-50 text-neutral-500 border-neutral-200' },
-    inactive:   { label: 'Inactif',   dot: 'bg-neutral-300', chipCls: 'border-neutral-200 text-neutral-400 bg-surface', badgeCls: 'bg-surface text-neutral-400 border-neutral-200' },
-    fournisseur:{ label: 'Fournisseur',dot: 'bg-teal-400',    chipCls: 'border-teal-200 text-teal-700 bg-teal-50',       badgeCls: 'bg-teal-50 text-teal-700 border-teal-200' },
+    vip:        { label: 'clients.tierVip',        dot: 'bg-amber-400',   chipCls: 'border-amber-200 text-amber-700 bg-amber-50',     badgeCls: 'bg-amber-50 text-amber-700 border-amber-200' },
+    regular:    { label: 'clients.tierRegular',    dot: 'bg-primary',     chipCls: 'border-primary/25 text-primary bg-primary/5',     badgeCls: 'bg-primary/8 text-primary border-primary/20' },
+    petit:      { label: 'clients.tierPetit',      dot: 'bg-orange-400',  chipCls: 'border-orange-200 text-orange-700 bg-orange-50',  badgeCls: 'bg-orange-50 text-orange-700 border-orange-200' },
+    new:        { label: 'clients.tierNew',        dot: 'bg-neutral-400', chipCls: 'border-neutral-200 text-neutral-600 bg-neutral-50', badgeCls: 'bg-neutral-50 text-neutral-500 border-neutral-200' },
+    inactive:   { label: 'clients.tierInactive',   dot: 'bg-neutral-300', chipCls: 'border-neutral-200 text-neutral-400 bg-surface', badgeCls: 'bg-surface text-neutral-400 border-neutral-200' },
+    fournisseur:{ label: 'clients.tierFournisseur',dot: 'bg-teal-400',    chipCls: 'border-teal-200 text-teal-700 bg-teal-50',       badgeCls: 'bg-teal-50 text-teal-700 border-teal-200' },
 };
 
 export function ClientsListView({ openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, setSelectedClientId, overdueDebtClients, clientLoyaltyMap, clientPrevMonthVolume, clientLastSellDate, handleZeroOutBalance, onImportClients }: ClientsListViewProps) {
+    const { t } = useLanguage();
     const INITIAL_VISIBLE_CLIENTS = 80;
     const LOAD_MORE_CLIENTS = 80;
     const [visibleClientCount, setVisibleClientCount] = useState(INITIAL_VISIBLE_CLIENTS);
@@ -103,9 +105,9 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
     // Format last sell date
     const fmtRelDate = (ts: number) => {
         const days = Math.floor((Date.now() - ts) / 86_400_000);
-        if (days === 0) return 'auj.';
-        if (days === 1) return 'hier';
-        return `il y a ${days}j`;
+        if (days === 0) return t('clients.relToday');
+        if (days === 1) return t('clients.relYesterday');
+        return `${t('clients.agoWord')} ${days} ${t('clients.daysWord')}`;
     };
 
     // Available groups
@@ -144,18 +146,18 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
           <AlertTriangleIcon className="h-5 w-5 shrink-0 text-danger"/>
           <div className="min-w-0">
             <p className="text-sm font-bold text-danger">
-              {overdueCount} client{overdueCount > 1 ? 's' : ''} en retard de paiement
+              {overdueCount} {t('clients.latePayment')}
             </p>
             <p className="mt-0.5 text-xs text-danger/70">
-              Dette impayée depuis plus de 7 jours — appuyez pour voir le détail
+              {t('clients.lateBanner')}
             </p>
           </div>
         </button>)}
 
-      <HeroKpiCard accent="sky" icon={<UsersIcon className="w-5 h-5"/>} primaryLabel="Total Clients" primaryValue={filteredClientsDzd.length} primaryCurrency={null} primarySemantic="plain" secondary={[
-            { label: 'Dettes', value: clientsWithDebt, currency: null, semantic: 'plain' },
-            { label: 'Avances', value: clientsWithAdvance, currency: null, semantic: 'plain' },
-            { label: 'En retard', value: overdueCount, display: overdueDisplay }
+      <HeroKpiCard accent="sky" icon={<UsersIcon className="w-5 h-5"/>} primaryLabel={t('clients.totalClients') as string} primaryValue={filteredClientsDzd.length} primaryCurrency={null} primarySemantic="plain" secondary={[
+            { label: t('clients.sortDebts') as string, value: clientsWithDebt, currency: null, semantic: 'plain' },
+            { label: t('clients.sortAdvances') as string, value: clientsWithAdvance, currency: null, semantic: 'plain' },
+            { label: t('clients.lateShort') as string, value: overdueCount, display: overdueDisplay }
         ]}/>
 
       <Card>
@@ -163,7 +165,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <SectionHeading icon={<UsersIcon className="w-4 h-4"/>}>
-                Liste des Clients
+                {t('clients.clientsList')}
               </SectionHeading>
               <span className="text-sm text-neutral-500">{filteredClientsDzd.length}</span>
             </div>
@@ -171,12 +173,12 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
             <div className="flex w-full gap-2">
               <Button onClick={() => openClientModal(null)} variant="outline" size="md" className="flex-1 font-bold">
                 <UserIcon className="w-5 h-5"/>
-                <span>Nouveau Client</span>
+                <span>{t('transactions.newClient')}</span>
               </Button>
-              <Button onClick={() => exportClientsPdf(filteredClientsDzd, clientBalances, getClientFullName)} variant="outline" size="icon" aria-label="Exporter PDF" title="Exporter la liste en PDF" className="shrink-0">
+              <Button onClick={() => exportClientsPdf(filteredClientsDzd, clientBalances, getClientFullName)} variant="outline" size="icon" aria-label={t('clients.exportPdfList')} title={t('clients.exportPdfList')} className="shrink-0">
                 <DownloadCloudIcon className="w-5 h-5"/>
               </Button>
-              {onImportClients && (<Button onClick={() => setImportOpen(true)} variant="outline" size="icon" aria-label="Importer un CSV" className="shrink-0 font-bold">
+              {onImportClients && (<Button onClick={() => setImportOpen(true)} variant="outline" size="icon" aria-label={t('clients.importCsv')} className="shrink-0 font-bold">
                   <UploadCloudIcon className="w-5 h-5"/>
                 </Button>)}
             </div>
@@ -185,7 +187,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
 
         <CardContent className="p-4 pt-0">
           <div className="flex gap-2 mb-4">
-            <Input type="text" placeholder="Rechercher un client..." value={clientSearchQuery} onChange={(e) => setClientSearchQuery(e.target.value)} className="flex-grow"/>
+            <Input type="text" placeholder={t('transactions.searchClient')} value={clientSearchQuery} onChange={(e) => setClientSearchQuery(e.target.value)} className="flex-grow"/>
           </div>
           {/* Tier filter — dropdown */}
           {clientLoyaltyMap && tierCounts.size > 0 && (
@@ -194,30 +196,30 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                 {activeTierFilter ? (
                   <>
                     <span className={`w-2 h-2 rounded-full shrink-0 ${LOYALTY_CONFIG[activeTierFilter as TierKey].dot}`}/>
-                    {LOYALTY_CONFIG[activeTierFilter as TierKey].label}
+                    {t(LOYALTY_CONFIG[activeTierFilter as TierKey].label)}
                     <span className="font-bold text-[12px]">{tierCounts.get(activeTierFilter) || 0}</span>
                     <span className="ml-auto text-xs opacity-50">×</span>
                   </>
                 ) : (
                   <>
                     <span className="w-2 h-2 rounded-full shrink-0 bg-neutral-300"/>
-                    Toutes les catégories
-                    <span className="ml-auto text-neutral-400 text-xs">{filteredClientsDzd.length}</span>
+                    {t('clients.allCategories')}
+                    <span className="ms-auto text-neutral-400 text-xs">{filteredClientsDzd.length}</span>
                   </>
                 )}
               </button>
             )}>
               <DropdownItem onClick={() => setActiveTierFilter(null)} isActive={!activeTierFilter}>
-                <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-neutral-300"/>Toutes <span className="ml-auto text-neutral-400 text-xs">{filteredClientsDzd.length}</span></span>
+                <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-neutral-300"/>{t('clients.allWord')} <span className="ms-auto text-neutral-400 text-xs">{filteredClientsDzd.length}</span></span>
               </DropdownItem>
               {(['vip', 'regular', 'petit', 'new', 'inactive', 'fournisseur'] as TierKey[])
-                .filter(t => (tierCounts.get(t) || 0) > 0)
-                .map(t => (
-                  <DropdownItem key={t} onClick={() => setActiveTierFilter(activeTierFilter === t ? null : t)} isActive={activeTierFilter === t}>
+                .filter(tierKey => (tierCounts.get(tierKey) || 0) > 0)
+                .map(tierKey => (
+                  <DropdownItem key={tierKey} onClick={() => setActiveTierFilter(activeTierFilter === tierKey ? null : tierKey)} isActive={activeTierFilter === tierKey}>
                     <span className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${LOYALTY_CONFIG[t].dot}`}/>
-                      {LOYALTY_CONFIG[t].label}
-                      <span className="ml-auto text-neutral-400 text-xs font-bold">{tierCounts.get(t)}</span>
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${LOYALTY_CONFIG[tierKey].dot}`}/>
+                      {t(LOYALTY_CONFIG[tierKey].label)}
+                      <span className="ms-auto text-neutral-400 text-xs font-bold">{tierCounts.get(tierKey)}</span>
                     </span>
                   </DropdownItem>
                 ))
@@ -240,13 +242,13 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
 
           <Dropdown trigger={(<Button variant="tab" size="md" className="w-full font-semibold">
                 <FilterIcon className="w-4 h-4"/>
-                <span>{CLIENT_SORT_LABELS[clientSortMode]}</span>
+                <span>{t(CLIENT_SORT_LABEL_KEYS[clientSortMode])}</span>
               </Button>)}>
-            <DropdownItem onClick={() => setClientSortMode('all')} isActive={clientSortMode === 'all'}>Tous</DropdownItem>
-            <DropdownItem onClick={() => setClientSortMode('advances')} isActive={clientSortMode === 'advances'}>Avances (+)</DropdownItem>
-            <DropdownItem onClick={() => setClientSortMode('debts')} isActive={clientSortMode === 'debts'}>Dettes (-)</DropdownItem>
-            <DropdownItem onClick={() => setClientSortMode('debts_oldest_highest')} isActive={clientSortMode === 'debts_oldest_highest'}>Dettes anciennes</DropdownItem>
-            <DropdownItem onClick={() => setClientSortMode('zero_balance')} isActive={clientSortMode === 'zero_balance'}>Solde Nul</DropdownItem>
+            <DropdownItem onClick={() => setClientSortMode('all')} isActive={clientSortMode === 'all'}>{t('clients.sortAll')}</DropdownItem>
+            <DropdownItem onClick={() => setClientSortMode('advances')} isActive={clientSortMode === 'advances'}>{t('clients.sortAdvances')} (+)</DropdownItem>
+            <DropdownItem onClick={() => setClientSortMode('debts')} isActive={clientSortMode === 'debts'}>{t('clients.sortDebts')} (-)</DropdownItem>
+            <DropdownItem onClick={() => setClientSortMode('debts_oldest_highest')} isActive={clientSortMode === 'debts_oldest_highest'}>{t('clients.sortDebtsOldest')}</DropdownItem>
+            <DropdownItem onClick={() => setClientSortMode('zero_balance')} isActive={clientSortMode === 'zero_balance'}>{t('clients.zeroBalance')}</DropdownItem>
           </Dropdown>
         </CardContent>
 
@@ -278,7 +280,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                           {overdue && (
                             <span className="shrink-0 inline-flex items-center gap-0.5 text-financial-loss text-[11px] font-bold">
                               <AlertTriangleIcon className="w-3 h-3"/>
-                              {overdue.daysOverdue}j
+                              {overdue.daysOverdue}{t('common.dayShort')}
                             </span>
                           )}
                           {(() => {
@@ -295,12 +297,12 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                           {tierCfg && (
                             <span className={`flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-bold border ${tierCfg.badgeCls}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${tierCfg.dot}`}/>
-                              {tierCfg.label}
+                              {t(tierCfg.label)}
                             </span>
                           )}
                           {!isFournisseur && prevVol > 0 && (
                             <span dir="ltr" className="text-[12px] text-neutral-500 font-medium">
-                              {prevVol >= 1000 ? `${(prevVol/1000).toFixed(1)}k` : Math.round(prevVol)} U/mois
+                              {prevVol >= 1000 ? `${(prevVol/1000).toFixed(1)}k` : Math.round(prevVol)} {t('clients.perMonthUnit')}
                             </span>
                           )}
                           {!isFournisseur && lastSell > 0 && (
@@ -321,7 +323,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                             className={balance < 0 ? 'text-financial-loss' : 'text-financial-profit'}/>
                         )}
                         <span className={`text-[11px] font-semibold ${balance < 0 ? 'text-financial-loss' : balance > 0 ? 'text-financial-profit' : 'text-neutral-400'}`}>
-                          {balance < 0 ? 'دين' : balance > 0 ? 'رصيد' : ''}
+                          {balance < 0 ? t('finance.debt') : balance > 0 ? t('finance.advance') : ''}
                         </span>
                         {handleZeroOutBalance && balance !== 0 && (
                           <button type="button"
@@ -330,18 +332,18 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                               setSolderTarget({ clientId: client.id, name: fullName, balance });
                             }}
                             className="mt-1 text-[10px] font-semibold text-neutral-500 hover:text-primary border border-neutral-200 hover:border-primary/30 rounded-lg px-2 py-0.5 transition-colors bg-surface">
-                            Solder
+                            {t('clients.solder')}
                           </button>
                         )}
                       </div>
                     </div>
                   </SwipeableListItem>);
             })}
-            </div>) : (<EmptyState icon={<UsersIcon className="w-5 h-5"/>} title="Aucun client trouvé" subtitle="Ajoutez un client ou modifiez votre recherche."/>)}
+            </div>) : (<EmptyState icon={<UsersIcon className="w-5 h-5"/>} title={t('emptyStates.clients.title')} subtitle={t('emptyStates.clients.subtitle')}/>)}
         </CardContent>
         {hiddenClientCount > 0 && (<CardContent className="px-4 pb-4 pt-3">
             <Button onClick={() => setVisibleClientCount((prev) => prev + LOAD_MORE_CLIENTS)} variant="outline" className="w-full rounded-xl px-4 py-3 font-semibold bg-neutral-100 text-neutral-700 hover:bg-neutral-200">
-              Afficher plus ({Math.min(hiddenClientCount, LOAD_MORE_CLIENTS)})
+              {t('transactions.showMore')} ({Math.min(hiddenClientCount, LOAD_MORE_CLIENTS)})
             </Button>
             <p className="mt-2 text-center text-xs text-neutral-500">
               {visibleClients.length} / {filteredClientsDzd.length}
@@ -349,7 +351,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
           </CardContent>)}
       </Card>
 
-      {onImportClients && (<CsvImportSheet isOpen={importOpen} onClose={() => setImportOpen(false)} title="Importer des clients" fields={CLIENT_IMPORT_FIELDS} onConfirm={onImportClients}/>)}
+      {onImportClients && (<CsvImportSheet isOpen={importOpen} onClose={() => setImportOpen(false)} title={t('clients.importClients')} fields={CLIENT_IMPORT_FIELDS} onConfirm={onImportClients}/>)}
 
       <OverdueDebtsModal isOpen={isOverdueModalOpen} onClose={() => setIsOverdueModalOpen(false)} overdueDebtors={overdueDebtClients} onOpenClient={setSelectedClientId}/>
 
@@ -368,20 +370,20 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
             </div>
             {/* Content */}
             <div className="text-center space-y-1.5">
-              <p className="text-base font-bold text-neutral-900">Effacer le solde résiduel</p>
+              <p className="text-base font-bold text-neutral-900">{t('clients.clearResidualTitle')}</p>
               <p className="text-sm text-neutral-500">{solderTarget.name}</p>
               <p className={`text-2xl font-extrabold tabular-nums ${solderTarget.balance < 0 ? 'text-financial-loss' : 'text-financial-profit'}`}>
                 {Math.abs(solderTarget.balance).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
               </p>
               <p className="text-[12px] text-neutral-400">
-                Un enregistrement de régularisation sera créé sans affecter la trésorerie.
+                {t('clients.clearResidualBody')}
               </p>
             </div>
             {/* Actions */}
             <div className="grid grid-cols-2 gap-3 pt-1">
               <button type="button" onClick={() => setSolderTarget(null)}
                 className="rounded-xl border border-border py-3 text-sm font-semibold text-neutral-600 hover:bg-neutral-50 transition-colors">
-                Annuler
+                {t('common.cancel')}
               </button>
               <button type="button"
                 onClick={() => {
@@ -389,7 +391,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                   setSolderTarget(null);
                 }}
                 className="rounded-xl bg-primary py-3 text-sm font-bold text-white hover:bg-primary/90 transition-colors shadow-sm">
-                Confirmer
+                {t('common.confirm')}
               </button>
             </div>
           </div>

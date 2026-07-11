@@ -7,7 +7,6 @@ import { SectionHeading } from '../components/ui/SectionHeading';
 import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
 import { PencilIcon } from '../components/icons/PencilIcon';
-import { PamSimulatorCard } from '../components/portfolio/PamSimulatorCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Tx, ClientDzd, ClientTransactionDzd } from '../types';
 import { USDTStockCard } from './TresoreriePage';
@@ -18,10 +17,9 @@ type PortfolioPageProps = {
     setIsSettingsModalOpen: (isOpen: boolean) => void;
     portfolioStats: any;
     totalPortfolioValue: number;
-    suggestedProfitMargin: string;
-    suggestedSellingPrice?: string;
-    suggestedUsdtEurSellPrice?: string;
-    suggestedSellingPriceEur?: string;
+    /** Smart-engine reference sell prices (target for a normal cash deal). */
+    smartTargetUsdt?: number;
+    smartTargetEur?: number;
     parseAndEvaluate: (expr: string) => number;
     usdtReportMonth: number;
     setUsdtReportMonth: (month: number) => void;
@@ -39,20 +37,6 @@ type PortfolioPageProps = {
         day: number;
         profit: number;
     } | null) => void;
-    simMode: 'dzd' | 'eur' | 'sell_dzd' | 'sell_eur';
-    setSimMode: (mode: 'dzd' | 'eur' | 'sell_dzd' | 'sell_eur') => void;
-    simBuyQty: string;
-    setSimBuyQty: (val: string) => void;
-    simBuyPrice: string;
-    setSimBuyPrice: (val: string) => void;
-    newPamFromDzdSimulator: number | null;
-    simEurQty: string;
-    setSimEurQty: (val: string) => void;
-    simEurDzdPrice: string;
-    setSimEurDzdPrice: (val: string) => void;
-    simEurUsdtRate: string;
-    setSimEurUsdtRate: (val: string) => void;
-    newPamFromEurSimulator: number | null;
     handleExportUsdtReport: () => void;
     dzdDashboardStats: any;
     reportClient: string;
@@ -65,14 +49,6 @@ type PortfolioPageProps = {
     reportYear: number;
     setReportYear: (year: number) => void;
     handleExportClientReport: (clientId: string, month: number, year: number) => void;
-    simSellUsdtQty?: string;
-    setSimSellUsdtQty?: (val: string) => void;
-    simSellDzdPrice?: string;
-    setSimSellDzdPrice?: (val: string) => void;
-    simSellEurPrice?: string;
-    setSimSellEurPrice?: (val: string) => void;
-    simSellEurToDzdRate?: string;
-    setSimSellEurToDzdRate?: (val: string) => void;
     openPortfolioBalanceEditModal?: (asset: 'USDT' | 'EUR') => void;
 };
 
@@ -108,7 +84,7 @@ function AssetRow({ symbol, quantity, value, pam, suggestedSellPrice, onEdit, se
 
             <div className="mt-3 grid grid-cols-2 gap-2">
                 <AssetMetric label="PAM" value={pam} />
-                <AssetMetric label={sellLabel} value={suggestedSellPrice} />
+                {suggestedSellPrice > 0 && <AssetMetric label={sellLabel} value={suggestedSellPrice} />}
             </div>
         </div>
     );
@@ -131,33 +107,8 @@ function AssetMetric({ label, value }: AssetMetricProps) {
 export function PortfolioPage(props: PortfolioPageProps) {
     const {
         portfolioStats,
-        suggestedProfitMargin,
-        suggestedSellingPrice,
-        suggestedUsdtEurSellPrice,
-        suggestedSellingPriceEur,
-        parseAndEvaluate,
-        simMode,
-        setSimMode,
-        simBuyQty,
-        setSimBuyQty,
-        simBuyPrice,
-        setSimBuyPrice,
-        newPamFromDzdSimulator,
-        simEurQty,
-        setSimEurQty,
-        simEurDzdPrice,
-        setSimEurDzdPrice,
-        simEurUsdtRate,
-        setSimEurUsdtRate,
-        newPamFromEurSimulator,
-        simSellUsdtQty,
-        setSimSellUsdtQty,
-        simSellDzdPrice,
-        setSimSellDzdPrice,
-        simSellEurPrice,
-        setSimSellEurPrice,
-        simSellEurToDzdRate,
-        setSimSellEurToDzdRate,
+        smartTargetUsdt = 0,
+        smartTargetEur = 0,
         openPortfolioBalanceEditModal,
         transactions,
     } = props;
@@ -168,12 +119,6 @@ export function PortfolioPage(props: PortfolioPageProps) {
     const usdtValue = usdtAvail * Number(portfolioStats.usdt.avgBuy || 0);
     const eurValue = eurAvail * Number(portfolioStats.eur.avgBuy || 0);
     const stockValue = usdtValue + eurValue;
-    const suggestedUsdtPrice = suggestedSellingPrice && parseFloat(suggestedSellingPrice) > 0
-        ? parseFloat(suggestedSellingPrice)
-        : (portfolioStats.usdt.avgBuy + parseAndEvaluate(suggestedProfitMargin));
-    const suggestedEurPrice = suggestedSellingPriceEur && parseFloat(suggestedSellingPriceEur) > 0
-        ? parseFloat(suggestedSellingPriceEur)
-        : (portfolioStats.eur.avgBuy + parseAndEvaluate(suggestedProfitMargin));
 
     return (
         <div className="anim-page-in space-y-4">
@@ -217,7 +162,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
                         quantity={usdtAvail}
                         value={usdtValue}
                         pam={portfolioStats.usdt.avgBuy}
-                        suggestedSellPrice={suggestedUsdtPrice}
+                        suggestedSellPrice={smartTargetUsdt}
                         onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('USDT') : undefined}
                         sellLabel={t('transactions.sell') as string}
                     />
@@ -226,7 +171,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
                         quantity={eurAvail}
                         value={eurValue}
                         pam={portfolioStats.eur.avgBuy}
-                        suggestedSellPrice={suggestedEurPrice}
+                        suggestedSellPrice={smartTargetEur}
                         onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('EUR') : undefined}
                         sellLabel={t('transactions.sell') as string}
                     />
@@ -234,36 +179,6 @@ export function PortfolioPage(props: PortfolioPageProps) {
             </Card>
 
             <USDTStockCard transactions={transactions} portfolioStats={portfolioStats} />
-
-            <PamSimulatorCard
-                portfolioStats={portfolioStats}
-                suggestedProfitMargin={suggestedProfitMargin}
-                suggestedSellingPrice={suggestedSellingPrice}
-                suggestedUsdtEurSellPrice={suggestedUsdtEurSellPrice}
-                parseAndEvaluate={parseAndEvaluate}
-                simMode={simMode}
-                setSimMode={setSimMode}
-                simBuyQty={simBuyQty}
-                setSimBuyQty={setSimBuyQty}
-                simBuyPrice={simBuyPrice}
-                setSimBuyPrice={setSimBuyPrice}
-                newPamFromDzdSimulator={newPamFromDzdSimulator}
-                simEurQty={simEurQty}
-                setSimEurQty={setSimEurQty}
-                simEurDzdPrice={simEurDzdPrice}
-                setSimEurDzdPrice={setSimEurDzdPrice}
-                simEurUsdtRate={simEurUsdtRate}
-                setSimEurUsdtRate={setSimEurUsdtRate}
-                newPamFromEurSimulator={newPamFromEurSimulator}
-                simSellUsdtQty={simSellUsdtQty}
-                setSimSellUsdtQty={setSimSellUsdtQty}
-                simSellDzdPrice={simSellDzdPrice}
-                setSimSellDzdPrice={setSimSellDzdPrice}
-                simSellEurPrice={simSellEurPrice}
-                setSimSellEurPrice={setSimSellEurPrice}
-                simSellEurToDzdRate={simSellEurToDzdRate}
-                setSimSellEurToDzdRate={setSimSellEurToDzdRate}
-            />
         </div>
     );
 }
