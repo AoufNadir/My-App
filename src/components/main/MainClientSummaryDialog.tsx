@@ -7,7 +7,8 @@ import { ShareIcon } from '../icons/ShareIcon';
 import { RefreshCwIcon } from '../icons/RefreshCwIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { DownloadCloudIcon } from '../icons/DownloadCloudIcon';
-import type { ClientTransactionDzd } from '../../types';
+import type { ClientDzd, ClientTransactionDzd } from '../../types';
+import { getClientOperationLabel, getClientTransferDetails, getManualClientNote } from '../../utils/transactionTerminology';
 type MainClientSummaryDialogProps = Record<string, any>;
 type ClientRow = {
     tx: ClientTransactionDzd;
@@ -43,24 +44,28 @@ function readTokenColor(tokenName: string): string | undefined {
     }
     return window.getComputedStyle(document.documentElement).getPropertyValue(tokenName).trim() || undefined;
 }
-function resolveClientOperationLabel(tx: ClientTransactionDzd, linkedTx?: any): string {
-    const rawType = String(tx.type || '').toLowerCase();
-    if (linkedTx) {
-        if (linkedTx.type === 'sell')
-            return `Vente ${linkedTx.currency}`;
-        if (linkedTx.type === 'buy')
-            return `Achat ${linkedTx.currency}`;
+function findClientTransferCounterpart(tx: ClientTransactionDzd, allClientTxs: ClientTransactionDzd[]) {
+    if (tx.type !== 'Transfert Sortant' && tx.type !== 'Transfert Entrant')
+        return null;
+    if (tx.linkedTxId) {
+        const linked = allClientTxs.find((candidate) => candidate.id === tx.linkedTxId);
+        if (linked)
+            return linked;
     }
-    if (rawType.includes('transfert')) {
-        return tx.montant >= 0 ? 'Transfert entrant' : 'Transfert sortant';
-    }
-    if (rawType.includes('ajustement'))
-        return 'Ajustement solde';
-    if (tx.montant >= 0)
-        return 'Paiement recu';
-    return 'Paiement effectue';
+    const counterpartType = tx.type === 'Transfert Sortant' ? 'Transfert Entrant' : 'Transfert Sortant';
+    const counterpartAmount = -Number(tx.montant || 0);
+    return allClientTxs
+        .filter((candidate) => candidate.id !== tx.id
+        && candidate.clientId !== tx.clientId
+        && candidate.type === counterpartType
+        && candidate.date === tx.date
+        && candidate.time === tx.time
+        && Math.abs(Number(candidate.montant || 0) - counterpartAmount) <= 0.01
+        && Math.abs(Number(candidate.timestamp || 0) - Number(tx.timestamp || 0)) <= 2000)
+        .sort((left, right) => Math.abs(Number(left.timestamp || 0) - Number(tx.timestamp || 0))
+        - Math.abs(Number(right.timestamp || 0) - Number(tx.timestamp || 0)))[0] || null;
 }
-export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, clientBalances, clientTransactionsDzd, transactions, setAlert, getClientFullName, handleExportClientReport, reportMonth, reportYear }: MainClientSummaryDialogProps) {
+export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, clientBalances, clientTransactionsDzd, clientsDzd, transactions, setAlert, getClientFullName, handleExportClientReport, reportMonth, reportYear }: MainClientSummaryDialogProps) {
     const [isSharing, setIsSharing] = useState(false);
     const [isOpeningPdf, setIsOpeningPdf] = useState(false);
     const exportCardRef = useRef<HTMLDivElement | null>(null);
@@ -75,6 +80,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
             .sort((a: ClientTransactionDzd, b: ClientTransactionDzd) => b.timestamp - a.timestamp);
     }, [summaryClient, clientTransactionsDzd]);
     const visibleTxs: ClientTransactionDzd[] = useMemo(() => selectedClientTxs.slice(0, 3), [selectedClientTxs]);
+    const clientsById = useMemo(() => new Map((clientsDzd || []).map((client: ClientDzd) => [client.id, client])), [clientsDzd]);
     const currentBalance = summaryClient ? (clientBalances.get(summaryClient.id) || 0) : 0;
     const balanceColorClass = currentBalance < 0 ? 'text-financial-loss' : currentBalance > 0 ? 'text-financial-profit' : 'text-neutral-300';
     const balanceExportPanelClass = currentBalance < 0
@@ -94,25 +100,33 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
             ? 'Client a un avoir (avance)'
             : 'Aucun montant en attente';
     const balanceHint = currentBalance < 0
-        ? 'Solde negatif: paiement attendu du client.'
+        ? 'Solde négatif: paiement attendu du client.'
         : currentBalance > 0
-            ? 'Solde positif: montant a rendre ou deduire.'
-            : 'Compte equilibre.';
+            ? 'Solde positif: montant à rendre ou déduire.'
+            : 'Compte équilibré.';
     const clientRows: ClientRow[] = useMemo(() => {
         return visibleTxs.map((tx: ClientTransactionDzd) => {
             const linked = tx.linkedTxId ? transactions.find((row: any) => row.id === tx.linkedTxId) : null;
-            const label = resolveClientOperationLabel(tx, linked);
+            const label = linked
+                ? (linked.type === 'sell' ? `Vente ${linked.currency}` : `Achat ${linked.currency}`)
+                : getClientOperationLabel(tx.type, t as (key: string) => string);
             let details = '';
             if (linked) {
                 const price = linked.type === 'sell' ? (linked.sell || 0) : (linked.price || 0);
                 details = `${formatAmount(linked.quantity)} ${linked.currency} @ ${formatAmount(price)} DZD`;
             }
-            else if (tx.notes) {
-                details = tx.notes;
+            else if (tx.type === 'Transfert Entrant' || tx.type === 'Transfert Sortant') {
+                const counterpart = findClientTransferCounterpart(tx, clientTransactionsDzd);
+                const counterpartClient = counterpart ? clientsById.get(counterpart.clientId) : undefined;
+                const counterpartName = counterpartClient ? getClientFullName(counterpartClient) : '';
+                details = getClientTransferDetails(tx, counterpartName, t as (key: string) => string);
+            }
+            else {
+                details = getManualClientNote(tx.notes);
             }
             return { tx, label, details };
         });
-    }, [visibleTxs, transactions]);
+    }, [clientTransactionsDzd, clientsById, getClientFullName, t, visibleTxs, transactions]);
     const handleShareImage = async () => {
         if (!summaryClient || isSharing)
             return;
@@ -192,7 +206,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                 setAlert('❌ Génération de l’image impossible. Utilisez PDF.');
                 return;
             }
-            const shareText = `Releve client de ${getClientFullName(summaryClient)} (3 dernieres operations)`;
+            const shareText = `Relevé client de ${getClientFullName(summaryClient)} (3 dernières opérations)`;
             const extension = blob.type.includes('jpeg') ? 'jpg' : 'png';
             const baseName = `releve_client_${summaryClient.id}_simple.${extension}`;
             let shared = false;
@@ -257,7 +271,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                     <img src="/logo.png" alt="Pro Digital" className="h-12 w-12 shrink-0 rounded-md border border-border bg-surface object-cover shadow-card"/>
                     <div className="min-w-0">
                       <div className="text-[18px] font-black leading-tight text-neutral-900">Pro Digital</div>
-                      <div className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-primary">Releve Client</div>
+                      <div className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-primary">Relevé Client</div>
                     </div>
                   </div>
                   <div className="shrink-0 rounded-md border border-border bg-surface-muted px-4 py-3 text-end">
@@ -270,7 +284,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                   <div className="text-[11px] font-black uppercase tracking-[0.14em] text-secondary">Compte client</div>
                   <div className="mt-1 text-[34px] font-black leading-tight text-neutral-900">{getClientFullName(summaryClient)}</div>
                   <div className="mt-1 text-sm font-semibold text-neutral-500">
-                    {summaryClient.phone || 'Sans telephone'}
+                    {summaryClient.phone || 'Sans téléphone'}
                   </div>
                 </div>
 
@@ -283,7 +297,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
 
                 <div className="mt-5 overflow-hidden rounded-md border border-border bg-surface">
                   <div className="border-b border-border bg-surface-muted px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-primary">
-                    Dernieres operations (3)
+                    Dernières opérations (3)
                   </div>
                   {clientRows.length > 0 ? clientRows.map(({ tx, label, details }) => (<div key={tx.id} className="border-b border-border px-4 py-3 last:border-b-0">
                       <div className="flex justify-between gap-3">
@@ -298,7 +312,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                 </div>
 
                 <div className="mt-5 flex items-center justify-between border-t border-border pt-4 text-xs font-bold text-neutral-500">
-                  <span>Pro Digital - Document genere automatiquement</span>
+                  <span>Pro Digital - Document généré automatiquement</span>
                   <span>Finance operations</span>
                 </div>
               </div>
@@ -335,7 +349,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                     <SectionHeading icon={<RefreshCwIcon className="w-4 h-4"/>}>
                       {t('transactions.recentTransactions')}
                     </SectionHeading>
-                    <span className="text-[11px] text-neutral-500">{visibleTxs.length} operation(s)</span>
+                    <span className="text-[11px] text-neutral-500">{visibleTxs.length} opération(s)</span>
                   </div>
 
                   <div className="rounded-xl overflow-hidden border border-border">
@@ -361,10 +375,10 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                     {t('transactions.close')}
                   </Button>
                   <Button onClick={handleShareImage} disabled={isSharing} className="flex-1 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors bg-neutral-100 text-neutral-700 hover:bg-neutral-200">
-                    <ShareIcon className="w-4 h-4"/> {isSharing ? 'Preparation...' : 'Image'}
+                    <ShareIcon className="w-4 h-4"/> {isSharing ? 'Préparation...' : 'Image'}
                   </Button>
                   <Button onClick={handleOpenPdf} disabled={isOpeningPdf} className="flex-1 bg-primary hover:bg-primary-dark text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-colors">
-                    <DownloadCloudIcon className="w-4 h-4"/> {isOpeningPdf ? 'Preparation...' : 'PDF'}
+                    <DownloadCloudIcon className="w-4 h-4"/> {isOpeningPdf ? 'Préparation...' : 'PDF'}
                   </Button>
                 </div>
               </div>

@@ -1068,20 +1068,19 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         try {
             const { date, time, timestamp } = now();
             const batch = db.batch();
-            const fromC = clientsDzd.find(c => c.id === transferFromClientId);
-            const toC = clientsDzd.find(c => c.id === transferToClientId);
+            const note = transferNotes.trim();
             const outgoingTransferRef = userDocRef.collection('dzd_client_txs').doc();
             const incomingTransferRef = userDocRef.collection('dzd_client_txs').doc();
             // Source (De) advances money -> Credit (+amt)
             batch.set(outgoingTransferRef, {
                 clientId: transferFromClientId, timestamp, date, time, montant: amt,
-                type: 'Transfert Sortant', notes: transferNotes.trim() || `Transfert vers ${toC?.fullName || 'Client'}`,
+                type: 'Transfert Sortant', notes: note,
                 paymentMethod: 'Crédit'
             });
             // Destination (À) receives benefit -> Debit (-amt)
             batch.set(incomingTransferRef, {
                 clientId: transferToClientId, timestamp: timestamp + 1, date, time, montant: -amt,
-                type: 'Transfert Entrant', notes: transferNotes.trim() || `Transfert de ${fromC?.fullName || 'Client'}`,
+                type: 'Transfert Entrant', notes: note,
                 paymentMethod: 'Crédit', linkedTxId: outgoingTransferRef.id
             });
             await batch.commit();
@@ -1121,8 +1120,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             }
             const { date, time, timestamp } = now();
             const batch = db.batch();
-            const fromC = clientsDzd.find(c => c.id === transferFromClientId);
-            const toC = clientsDzd.find(c => c.id === transferToClientId);
+            const note = transferNotes.trim();
             batch.update(userDocRef.collection('dzd_client_txs').doc(editingTransferTx.id), {
                 clientId: transferFromClientId,
                 timestamp,
@@ -1130,7 +1128,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 time,
                 montant: amt,
                 type: 'Transfert Sortant',
-                notes: transferNotes.trim() || `Transfert vers ${toC?.fullName || 'Client'}`,
+                notes: note,
                 paymentMethod: 'Crédit'
             });
             batch.update(userDocRef.collection('dzd_client_txs').doc(counterpart.id), {
@@ -1140,7 +1138,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 time,
                 montant: -amt,
                 type: 'Transfert Entrant',
-                notes: transferNotes.trim() || `Transfert de ${fromC?.fullName || 'Client'}`,
+                notes: note,
                 paymentMethod: 'Crédit',
                 linkedTxId: editingTransferTx.id
             });

@@ -309,8 +309,8 @@ export function PersonalExpensesPage({
     return (
         <div className="anim-page-in space-y-5">
             <PageHeader
-                title="Mes depenses"
-                subtitle="Suivi des avances, depenses et exports"
+                title="Mes dépenses"
+                subtitle="Suivi des avances, dépenses et exports"
                 actions={onExportReport && (
                     <Button
                         type="button"
@@ -366,7 +366,7 @@ export function PersonalExpensesPage({
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-3 p-4 pt-0">
                     <MetricBlock
-                        label="% profit consomme"
+                        label="% profit consommé"
                         value={(
                             <span className={`text-xl font-bold tabular-nums ${profitPctTone}`} dir="ltr">
                                 {formatNumber(profitConsumedPct, { min: 1, max: 1 })}%
@@ -374,7 +374,7 @@ export function PersonalExpensesPage({
                         )}
                     />
                     <MetricBlock
-                        label="vs Periode prec."
+                        label="vs Période préc."
                         value={changeVsPrev === null ? (
                             <span className="text-base font-medium text-neutral-500">-</span>
                         ) : (
@@ -389,7 +389,7 @@ export function PersonalExpensesPage({
                         value={<CurrencyAmount value={dailyAverage} currency="DZD" semantic="plain" size="xl" decimals={0}/>}
                     />
                     <MetricBlock
-                        label="Plus grosse dep."
+                        label="Plus grosse dép."
                         value={<CurrencyAmount value={biggestAmount} currency="DZD" semantic="plain" size="xl" decimals={0}/>}
                         caption={biggestExpense?.date}
                     />
@@ -400,7 +400,7 @@ export function PersonalExpensesPage({
                 <Card>
                     <CardHeader className="flex-row items-start justify-between gap-3 p-4 pb-3">
                         <SectionHeading icon={<AlertTriangleIcon className="h-4 w-4" />}>
-                            A regulariser
+                            À régulariser
                             <Badge variant="warning" size="sm">{pendingAdvances.length}</Badge>
                         </SectionHeading>
                         <div className="shrink-0 text-end">
@@ -563,7 +563,7 @@ function ExpenseRow({
                 <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-2">
                         <p className="min-w-0 truncate text-base font-semibold leading-snug text-neutral-900">
-                            {tx.notes || (iconTone === 'warning' ? 'Avance personnelle' : 'Depense personnelle')}
+                            {tx.notes || (iconTone === 'warning' ? 'Avance personnelle' : 'Dépense personnelle')}
                         </p>
                         {badge && <span className="shrink-0">{badge}</span>}
                     </div>
@@ -587,12 +587,12 @@ function ExpenseRow({
                 <div className="flex w-full items-center justify-start gap-2 sm:w-auto sm:justify-end">
                     {action}
                     {onEdit && (
-                        <IconButton label="Modifier la depense" size="sm" variant="edit" onClick={() => onEdit(tx)}>
+                        <IconButton label="Modifier la dépense" size="sm" variant="edit" onClick={() => onEdit(tx)}>
                             <PencilIcon />
                         </IconButton>
                     )}
                     {onDelete && (
-                        <IconButton label="Supprimer la depense" size="sm" variant="delete" onClick={() => onDelete(tx)}>
+                        <IconButton label="Supprimer la dépense" size="sm" variant="delete" onClick={() => onDelete(tx)}>
                             <Trash2Icon />
                         </IconButton>
                     )}

@@ -24,12 +24,14 @@ import { formatDzd, formatNumber, getRelativeFrDateLabel } from '../../pages/sha
 import { useLanguage } from '../../contexts/LanguageContext';
 import { TransactionDisplayList } from '../transactions/TransactionDisplayList';
 import type { DisplayTx } from '../transactions/transactionsTypes';
-import { getClientOperationLabel, getPortfolioOperationLabel } from '../../utils/transactionTerminology';
+import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel } from '../../utils/transactionTerminology';
 type ClientDetailsViewProps = {
     selectedClientId: string;
     selectedClient: ClientDzd;
     selectedClientBalance: number;
     groupedHistory: Record<string, ClientTransactionDzd[]>;
+    clientTransactionsDzd: ClientTransactionDzd[];
+    clientsDzd: ClientDzd[];
     setSelectedClientId: (id: string | null) => void;
     getClientFullName: (client: ClientDzd) => string;
     handleTouchStart: (client: ClientDzd) => void;
@@ -86,6 +88,27 @@ function openWhatsAppMessenger(phone: string, text?: string): void {
 
     window.open(buildWhatsAppWebUrl(intl, text), '_blank', 'noopener');
 }
+function findClientTransferCounterpart(tx: ClientTransactionDzd, allClientTxs: ClientTransactionDzd[]) {
+    if (tx.type !== 'Transfert Sortant' && tx.type !== 'Transfert Entrant')
+        return null;
+    if (tx.linkedTxId) {
+        const linked = allClientTxs.find((candidate) => candidate.id === tx.linkedTxId);
+        if (linked)
+            return linked;
+    }
+    const counterpartType = tx.type === 'Transfert Sortant' ? 'Transfert Entrant' : 'Transfert Sortant';
+    const counterpartAmount = -Number(tx.montant || 0);
+    return allClientTxs
+        .filter((candidate) => candidate.id !== tx.id
+        && candidate.clientId !== tx.clientId
+        && candidate.type === counterpartType
+        && candidate.date === tx.date
+        && candidate.time === tx.time
+        && Math.abs(Number(candidate.montant || 0) - counterpartAmount) <= 0.01
+        && Math.abs(Number(candidate.timestamp || 0) - Number(tx.timestamp || 0)) <= 2000)
+        .sort((left, right) => Math.abs(Number(left.timestamp || 0) - Number(tx.timestamp || 0))
+        - Math.abs(Number(right.timestamp || 0) - Number(tx.timestamp || 0)))[0] || null;
+}
 function ContactRow({ label, value, copiedValue, onCopy, isPhone }: ContactRowProps) {
     const { t } = useLanguage();
     if (!value)
@@ -109,7 +132,7 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone }: ContactRowPr
       </div>
     </div>);
 }
-export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, handleExportClientReport }: ClientDetailsViewProps) {
+export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, handleExportClientReport }: ClientDetailsViewProps) {
     const { t } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 120;
     const LOAD_MORE_TRANSACTIONS = 120;
@@ -117,6 +140,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
     const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
     const dates = Object.keys(groupedHistory);
     const linkedTransactionsById = useMemo(() => new Map(transactions.map((tx) => [tx.id, tx])), [transactions]);
+    const clientsById = useMemo(() => new Map(clientsDzd.map((client) => [client.id, client])), [clientsDzd]);
     const exportCurrentMonthReport = () => {
         const now = new Date();
         handleExportClientReport(selectedClientId, now.getMonth(), now.getFullYear());
@@ -154,6 +178,9 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                 const linkedUsdtTx = tx.linkedTxId ? (linkedTransactionsById.get(tx.linkedTxId) || null) : null;
                 const isCredit = tx.montant > 0;
                 const isTransfer = tx.type === 'Transfert Entrant' || tx.type === 'Transfert Sortant';
+                const transferCounterpart = isTransfer ? findClientTransferCounterpart(tx, clientTransactionsDzd) : null;
+                const counterpartClient = transferCounterpart ? clientsById.get(transferCounterpart.clientId) : undefined;
+                const counterpartName = counterpartClient ? getClientFullName(counterpartClient) : '';
                 const isLinkedPortfolioTx = Boolean(linkedUsdtTx && (linkedUsdtTx.type === 'buy' || linkedUsdtTx.type === 'sell'));
                 const icon = isTransfer
                     ? <UsersIcon className="w-5 h-5"/>
@@ -178,7 +205,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                         amountLabel: `${formatNumber(Number(linkedUsdtTx.quantity || 0), { min: 0, max: 2 })} ${linkedUsdtTx.currency}`,
                         amountColor: isBuy ? 'text-financial-profit' : 'text-financial-loss',
                         icon: iconNode,
-                        details: tx.notes || '',
+                        details: getManualClientNote(tx.notes),
                         category: 'crypto',
                         rawTx: linkedUsdtTx,
                         actionRawTx: tx,
@@ -196,7 +223,9 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                     amountLabel: formatDzd(Math.abs(Number(tx.montant || 0)), { min: 2, max: 2 }),
                     amountColor: isTransfer ? 'text-primary' : (isCredit ? 'text-financial-profit' : 'text-financial-loss'),
                     icon: iconNode,
-                    details: tx.notes || '',
+                    details: isTransfer
+                        ? getClientTransferDetails(tx, counterpartName, t as (key: string) => string)
+                        : getManualClientNote(tx.notes),
                     category: 'client',
                     rawTx: tx,
                     actionRawTx: tx,
@@ -204,7 +233,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                 };
             }),
         ]);
-    }, [linkedTransactionsById, t, visibleDateGroups]);
+    }, [clientTransactionsDzd, clientsById, getClientFullName, linkedTransactionsById, t, visibleDateGroups]);
     const clientStats = useMemo(() => {
         const allTxs = Object.values(groupedHistory).flat();
         let totalReceived = 0;

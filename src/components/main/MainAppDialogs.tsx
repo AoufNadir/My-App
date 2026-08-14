@@ -70,6 +70,7 @@ export function MainAppDialogs(props: MainAppDialogsProps) {
             t,
             clientBalances,
             clientTransactionsDzd,
+            clientsDzd,
             transactions,
             setAlert,
             getClientFullName,

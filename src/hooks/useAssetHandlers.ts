@@ -96,7 +96,7 @@ export function useAssetHandlers(userDocRef: FirestoreDocumentReference, manualA
                 const asset = manualAssets.find((a) => a.id === data.actifId);
                 const treasuryTxRef = userDocRef.collection('treasury_txs').doc();
                 const treasuryType = isInflow ? 'Ajout' : 'Retrait';
-                const noteVerb = isInflow ? 'Paiement' : 'Depense';
+                const noteVerb = isInflow ? 'Paiement' : 'Dépense';
                 batch.set(treasuryTxRef, {
                     timestamp: data.timestamp,
                     date: data.date,

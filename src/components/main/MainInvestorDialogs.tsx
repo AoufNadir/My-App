@@ -108,7 +108,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
             if (investorTxType === 'withdraw_profit') {
                 cap = availableProfit;
                 capLabel = 'Profit disponible';
-                nextLabel = 'Profit apres retrait';
+                nextLabel = 'Profit après retrait';
                 nextValue = availableProfit - amt;
                 exceedsCap = amt > availableProfit;
                 exceedsPaymentSource = amt > paymentSourceBalance;
@@ -117,7 +117,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
             else if (investorTxType === 'withdraw_capital') {
                 cap = capitalInvested;
                 capLabel = 'Capital investi';
-                nextLabel = 'Capital apres retrait';
+                nextLabel = 'Capital après retrait';
                 nextValue = capitalInvested - amt;
                 exceedsCap = amt > capitalInvested;
                 exceedsPaymentSource = amt > paymentSourceBalance;
@@ -126,14 +126,14 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
             else if (investorTxType === 'deposit_capital') {
                 capLabel = 'Capital actuel';
                 cap = capitalInvested;
-                nextLabel = 'Capital apres depot';
+                nextLabel = 'Capital après dépôt';
                 nextValue = capitalInvested + amt;
-                titleStr = 'Depot Capital';
+                titleStr = 'Dépôt Capital';
             }
             else {
                 capLabel = 'Profit actuel';
                 cap = availableProfit;
-                nextLabel = 'Profit apres distribution';
+                nextLabel = 'Profit après distribution';
                 nextValue = availableProfit + amt;
                 titleStr = 'Distribution Profit';
             }
@@ -141,7 +141,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
             const errorMsg = !validAmount
                 ? 'Montant invalide'
                 : exceedsCap
-                    ? `Montant superieur a ${capLabel.toLowerCase()}`
+                    ? `Montant supérieur à ${capLabel.toLowerCase()}`
                     : exceedsPaymentSource
                         ? `Solde ${paymentSource} insuffisant`
                         : '';
@@ -193,7 +193,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                     ];
                     if (investorTxType === 'withdraw_profit') {
                         rows.push({
-                            label: `${paymentSource} apres paiement`,
+                            label: `${paymentSource} après paiement`,
                             value: paymentSourceBalance - amt,
                             currency: 'DZD',
                             semantic: 'auto'
@@ -201,7 +201,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                     }
                     if (investorTxType === 'deposit_capital') {
                         rows.push({
-                            label: `${paymentSource} apres depot`,
+                            label: `${paymentSource} après dépôt`,
                             value: paymentSourceBalance + amt,
                             currency: 'DZD',
                             semantic: 'auto'
@@ -209,7 +209,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                     }
                     if (investorTxType === 'withdraw_capital') {
                         rows.push({
-                            label: `${paymentSource} apres retrait`,
+                            label: `${paymentSource} après retrait`,
                             value: paymentSourceBalance - amt,
                             currency: 'DZD',
                             semantic: 'auto'
@@ -276,7 +276,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
             const errorMsg = !validAmount
                 ? 'Montant invalide'
                 : exceedsAvailable
-                    ? 'Montant superieur au profit disponible'
+                    ? 'Montant supérieur au profit disponible'
                     : '';
             return (<Modal isOpen={isReinvestModalOpen} onClose={() => setIsReinvestModalOpen(false)} className="max-w-md bg-surface">
                     <ModalHeader onClose={() => setIsReinvestModalOpen(false)} className={headerClass}>

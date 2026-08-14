@@ -1,6 +1,6 @@
 import type { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, Tx, TreasuryTx } from '../types';
 import type { PamLedgerResult } from './pamLedger';
-import { getClientOperationLabel, getPortfolioOperationLabel } from './transactionTerminology';
+import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel } from './transactionTerminology';
 type PortfolioSnapshot = {
     usdt: {
         available: number;
@@ -160,6 +160,27 @@ function formatDateTime(timestamp: number): string {
         hour: '2-digit',
         minute: '2-digit'
     });
+}
+function findClientTransferCounterpart(tx: ClientTransactionDzd, allClientTxs: ClientTransactionDzd[]) {
+    if (tx.type !== 'Transfert Sortant' && tx.type !== 'Transfert Entrant')
+        return null;
+    if (tx.linkedTxId) {
+        const linked = allClientTxs.find((candidate) => candidate.id === tx.linkedTxId);
+        if (linked)
+            return linked;
+    }
+    const counterpartType = tx.type === 'Transfert Sortant' ? 'Transfert Entrant' : 'Transfert Sortant';
+    const counterpartAmount = -Number(tx.montant || 0);
+    return allClientTxs
+        .filter((candidate) => candidate.id !== tx.id
+        && candidate.clientId !== tx.clientId
+        && candidate.type === counterpartType
+        && candidate.date === tx.date
+        && candidate.time === tx.time
+        && Math.abs(Number(candidate.montant || 0) - counterpartAmount) <= 0.01
+        && Math.abs(Number(candidate.timestamp || 0) - Number(tx.timestamp || 0)) <= 2000)
+        .sort((left, right) => Math.abs(Number(left.timestamp || 0) - Number(tx.timestamp || 0))
+        - Math.abs(Number(right.timestamp || 0) - Number(tx.timestamp || 0)))[0] || null;
 }
 function formatDate(timestamp: number): string {
     return new Date(timestamp).toLocaleDateString(FR_LOCALE);
@@ -964,9 +985,9 @@ function buildUncostedQuantityWarningsHtml(rows: PamLedgerResult['sellProfitRows
           </tbody>
         </table>
       </div>
-      ${hiddenCount > 0 ? `<div class="muted muted-note">${hiddenCount} autre(s) transaction(s) masquee(s) dans cette synthese.</div>` : ''}
+      ${hiddenCount > 0 ? `<div class="muted muted-note">${hiddenCount} autre(s) transaction(s) masquée(s) dans cette synthèse.</div>` : ''}
       <div class="muted muted-note">
-        Alerte informative uniquement: ces montants ne sont pas retires du profit realise.
+        Alerte informative uniquement: ces montants ne sont pas retirés du profit réalisé.
       </div>
     </section>
   `;
@@ -1094,8 +1115,8 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
           </tbody>
         </table>
       </div>
-      ${hiddenTopRows > 0 ? `<div class="muted muted-note">${hiddenTopRows} autre(s) client(s) non affiche(s) dans cette synthese.</div>` : ''}`
-        : '<div class="empty">Aucun classement client disponible sur cette periode.</div>';
+      ${hiddenTopRows > 0 ? `<div class="muted muted-note">${hiddenTopRows} autre(s) client(s) non affiché(s) dans cette synthèse.</div>` : ''}`
+        : '<div class="empty">Aucun classement client disponible sur cette période.</div>';
     const portfolioTxTable = portfolioPreviewRows.length
         ? `<div class="table-wrap">
         <table>
@@ -1149,8 +1170,8 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
           </tbody>
         </table>
       </div>
-      ${hiddenPortfolioRows > 0 ? `<div class="muted muted-note">${hiddenPortfolioRows} operation(s) supplementaire(s) masquee(s) pour garder le rapport lisible.</div>` : ''}`
-        : '<div class="empty">Aucune transaction portefeuille enregistree sur cette periode.</div>';
+      ${hiddenPortfolioRows > 0 ? `<div class="muted muted-note">${hiddenPortfolioRows} opération(s) supplémentaire(s) masquée(s) pour garder le rapport lisible.</div>` : ''}`
+        : '<div class="empty">Aucune transaction portefeuille enregistrée sur cette période.</div>';
     const clientMovementsTable = clientMovementPreviewRows.length
         ? `<div class="table-wrap">
         <table>
@@ -1169,28 +1190,33 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
             const clientName = clientNameById.get(row.clientId) || 'Client inconnu';
             const amount = Number(row.montant || 0);
             const label = getClientOperationLabel(row.type);
+            const counterpart = findClientTransferCounterpart(row, input.clientTransactions);
+            const counterpartName = counterpart ? (clientNameById.get(counterpart.clientId) || 'Client inconnu') : undefined;
+            const notes = row.type === 'Transfert Entrant' || row.type === 'Transfert Sortant'
+                ? getClientTransferDetails(row, counterpartName)
+                : getManualClientNote(row.notes);
             return `
                   <tr>
                     <td>${escapeHtml(formatDateTime(row.timestamp))}</td>
                     <td>${escapeHtml(clientName)}</td>
                     <td>${escapeHtml(label)}</td>
                     <td class="num ${amount >= 0 ? 'good' : 'bad'}">${amount >= 0 ? '+' : ''}${formatNumber(amount)}</td>
-                    <td>${escapeHtml(row.notes || '-')}</td>
+                    <td>${escapeHtml(notes || '-')}</td>
                   </tr>`;
         })
             .join('')}
           </tbody>
         </table>
       </div>
-      ${hiddenClientMovementRows > 0 ? `<div class="muted muted-note">${hiddenClientMovementRows} mouvement(s) client supplementaire(s) masquee(s).</div>` : ''}`
-        : '<div class="empty">Aucun mouvement client DZD sur cette periode.</div>';
+      ${hiddenClientMovementRows > 0 ? `<div class="muted muted-note">${hiddenClientMovementRows} mouvement(s) client supplémentaire(s) masquée(s).</div>` : ''}`
+        : '<div class="empty">Aucun mouvement client DZD sur cette période.</div>';
     const bodyHtml = `
     <section class="section">
-      <h2 class="section-title">Synthese executive</h2>
-      <div class="report-kicker">Periode: <strong>${escapeHtml(input.monthLabel)} ${input.year}</strong></div>
+      <h2 class="section-title">Synthèse exécutive</h2>
+      <div class="report-kicker">Période: <strong>${escapeHtml(input.monthLabel)} ${input.year}</strong></div>
       <div class="executive-grid">
         <div class="executive-card ${realizedProfit < 0 ? 'loss' : 'profit'}">
-          <div class="label">Profit realise</div>
+          <div class="label">Profit réalisé</div>
           <div class="value ${realizedProfit >= 0 ? 'good' : 'bad'}">${realizedProfit >= 0 ? '+' : ''}${formatNumber(realizedProfit)} DZD</div>
         </div>
         <div class="executive-card primary">
@@ -1245,7 +1271,7 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
     </section>
 
     <section class="section">
-      <h2 class="section-title">Details operations portefeuille (${portfolioPreviewRows.length})</h2>
+      <h2 class="section-title">Détails opérations portefeuille (${portfolioPreviewRows.length})</h2>
       ${portfolioTxTable}
     </section>
 
@@ -1287,11 +1313,13 @@ export function buildClientPdfReport(input: ClientReportInput): ReportPayload | 
     const closingBalance = openingBalance + periodNet;
     const txById = new Map<string, Tx>();
     input.transactions.forEach((tx) => txById.set(tx.id, tx));
+    const clientNameById = new Map<string, string>();
+    input.clients.forEach((item) => clientNameById.set(item.id, input.getClientName(item)));
     const clientStatus = closingBalance < -0.005
-        ? 'Solde a regler'
+        ? 'Solde à régler'
         : closingBalance > 0.005
             ? 'Solde en faveur du client'
-            : 'Solde equilibre';
+            : 'Solde équilibré';
     const historyHtml = periodRows.length
         ? `<div class="table-wrap">
         <table>
@@ -1300,7 +1328,7 @@ export function buildClientPdfReport(input: ClientReportInput): ReportPayload | 
               <th>Date</th>
               <th>Type</th>
               <th class="num">Montant</th>
-              <th>Details</th>
+              <th>Détails</th>
               <th>Note</th>
             </tr>
           </thead>
@@ -1308,31 +1336,37 @@ export function buildClientPdfReport(input: ClientReportInput): ReportPayload | 
             ${periodRows
             .map((row) => {
             const linked = row.linkedTxId ? txById.get(row.linkedTxId) : undefined;
-            const linkedDetails = linked
+            let linkedDetails = linked
                 ? `${getPortfolioOperationLabel(linked.type, linked.currency)} - ${formatAssetQuantity(linked.quantity)} ${linked.currency} x ${formatNumber(Number(linked.type === 'sell' ? (linked.sell || 0) : (linked.price || 0)))} DZD`
                 : '-';
+            const counterpart = findClientTransferCounterpart(row, input.clientTransactions);
+            if (counterpart) {
+                const counterpartName = clientNameById.get(counterpart.clientId) || 'Client inconnu';
+                linkedDetails = getClientTransferDetails({ type: row.type, notes: '' }, counterpartName);
+            }
             const amount = Number(row.montant || 0);
             const label = getClientOperationLabel(row.type);
+            const manualNote = getManualClientNote(row.notes);
             return `
                   <tr>
                     <td>${escapeHtml(formatDateTime(row.timestamp))}</td>
                     <td>${escapeHtml(label)}</td>
                     <td class="num ${amount >= 0 ? 'good' : 'bad'}">${amount >= 0 ? '+' : ''}${formatNumber(amount)} DZD</td>
                     <td>${escapeHtml(linkedDetails)}</td>
-                    <td>${escapeHtml(row.notes || '-')}</td>
+                    <td>${escapeHtml(manualNote || '-')}</td>
                   </tr>`;
         })
             .join('')}
           </tbody>
         </table>
       </div>`
-        : '<div class="empty">Aucune operation client pour cette periode.</div>';
+        : '<div class="empty">Aucune opération client pour cette période.</div>';
     const clientName = input.getClientName(client);
     const rawFileName = sanitizeFileName(`releve_client_${clientName}_${input.year}_${String(input.month + 1).padStart(2, '0')}`);
     const bodyHtml = `
     <section class="section">
-      <h2 class="section-title">Releve client</h2>
-      <div class="report-kicker">Periode: <strong>${escapeHtml(input.monthLabel)} ${input.year}</strong></div>
+      <h2 class="section-title">Relevé client</h2>
+      <div class="report-kicker">Période: <strong>${escapeHtml(input.monthLabel)} ${input.year}</strong></div>
       <div class="pill-row">
         <span class="pill">Client: ${escapeHtml(clientName)}</span>
         ${client.phone ? `<span class="pill">Tel: ${escapeHtml(client.phone)}</span>` : ''}
@@ -1342,22 +1376,22 @@ export function buildClientPdfReport(input: ClientReportInput): ReportPayload | 
     </section>
 
     <section class="section">
-      <h2 class="section-title">Synthese du releve</h2>
+      <h2 class="section-title">Synthèse du relevé</h2>
       <div class="executive-grid">
         <div class="executive-card">
           <div class="label">Solde ouverture</div>
           <div class="value ${openingBalance >= 0 ? 'good' : 'bad'}">${openingBalance >= 0 ? '+' : ''}${formatNumber(openingBalance)} DZD</div>
         </div>
         <div class="executive-card ${closingBalance < 0 ? 'loss' : 'profit'}">
-          <div class="label">Solde cloture</div>
+          <div class="label">Solde clôture</div>
           <div class="value ${closingBalance >= 0 ? 'good' : 'bad'}">${closingBalance >= 0 ? '+' : ''}${formatNumber(closingBalance)} DZD</div>
         </div>
         <div class="executive-card profit">
-          <div class="label">Total recu</div>
+          <div class="label">Total reçu</div>
           <div class="value good">+${formatNumber(periodCredits)} DZD</div>
         </div>
         <div class="executive-card loss">
-          <div class="label">Total paye</div>
+          <div class="label">Total payé</div>
           <div class="value bad">-${formatNumber(periodDebits)} DZD</div>
         </div>
         <div class="executive-card">
@@ -1376,13 +1410,13 @@ export function buildClientPdfReport(input: ClientReportInput): ReportPayload | 
     </section>
 
     <section class="section">
-      <h2 class="section-title">Operations de la periode</h2>
+      <h2 class="section-title">Opérations de la période</h2>
       ${historyHtml}
     </section>
   `;
     return reportShell({
         fileName: `${rawFileName || 'releve_client'}.pdf`,
-        title: 'Releve client',
+        title: 'Relevé client',
         subtitle: `${clientName} - ${input.monthLabel} ${input.year}`,
         bodyHtml
     });
@@ -1476,7 +1510,7 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
     const investorName = input.investor.name || 'investisseur';
     const bodyHtml = `
     <section class="section">
-      <h2 class="section-title">Synthese investisseur</h2>
+      <h2 class="section-title">Synthèse investisseur</h2>
       <div class="report-kicker">P&eacute;riode du rapport: <strong>${escapeHtml(periodLabel)}</strong></div>
       <div class="executive-grid">
         <div class="executive-card primary">

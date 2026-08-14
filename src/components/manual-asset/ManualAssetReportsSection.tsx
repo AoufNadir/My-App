@@ -178,7 +178,7 @@ function RankedClientsBlock({ title, totalClients, rows }: {
             </div>);
         })}
         </div>) : (<div className="mt-3 rounded-xl border border-dashed border-border-strong p-4 text-center text-sm text-neutral-400">
-          Aucune donnee disponible pour cette periode.
+          Aucune donnée disponible pour cette période.
         </div>)}
     </div>);
 }
@@ -203,7 +203,7 @@ function ReportCard({ title, subtitle, topTitle, report }: {
         <div className="space-y-2">
           <StatCard label="CA Services" value={<CurrencyAmount value={report.serviceRevenue} currency="DZD" semantic="profit" size="lg" decimals={2}/>} hint={`${report.activeClientsCount} clients actifs`}/>
 
-          <StatCard label="Encaissements" value={<CurrencyAmount value={report.cashReceived} currency="DZD" semantic="profit" size="lg" decimals={2}/>} hint="Paiements recus"/>
+          <StatCard label="Encaissements" value={<CurrencyAmount value={report.cashReceived} currency="DZD" semantic="profit" size="lg" decimals={2}/>} hint="Paiements reçus"/>
         </div>
 
         <div className="space-y-2">

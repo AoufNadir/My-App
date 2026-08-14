@@ -23,10 +23,10 @@ export function ManualClientHeaderStats({ clientName, clientPhone, balance, onBa
     const balanceHint = balanceView.kind === 'to_receive'
         ? "Le client vous doit ce montant"
         : balanceView.kind === 'client_advance'
-            ? "Avance client / montant a rendre"
-            : 'Compte solde';
+            ? "Avance client / montant à rendre"
+            : 'Compte soldé';
     return (<>
-      <PageHeader title={clientName} subtitle={clientPhone || 'Details du client'} onBack={onBack} className="-mx-4 sm:mx-0 sm:rounded-lg"/>
+      <PageHeader title={clientName} subtitle={clientPhone || 'Détails du client'} onBack={onBack} className="-mx-4 sm:mx-0 sm:rounded-lg"/>
 
       <FinancialMetricCard label={getServiceBalanceLabel(balanceView.kind)} value={balanceView.amount} semantic={balanceSemantic} tone={balanceTone} icon={<UserIcon className="h-4 w-4"/>} hint={balanceHint}/>
     </>);

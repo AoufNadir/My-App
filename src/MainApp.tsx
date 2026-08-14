@@ -1898,6 +1898,7 @@ export default function MainApp({ user }: {
         setClientSearchQuery,
         clientSortMode,
         setClientSortMode,
+        clientsDzd,
         filteredClientsDzd,
         clientBalances,
         getClientFullName,
@@ -1906,6 +1907,7 @@ export default function MainApp({ user }: {
         setClientToDelete: handleClientDeleteRequest,
         selectedClient,
         selectedClientTransactions,
+        clientTransactionsDzd,
         transactions,
         profitByTxId: pamLedger.profitByTxId,
         handleExportClientReport,
@@ -1922,7 +1924,7 @@ export default function MainApp({ user }: {
         onImportClients: handleImportClients,
     }), [
         selectedClientId, clientSearchQuery, clientSortMode,
-        filteredClientsDzd, clientBalances, selectedClient, selectedClientTransactions, transactions, pamLedger.profitByTxId, copiedValue,
+        clientsDzd, filteredClientsDzd, clientBalances, selectedClient, selectedClientTransactions, clientTransactionsDzd, transactions, pamLedger.profitByTxId, copiedValue,
         openClientModal, handleTouchStart, handleTouchEnd, handleClientDeleteRequest, handleExportClientReport, openClientTxModal,
         handleCopy, handleEditLinkedClientTx, handleDeleteLinkedClientTxClick, overdueDebtClients, clientLoyaltyMap,
         earlyClientPrevMonthVolumeMap, earlyClientLastSellDateMap, handleZeroOutBalance

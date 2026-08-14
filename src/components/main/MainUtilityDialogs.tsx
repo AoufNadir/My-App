@@ -45,7 +45,7 @@ function PinSettings({}: {}) {
                     <div className="flex items-start justify-between gap-3">
                         <div className="text-sm">
                             <p className="font-semibold text-neutral-900">PIN actif</p>
-                            <p className="text-xs text-neutral-500">Verrouillage automatique apres 3 minutes d'inactivite.</p>
+                            <p className="text-xs text-neutral-500">Verrouillage automatique après 3 minutes d'inactivité.</p>
                         </div>
                         <div className="flex shrink-0 gap-2">
                             <Button type="button" variant="outline" size="sm" onClick={lock}>Verrouiller</Button>
@@ -223,7 +223,7 @@ function MainUtilityDialogsComponent({
                         value={treasuryCardNotes}
                         onChange={(event) => setTreasuryCardNotes(event.target.value)}
                         rows={4}
-                        placeholder="Details de l'investissement, remarques, infos importantes..."
+                        placeholder="Détails de l'investissement, remarques, infos importantes..."
                     />
                 </ModalContent>
                 <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">

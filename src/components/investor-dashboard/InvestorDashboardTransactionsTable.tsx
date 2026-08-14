@@ -12,7 +12,7 @@ function getInvestorDashboardTxMeta(type: InvestorTransaction['type']) {
     if (type === 'profit_distribution')
         return { label: 'Distribution Profit', badgeVariant: 'success' as const, positive: true };
     if (type === 'deposit_capital')
-        return { label: 'Depot Capital', badgeVariant: 'primary' as const, positive: true };
+        return { label: 'Dépôt Capital', badgeVariant: 'primary' as const, positive: true };
     if (type === 'withdraw_profit')
         return { label: 'Retrait Profit', badgeVariant: 'warning' as const, positive: false };
     return { label: 'Retrait Capital', badgeVariant: 'neutral' as const, positive: false };

@@ -39,10 +39,12 @@ const arePortfolioPagePropsEqual = (prev: any, next: any) => (prev?.statsView ==
 const areClientsPagePropsEqual = (prev: any, next: any) => (prev?.selectedClientId === next?.selectedClientId
     && prev?.clientSearchQuery === next?.clientSearchQuery
     && prev?.clientSortMode === next?.clientSortMode
+    && prev?.clientsDzd === next?.clientsDzd
     && prev?.filteredClientsDzd === next?.filteredClientsDzd
     && prev?.clientBalances === next?.clientBalances
     && prev?.selectedClient === next?.selectedClient
     && prev?.selectedClientTransactions === next?.selectedClientTransactions
+    && prev?.clientTransactionsDzd === next?.clientTransactionsDzd
     && prev?.transactions === next?.transactions
     && prev?.copiedValue === next?.copiedValue
     && prev?.overdueDebtClients === next?.overdueDebtClients);

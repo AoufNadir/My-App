@@ -90,19 +90,19 @@ export function PersonalWithdrawalModal({
         <Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
             <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
                 <ModalTitle className="text-base sm:text-lg">
-                    {editingTx ? 'Modifier le prelevement' : 'Mon prelevement'}
+                    {editingTx ? 'Modifier le prélèvement' : 'Mon prélèvement'}
                 </ModalTitle>
                 <p className="mt-0.5 text-sm font-normal text-neutral-500">
                     {mode === 'advance'
-                        ? 'Avance - a regulariser plus tard'
-                        : 'Depense personnelle deduite de ton profit'}
+                        ? 'Avance - à régulariser plus tard'
+                        : 'Dépense personnelle déduite de ton profit'}
                 </p>
             </ModalHeader>
 
             <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
                 <Tabs
                     tabs={[
-                        { id: 'expense', label: 'Depense directe' },
+                        { id: 'expense', label: 'Dépense directe' },
                         { id: 'advance', label: 'Avance' },
                     ]}
                     activeTab={mode}
@@ -117,7 +117,7 @@ export function PersonalWithdrawalModal({
                     currency="DZD"
                     hint={(
                         <span className="inline-flex flex-wrap items-center gap-1">
-                            {mode === 'advance' ? 'Deduit du profit a la regularisation' : 'Ton profit dispo:'}
+                            {mode === 'advance' ? 'Déduit du profit à la régularisation' : 'Ton profit dispo:'}
                             {mode !== 'advance' && (
                                 <CurrencyAmount value={managerAvailableProfit} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                             )}
@@ -162,8 +162,8 @@ export function PersonalWithdrawalModal({
                     <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" />
                     <p>
                         {mode === 'advance'
-                            ? 'Tu pourras regulariser plus tard en saisissant le montant reellement depense. Le reste sera retourne automatiquement.'
-                            : 'Sera deduit de ton profit disponible uniquement. Les autres investisseurs ne sont pas affectes.'}
+                            ? 'Tu pourras régulariser plus tard en saisissant le montant réellement dépensé. Le reste sera retourné automatiquement.'
+                            : 'Sera déduit de ton profit disponible uniquement. Les autres investisseurs ne sont pas affectés.'}
                     </p>
                 </div>
             </ModalContent>

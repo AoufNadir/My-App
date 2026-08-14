@@ -461,7 +461,6 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             }
             else {
                 if (receiverClientId !== 'none') {
-                    const receiverClientName = clientsDzd.find((client) => client.id === receiverClientId)?.fullName || 'Client';
                     const outgoingTransferRef = userDocRef.collection('dzd_client_txs').doc();
                     const incomingTransferRef = userDocRef.collection('dzd_client_txs').doc();
                     const note = clientTxNotes.trim();
@@ -473,7 +472,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                             time,
                             montant: amount,
                             type: 'Transfert Sortant',
-                            notes: note || `Reçu par ${receiverClientName}`,
+                            notes: note,
                             paymentMethod: 'Crédit'
                         });
                         batch.set(incomingTransferRef, {
@@ -483,7 +482,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                             time,
                             montant: -amount,
                             type: 'Transfert Entrant',
-                            notes: note || `Reçu de ${targetClientName}`,
+                            notes: note,
                             paymentMethod: 'Crédit',
                             linkedTxId: outgoingTransferRef.id
                         });
@@ -497,7 +496,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                             time,
                             montant: amount,
                             type: 'Transfert Sortant',
-                            notes: note || `Décaissement pour ${targetClientName}`,
+                            notes: note,
                             paymentMethod: 'Crédit'
                         });
                         batch.set(incomingTransferRef, {
@@ -507,7 +506,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                             time,
                             montant: -amount,
                             type: 'Transfert Entrant',
-                            notes: note || `Reçu par ${receiverClientName}`,
+                            notes: note,
                             paymentMethod: 'Crédit',
                             linkedTxId: outgoingTransferRef.id
                         });

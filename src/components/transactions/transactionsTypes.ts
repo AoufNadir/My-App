@@ -1,6 +1,6 @@
 import type React from 'react';
 import { Tx, ClientTransactionDzd, TreasuryTx } from '../../types';
-export type TransactionFilterMode = 'all' | 'buy_usdt_dzd' | 'buy_usdt_eur' | 'buy_eur_dzd' | 'sell_usdt_dzd' | 'sell_usdt_eur' | 'sell_eur_dzd' | 'stock_in' | 'stock_out' | 'client_receipts_cash' | 'client_receipts_baridi' | 'client_receipts_credit' | 'client_payouts_cash' | 'client_payouts_baridi' | 'client_payouts_credit' | 'client_adjustments' | 'treasury_in_cash' | 'treasury_in_baridi' | 'treasury_out_cash' | 'treasury_out_baridi' | 'treasury_transfers' | 'client_transfers'
+export type TransactionFilterMode = 'all' | 'buy_usdt_dzd' | 'buy_usdt_eur' | 'buy_eur_dzd' | 'sell_usdt_dzd' | 'sell_usdt_eur' | 'sell_eur_dzd' | 'stock' | 'stock_in' | 'stock_out' | 'client_receipts' | 'client_receipts_cash' | 'client_receipts_baridi' | 'client_receipts_credit' | 'client_payouts' | 'client_payouts_cash' | 'client_payouts_baridi' | 'client_payouts_credit' | 'client_adjustments' | 'treasury_in_cash' | 'treasury_in_baridi' | 'treasury_out_cash' | 'treasury_out_baridi' | 'treasury_transfers' | 'client_transfers'
 // Legacy / broad saved filters kept readable for older localStorage entries.
  | 'buy' | 'sell' | 'adjustments' | 'client_payments' | 'treasury_in' | 'treasury_out' | 'clients' | 'treasury';
 export type TransactionSourceType = 'usdt_tx' | 'client_tx' | 'treasury_tx';

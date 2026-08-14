@@ -1,3 +1,5 @@
+import type { ClientTransactionDzd } from '../types';
+
 type PortfolioRawType = 'buy' | 'sell' | 'Ajout Manuel' | 'Retrait Manuel' | string;
 type TreasuryRawType = 'Ajout' | 'Retrait' | 'Adjustment (+)' | 'Adjustment (-)' | 'Transfer' | string;
 function canonicalize(raw: string): string {
@@ -17,6 +19,51 @@ function canonicalize(raw: string): string {
         .trim();
 }
 type TranslateFn = (key: string) => string;
+const translate = (t: TranslateFn | undefined, key: string, fallback: string) => {
+    if (!t)
+        return fallback;
+    const value = t(key);
+    return value && value !== key ? value : fallback;
+};
+const applyTemplate = (template: string, values: Record<string, string>) => Object.entries(values)
+    .reduce((text, [key, value]) => text.replace(new RegExp(`\\{${key}\\}`, 'g'), value), template);
+export function isClientTransferType(type: string | undefined) {
+    const normalized = canonicalize(String(type || ''));
+    return normalized === 'transfert entrant' || normalized === 'transfert sortant';
+}
+export function isGeneratedClientNote(note: string | undefined) {
+    const normalized = canonicalize(String(note || ''));
+    return normalized.startsWith('transfert de ')
+        || normalized.startsWith('transfert vers ')
+        || normalized.startsWith('recu de ')
+        || normalized.startsWith('recu par ')
+        || normalized.startsWith('decaissement pour ');
+}
+export function getManualClientNote(note: string | undefined) {
+    const trimmed = (note || '').trim();
+    return trimmed && !isGeneratedClientNote(trimmed) ? trimmed : '';
+}
+export function getClientTransferDetails(tx: Pick<ClientTransactionDzd, 'type' | 'notes'>, counterpartName: string | undefined, t?: TranslateFn) {
+    const normalized = canonicalize(String(tx.type || ''));
+    if (!isClientTransferType(tx.type))
+        return getManualClientNote(tx.notes);
+    const peerName = (counterpartName || '').trim() || translate(t, 'ledger.unknownClient', 'Client inconnu');
+    const directionKey = normalized === 'transfert entrant' ? 'ledger.fromClient' : 'ledger.toClient';
+    const directionFallback = normalized === 'transfert entrant' ? 'De {client}' : 'Vers {client}';
+    const main = applyTemplate(translate(t, directionKey, directionFallback), { client: peerName });
+    const note = getManualClientNote(tx.notes);
+    return [main, note].filter(Boolean).join(' - ');
+}
+export function getPaymentMethodLabel(method: string | undefined, t?: TranslateFn) {
+    const normalized = canonicalize(String(method || ''));
+    if (normalized.includes('baridi'))
+        return translate(t, 'transactions.baridi', 'BaridiMob');
+    if (normalized.includes('credit'))
+        return translate(t, 'transactions.onCredit', 'À crédit');
+    if (normalized.includes('espe') || normalized.includes('cash') || normalized.includes('caisse'))
+        return translate(t, 'transactions.cash', 'Caisse');
+    return method || '';
+}
 // Without `t` (PDF exports) the legacy long French labels are kept; with `t`
 // (on-screen ledger) labels are short so they fit on one mobile line and
 // follow the active language.
@@ -48,9 +95,9 @@ export function getClientOperationLabel(type: string, t?: TranslateFn): string {
     if (normalized === 'solde initial')
         return t ? t('ledger.initialBalance') : 'Solde Initial Client';
     if (normalized === 'transfert entrant')
-        return t ? t('ledger.transferIn') : 'Transfert Reçu (Clients)';
+        return t ? t('ledger.transferIn') : 'Transfert entrant';
     if (normalized === 'transfert sortant')
-        return t ? t('ledger.transferOut') : 'Transfert Envoyé (Clients)';
+        return t ? t('ledger.transferOut') : 'Transfert sortant';
     if (normalized === 'ajustement solde')
         return t ? t('ledger.balanceFix') : 'Correction Solde Client';
     return String(type || (t ? t('ledger.clientOp') : 'Opération Client'));

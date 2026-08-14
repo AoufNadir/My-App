@@ -94,7 +94,7 @@ export function PersonalAdvanceReconcileModal({
                         Tout retourner
                     </Button>
                     <Button type="button" variant="outline" size="sm" onClick={() => setActualAmount('0')}>
-                        Tout depense
+                        Tout dépensé
                     </Button>
                 </div>
 
@@ -108,14 +108,14 @@ export function PersonalAdvanceReconcileModal({
                                 'text-sm font-medium',
                                 returnAmount > 0 ? 'text-success' : 'text-neutral-500',
                             ].join(' ')}>
-                                {returnAmount > 0 ? `Retour automatique a ${returnSource}` : 'Aucun retour'}
+                                {returnAmount > 0 ? `Retour automatique à ${returnSource}` : 'Aucun retour'}
                             </span>
                             {returnAmount > 0 && (
                                 <CurrencyAmount value={returnAmount} currency="DZD" semantic="profit" size="xl" showSign decimals={0}/>
                             )}
                         </div>
                         <div className="mt-2 flex items-center justify-between gap-3 text-xs text-neutral-500">
-                            <span>Depense finale</span>
+                            <span>Dépense finale</span>
                             <CurrencyAmount value={reconciliation.actualSpent} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                         </div>
                     </Card>
@@ -124,7 +124,7 @@ export function PersonalAdvanceReconcileModal({
                 <div className="flex items-start gap-2 rounded-lg bg-info-bg p-3 text-xs text-info">
                     <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" />
                     <p>
-                        Saisis le montant que tu as remis dans {returnSource}. Le reste sera considere comme depense personnelle et ton profit sera ajuste.
+                        Saisis le montant que tu as remis dans {returnSource}. Le reste sera considéré comme dépense personnelle et ton profit sera ajusté.
                     </p>
                 </div>
             </ModalContent>

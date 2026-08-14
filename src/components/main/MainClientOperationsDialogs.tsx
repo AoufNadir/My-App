@@ -216,10 +216,10 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
         : !adjustmentAmount || parsedAdjustmentAmount <= 0
             ? 'Entrez un montant valide.'
             : exceedsAvailableBalance
-                ? `Montant superieur au solde ${adjustmentAsset}.`
+                ? `Montant supérieur au solde ${adjustmentAsset}.`
                 : adjustmentTab === 'add'
-                    ? 'Le solde sera ajoute.'
-                    : 'Le solde sera retire.';
+                    ? 'Le solde sera ajouté.'
+                    : 'Le solde sera retiré.';
     const amountErrorText = !adjustmentAmount || parsedAdjustmentAmount <= 0
         ? 'Montant invalide'
         : exceedsAvailableBalance
@@ -480,12 +480,12 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     rows.push({ label: t('transactions.unitPrice'), value: price, currency: 'DZD' });
                     rows.push({ label: 'Equivalent DZD', value: totalDzd, currency: 'DZD', emphasize: true });
                 }
-                rows.push({ label: 'Solde apres', value: nextAvailable, currency: adjustmentAsset as 'USDT' | 'EUR', semantic: 'auto' });
+                rows.push({ label: 'Solde après', value: nextAvailable, currency: adjustmentAsset as 'USDT' | 'EUR', semantic: 'auto' });
             }
             else {
                 const nextTreasury = selectedAssetMax + sign * qty;
                 rows.push({ label: t('transactions.amount'), value: qty, currency: 'DZD' });
-                rows.push({ label: `Solde apres (${selectedAssetLabel})`, value: nextTreasury, currency: 'DZD', semantic: 'auto' });
+                rows.push({ label: `Solde après (${selectedAssetLabel})`, value: nextTreasury, currency: 'DZD', semantic: 'auto' });
             }
             return (<TransactionPreviewCard title={t('transactions.confirmAndSave')} rows={rows} error={exceedsAvailableBalance ? `Solde ${selectedAssetLabel} insuffisant` : undefined}/>);
         })()}

@@ -66,63 +66,146 @@ export function TransactionsHistoryCard({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
 
-  const filterGroups: Array<{
-    title: string;
-    modes: Array<{ mode: TransactionFilterMode; icon: React.ReactNode; tone: string }>;
-  }> = [
+  type FilterItem = { mode: TransactionFilterMode; label?: string; icon: React.ReactNode; tone: string };
+  type FilterSection = { title?: string; modes: FilterItem[] };
+  type FilterGroup = FilterItem & { sections: FilterSection[] };
+  const allLabel = t('transactions.filterDetailAll');
+  const cashLabel = t('transactions.filterDetailCash');
+  const baridiLabel = t('transactions.filterDetailBaridi');
+  const creditLabel = t('transactions.filterDetailCredit');
+  const filterGroups: FilterGroup[] = [
     {
-      title: t('transactions.filterGroupGeneral'),
-      modes: [
-        { mode: 'all', icon: <CalendarIcon className="h-4 w-4" />, tone: 'text-primary bg-primary/10' },
+      mode: 'all',
+      label: txFilterLabels.all,
+      icon: <CalendarIcon className="h-4 w-4" />,
+      tone: 'text-primary bg-primary/10',
+      sections: [],
+    },
+    {
+      mode: 'buy',
+      label: txFilterLabels.buy,
+      icon: <ArrowDownLeftIcon className="h-4 w-4" />,
+      tone: 'text-financial-profit bg-success-bg',
+      sections: [{
+        modes: [
+          { mode: 'buy', label: allLabel, icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
+          { mode: 'buy_usdt_dzd', icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
+          { mode: 'buy_usdt_eur', icon: <ArrowRightLeftIcon className="h-4 w-4" />, tone: 'text-primary bg-primary/10' },
+          { mode: 'buy_eur_dzd', icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
+        ],
+      }],
+    },
+    {
+      mode: 'sell',
+      label: txFilterLabels.sell,
+      icon: <ArrowUpRightIcon className="h-4 w-4" />,
+      tone: 'text-financial-loss bg-danger-bg',
+      sections: [{
+        modes: [
+          { mode: 'sell', label: allLabel, icon: <ArrowUpRightIcon className="h-4 w-4" />, tone: 'text-financial-loss bg-danger-bg' },
+          { mode: 'sell_usdt_dzd', icon: <ArrowUpRightIcon className="h-4 w-4" />, tone: 'text-financial-loss bg-danger-bg' },
+          { mode: 'sell_usdt_eur', icon: <ArrowRightLeftIcon className="h-4 w-4" />, tone: 'text-financial-debt bg-warning-bg' },
+          { mode: 'sell_eur_dzd', icon: <ArrowUpRightIcon className="h-4 w-4" />, tone: 'text-financial-loss bg-danger-bg' },
+        ],
+      }],
+    },
+    {
+      mode: 'stock',
+      label: txFilterLabels.stock,
+      icon: <WalletIcon className="h-4 w-4" />,
+      tone: 'text-neutral-600 bg-neutral-100',
+      sections: [{
+        modes: [
+          { mode: 'stock', label: allLabel, icon: <WalletIcon className="h-4 w-4" />, tone: 'text-neutral-600 bg-neutral-100' },
+          { mode: 'stock_in', icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
+          { mode: 'stock_out', icon: <ArrowUpRightIcon className="h-4 w-4" />, tone: 'text-financial-loss bg-danger-bg' },
+        ],
+      }],
+    },
+    {
+      mode: 'clients',
+      label: txFilterLabels.clients,
+      icon: <UsersIcon className="h-4 w-4" />,
+      tone: 'text-primary bg-primary/10',
+      sections: [
+        {
+          modes: [
+            { mode: 'clients', label: allLabel, icon: <UsersIcon className="h-4 w-4" />, tone: 'text-primary bg-primary/10' },
+          ],
+        },
+        {
+          title: txFilterLabels.client_receipts,
+          modes: [
+            { mode: 'client_receipts', label: allLabel, icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
+            { mode: 'client_receipts_cash', label: cashLabel, icon: <BanknotesIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
+            { mode: 'client_receipts_baridi', label: baridiLabel, icon: <CreditCardIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
+            { mode: 'client_receipts_credit', label: creditLabel, icon: <UsersIcon className="h-4 w-4" />, tone: 'text-financial-debt bg-warning-bg' },
+          ],
+        },
+        {
+          title: txFilterLabels.client_payouts,
+          modes: [
+            { mode: 'client_payouts', label: allLabel, icon: <ArrowUpRightIcon className="h-4 w-4" />, tone: 'text-financial-loss bg-danger-bg' },
+            { mode: 'client_payouts_cash', label: cashLabel, icon: <BanknotesIcon className="h-4 w-4" />, tone: 'text-financial-loss bg-danger-bg' },
+            { mode: 'client_payouts_baridi', label: baridiLabel, icon: <CreditCardIcon className="h-4 w-4" />, tone: 'text-financial-loss bg-danger-bg' },
+            { mode: 'client_payouts_credit', label: creditLabel, icon: <UsersIcon className="h-4 w-4" />, tone: 'text-financial-debt bg-warning-bg' },
+          ],
+        },
+        {
+          modes: [
+            { mode: 'client_transfers', icon: <ArrowRightLeftIcon className="h-4 w-4" />, tone: 'text-primary bg-primary/10' },
+            { mode: 'client_adjustments', icon: <WalletIcon className="h-4 w-4" />, tone: 'text-neutral-500 bg-neutral-100' },
+          ],
+        },
       ],
     },
     {
-      title: t('transactions.filterGroupBuy'),
-      modes: [
-        { mode: 'buy_usdt_dzd', icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
-        { mode: 'buy_usdt_eur', icon: <ArrowRightLeftIcon className="h-4 w-4" />, tone: 'text-primary bg-primary/10' },
-        { mode: 'buy_eur_dzd',  icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
-      ],
-    },
-    {
-      title: t('transactions.filterGroupSell'),
-      modes: [
-        { mode: 'sell_usdt_dzd', icon: <ArrowUpRightIcon className="h-4 w-4" />,   tone: 'text-financial-loss bg-danger-bg' },
-        { mode: 'sell_usdt_eur', icon: <ArrowRightLeftIcon className="h-4 w-4" />, tone: 'text-financial-debt bg-warning-bg' },
-        { mode: 'sell_eur_dzd',  icon: <ArrowUpRightIcon className="h-4 w-4" />,   tone: 'text-financial-loss bg-danger-bg' },
-      ],
-    },
-    {
-      title: t('transactions.filterGroupStock'),
-      modes: [
-        { mode: 'stock_in',  icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
-        { mode: 'stock_out', icon: <ArrowUpRightIcon className="h-4 w-4" />,  tone: 'text-financial-loss bg-danger-bg' },
-      ],
-    },
-    {
-      title: t('transactions.filterGroupClients'),
-      modes: [
-        { mode: 'client_receipts_cash',    icon: <BanknotesIcon className="h-4 w-4" />,     tone: 'text-financial-profit bg-success-bg' },
-        { mode: 'client_receipts_baridi',  icon: <CreditCardIcon className="h-4 w-4" />,    tone: 'text-financial-profit bg-success-bg' },
-        { mode: 'client_receipts_credit',  icon: <UsersIcon className="h-4 w-4" />,          tone: 'text-financial-debt bg-warning-bg' },
-        { mode: 'client_payouts_cash',     icon: <BanknotesIcon className="h-4 w-4" />,     tone: 'text-financial-loss bg-danger-bg' },
-        { mode: 'client_payouts_baridi',   icon: <CreditCardIcon className="h-4 w-4" />,    tone: 'text-financial-loss bg-danger-bg' },
-        { mode: 'client_payouts_credit',   icon: <UsersIcon className="h-4 w-4" />,          tone: 'text-financial-debt bg-warning-bg' },
-        { mode: 'client_adjustments',      icon: <WalletIcon className="h-4 w-4" />,         tone: 'text-neutral-500 bg-neutral-100' },
-        { mode: 'client_transfers',        icon: <ArrowRightLeftIcon className="h-4 w-4" />, tone: 'text-primary bg-primary/10' },
-      ],
-    },
-    {
-      title: t('transactions.filterGroupTreasury'),
-      modes: [
-        { mode: 'treasury_in_cash',    icon: <BanknotesIcon className="h-4 w-4" />,     tone: 'text-financial-profit bg-success-bg' },
-        { mode: 'treasury_in_baridi',  icon: <CreditCardIcon className="h-4 w-4" />,    tone: 'text-financial-profit bg-success-bg' },
-        { mode: 'treasury_out_cash',   icon: <BanknotesIcon className="h-4 w-4" />,     tone: 'text-financial-loss bg-danger-bg' },
-        { mode: 'treasury_out_baridi', icon: <CreditCardIcon className="h-4 w-4" />,    tone: 'text-financial-loss bg-danger-bg' },
-        { mode: 'treasury_transfers',  icon: <ArrowRightLeftIcon className="h-4 w-4" />, tone: 'text-primary bg-primary/10' },
+      mode: 'treasury',
+      label: txFilterLabels.treasury,
+      icon: <WalletIcon className="h-4 w-4" />,
+      tone: 'text-primary bg-primary/10',
+      sections: [
+        {
+          modes: [
+            { mode: 'treasury', label: allLabel, icon: <WalletIcon className="h-4 w-4" />, tone: 'text-primary bg-primary/10' },
+          ],
+        },
+        {
+          title: txFilterLabels.treasury_in,
+          modes: [
+            { mode: 'treasury_in', label: allLabel, icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
+            { mode: 'treasury_in_cash', label: cashLabel, icon: <BanknotesIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
+            { mode: 'treasury_in_baridi', label: baridiLabel, icon: <CreditCardIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
+          ],
+        },
+        {
+          title: txFilterLabels.treasury_out,
+          modes: [
+            { mode: 'treasury_out', label: allLabel, icon: <ArrowUpRightIcon className="h-4 w-4" />, tone: 'text-financial-loss bg-danger-bg' },
+            { mode: 'treasury_out_cash', label: cashLabel, icon: <BanknotesIcon className="h-4 w-4" />, tone: 'text-financial-loss bg-danger-bg' },
+            { mode: 'treasury_out_baridi', label: baridiLabel, icon: <CreditCardIcon className="h-4 w-4" />, tone: 'text-financial-loss bg-danger-bg' },
+          ],
+        },
+        {
+          modes: [
+            { mode: 'treasury_transfers', icon: <ArrowRightLeftIcon className="h-4 w-4" />, tone: 'text-primary bg-primary/10' },
+          ],
+        },
       ],
     },
   ];
+  const getGroupModes = (group: FilterGroup) => [group.mode, ...group.sections.flatMap((section) => section.modes.map((item) => item.mode))];
+  const activeFilterGroup = filterGroups.find((group) => getGroupModes(group).includes(filterMode)) || filterGroups[0];
+  const activeSection = activeFilterGroup.sections.find((section) => section.modes.some((item) => item.mode === filterMode));
+  const activeFilterItem = activeSection?.modes.find((item) => item.mode === filterMode);
+  const activeFilterLabel = (() => {
+    if (!activeFilterGroup || filterMode === activeFilterGroup.mode) return txFilterLabels[filterMode] || activeFilterGroup?.label || '';
+    const parts = [activeFilterGroup.label];
+    if (activeSection?.title) parts.push(activeSection.title);
+    const itemLabel = activeFilterItem?.label || txFilterLabels[filterMode];
+    if (itemLabel && itemLabel !== allLabel) parts.push(itemLabel);
+    return parts.filter(Boolean).join(' / ');
+  })();
 
   useEffect(() => {
     setVisibleTransactionCount(INITIAL_VISIBLE);
@@ -225,7 +308,7 @@ export function TransactionsHistoryCard({
               trigger={(
                 <Button variant="outline" className="min-h-touch w-full min-w-0 justify-start gap-2 rounded-lg px-3 text-xs font-bold bg-neutral-100 hover:bg-neutral-200 text-neutral-800 transition-colors">
                   <FilterIcon className="h-4 w-4 shrink-0" />
-                  <span className="min-w-0 truncate">{txFilterLabels[filterMode]}</span>
+                  <span className="min-w-0 truncate">{activeFilterLabel}</span>
                   <span className="ms-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] bg-surface text-neutral-600">
                     {txFilterCounts[filterMode] || 0}
                   </span>
@@ -233,48 +316,100 @@ export function TransactionsHistoryCard({
               )}
             >
               <div className="space-y-3">
-                {filterGroups.map((group) => (
-                  <div key={group.title}>
-                    <div className="mb-1 px-1 text-[10px] font-black uppercase text-neutral-400">
-                      {group.title}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {group.modes.map(({ mode, icon, tone }) => {
-                        const isActive = filterMode === mode;
-                        return (
-                          <button
-                            key={mode}
-                            type="button"
-                            onClick={() => setFilterMode(mode)}
-                            className={[
-                                'min-h-12 rounded-lg border p-2 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-                              isActive
-                                ? 'border-primary bg-primary/10 text-primary'
-                                : 'border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100',
-                            ].join(' ')}
-                          >
-                            <span className="flex items-center gap-2">
-                              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}>
-                                {icon}
+                <div>
+                  <div className="mb-1 px-1 text-[10px] font-black uppercase text-neutral-400">
+                    {t('transactions.filterGroupGeneral')}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {filterGroups.map(({ mode, label, icon, tone }) => {
+                      const isActiveGroup = activeFilterGroup.mode === mode;
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setFilterMode(mode)}
+                          className={[
+                            'min-h-12 rounded-lg border p-2 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                            isActiveGroup
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100',
+                          ].join(' ')}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}>
+                              {icon}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[12px] font-bold leading-snug">
+                                {label || txFilterLabels[mode]}
                               </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="block text-[12px] font-bold leading-snug">
-                                  {txFilterLabels[mode]}
-                                </span>
-                                <span className={[
-                                  'mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-bold',
-                                  isActive ? 'bg-surface/20' : 'bg-surface text-neutral-500',
-                                ].join(' ')}>
-                                  {txFilterCounts[mode] || 0}
-                                </span>
+                              <span className={[
+                                'mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                                isActiveGroup ? 'bg-surface/20' : 'bg-surface text-neutral-500',
+                              ].join(' ')}>
+                                {txFilterCounts[mode] || 0}
                               </span>
                             </span>
-                          </button>
-                        );
-                      })}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {activeFilterGroup.sections.length > 0 && (
+                  <div className="border-t border-border pt-3">
+                    <div className="mb-1 px-1 text-[10px] font-black uppercase text-neutral-400">
+                      {activeFilterGroup.label}
+                    </div>
+                    <div className="space-y-2">
+                      {activeFilterGroup.sections.map((section, sectionIndex) => (
+                        <div key={`${activeFilterGroup.mode}_${section.title || sectionIndex}`}>
+                          {section.title && (
+                            <div className="mb-1 px-1 text-[11px] font-bold text-neutral-500">
+                              {section.title}
+                            </div>
+                          )}
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            {section.modes.map(({ mode, label, icon, tone }) => {
+                              const isActive = filterMode === mode;
+                              return (
+                                <button
+                                  key={mode}
+                                  type="button"
+                                  onClick={() => setFilterMode(mode)}
+                                  className={[
+                                    'min-h-10 rounded-lg border px-2 py-1.5 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                                    isActive
+                                      ? 'border-primary bg-primary/10 text-primary'
+                                      : 'border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100',
+                                  ].join(' ')}
+                                >
+                                  <span className="flex items-center gap-2">
+                                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${tone}`}>
+                                      {icon}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block truncate text-[11px] font-bold leading-snug">
+                                        {label || txFilterLabels[mode]}
+                                      </span>
+                                      <span className={[
+                                        'mt-0.5 inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                                        isActive ? 'bg-surface/20' : 'bg-surface text-neutral-500',
+                                      ].join(' ')}>
+                                        {txFilterCounts[mode] || 0}
+                                      </span>
+                                    </span>
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
+                )}
               </div>
             </Dropdown>
 
@@ -295,7 +430,7 @@ export function TransactionsHistoryCard({
             <Dropdown
               trigger={(
                 <Button className="min-h-touch px-3 text-xs rounded-lg font-bold transition-colors bg-primary/10 hover:bg-primary/20 text-primary">
-                  <span>{t('transactions.views')}</span>
+                  <span>{t('transactions.savedFilters')}</span>
                 </Button>
               )}
             >

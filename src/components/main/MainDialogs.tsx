@@ -212,7 +212,7 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
                 { label: source, value: nextSource, currency: 'DZD', semantic: insufficient ? 'loss' : 'auto' },
                 { label: destination, value: nextDest, currency: 'DZD', semantic: 'profit' }
             ];
-            return (<TransactionPreviewCard title="Resume apres transfert" rows={rows} error={insufficient ? 'Solde insuffisant' : undefined}/>);
+            return (<TransactionPreviewCard title="Résumé après transfert" rows={rows} error={insufficient ? 'Solde insuffisant' : undefined}/>);
         })()}
       </ModalContent>
       <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
@@ -333,7 +333,7 @@ export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromCli
                 { label: fromLabel, value: nextFrom, currency: 'DZD', semantic: 'profit' },
                 { label: toLabel, value: nextTo, currency: 'DZD', semantic: 'auto' }
             ];
-            return (<TransactionPreviewCard title="Resume apres transfert" rows={rows}/>);
+            return (<TransactionPreviewCard title="Résumé après transfert" rows={rows}/>);
         })()}
       </ModalContent>
       <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">

@@ -73,8 +73,8 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
             return;
         }
         setAlert(isMobileDevice()
-            ? `Releve client ${clientName ? getClientFullName(clientName) : ''} - ${monthLabel} ${year} ouvert. Appuyez sur 'Enregistrer PDF' dans la page.`
-            : `Releve client ${clientName ? getClientFullName(clientName) : ''} - ${monthLabel} ${year} pret. Enregistrez en PDF depuis l'impression.`);
+            ? `Relevé client ${clientName ? getClientFullName(clientName) : ''} - ${monthLabel} ${year} ouvert. Appuyez sur 'Enregistrer PDF' dans la page.`
+            : `Relevé client ${clientName ? getClientFullName(clientName) : ''} - ${monthLabel} ${year} prêt. Enregistrez en PDF depuis l'impression.`);
     };
     const handleExportUsdtReport = async () => {
         const monthLabels = getMonthLabels(t);
@@ -98,7 +98,7 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
         }
         setAlert(isMobileDevice()
             ? `Rapport mensuel ${monthLabel} ${usdtReportYear} ouvert. Appuyez sur 'Enregistrer PDF' dans la page.`
-            : `Rapport mensuel ${monthLabel} ${usdtReportYear} pret. Enregistrez en PDF depuis l'impression.`);
+            : `Rapport mensuel ${monthLabel} ${usdtReportYear} prêt. Enregistrez en PDF depuis l'impression.`);
     };
     const handleExportInvestorReport = async (investorId: string, range: InvestorReportDateRange = {}) => {
         const periodEconomics = deriveInvestorEconomics({
@@ -130,7 +130,7 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
         }
         setAlert(isMobileDevice()
             ? "Rapport investisseur ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
-            : "Rapport investisseur pret. Enregistrez en PDF depuis l'impression.");
+            : "Rapport investisseur prêt. Enregistrez en PDF depuis l'impression.");
     };
     const handleExportPersonalExpensesReport = async (periodKey: 'day' | 'week' | 'month' | 'year') => {
         const expenses = personalExpenses || [];
@@ -235,8 +235,8 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
             return;
         }
         setAlert(isMobileDevice()
-            ? "Rapport depenses ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
-            : "Rapport depenses pret. Enregistrez en PDF depuis l'impression.");
+            ? "Rapport dépenses ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
+            : "Rapport dépenses prêt. Enregistrez en PDF depuis l'impression.");
     };
     return {
         handleExportClientReport,

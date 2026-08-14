@@ -6,7 +6,7 @@ import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { UsersIcon } from '../icons/UsersIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { formatDzd, formatNumber } from '../../pages/shared/pageFormat';
-import { getClientOperationLabel, getPortfolioOperationLabel, getTreasuryOperationLabel } from '../../utils/transactionTerminology';
+import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel, getTreasuryOperationLabel } from '../../utils/transactionTerminology';
 import { DisplayRawTx, DisplayTx, SavedTransactionFilter, TransactionFilterMode } from './transactionsTypes';
 const SAVED_FILTERS_STORAGE_KEY = 'tx_saved_filters_v1';
 const ALL_FILTER_MODES: TransactionFilterMode[] = [
@@ -17,11 +17,14 @@ const ALL_FILTER_MODES: TransactionFilterMode[] = [
     'sell_usdt_dzd',
     'sell_usdt_eur',
     'sell_eur_dzd',
+    'stock',
     'stock_in',
     'stock_out',
+    'client_receipts',
     'client_receipts_cash',
     'client_receipts_baridi',
     'client_receipts_credit',
+    'client_payouts',
     'client_payouts_cash',
     'client_payouts_baridi',
     'client_payouts_credit',
@@ -176,6 +179,8 @@ function matchesTransactionFilter(mode: TransactionFilterMode, tx: DisplayTx) {
             return tx.sourceType === 'usdt_tx' && isCryptoSell(rawTx);
         case 'adjustments':
             return tx.sourceType === 'usdt_tx' && isCryptoManual(rawTx);
+        case 'stock':
+            return tx.sourceType === 'usdt_tx' && isCryptoManual(rawTx);
         case 'buy_usdt_dzd':
             return tx.sourceType === 'usdt_tx'
                 && isCryptoBuy(rawTx)
@@ -213,6 +218,9 @@ function matchesTransactionFilter(mode: TransactionFilterMode, tx: DisplayTx) {
                 && (rawTx as Tx).type === 'Retrait Manuel';
         case 'client_payments':
             return tx.sourceType === 'client_tx' && !isClientTransfer(rawTx);
+        case 'client_receipts':
+            return tx.sourceType === 'client_tx'
+                && isClientReceipt(rawTx as ClientTransactionDzd);
         case 'client_receipts_cash':
             return tx.sourceType === 'client_tx'
                 && isClientReceipt(rawTx as ClientTransactionDzd)
@@ -225,6 +233,9 @@ function matchesTransactionFilter(mode: TransactionFilterMode, tx: DisplayTx) {
             return tx.sourceType === 'client_tx'
                 && isClientReceipt(rawTx as ClientTransactionDzd)
                 && normalizePaymentMethod((rawTx as ClientTransactionDzd).paymentMethod) === 'credit';
+        case 'client_payouts':
+            return tx.sourceType === 'client_tx'
+                && isClientPayout(rawTx as ClientTransactionDzd);
         case 'client_payouts_cash':
             return tx.sourceType === 'client_tx'
                 && isClientPayout(rawTx as ClientTransactionDzd)
@@ -329,11 +340,14 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
         sell_usdt_dzd: t('transactions.filterSellUsdtDzd'),
         sell_usdt_eur: t('transactions.filterSellUsdtEur'),
         sell_eur_dzd: t('transactions.filterSellEurDzd'),
+        stock: t('transactions.filterStock'),
         stock_in: t('transactions.filterStockIn'),
         stock_out: t('transactions.filterStockOut'),
+        client_receipts: t('transactions.filterClientReceipts'),
         client_receipts_cash: t('transactions.filterClientReceiptsCash'),
         client_receipts_baridi: t('transactions.filterClientReceiptsBaridi'),
         client_receipts_credit: t('transactions.filterClientReceiptsCredit'),
+        client_payouts: t('transactions.filterClientPayouts'),
         client_payouts_cash: t('transactions.filterClientPayoutsCash'),
         client_payouts_baridi: t('transactions.filterClientPayoutsBaridi'),
         client_payouts_credit: t('transactions.filterClientPayoutsCredit'),
@@ -553,11 +567,9 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
             const transferCounterpart = isTransfer ? findClientTransferCounterpart(tx, clientTransactionsDzd) : null;
             const counterpartClient = transferCounterpart ? clientsById.get(transferCounterpart.clientId) : undefined;
             const counterpartName = counterpartClient ? getClientFullName(counterpartClient) : '';
-            const transferDetails = tx.type === 'Transfert Sortant' && counterpartName
-                ? `${clientName} -> ${counterpartName}${tx.notes ? ` - ${tx.notes}` : ''}`
-                : tx.type === 'Transfert Entrant' && counterpartName
-                    ? `${counterpartName} -> ${clientName}${tx.notes ? ` - ${tx.notes}` : ''}`
-                    : `${clientName} ${tx.notes ? `- ${tx.notes}` : ''}`;
+            const clientDetails = isTransfer
+                ? getClientTransferDetails(tx, counterpartName, t)
+                : [clientName, getManualClientNote(tx.notes)].filter(Boolean).join(' - ');
             const icon = isTransfer
                 ? <UsersIcon className="w-5 h-5"/>
                 : isPositive
@@ -575,7 +587,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 icon: (<div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-neutral-100 text-neutral-600">
             {icon}
           </div>),
-                details: transferDetails,
+                details: clientDetails,
                 category: 'client',
                 rawTx: tx,
                 sourceType: 'client_tx'
