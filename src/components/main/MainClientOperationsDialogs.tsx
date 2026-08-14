@@ -81,6 +81,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     const normalizedClientTxType = normalizeLedgerLabel(clientTxType || '');
     const isClientSettlementTx = normalizedClientTxType === 'Règlement Reçu' || normalizedClientTxType === 'Paiement Effectué';
     const isClientPaymentReceived = normalizedClientTxType === 'Règlement Reçu';
+    const isClientPaymentMade = normalizedClientTxType === 'Paiement Effectué';
     const settlementPaymentStatus = clientTxPaymentStatus === 'baridi' ? 'baridi' : 'cash';
     const clientSettlementWalletLabel = settlementPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
     const clientSettlementHint = String(isClientPaymentReceived ? t('transactions.clientTreasuryAddHint') : t('transactions.clientTreasuryRetraitHint'))
@@ -93,7 +94,8 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
         .filter((client: any) => client.id !== clientTxTargetClientId)
         .map((client: any) => ({ value: client.id, label: getClientFullName(client) })), [clientsDzd, clientTxTargetClientId, getClientFullName]);
     const receiverClient = (clientsDzd || []).find((client: any) => client.id === clientTxReceiverClientId) || null;
-    const hasReceiverClient = !editingClientTx && isClientPaymentReceived && clientTxReceiverClientId !== 'none' && Boolean(receiverClient);
+    const canUseReceiverClient = !editingClientTx && isClientSettlementTx;
+    const hasReceiverClient = canUseReceiverClient && clientTxReceiverClientId !== 'none' && Boolean(receiverClient);
     const receiverClientName = receiverClient ? getClientFullName(receiverClient) : '';
     const clientTxMaxAmount = Math.abs(Number(clientBalances?.get?.(clientTxTargetClientId) || 0));
     const clientTxMaxDisabled = !isClientSettlementTx || clientTxMaxAmount <= 0.005;
@@ -103,6 +105,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     const clientSettlementWalletInsufficient = (isClientSettlementTx
         && !editingClientTx
         && !isClientPaymentReceived
+        && !hasReceiverClient
         && Number.isFinite(parsedClientTxAmount)
         && Math.abs(parsedClientTxAmount) > clientSettlementWalletBalance + 0.01);
     const adjustmentAuto = useMemo(() => resolveAdjustmentAutoPrice(adjustmentAsset, treasuryCards || [], portfolioStats), [adjustmentAsset, treasuryCards, portfolioStats]);
@@ -122,14 +125,14 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     useEffect(() => {
         if (!isClientTxModalOpen || !setClientTxReceiverClientId)
             return;
-        if (!isClientPaymentReceived && clientTxReceiverClientId !== 'none') {
+        if (!isClientSettlementTx && clientTxReceiverClientId !== 'none') {
             setClientTxReceiverClientId('none');
             return;
         }
         if (clientTxReceiverClientId !== 'none' && clientTxReceiverClientId === clientTxTargetClientId) {
             setClientTxReceiverClientId('none');
         }
-    }, [isClientTxModalOpen, isClientPaymentReceived, clientTxReceiverClientId, clientTxTargetClientId, setClientTxReceiverClientId]);
+    }, [isClientTxModalOpen, isClientSettlementTx, clientTxReceiverClientId, clientTxTargetClientId, setClientTxReceiverClientId]);
     useEffect(() => {
         if (!isAdjustmentModalOpen || editingTreasuryTx)
             return;
@@ -266,7 +269,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                             </p>
                         </div>)}
 
-                    {!editingClientTx && isClientPaymentReceived && (<div>
+                    {canUseReceiverClient && (<div>
                             <Label>Reçu par (optionnel)</Label>
                             <SearchableSelect
                                 value={clientTxReceiverClientId}
@@ -274,16 +277,20 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                                 options={receiverClientOptions}
                                 fieldClassName={fieldBase}
                                 searchPlaceholder="Chercher le client qui a reçu..."
-                                emptyOptionLabel="Moi / portefeuille"
+                                emptyOptionLabel={isClientPaymentReceived ? 'Moi / portefeuille' : 'Client sélectionné / portefeuille'}
                                 emptyValue="none"
                                 noResultsLabel="Aucun autre client trouvé"
                                 clearable
-                                clearLabel="Moi / portefeuille"
+                                clearLabel={isClientPaymentReceived ? 'Moi / portefeuille' : 'Client sélectionné / portefeuille'}
                             />
                             <p className="mt-1 text-xs text-neutral-500">
-                                {hasReceiverClient
+                                {hasReceiverClient && isClientPaymentReceived
                                     ? `Aucun ajout dans ${clientSettlementWalletLabel}. La dette sera transférée à ${receiverClientName}.`
-                                    : `Laisse vide si tu as reçu l'argent toi-même dans ${clientSettlementWalletLabel}.`}
+                                    : hasReceiverClient && isClientPaymentMade
+                                        ? `Aucun retrait de ${clientSettlementWalletLabel}. Le droit sera transféré à ${receiverClientName}.`
+                                        : isClientPaymentReceived
+                                            ? `Laisse vide si tu as reçu l'argent toi-même dans ${clientSettlementWalletLabel}.`
+                                            : `Laisse vide si le client sélectionné a reçu l'argent depuis ${clientSettlementWalletLabel}.`}
                             </p>
                         </div>)}
 
@@ -361,12 +368,12 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     rows = [
                         { label: t('transactions.clientBalanceImpact'), value: Math.abs(amt), currency: 'DZD', semantic: isReceived ? 'profit' : 'loss', emphasize: true }
                     ];
-                    if (isClientSettlementTx && isReceived && hasReceiverClient) {
+                    if (isClientSettlementTx && hasReceiverClient) {
                         rows.push({
-                            label: `Dette transférée à ${receiverClientName}`,
+                            label: isReceived ? `Dette transférée à ${receiverClientName}` : `Droit transféré à ${receiverClientName}`,
                             value: Math.abs(amt),
                             currency: 'DZD',
-                            semantic: 'loss'
+                            semantic: isReceived ? 'loss' : 'profit'
                         });
                     }
                     else if (isClientSettlementTx) {

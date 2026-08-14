@@ -394,7 +394,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             const normalizedClientTxType = normalizeClientTxType(clientTxType);
             const isPaymentReceived = normalizedClientTxType === CLIENT_TX_PAYMENT_RECEIVED;
             const isClientSettlementTx = normalizedClientTxType === CLIENT_TX_PAYMENT_RECEIVED || normalizedClientTxType === CLIENT_TX_PAYMENT_MADE;
-            const receiverClientId = !editingClientTx && isPaymentReceived && clientTxReceiverClientId !== 'none'
+            const receiverClientId = !editingClientTx && isClientSettlementTx && clientTxReceiverClientId !== 'none'
                 ? clientTxReceiverClientId
                 : 'none';
             const effectiveClientPaymentStatus = isClientSettlementTx && clientPaymentStatus === 'credit' ? 'cash' : clientPaymentStatus;
@@ -410,7 +410,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             const paymentMethod = paymentMethodMap[effectiveClientPaymentStatus];
             const walletSource = effectiveClientPaymentStatus === 'cash' ? 'Caisse' : 'BaridiMob';
             const treasuryTxType = isPaymentReceived ? 'Ajout' : 'Retrait';
-            if (effectiveClientPaymentStatus !== 'credit' && !isPaymentReceived) {
+            if (effectiveClientPaymentStatus !== 'credit' && !isPaymentReceived && receiverClientId === 'none') {
                 const linkedTreasuryTx = editingClientTx?.linkedTxId
                     ? treasuryTransactions.find(tx => tx.id === editingClientTx.linkedTxId)
                     : null;
@@ -465,28 +465,54 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     const outgoingTransferRef = userDocRef.collection('dzd_client_txs').doc();
                     const incomingTransferRef = userDocRef.collection('dzd_client_txs').doc();
                     const note = clientTxNotes.trim();
-                    batch.set(outgoingTransferRef, {
-                        clientId: targetClientId,
-                        timestamp,
-                        date,
-                        time,
-                        montant: amount,
-                        type: 'Transfert Sortant',
-                        notes: note || `Reçu par ${receiverClientName}`,
-                        paymentMethod: 'Crédit'
-                    });
-                    batch.set(incomingTransferRef, {
-                        clientId: receiverClientId,
-                        timestamp: timestamp + 1,
-                        date,
-                        time,
-                        montant: -amount,
-                        type: 'Transfert Entrant',
-                        notes: note || `Reçu de ${targetClientName}`,
-                        paymentMethod: 'Crédit',
-                        linkedTxId: outgoingTransferRef.id
-                    });
-                    setAlert('✅ Dette transférée au client qui a reçu.');
+                    if (isPaymentReceived) {
+                        batch.set(outgoingTransferRef, {
+                            clientId: targetClientId,
+                            timestamp,
+                            date,
+                            time,
+                            montant: amount,
+                            type: 'Transfert Sortant',
+                            notes: note || `Reçu par ${receiverClientName}`,
+                            paymentMethod: 'Crédit'
+                        });
+                        batch.set(incomingTransferRef, {
+                            clientId: receiverClientId,
+                            timestamp: timestamp + 1,
+                            date,
+                            time,
+                            montant: -amount,
+                            type: 'Transfert Entrant',
+                            notes: note || `Reçu de ${targetClientName}`,
+                            paymentMethod: 'Crédit',
+                            linkedTxId: outgoingTransferRef.id
+                        });
+                        setAlert('✅ Dette transférée au client qui a reçu.');
+                    }
+                    else {
+                        batch.set(outgoingTransferRef, {
+                            clientId: receiverClientId,
+                            timestamp,
+                            date,
+                            time,
+                            montant: amount,
+                            type: 'Transfert Sortant',
+                            notes: note || `Décaissement pour ${targetClientName}`,
+                            paymentMethod: 'Crédit'
+                        });
+                        batch.set(incomingTransferRef, {
+                            clientId: targetClientId,
+                            timestamp: timestamp + 1,
+                            date,
+                            time,
+                            montant: -amount,
+                            type: 'Transfert Entrant',
+                            notes: note || `Reçu par ${receiverClientName}`,
+                            paymentMethod: 'Crédit',
+                            linkedTxId: outgoingTransferRef.id
+                        });
+                        setAlert('✅ Droit transféré au client qui a reçu.');
+                    }
                 }
                 else {
                     const clientTxRef = userDocRef.collection('dzd_client_txs').doc();
