@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader } from '../ui/Card';
+import { Card, CardContent } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
-import { Dropdown, DropdownItem } from '../ui/Dropdown';
-import { SectionHeading } from '../ui/SectionHeading';
-import { HeroKpiCard } from '../ui/HeroKpiCard';
+import { BottomSheet } from '../ui/BottomSheet';
 import { EmptyState } from '../ui/EmptyState';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { FilterIcon } from '../icons/FilterIcon';
@@ -69,13 +67,16 @@ type ClientsListViewProps = {
 
 type TierKey = 'vip' | 'regular' | 'petit' | 'new' | 'inactive' | 'fournisseur';
 const LOYALTY_CONFIG: Record<TierKey, { label: string; dot: string; chipCls: string; badgeCls: string }> = {
-    vip:        { label: 'clients.tierVip',        dot: 'bg-amber-400',   chipCls: 'border-amber-200 text-amber-700 bg-amber-50',     badgeCls: 'bg-amber-50 text-amber-700 border-amber-200' },
+    vip:        { label: 'clients.tierVip',        dot: 'bg-warning',   chipCls: 'border-warning/30 text-warning bg-warning-bg',     badgeCls: 'bg-warning-bg text-warning border-warning/25' },
     regular:    { label: 'clients.tierRegular',    dot: 'bg-primary',     chipCls: 'border-primary/25 text-primary bg-primary/5',     badgeCls: 'bg-primary/8 text-primary border-primary/20' },
-    petit:      { label: 'clients.tierPetit',      dot: 'bg-orange-400',  chipCls: 'border-orange-200 text-orange-700 bg-orange-50',  badgeCls: 'bg-orange-50 text-orange-700 border-orange-200' },
+    petit:      { label: 'clients.tierPetit',      dot: 'bg-warning',  chipCls: 'border-warning/25 text-warning bg-warning-bg',  badgeCls: 'bg-warning-bg text-warning border-warning/20' },
     new:        { label: 'clients.tierNew',        dot: 'bg-neutral-400', chipCls: 'border-neutral-200 text-neutral-600 bg-neutral-50', badgeCls: 'bg-neutral-50 text-neutral-500 border-neutral-200' },
     inactive:   { label: 'clients.tierInactive',   dot: 'bg-neutral-300', chipCls: 'border-neutral-200 text-neutral-400 bg-surface', badgeCls: 'bg-surface text-neutral-400 border-neutral-200' },
-    fournisseur:{ label: 'clients.tierFournisseur',dot: 'bg-teal-400',    chipCls: 'border-teal-200 text-teal-700 bg-teal-50',       badgeCls: 'bg-teal-50 text-teal-700 border-teal-200' },
+    fournisseur:{ label: 'clients.tierFournisseur',dot: 'bg-secondary',    chipCls: 'border-secondary/25 text-secondary bg-secondary/10',       badgeCls: 'bg-secondary/10 text-secondary border-secondary/20' },
 };
+
+const SORT_MODES: ClientSortMode[] = ['all', 'advances', 'debts', 'debts_oldest_highest', 'zero_balance'];
+const TIER_KEYS: TierKey[] = ['vip', 'regular', 'petit', 'new', 'inactive', 'fournisseur'];
 
 export function ClientsListView({ openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, setSelectedClientId, overdueDebtClients, clientLoyaltyMap, clientPrevMonthVolume, clientLastSellDate, handleZeroOutBalance, onImportClients }: ClientsListViewProps) {
     const { t } = useLanguage();
@@ -84,6 +85,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
     const [visibleClientCount, setVisibleClientCount] = useState(INITIAL_VISIBLE_CLIENTS);
     const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
     const [activeTierFilter, setActiveTierFilter] = useState<string | null>(null);
+    const [filtersOpen, setFiltersOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
     const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
     const [solderTarget, setSolderTarget] = useState<{ clientId: string; name: string; balance: number } | null>(null);
@@ -91,7 +93,6 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
         setVisibleClientCount(INITIAL_VISIBLE_CLIENTS);
     }, [filteredClientsDzd, activeTierFilter, activeGroupFilter]);
 
-    // Tier counts (for chip badges)
     const tierCounts = useMemo(() => {
         const counts = new Map<string, number>();
         if (!clientLoyaltyMap) return counts;
@@ -102,7 +103,6 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
         return counts;
     }, [filteredClientsDzd, clientLoyaltyMap]);
 
-    // Format last sell date
     const fmtRelDate = (ts: number) => {
         const days = Math.floor((Date.now() - ts) / 86_400_000);
         if (days === 0) return t('clients.relToday');
@@ -110,14 +110,12 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
         return `${t('clients.agoWord')} ${days} ${t('clients.daysWord')}`;
     };
 
-    // Available groups
     const availableGroups = useMemo(() => {
         const groups = new Set<string>();
         filteredClientsDzd.forEach(c => { if (c.group) groups.add(c.group); });
         return Array.from(groups).sort();
     }, [filteredClientsDzd]);
 
-    // Chain: tier filter → group filter → visible
     const tierFilteredClients = useMemo(() =>
         activeTierFilter && clientLoyaltyMap
             ? filteredClientsDzd.filter(c => (clientLoyaltyMap.get(c.id) ?? 'inactive') === (activeTierFilter as TierKey))
@@ -135,16 +133,23 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
     const clientsWithAdvance = useMemo(() => filteredClientsDzd.filter((client) => (clientBalances.get(client.id) || 0) > 0).length, [filteredClientsDzd, clientBalances]);
     const overdueCount = overdueDebtClients.length;
     const hasOverdue = overdueCount > 0;
-    const overdueDisplay = (<button type="button" onClick={() => setIsOverdueModalOpen(true)} className={`flex items-baseline gap-1 text-lg font-semibold transition-opacity hover:opacity-80 ${hasOverdue ? 'text-financial-loss' : 'text-neutral-500'}`}>
-      <span className="inline-flex items-center gap-1">
-        {hasOverdue && <AlertTriangleIcon className="w-3.5 h-3.5"/>}
-        <bdi>{overdueCount}</bdi>
-      </span>
-    </button>);
-    return (<div className="space-y-4">
-      {hasOverdue && (<button type="button" onClick={() => setIsOverdueModalOpen(true)} className="flex w-full items-center gap-3 rounded-xl border border-danger/30 bg-danger-bg px-4 py-3 text-start transition-opacity hover:opacity-90 active:scale-[0.99]">
+    const activeFilterCount = [
+        clientSortMode !== 'all',
+        Boolean(activeTierFilter),
+        Boolean(activeGroupFilter),
+    ].filter(Boolean).length;
+
+    const clearFilters = () => {
+        setClientSortMode('all');
+        setActiveTierFilter(null);
+        setActiveGroupFilter(null);
+    };
+
+    return (<div className="space-y-3">
+      {/* —— ABOVE THE FOLD —— */}
+      {hasOverdue && (<button type="button" onClick={() => setIsOverdueModalOpen(true)} className="flex w-full min-h-touch items-center gap-3 rounded-xl border border-danger/30 border-s-4 border-s-danger bg-danger-bg px-4 py-3 text-start transition-opacity hover:opacity-90 active:scale-[0.99]">
           <AlertTriangleIcon className="h-5 w-5 shrink-0 text-danger"/>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-danger">
               {overdueCount} {t('clients.latePayment')}
             </p>
@@ -152,108 +157,61 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
               {t('clients.lateBanner')}
             </p>
           </div>
+          <span className="shrink-0 text-xs font-bold text-danger">→</span>
         </button>)}
 
-      <HeroKpiCard accent="sky" icon={<UsersIcon className="w-5 h-5"/>} primaryLabel={t('clients.totalClients') as string} primaryValue={filteredClientsDzd.length} primaryCurrency={null} primarySemantic="plain" secondary={[
-            { label: t('clients.sortDebts') as string, value: clientsWithDebt, currency: null, semantic: 'plain' },
-            { label: t('clients.sortAdvances') as string, value: clientsWithAdvance, currency: null, semantic: 'plain' },
-            { label: t('clients.lateShort') as string, value: overdueCount, display: overdueDisplay }
-        ]}/>
+      <div className="flex gap-2">
+        <Input type="text" placeholder={t('transactions.searchClient')} value={clientSearchQuery} onChange={(e) => setClientSearchQuery(e.target.value)} className="min-h-button-md flex-1"/>
+        <Button type="button" onClick={() => setFiltersOpen(true)} variant="outline" size="md" className="relative shrink-0 font-semibold" aria-label="Filtres">
+          <FilterIcon className="h-4 w-4"/>
+          <span className="hidden sm:inline">Filtres</span>
+          {activeFilterCount > 0 && (
+            <span className="absolute -end-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </Button>
+      </div>
 
+      <div className="flex items-center justify-between gap-2 px-0.5 text-xs text-neutral-500">
+        <span>
+          <span className="tabular-nums font-semibold text-neutral-700">{groupFilteredClients.length}</span>
+          {' '}{t('clients.clientsList') as string}
+        </span>
+        <span className="tabular-nums">
+          {clientsWithDebt > 0 && <span className="text-financial-loss">{clientsWithDebt} {t('finance.debt') as string}</span>}
+          {clientsWithDebt > 0 && clientsWithAdvance > 0 && ' · '}
+          {clientsWithAdvance > 0 && <span className="text-financial-profit">{clientsWithAdvance} {t('finance.advance') as string}</span>}
+        </span>
+      </div>
+
+      {(activeTierFilter || activeGroupFilter || clientSortMode !== 'all') && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {clientSortMode !== 'all' && (
+            <button type="button" onClick={() => setClientSortMode('all')} className="rounded-full border border-primary/25 bg-primary/5 px-2.5 py-1 text-[11px] font-bold text-primary">
+              {t(CLIENT_SORT_LABEL_KEYS[clientSortMode])} ×
+            </button>
+          )}
+          {activeTierFilter && (
+            <button type="button" onClick={() => setActiveTierFilter(null)} className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${LOYALTY_CONFIG[activeTierFilter as TierKey].chipCls}`}>
+              {t(LOYALTY_CONFIG[activeTierFilter as TierKey].label)} ×
+            </button>
+          )}
+          {activeGroupFilter && (
+            <button type="button" onClick={() => setActiveGroupFilter(null)} className="rounded-full border border-border bg-neutral-50 px-2.5 py-1 text-[11px] font-bold text-neutral-600">
+              {activeGroupFilter} ×
+            </button>
+          )}
+          <button type="button" onClick={clearFilters} className="text-[11px] font-semibold text-neutral-400 hover:text-primary">
+            {t('transactions.clear') || 'Effacer'}
+          </button>
+        </div>
+      )}
+
+      {/* —— LIST —— */}
       <Card>
-        <CardHeader className="p-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <SectionHeading icon={<UsersIcon className="w-4 h-4"/>}>
-                {t('clients.clientsList')}
-              </SectionHeading>
-              <span className="text-sm text-neutral-500">{filteredClientsDzd.length}</span>
-            </div>
-
-            <div className="flex w-full gap-2">
-              <Button onClick={() => openClientModal(null)} variant="outline" size="md" className="flex-1 font-bold">
-                <UserIcon className="w-5 h-5"/>
-                <span>{t('transactions.newClient')}</span>
-              </Button>
-              <Button onClick={() => exportClientsPdf(filteredClientsDzd, clientBalances, getClientFullName)} variant="outline" size="icon" aria-label={t('clients.exportPdfList')} title={t('clients.exportPdfList')} className="shrink-0">
-                <DownloadCloudIcon className="w-5 h-5"/>
-              </Button>
-              {onImportClients && (<Button onClick={() => setImportOpen(true)} variant="outline" size="icon" aria-label={t('clients.importCsv')} className="shrink-0 font-bold">
-                  <UploadCloudIcon className="w-5 h-5"/>
-                </Button>)}
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-4 pt-0">
-          <div className="flex gap-2 mb-4">
-            <Input type="text" placeholder={t('transactions.searchClient')} value={clientSearchQuery} onChange={(e) => setClientSearchQuery(e.target.value)} className="flex-grow"/>
-          </div>
-          {/* Tier filter — dropdown */}
-          {clientLoyaltyMap && tierCounts.size > 0 && (
-            <Dropdown trigger={(
-              <button type="button" className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors w-full ${activeTierFilter ? LOYALTY_CONFIG[activeTierFilter as TierKey].chipCls : 'border-border bg-surface text-neutral-600 hover:border-neutral-300'}`}>
-                {activeTierFilter ? (
-                  <>
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${LOYALTY_CONFIG[activeTierFilter as TierKey].dot}`}/>
-                    {t(LOYALTY_CONFIG[activeTierFilter as TierKey].label)}
-                    <span className="font-bold text-[12px]">{tierCounts.get(activeTierFilter) || 0}</span>
-                    <span className="ml-auto text-xs opacity-50">×</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="w-2 h-2 rounded-full shrink-0 bg-neutral-300"/>
-                    {t('clients.allCategories')}
-                    <span className="ms-auto text-neutral-400 text-xs">{filteredClientsDzd.length}</span>
-                  </>
-                )}
-              </button>
-            )}>
-              <DropdownItem onClick={() => setActiveTierFilter(null)} isActive={!activeTierFilter}>
-                <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-neutral-300"/>{t('clients.allWord')} <span className="ms-auto text-neutral-400 text-xs">{filteredClientsDzd.length}</span></span>
-              </DropdownItem>
-              {(['vip', 'regular', 'petit', 'new', 'inactive', 'fournisseur'] as TierKey[])
-                .filter(tierKey => (tierCounts.get(tierKey) || 0) > 0)
-                .map(tierKey => (
-                  <DropdownItem key={tierKey} onClick={() => setActiveTierFilter(activeTierFilter === tierKey ? null : tierKey)} isActive={activeTierFilter === tierKey}>
-                    <span className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${LOYALTY_CONFIG[tierKey].dot}`}/>
-                      {t(LOYALTY_CONFIG[tierKey].label)}
-                      <span className="ms-auto text-neutral-400 text-xs font-bold">{tierCounts.get(tierKey)}</span>
-                    </span>
-                  </DropdownItem>
-                ))
-              }
-            </Dropdown>
-          )}
-
-          {/* Group filter chips */}
-          {availableGroups.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {availableGroups.map(g => (
-                <button key={g} type="button"
-                    onClick={() => setActiveGroupFilter(activeGroupFilter === g ? null : g)}
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold border transition-colors ${activeGroupFilter === g ? 'bg-primary text-white border-primary' : 'border-border text-neutral-500 hover:border-primary/50 hover:text-primary'}`}>
-                    {g} {activeGroupFilter === g && '×'}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <Dropdown trigger={(<Button variant="tab" size="md" className="w-full font-semibold">
-                <FilterIcon className="w-4 h-4"/>
-                <span>{t(CLIENT_SORT_LABEL_KEYS[clientSortMode])}</span>
-              </Button>)}>
-            <DropdownItem onClick={() => setClientSortMode('all')} isActive={clientSortMode === 'all'}>{t('clients.sortAll')}</DropdownItem>
-            <DropdownItem onClick={() => setClientSortMode('advances')} isActive={clientSortMode === 'advances'}>{t('clients.sortAdvances')} (+)</DropdownItem>
-            <DropdownItem onClick={() => setClientSortMode('debts')} isActive={clientSortMode === 'debts'}>{t('clients.sortDebts')} (-)</DropdownItem>
-            <DropdownItem onClick={() => setClientSortMode('debts_oldest_highest')} isActive={clientSortMode === 'debts_oldest_highest'}>{t('clients.sortDebtsOldest')}</DropdownItem>
-            <DropdownItem onClick={() => setClientSortMode('zero_balance')} isActive={clientSortMode === 'zero_balance'}>{t('clients.zeroBalance')}</DropdownItem>
-          </Dropdown>
-        </CardContent>
-
         <CardContent className="p-0">
-          {filteredClientsDzd.length > 0 ? (<div className="divide-y divide-neutral-100">
+          {groupFilteredClients.length > 0 ? (<div className="divide-y divide-neutral-100">
               {visibleClients.map((client) => {
                 const balance = clientBalances.get(client.id) || 0;
                 const overdue = overdueByClientId.get(client.id);
@@ -269,12 +227,9 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                     className="flex items-center gap-3 px-4 py-3 cursor-pointer w-full relative z-10 bg-surface hover:bg-neutral-50 transition-colors"
                     style={{ contentVisibility: 'auto', containIntrinsicSize: '72px' }} onClick={() => setSelectedClientId(client.id)}>
 
-                      {/* Left: tier color indicator */}
                       <div className={`shrink-0 w-1 self-stretch rounded-full ${tierCfg ? tierCfg.dot : 'bg-neutral-200'}`}/>
 
-                      {/* Center: name + meta */}
                       <div className="flex-1 min-w-0">
-                        {/* Row 1: name + alerts */}
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className="truncate text-[15px] font-semibold text-neutral-900 leading-snug">{fullName}</p>
                           {overdue && (
@@ -292,7 +247,6 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                           })()}
                         </div>
 
-                        {/* Row 2: tier badge + meta — bigger & cleaner */}
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           {tierCfg && (
                             <span className={`flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-bold border ${tierCfg.badgeCls}`}>
@@ -316,7 +270,6 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                         </div>
                       </div>
 
-                      {/* Right: balance + Solder */}
                       <div className="shrink-0 flex flex-col items-end gap-0.5">
                         {balance !== 0 && (
                           <CurrencyAmount value={Math.abs(balance)} currency="DZD" size="md"
@@ -346,21 +299,105 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
               {t('transactions.showMore')} ({Math.min(hiddenClientCount, LOAD_MORE_CLIENTS)})
             </Button>
             <p className="mt-2 text-center text-xs text-neutral-500">
-              {visibleClients.length} / {filteredClientsDzd.length}
+              {visibleClients.length} / {groupFilteredClients.length}
             </p>
           </CardContent>)}
       </Card>
+
+      {/* Filters sheet */}
+      <BottomSheet isOpen={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filtres">
+        <div className="space-y-5 px-5 py-4">
+          <div>
+            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">{t('clients.sortAll') as string}</p>
+            <div className="flex flex-wrap gap-2">
+              {SORT_MODES.map((mode) => (
+                <button key={mode} type="button" onClick={() => setClientSortMode(mode)}
+                  className={`min-h-touch rounded-full border px-3 py-2 text-xs font-bold transition-colors ${
+                    clientSortMode === mode
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-border bg-surface text-neutral-600 hover:border-primary/40'
+                  }`}>
+                  {t(CLIENT_SORT_LABEL_KEYS[mode])}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {clientLoyaltyMap && tierCounts.size > 0 && (
+            <div>
+              <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">{t('clients.allCategories') as string}</p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => setActiveTierFilter(null)}
+                  className={`min-h-touch rounded-full border px-3 py-2 text-xs font-bold ${!activeTierFilter ? 'border-primary bg-primary text-white' : 'border-border text-neutral-600'}`}>
+                  {t('clients.allWord')}
+                </button>
+                {TIER_KEYS.filter((k) => (tierCounts.get(k) || 0) > 0).map((tierKey) => (
+                  <button key={tierKey} type="button"
+                    onClick={() => setActiveTierFilter(activeTierFilter === tierKey ? null : tierKey)}
+                    className={`min-h-touch inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-bold ${
+                      activeTierFilter === tierKey ? LOYALTY_CONFIG[tierKey].chipCls + ' ring-1 ring-primary/30' : 'border-border text-neutral-600'
+                    }`}>
+                    <span className={`h-2 w-2 rounded-full ${LOYALTY_CONFIG[tierKey].dot}`}/>
+                    {t(LOYALTY_CONFIG[tierKey].label)}
+                    <span className="tabular-nums opacity-70">{tierCounts.get(tierKey)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {availableGroups.length > 0 && (
+            <div>
+              <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">Groupes</p>
+              <div className="flex flex-wrap gap-2">
+                {availableGroups.map((g) => (
+                  <button key={g} type="button" onClick={() => setActiveGroupFilter(activeGroupFilter === g ? null : g)}
+                    className={`min-h-touch rounded-full border px-3 py-2 text-xs font-bold ${
+                      activeGroupFilter === g ? 'border-primary bg-primary text-white' : 'border-border text-neutral-600'
+                    }`}>
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2 border-t border-border pt-4">
+            <Button onClick={() => { setFiltersOpen(false); openClientModal(null); }} variant="outline" size="md" className="w-full font-bold">
+              <UserIcon className="h-4 w-4"/>
+              {t('transactions.newClient')}
+            </Button>
+            <Button onClick={() => exportClientsPdf(groupFilteredClients, clientBalances, getClientFullName)} variant="outline" size="md" className="w-full font-bold">
+              <DownloadCloudIcon className="h-4 w-4"/>
+              PDF
+            </Button>
+            {onImportClients && (
+              <Button onClick={() => { setFiltersOpen(false); setImportOpen(true); }} variant="outline" size="md" className="col-span-2 w-full font-bold">
+                <UploadCloudIcon className="h-4 w-4"/>
+                {t('clients.importCsv')}
+              </Button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pb-2">
+            <Button type="button" onClick={clearFilters} variant="ghost" size="md" className="w-full">
+              {t('transactions.clear') || 'Effacer'}
+            </Button>
+            <Button type="button" onClick={() => setFiltersOpen(false)} variant="primary" size="md" className="w-full font-bold">
+              {t('transactions.apply') || 'Appliquer'}
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
 
       {onImportClients && (<CsvImportSheet isOpen={importOpen} onClose={() => setImportOpen(false)} title={t('clients.importClients')} fields={CLIENT_IMPORT_FIELDS} onConfirm={onImportClients}/>)}
 
       <OverdueDebtsModal isOpen={isOverdueModalOpen} onClose={() => setIsOverdueModalOpen(false)} overdueDebtors={overdueDebtClients} onOpenClient={setSelectedClientId}/>
 
-      {/* Solder confirmation modal */}
       {solderTarget && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setSolderTarget(null)}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"/>
           <div className="relative w-full max-w-sm rounded-2xl bg-surface shadow-2xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
-            {/* Icon */}
             <div className="flex justify-center">
               <div className="w-14 h-14 rounded-full bg-neutral-100 flex items-center justify-center">
                 <svg className="w-7 h-7 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
@@ -368,7 +405,6 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                 </svg>
               </div>
             </div>
-            {/* Content */}
             <div className="text-center space-y-1.5">
               <p className="text-base font-bold text-neutral-900">{t('clients.clearResidualTitle')}</p>
               <p className="text-sm text-neutral-500">{solderTarget.name}</p>
@@ -379,7 +415,6 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                 {t('clients.clearResidualBody')}
               </p>
             </div>
-            {/* Actions */}
             <div className="grid grid-cols-2 gap-3 pt-1">
               <button type="button" onClick={() => setSolderTarget(null)}
                 className="rounded-xl border border-border py-3 text-sm font-semibold text-neutral-600 hover:bg-neutral-50 transition-colors">

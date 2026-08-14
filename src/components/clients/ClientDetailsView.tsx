@@ -42,6 +42,8 @@ type ClientDetailsViewProps = {
     handleDeleteClientTxClick: (tx: ClientTransactionDzd) => void;
     openClientTxModal: (tx: ClientTransactionDzd | null, presetType?: string, selectedClientId?: string) => void;
     handleExportClientReport: (clientId: string, month: number, year: number) => void;
+    /** Opens sell form prefilled with this client (existing openForm only). */
+    openForm?: (mode: 'buy_usdt' | 'sell_usdt' | 'buy_eur' | 'sell_eur', txToEdit?: Tx | null, prefill?: { clientId?: string }) => void;
 };
 type ContactRowProps = {
     label: string;
@@ -109,7 +111,7 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone }: ContactRowPr
       </div>
     </div>);
 }
-export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, handleExportClientReport }: ClientDetailsViewProps) {
+export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, handleExportClientReport, openForm }: ClientDetailsViewProps) {
     const { t } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 120;
     const LOAD_MORE_TRANSACTIONS = 120;
@@ -304,7 +306,8 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             navigator.clipboard.writeText(msg);
         }
     };
-    return (<div className="anim-page-in space-y-5">
+    const stickyCols = hasPhone || hasDebt ? 3 : 2;
+    return (<div className="anim-page-in space-y-5 pb-28">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <Button onClick={() => setSelectedClientId(null)} variant="icon" size="icon" className="rounded-full text-neutral-600 hover:bg-neutral-100">
@@ -362,39 +365,12 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             { label: t('reports.operations') as string, value: totalTransactionCount, currency: null, semantic: 'plain' }
         ]}/>
 
-      <Card>
-        <CardHeader className="p-4 pb-3">
-          <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>{t('clients.actions')}</SectionHeading>
-        </CardHeader>
-        <CardContent className="p-4 pt-0 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Button onClick={() => openClientTxModal(null, 'Règlement Reçu', selectedClientId)} variant="primary" size="md" className="w-full font-bold">
-              <ArrowDownLeftIcon className="w-4 h-4"/>
-              {t('transactions.paymentReceived')}
-            </Button>
-            <Button onClick={() => openClientTxModal(null, 'Paiement Effectué', selectedClientId)} variant="tab" size="md" className="w-full font-bold">
-              <ArrowUpRightIcon className="w-4 h-4"/>
-              {t('transactions.paymentMade')}
-            </Button>
-          </div>
-          {hasDebt && (
-            <button
-              type="button"
-              onClick={handleSendReminder}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#25D366]/30 bg-[#25D366]/10 py-3 text-sm font-bold text-[#25D366] transition-colors hover:bg-[#25D366]/20 active:scale-[0.99]"
-            >
-              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-                <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.122 1.532 5.852L.054 23.5l5.782-1.519A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.9a9.877 9.877 0 01-5.031-1.375l-.361-.214-3.737.981 1.001-3.648-.235-.374A9.855 9.855 0 012.1 12c0-5.467 4.433-9.9 9.9-9.9 5.467 0 9.9 4.433 9.9 9.9s-4.433 9.9-9.9 9.9z"/>
-              </svg>
-              <span>
-                {hasPhone ? t('clients.sendWhatsAppReminder') : t('clients.copyBalanceReminder')}
-                {' '}— {Math.round(Math.abs(selectedClientBalance)).toLocaleString('fr-FR')} DZD
-              </span>
-            </button>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <Button onClick={() => openClientTxModal(null, 'Paiement Effectué', selectedClientId)} variant="outline" size="md" className="w-full font-bold">
+          <ArrowUpRightIcon className="w-4 h-4"/>
+          {t('transactions.paymentMade')}
+        </Button>
+      </div>
 
       <Tabs tabs={[
             { id: 'overview', label: t('clients.overview') as string },
@@ -544,5 +520,47 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
               </div>) : (<EmptyState icon={<FileSpreadsheetIcon className="w-5 h-5"/>} title={t('transactions.noTransactions') as string}/>)}
           </CardContent>
         </Card>)}
+
+      {/* Sticky action row — Pay · Sell · WhatsApp (D10) */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[44] sm:bottom-6">
+        <div className="pointer-events-auto mx-auto max-w-4xl px-page-x sm:px-4">
+          <div className={`grid gap-2 rounded-2xl border border-border bg-surface/95 p-2 shadow-card-hover backdrop-blur ${stickyCols === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            <Button
+              type="button"
+              onClick={() => openClientTxModal(null, 'Règlement Reçu', selectedClientId)}
+              variant="primary"
+              size="md"
+              className="min-h-[52px] w-full flex-col gap-0.5 px-1 py-2 text-[11px] font-bold sm:flex-row sm:text-sm"
+            >
+              <ArrowDownLeftIcon className="h-4 w-4"/>
+              <span className="truncate">{t('transactions.paymentReceived')}</span>
+            </Button>
+            <Button
+              type="button"
+              onClick={() => openForm?.('sell_usdt', null, { clientId: selectedClientId })}
+              variant="danger"
+              size="md"
+              className="min-h-[52px] w-full flex-col gap-0.5 px-1 py-2 text-[11px] font-bold sm:flex-row sm:text-sm"
+              disabled={!openForm}
+            >
+              <ArrowUpRightIcon className="h-4 w-4"/>
+              <span className="truncate">{t('transactions.sellUsdt')}</span>
+            </Button>
+            {(hasPhone || hasDebt) && (
+              <button
+                type="button"
+                onClick={handleSendReminder}
+                className="flex min-h-[52px] w-full flex-col items-center justify-center gap-0.5 rounded-button bg-[#25D366]/12 px-1 py-2 text-[11px] font-bold text-[#25D366] transition-colors hover:bg-[#25D366]/20 active:scale-[0.98] sm:flex-row sm:gap-1.5 sm:text-sm"
+              >
+                <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                  <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.122 1.532 5.852L.054 23.5l5.782-1.519A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.9a9.877 9.877 0 01-5.031-1.375l-.361-.214-3.737.981 1.001-3.648-.235-.374A9.855 9.855 0 012.1 12c0-5.467 4.433-9.9 9.9-9.9 5.467 0 9.9 4.433 9.9 9.9s-4.433 9.9-9.9 9.9z"/>
+                </svg>
+                <span className="truncate">{hasPhone ? 'WhatsApp' : (t('common.copy') as string)}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>);
 }

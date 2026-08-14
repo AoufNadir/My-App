@@ -1,5 +1,7 @@
 import React from 'react';
 import { CurrencyAmount, type AmountSemantic, type CurrencyCode } from '../financial/CurrencyAmount';
+import { FinancialTermLabel } from '../financial/FinancialTermLabel';
+import type { FinancialTermId } from '../../config/financialTerms';
 export interface HeroKpiSecondary {
     label: string;
     value: number;
@@ -7,6 +9,7 @@ export interface HeroKpiSecondary {
     semantic?: AmountSemantic;
     trendPct?: number;
     display?: React.ReactNode;
+    term?: FinancialTermId;
 }
 export interface HeroKpiCardProps {
     primaryLabel: string;
@@ -18,6 +21,7 @@ export interface HeroKpiCardProps {
     className?: string;
     icon?: React.ReactNode;
     accent?: 'indigo' | 'teal' | 'sky' | 'emerald' | 'purple' | 'amber';
+    primaryTerm?: FinancialTermId;
 }
 const ACCENT_BG: Record<string, string> = {
     indigo: 'from-primary/15 via-transparent',
@@ -47,11 +51,11 @@ const TrendBadge: React.FC<{
       <span>{Math.abs(pct).toFixed(2)}%</span>
     </span>);
 };
-export const HeroKpiCard: React.FC<HeroKpiCardProps> = ({ primaryLabel, primaryValue, primaryCurrency, primarySemantic, trendPct, secondary, className = '', icon, accent = 'indigo', }) => {
+export const HeroKpiCard: React.FC<HeroKpiCardProps> = ({ primaryLabel, primaryValue, primaryCurrency, primarySemantic, trendPct, secondary, className = '', icon, accent = 'indigo', primaryTerm, }) => {
     const secondaryGridClass = secondary && secondary.length >= 4
         ? 'grid-cols-2 sm:grid-cols-4'
         : secondary && secondary.length >= 3
-            ? 'grid-cols-3'
+            ? 'grid-cols-2 sm:grid-cols-3'
             : 'grid-cols-2';
     return (<section className={[
             'relative overflow-hidden rounded-2xl ring-1 ring-neutral-200 p-4 sm:p-5',
@@ -65,8 +69,8 @@ export const HeroKpiCard: React.FC<HeroKpiCardProps> = ({ primaryLabel, primaryV
 
       <header className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase font-semibold text-neutral-500">
-            {primaryLabel}
+          <p className="text-xs font-semibold text-neutral-500">
+            {primaryTerm ? <FinancialTermLabel term={primaryTerm}/> : primaryLabel}
           </p>
           <div className="mt-2 flex items-baseline gap-2 flex-wrap">
             <CurrencyAmount value={primaryValue} currency={primaryCurrency} semantic={primarySemantic ?? 'plain'} size="hero" decimals={0}/>
@@ -80,7 +84,7 @@ export const HeroKpiCard: React.FC<HeroKpiCardProps> = ({ primaryLabel, primaryV
 
       {secondary && secondary.length > 0 && (<dl className={`mt-4 grid gap-3 ${secondaryGridClass}`}>
           {secondary.map((item, idx) => (<div key={`${item.label}-${idx}`} className="min-w-0">
-              <dt className="text-[11px] truncate text-neutral-500">{item.label}</dt>
+              <dt className="min-h-6 text-xs leading-snug text-neutral-500">{item.term ? <FinancialTermLabel term={item.term}/> : item.label}</dt>
               <dd className="mt-1 flex items-baseline gap-1.5 flex-wrap">
                 {item.display ? (item.display) : (<CurrencyAmount value={item.value} currency={item.currency} semantic={item.semantic ?? 'plain'} size="lg" decimals={0}/>)}
                 {typeof item.trendPct === 'number' && Number.isFinite(item.trendPct) && (<TrendBadge pct={item.trendPct}/>)}

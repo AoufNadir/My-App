@@ -10,6 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.vercel
+.kilo
+tsc_output_latest.txt
 *.local
 
 # Editor directories and files

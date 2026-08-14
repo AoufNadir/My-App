@@ -5,6 +5,7 @@ import { SectionHeading } from '../components/ui/SectionHeading';
 import { CurrencyAmount, type AmountSemantic } from '../components/financial/CurrencyAmount';
 import { HeroKpiCard } from '../components/ui/HeroKpiCard';
 import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
 import { AlertTriangleIcon } from '../components/icons/AlertTriangleIcon';
 import { BanknotesIcon } from '../components/icons/BanknotesIcon';
 import { ArrowRightLeftIcon } from '../components/icons/ArrowRightLeftIcon';
@@ -24,7 +25,9 @@ import type { DisplayTx, TransactionFilterMode } from '../components/transaction
 import type { ClientDzd, ClientTransactionDzd, OverdueDebtClient, TreasuryCard, TreasuryTx, Tx } from '../types';
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
 import { useLanguage } from '../contexts/LanguageContext';
-const RECENT_TRANSACTION_LIMIT = 5;
+import { FinancialTermLabel } from '../components/financial/FinancialTermLabel';
+import type { FinancialTermId } from '../config/financialTerms';
+const RECENT_TRANSACTION_LIMIT = 3;
 type DashboardPageProps = {
     dailyOverview: {
         caisse: number;
@@ -96,6 +99,14 @@ type PriorityItem = {
     action?: () => void;
     actionLabel?: string;
 };
+type CapitalSecondaryItem = {
+    label: string;
+    value: number;
+    currency: 'DZD';
+    semantic: AmountSemantic;
+    hideWhenZero?: boolean;
+    term?: FinancialTermId;
+};
 const PRIORITY_TONE_CLASSES: Record<Tone, {
     item: string;
     title: string;
@@ -146,54 +157,75 @@ function renderDebtPriorityBody(template: string, amount: number, days: number, 
         })}
     </>);
 }
-function ActionStrip({ actions, }: {
+function ActionStrip({ actions, columns = 2, }: {
     actions: Array<{
         label: string;
         icon: ReactNode;
         onClick: () => void;
         primary?: boolean;
+        sell?: boolean;
+        buy?: boolean;
     }>;
+    columns?: 2 | 3 | 4;
 }) {
-    return (<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {actions.map((action) => (<Button key={action.label} type="button" onClick={action.onClick} variant={action.primary ? 'primary' : 'outline'} size="md" className="min-h-[64px] w-full px-2.5 text-xs font-bold sm:min-h-[56px] sm:text-sm">
+    const gridClass = columns === 3 ? 'grid-cols-2 sm:grid-cols-3' : columns === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2';
+    return (<div className={`grid gap-2 ${gridClass}`}>
+      {actions.map((action, index) => {
+            const variant = action.sell ? 'danger' : action.buy ? 'success' : action.primary ? 'primary' : 'outline';
+            const spanClass = columns === 3 && index === actions.length - 1 ? 'col-span-2 sm:col-span-1' : '';
+            return (<Button key={action.label} type="button" onClick={action.onClick} variant={variant} size="md" className={`min-h-[58px] w-full px-2 text-xs font-bold sm:min-h-[56px] sm:text-sm ${spanClass}`}>
           <span className="inline-flex h-full min-w-0 flex-col items-center justify-center gap-1.5 text-center sm:flex-row sm:gap-2">
             {action.icon}
-            <span className="max-w-full truncate leading-tight">{action.label}</span>
+            <span className="max-w-full whitespace-normal leading-tight">{action.label}</span>
           </span>
-        </Button>))}
+        </Button>);
+        })}
     </div>);
 }
-function PriorityList({ title, items, onTitleClick, }: {
+function CollapsibleSection({ title, icon, defaultOpen = false, children, trailing, }: {
+    title: string;
+    icon: ReactNode;
+    defaultOpen?: boolean;
+    children: ReactNode;
+    trailing?: ReactNode;
+}) {
+    const [open, setOpen] = useState(defaultOpen);
+    return (<Card>
+      <CardHeader className="p-0">
+        <div className="flex w-full min-h-touch items-center gap-2 p-4">
+          <button type="button" onClick={() => setOpen((v) => !v)} className="flex min-w-0 flex-1 items-center justify-between gap-3 text-start">
+            <SectionHeading icon={icon}>{title}</SectionHeading>
+            <span className={`shrink-0 text-neutral-400 transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
+          </button>
+          {trailing}
+        </div>
+      </CardHeader>
+      {open && <CardContent className="p-4 pt-0">{children}</CardContent>}
+    </Card>);
+}
+function PriorityBanner({ title, items, onTitleClick, seeAllLabel, }: {
     title: string;
     items: PriorityItem[];
     onTitleClick?: () => void;
+    seeAllLabel: string;
 }) {
-    const renderItemContent = (item: PriorityItem, tone: typeof PRIORITY_TONE_CLASSES[Tone]) => (<div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1.5">
-      <p className={`min-w-0 text-base font-bold leading-snug ${tone.title}`}>{item.title}</p>
-      {item.action && item.actionLabel && (<span className={`inline-flex min-h-8 shrink-0 items-center justify-center rounded-button px-2.5 text-xs font-bold ${tone.action}`}>
-          {item.actionLabel}
-        </span>)}
-      <p className={`col-span-2 text-sm leading-relaxed ${tone.body}`}>{item.body}</p>
+    const item = items[0];
+    if (!item || item.id === 'stable') return null;
+    const tone = toneClasses(item.tone);
+    const handleClick = item.action ?? onTitleClick;
+    return (<div className={`rounded-card p-4 ${tone.item}`}>
+      <div className="flex items-center justify-between gap-3">
+        <SectionHeading icon={<SparklesIcon className="h-4 w-4"/>}>{title}</SectionHeading>
+        {items.length > 1 && onTitleClick && (<button type="button" onClick={onTitleClick} className="shrink-0 text-xs font-bold text-primary hover:underline">
+          {seeAllLabel} <span dir="ltr">+{items.length - 1}</span>
+        </button>)}
+      </div>
+      <button type="button" onClick={handleClick} disabled={!handleClick} className="mt-3 w-full text-start disabled:cursor-default">
+        <p className={`text-sm font-bold leading-snug ${tone.title}`}>{item.title}</p>
+        <p className={`mt-1 text-xs leading-relaxed ${tone.body}`}>{item.body}</p>
+      </button>
     </div>);
-    return (<Card>
-      <CardHeader className="p-4 pb-3">
-        {onTitleClick ? (<button type="button" onClick={onTitleClick} className="w-full min-h-touch text-start rounded-md transition-opacity hover:opacity-85 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-            <SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>{title}</SectionHeading>
-          </button>) : (<SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>{title}</SectionHeading>)}
-      </CardHeader>
-      <CardContent className="p-4 pt-0 space-y-2">
-        {items.map((item) => {
-            const tone = toneClasses(item.tone);
-            return item.action ? (<button key={item.id} type="button" onClick={item.action} className={`w-full rounded-card p-4 text-start transition-all hover:border-border-strong hover:shadow-card-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.99] ${tone.item}`}>
-              {renderItemContent(item, tone)}
-            </button>) : (<div key={item.id} className={`rounded-card p-4 ${tone.item}`}>
-              {renderItemContent(item, tone)}
-            </div>);
-        })}
-      </CardContent>
-    </Card>);
 }
-const DAY_LABELS_SHORT = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 function TodaySummary({ title, items, last7DaysProfit, todaySellCount, onShare, shareCopied }: {
     title: string;
     items: Array<{
@@ -207,14 +239,14 @@ function TodaySummary({ title, items, last7DaysProfit, todaySellCount, onShare, 
     onShare?: () => void;
     shareCopied?: boolean;
 }) {
-    const { t } = useLanguage();
+    const { t, lang } = useLanguage();
     const days = last7DaysProfit ?? [];
     const maxAbs = Math.max(...days.map(Math.abs), 1);
     // Day labels: compute from today going back 6 days
-    const todayDowIndex = new Date().getDay(); // 0=Sun..6=Sat
     const dayLabels = Array.from({ length: 7 }, (_, i) => {
-        const dow = (todayDowIndex - 6 + i + 7) % 7;
-        return DAY_LABELS_SHORT[dow === 0 ? 6 : dow - 1]; // Mon=0..Sun=6
+        const date = new Date();
+        date.setDate(date.getDate() - (6 - i));
+        return new Intl.DateTimeFormat(lang === 'ar' ? 'ar-DZ' : 'fr-FR', { weekday: 'narrow' }).format(date);
     });
     return (<Card>
       <CardHeader className="p-4 pb-3">
@@ -240,7 +272,7 @@ function TodaySummary({ title, items, last7DaysProfit, todaySellCount, onShare, 
         <div className="grid grid-cols-2 gap-2">
           {items.map((item) => (<div key={item.label} className="rounded-xl border border-border bg-surface-muted px-3 py-3">
               <div className="flex items-center justify-between gap-1 mb-2">
-                <p className="text-[11px] font-semibold text-neutral-500 truncate">{item.label}</p>
+                <p className="text-xs font-semibold text-neutral-500">{item.label}</p>
                 <span className="text-neutral-300 shrink-0">{item.icon}</span>
               </div>
               <CurrencyAmount value={item.value} currency="DZD" semantic={item.semantic ?? 'auto'} size="lg" decimals={0}/>
@@ -275,44 +307,15 @@ function TodaySummary({ title, items, last7DaysProfit, todaySellCount, onShare, 
                 );
               })}
             </div>
-            <p className="text-[9px] font-medium text-neutral-300 text-end">7 jours</p>
+            <p className="text-[10px] font-medium text-neutral-400 text-end">{t('dashboard.last7Days')}</p>
           </div>
         )}
       </CardContent>
     </Card>);
 }
-function MoneyMap({ title, rows, }: {
-    title: string;
-    rows: Array<{
-        label: string;
-        value: number;
-        semantic?: AmountSemantic;
-        icon: ReactNode;
-    }>;
-}) {
-    return (<Card>
-      <CardHeader className="p-4 pb-3">
-        <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>{title}</SectionHeading>
-      </CardHeader>
-      <CardContent className="p-0 divide-y divide-neutral-100">
-        {rows.map((row) => (<div key={row.label} className="flex items-center justify-between gap-3 px-4 py-3.5">
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600">
-                {row.icon}
-              </span>
-              <p className="text-sm font-medium text-neutral-500">{row.label}</p>
-            </div>
-            <CurrencyAmount value={row.value} currency="DZD" semantic={row.semantic ?? 'plain'} size="lg" decimals={0}/>
-          </div>))}
-      </CardContent>
-    </Card>);
-}
-function PortfolioStatusCard({ title, stockLabel, valueLabel, portfolioStats, stockValue, }: {
-    title: string;
-    stockLabel: string;
+function PortfolioStatusBody({ valueLabel, portfolioStats, }: {
     valueLabel: string;
     portfolioStats: any;
-    stockValue: number;
 }) {
     const usdtQty = Number(portfolioStats?.usdt?.available || 0);
     const eurQty = Number(portfolioStats?.eur?.available || 0);
@@ -324,40 +327,29 @@ function PortfolioStatusCard({ title, stockLabel, valueLabel, portfolioStats, st
         { label: 'USDT', qty: usdtQty, currency: 'USDT' as const, pam: usdtPam, value: usdtValue },
         { label: 'EUR', qty: eurQty, currency: 'EUR' as const, pam: eurPam, value: eurValue }
     ];
-    return (<Card>
-      <CardHeader className="p-4 pb-3 flex flex-row items-start justify-between gap-3">
-        <SectionHeading icon={<BriefcaseIcon className="w-4 h-4"/>}>{title}</SectionHeading>
-        <div className="text-end shrink-0">
-          <p className="text-xs font-medium text-neutral-500">{stockLabel}</p>
-          <CurrencyAmount value={stockValue} currency="DZD" size="md" decimals={0}/>
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 pt-0">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {assetRows.map((asset) => (<div key={asset.label} className="rounded-xl border border-border bg-surface-muted p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface text-neutral-600">
-                    <WalletIcon className="h-5 w-5"/>
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-neutral-800">{asset.label}</p>
-                    <CurrencyAmount value={asset.qty} currency={asset.currency} size="lg"/>
-                  </div>
-                </div>
-                <div className="text-end shrink-0">
-                  <p className="text-xs font-medium text-neutral-500">PAM</p>
-                  <CurrencyAmount value={asset.pam} currency="DZD" size="sm" decimals={2}/>
-                </div>
+    return (<div className="grid gap-3 sm:grid-cols-2">
+      {assetRows.map((asset) => (<div key={asset.label} className="rounded-xl border border-border bg-surface-muted p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface text-neutral-600">
+                <WalletIcon className="h-5 w-5"/>
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-neutral-800">{asset.label}</p>
+                <CurrencyAmount value={asset.qty} currency={asset.currency} size="lg"/>
               </div>
-              <div className="mt-3 flex items-center justify-between rounded-lg bg-surface px-3 py-2 text-sm">
-                <span className="text-neutral-500">{valueLabel}</span>
-                <CurrencyAmount value={asset.value} currency="DZD" size="sm" decimals={0} className="font-semibold text-neutral-700"/>
-              </div>
-            </div>))}
-        </div>
-      </CardContent>
-    </Card>);
+            </div>
+            <div className="text-end shrink-0">
+              <p className="text-xs font-medium text-neutral-500">PAM</p>
+              <CurrencyAmount value={asset.pam} currency="DZD" size="sm" decimals={2}/>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center justify-between rounded-lg bg-surface px-3 py-2 text-sm">
+            <span className="text-neutral-500">{valueLabel}</span>
+            <CurrencyAmount value={asset.value} currency="DZD" size="sm" decimals={0} className="font-semibold text-neutral-700"/>
+          </div>
+        </div>))}
+    </div>);
 }
 function DashboardSyncState({ title, body, actions, }: {
     title: string;
@@ -424,7 +416,7 @@ export function DashboardPage({
     onOpenMonthPlan,
     monthlyGoal = 0,
 }: DashboardPageProps) {
-    const { t } = useLanguage();
+    const { t, lang } = useLanguage();
     const [shareCopied, setShareCopied] = useState(false);
     const [recentFilterMode, setRecentFilterMode] = useState<TransactionFilterMode>('all');
     const [recentDateRange, setRecentDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
@@ -475,7 +467,7 @@ export function DashboardPage({
     const handleShareDaySummary = () => {
         const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
         const sign = (n: number) => n >= 0 ? `+${fmt(n)}` : fmt(n);
-        const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+        const today = new Date().toLocaleDateString(lang === 'ar' ? 'ar-DZ' : 'fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
         const lines: string[] = [
             `📊 ${t('dashboard.summaryWord')} ${today}`,
             ``,
@@ -483,8 +475,8 @@ export function DashboardPage({
             dailyOverview.weekToDateProfit !== undefined ? `📅 ${t('dashboard.thisWeek')} : ${sign(dailyOverview.weekToDateProfit)} DZD` : '',
             `📆 ${t('dashboard.thisMonth')} : ${sign(dailyOverview.monthToDateProfit)} DZD`,
             ``,
-            `💵 Caisse : ${fmt(capitalSnapshot.caisseBalance)} DZD`,
-            `📱 BaridiMob : ${fmt(capitalSnapshot.baridiBalance)} DZD`,
+            `💵 ${t('common.caisseBalance')} : ${fmt(capitalSnapshot.caisseBalance)} DZD`,
+            `📱 ${t('common.baridiBalance')} : ${fmt(capitalSnapshot.baridiBalance)} DZD`,
         ].filter(Boolean);
         if (dailyOverview.todaySellCount) lines.push(``, `🔄 ${dailyOverview.todaySellCount} ${t('transactions.operationsWord')}`);
         const text = lines.join('\n');
@@ -502,15 +494,15 @@ export function DashboardPage({
     const totalDebt = capitalSnapshot.receivables;
     const totalAdvances = capitalSnapshot.clientAdvances;
     const financialHealth = capitalSnapshot.totalCapital;
-    const capitalSecondaryItems = [
-        { label: t('finance.realCapital') as string, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const },
-        { label: t('treasury.investorCapital') as string, value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
-        { label: t('treasury.profitsNotWithdrawn') as string, value: investorBreakdown?.profits ?? 0, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
-        { label: t('finance.liquidity') as string, value: cashTotal, currency: 'DZD' as const, semantic: 'plain' as const },
+    const capitalSecondaryItems: CapitalSecondaryItem[] = [
+        { label: t('finance.realCapital') as string, term: 'ownedCapital' as const, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const },
+        { label: t('treasury.investorCapital') as string, term: 'investorCapital' as const, value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
+        { label: t('treasury.profitsNotWithdrawn') as string, term: 'unwithdrawnProfit' as const, value: investorBreakdown?.profits ?? 0, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
+        { label: t('finance.liquidity') as string, term: 'liquidity' as const, value: cashTotal, currency: 'DZD' as const, semantic: 'plain' as const },
         { label: t('finance.stock') as string, value: stockValue, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
         { label: t('finance.treasuryCards') as string, value: capitalSnapshot.treasuryCardsTotal, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
         { label: t('nav.services') as string, value: capitalSnapshot.servicesCapitalImpact, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true },
-        { label: t('finance.netPosition') as string, value: capitalSnapshot.netClientPosition, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true }
+        { label: t('finance.netPosition') as string, term: 'netClientPosition' as const, value: capitalSnapshot.netClientPosition, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true }
     ].filter((item) => !item.hideWhenZero || Math.abs(item.value) > 0.005);
     const lowStock = Number(portfolioStats?.usdt?.available || 0) < 100
         && Number(portfolioStats?.eur?.available || 0) < 100;
@@ -594,96 +586,98 @@ export function DashboardPage({
         onOpenAnalytics,
         t
     ]);
-    const primaryActions = [
+    const todayPrimaryActions = [
+        { label: t('quickActions.title') as string, icon: <PlusIcon className="h-4 w-4"/>, onClick: onNewTransaction, primary: true },
+        { label: t('nav.clients') as string, icon: <UsersIcon className="h-4 w-4"/>, onClick: onOpenClients },
+    ];
+    const syncActions = [
         { label: t('dashboard.newOperation') as string, icon: <PlusIcon className="h-4 w-4"/>, onClick: onNewTransaction, primary: true },
         { label: t('nav.clients') as string, icon: <UsersIcon className="h-4 w-4"/>, onClick: onOpenClients },
         { label: t('nav.treasury') as string, icon: <ArrowRightLeftIcon className="h-4 w-4"/>, onClick: onOpenTreasury },
         { label: t('nav.analytics') as string, icon: <TrendingUpIcon className="h-4 w-4"/>, onClick: onOpenAnalytics }
     ];
-    if (isDataSyncing) {
-        return (<DashboardSyncState title={t('dashboard.syncingTitle') as string} body={t('dashboard.syncingBody') as string} actions={primaryActions}/>);
+    const hasLocalData = transactions.length > 0
+        || clientTransactionsDzd.length > 0
+        || treasuryTransactions.length > 0
+        || clientsDzd.length > 0
+        || Math.abs(financialHealth) > 0.005;
+    if (isDataSyncing && !hasLocalData) {
+        return (<DashboardSyncState title={t('dashboard.syncingTitle') as string} body={t('dashboard.syncingBody') as string} actions={syncActions}/>);
     }
-    return (<div className="anim-page-in space-y-5">
-      <HeroKpiCard accent="sky" icon={<LandmarkIcon className="w-5 h-5"/>} primaryLabel={t('dashboard.capitalTotal') as string} primaryValue={financialHealth} primaryCurrency="DZD" primarySemantic="plain" secondary={capitalSecondaryItems}/>
+    return (<div className="anim-page-in space-y-4">
+      {isDataSyncing && (<div role="status" className="flex items-center gap-2 text-xs font-medium text-neutral-500">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-primary"/>
+        {t('dashboard.syncingInline')}
+      </div>)}
 
-      <ActionStrip actions={primaryActions}/>
+      <div className="grid gap-4 lg:grid-cols-12">
+        <div className="space-y-4 lg:col-span-8">
+          <HeroKpiCard
+            accent="emerald"
+            icon={<BriefcaseIcon className="h-5 w-5"/>}
+            primaryLabel={t('dashboard.profitToday') as string}
+            primaryValue={dailyOverview.todayProfit}
+            primaryCurrency="DZD"
+            primarySemantic="auto"
+            secondary={[
+                { label: t('dashboard.profitMonth') as string, value: dailyOverview.monthToDateProfit, currency: 'DZD', semantic: 'auto' },
+                { label: t('dashboard.capitalTotal') as string, term: 'totalCapital', value: financialHealth, currency: 'DZD', semantic: 'plain' },
+                { label: t('finance.liquidity') as string, term: 'liquidity', value: cashTotal, currency: 'DZD', semantic: 'plain' },
+            ]}
+          />
 
-      {/* Quick Sell button — only when USDT stock available */}
-      {onQuickSell && quickSellPreview && (
-        <button type="button" onClick={onQuickSell}
-          className="flex w-full items-center justify-between gap-3 rounded-xl border border-danger/25 bg-danger-bg px-4 py-3 text-start transition-colors hover:bg-danger-bg/80 active:scale-[0.99]">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-financial-loss">⚡ Vente rapide USDT</p>
-            <p className="text-xs text-neutral-500 mt-0.5" dir="ltr">
-              {quickSellPreview.qty.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} USDT
-              @ {quickSellPreview.price.toFixed(2)} DZD
-              → <span className="text-financial-profit font-semibold">
-                +{Math.round((quickSellPreview.price - quickSellPreview.pam) * quickSellPreview.qty).toLocaleString('fr-FR')} DZD
+          <ActionStrip actions={todayPrimaryActions} columns={2}/>
+
+          {onQuickSell && quickSellPreview && (<button type="button" onClick={onQuickSell} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-xl border border-danger/25 bg-danger-bg px-4 py-3 text-start transition-colors hover:bg-danger-bg/80 active:scale-[0.99]">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-financial-loss">{t('dashboard.quickSell')}</p>
+              <p className="mt-0.5 text-xs text-neutral-500" dir="ltr">
+                {quickSellPreview.qty.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} USDT @ {quickSellPreview.price.toFixed(2)} DZD
+                {' · '}<span className="font-semibold text-financial-profit">+{Math.round((quickSellPreview.price - quickSellPreview.pam) * quickSellPreview.qty).toLocaleString('fr-FR')} DZD</span>
+              </p>
+            </div>
+            <ArrowUpRightIcon className="h-4 w-4 shrink-0 text-financial-loss"/>
+          </button>)}
+        </div>
+
+        <aside className="space-y-3 lg:col-span-4">
+          <PriorityBanner title={t('dashboard.attentionNeeded') as string} items={priorities} onTitleClick={onOpenClientDebts} seeAllLabel={t('dashboard.seeAll') as string}/>
+
+          {onOpenMonthPlan && (<button type="button" onClick={onOpenMonthPlan} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-start transition-colors hover:bg-primary/10 active:scale-[0.99]">
+            <span className="flex min-w-0 items-center gap-2">
+              <CalendarIcon className="h-4 w-4 shrink-0 text-primary"/>
+              <span className="min-w-0">
+                <span className="block text-sm font-bold text-primary">{monthlyGoal > 0 ? t('smartPricing.monthPlan') : t('smartPricing.title')}</span>
+                {monthlyGoal <= 0 && <span className="mt-0.5 block text-xs text-neutral-500">{t('smartPricing.subtitle')}</span>}
               </span>
-            </p>
-          </div>
-          <svg className="w-4 h-4 shrink-0 text-financial-loss/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-      )}
+            </span>
+            <ArrowUpRightIcon className="h-4 w-4 shrink-0 text-primary"/>
+          </button>)}
 
-      {onOpenPersonalWithdrawal && (<Button onClick={onOpenPersonalWithdrawal} variant="outline" size="md" className="flex w-full items-center justify-center gap-2 border-primary/20 bg-primary/10 font-bold text-primary hover:bg-primary/20">
-          <BanknotesIcon className="h-4 w-4"/>
-          <span>Ma dépense du jour</span>
-        </Button>)}
+          {onOpenPersonalWithdrawal && (<Button onClick={onOpenPersonalWithdrawal} variant="outline" size="md" className="flex min-h-touch w-full items-center justify-center gap-2 border-primary/20 font-bold text-primary">
+            <BanknotesIcon className="h-4 w-4"/>
+            <span>{t('dashboard.dailyExpense')}</span>
+          </Button>)}
+        </aside>
+      </div>
 
-      <TodaySummary title={t('dashboard.profitSummary') as string} last7DaysProfit={dailyOverview.last7DaysProfit} todaySellCount={dailyOverview.todaySellCount} onShare={handleShareDaySummary} shareCopied={shareCopied} items={[
-            { label: t('dashboard.profitToday') as string, value: dailyOverview.todayProfit, semantic: 'auto', icon: <BriefcaseIcon className="h-4 w-4"/> },
-            { label: 'Cette semaine', value: dailyOverview.weekToDateProfit ?? 0, semantic: 'auto', icon: <TrendingUpIcon className="h-4 w-4"/> },
-            { label: t('dashboard.profitMonth') as string, value: dailyOverview.monthToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
-            { label: t('dashboard.profitYear') as string, value: dailyOverview.yearToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
-        ]}/>
+      <div className="grid items-start gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-5">
+          <TodaySummary title={t('dashboard.performanceFollowUp') as string} last7DaysProfit={dailyOverview.last7DaysProfit} todaySellCount={dailyOverview.todaySellCount} onShare={handleShareDaySummary} shareCopied={shareCopied} items={[
+                { label: t('dashboard.thisWeek') as string, value: dailyOverview.weekToDateProfit ?? 0, semantic: 'auto', icon: <TrendingUpIcon className="h-4 w-4"/> },
+                { label: t('dashboard.profitYear') as string, value: dailyOverview.yearToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
+            ]}/>
+        </div>
 
-      {/* Month plan — entry to the smart pricing hub (progress + prices live inside) */}
-      {monthlyGoal > 0 && onOpenMonthPlan && (
-        <button type="button" onClick={onOpenMonthPlan}
-          className="flex w-full items-center justify-between rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-start transition-colors hover:bg-primary/10 active:scale-[0.99]">
-          <span className="text-sm font-bold text-primary">📋 {t('smartPricing.monthPlan')}</span>
-          <svg className="w-4 h-4 shrink-0 text-primary/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-      )}
-
-      {/* No goal yet → CTA to open the month plan and set one */}
-      {monthlyGoal <= 0 && onOpenMonthPlan && (
-        <button type="button" onClick={onOpenMonthPlan}
-          className="flex w-full items-center justify-between rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 text-start transition-colors hover:bg-primary/10 active:scale-[0.99]">
-          <div>
-            <p className="text-sm font-bold text-primary">🎯 {t('smartPricing.title')}</p>
-            <p className="text-xs text-neutral-500 mt-0.5">{t('smartPricing.subtitle')}</p>
-          </div>
-          <svg className="w-4 h-4 shrink-0 text-primary/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-      )}
-
-      <PriorityList title={t('dashboard.attentionNeeded') as string} items={priorities} onTitleClick={onOpenClientDebts}/>
-
-      <PortfolioStatusCard title={t('portfolio.currentStatus') as string} stockLabel={t('finance.stock') as string} valueLabel={t('transactions.value') as string} portfolioStats={portfolioStats} stockValue={stockValue}/>
-
-      {/* Same operation feed as Journal des Opérations, limited to the latest rows. */}
-      {recentTransactionCount > 0 && (
-        <Card>
+        <Card className="lg:col-span-7">
           <CardHeader className="p-4 pb-3">
             <div className="flex items-center justify-between gap-2">
-              <SectionHeading icon={<ArrowRightLeftIcon className="w-4 h-4"/>}>{t('dashboard.lastOperations')}</SectionHeading>
-              {onOpenTransactions && (
-                <button type="button" onClick={onOpenTransactions} className="text-xs font-semibold text-primary hover:underline">
-                  {t('dashboard.seeAll')}
-                </button>
-              )}
+              <SectionHeading icon={<ArrowRightLeftIcon className="h-4 w-4"/>}>{t('dashboard.lastOperations')}</SectionHeading>
+              {onOpenTransactions && (<button type="button" onClick={onOpenTransactions} className="text-xs font-semibold text-primary hover:underline">{t('dashboard.seeAll')}</button>)}
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <TransactionDisplayList
+            {recentTransactionCount > 0 ? (<TransactionDisplayList
               dateGroups={recentTransactionGroups}
               getRelativeDateLabel={getRelativeDateLabel}
               onEditDisplayTx={handleOpenRecentDisplayTx}
@@ -691,19 +685,64 @@ export function DashboardPage({
               onOpenDisplayTx={handleOpenRecentDisplayTx}
               formatDzdAmount={formatRecentDzdAmount}
               profitByTxId={recentProfitByTxId}
-            />
+            />) : (<EmptyState
+              icon={<ArrowRightLeftIcon className="h-5 w-5"/>}
+              title={t('dashboard.noRecentActivity') as string}
+              subtitle={t('dashboard.firstOperationHint') as string}
+              action={<Button type="button" onClick={onNewTransaction} variant="primary" size="sm">{t('dashboard.newOperation')}</Button>}
+            />)}
           </CardContent>
         </Card>
-      )}
+      </div>
 
-      <MoneyMap title={t('dashboard.moneyMap') as string} rows={[
-            { label: 'Caisse', value: capitalSnapshot.caisseBalance, icon: <WalletIcon className="h-4 w-4"/> },
-            { label: 'BaridiMob', value: capitalSnapshot.baridiBalance, icon: <LandmarkIcon className="h-4 w-4"/> },
-            { label: t('finance.stock') as string, value: stockValue, icon: <BriefcaseIcon className="h-4 w-4"/> },
-            { label: t('finance.toReceive') as string, value: totalDebt, semantic: totalDebt > 0 ? 'profit' : 'plain', icon: <ArrowUpRightIcon className="h-4 w-4"/> },
-            { label: t('finance.clientAdvance') as string, value: totalAdvances, semantic: totalAdvances > 0 ? 'loss' : 'plain', icon: <AlertTriangleIcon className="h-4 w-4"/> },
-            { label: t('treasury.investorCapital') as string, value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, semantic: 'loss', icon: <UsersIcon className="h-4 w-4"/> },
-            { label: t('treasury.profitsNotWithdrawn') as string, value: investorBreakdown?.profits ?? 0, semantic: 'loss', icon: <UsersIcon className="h-4 w-4"/> }
-        ]}/>
+      <CollapsibleSection
+        title={t('dashboard.financialPosition') as string}
+        icon={<WalletIcon className="w-4 h-4"/>}
+        defaultOpen={false}
+        trailing={<CurrencyAmount value={financialHealth} currency="DZD" size="sm" decimals={0}/>}
+      >
+        <div className="grid gap-5 lg:grid-cols-2">
+          <section>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-xs font-bold uppercase text-neutral-500">{t('dashboard.moneyMap')}</p>
+              <button type="button" onClick={onOpenTreasury} className="text-xs font-semibold text-primary hover:underline">{t('nav.treasury')}</button>
+            </div>
+            <div className="divide-y divide-neutral-100 rounded-lg border border-border">
+              {[
+                { label: t('common.caisseBalance') as string, value: capitalSnapshot.caisseBalance, icon: <WalletIcon className="h-4 w-4"/> },
+                { label: t('common.baridiBalance') as string, value: capitalSnapshot.baridiBalance, icon: <LandmarkIcon className="h-4 w-4"/> },
+                { label: t('finance.stock') as string, value: stockValue, icon: <BriefcaseIcon className="h-4 w-4"/> },
+                { label: t('finance.toReceive') as string, value: totalDebt, semantic: totalDebt > 0 ? 'profit' as const : 'plain' as const, icon: <ArrowUpRightIcon className="h-4 w-4"/> },
+                { label: t('finance.clientAdvance') as string, value: totalAdvances, semantic: totalAdvances > 0 ? 'loss' as const : 'plain' as const, icon: <AlertTriangleIcon className="h-4 w-4"/> },
+              ].map((row) => (<div key={row.label} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="text-neutral-400">{row.icon}</span>
+                  <p className="text-sm font-medium text-neutral-500">{row.label}</p>
+                </div>
+                <CurrencyAmount value={row.value} currency="DZD" semantic={row.semantic ?? 'plain'} size="sm" decimals={0}/>
+              </div>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <p className="mb-2 text-xs font-bold uppercase text-neutral-500">{t('dashboard.capitalDetails')}</p>
+            <div className="grid grid-cols-2 gap-2">
+              {capitalSecondaryItems.map((item) => (<div key={item.label} className="min-w-0 rounded-lg bg-surface-muted px-3 py-2.5">
+                <div className="text-xs text-neutral-500">{item.term ? <FinancialTermLabel term={item.term}/> : item.label}</div>
+                <CurrencyAmount value={item.value} currency={item.currency} semantic={item.semantic} size="sm" decimals={0}/>
+              </div>))}
+            </div>
+          </section>
+
+          <section className="lg:col-span-2">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-xs font-bold uppercase text-neutral-500">{t('portfolio.currentStatus')}</p>
+              <CurrencyAmount value={stockValue} currency="DZD" size="sm" decimals={0}/>
+            </div>
+            <PortfolioStatusBody valueLabel={t('transactions.value') as string} portfolioStats={portfolioStats}/>
+          </section>
+        </div>
+      </CollapsibleSection>
     </div>);
 }

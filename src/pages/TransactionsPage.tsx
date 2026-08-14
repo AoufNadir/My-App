@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Button } from '../components/ui/Button';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx } from '../types';
 import { PlusIcon } from '../components/icons/PlusIcon';
@@ -7,7 +7,6 @@ import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
 import { HeroKpiCard } from '../components/ui/HeroKpiCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import { TransactionsHistoryCard } from '../components/transactions/TransactionsHistoryCard';
-import { NewTransactionMenuDialog } from '../components/transactions/NewTransactionMenuDialog';
 import { TransactionFilterMode, DisplayTx } from '../components/transactions/transactionsTypes';
 import { useTransactionsViewModel } from '../components/transactions/useTransactionsViewModel';
 
@@ -42,6 +41,7 @@ async function exportTransactionsPdf(groupedTransactions: Record<string, Display
 }
 
 type TransactionsPageProps = {
+  onOpenQuickActions: () => void;
   openAdjustmentModal: (type: 'add' | 'subtract', txToEdit?: TreasuryTx | null) => void;
   openForm: (newMode: 'buy_usdt' | 'sell_usdt' | 'buy_eur' | 'sell_eur', txToEdit?: Tx | null) => void;
   filterMode: TransactionFilterMode;
@@ -55,10 +55,6 @@ type TransactionsPageProps = {
   openDateFilterModal: () => void;
   dateRange: { start: Date | null; end: Date | null };
   setDateRange: (range: { start: Date | null; end: Date | null }) => void;
-  openWalletTransferModal: () => void;
-  openTransferModal: () => void;
-  openDeliveryExpenseModal: () => void;
-  openPersonalWithdrawalModal?: () => void;
   treasuryTransactions: TreasuryTx[];
   handleEditPortfolioTx?: (tx: Tx) => void;
   handleEditClientTx?: (tx: ClientTransactionDzd) => void;
@@ -68,6 +64,7 @@ type TransactionsPageProps = {
 };
 
 export function TransactionsPage({
+  onOpenQuickActions,
   openAdjustmentModal,
   openForm,
   filterMode,
@@ -81,10 +78,6 @@ export function TransactionsPage({
   openDateFilterModal,
   dateRange,
   setDateRange,
-  openWalletTransferModal,
-  openTransferModal,
-  openDeliveryExpenseModal,
-  openPersonalWithdrawalModal,
   treasuryTransactions,
   handleEditPortfolioTx,
   handleEditClientTx,
@@ -93,8 +86,6 @@ export function TransactionsPage({
   setTreasuryTxToDelete,
 }: TransactionsPageProps) {
   const { t } = useLanguage();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
   const {
     savedFilters,
     txFilterLabels,
@@ -158,7 +149,7 @@ export function TransactionsPage({
         <Button
           variant="primary"
           size="lg"
-          onClick={() => setIsMenuOpen(true)}
+          onClick={onOpenQuickActions}
           className="flex-1 font-bold"
         >
           <PlusIcon className="w-4 h-4" />
@@ -195,18 +186,6 @@ export function TransactionsPage({
         onDeleteDisplayTx={handleDeleteDisplayTx}
         formatDzdAmount={formatDzdAmount}
         profitByTxId={profitByTxId}
-      />
-
-      <NewTransactionMenuDialog
-        isOpen={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
-        t={t as (key: string) => string}
-        openForm={(newMode) => openForm(newMode)}
-        openWalletTransferModal={openWalletTransferModal}
-        openTransferModal={openTransferModal}
-        openAdjustmentModal={(type) => openAdjustmentModal(type)}
-        openDeliveryExpenseModal={openDeliveryExpenseModal}
-        openPersonalWithdrawalModal={openPersonalWithdrawalModal}
       />
     </div>
   );

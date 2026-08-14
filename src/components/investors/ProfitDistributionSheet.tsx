@@ -131,7 +131,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                                 className={`rounded-xl border px-3 py-3 text-sm font-semibold transition-colors ${paymentSource === src ? 'border-primary bg-primary/10 text-primary' : 'border-border text-neutral-500'}`}
                             >
                                 <span className="block">{src}</span>
-                                <span className="block text-[10px] font-normal text-neutral-400 mt-0.5">
+                                <span className="mt-0.5 block text-xs font-normal text-neutral-500">
                                     {(src === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD
                                 </span>
                             </button>
@@ -141,20 +141,20 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
 
                 {totalAmount > 0 && distribution.length > 0 && (
                     <div className="rounded-xl border border-border overflow-hidden">
-                        <div className="grid grid-cols-[1fr_auto_auto] gap-3 bg-surface-muted px-4 py-2 text-[10px] font-bold uppercase text-neutral-400 tracking-wide">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-3 bg-surface-muted px-4 py-2 text-xs font-bold uppercase text-neutral-500 tracking-wide">
                             <span>Investisseur</span>
                             <span className="text-end">Part</span>
                             <span className="text-end w-28">Montant</span>
                         </div>
                         <div className="divide-y divide-neutral-100">
                             {distribution.map(({ inv, normalizedShare, amount, availableProfit, exceedsAvailable }) => (
-                                <div key={inv.id} className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 ${exceedsAvailable ? 'bg-danger/5' : ''}`}>
+                                <div key={inv.id} className={`grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-3 ${exceedsAvailable ? 'bg-danger/5' : ''}`}>
                                     <div className="min-w-0">
                                         <div className="flex min-w-0 items-center gap-1.5">
-                                            <p className="truncate text-sm font-semibold">{inv.name}</p>
+                                            <p className="break-words text-sm font-semibold">{inv.name}</p>
                                             {inv.isManager && <Badge variant="warning" size="sm">Gérant</Badge>}
                                         </div>
-                                        <p className={`text-[10px] ${exceedsAvailable ? 'text-danger font-semibold' : 'text-neutral-400'}`}>
+                                        <p className={`text-xs ${exceedsAvailable ? 'text-danger font-semibold' : 'text-neutral-500'}`}>
                                             Disponible : {availableProfit.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD
                                             {exceedsAvailable && ' · dépassé'}
                                         </p>

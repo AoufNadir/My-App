@@ -118,25 +118,25 @@ export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecen
                 {/* Main KPIs */}
                 <div className="grid grid-cols-3 gap-2">
                     <div className="rounded-xl border border-neutral-100 bg-neutral-50/80 p-3 text-center">
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase text-neutral-500">{t('treasury.total')}</p>
+                        <p className="mb-0.5 text-xs font-semibold text-neutral-500">{t('treasury.total')}</p>
                         <p className="text-base font-extrabold text-neutral-900 tabular-nums" dir="ltr">
                             {total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
-                        <p className="text-[10px] font-medium text-neutral-400">USDT</p>
+                        <p className="text-xs font-medium text-neutral-500">USDT</p>
                     </div>
                     <div className="rounded-xl border border-success/15 bg-financial-profit-bg p-3 text-center">
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase text-financial-profit">{t('treasury.available')}</p>
+                        <p className="mb-0.5 text-xs font-semibold text-financial-profit">{t('treasury.available')}</p>
                         <p className="text-base font-extrabold text-financial-profit tabular-nums" dir="ltr">
                             {available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
-                        <p className="text-[10px] font-medium text-financial-profit/60">USDT</p>
+                        <p className="text-xs font-medium text-financial-profit">USDT</p>
                     </div>
                     <div className={`rounded-xl border p-3 text-center ${locked > 0 ? 'border-primary/15 bg-primary/5' : 'border-neutral-100 bg-neutral-50/80'}`}>
-                        <p className={`mb-0.5 text-[10px] font-semibold uppercase ${locked > 0 ? 'text-primary' : 'text-neutral-400'}`}>{t('treasury.locked')}</p>
+                        <p className={`mb-0.5 text-xs font-semibold ${locked > 0 ? 'text-primary' : 'text-neutral-500'}`}>{t('treasury.locked')}</p>
                         <p className={`text-base font-extrabold tabular-nums ${locked > 0 ? 'text-primary' : 'text-neutral-400'}`} dir="ltr">
                             {locked.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
-                        <p className={`text-[10px] font-medium ${locked > 0 ? 'text-primary/60' : 'text-neutral-400'}`}>USDT</p>
+                        <p className={`text-xs font-medium ${locked > 0 ? 'text-primary' : 'text-neutral-500'}`}>USDT</p>
                     </div>
                 </div>
 
@@ -261,16 +261,16 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
         return { days: result, maxVal, totalIn: result.reduce((s, r) => s + r.cashIn, 0), totalOut: result.reduce((s, r) => s + r.cashOut, 0) };
     }, [treasuryTransactions]);
     const secondaryItems = [
-        { label: t('finance.realCapital') as string, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const },
+        { label: t('finance.realCapital') as string, term: 'ownedCapital' as const, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const },
         // Split investor liability: capital invested vs undistributed profits
-        { label: t('treasury.investorCapital') as string, value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
-        { label: t('treasury.profitsNotWithdrawn') as string, value: investorBreakdown?.profits ?? 0, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
+        { label: t('treasury.investorCapital') as string, term: 'investorCapital' as const, value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
+        { label: t('treasury.profitsNotWithdrawn') as string, term: 'unwithdrawnProfit' as const, value: investorBreakdown?.profits ?? 0, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
         { label: t('common.caisseBalance') as string, value: caisseBalance, currency: 'DZD' as const, semantic: 'plain' as const },
         { label: t('common.baridiBalance') as string, value: baridiBalance, currency: 'DZD' as const, semantic: 'plain' as const },
         { label: t('finance.stock') as string, value: capitalSnapshot.stockValue, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
         { label: t('finance.treasuryCards') as string, value: capitalSnapshot.treasuryCardsTotal, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
         { label: t('nav.services') as string, value: capitalSnapshot.servicesCapitalImpact, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true },
-        { label: t('finance.netPosition') as string, value: capitalSnapshot.netClientPosition, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true }
+        { label: t('finance.netPosition') as string, term: 'netClientPosition' as const, value: capitalSnapshot.netClientPosition, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true }
     ].filter((item) => !item.hideWhenZero || Math.abs(item.value) > 0.005);
     const recentTxs = useMemo(() => {
         return [...treasuryTransactions]
@@ -280,7 +280,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
     }, [treasuryTransactions]);
 
     return (<div className="anim-page-in space-y-5">
-      <HeroKpiCard accent="sky" icon={<LandmarkIcon className="w-5 h-5"/>} primaryLabel={t('treasury.totalCapital') as string} primaryValue={capitalSnapshot.totalCapital} primaryCurrency="DZD" primarySemantic="plain" secondary={secondaryItems}/>
+      <HeroKpiCard accent="sky" icon={<LandmarkIcon className="w-5 h-5"/>} primaryLabel={t('treasury.totalCapital') as string} primaryTerm="totalCapital" primaryValue={capitalSnapshot.totalCapital} primaryCurrency="DZD" primarySemantic="plain" secondary={secondaryItems}/>
 
       {weeklyFlow.days.some((d) => d.cashIn > 0 || d.cashOut > 0) && (
         <Card>

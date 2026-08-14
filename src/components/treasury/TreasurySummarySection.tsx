@@ -7,6 +7,8 @@ import { WalletIcon } from '../icons/WalletIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { PlusIcon } from '../icons/PlusIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { FinancialTermLabel } from '../financial/FinancialTermLabel';
+import type { FinancialTermId } from '../../config/financialTerms';
 type TreasurySummarySectionProps = {
     caisseBalance: number;
     baridiBalance: number;
@@ -23,10 +25,11 @@ type AccountRowProps = {
     value: number;
     onEdit?: () => void;
     semantic?: 'profit' | 'loss' | 'auto' | 'plain';
+    term?: FinancialTermId;
 };
-function AccountRow({ label, value, onEdit, semantic = 'plain' }: AccountRowProps) {
+function AccountRow({ label, value, onEdit, semantic = 'plain', term }: AccountRowProps) {
     return (<div className="flex items-center justify-between gap-3 px-4 py-3.5">
-      <span className="text-sm text-neutral-500">{label}</span>
+      <span className="text-sm text-neutral-500">{term ? <FinancialTermLabel term={term}/> : label}</span>
       <div className="flex items-center gap-2 shrink-0">
         <CurrencyAmount value={value} currency="DZD" semantic={semantic} size="lg" decimals={0}/>
         {onEdit && (<Button onClick={onEdit} aria-label={`Modifier ${label}`} variant="ghost" className="p-2 text-neutral-600">
@@ -50,7 +53,7 @@ export function TreasurySummarySection({ caisseBalance, baridiBalance, dettesAbs
         {shouldShowAmount(dettesAbs) && (<AccountRow label={t('finance.toReceive') as string} value={dettesAbs} semantic="profit"/>)}
         {shouldShowAmount(totalAvances) && (<AccountRow label={t('finance.clientAdvance') as string} value={totalAvances} semantic="loss"/>)}
         {shouldShowAmount(servicesCapitalImpact) && (<AccountRow label={t('nav.services') as string} value={servicesCapitalImpact} semantic="auto"/>)}
-        {shouldShowAmount(investorLiability) && (<AccountRow label={t('finance.investorLiability') as string} value={investorLiability} semantic="loss"/>)}
+        {shouldShowAmount(investorLiability) && (<AccountRow label={t('finance.investorLiability') as string} term="investorLiability" value={investorLiability} semantic="loss"/>)}
         {openDeliveryExpenseModal && (<div className="p-4">
             <Button onClick={openDeliveryExpenseModal} variant="outline" className="flex w-full items-center justify-center gap-2 py-3 text-sm font-bold">
               <PlusIcon className="w-4 h-4"/>

@@ -22,7 +22,7 @@ function MainHeaderBarComponent({ view, setView, globalSearchTitle, setIsMobileM
         ? <MoonIcon className="h-5 w-5 transition-transform duration-300 hover:rotate-12"/>
         : <SunIcon className="h-5 w-5 text-warning transition-transform duration-500 hover:rotate-90"/>;
     const languageDropdown = (buttonClassName: string) => (
-        <Dropdown contentClassName="w-36" trigger={(<button type="button" className={buttonClassName} aria-label="Changer la langue" title="Changer la langue">
+        <Dropdown contentClassName="w-36" trigger={(<button type="button" className={buttonClassName} aria-label={t('common.changeLanguage') as string} title={t('common.changeLanguage') as string}>
             {languageLabels[lang]}
         </button>)}>
             {(['fr', 'ar'] as Lang[]).map((item) => (<DropdownItem key={item} onClick={() => setLang(item)} isActive={lang === item} icon={<span className={`flex h-6 w-8 items-center justify-center rounded-md text-[11px] font-black ${lang === item ? 'bg-primary text-white' : 'bg-neutral-100 text-neutral-700'}`}>{languageLabels[item]}</span>}>
@@ -41,8 +41,8 @@ function MainHeaderBarComponent({ view, setView, globalSearchTitle, setIsMobileM
                 </h1>
 
                 <div className="flex shrink-0 items-center justify-end gap-1">
-                    <Button onClick={toggleTheme} type="button" variant="icon" size="icon" className="rounded-full" title={themeLabel as string} aria-label={themeLabel as string}>
-                        {themeIcon}
+                    <Button onClick={handleOpenGlobalSearch} type="button" variant="icon" size="icon" className="rounded-full" title={`${globalSearchTitle} (Ctrl+K)`} aria-label={globalSearchTitle}>
+                        <MagnifyingGlassIcon className="h-5 w-5"/>
                     </Button>
                     {languageDropdown('flex h-icon-button w-icon-button shrink-0 items-center justify-center rounded-full text-xs font-black uppercase text-neutral-600 transition-all duration-200 hover:bg-neutral-100 active:scale-95')}
                 </div>
@@ -55,7 +55,7 @@ function MainHeaderBarComponent({ view, setView, globalSearchTitle, setIsMobileM
                     </h1>
                 </div>
 
-                <AppDesktopNav view={view} onSelect={setView} labels={labels}/>
+                <AppDesktopNav view={view} onSelect={setView} labels={labels} onOpenSettings={onOpenSettings}/>
 
                 <div className="flex items-center gap-1.5">
                     <button onClick={handleOpenGlobalSearch} type="button" className="flex h-icon-button w-icon-button shrink-0 cursor-pointer items-center justify-center rounded-full text-neutral-600 transition-all duration-200 hover:bg-neutral-100 active:scale-95" title={`${globalSearchTitle} (Ctrl+K)`} aria-label={globalSearchTitle}>

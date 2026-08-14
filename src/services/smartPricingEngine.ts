@@ -667,7 +667,7 @@ export function buildPricingContext(input: PricingContextInput): PricingContext 
         goal,
         dailyMarketOverride,
         dailyClientOverrides,
-        negotiationMtd: computeNegotiationStats(input.transactions, monthStart, currency),
+        negotiationMtd: computeNegotiationStats(input.transactions, monthStart, currency, input.derivedProfits),
     };
 }
 
@@ -1093,6 +1093,7 @@ export function computeNegotiationStats(
     transactions: Tx[],
     sinceTimestamp: number,
     currency?: PricingCurrency,
+    derivedProfits?: DerivedProfitLookup,
 ): NegotiationStats {
     let trackedDeals = 0;
     let totalLoss = 0;
@@ -1108,7 +1109,7 @@ export function computeNegotiationStats(
         const qty = finite(tx.quantity);
         if (target <= 0 || sold <= 0 || qty <= 0) continue;
         trackedDeals++;
-        const actual = derivedProfitFor(tx);
+        const actual = derivedProfitFor(tx, derivedProfits);
         actualProfit += actual;
         const costPerUnit = ((sold * qty) - actual) / qty;
         plannedProfit += (target - costPerUnit) * qty;

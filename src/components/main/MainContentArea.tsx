@@ -5,10 +5,17 @@ import { ErrorBoundary } from '../ErrorBoundary';
 import type { ManualAsset } from '../../types';
 type MainContentAreaProps = Record<string, any>;
 const getDateTimestamp = (value: Date | null | undefined) => value?.getTime?.() ?? null;
+const areNumberArraysEqual = (prev?: number[], next?: number[]) => {
+    if (prev === next) return true;
+    if (!prev || !next || prev.length !== next.length) return false;
+    return prev.every((value, index) => value === next[index]);
+};
 const areDailyOverviewsEqual = (prev: any, next: any) => (prev?.caisse === next?.caisse
     && prev?.baridi === next?.baridi
     && prev?.activeClients === next?.activeClients
     && prev?.todayProfit === next?.todayProfit
+    && prev?.todaySellCount === next?.todaySellCount
+    && prev?.weekToDateProfit === next?.weekToDateProfit
     && prev?.monthToDateProfit === next?.monthToDateProfit
     && prev?.yearToDateProfit === next?.yearToDateProfit
     && prev?.allTimeProfit === next?.allTimeProfit
@@ -19,7 +26,8 @@ const areDailyOverviewsEqual = (prev: any, next: any) => (prev?.caisse === next?
     && prev?.yearToDateUsdtSold === next?.yearToDateUsdtSold
     && prev?.yearToDateEurSold === next?.yearToDateEurSold
     && prev?.allTimeUsdtSold === next?.allTimeUsdtSold
-    && prev?.allTimeEurSold === next?.allTimeEurSold);
+    && prev?.allTimeEurSold === next?.allTimeEurSold
+    && areNumberArraysEqual(prev?.last7DaysProfit, next?.last7DaysProfit));
 const arePortfolioPagePropsEqual = (prev: any, next: any) => (prev?.statsView === next?.statsView
     && true
     && prev?.portfolioStats === next?.portfolioStats
@@ -51,6 +59,7 @@ const areDashboardPagePropsEqual = (prev: any, next: any) => (prev?.portfolioSta
     && prev?.totals === next?.totals
     && prev?.treasuryCards === next?.treasuryCards
     && prev?.investorLiability === next?.investorLiability
+    && prev?.investorBreakdown === next?.investorBreakdown
     && prev?.capitalSnapshot === next?.capitalSnapshot
     && prev?.servicesSummary === next?.servicesSummary
     && prev?.globalNetProfit === next?.globalNetProfit
@@ -61,6 +70,12 @@ const areDashboardPagePropsEqual = (prev: any, next: any) => (prev?.portfolioSta
     && prev?.investors === next?.investors
     && prev?.treasuryTransactions === next?.treasuryTransactions
     && prev?.isDataSyncing === next?.isDataSyncing
+    && prev?.monthlyGoal === next?.monthlyGoal
+    && prev?.quickSellPreview?.qty === next?.quickSellPreview?.qty
+    && prev?.quickSellPreview?.price === next?.quickSellPreview?.price
+    && prev?.quickSellPreview?.pam === next?.quickSellPreview?.pam
+    && Boolean(prev?.onQuickSell) === Boolean(next?.onQuickSell)
+    && Boolean(prev?.onOpenMonthPlan) === Boolean(next?.onOpenMonthPlan)
     && areDailyOverviewsEqual(prev?.dailyOverview, next?.dailyOverview));
 const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainContentAreaProps) => {
     if (prev.alert !== next.alert
@@ -129,7 +144,7 @@ const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainCont
             return true;
     }
 };
-function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDocRef, setAlert, view, InsightsPage, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx, handleEditTreasuryTx, handleDeleteClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys, smartPricingCtx }: MainContentAreaProps) {
+function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDocRef, setAlert, view, InsightsPage, DashboardPage, dashboardPageProps, TransactionsPage, openQuickActions, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx, handleEditTreasuryTx, handleDeleteClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys, smartPricingCtx }: MainContentAreaProps) {
     const selectedInvestor = selectedInvestorId
         ? derivedInvestors.find((investor: any) => investor.id === selectedInvestorId) || null
         : null;
@@ -140,7 +155,7 @@ function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDoc
                     <ErrorBoundary key={`${view}-${selectedInvestorId || ''}-${selectedAssetId || ''}-${selectedAssetClientId || ''}`}>
                     {view === 'dashboard' && <DashboardPage {...dashboardPageProps}/>}
 
-                    {view === 'transactions' && <TransactionsPage openAdjustmentModal={openAdjustmentModal} openForm={openForm} filterMode={filterMode} setFilterMode={setFilterMode} transactions={transactions} getRelativeDateLabel={getRelativeDateLabel} clientTransactionsDzd={clientTransactionsDzd} clientsDzd={clientsDzd} getClientFullName={getClientFullName} setTxToDelete={setTxToDelete} openDateFilterModal={openDateFilterModal} dateRange={dateRange} setDateRange={setDateRange} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openDeliveryExpenseModal={openDeliveryExpenseModal} openPersonalWithdrawalModal={openPersonalWithdrawalModal} treasuryTransactions={treasuryTransactions} handleEditPortfolioTx={handleEditPortfolioTx} handleEditClientTx={handleEditClientTx} handleEditTreasuryTx={handleEditTreasuryTx} handleDeleteClientTxClick={handleDeleteClientTxClick} setTreasuryTxToDelete={setTreasuryTxToDelete}/>}
+                    {view === 'transactions' && <TransactionsPage onOpenQuickActions={openQuickActions} openAdjustmentModal={openAdjustmentModal} openForm={openForm} filterMode={filterMode} setFilterMode={setFilterMode} transactions={transactions} getRelativeDateLabel={getRelativeDateLabel} clientTransactionsDzd={clientTransactionsDzd} clientsDzd={clientsDzd} getClientFullName={getClientFullName} setTxToDelete={setTxToDelete} openDateFilterModal={openDateFilterModal} dateRange={dateRange} setDateRange={setDateRange} treasuryTransactions={treasuryTransactions} handleEditPortfolioTx={handleEditPortfolioTx} handleEditClientTx={handleEditClientTx} handleEditTreasuryTx={handleEditTreasuryTx} handleDeleteClientTxClick={handleDeleteClientTxClick} setTreasuryTxToDelete={setTreasuryTxToDelete}/>}
 
                     {view === 'statistiques' && <PortfolioPage {...portfolioPageProps}/>}
 

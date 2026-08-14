@@ -10,6 +10,7 @@ import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { DownloadCloudIcon } from '../icons/DownloadCloudIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { Investor } from '../../types';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 async function exportInvestorsPdf(investors: Investor[]) {
     const { buildInvestorListPdf, openPdfPrintWindow } = await import('../../utils/pdfReports');
@@ -35,22 +36,23 @@ type InvestorsListSectionProps = {
     onDeleteInvestor: (investor: Investor) => void;
 };
 export function InvestorsListSection({ investors, activeCount, onOpenInvestor, onEditInvestor, onDeleteInvestor }: InvestorsListSectionProps) {
+    const { t } = useLanguage();
     return (<Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 border-b border-border p-4">
         <SectionHeading icon={<UsersIcon className="w-4 h-4"/>}>
-          Liste des Investisseurs
+          {t('investors.list')}
         </SectionHeading>
         <div className="flex items-center gap-2 shrink-0">
-          <Badge variant="primary" size="sm">{activeCount} Actifs</Badge>
+          <Badge variant="primary" size="sm">{activeCount} {t('investors.active')}</Badge>
           {investors.length > 0 && (
-            <Button onClick={() => exportInvestorsPdf(investors)} variant="icon" size="icon" className="rounded-button bg-neutral-100 hover:bg-neutral-200" aria-label="Exporter PDF" title="Exporter en PDF">
+            <Button onClick={() => exportInvestorsPdf(investors)} variant="icon" size="icon" className="rounded-button bg-neutral-100 hover:bg-neutral-200" aria-label={t('investors.exportPdf') as string} title={t('investors.exportPdf') as string}>
               <DownloadCloudIcon className="w-4 h-4"/>
             </Button>
           )}
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        {investors.length === 0 ? (<EmptyState icon={<UsersIcon className="w-6 h-6"/>} title="Aucun investisseur enregistré" subtitle="Ajoutez un investisseur pour suivre son capital et ses bénéfices."/>) : (<div className="divide-y divide-neutral-100">
+        {investors.length === 0 ? (<EmptyState icon={<UsersIcon className="w-6 h-6"/>} title={t('investors.emptyTitle') as string} subtitle={t('investors.emptySubtitle') as string}/>) : (<div className="divide-y divide-neutral-100">
             {investors.map((investor) => {
                 const availableProfit = Number(investor.availableProfit || 0);
                 return (<React.Fragment key={investor.id}>
@@ -60,20 +62,22 @@ export function InvestorsListSection({ investors, activeCount, onOpenInvestor, o
                         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-lg font-bold text-secondary">
                           {investor.name.charAt(0).toUpperCase()}
                         </div>
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <h3 className="text-base font-semibold truncate">{investor.name}</h3>
-                          {investor.isManager && (<Badge variant="warning" size="sm">Gérant</Badge>)}
-                          {!investor.isActive && (<Badge variant="neutral" size="sm">Inactif</Badge>)}
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <h3 className="break-words text-base font-semibold">{investor.name}</h3>
+                          {investor.isManager && (<Badge variant="warning" size="sm">{t('investors.manager')}</Badge>)}
+                          {!investor.isActive && (<Badge variant="neutral" size="sm">{t('investors.inactive')}</Badge>)}
                         </div>
                       </div>
 
                       <div className="flex shrink-0 items-center gap-3 text-end">
                         <div>
+                          <div className="text-xs font-medium text-neutral-500">{t('financialTerms.investorCapital')}</div>
                           <CurrencyAmount value={investor.capitalInvested} currency="DZD" size="lg" decimals={0}/>
-                          <div className="mt-0.5">
+                          <div className="mt-1 text-xs font-medium text-neutral-500">{t('financialTerms.unwithdrawnProfit')}</div>
+                          <div>
                             <CurrencyAmount value={availableProfit} currency="DZD" semantic="auto" size="md" showSign decimals={0}/>
                           </div>
-                          {(investor as any).roi !== null && (investor as any).roi !== undefined && (<div className={`mt-0.5 text-[10px] font-bold tabular-nums ${(investor as any).roi > 0 ? 'text-financial-profit' : (investor as any).roi < 0 ? 'text-financial-loss' : 'text-neutral-400'}`} dir="ltr">
+                          {(investor as any).roi !== null && (investor as any).roi !== undefined && (<div className={`mt-0.5 text-xs font-bold tabular-nums ${(investor as any).roi > 0 ? 'text-financial-profit' : (investor as any).roi < 0 ? 'text-financial-loss' : 'text-neutral-400'}`} dir="ltr">
                             {(investor as any).roi > 0 ? '+' : ''}{((investor as any).roi as number).toFixed(1)}% ROI
                           </div>)}
                         </div>

@@ -14,6 +14,7 @@ import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import type { InvestorEconomicsResult } from '../hooks/useInvestorEconomics';
 import type { FirestoreDocumentReference } from '../firebase';
 import type { CapitalSnapshot, InvestorBreakdown } from '../utils/capitalSnapshot';
+import { useLanguage } from '../contexts/LanguageContext';
 interface InvestorsPageProps {
     investors: Investor[];
     capitalSnapshot?: CapitalSnapshot;
@@ -40,6 +41,7 @@ type InvestorsStats = {
     netDistributableProfit: number;
 };
 export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, setManagerFeePercentage, userDocRef, setAlert, treasuryStats }) => {
+    const { t } = useLanguage();
     const stats: InvestorsStats = useMemo(() => {
         const nonManagerInvestors = investors.filter((inv) => inv.isActive && !inv.isManager);
         const totalCapital = investorBreakdown?.capital ?? nonManagerInvestors.reduce((sum, inv) => sum + Math.max(0, Number(inv.capitalInvested || 0)), 0);
@@ -55,18 +57,18 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
     const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false);
     const [isDistributionOpen, setIsDistributionOpen] = useState(false);
     return (<div className="anim-page-in space-y-6">
-      <PageHeader title="Investisseurs" subtitle={`${stats.activeCount} actifs`} className="-mx-4 sm:mx-0 sm:rounded-card" actions={(<Button onClick={onAddInvestor} variant="primary" size="md" className="font-semibold">
+      <PageHeader title={t('investors.title') as string} subtitle={`${stats.activeCount} ${t('investors.active')}`} className="-mx-4 sm:mx-0 sm:rounded-card" actions={(<Button onClick={onAddInvestor} variant="primary" size="md" className="font-semibold">
             <PlusIcon className="h-4 w-4"/>
-            <span className="hidden sm:inline">Ajouter</span>
+            <span className="hidden sm:inline">{t('investors.add')}</span>
           </Button>)}/>
 
-      <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel="Capital investisseurs" primaryValue={stats.totalCapital} primaryCurrency="DZD" primarySemantic="plain" secondary={[
+      <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel={t('financialTerms.investorCapital') as string} primaryTerm="investorCapital" primaryValue={stats.totalCapital} primaryCurrency="DZD" primarySemantic="plain" secondary={[
             ...(capitalSnapshot ? [
-                { label: 'Capital Total projet', value: capitalSnapshot.totalCapital, currency: 'DZD' as const, semantic: 'plain' as const },
-                { label: 'Capital réel', value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const }
+                { label: t('financialTerms.totalCapital') as string, term: 'totalCapital' as const, value: capitalSnapshot.totalCapital, currency: 'DZD' as const, semantic: 'plain' as const },
+                { label: t('financialTerms.ownedCapital') as string, term: 'ownedCapital' as const, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const }
             ] : []),
-            { label: 'Profits non retirés', value: stats.totalAvailable, currency: 'DZD', semantic: 'auto' },
-            { label: 'Fee gérant', value: stats.managerFee, currency: 'DZD', semantic: 'auto' }
+            { label: t('financialTerms.unwithdrawnProfit') as string, term: 'unwithdrawnProfit' as const, value: stats.totalAvailable, currency: 'DZD' as const, semantic: 'auto' as const },
+            { label: t('investors.managerFee') as string, value: stats.managerFee, currency: 'DZD' as const, semantic: 'auto' as const }
         ]}/>
 
       {/* Distribution reminder when available profits are significant */}
@@ -76,9 +78,9 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
           className="flex w-full items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-start transition-colors hover:bg-primary/10 active:scale-[0.99]">
           <BanknotesIcon className="h-5 w-5 shrink-0 text-primary"/>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-primary">Distribuer les profits</p>
+            <p className="text-sm font-bold text-primary">{t('investors.distributeProfits')}</p>
             <p className="mt-0.5 text-xs text-primary/60">
-              Profit net disponible : <CurrencyAmount value={stats.netDistributableProfit} currency="DZD" semantic="plain" size="sm" decimals={0}/> — appuyez pour voir le plan
+              {t('investors.netProfitAvailable')}: <CurrencyAmount value={stats.netDistributableProfit} currency="DZD" semantic="plain" size="sm" decimals={0}/> · {t('investors.openDistributionPlan')}
             </p>
           </div>
           <svg className="w-5 h-5 shrink-0 text-primary/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">

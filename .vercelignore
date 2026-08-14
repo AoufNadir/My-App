@@ -1,0 +1,10 @@
+.git
+.firebase
+.kilo
+node_modules
+dist
+dist-verify
+logs
+releases
+*.log
+*.zip
