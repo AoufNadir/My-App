@@ -151,8 +151,10 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     };
     const openEditPersonalExpense = (tx: TreasuryTx) => {
         if (tx.advanceState === 'settled') {
+            const advanceAmount = Number(tx.amount || 0);
+            const returnedAmount = Math.max(0, advanceAmount - Number(tx.settledAmount || 0));
             setReconcileAdvanceTx(tx);
-            setReconcileActualAmount(String(Number(tx.settledAmount || 0)));
+            setReconcileActualAmount(String(returnedAmount));
             setIsReconcileAdvanceModalOpen(true);
             return;
         }
@@ -280,10 +282,10 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         const reconciliation = evaluatePersonalAdvanceReconciliation(reconcileActualAmount, advanceAmount);
         if (!reconciliation.isValid) {
             if (reconciliation.error === 'exceeds') {
-                setAlert(`⚠️ Le montant dépensé ne peut pas dépasser l'avance (${advanceAmount}).`);
+                setAlert(`⚠️ Le montant retourné ne peut pas dépasser l'avance (${advanceAmount}).`);
             }
             else if (reconciliation.error === 'negative') {
-                setAlert('⚠️ Le montant dépensé doit être positif ou zéro.');
+                setAlert('⚠️ Le montant retourné doit être positif ou zéro.');
             }
             else {
                 setAlert('⚠️ Montant invalide.');

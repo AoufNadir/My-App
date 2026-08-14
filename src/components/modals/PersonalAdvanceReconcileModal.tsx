@@ -39,7 +39,7 @@ export function PersonalAdvanceReconcileModal({
     const returnAmount = reconciliation.returnAmount;
     const hasError = !reconciliation.isValid;
     const errorTitle = reconciliation.error === 'exceeds'
-        ? "Ne peut pas depasser l'avance prise"
+        ? "Le retour ne peut pas depasser l'avance prise"
         : reconciliation.error === 'invalid'
             ? 'Montant invalide'
             : reconciliation.error === 'negative'
@@ -47,7 +47,7 @@ export function PersonalAdvanceReconcileModal({
                 : undefined;
     const errorMessage = reconciliation.error === 'exceeds' ? (
         <span className="inline-flex flex-wrap items-center gap-1">
-            Ne peut pas depasser l'avance prise
+            Le retour ne peut pas depasser l'avance prise
             <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="sm" decimals={0}/>
         </span>
     ) : errorTitle;
@@ -57,7 +57,7 @@ export function PersonalAdvanceReconcileModal({
         <Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
             <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
                 <ModalTitle className="text-base sm:text-lg">Regulariser l'avance</ModalTitle>
-                <p className="mt-0.5 text-sm font-normal text-neutral-500">Le reste retourne a {returnSource}</p>
+                <p className="mt-0.5 text-sm font-normal text-neutral-500">Indique ce qui revient a {returnSource}</p>
             </ModalHeader>
 
             <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
@@ -74,7 +74,7 @@ export function PersonalAdvanceReconcileModal({
                 </Card>
 
                 <MoneyField
-                    label="Montant depense"
+                    label="Montant retourne"
                     value={actualAmount}
                     onChange={setActualAmount}
                     currency="DZD"
@@ -90,10 +90,10 @@ export function PersonalAdvanceReconcileModal({
                 />
 
                 <div className="grid grid-cols-2 gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => setActualAmount('0')}>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setActualAmount(String(advanceAmount))}>
                         Tout retourner
                     </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={() => setActualAmount(String(advanceAmount))}>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setActualAmount('0')}>
                         Tout depense
                     </Button>
                 </div>
@@ -124,7 +124,7 @@ export function PersonalAdvanceReconcileModal({
                 <div className="flex items-start gap-2 rounded-lg bg-info-bg p-3 text-xs text-info">
                     <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" />
                     <p>
-                        Si tu as depense moins que l'avance, le reste sera retourne automatiquement a {returnSource} et ton profit sera ajuste.
+                        Saisis le montant que tu as remis dans {returnSource}. Le reste sera considere comme depense personnelle et ton profit sera ajuste.
                     </p>
                 </div>
             </ModalContent>

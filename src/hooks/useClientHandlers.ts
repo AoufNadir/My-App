@@ -329,6 +329,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     const [clientTxSource, setClientTxSource] = useState('Caisse');
     const [clientPaymentStatus, setClientPaymentStatus] = useState<'credit' | 'cash' | 'baridi'>('cash');
     const [linkedClientId, setLinkedClientId] = useState('none');
+    const [clientTxReceiverClientId, setClientTxReceiverClientId] = useState('none');
     // USDT/EUR related fields for client tx modal
     const [clientTxUsdtAmount, setClientTxUsdtAmount] = useState('');
     const [clientTxSellPrice, setClientTxSellPrice] = useState('');
@@ -352,6 +353,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientTxSellPrice('');
             setClientTxEurAmount('');
             setClientTxEurPrice('');
+            setClientTxReceiverClientId('none');
         }
         else {
             setClientTxAmount('');
@@ -360,6 +362,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientTxSource('Caisse');
             setClientPaymentStatus('cash');
             setLinkedClientId(selectedClientId || 'none');
+            setClientTxReceiverClientId('none');
             setClientTxUsdtAmount('');
             setClientTxSellPrice('');
             setClientTxEurAmount('');
@@ -391,9 +394,16 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             const normalizedClientTxType = normalizeClientTxType(clientTxType);
             const isPaymentReceived = normalizedClientTxType === CLIENT_TX_PAYMENT_RECEIVED;
             const isClientSettlementTx = normalizedClientTxType === CLIENT_TX_PAYMENT_RECEIVED || normalizedClientTxType === CLIENT_TX_PAYMENT_MADE;
+            const receiverClientId = !editingClientTx && isPaymentReceived && clientTxReceiverClientId !== 'none'
+                ? clientTxReceiverClientId
+                : 'none';
             const effectiveClientPaymentStatus = isClientSettlementTx && clientPaymentStatus === 'credit' ? 'cash' : clientPaymentStatus;
             if ((normalizedClientTxType === CLIENT_TX_PAYMENT_RECEIVED || normalizedClientTxType === CLIENT_TX_PAYMENT_MADE) && amount <= 0) {
                 setAlert('⚠️ Entrez un montant positif.');
+                return;
+            }
+            if (receiverClientId !== 'none' && receiverClientId === targetClientId) {
+                setAlert('⚠️ Le client qui reçoit doit être différent.');
                 return;
             }
             const montant = isPaymentReceived ? amount : -amount;
@@ -450,26 +460,57 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 setAlert('✅ Transaction mise à jour.');
             }
             else {
-                const clientTxRef = userDocRef.collection('dzd_client_txs').doc();
-                const clientTxPayload: any = {
-                    clientId: targetClientId, timestamp, date, time,
-                    montant, type: normalizedClientTxType, notes: clientTxNotes.trim(),
-                    paymentMethod
-                };
-                if (effectiveClientPaymentStatus !== 'credit') {
-                    const treasuryRef = userDocRef.collection('treasury_txs').doc();
-                    clientTxPayload.linkedTxId = treasuryRef.id;
-                    batch.set(treasuryRef, {
-                        timestamp, date, time, type: treasuryTxType, source: walletSource,
-                        amount, notes: `Client: ${targetClientName} - ${clientTxNotes.trim()}`, linkedTxId: clientTxRef.id, origin: 'client_tx'
+                if (receiverClientId !== 'none') {
+                    const receiverClientName = clientsDzd.find((client) => client.id === receiverClientId)?.fullName || 'Client';
+                    const outgoingTransferRef = userDocRef.collection('dzd_client_txs').doc();
+                    const incomingTransferRef = userDocRef.collection('dzd_client_txs').doc();
+                    const note = clientTxNotes.trim();
+                    batch.set(outgoingTransferRef, {
+                        clientId: targetClientId,
+                        timestamp,
+                        date,
+                        time,
+                        montant: amount,
+                        type: 'Transfert Sortant',
+                        notes: note || `Reçu par ${receiverClientName}`,
+                        paymentMethod: 'Crédit'
                     });
+                    batch.set(incomingTransferRef, {
+                        clientId: receiverClientId,
+                        timestamp: timestamp + 1,
+                        date,
+                        time,
+                        montant: -amount,
+                        type: 'Transfert Entrant',
+                        notes: note || `Reçu de ${targetClientName}`,
+                        paymentMethod: 'Crédit',
+                        linkedTxId: outgoingTransferRef.id
+                    });
+                    setAlert('✅ Dette transférée au client qui a reçu.');
                 }
-                batch.set(clientTxRef, clientTxPayload);
-                setAlert('✅ Transaction ajoutée.');
+                else {
+                    const clientTxRef = userDocRef.collection('dzd_client_txs').doc();
+                    const clientTxPayload: any = {
+                        clientId: targetClientId, timestamp, date, time,
+                        montant, type: normalizedClientTxType, notes: clientTxNotes.trim(),
+                        paymentMethod
+                    };
+                    if (effectiveClientPaymentStatus !== 'credit') {
+                        const treasuryRef = userDocRef.collection('treasury_txs').doc();
+                        clientTxPayload.linkedTxId = treasuryRef.id;
+                        batch.set(treasuryRef, {
+                            timestamp, date, time, type: treasuryTxType, source: walletSource,
+                            amount, notes: `Client: ${targetClientName} - ${clientTxNotes.trim()}`, linkedTxId: clientTxRef.id, origin: 'client_tx'
+                        });
+                    }
+                    batch.set(clientTxRef, clientTxPayload);
+                    setAlert('✅ Transaction ajoutée.');
+                }
             }
             await batch.commit();
             setIsClientTxModalOpen(false);
             setEditingClientTx(null);
+            setClientTxReceiverClientId('none');
             return true;
         }
         catch (e) {
@@ -531,7 +572,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount,
         clientTxType, setClientTxType, clientTxNotes, setClientTxNotes,
         clientTxSource, setClientTxSource, clientPaymentStatus, setClientPaymentStatus,
-        linkedClientId, setLinkedClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx,
+        linkedClientId, setLinkedClientId, clientTxReceiverClientId, setClientTxReceiverClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx,
         clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice,
         clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice
     };

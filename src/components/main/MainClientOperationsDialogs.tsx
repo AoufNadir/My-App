@@ -76,7 +76,7 @@ const formatDisplayMetric = (value: number, digits = 2) => new Intl.NumberFormat
     minimumFractionDigits: 0,
     maximumFractionDigits: digits
 }).format(Number.isFinite(value) ? value : 0);
-function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, t, clientTxType, setClientTxType, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, clientTxAmount, setClientTxAmount, clientTxNotes, setClientTxNotes, clientTxPaymentStatus = 'cash', setClientTxPaymentStatus, clientTxLinkedClientId, handleSaveClientTx, selectedClientId, isAdjustmentModalOpen, setIsAdjustmentModalOpen, editingTreasuryTx, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentClientId, clientBalances, portfolioStats, treasuryStats, clientsDzd, getClientFullName, setAdjustmentClientId, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, treasuryCards, handleGlobalAdjustment, isSaving }: MainClientOperationsDialogsProps) {
+function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, t, clientTxType, setClientTxType, fieldBase, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, clientTxAmount, setClientTxAmount, clientTxNotes, setClientTxNotes, clientTxPaymentStatus = 'cash', setClientTxPaymentStatus, clientTxLinkedClientId, clientTxReceiverClientId = 'none', setClientTxReceiverClientId, handleSaveClientTx, selectedClientId, isAdjustmentModalOpen, setIsAdjustmentModalOpen, editingTreasuryTx, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentClientId, clientBalances, portfolioStats, treasuryStats, clientsDzd, getClientFullName, setAdjustmentClientId, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, treasuryCards, handleGlobalAdjustment, isSaving }: MainClientOperationsDialogsProps) {
     const lastAutoPriceRef = useRef('');
     const normalizedClientTxType = normalizeLedgerLabel(clientTxType || '');
     const isClientSettlementTx = normalizedClientTxType === 'Règlement Reçu' || normalizedClientTxType === 'Paiement Effectué';
@@ -89,6 +89,12 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     const clientTxTargetClientId = clientTxLinkedClientId && clientTxLinkedClientId !== 'none'
         ? clientTxLinkedClientId
         : selectedClientId;
+    const receiverClientOptions = useMemo(() => (clientsDzd || [])
+        .filter((client: any) => client.id !== clientTxTargetClientId)
+        .map((client: any) => ({ value: client.id, label: getClientFullName(client) })), [clientsDzd, clientTxTargetClientId, getClientFullName]);
+    const receiverClient = (clientsDzd || []).find((client: any) => client.id === clientTxReceiverClientId) || null;
+    const hasReceiverClient = !editingClientTx && isClientPaymentReceived && clientTxReceiverClientId !== 'none' && Boolean(receiverClient);
+    const receiverClientName = receiverClient ? getClientFullName(receiverClient) : '';
     const clientTxMaxAmount = Math.abs(Number(clientBalances?.get?.(clientTxTargetClientId) || 0));
     const clientTxMaxDisabled = !isClientSettlementTx || clientTxMaxAmount <= 0.005;
     const clientSettlementWalletBalance = clientSettlementWalletLabel === 'Caisse'
@@ -113,6 +119,17 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
             setClientTxPaymentStatus?.('cash');
         }
     }, [isClientTxModalOpen, isClientSettlementTx, clientTxPaymentStatus, setClientTxPaymentStatus]);
+    useEffect(() => {
+        if (!isClientTxModalOpen || !setClientTxReceiverClientId)
+            return;
+        if (!isClientPaymentReceived && clientTxReceiverClientId !== 'none') {
+            setClientTxReceiverClientId('none');
+            return;
+        }
+        if (clientTxReceiverClientId !== 'none' && clientTxReceiverClientId === clientTxTargetClientId) {
+            setClientTxReceiverClientId('none');
+        }
+    }, [isClientTxModalOpen, isClientPaymentReceived, clientTxReceiverClientId, clientTxTargetClientId, setClientTxReceiverClientId]);
     useEffect(() => {
         if (!isAdjustmentModalOpen || editingTreasuryTx)
             return;
@@ -249,6 +266,27 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                             </p>
                         </div>)}
 
+                    {!editingClientTx && isClientPaymentReceived && (<div>
+                            <Label>Reçu par (optionnel)</Label>
+                            <SearchableSelect
+                                value={clientTxReceiverClientId}
+                                onChange={(value) => setClientTxReceiverClientId?.(value)}
+                                options={receiverClientOptions}
+                                fieldClassName={fieldBase}
+                                searchPlaceholder="Chercher le client qui a reçu..."
+                                emptyOptionLabel="Moi / portefeuille"
+                                emptyValue="none"
+                                noResultsLabel="Aucun autre client trouvé"
+                                clearable
+                                clearLabel="Moi / portefeuille"
+                            />
+                            <p className="mt-1 text-xs text-neutral-500">
+                                {hasReceiverClient
+                                    ? `Aucun ajout dans ${clientSettlementWalletLabel}. La dette sera transférée à ${receiverClientName}.`
+                                    : `Laisse vide si tu as reçu l'argent toi-même dans ${clientSettlementWalletLabel}.`}
+                            </p>
+                        </div>)}
+
                     {normalizedClientTxType === 'Vente USDT' ? (<div className="space-y-4">
                             <div>
                                 <Label>{t('portfolio.qtyUsdt')}</Label>
@@ -323,7 +361,15 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     rows = [
                         { label: t('transactions.clientBalanceImpact'), value: Math.abs(amt), currency: 'DZD', semantic: isReceived ? 'profit' : 'loss', emphasize: true }
                     ];
-                    if (isClientSettlementTx) {
+                    if (isClientSettlementTx && isReceived && hasReceiverClient) {
+                        rows.push({
+                            label: `Dette transférée à ${receiverClientName}`,
+                            value: Math.abs(amt),
+                            currency: 'DZD',
+                            semantic: 'loss'
+                        });
+                    }
+                    else if (isClientSettlementTx) {
                         rows.push({
                             label: `${t('transactions.treasuryMovement')} (${clientSettlementWalletLabel})`,
                             value: Math.abs(amt),
@@ -471,7 +517,9 @@ const areMainClientOperationsDialogsPropsEqual = (prev: MainClientOperationsDial
             && prev.clientTxNotes === next.clientTxNotes
             && prev.clientTxPaymentStatus === next.clientTxPaymentStatus
             && prev.clientTxLinkedClientId === next.clientTxLinkedClientId
+            && prev.clientTxReceiverClientId === next.clientTxReceiverClientId
             && prev.selectedClientId === next.selectedClientId
+            && prev.clientsDzd === next.clientsDzd
             && prev.clientBalances === next.clientBalances
             && prev.treasuryStats === next.treasuryStats;
         if (!sameClientTxDialog)

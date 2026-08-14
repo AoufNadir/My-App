@@ -8,26 +8,26 @@ export type PersonalAdvanceReconcileResult = {
     returnAmount: number;
 };
 const EPSILON = 0.005;
-export function evaluatePersonalAdvanceReconciliation(actualAmountInput: string, advanceAmountInput: number): PersonalAdvanceReconcileResult {
+export function evaluatePersonalAdvanceReconciliation(returnedAmountInput: string, advanceAmountInput: number): PersonalAdvanceReconcileResult {
     const advanceAmount = Math.max(0, roundM(Number(advanceAmountInput) || 0));
-    const hasInput = actualAmountInput.trim().length > 0;
+    const hasInput = returnedAmountInput.trim().length > 0;
     if (!hasInput) {
         return { isValid: false, error: 'empty', actualSpent: 0, returnAmount: 0 };
     }
-    const parsedActual = parseAndEvaluate(actualAmountInput);
-    if (!Number.isFinite(parsedActual)) {
+    const parsedReturned = parseAndEvaluate(returnedAmountInput);
+    if (!Number.isFinite(parsedReturned)) {
         return { isValid: false, error: 'invalid', actualSpent: 0, returnAmount: 0 };
     }
-    if (parsedActual < -EPSILON) {
+    if (parsedReturned < -EPSILON) {
         return { isValid: false, error: 'negative', actualSpent: 0, returnAmount: 0 };
     }
-    const actualSpent = Math.max(0, roundM(parsedActual));
-    if (actualSpent > advanceAmount + EPSILON) {
-        return { isValid: false, error: 'exceeds', actualSpent, returnAmount: 0 };
+    const returnAmount = Math.max(0, roundM(parsedReturned));
+    if (returnAmount > advanceAmount + EPSILON) {
+        return { isValid: false, error: 'exceeds', actualSpent: 0, returnAmount };
     }
     return {
         isValid: true,
-        actualSpent,
-        returnAmount: roundM(Math.max(0, advanceAmount - actualSpent)),
+        actualSpent: roundM(Math.max(0, advanceAmount - returnAmount)),
+        returnAmount,
     };
 }
