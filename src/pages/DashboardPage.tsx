@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { CurrencyAmount, type AmountSemantic } from '../components/financial/CurrencyAmount';
 import { HeroKpiCard } from '../components/ui/HeroKpiCard';
-import { Skeleton } from '../components/ui/Skeleton';
 import { AlertTriangleIcon } from '../components/icons/AlertTriangleIcon';
 import { BanknotesIcon } from '../components/icons/BanknotesIcon';
 import { ArrowRightLeftIcon } from '../components/icons/ArrowRightLeftIcon';
@@ -359,34 +358,20 @@ function PortfolioStatusCard({ title, stockLabel, valueLabel, portfolioStats, st
       </CardContent>
     </Card>);
 }
-function DashboardSyncState({ title, body, actions, }: {
+function DashboardSyncHint({ title, body }: {
     title: string;
     body: string;
-    actions: Array<{
-        label: string;
-        icon: ReactNode;
-        onClick: () => void;
-        primary?: boolean;
-    }>;
 }) {
-    return (<div className="anim-page-in space-y-5">
-      <Card>
-        <CardContent className="p-5">
-          <div className="flex items-start gap-3">
-            <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <ArrowRightLeftIcon className="h-5 w-5"/>
-            </span>
-            <div className="min-w-0">
-              <p className="text-base font-semibold text-neutral-900">{title}</p>
-              <p className="mt-1 text-sm leading-snug text-neutral-500">{body}</p>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-2">
-            {[0, 1, 2].map((item) => (<Skeleton key={item} height={40} className="rounded-lg"/>))}
-          </div>
-        </CardContent>
-      </Card>
-      <ActionStrip actions={actions}/>
+    return (<div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-primary">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+          <ArrowRightLeftIcon className="h-4 w-4"/>
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-bold">{title}</p>
+          <p className="mt-0.5 text-xs leading-snug text-neutral-500">{body}</p>
+        </div>
+      </div>
     </div>);
 }
 export function DashboardPage({
@@ -600,10 +585,9 @@ export function DashboardPage({
         { label: t('nav.treasury') as string, icon: <ArrowRightLeftIcon className="h-4 w-4"/>, onClick: onOpenTreasury },
         { label: t('nav.analytics') as string, icon: <TrendingUpIcon className="h-4 w-4"/>, onClick: onOpenAnalytics }
     ];
-    if (isDataSyncing) {
-        return (<DashboardSyncState title={t('dashboard.syncingTitle') as string} body={t('dashboard.syncingBody') as string} actions={primaryActions}/>);
-    }
     return (<div className="anim-page-in space-y-5">
+      {isDataSyncing && (<DashboardSyncHint title={t('dashboard.syncingTitle') as string} body={t('dashboard.syncingBody') as string}/>)}
+
       <HeroKpiCard accent="sky" icon={<LandmarkIcon className="w-5 h-5"/>} primaryLabel={t('dashboard.capitalTotal') as string} primaryValue={financialHealth} primaryCurrency="DZD" primarySemantic="plain" secondary={capitalSecondaryItems}/>
 
       <ActionStrip actions={primaryActions}/>

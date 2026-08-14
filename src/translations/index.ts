@@ -159,8 +159,8 @@ export const translations = {
             criticalDebtBody: '{client} doit {amount} depuis {days} jours.',
             overdueDebtCardBody: '{amount} en retard depuis {days} jours · depuis {date}',
             debtPriorityCardBody: 'Dette: {amount} · plus ancienne depuis {days} jours · {date}',
-            syncingTitle: 'Mise à jour des chiffres',
-            syncingBody: 'Les données locales sont chargées, mais le tableau attend la confirmation du serveur pour éviter d’afficher d’anciens soldes.',
+            syncingTitle: 'Synchronisation en cours',
+            syncingBody: 'Les chiffres sont affichés immédiatement. Une vérification serveur est en cours en arrière-plan.',
         },
         transactions: {
             history: 'Journal des Opérations',
@@ -875,8 +875,8 @@ export const translations = {
             criticalDebtBody: '{client} عليه {amount} منذ {days} يوم.',
             overdueDebtCardBody: '{amount} متأخر منذ {days} يوم · منذ {date}',
             debtPriorityCardBody: 'الدين: {amount} · أقدم مبلغ منذ {days} يوم · {date}',
-            syncingTitle: 'تحديث الأرقام',
-            syncingBody: 'تم العثور على نسخة محلية، لكن الصفحة تنتظر تأكيد السيرفر حتى لا تعرض أرصدة قديمة.',
+            syncingTitle: 'تتم مزامنة البيانات',
+            syncingBody: 'الأرقام تظهر مباشرة الآن، والتحقق من السيرفر يعمل في الخلفية.',
         },
         transactions: {
             history: 'سجل العمليات',

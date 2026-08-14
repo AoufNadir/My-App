@@ -19,7 +19,6 @@ import { RotateCcwIcon } from './components/icons/RotateCcwIcon';
 import { AppMobileMenuNav, AppBottomNav } from './components/main/AppNavigation';
 import { MainHeaderBar } from './components/main/MainHeaderBar';
 import { MainContentArea } from './components/main/MainContentArea';
-import { MainAppDialogs } from './components/main/MainAppDialogs';
 import type { TransactionFilterMode } from './components/transactions/transactionsTypes';
 import { OfflineBanner } from './components/ui/OfflineBanner';
 import { MonthlyRecapBanner } from './components/ui/MonthlyRecapBanner';
@@ -62,6 +61,8 @@ const InvestorDashboardPage = React.lazy(() => import('./pages/InvestorDashboard
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const OrdersAdminPage = React.lazy(() => import('./pages/OrdersAdminPage').then((module) => ({ default: module.OrdersAdminPage })));
 const GlobalSearchDialog = React.lazy(() => import('./components/main/MainDialogs').then((module) => ({ default: module.GlobalSearchDialog })));
+const MainAppDialogs = React.lazy(() => import('./components/main/MainAppDialogs').then((module) => ({ default: module.MainAppDialogs })));
+const MonthPlanSheet = React.lazy(() => import('./components/calculator/MonthPlanSheet').then((module) => ({ default: module.MonthPlanSheet })));
 const loadPdfReports = () => import('./utils/pdfReports');
 const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
     derivedInvestors: [],
@@ -77,7 +78,6 @@ const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
 };
 type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
 import { reorderClientName, nameMatchesQuery } from './utils/nameUtils';
-import { MonthPlanSheet } from './components/calculator/MonthPlanSheet';
 import { buildPricingContext, quoteSale, type SmartSaleSnapshot } from './services/smartPricingEngine';
 
 function getClientDisplayName(client: ClientDzd) {
@@ -2122,6 +2122,17 @@ export default function MainApp({ user }: {
     const isUtilityDialogsOpen = isSettingsModalOpen || isResetModalOpen || isCreateAssetModalOpen || isTreasuryCardModalOpen || treasuryCardToDelete !== null || treasuryTxToDelete !== null;
     const isClientSummaryOpen = summaryClient !== null;
     const isInvestorDialogsOpen = isInvestorModalOpen || investorToDelete !== null || isInvestorTxModalOpen || investorTxToDelete !== null || isReinvestModalOpen;
+    const hasOpenMainAppDialog = isWalletTransferModalOpen
+        || isClientOperationsOpen
+        || isTransferAndFilterDialogsOpen
+        || isTransactionDialogOpen
+        || isClientCrudDialogsOpen
+        || isUtilityDialogsOpen
+        || isClientSummaryOpen
+        || isInvestorDialogsOpen
+        || isDeliveryExpenseModalOpen
+        || isPersonalWithdrawalModalOpen
+        || isReconcileAdvanceModalOpen;
     // Wire Android/browser system back button. Highest-priority handler first;
     // falls through to changing the active tab toward `transactions` (root).
     useBackHandler([
@@ -2281,22 +2292,27 @@ export default function MainApp({ user }: {
                         <GlobalSearchDialog {...{ isOpen: isGlobalSearchOpen, onClose: closeGlobalSearch, fieldBase, query: globalSearchQuery, setQuery: setGlobalSearchQuery, results: globalSearchResults, onSelectResult: handleSelectGlobalSearchResult, title: t('common.globalSearch'), placeholder: t('common.searchPlaceholder'), noResultsText: t('common.noResults'), clientsText: t('nav.clients'), transactionsText: t('nav.transactions') }}/>
                     </Suspense>)}
 
-                <MonthPlanSheet
-                    isOpen={isMonthPlanOpen}
-                    onClose={() => setIsMonthPlanOpen(false)}
-                    context={smartPricingCtx}
-                    suggestedGoal={Math.round(salesHistory90.avgMonthlyProfit)}
-                    clients={monthPlanClients}
-                    syncState={pricingPlanSync.syncState}
-                    onSavePlan={pricingPlanSync.savePlan}
-                    onSavePolicy={pricingPlanSync.savePolicy}
-                    onSaveDailyMarketOverride={pricingPlanSync.saveDailyMarketOverride}
-                    onSaveDailyClientOverride={pricingPlanSync.saveDailyClientOverride}
-                    onClearOverride={pricingPlanSync.clearOverride}
-                    onUseInSale={openSmartSale}
-                />
+                {isMonthPlanOpen && (
+                    <Suspense fallback={null}>
+                        <MonthPlanSheet
+                            isOpen={isMonthPlanOpen}
+                            onClose={() => setIsMonthPlanOpen(false)}
+                            context={smartPricingCtx}
+                            suggestedGoal={Math.round(salesHistory90.avgMonthlyProfit)}
+                            clients={monthPlanClients}
+                            syncState={pricingPlanSync.syncState}
+                            onSavePlan={pricingPlanSync.savePlan}
+                            onSavePolicy={pricingPlanSync.savePolicy}
+                            onSaveDailyMarketOverride={pricingPlanSync.saveDailyMarketOverride}
+                            onSaveDailyClientOverride={pricingPlanSync.saveDailyClientOverride}
+                            onClearOverride={pricingPlanSync.clearOverride}
+                            onUseInSale={openSmartSale}
+                        />
+                    </Suspense>
+                )}
             </div>
 
+            {hasOpenMainAppDialog && (<Suspense fallback={null}>
             <MainAppDialogs {...{
         isWalletTransferModalOpen, walletTransferDialogProps,
         isClientOperationsOpen,
@@ -2456,6 +2472,7 @@ export default function MainApp({ user }: {
         reinvestInput, setReinvestInput,
         handleReinvestProfit,
     }}/>
+            </Suspense>)}
 
         </div>);
 }
