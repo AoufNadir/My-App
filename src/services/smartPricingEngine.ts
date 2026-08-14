@@ -1,7 +1,7 @@
 /**
  * Canonical, pure selling-price policy.
  *
- * Every surface (month plan, direct sale, Insights and portal publication)
+ * Every surface (month plan, direct sale and portal publication)
  * must build one PricingContext and call quoteSale. This module deliberately
  * performs no Firebase, localStorage or React work.
  */

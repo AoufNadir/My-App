@@ -12,7 +12,6 @@ const VALID_VIEWS = new Set([
     'dzd',
     'statistiques',
     'analytics',
-    'insights',
     'expenses',
     'tresorerie',
     'services',

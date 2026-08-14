@@ -86,11 +86,6 @@ const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainCont
         case 'statistiques':
         case 'analytics':
             return arePortfolioPagePropsEqual(prev.portfolioPageProps, next.portfolioPageProps);
-        case 'insights':
-            return prev.transactions === next.transactions
-                && prev.smartPricingCtx === next.smartPricingCtx
-                && prev.clientsDzd === next.clientsDzd
-                && prev.clientTransactionsDzd === next.clientTransactionsDzd;
         case 'expenses':
             return (prev.personalExpenses === next.personalExpenses
                 && prev.managerAvailableProfit === next.managerAvailableProfit
@@ -129,7 +124,7 @@ const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainCont
             return true;
     }
 };
-function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDocRef, setAlert, view, InsightsPage, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx, handleEditTreasuryTx, handleDeleteClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys, smartPricingCtx }: MainContentAreaProps) {
+function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDocRef, setAlert, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx, handleEditTreasuryTx, handleDeleteClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys }: MainContentAreaProps) {
     const selectedInvestor = selectedInvestorId
         ? derivedInvestors.find((investor: any) => investor.id === selectedInvestorId) || null
         : null;
@@ -145,15 +140,6 @@ function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDoc
                     {view === 'statistiques' && <PortfolioPage {...portfolioPageProps}/>}
 
                     {view === 'analytics' && <AnalyticsPage {...portfolioPageProps}/>}
-                    {view === 'insights' && InsightsPage && React.createElement(InsightsPage, {
-                        transactions,
-                        clientsDzd,
-                        clientTransactionsDzd,
-                        investors: derivedInvestors,
-                        portfolioStats,
-                        investorReconciliationDiff: investorEconomicsTotals?.reconciliationDifference,
-                        pricingContext: smartPricingCtx,
-                    })}
 
                     {view === 'expenses' && PersonalExpensesPage && (<PersonalExpensesPage personalExpenses={personalExpenses} managerAvailableProfit={managerAvailableProfit} managerExists={managerExists} onOpenReconcile={openReconcileAdvanceModal} onEditExpense={openEditPersonalExpense} onDeleteExpense={setPersonalExpenseToDelete} onExportReport={handleExportPersonalExpensesReport}/>)}
 
