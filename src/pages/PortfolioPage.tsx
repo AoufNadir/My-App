@@ -7,6 +7,7 @@ import { SectionHeading } from '../components/ui/SectionHeading';
 import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
 import { PencilIcon } from '../components/icons/PencilIcon';
+import { PamSimulatorCard } from '../components/portfolio/PamSimulatorCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Tx, ClientDzd, ClientTransactionDzd } from '../types';
 import { USDTStockCard } from './TresoreriePage';
@@ -109,6 +110,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
         portfolioStats,
         smartTargetUsdt = 0,
         smartTargetEur = 0,
+        parseAndEvaluate,
         openPortfolioBalanceEditModal,
         transactions,
     } = props;
@@ -177,6 +179,12 @@ export function PortfolioPage(props: PortfolioPageProps) {
                     />
                 </CardContent>
             </Card>
+
+            <PamSimulatorCard
+                portfolioStats={portfolioStats}
+                smartTargetUsdt={smartTargetUsdt}
+                parseAndEvaluate={parseAndEvaluate}
+            />
 
             <USDTStockCard transactions={transactions} portfolioStats={portfolioStats} />
         </div>
