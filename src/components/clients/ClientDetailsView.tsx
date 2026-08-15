@@ -617,6 +617,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             {dates.length > 0 ? (<div className="pb-2">
                 <TransactionDisplayList
                   dateGroups={visibleDisplayDateGroups}
+                  t={t}
                   getRelativeDateLabel={getRelativeFrDateLabel}
                   onEditDisplayTx={(displayTx) => handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
                   onDeleteDisplayTx={(displayTx) => handleDeleteClientTxClick((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}

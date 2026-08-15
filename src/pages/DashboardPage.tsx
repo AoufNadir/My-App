@@ -3,7 +3,7 @@ import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { CurrencyAmount, type AmountSemantic } from '../components/financial/CurrencyAmount';
-import { HeroKpiCard } from '../components/ui/HeroKpiCard';
+import { CapitalOverviewCard } from '../components/financial/CapitalOverviewCard';
 import { AlertTriangleIcon } from '../components/icons/AlertTriangleIcon';
 import { BanknotesIcon } from '../components/icons/BanknotesIcon';
 import { ArrowRightLeftIcon } from '../components/icons/ArrowRightLeftIcon';
@@ -501,17 +501,6 @@ function DashboardContent({
     const cashTotal = capitalSnapshot.cashTotal;
     const totalDebt = capitalSnapshot.receivables;
     const totalAdvances = capitalSnapshot.clientAdvances;
-    const financialHealth = capitalSnapshot.netOwnedCapital;
-    const capitalSecondaryItems = [
-        { label: t('finance.projectNetAssets') as string, value: capitalSnapshot.totalCapital, currency: 'DZD' as const, semantic: 'plain' as const },
-        { label: t('treasury.investorCapital') as string, value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
-        { label: t('treasury.profitsNotWithdrawn') as string, value: investorBreakdown?.profits ?? 0, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
-        { label: t('finance.liquidity') as string, value: cashTotal, currency: 'DZD' as const, semantic: 'plain' as const },
-        { label: t('finance.stock') as string, value: stockValue, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
-        { label: t('finance.treasuryCards') as string, value: capitalSnapshot.treasuryCardsTotal, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
-        { label: t('finance.servicesNetPosition') as string, value: capitalSnapshot.servicesCapitalImpact, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true },
-        { label: t('finance.netPosition') as string, value: capitalSnapshot.netClientPosition, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true }
-    ].filter((item) => !item.hideWhenZero || Math.abs(item.value) > 0.005);
     const lowStock = Number(portfolioStats?.usdt?.available || 0) < 100
         && Number(portfolioStats?.eur?.available || 0) < 100;
     const getClientDebtAmount = (client: OverdueDebtClient) => {
@@ -601,7 +590,7 @@ function DashboardContent({
         { label: t('nav.analytics') as string, icon: <TrendingUpIcon className="h-4 w-4"/>, onClick: onOpenAnalytics }
     ];
     return (<div className="anim-page-in space-y-5">
-      <HeroKpiCard accent="sky" icon={<LandmarkIcon className="w-5 h-5"/>} primaryLabel={t('dashboard.capitalTotal') as string} primaryValue={financialHealth} primaryCurrency="DZD" primarySemantic="plain" secondary={capitalSecondaryItems}/>
+      <CapitalOverviewCard t={t} capitalSnapshot={capitalSnapshot} investorBreakdown={investorBreakdown}/>
 
       <ActionStrip actions={primaryActions}/>
 
@@ -682,6 +671,7 @@ function DashboardContent({
           <CardContent className="p-0">
             <TransactionDisplayList
               dateGroups={recentTransactionGroups}
+              t={t}
               getRelativeDateLabel={getRelativeDateLabel}
               onEditDisplayTx={handleOpenRecentDisplayTx}
               onDeleteDisplayTx={handleDeleteRecentDisplayTx}

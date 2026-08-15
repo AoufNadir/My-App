@@ -2,11 +2,10 @@ import { useMemo, useState } from 'react';
 import { TreasuryCard, TreasuryTx, PortfolioStats } from '../types';
 import { TreasurySummarySection } from '../components/treasury/TreasurySummarySection';
 import { TreasuryCollectionsSection } from '../components/treasury/TreasuryCollectionsSection';
-import { HeroKpiCard } from '../components/ui/HeroKpiCard';
+import { CapitalOverviewCard } from '../components/financial/CapitalOverviewCard';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { CurrencyAmount } from '../components/financial/CurrencyAmount';
-import { LandmarkIcon } from '../components/icons/LandmarkIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
 import { ArrowUpRightIcon } from '../components/icons/ArrowUpRightIcon';
 import { BanknotesIcon } from '../components/icons/BanknotesIcon';
@@ -260,18 +259,6 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
         const maxVal = Math.max(...result.flatMap((r) => [r.cashIn, r.cashOut]), 1);
         return { days: result, maxVal, totalIn: result.reduce((s, r) => s + r.cashIn, 0), totalOut: result.reduce((s, r) => s + r.cashOut, 0) };
     }, [treasuryTransactions]);
-    const secondaryItems = [
-        { label: t('finance.realCapital') as string, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const },
-        // Split investor liability: capital invested vs undistributed profits
-        { label: t('treasury.investorCapital') as string, value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
-        { label: t('treasury.profitsNotWithdrawn') as string, value: investorBreakdown?.profits ?? 0, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
-        { label: t('common.caisseBalance') as string, value: caisseBalance, currency: 'DZD' as const, semantic: 'plain' as const },
-        { label: t('common.baridiBalance') as string, value: baridiBalance, currency: 'DZD' as const, semantic: 'plain' as const },
-        { label: t('finance.stock') as string, value: capitalSnapshot.stockValue, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
-        { label: t('finance.treasuryCards') as string, value: capitalSnapshot.treasuryCardsTotal, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
-        { label: t('nav.services') as string, value: capitalSnapshot.servicesCapitalImpact, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true },
-        { label: t('finance.netPosition') as string, value: capitalSnapshot.netClientPosition, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true }
-    ].filter((item) => !item.hideWhenZero || Math.abs(item.value) > 0.005);
     const recentTxs = useMemo(() => {
         return [...treasuryTransactions]
             .filter((tx) => tx.type !== 'Transfer' && !tx.origin?.startsWith('investor') && !tx.origin?.startsWith('personal'))
@@ -280,7 +267,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
     }, [treasuryTransactions]);
 
     return (<div className="anim-page-in space-y-5">
-      <HeroKpiCard accent="sky" icon={<LandmarkIcon className="w-5 h-5"/>} primaryLabel={t('treasury.totalCapital') as string} primaryValue={capitalSnapshot.totalCapital} primaryCurrency="DZD" primarySemantic="plain" secondary={secondaryItems}/>
+      <CapitalOverviewCard t={t} capitalSnapshot={capitalSnapshot} investorBreakdown={investorBreakdown}/>
 
       {weeklyFlow.days.some((d) => d.cashIn > 0 || d.cashOut > 0) && (
         <Card>
