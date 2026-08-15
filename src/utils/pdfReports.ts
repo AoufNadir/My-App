@@ -1216,7 +1216,7 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
       <div class="report-kicker">Période: <strong>${escapeHtml(input.monthLabel)} ${input.year}</strong></div>
       <div class="executive-grid">
         <div class="executive-card ${realizedProfit < 0 ? 'loss' : 'profit'}">
-          <div class="label">Profit réalisé</div>
+          <div class="label">Profit de vente réalisé (PAM)</div>
           <div class="value ${realizedProfit >= 0 ? 'good' : 'bad'}">${realizedProfit >= 0 ? '+' : ''}${formatNumber(realizedProfit)} DZD</div>
         </div>
         <div class="executive-card primary">
@@ -1224,7 +1224,7 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
           <div class="value">${periodTxs.length + periodClientRows.length}</div>
         </div>
         <div class="executive-card">
-          <div class="label">Top client profit</div>
+          <div class="label">Top client — profit de vente (PAM)</div>
           <div class="value">${escapeHtml(topProfitableClient?.clientName || '-')}</div>
         </div>
         <div class="executive-card">
@@ -1236,7 +1236,7 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
           <div class="value">${formatNumber(volEurBought)} / ${formatNumber(volEurSold)}</div>
         </div>
         <div class="executive-card ${globalNetProfit < 0 ? 'loss' : 'profit'}">
-          <div class="label">Profit net cumule</div>
+          <div class="label">Profit de vente cumulé (PAM)</div>
           <div class="value ${globalNetProfit >= 0 ? 'good' : 'bad'}">${globalNetProfit >= 0 ? '+' : ''}${formatNumber(globalNetProfit)} DZD</div>
         </div>
       </div>
@@ -1253,12 +1253,12 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
         <div class="card">
           <div class="label">USDT disponible</div>
           <div class="value">${formatNumber(input.portfolioStats.usdt.available)} USDT</div>
-          <div class="muted">PAM: ${formatNumber(input.portfolioStats.usdt.avgBuy)} DZD</div>
+          <div class="muted">Prix moyen d’achat (PAM): ${formatNumber(input.portfolioStats.usdt.avgBuy)} DZD</div>
         </div>
         <div class="card">
           <div class="label">EUR disponible</div>
           <div class="value">${formatNumber(input.portfolioStats.eur.available)} EUR</div>
-          <div class="muted">PAM: ${formatNumber(input.portfolioStats.eur.avgBuy)} DZD</div>
+          <div class="muted">Prix moyen d’achat (PAM): ${formatNumber(input.portfolioStats.eur.avgBuy)} DZD</div>
         </div>
       </div>
     </section>
@@ -1316,7 +1316,7 @@ export function buildClientPdfReport(input: ClientReportInput): ReportPayload | 
     const clientNameById = new Map<string, string>();
     input.clients.forEach((item) => clientNameById.set(item.id, input.getClientName(item)));
     const clientStatus = closingBalance < -0.005
-        ? 'Solde à régler'
+        ? 'Montant à encaisser du client'
         : closingBalance > 0.005
             ? 'Solde en faveur du client'
             : 'Solde équilibré';
@@ -1514,7 +1514,7 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
       <div class="report-kicker">P&eacute;riode du rapport: <strong>${escapeHtml(periodLabel)}</strong></div>
       <div class="executive-grid">
         <div class="executive-card primary">
-          <div class="label">Capital actuel</div>
+          <div class="label">Capital investi actuel</div>
           <div class="value">${formatNumber(investorCapital)} DZD</div>
         </div>
         <div class="executive-card">
@@ -1526,7 +1526,7 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
           <div class="value ${toneClass(investorTotalProfit)}">${signedMoney(investorTotalProfit)}</div>
         </div>
         <div class="executive-card ${investorAvailableProfit < 0 ? 'loss' : 'profit'}">
-          <div class="label">B&eacute;n&eacute;fices disponibles</div>
+          <div class="label">Profit disponible &agrave; retirer</div>
           <div class="value ${toneClass(investorAvailableProfit)}">${signedMoney(investorAvailableProfit)}</div>
         </div>
         <div class="executive-card">
@@ -1665,7 +1665,7 @@ export function buildPersonalExpensesPdfReport(input: PersonalExpensesReportInpu
             ${periodExpenses
             .map((tx) => {
             const amount = netExpense(tx);
-            const noteLabel = tx.notes || 'Dépense personnelle';
+            const noteLabel = tx.notes || 'Dépense personnelle confirmée';
             const sourceLabel = tx.source || '-';
             const isAdvance = tx.advanceState === 'settled';
             const advanceTag = isAdvance ? ' <span class="pill small">Régularisé</span>' : '';
@@ -1878,8 +1878,8 @@ export function buildClientListPdf(rows: ClientListRow[]): ReportPayload {
       <h2 class="section-title">Synthèse</h2>
       <div class="executive-grid">
         <div class="executive-card primary"><div class="label">Total clients</div><div class="value">${rows.length}</div></div>
-        <div class="executive-card loss"><div class="label">Total dettes</div><div class="value bad">${formatNumber(totalDebt, 0)} DZD</div><div class="muted">${withDebt} client${withDebt > 1 ? 's' : ''}</div></div>
-        <div class="executive-card profit"><div class="label">Total avances</div><div class="value good">${formatNumber(totalAdv, 0)} DZD</div><div class="muted">${withAdv} client${withAdv > 1 ? 's' : ''}</div></div>
+        <div class="executive-card loss"><div class="label">Montants à encaisser des clients</div><div class="value bad">${formatNumber(totalDebt, 0)} DZD</div><div class="muted">${withDebt} client${withDebt > 1 ? 's' : ''}</div></div>
+        <div class="executive-card profit"><div class="label">Soldes en faveur des clients</div><div class="value good">${formatNumber(totalAdv, 0)} DZD</div><div class="muted">${withAdv} client${withAdv > 1 ? 's' : ''}</div></div>
       </div>
       <div class="pill-row top"><span class="pill">Exporté le ${today}</span><span class="pill">${rows.length} clients</span></div>
     </section>

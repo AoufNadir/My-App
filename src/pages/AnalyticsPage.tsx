@@ -127,7 +127,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                         <div className="grid grid-cols-3 gap-3">
                             {/* Win rate */}
                             <div>
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Win rate</p>
+                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.winRate')}</p>
                                 <span className={`text-lg font-extrabold tabular-nums ${(calculatedStats.winRate ?? 0) >= 80 ? 'text-financial-profit' : (calculatedStats.winRate ?? 0) >= 50 ? 'text-warning' : 'text-financial-loss'}`}>
                                     {calculatedStats.winRate !== null ? `${Math.round(calculatedStats.winRate)}%` : '—'}
                                 </span>
@@ -135,7 +135,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                             </div>
                             {/* Avg profit per sell */}
                             <div>
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Moy. / vente</p>
+                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.avgProfitPerSale')}</p>
                                 {calculatedStats.avgProfitPerSell !== null
                                     ? <CurrencyAmount value={calculatedStats.avgProfitPerSell} currency="DZD" semantic="auto" size="md" decimals={0}/>
                                     : <span className="text-neutral-400">—</span>}
@@ -143,7 +143,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                             </div>
                             {/* Best sell of the month */}
                             <div>
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Meilleure vente</p>
+                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.bestSale')}</p>
                                 {calculatedStats.bestSellProfit > 0
                                     ? <CurrencyAmount value={calculatedStats.bestSellProfit} currency="DZD" semantic="profit" size="md" decimals={0}/>
                                     : <span className="text-neutral-400">—</span>}
@@ -172,7 +172,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                     {FULL_MONTHS_FR[props.usdtReportMonth]} {props.usdtReportYear}
                                 </SectionHeading>
                                 <div className="text-end shrink-0">
-                                    <p className="text-[10px] font-bold uppercase text-neutral-400">{totalDaysWithActivity} jours actifs</p>
+                                    <p className="text-[10px] font-bold uppercase text-neutral-400">{totalDaysWithActivity} {t('portfolio.activeDays')}</p>
                                     <CurrencyAmount value={monthProfit} currency="DZD" semantic="auto" size="sm" decimals={0} showSign/>
                                 </div>
                             </div>
@@ -228,7 +228,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                     <CardHeader className="p-4 pb-3">
                         <div className="flex items-center justify-between gap-2">
                             <SectionHeading icon={<TrendingUpIcon className="w-4 h-4" />}>
-                                Prix de vente USDT
+                                {t('portfolio.salesPriceUsdt')}
                             </SectionHeading>
                             {priceHistory.prev && (
                                 <span className="text-[10px] font-semibold text-neutral-400">
@@ -241,7 +241,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                         {/* KPIs row */}
                         <div className="grid grid-cols-3 gap-2">
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Prix moy. vente</p>
+                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.avgSalesPrice')}</p>
                                 <p dir="ltr" className="text-lg font-extrabold tabular-nums text-neutral-800">
                                     {priceHistory.current.avgSell.toFixed(2)}
                                 </p>
@@ -252,7 +252,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                 })()}
                             </div>
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Marge moy.</p>
+                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.avgMargin')}</p>
                                 <p dir="ltr" className={`text-lg font-extrabold tabular-nums ${priceHistory.current.avgMargin >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
                                     {priceHistory.current.avgMargin >= 0 ? '+' : ''}{priceHistory.current.avgMargin.toFixed(2)}
                                 </p>
@@ -269,14 +269,14 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                         ? `${priceHistory.current.avgMargin >= 0 ? '+' : ''}${((priceHistory.current.avgMargin / priceHistory.current.avgSell) * 100).toFixed(2)}%`
                                         : '—'}
                                 </p>
-                                <p className="text-[9px] text-neutral-400">sur le prix</p>
+                                <p className="text-[9px] text-neutral-400">{t('portfolio.marginOnPrice')}</p>
                             </div>
                         </div>
 
                         {/* 6-month mini bar chart */}
                         {priceHistory.trend.some(t => t.data !== null) && (
                             <div>
-                                <p className="mb-2 text-[10px] font-bold uppercase text-neutral-400">Tendance 6 mois — Marge/USDT (DZD)</p>
+                                <p className="mb-2 text-[10px] font-bold uppercase text-neutral-400">{t('portfolio.marginTrend')}</p>
                                 <div className="space-y-1">
                                     {priceHistory.trend.map((item, i) => {
                                         if (!item.data) return (
@@ -311,7 +311,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                         );
                                     })}
                                 </div>
-                                <p className="mt-2 text-[9px] text-neutral-400 text-end">Marge = Prix vente − PAM moyen pondéré</p>
+                                <p className="mt-2 text-[9px] text-neutral-400 text-end">{t('portfolio.marginFormula')}</p>
                             </div>
                         )}
                     </CardContent>
@@ -330,14 +330,14 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                 <CardContent className="p-4 pt-0 space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                         <div className="rounded-xl border border-border bg-surface-muted p-3">
-                            <p className="text-[11px] font-bold uppercase text-neutral-500">Profit YTD</p>
+                            <p className="text-[11px] font-bold uppercase text-neutral-500">{t('portfolio.salesProfitYtd')}</p>
                             <div className="mt-1">
                                 <CurrencyAmount value={annualStats.ytdProfit} currency="DZD" semantic="auto" size="lg" decimals={0}/>
                             </div>
                             <p className="mt-1 text-[10px] text-neutral-400">Jan → {MONTH_LABELS_FR[props.usdtReportMonth]}</p>
                         </div>
                         <div className="rounded-xl border border-border bg-surface-muted p-3">
-                            <p className="text-[11px] font-bold uppercase text-neutral-500">Meilleur mois {props.usdtReportYear}</p>
+                            <p className="text-[11px] font-bold uppercase text-neutral-500">{t('portfolio.bestMonth')} {props.usdtReportYear}</p>
                             <div className="mt-1">
                                 {annualStats.bestMonth >= 0
                                     ? <CurrencyAmount value={annualStats.bestMonthProfit} currency="DZD" semantic="profit" size="lg" decimals={0}/>
@@ -349,7 +349,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                         </div>
                     </div>
                     <div>
-                        <p className="mb-2 text-[11px] font-bold uppercase text-neutral-400">Profit mensuel</p>
+                        <p className="mb-2 text-[11px] font-bold uppercase text-neutral-400">{t('portfolio.monthlySalesProfit')}</p>
                         <div className="space-y-1.5">
                             {annualStats.byMonth.map((profit, m) => {
                                 const isActive = m === props.usdtReportMonth;
@@ -388,23 +388,23 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                         {/* All-time KPIs — 4 compact stats */}
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Profit total</p>
+                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.totalSalesProfit')}</p>
                                 <CurrencyAmount value={allTimeStats.totalProfit} currency="DZD" semantic="auto" size="md" decimals={0}/>
                             </div>
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Win rate</p>
+                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.winRate')}</p>
                                 <span className={`text-base font-extrabold tabular-nums ${(allTimeStats.winRate ?? 0) >= 80 ? 'text-financial-profit' : (allTimeStats.winRate ?? 0) >= 50 ? 'text-warning' : 'text-financial-loss'}`}>
                                     {allTimeStats.winRate !== null ? `${Math.round(allTimeStats.winRate)}%` : '—'}
                                 </span>
                                 <p className="text-[9px] text-neutral-400 mt-0.5">{allTimeStats.totalSells} ventes</p>
                             </div>
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Meilleure vente</p>
+                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.bestSale')}</p>
                                 <CurrencyAmount value={allTimeStats.bestSellProfit} currency="DZD" semantic="profit" size="md" decimals={0}/>
                                 <p className="text-[9px] text-neutral-400 mt-0.5">record absolu</p>
                             </div>
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Meilleur mois</p>
+                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.bestMonth')}</p>
                                 {allTimeStats.bestMonthKey
                                     ? <><CurrencyAmount value={allTimeStats.bestMonthProfit} currency="DZD" semantic="profit" size="md" decimals={0}/>
                                        <p className="text-[9px] text-neutral-400 mt-0.5">{allTimeStats.bestMonthKey}</p></>
@@ -441,7 +441,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                         const maxP = Math.max(...allTimeClientRanking.byProfit.map((r) => r.realizedProfit), 1);
                                         return (
                                             <div>
-                                                <p className="mb-2 text-[10px] font-semibold text-neutral-400">Par profit généré</p>
+                                                <p className="mb-2 text-[10px] font-semibold text-neutral-400">{t('portfolio.realizedProfit')}</p>
                                                 <div className="space-y-1.5">
                                                     {allTimeClientRanking.byProfit.map((row, i) => (
                                                         <div key={row.clientId} className="flex items-center gap-2">

@@ -23,14 +23,20 @@ const normalizeCardName = (value: string) => value
     .replace(/\s+/g, ' ')
     .trim();
 const formatCardValue = (value: number) => Number(value.toFixed(2)).toString();
+type TranslateFn = (key: string) => unknown;
+const getDisplayLabel = (t: TranslateFn | undefined, key: string, fallback: string) => {
+    const value = t?.(key);
+    return typeof value === 'string' && value !== key ? value : fallback;
+};
 const resolveAdjustmentAutoPrice = (asset: string, treasuryCards: Array<{
     name?: string;
     value?: number;
-}>, portfolioStats: any) => {
+}>, portfolioStats: any, t?: TranslateFn) => {
     if (asset !== 'USDT' && asset !== 'EUR') {
         return { value: '', sourceLabel: '', sourceType: 'none' as const };
     }
     const currency = asset;
+    const pamLabel = getDisplayLabel(t, 'portfolio.currentPam', 'PAM');
     const cardCandidates = [
         `pma ${currency.toLowerCase()}`,
         `pam ${currency.toLowerCase()}`,
@@ -45,7 +51,7 @@ const resolveAdjustmentAutoPrice = (asset: string, treasuryCards: Array<{
     if (rawCardValue > 0) {
         return {
             value: formatCardValue(rawCardValue),
-            sourceLabel: matchedCard?.name || `PMA ${currency}`,
+            sourceLabel: (matchedCard?.name || `${pamLabel} ${currency}`).replace(/\bpma\b/gi, 'PAM'),
             sourceType: 'card' as const
         };
     }
@@ -55,13 +61,13 @@ const resolveAdjustmentAutoPrice = (asset: string, treasuryCards: Array<{
     if (fallbackValue > 0) {
         return {
             value: formatCardValue(fallbackValue),
-            sourceLabel: `PAM ${currency} portefeuille`,
+            sourceLabel: `${pamLabel} ${currency} — ${getDisplayLabel(t, 'nav.portfolio', 'portefeuille')}`,
             sourceType: 'portfolio' as const
         };
     }
     return {
         value: '',
-        sourceLabel: `Carte PMA/PAM ${currency} introuvable`,
+        sourceLabel: getDisplayLabel(t, 'transactions.pamCardMissing', 'Carte PAM {currency} introuvable').replace('{currency}', currency),
         sourceType: 'missing' as const
     };
 };
@@ -108,12 +114,12 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
         && !hasReceiverClient
         && Number.isFinite(parsedClientTxAmount)
         && Math.abs(parsedClientTxAmount) > clientSettlementWalletBalance + 0.01);
-    const adjustmentAuto = useMemo(() => resolveAdjustmentAutoPrice(adjustmentAsset, treasuryCards || [], portfolioStats), [adjustmentAsset, treasuryCards, portfolioStats]);
+    const adjustmentAuto = useMemo(() => resolveAdjustmentAutoPrice(adjustmentAsset, treasuryCards || [], portfolioStats, t), [adjustmentAsset, treasuryCards, portfolioStats, t]);
     const handleAdjustmentAssetChange = (value: string) => {
         setAdjustmentAsset(value);
         if (editingTreasuryTx)
             return;
-        const nextAuto = resolveAdjustmentAutoPrice(value, treasuryCards || [], portfolioStats);
+        const nextAuto = resolveAdjustmentAutoPrice(value, treasuryCards || [], portfolioStats, t);
         setAdjustmentPrice(nextAuto.value);
         lastAutoPriceRef.current = nextAuto.value;
     };
@@ -197,7 +203,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
         ? (usesClientMax
             ? (adjustmentTab === 'add'
                 ? 'Aucune dette client à régler'
-                : 'Aucune avance client à restituer')
+                : 'Aucun solde client à rembourser')
             : (adjustmentTab === 'add' && isDzdAdjustment
                 ? 'Sélectionnez un client'
                 : 'Aucune valeur maximale disponible'))
@@ -207,7 +213,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
             ? `MAX client : ${formatDisplayMetric(linkedClientMax)} DZD.`
             : (adjustmentTab === 'add'
                 ? 'Aucune dette client à régler.'
-                : 'Aucune avance client à restituer.'))
+                : 'Aucun solde client à rembourser.'))
         : adjustmentTab === 'add' && isDzdAdjustment
             ? 'MAX disponible après sélection du client.'
             : `MAX selon ${selectedAssetLabel} : ${formatDisplayMetric(selectedAssetMax)} ${isCryptoAdjustment ? adjustmentAsset : 'DZD'}.`;
@@ -456,7 +462,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
 
                     {isCryptoAdjustment && (<MoneyField label={t('transactions.unitPrice')} value={adjustmentPrice} onChange={setAdjustmentPrice} currency="DZD" placeholder="Ex: 240.00" hint={adjustmentAuto.sourceType === 'missing'
                 ? adjustmentAuto.sourceLabel
-                : `Auto (${adjustmentAuto.sourceType === 'card' ? 'PMA' : 'PAM'}): ${adjustmentAuto.sourceLabel}`}/>)}
+                : `${t('transactions.pamAuto')}: ${adjustmentAuto.sourceLabel}`}/>)}
 
                     {isDzdAdjustment && (<div>
                             <Label>{t('transactions.linkedClientOptional')} <span className="text-xs font-normal text-neutral-400">(Optionnel)</span></Label>

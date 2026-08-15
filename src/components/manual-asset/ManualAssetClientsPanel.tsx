@@ -8,6 +8,7 @@ import { UserIcon } from '../icons/UserIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { ManualAssetClient } from '../../types';
 import { describeServiceBalance, getServiceBalanceLabel } from '../../utils/serviceBalances';
+import { useLanguage } from '../../contexts/LanguageContext';
 type ManualAssetClientsPanelProps = {
     searchQuery: string;
     setSearchQuery: (value: string) => void;
@@ -20,14 +21,15 @@ type ManualAssetClientsPanelProps = {
     onDeleteClient: (clientId: string) => void;
 };
 export function ManualAssetClientsPanel({ searchQuery, setSearchQuery, onOpenCreateModal, filteredClients, assetId, clientBalances, onSelectClient, onOpenEditModal, onDeleteClient }: ManualAssetClientsPanelProps) {
+    const { t } = useLanguage();
     return (<div className="overflow-hidden rounded-xl border border-border bg-surface">
       <div className="flex flex-col items-center justify-between gap-3 border-b border-border p-3 sm:flex-row">
         <div className="relative w-full sm:w-auto flex-1">
           <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400"/>
-          <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full ps-9" placeholder="Rechercher un client..."/>
+          <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full ps-9" placeholder={t('reports.searchClient') as string}/>
         </div>
         <Button onClick={onOpenCreateModal} variant="primary" size="md" className="w-full font-bold sm:w-auto">
-          <PlusIcon className="w-4 h-4"/> Nouveau Client
+          <PlusIcon className="w-4 h-4"/> {t('common.newClient')}
         </Button>
       </div>
       <div className="divide-y divide-neutral-100">
@@ -45,17 +47,17 @@ export function ManualAssetClientsPanel({ searchQuery, setSearchQuery, onOpenCre
                       </div>
                       <div className="min-w-0">
                         <div className="truncate text-base font-semibold">{client.fullName}</div>
-                        <div dir={client.phone ? 'ltr' : undefined} className="text-xs text-neutral-500">{client.phone || 'Pas de téléphone'}</div>
+                        <div dir={client.phone ? 'ltr' : undefined} className="text-xs text-neutral-500">{client.phone || t('clients.noPhone')}</div>
                       </div>
                     </div>
                     <div className="shrink-0 text-end">
                       <CurrencyAmount value={balanceView.amount} currency="DZD" semantic={balanceSemantic} size="lg" decimals={0}/>
-                      <div className="text-xs text-neutral-500">{getServiceBalanceLabel(balanceView.kind)}</div>
+                      <div className="text-xs text-neutral-500">{getServiceBalanceLabel(balanceView.kind, t)}</div>
                     </div>
                   </div>
                 </SwipeableListItem>
               </div>);
-        })) : (<EmptyState icon={<UserIcon className="w-6 h-6"/>} title="Aucun client trouvé" subtitle="Ajoutez un client pour commencer le suivi."/>)}
+        })) : (<EmptyState icon={<UserIcon className="w-6 h-6"/>} title={t('clients.noClientFound') as string} subtitle={t('services.firstClientOperation') as string}/>)}
       </div>
     </div>);
 }

@@ -59,7 +59,7 @@ export function getPaymentMethodLabel(method: string | undefined, t?: TranslateF
     if (normalized.includes('baridi'))
         return translate(t, 'transactions.baridi', 'BaridiMob');
     if (normalized.includes('credit'))
-        return translate(t, 'transactions.onCredit', 'À crédit');
+        return translate(t, 'transactions.onCredit', 'Paiement différé');
     if (normalized.includes('espe') || normalized.includes('cash') || normalized.includes('caisse'))
         return translate(t, 'transactions.cash', 'Caisse');
     return method || '';
@@ -83,9 +83,9 @@ export function getPortfolioOperationLabel(type: PortfolioRawType, currency?: st
 export function getClientOperationLabel(type: string, t?: TranslateFn): string {
     const normalized = canonicalize(String(type || ''));
     if (normalized.includes('reglement') && normalized.includes('recu'))
-        return t ? t('ledger.receipt') : 'Encaissement client';
+        return t ? t('ledger.receipt') : 'Encaissement du client';
     if (normalized.includes('paiement') && normalized.includes('effect'))
-        return t ? t('ledger.payout') : 'Décaissement client';
+        return t ? t('ledger.payout') : 'Remboursement au client';
     if (normalized === 'vente usdt')
         return t ? `${t('ledger.sell')} USDT` : 'Vente USDT';
     if (normalized === 'vente eur')

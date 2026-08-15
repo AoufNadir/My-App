@@ -8,6 +8,7 @@ import { SectionHeading } from '../ui/SectionHeading';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { ManualAssetClient, ManualAssetTransaction } from '../../types';
 import { describeServiceBalance, getServiceBalanceLabel } from '../../utils/serviceBalances';
+import { useLanguage } from '../../contexts/LanguageContext';
 type ManualAssetReportsSectionProps = {
     assetId: string;
     assetName: string;
@@ -133,15 +134,16 @@ function StatCard({ label, value, hint, valueClassName = '' }: {
       <p className="mt-1 text-xs text-neutral-500">{hint}</p>
     </div>);
 }
-function RankedClientsBlock({ title, totalClients, rows }: {
+function RankedClientsBlock({ title, totalClients, rows, t }: {
     title: string;
     totalClients: number;
     rows: ClientPerformanceRow[];
+    t: (key: string) => any;
 }) {
     return (<div className="rounded-xl border border-border bg-surface-muted p-3">
       <div className="flex items-center justify-between gap-3">
         <h4 className="text-sm font-bold leading-tight text-neutral-900">{title}</h4>
-        <span className={`text-[12px] text-neutral-500`}>{totalClients} clients</span>
+        <span className={`text-[12px] text-neutral-500`}>{totalClients} {t('services.activeClients')}</span>
       </div>
 
       {rows.length > 0 ? (<div className="mt-3 space-y-2">
@@ -159,7 +161,7 @@ function RankedClientsBlock({ title, totalClients, rows }: {
                     {index + 1}. {row.clientName}
                   </p>
                   <p className={`mt-1 text-[12px] text-neutral-500`}>
-                    {row.operationsCount} ops . {row.servicesCount} services
+                    {row.operationsCount} {t('services.operationsShort')} · {row.servicesCount} {t('services.servicesShort')}
                   </p>
                 </div>
 
@@ -168,25 +170,26 @@ function RankedClientsBlock({ title, totalClients, rows }: {
                     <CurrencyAmount value={row.serviceRevenue} currency="DZD" semantic="profit" size="md" decimals={2}/>
                   </p>
                   <p className={`mt-1 text-[12px] leading-4 text-neutral-500`}>
-                    Encaisse: <CurrencyAmount value={row.cashReceived} currency="DZD" semantic="profit" size="sm" decimals={2}/>
+                    {t('services.collected')}: <CurrencyAmount value={row.cashReceived} currency="DZD" semantic="profit" size="sm" decimals={2}/>
                   </p>
                   <p className={`text-[12px] leading-4 text-neutral-500`}>
-                    {getServiceBalanceLabel(balanceView.kind)}: <CurrencyAmount value={balanceView.amount} currency="DZD" semantic={balanceSemantic} size="sm" decimals={2}/>
+                    {getServiceBalanceLabel(balanceView.kind, t)}: <CurrencyAmount value={balanceView.amount} currency="DZD" semantic={balanceSemantic} size="sm" decimals={2}/>
                   </p>
                 </div>
               </div>
             </div>);
         })}
         </div>) : (<div className="mt-3 rounded-xl border border-dashed border-border-strong p-4 text-center text-sm text-neutral-400">
-          Aucune donnée disponible pour cette période.
+          {t('services.noDataPeriod')}
         </div>)}
     </div>);
 }
-function ReportCard({ title, subtitle, topTitle, report }: {
+function ReportCard({ title, subtitle, topTitle, report, t }: {
     title: string;
     subtitle: string;
     topTitle: string;
     report: PeriodReport;
+    t: (key: string) => any;
 }) {
     return (<section className="rounded-xl border border-border bg-surface p-3">
       <div className="flex items-start justify-between gap-3">
@@ -201,22 +204,23 @@ function ReportCard({ title, subtitle, topTitle, report }: {
 
       <div className="mt-3 space-y-2">
         <div className="space-y-2">
-          <StatCard label="CA Services" value={<CurrencyAmount value={report.serviceRevenue} currency="DZD" semantic="profit" size="lg" decimals={2}/>} hint={`${report.activeClientsCount} clients actifs`}/>
+          <StatCard label={t('services.servicesBilled')} value={<CurrencyAmount value={report.serviceRevenue} currency="DZD" semantic="profit" size="lg" decimals={2}/>} hint={`${report.activeClientsCount} ${t('services.activeClients')}`}/>
 
-          <StatCard label="Encaissements" value={<CurrencyAmount value={report.cashReceived} currency="DZD" semantic="profit" size="lg" decimals={2}/>} hint="Paiements reçus"/>
+          <StatCard label={t('services.collected')} value={<CurrencyAmount value={report.cashReceived} currency="DZD" semantic="profit" size="lg" decimals={2}/>} hint={t('transactions.paymentReceived')}/>
         </div>
 
         <div className="space-y-2">
-          <StatCard label="Client rentable" value={report.topProfitableClient?.clientName || 'Aucun client'} hint={report.topProfitableClient ? <CurrencyAmount value={report.topProfitableClient.serviceRevenue} currency="DZD" semantic="profit" size="sm" decimals={2}/> : 'Pas encore de ventes'} valueClassName="break-words"/>
+          <StatCard label={t('services.topBilledClient')} value={report.topProfitableClient?.clientName || t('services.noClient')} hint={report.topProfitableClient ? <CurrencyAmount value={report.topProfitableClient.serviceRevenue} currency="DZD" semantic="profit" size="sm" decimals={2}/> : t('services.noServiceBilled')} valueClassName="break-words"/>
 
-          <StatCard label="Client actif" value={report.topActiveClient?.clientName || 'Aucun client'} hint={report.topActiveClient ? `${report.topActiveClient.operationsCount} operations` : 'Pas encore d activite'} valueClassName="break-words"/>
+          <StatCard label={t('services.topActiveClient')} value={report.topActiveClient?.clientName || t('services.noClient')} hint={report.topActiveClient ? `${report.topActiveClient.operationsCount} ${t('services.operationsShort')}` : t('services.noActivity')} valueClassName="break-words"/>
         </div>
 
-        <RankedClientsBlock title={topTitle} totalClients={report.activeClientsCount} rows={report.topClients}/>
+        <RankedClientsBlock title={topTitle} totalClients={report.activeClientsCount} rows={report.topClients} t={t}/>
       </div>
     </section>);
 }
 export function ManualAssetReportsSection({ assetId, assetName, clients, assetTransactions, clientBalances }: ManualAssetReportsSectionProps) {
+    const { t } = useLanguage();
     const today = new Date();
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
@@ -263,33 +267,34 @@ export function ManualAssetReportsSection({ assetId, assetName, clients, assetTr
     }, [assetId, assetTransactions, clientBalances, clientsById, selectedYear]);
     const selectClassName = 'mt-2 min-h-input rounded-button px-3 text-sm';
     const activeReport = reportView === 'monthly' ? monthlyReport : annualReport;
-    const activeTitle = reportView === 'monthly' ? 'Rapport Mensuel' : 'Rapport Annuel';
+    const monthLabels = t('common.months') as string[];
+    const activeTitle = `${t('services.clientReport')} — ${reportView === 'monthly' ? t('services.monthly') : t('services.annual')}`;
     const activeSubtitle = reportView === 'monthly'
-        ? `${MONTH_LABELS[selectedMonth]} ${selectedYear}`
-        : `Annee ${selectedYear}`;
-    const activeTopTitle = reportView === 'monthly' ? 'Top 5 du mois' : 'Top 5 de l annee';
+        ? `${monthLabels?.[selectedMonth] || MONTH_LABELS[selectedMonth]} ${selectedYear}`
+        : `${t('portfolio.year')} ${selectedYear}`;
+    const activeTopTitle = reportView === 'monthly' ? t('services.topBilledMonthly') : t('services.topBilledAnnual');
     const pillBase = 'min-h-button-md rounded-button px-3 font-bold text-sm';
     return (<section className="space-y-3">
       <div>
         <SectionHeading icon={<TrendingUpIcon className="w-4 h-4"/>}>
-          Rapport Clients
+          {t('services.clientReport')}
         </SectionHeading>
         <p className={`mt-1 max-w-[32rem] text-sm leading-6 text-neutral-500`}>
-          Suivi du chiffre de service, des encaissements et des clients les plus rentables pour {assetName}.
+          {String(t('services.clientReportSubtitle')).replace('{assetName}', assetName)}
         </p>
       </div>
 
       <div className="rounded-xl border border-border bg-surface-muted p-3">
         <div className="grid grid-cols-1 gap-3">
           <div>
-            <Label>Mois</Label>
+            <Label>{t('portfolio.month')}</Label>
             <Select value={String(selectedMonth)} onChange={(e) => setSelectedMonth(Number(e.target.value))} className={selectClassName}>
               {MONTH_LABELS.map((month, index) => (<option key={month} value={index}>{month}</option>))}
             </Select>
           </div>
 
           <div>
-            <Label>Annee</Label>
+            <Label>{t('portfolio.year')}</Label>
             <Select value={String(selectedYear)} onChange={(e) => setSelectedYear(Number(e.target.value))} className={selectClassName}>
               {availableYears.map((year) => (<option key={year} value={year}>{year}</option>))}
             </Select>
@@ -301,15 +306,15 @@ export function ManualAssetReportsSection({ assetId, assetName, clients, assetTr
         <Button onClick={() => setReportView('monthly')} className={`flex-1 ${pillBase} ${reportView === 'monthly'
             ? 'bg-success text-white shadow-sm'
             : 'bg-transparent text-neutral-600 hover:bg-surface'}`}>
-          Mensuel
+          {t('services.monthly')}
         </Button>
         <Button onClick={() => setReportView('annual')} className={`flex-1 ${pillBase} ${reportView === 'annual'
             ? 'bg-success text-white shadow-sm'
             : 'bg-transparent text-neutral-600 hover:bg-surface'}`}>
-          Annuel
+          {t('services.annual')}
         </Button>
       </div>
 
-      <ReportCard title={activeTitle} subtitle={activeSubtitle} topTitle={activeTopTitle} report={activeReport}/>
+      <ReportCard title={activeTitle} subtitle={activeSubtitle} topTitle={activeTopTitle} report={activeReport} t={t}/>
     </section>);
 }

@@ -38,7 +38,7 @@ function getTransactionAmountView(tx: ManualAssetTransaction, t: (key: string) =
     }
     const amount = Number(tx.amount || 0);
     return {
-        label: amount >= 0 ? 'Ajustement +' : 'Ajustement -',
+        label: amount >= 0 ? t('ledger.adjustPlus') as string : t('ledger.adjustMinus') as string,
         amount: Math.abs(amount),
         semantic: amount >= 0 ? 'profit' : 'loss'
     };

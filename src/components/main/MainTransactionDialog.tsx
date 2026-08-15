@@ -285,7 +285,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                 updateSellPriceMargin(price);
             }} className="-mt-2" error={formValidation.errors['sellPrice']}/>
             <div className="mt-1.5 grid gap-1 text-xs text-neutral-500 sm:grid-cols-2 sm:items-center">
-                <span dir="ltr" className="min-w-0 tabular-nums">PAM: {activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span>
+                <span dir="ltr" className="min-w-0 tabular-nums">{t('portfolio.currentPam')}: {activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span>
                 {parseAndEvaluate(profitPercent) !== 0 && (<span dir="ltr" className={`min-w-0 tabular-nums sm:text-end ${parseAndEvaluate(profitPercent) > 0 ? 'text-financial-profit font-medium' : 'text-financial-loss font-medium'}`}>
                         Marge: {parseAndEvaluate(profitPercent) > 0 ? '+' : ''}{parseAndEvaluate(profitPercent).toFixed(2)} {t('common.dinar')}
                     </span>)}
@@ -319,7 +319,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                 <span className="text-xs text-neutral-400">DZD</span>
             </div>
             <p className={`mt-1 text-xs ${formValidation.errors['sellEurToDzdRate'] ? 'font-medium text-danger' : 'text-neutral-500'}`}>
-                {formValidation.errors['sellEurToDzdRate'] || `Lecture seule depuis PAM EUR: ${pamEurToDzdRateInput || '0.00'} DZD`}
+                {formValidation.errors['sellEurToDzdRate'] || `${t('portfolio.currentPam')} EUR (lecture seule) : ${pamEurToDzdRateInput || '0.00'} DZD`}
             </p>
         </div>
     );
@@ -368,7 +368,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                         {/* Inline balance + PAM hint (not a card) */}
                         <div className={`flex items-center justify-between text-xs text-neutral-500 px-1`}>
                             <span>{t('common.balance')}: <span dir="ltr" className="font-semibold text-neutral-700 tabular-nums">{activeStats.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeCurrency}</span></span>
-                            <span>PAM: <span dir="ltr" className="font-semibold text-neutral-700 tabular-nums">{activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span></span>
+                            <span>{t('portfolio.currentPam')}: <span dir="ltr" className="font-semibold text-neutral-700 tabular-nums">{activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span></span>
                         </div>
 
                         {/* Buy USDT: choose funding source */}
@@ -541,7 +541,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                             </div>
                                             {projectedPamUsdt > 0 && (
                                                 <div className="mt-1 flex items-baseline justify-between gap-3 text-xs text-neutral-500">
-                                                    <span>PAM USDT</span>
+                                                    <span>{t('portfolio.currentPam')} USDT</span>
                                                     <span dir="ltr" className="font-semibold tabular-nums">{formatNumber(projectedPamUsdt, { min: 2, max: 2 })} DZD</span>
                                                 </div>
                                             )}

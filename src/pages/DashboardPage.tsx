@@ -312,10 +312,11 @@ function MoneyMap({ title, rows, }: {
       </CardContent>
     </Card>);
 }
-function PortfolioStatusCard({ title, stockLabel, valueLabel, portfolioStats, stockValue, }: {
+function PortfolioStatusCard({ title, stockLabel, valueLabel, pamLabel, portfolioStats, stockValue, }: {
     title: string;
     stockLabel: string;
     valueLabel: string;
+    pamLabel: string;
     portfolioStats: any;
     stockValue: number;
 }) {
@@ -351,7 +352,7 @@ function PortfolioStatusCard({ title, stockLabel, valueLabel, portfolioStats, st
                   </div>
                 </div>
                 <div className="text-end shrink-0">
-                  <p className="text-xs font-medium text-neutral-500">PAM</p>
+                  <p className="text-xs font-medium text-neutral-500">{pamLabel}</p>
                   <CurrencyAmount value={asset.pam} currency="DZD" size="sm" decimals={2}/>
                 </div>
               </div>
@@ -500,9 +501,9 @@ function DashboardContent({
     const cashTotal = capitalSnapshot.cashTotal;
     const totalDebt = capitalSnapshot.receivables;
     const totalAdvances = capitalSnapshot.clientAdvances;
-    const financialHealth = capitalSnapshot.totalCapital;
+    const financialHealth = capitalSnapshot.netOwnedCapital;
     const capitalSecondaryItems = [
-        { label: t('finance.realCapital') as string, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const },
+        { label: t('finance.projectNetAssets') as string, value: capitalSnapshot.totalCapital, currency: 'DZD' as const, semantic: 'plain' as const },
         { label: t('treasury.investorCapital') as string, value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
         { label: t('treasury.profitsNotWithdrawn') as string, value: investorBreakdown?.profits ?? 0, currency: 'DZD' as const, semantic: 'loss' as const, hideWhenZero: true },
         { label: t('finance.liquidity') as string, value: cashTotal, currency: 'DZD' as const, semantic: 'plain' as const },
@@ -663,7 +664,7 @@ function DashboardContent({
 
       <PriorityList title={t('dashboard.attentionNeeded') as string} items={priorities} onTitleClick={onOpenClientDebts}/>
 
-      <PortfolioStatusCard title={t('portfolio.currentStatus') as string} stockLabel={t('finance.stock') as string} valueLabel={t('transactions.value') as string} portfolioStats={portfolioStats} stockValue={stockValue}/>
+      <PortfolioStatusCard title={t('portfolio.currentStatus') as string} stockLabel={t('finance.stock') as string} valueLabel={t('transactions.value') as string} pamLabel={t('portfolio.currentPam') as string} portfolioStats={portfolioStats} stockValue={stockValue}/>
 
       {/* Same operation feed as Journal des Opérations, limited to the latest rows. */}
       {recentTransactionCount > 0 && (

@@ -185,7 +185,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
 
                 {(hasExceedingRow || exceedsCash) && distribution.length > 0 && (
                     <div className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger font-medium">
-                        {hasExceedingRow && <p>⚠️ Une ou plusieurs lignes dépassent le profit disponible.</p>}
+                        {hasExceedingRow && <p>⚠️ {t('profitDistribution.exceedsAvailable')}</p>}
                         {exceedsCash && <p>⚠️ Solde {paymentSource} insuffisant ({sourceBalance.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD).</p>}
                     </div>
                 )}

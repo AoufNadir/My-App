@@ -29,7 +29,7 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
     const clientDeleteWarning = isBlockedClientDelete
         ? "Le client ne peut pas être supprimé tant que son solde n'est pas à zéro."
         : isBalanceOnlyClientDelete
-            ? "Son solde client sera retiré du Capital projet. L'investisseur reste dans Investisseurs."
+            ? "Son solde client sera retiré de la valeur nette du projet. L'investisseur reste dans Investisseurs."
             : isClientOnlyCleanupDelete
                 ? "Les comptes Investisseurs ne seront pas modifiés."
                 : "Cette action est irréversible et supprimera aussi les éléments liés au client.";
@@ -113,9 +113,9 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                         <Textarea value={clientNotes} onChange={e => setClientNotes(e.target.value)} className="mt-1 resize-none text-sm" rows={3} placeholder="Préférences, disponibilités, remarques importantes…"/>
                     </div>
                     <div>
-                        <Label>Seuil de crédit (DZD)</Label>
+                        <Label>{t('clients.creditLimit')} (DZD)</Label>
                         <NumberInput value={clientCreditLimit} onChange={e => setClientCreditLimit(e.target.value)} className="mt-1" placeholder="Ex: 50 000 (0 = illimité)"/>
-                        <p className="mt-1 text-[11px] text-neutral-400">Alerte si la dette dépasse ce montant</p>
+                        <p className="mt-1 text-[11px] text-neutral-400">{t('clients.creditLimitHint')}</p>
                     </div>
                     {!editingClient && (<div>
                             <Label>{t('transactions.initialBalance')} ({t('common.dinar')})</Label>

@@ -61,9 +61,10 @@ type AssetRowProps = {
     suggestedSellPrice: number;
     onEdit?: () => void;
     sellLabel: string;
+    pamLabel: string;
 };
 
-function AssetRow({ symbol, quantity, value, pam, suggestedSellPrice, onEdit, sellLabel }: AssetRowProps) {
+function AssetRow({ symbol, quantity, value, pam, suggestedSellPrice, onEdit, sellLabel, pamLabel }: AssetRowProps) {
     return (
         <div className="rounded-lg bg-surface-muted p-4">
             <div className="flex items-start justify-between gap-3">
@@ -84,7 +85,7 @@ function AssetRow({ symbol, quantity, value, pam, suggestedSellPrice, onEdit, se
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-2">
-                <AssetMetric label="PAM" value={pam} />
+                <AssetMetric label={pamLabel} value={pam} />
                 {suggestedSellPrice > 0 && <AssetMetric label={sellLabel} value={suggestedSellPrice} />}
             </div>
         </div>
@@ -167,6 +168,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
                         suggestedSellPrice={smartTargetUsdt}
                         onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('USDT') : undefined}
                         sellLabel={t('transactions.sell') as string}
+                        pamLabel={t('portfolio.currentPam') as string}
                     />
                     <AssetRow
                         symbol="EUR"
@@ -176,6 +178,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
                         suggestedSellPrice={smartTargetEur}
                         onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('EUR') : undefined}
                         sellLabel={t('transactions.sell') as string}
+                        pamLabel={t('portfolio.currentPam') as string}
                     />
                 </CardContent>
             </Card>

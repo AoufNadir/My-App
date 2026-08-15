@@ -1,4 +1,5 @@
 export type ServiceBalanceKind = 'to_receive' | 'client_advance' | 'settled';
+type TranslateFn = (key: string) => string;
 const EPSILON = 0.005;
 export function describeServiceBalance(balance: number): {
     amount: number;
@@ -13,10 +14,17 @@ export function describeServiceBalance(balance: number): {
     }
     return { amount: 0, kind: 'settled' };
 }
-export function getServiceBalanceLabel(kind: ServiceBalanceKind): string {
+export function getServiceBalanceLabel(kind: ServiceBalanceKind, t?: TranslateFn): string {
+    if (t) {
+        if (kind === 'to_receive')
+            return t('finance.toReceive');
+        if (kind === 'client_advance')
+            return t('finance.clientAdvance');
+        return t('finance.settled');
+    }
     if (kind === 'to_receive')
-        return 'À recevoir';
+        return 'À encaisser du client';
     if (kind === 'client_advance')
-        return 'Avance client';
-    return 'Solde';
+        return 'Solde en faveur du client';
+    return 'Solde réglé';
 }
