@@ -196,11 +196,30 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                 if (linkedUsdtTx && isLinkedPortfolioTx) {
                     const isBuy = linkedUsdtTx.type === 'buy';
                     const manualNote = getManualClientNote(tx.notes);
-                    const originalClient = tx.linkRole === 'dzd_receiver' && linkedUsdtTx.linkedClientId
-                        ? clientsById.get(linkedUsdtTx.linkedClientId)
+                    const linkedClientRows = tx.linkedTxId
+                        ? clientTransactionsDzd.filter((candidate) => candidate.linkedTxId === tx.linkedTxId)
+                        : [];
+                    const primaryClientRow = (linkedUsdtTx.linkedClientId
+                        ? linkedClientRows.find((candidate) => candidate.clientId === linkedUsdtTx.linkedClientId)
+                        : undefined)
+                        || linkedClientRows.find((candidate) => candidate.linkRole === 'primary')
+                        || linkedClientRows.find((candidate) => candidate.id !== tx.id && candidate.linkRole !== 'dzd_receiver');
+                    const receiverClientRow = (linkedUsdtTx.linkedClientDzdId
+                        ? linkedClientRows.find((candidate) => candidate.clientId === linkedUsdtTx.linkedClientDzdId)
+                        : undefined)
+                        || linkedClientRows.find((candidate) => candidate.linkRole === 'dzd_receiver');
+                    const currentRowIsReceiver = tx.linkRole === 'dzd_receiver'
+                        || Boolean(linkedUsdtTx.linkedClientDzdId && tx.clientId === linkedUsdtTx.linkedClientDzdId)
+                        || receiverClientRow?.id === tx.id;
+                    const originalClient = currentRowIsReceiver
+                        ? (linkedUsdtTx.linkedClientId
+                            ? clientsById.get(linkedUsdtTx.linkedClientId)
+                            : (primaryClientRow ? clientsById.get(primaryClientRow.clientId) : undefined))
                         : undefined;
-                    const receiverClient = tx.linkRole !== 'dzd_receiver' && linkedUsdtTx.linkedClientDzdId
-                        ? clientsById.get(linkedUsdtTx.linkedClientDzdId)
+                    const receiverClient = !currentRowIsReceiver
+                        ? (linkedUsdtTx.linkedClientDzdId
+                            ? clientsById.get(linkedUsdtTx.linkedClientDzdId)
+                            : (receiverClientRow ? clientsById.get(receiverClientRow.clientId) : undefined))
                         : undefined;
                     const relationDetail = originalClient
                         ? String(t('transactions.originalClient')).replace('{client}', getClientFullName(originalClient))

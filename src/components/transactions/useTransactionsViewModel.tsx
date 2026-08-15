@@ -504,8 +504,12 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 ? t('ledger.sellUsdtEur')
                 : getPortfolioOperationLabel(tx.type, tx.currency, t);
             const txClientCandidates = tx.id ? (linkedClientTxsByTransactionId.get(tx.id) || []) : [];
-            const txClient = txClientCandidates.find((clientTx) => clientTx.linkRole !== 'dzd_receiver') || txClientCandidates[0];
-            const txDzdReceiver = txClientCandidates.find((clientTx) => clientTx.linkRole === 'dzd_receiver');
+            const txClient = (tx.linkedClientId ? txClientCandidates.find((clientTx) => clientTx.clientId === tx.linkedClientId) : undefined)
+                || txClientCandidates.find((clientTx) => clientTx.linkRole === 'primary')
+                || txClientCandidates.find((clientTx) => clientTx.linkRole !== 'dzd_receiver')
+                || txClientCandidates[0];
+            const txDzdReceiver = (tx.linkedClientDzdId ? txClientCandidates.find((clientTx) => clientTx.clientId === tx.linkedClientDzdId) : undefined)
+                || txClientCandidates.find((clientTx) => clientTx.linkRole === 'dzd_receiver');
             const client = txClient ? clientsById.get(txClient.clientId) : undefined;
             const receiverClient = txDzdReceiver
                 ? clientsById.get(txDzdReceiver.clientId)
