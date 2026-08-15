@@ -1,15 +1,13 @@
-import { useEffect, useState } from 'react';
 import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { MoneyField } from '../ui/MoneyField';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
+
 import { InfoIcon } from '../icons/InfoIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { TreasuryTx } from '../../types';
 import { evaluatePersonalAdvanceReconciliation } from '../../utils/personalExpenses';
-import { parseAndEvaluate } from '../../utils';
-import { roundM } from '../../utils/money';
 
 interface PersonalAdvanceReconcileModalProps {
     isOpen: boolean;
@@ -31,106 +29,30 @@ export function PersonalAdvanceReconcileModal({
     onSave,
 }: PersonalAdvanceReconcileModalProps) {
     const { t } = useLanguage();
-    const [spentInput, setSpentInput] = useState('');
-    const [returnedInput, setReturnedInput] = useState('');
-
-    const advanceAmount = Number(advanceTx?.amount || 0);
-
-    useEffect(() => {
-        if (isOpen && advanceTx) {
-            const rawReturned = actualAmount || '';
-            setReturnedInput(rawReturned);
-            const parsedReturned = parseAndEvaluate(rawReturned);
-            if (Number.isFinite(parsedReturned) && parsedReturned >= 0) {
-                const spent = Math.max(0, advanceAmount - parsedReturned);
-                setSpentInput(String(roundM(spent)));
-            } else if (rawReturned.trim() === '') {
-                setSpentInput('');
-            }
-        }
-    }, [isOpen, advanceTx]);
 
     if (!advanceTx) {
         return null;
     }
 
-    const reconciliation = evaluatePersonalAdvanceReconciliation(returnedInput, advanceAmount);
+    const advanceAmount = Number(advanceTx.amount || 0);
+    const reconciliation = evaluatePersonalAdvanceReconciliation(actualAmount, advanceAmount);
     const returnAmount = reconciliation.returnAmount;
+    const hasError = !reconciliation.isValid;
     const returnSource = advanceTx.source || 'Caisse';
     const withSource = (key: string) => String(t(key)).replace('{source}', returnSource);
-
-    // Validation checks for spent input
-    const parsedSpent = parseAndEvaluate(spentInput);
-    const isSpentExceeded = Number.isFinite(parsedSpent) && parsedSpent > advanceAmount + 0.005;
-    const isSpentNegative = Number.isFinite(parsedSpent) && parsedSpent < -0.005;
-    const isSpentInvalid = spentInput.trim() !== '' && !Number.isFinite(parsedSpent);
-
-    const spentErrorMessage = isSpentExceeded ? (
-        <span className="inline-flex flex-wrap items-center gap-1">
-            {t('personalAdvance.exceedsSpent')}
-            <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="sm" decimals={0}/>
-        </span>
-    ) : isSpentNegative ? (
-        t('personalAdvance.negative')
-    ) : isSpentInvalid ? (
-        t('common.invalidAmount')
-    ) : undefined;
-
-    const returnedErrorMessage = reconciliation.error === 'exceeds' ? (
+    const errorTitle = reconciliation.error === 'exceeds'
+        ? t('personalAdvance.exceeds')
+        : reconciliation.error === 'invalid'
+            ? t('common.invalidAmount')
+            : reconciliation.error === 'negative'
+                ? t('personalAdvance.negative')
+                : undefined;
+    const errorMessage = reconciliation.error === 'exceeds' ? (
         <span className="inline-flex flex-wrap items-center gap-1">
             {t('personalAdvance.exceeds')}
             <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="sm" decimals={0}/>
         </span>
-    ) : reconciliation.error === 'invalid' ? (
-        t('common.invalidAmount')
-    ) : reconciliation.error === 'negative' ? (
-        t('personalAdvance.negative')
-    ) : undefined;
-
-    const hasError = !reconciliation.isValid || isSpentExceeded || isSpentNegative || isSpentInvalid;
-
-    const handleSpentChange = (val: string) => {
-        setSpentInput(val);
-        if (val.trim() === '') {
-            setReturnedInput('');
-            setActualAmount('');
-            return;
-        }
-        const parsed = parseAndEvaluate(val);
-        if (Number.isFinite(parsed) && parsed >= 0) {
-            const ret = Math.max(0, roundM(advanceAmount - parsed));
-            const retStr = String(ret);
-            setReturnedInput(retStr);
-            setActualAmount(retStr);
-        }
-    };
-
-    const handleReturnedChange = (val: string) => {
-        setReturnedInput(val);
-        setActualAmount(val);
-        if (val.trim() === '') {
-            setSpentInput('');
-            return;
-        }
-        const parsed = parseAndEvaluate(val);
-        if (Number.isFinite(parsed) && parsed >= 0) {
-            const spent = Math.max(0, roundM(advanceAmount - parsed));
-            setSpentInput(String(spent));
-        }
-    };
-
-    const handleReturnAll = () => {
-        const retStr = String(advanceAmount);
-        setReturnedInput(retStr);
-        setSpentInput('0');
-        setActualAmount(retStr);
-    };
-
-    const handleSpendAll = () => {
-        setReturnedInput('0');
-        setSpentInput(String(advanceAmount));
-        setActualAmount('0');
-    };
+    ) : errorTitle;
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
@@ -152,44 +74,32 @@ export function PersonalAdvanceReconcileModal({
                     </dl>
                 </Card>
 
-                <div className="space-y-3">
-                    <MoneyField
-                        label={t('personalAdvance.spentAmount') as string}
-                        value={spentInput}
-                        onChange={handleSpentChange}
-                        currency="DZD"
-                        placeholder="0"
-                        hint={t('personalAdvance.spentHint') as string}
-                        error={spentErrorMessage}
-                        autoFocus
-                    />
-
-                    <MoneyField
-                        label={t('personalAdvance.returnedAmount') as string}
-                        value={returnedInput}
-                        onChange={handleReturnedChange}
-                        currency="DZD"
-                        placeholder="0"
-                        hint={(
-                            <span className="inline-flex flex-wrap items-center gap-1">
-                                {t('personalAdvance.advanceTakenHint')}:
-                                <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="sm" decimals={0}/>
-                            </span>
-                        )}
-                        error={returnedErrorMessage}
-                    />
-                </div>
+                <MoneyField
+                    label={t('personalAdvance.returnedAmount') as string}
+                    value={actualAmount}
+                    onChange={setActualAmount}
+                    currency="DZD"
+                    placeholder="0"
+                    hint={(
+                        <span className="inline-flex flex-wrap items-center gap-1">
+                            {t('personalAdvance.advanceTakenHint')}:
+                            <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="sm" decimals={0}/>
+                        </span>
+                    )}
+                    error={errorMessage}
+                    autoFocus
+                />
 
                 <div className="grid grid-cols-2 gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={handleSpendAll}>
-                        {t('personalAdvance.spendAll')}
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={handleReturnAll}>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setActualAmount(String(advanceAmount))}>
                         {t('personalAdvance.returnAll')}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setActualAmount('0')}>
+                        {t('personalAdvance.spendAll')}
                     </Button>
                 </div>
 
-                {reconciliation.isValid && !hasError && (
+                {reconciliation.isValid && (
                     <Card className={[
                         'p-4',
                         returnAmount > 0 ? 'border-success/20 bg-success-bg' : 'bg-surface-muted',
@@ -231,6 +141,7 @@ export function PersonalAdvanceReconcileModal({
                         onClick={onSave}
                         disabled={hasError}
                         loading={isSaving}
+                        title={errorTitle}
                     >
                         {isSaving ? t('common.processing') : t('common.confirm')}
                     </Button>
