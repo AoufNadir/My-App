@@ -16,6 +16,7 @@ export interface DisplayTx {
     amountColor: string;
     icon: React.ReactNode;
     details: string;
+    contextLabel?: string;
     category: 'crypto' | 'client' | 'treasury';
     rawTx: DisplayRawTx;
     actionRawTx?: DisplayRawTx;

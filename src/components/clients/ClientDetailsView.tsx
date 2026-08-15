@@ -109,6 +109,21 @@ function findClientTransferCounterpart(tx: ClientTransactionDzd, allClientTxs: C
         .sort((left, right) => Math.abs(Number(left.timestamp || 0) - Number(tx.timestamp || 0))
         - Math.abs(Number(right.timestamp || 0) - Number(tx.timestamp || 0)))[0] || null;
 }
+function withoutGeneratedRelation(note: string, relationDetail: string, relationClientName: string) {
+    if (!note || !relationDetail)
+        return note;
+    const generatedParts = new Set([
+        relationDetail,
+        relationClientName ? `Client: ${relationClientName}` : '',
+        relationClientName ? `العميل: ${relationClientName}` : '',
+        relationClientName ? `عند ${relationClientName}` : '',
+    ].filter(Boolean));
+    return note
+        .split(/\s+-\s+/)
+        .map((part) => part.trim())
+        .filter((part) => part && !generatedParts.has(part))
+        .join(' - ');
+}
 function ContactRow({ label, value, copiedValue, onCopy, isPhone }: ContactRowProps) {
     const { t } = useLanguage();
     if (!value)
@@ -221,14 +236,20 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                             ? clientsById.get(linkedUsdtTx.linkedClientDzdId)
                             : (receiverClientRow ? clientsById.get(receiverClientRow.clientId) : undefined))
                         : undefined;
-                    const relationDetail = originalClient
-                        ? String(t('transactions.originalClient')).replace('{client}', getClientFullName(originalClient))
+                    const relationClientName = originalClient
+                        ? getClientFullName(originalClient)
                         : receiverClient
-                            ? String(t('transactions.settlementAt')).replace('{client}', getClientFullName(receiverClient))
+                            ? getClientFullName(receiverClient)
                             : '';
-                    const details = manualNote.includes(relationDetail.replace(/^Client: |^العميل: /, ''))
-                        ? manualNote
-                        : [manualNote, relationDetail].filter(Boolean).join(' - ');
+                    const relationDetail = originalClient
+                        ? String(t('transactions.originalClient')).replace('{client}', relationClientName)
+                        : receiverClient
+                            ? String(t('transactions.settlementAt')).replace('{client}', relationClientName)
+                            : '';
+                    const details = [
+                        relationDetail,
+                        withoutGeneratedRelation(manualNote, relationDetail, relationClientName)
+                    ].filter(Boolean).join(' - ');
                     return {
                         id: `client_linked_${tx.id}`,
                         originalId: tx.id,
@@ -240,6 +261,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                         amountColor: isBuy ? 'text-financial-profit' : 'text-financial-loss',
                         icon: iconNode,
                         details,
+                        contextLabel: relationDetail || undefined,
                         category: 'crypto',
                         rawTx: linkedUsdtTx,
                         actionRawTx: tx,

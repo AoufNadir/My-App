@@ -59,7 +59,8 @@ export function TransactionDisplayList({
               const profitLabel = showProfit
                 ? `${derivedProfit! >= 0 ? '+' : ''}${Math.round(derivedProfit!).toLocaleString('fr-FR')} DZD`
                 : '';
-              const detailText = normalizeLedgerLabel(tx.details || notes || '');
+              const contextText = normalizeLedgerLabel(tx.contextLabel || '');
+              const detailText = contextText || normalizeLedgerLabel(tx.details || notes || '');
               const rightMiddleLabel = tx.rightMiddleLabel
                 ?? (tx.sourceType === 'usdt_tx' && unitPrice > 0 ? `@ ${unitPriceLabel}` : '');
               const canOpen = Boolean(onOpenDisplayTx);
@@ -100,7 +101,7 @@ export function TransactionDisplayList({
                         {tx.amountLabel}
                       </p>
 
-                      <p className="min-w-0 truncate text-[13px] leading-snug text-neutral-500">
+                      <p className={`min-w-0 truncate text-[13px] leading-snug ${contextText ? 'font-medium text-neutral-700' : 'text-neutral-500'}`}>
                         {detailText}
                       </p>
                       <p dir="ltr" className="min-w-0 max-w-[7.5rem] justify-self-end truncate text-end text-[11px] leading-snug text-neutral-500">
