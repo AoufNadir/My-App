@@ -14,10 +14,18 @@ import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { parseAndEvaluate } from '../../utils';
 import { formatNumber } from '../../pages/shared/pageFormat';
 import { getFirstValidationMessage } from '../../utils/financialUx';
+import { getTransactionTagLabel } from '../../utils/transactionTerminology';
 
-const QUICK_TAGS = ['OTC', 'Urgent', 'Gros compte', 'Livraison', 'Crédit'];
+const QUICK_TAGS = [
+    { value: 'OTC', labelKey: 'transactions.quickTagOtc' },
+    { value: 'Urgent', labelKey: 'transactions.quickTagUrgent' },
+    { value: 'Gros compte', labelKey: 'transactions.quickTagLargeAccount' },
+    { value: 'Livraison', labelKey: 'transactions.quickTagDelivery' },
+    // Keep the old stored value for existing filters and historical records.
+    { value: 'Crédit', labelKey: 'transactions.quickTagDeferredPayment' }
+] as const;
 
-function TagInput({ tags, setTags }: { tags: string[]; setTags: (t: string[]) => void }) {
+function TagInput({ tags, setTags, t }: { tags: string[]; setTags: (t: string[]) => void; t: (key: string) => string }) {
     const [input, setInput] = React.useState('');
     const addTag = (raw: string) => {
         const tag = raw.trim();
@@ -28,21 +36,21 @@ function TagInput({ tags, setTags }: { tags: string[]; setTags: (t: string[]) =>
     const removeTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
     return (
         <div className="space-y-2">
-            <p className="text-sm font-medium text-neutral-700">Étiquettes</p>
+            <p className="text-sm font-medium text-neutral-700">{t('transactions.tags')}</p>
             {tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                     {tags.map((tag) => (
                         <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                            {tag}
-                            <button type="button" onClick={() => removeTag(tag)} className="text-primary/60 hover:text-primary" aria-label={`Supprimer ${tag}`}>×</button>
+                            {getTransactionTagLabel(tag, t)}
+                            <button type="button" onClick={() => removeTag(tag)} className="text-primary/60 hover:text-primary" aria-label={`${t('transactions.removeTag')} ${getTransactionTagLabel(tag, t)}`}>×</button>
                         </span>
                     ))}
                 </div>
             )}
             <div className="flex flex-wrap gap-1.5">
-                {QUICK_TAGS.filter((qt) => !tags.includes(qt)).map((qt) => (
-                    <button key={qt} type="button" onClick={() => addTag(qt)} className="rounded-full border border-dashed border-neutral-300 px-2.5 py-1 text-[11px] font-medium text-neutral-500 hover:border-primary hover:text-primary transition-colors">
-                        + {qt}
+                {QUICK_TAGS.filter(({ value }) => !tags.includes(value)).map(({ value, labelKey }) => (
+                    <button key={value} type="button" onClick={() => addTag(value)} className="rounded-full border border-dashed border-neutral-300 px-2.5 py-1 text-[11px] font-medium text-neutral-500 hover:border-primary hover:text-primary transition-colors">
+                        + {t(labelKey)}
                     </button>
                 ))}
             </div>
@@ -51,7 +59,7 @@ function TagInput({ tags, setTags }: { tags: string[]; setTags: (t: string[]) =>
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(input); } }}
-                placeholder="Ajouter une étiquette…"
+                placeholder={t('transactions.addTagPlaceholder')}
                 className="h-9 w-full rounded-button border border-border bg-surface px-3 text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
         </div>
@@ -287,7 +295,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
             <div className="mt-1.5 grid gap-1 text-xs text-neutral-500 sm:grid-cols-2 sm:items-center">
                 <span dir="ltr" className="min-w-0 tabular-nums">{t('portfolio.currentPam')}: {activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span>
                 {parseAndEvaluate(profitPercent) !== 0 && (<span dir="ltr" className={`min-w-0 tabular-nums sm:text-end ${parseAndEvaluate(profitPercent) > 0 ? 'text-financial-profit font-medium' : 'text-financial-loss font-medium'}`}>
-                        Marge: {parseAndEvaluate(profitPercent) > 0 ? '+' : ''}{parseAndEvaluate(profitPercent).toFixed(2)} {t('common.dinar')}
+                        {t('transactions.unitMargin')}: {parseAndEvaluate(profitPercent) > 0 ? '+' : ''}{parseAndEvaluate(profitPercent).toFixed(2)} {t('common.dinar')}
                     </span>)}
             </div>
         </div>
@@ -492,7 +500,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                 }} currency="DZD" onMax={applyClientMaxToBuyTotal} maxDisabled={!hasPrimaryClient || selectedClientTotal <= 0} error={formValidation.errors['buyUsdtTotal']} hint={t('transactions.autoCalc')} placeholder={t('transactions.autoCalc')}/>
                                 <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} errorMessage={formValidation.errors['linkedClientId']} hasError={!!formValidation.errors['linkedClientId']} errorMessageDzd={formValidation.errors['linkedClientDzdId']} hasErrorDzd={!!formValidation.errors['linkedClientDzdId']}/>
                                 <div className="space-y-1.5">
-                                    <p className="text-sm font-medium text-neutral-700">Disponibilité USDT</p>
+                                    <p className="text-sm font-medium text-neutral-700">{t('transactions.stockAvailability')}</p>
                                     <div className="flex gap-1 rounded-xl p-1 bg-neutral-100">
                                         <button type="button" onClick={() => setBuyRestriction('free')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction !== 'locked_24h' ? 'bg-success text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
                                             Disponible
@@ -502,9 +510,9 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                         </button>
                                     </div>
                                     {buyRestriction === 'locked_24h' && (<>
-                                        <p className="text-xs text-warning px-1">Cette quantité sera bloquée 24h avant d'être disponible à la vente.</p>
+                                        <p className="text-xs text-warning px-1">{t('transactions.stockLock24h')}</p>
                                         <div className="flex items-center gap-2 px-1 pt-0.5">
-                                            <label className="text-xs font-medium text-neutral-600 whitespace-nowrap">Heure d'achat réelle</label>
+                                            <label className="text-xs font-medium text-neutral-600 whitespace-nowrap">{t('transactions.actualPurchaseTime')}</label>
                                             <input type="time" value={realPurchaseTime ?? ''} onChange={(e) => setRealPurchaseTime(e.target.value)} className="h-8 rounded-lg border border-border bg-surface px-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"/>
                                             {unlockPreviewTime && (<span className="text-xs text-warning whitespace-nowrap">→ {unlockPreviewTime}</span>)}
                                         </div>
@@ -548,7 +556,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                         </div>);
                 })()}
                                 <div className="space-y-1.5">
-                                    <p className="text-sm font-medium text-neutral-700">Disponibilité USDT</p>
+                                    <p className="text-sm font-medium text-neutral-700">{t('transactions.stockAvailability')}</p>
                                     <div className="flex gap-1 rounded-xl p-1 bg-neutral-100">
                                         <button type="button" onClick={() => setBuyRestriction('free')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction !== 'locked_24h' ? 'bg-success text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
                                             Disponible
@@ -558,9 +566,9 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                         </button>
                                     </div>
                                     {buyRestriction === 'locked_24h' && (<>
-                                        <p className="text-xs text-warning px-1">Cette quantité sera bloquée 24h avant d'être disponible à la vente.</p>
+                                        <p className="text-xs text-warning px-1">{t('transactions.stockLock24h')}</p>
                                         <div className="flex items-center gap-2 px-1 pt-0.5">
-                                            <label className="text-xs font-medium text-neutral-600 whitespace-nowrap">Heure d'achat réelle</label>
+                                            <label className="text-xs font-medium text-neutral-600 whitespace-nowrap">{t('transactions.actualPurchaseTime')}</label>
                                             <input type="time" value={realPurchaseTime ?? ''} onChange={(e) => setRealPurchaseTime(e.target.value)} className="h-8 rounded-lg border border-border bg-surface px-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"/>
                                             {unlockPreviewTime && (<span className="text-xs text-warning whitespace-nowrap">→ {unlockPreviewTime}</span>)}
                                         </div>
@@ -695,6 +703,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                 <TagInput
                                     tags={Array.isArray(txTags) ? txTags : []}
                                     setTags={(newTags) => setTxTags(newTags)}
+                                    t={t}
                                 />
                             )}
                         </>)}

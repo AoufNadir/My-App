@@ -1,10 +1,12 @@
 import type { Tx } from '../../types';
 import { normalizeLedgerLabel } from '../../utils/financialUx';
+import { getTransactionTagLabel } from '../../utils/transactionTerminology';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import type { DisplayTx } from './transactionsTypes';
 
 type TransactionDisplayListProps = {
   dateGroups: Array<[string, DisplayTx[]]>;
+  t: (key: string) => string;
   getRelativeDateLabel: (dateString: string) => string;
   onEditDisplayTx?: (tx: DisplayTx) => void;
   onDeleteDisplayTx?: (tx: DisplayTx) => void;
@@ -17,6 +19,7 @@ type TransactionDisplayListProps = {
 
 export function TransactionDisplayList({
   dateGroups,
+  t,
   getRelativeDateLabel,
   onEditDisplayTx,
   onDeleteDisplayTx,
@@ -132,7 +135,7 @@ export function TransactionDisplayList({
                       <div className="mt-1.5 flex min-w-0 flex-wrap gap-1 ps-12">
                         {tags.map((tag: string) => (
                           <span key={tag} className="max-w-full truncate rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary">
-                            {tag}
+                            {getTransactionTagLabel(tag, t)}
                           </span>
                         ))}
                       </div>

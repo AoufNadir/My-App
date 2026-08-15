@@ -3,7 +3,8 @@ import {
     getClientOperationLabel,
     getClientTransferDetails,
     getManualClientNote,
-    getPaymentMethodLabel
+    getPaymentMethodLabel,
+    getTransactionTagLabel
 } from './transactionTerminology';
 
 assert.equal(getClientOperationLabel('Transfert Entrant'), 'Transfert entrant');
@@ -26,5 +27,7 @@ assert.equal(
 
 assert.equal(getPaymentMethodLabel('Crédit'), 'Paiement différé');
 assert.equal(getPaymentMethodLabel('Espèces'), 'Caisse');
+assert.equal(getTransactionTagLabel('Crédit'), 'Paiement différé');
+assert.equal(getTransactionTagLabel('Urgent'), 'Urgent');
 
 console.log('transactionTerminology tests passed');

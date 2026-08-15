@@ -28,6 +28,8 @@ const getDisplayLabel = (t: TranslateFn | undefined, key: string, fallback: stri
     const value = t?.(key);
     return typeof value === 'string' && value !== key ? value : fallback;
 };
+const formatMessage = (t: TranslateFn | undefined, key: string, fallback: string, values: Record<string, string | number> = {}) => Object.entries(values)
+    .reduce((message, [name, value]) => message.split(`{${name}}`).join(String(value)), getDisplayLabel(t, key, fallback));
 const resolveAdjustmentAutoPrice = (asset: string, treasuryCards: Array<{
     name?: string;
     value?: number;
@@ -89,7 +91,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     const isClientPaymentReceived = normalizedClientTxType === 'Règlement Reçu';
     const isClientPaymentMade = normalizedClientTxType === 'Paiement Effectué';
     const settlementPaymentStatus = clientTxPaymentStatus === 'baridi' ? 'baridi' : 'cash';
-    const clientSettlementWalletLabel = settlementPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+    const clientSettlementWalletLabel = String(settlementPaymentStatus === 'baridi' ? t('transactions.baridi') : t('transactions.cash'));
     const clientSettlementHint = String(isClientPaymentReceived ? t('transactions.clientTreasuryAddHint') : t('transactions.clientTreasuryRetraitHint'))
         .replace('{wallet}', clientSettlementWalletLabel);
     const parsedClientTxAmount = parseAndEvaluate(clientTxAmount);
@@ -160,7 +162,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     const isDzdAdjustment = adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi';
     const selectedAssetLabel = getAdjustmentAssetLabel(adjustmentAsset);
     const selectedClient = (clientsDzd || []).find((client: any) => client.id === adjustmentClientId);
-    const selectedClientName = selectedClient ? getClientFullName(selectedClient) : 'Aucun client';
+    const selectedClientName = selectedClient ? getClientFullName(selectedClient) : getDisplayLabel(t, 'transactions.noClient', 'Aucun client');
     const linkedClientBalance = Number(clientBalances?.get?.(adjustmentClientId) || 0);
     const selectedAssetMax = Number(adjustmentAsset === 'DZD-Caisse'
         ? (treasuryStats?.caisse || 0)
@@ -202,34 +204,38 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     const maxButtonTitle = maxDisabled
         ? (usesClientMax
             ? (adjustmentTab === 'add'
-                ? 'Aucune dette client à régler'
-                : 'Aucun solde client à rembourser')
+                ? getDisplayLabel(t, 'transactions.noClientDebtToSettle', 'Aucune dette client à régler')
+                : getDisplayLabel(t, 'transactions.noClientCreditToRefund', 'Aucun solde en faveur du client à rembourser'))
             : (adjustmentTab === 'add' && isDzdAdjustment
-                ? 'Sélectionnez un client'
-                : 'Aucune valeur maximale disponible'))
-        : 'Utiliser la valeur maximale';
+                ? getDisplayLabel(t, 'transactions.selectClientFirst', 'Sélectionnez un client')
+                : getDisplayLabel(t, 'transactions.noMaximumAvailable', 'Aucune valeur maximale disponible')))
+        : getDisplayLabel(t, 'transactions.useMaximumValue', 'Utiliser la valeur maximale');
     const amountHint = usesClientMax
         ? (linkedClientMax > 0
-            ? `MAX client : ${formatDisplayMetric(linkedClientMax)} DZD.`
+            ? formatMessage(t, 'transactions.maxClientBalance', 'Maximum applicable au client : {amount} DZD.', { amount: formatDisplayMetric(linkedClientMax) })
             : (adjustmentTab === 'add'
-                ? 'Aucune dette client à régler.'
-                : 'Aucun solde client à rembourser.'))
+                ? getDisplayLabel(t, 'transactions.noClientDebtToSettle', 'Aucune dette client à régler')
+                : getDisplayLabel(t, 'transactions.noClientCreditToRefund', 'Aucun solde en faveur du client à rembourser')))
         : adjustmentTab === 'add' && isDzdAdjustment
-            ? 'MAX disponible après sélection du client.'
-            : `MAX selon ${selectedAssetLabel} : ${formatDisplayMetric(selectedAssetMax)} ${isCryptoAdjustment ? adjustmentAsset : 'DZD'}.`;
+            ? getDisplayLabel(t, 'transactions.maxAfterClientSelection', 'Maximum disponible après sélection du client.')
+            : formatMessage(t, 'transactions.maxAssetBalance', 'Maximum selon {asset} : {amount} {currency}.', {
+                asset: selectedAssetLabel,
+                amount: formatDisplayMetric(selectedAssetMax),
+                currency: isCryptoAdjustment ? adjustmentAsset : 'DZD'
+            });
     const confirmHelperText = isSaving
-        ? 'Traitement en cours...'
+        ? getDisplayLabel(t, 'common.processing', 'Traitement...')
         : !adjustmentAmount || parsedAdjustmentAmount <= 0
-            ? 'Entrez un montant valide.'
+            ? getDisplayLabel(t, 'transactions.enterValidAmount', 'Saisissez un montant valide.')
             : exceedsAvailableBalance
-                ? `Montant supérieur au solde ${adjustmentAsset}.`
+                ? formatMessage(t, 'transactions.amountExceedsAssetBalance', 'Le montant dépasse le solde {asset}.', { asset: adjustmentAsset })
                 : adjustmentTab === 'add'
-                    ? 'Le solde sera ajouté.'
-                    : 'Le solde sera retiré.';
+                    ? getDisplayLabel(t, 'transactions.balanceWillBeAdded', 'Le solde sera ajouté.')
+                    : getDisplayLabel(t, 'transactions.balanceWillBeRemoved', 'Le solde sera retiré.');
     const amountErrorText = !adjustmentAmount || parsedAdjustmentAmount <= 0
-        ? 'Montant invalide'
+        ? getDisplayLabel(t, 'common.invalidAmount', 'Montant invalide')
         : exceedsAvailableBalance
-            ? `Solde ${selectedAssetLabel} insuffisant`
+            ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: selectedAssetLabel })
             : '';
     const modalHeaderClass = 'sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
     const modalFooterClass = 'sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
@@ -256,8 +262,8 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 {[
-                { value: 'cash', label: 'Caisse', icon: <WalletIcon className="h-4 w-4"/>, activeClass: 'border-financial-profit bg-success-bg text-financial-profit' },
-                { value: 'baridi', label: 'BaridiMob', icon: <BanknotesIcon className="h-4 w-4"/>, activeClass: 'border-primary bg-primary/10 text-primary' }
+                { value: 'cash', label: t('transactions.cash'), icon: <WalletIcon className="h-4 w-4"/>, activeClass: 'border-financial-profit bg-success-bg text-financial-profit' },
+                { value: 'baridi', label: t('transactions.baridi'), icon: <BanknotesIcon className="h-4 w-4"/>, activeClass: 'border-primary bg-primary/10 text-primary' }
             ].map((option) => {
                 const isActive = settlementPaymentStatus === option.value;
                 return (<button key={option.value} type="button" onClick={() => setClientTxPaymentStatus?.(option.value)} className={`flex min-h-14 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-bold transition-all ${isActive
@@ -270,33 +276,33 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                             </div>
                             <p className={`mt-2 text-xs leading-5 ${clientSettlementWalletInsufficient ? 'text-financial-loss' : 'text-neutral-500'}`}>
                                 {clientSettlementWalletInsufficient
-                ? `Solde ${clientSettlementWalletLabel} insuffisant.`
+                ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant.', { asset: clientSettlementWalletLabel })
                 : clientSettlementHint}
                             </p>
                         </div>)}
 
                     {canUseReceiverClient && (<div>
-                            <Label>Reçu par (optionnel)</Label>
+                            <Label>{t('transactions.receivedBy')}</Label>
                             <SearchableSelect
                                 value={clientTxReceiverClientId}
                                 onChange={(value) => setClientTxReceiverClientId?.(value)}
                                 options={receiverClientOptions}
                                 fieldClassName={fieldBase}
-                                searchPlaceholder="Chercher le client qui a reçu..."
-                                emptyOptionLabel={isClientPaymentReceived ? 'Moi / portefeuille' : 'Client sélectionné / portefeuille'}
+                                searchPlaceholder={t('transactions.searchReceivingClient')}
+                                emptyOptionLabel={isClientPaymentReceived ? t('transactions.walletSelf') : t('transactions.selectedClientWallet')}
                                 emptyValue="none"
-                                noResultsLabel="Aucun autre client trouvé"
+                                noResultsLabel={t('transactions.noOtherClientFound')}
                                 clearable
-                                clearLabel={isClientPaymentReceived ? 'Moi / portefeuille' : 'Client sélectionné / portefeuille'}
+                                clearLabel={isClientPaymentReceived ? t('transactions.walletSelf') : t('transactions.selectedClientWallet')}
                             />
                             <p className="mt-1 text-xs text-neutral-500">
                                 {hasReceiverClient && isClientPaymentReceived
-                                    ? `Aucun ajout dans ${clientSettlementWalletLabel}. La dette sera transférée à ${receiverClientName}.`
+                                    ? formatMessage(t, 'transactions.receiptTransferredDebt', 'Aucun encaissement dans {wallet}. La dette est transférée à {client}.', { wallet: clientSettlementWalletLabel, client: receiverClientName })
                                     : hasReceiverClient && isClientPaymentMade
-                                        ? `Aucun retrait de ${clientSettlementWalletLabel}. Le droit sera transféré à ${receiverClientName}.`
+                                        ? formatMessage(t, 'transactions.payoutTransferredCredit', 'Aucun remboursement depuis {wallet}. Le solde en faveur du client est transféré à {client}.', { wallet: clientSettlementWalletLabel, client: receiverClientName })
                                         : isClientPaymentReceived
-                                            ? `Laisse vide si tu as reçu l'argent toi-même dans ${clientSettlementWalletLabel}.`
-                                            : `Laisse vide si le client sélectionné a reçu l'argent depuis ${clientSettlementWalletLabel}.`}
+                                            ? formatMessage(t, 'transactions.receiptWalletFallback', 'Laissez vide si vous avez encaissé vous-même dans {wallet}.', { wallet: clientSettlementWalletLabel })
+                                            : formatMessage(t, 'transactions.payoutWalletFallback', 'Laissez vide si le client sélectionné a reçu le remboursement depuis {wallet}.', { wallet: clientSettlementWalletLabel })}
                             </p>
                         </div>)}
 
@@ -321,7 +327,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                         </div>) : (<div>
                             <Label>{t('transactions.amountDzd')}</Label>
                             <div className="relative">
-                                <Input type="text" inputMode="decimal" value={clientTxAmount} onChange={e => setClientTxAmount(e.target.value)} className="pe-20" placeholder="+/- Montant"/>
+                                <Input type="text" inputMode="decimal" value={clientTxAmount} onChange={e => setClientTxAmount(e.target.value)} className="pe-20" placeholder={t('transactions.signedAmountPlaceholder')}/>
                                 {isClientSettlementTx && (<button type="button" onClick={() => {
                     if (clientTxMaxDisabled)
                         return;
@@ -351,7 +357,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                         { label: t('transactions.totalAmount'), value: qty * price, currency: 'DZD', emphasize: true }
                     ];
                     if (qty > (portfolioStats?.usdt?.available || 0))
-                        error = 'Solde USDT insuffisant';
+                        error = formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: 'USDT' });
                 }
             }
             else if (normalizedClientTxType === 'Achat EUR') {
@@ -376,7 +382,9 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     ];
                     if (isClientSettlementTx && hasReceiverClient) {
                         rows.push({
-                            label: isReceived ? `Dette transférée à ${receiverClientName}` : `Droit transféré à ${receiverClientName}`,
+                            label: isReceived
+                                ? formatMessage(t, 'transactions.transferredDebt', 'Dette transférée à {client}', { client: receiverClientName })
+                                : formatMessage(t, 'transactions.transferredClientCredit', 'Solde en faveur transféré à {client}', { client: receiverClientName }),
                             value: Math.abs(amt),
                             currency: 'DZD',
                             semantic: isReceived ? 'loss' : 'profit'
@@ -391,7 +399,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                         });
                     }
                     if (clientSettlementWalletInsufficient)
-                        error = `Solde ${clientSettlementWalletLabel} insuffisant`;
+                        error = formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: clientSettlementWalletLabel });
                 }
             }
             if (!valid)
@@ -420,7 +428,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                 : (!Number.isFinite(amtVal) || amtVal === 0 || (isClientSettlementTx && amtVal <= 0) || clientSettlementWalletInsufficient);
             const isDisabled = isSaving || isInvalid;
             return (<Button onClick={() => handleSaveClientTx(selectedClientId)} disabled={isDisabled} className={`w-full rounded-xl py-3 font-bold text-white ${isDisabled ? 'bg-neutral-400 cursor-not-allowed' : 'bg-success hover:opacity-95'}`}>
-                                {isSaving ? t('common.processing') : exceedsUsdt ? 'Solde USDT insuffisant' : t('common.save')}
+                                {isSaving ? t('common.processing') : exceedsUsdt ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: 'USDT' }) : t('common.save')}
                             </Button>);
         })()}
                 </ModalFooter>
@@ -435,12 +443,12 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                         <button type="button" onClick={() => setAdjustmentTab('add')} className={`min-h-touch flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${adjustmentTab === 'add'
             ? 'bg-success text-white shadow-sm'
             : 'text-neutral-600 hover:text-neutral-800'}`}>
-                            Ajouter (+)
+                            {t('transactions.addTo')}
                         </button>
                         <button type="button" onClick={() => setAdjustmentTab('subtract')} className={`min-h-touch flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${adjustmentTab === 'subtract'
             ? 'bg-danger text-white shadow-sm'
             : 'text-neutral-600 hover:text-neutral-800'}`}>
-                            Retirer (-)
+                            {t('transactions.withdrawFrom')}
                         </button>
                     </div>
 
@@ -465,9 +473,9 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                 : `${t('transactions.pamAuto')}: ${adjustmentAuto.sourceLabel}`}/>)}
 
                     {isDzdAdjustment && (<div>
-                            <Label>{t('transactions.linkedClientOptional')} <span className="text-xs font-normal text-neutral-400">(Optionnel)</span></Label>
+                            <Label>{t('transactions.linkedClientOptional')} <span className="text-xs font-normal text-neutral-400">({t('common.optional')})</span></Label>
                             <div className="mt-1">
-                                <SearchableSelect value={adjustmentClientId} onChange={setAdjustmentClientId} options={(clientsDzd || []).map((client: any) => ({ value: client.id, label: getClientFullName(client) }))} searchPlaceholder="Rechercher un client..." emptyOptionLabel="Aucun client" emptyValue="" noResultsLabel="Aucun client trouvé" clearable clearLabel="Supprimer le client lié"/>
+                                <SearchableSelect value={adjustmentClientId} onChange={setAdjustmentClientId} options={(clientsDzd || []).map((client: any) => ({ value: client.id, label: getClientFullName(client) }))} searchPlaceholder={t('transactions.searchClient')} emptyOptionLabel={t('transactions.noClient')} emptyValue="" noResultsLabel={t('transactions.noClientFound')} clearable clearLabel={t('transactions.clearClient')}/>
                             </div>
                         </div>)}
 
@@ -484,27 +492,27 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                 rows.push({ label: t('transactions.quantity'), value: qty, currency: adjustmentAsset as 'USDT' | 'EUR' });
                 if (price > 0) {
                     rows.push({ label: t('transactions.unitPrice'), value: price, currency: 'DZD' });
-                    rows.push({ label: 'Equivalent DZD', value: totalDzd, currency: 'DZD', emphasize: true });
+                    rows.push({ label: t('transactions.equivalentDzd'), value: totalDzd, currency: 'DZD', emphasize: true });
                 }
-                rows.push({ label: 'Solde après', value: nextAvailable, currency: adjustmentAsset as 'USDT' | 'EUR', semantic: 'auto' });
+                rows.push({ label: t('transactions.balanceAfterOperation'), value: nextAvailable, currency: adjustmentAsset as 'USDT' | 'EUR', semantic: 'auto' });
             }
             else {
                 const nextTreasury = selectedAssetMax + sign * qty;
                 rows.push({ label: t('transactions.amount'), value: qty, currency: 'DZD' });
-                rows.push({ label: `Solde après (${selectedAssetLabel})`, value: nextTreasury, currency: 'DZD', semantic: 'auto' });
+                rows.push({ label: formatMessage(t, 'transactions.balanceAfterOperationForAsset', 'Solde après l’opération ({asset})', { asset: selectedAssetLabel }), value: nextTreasury, currency: 'DZD', semantic: 'auto' });
             }
-            return (<TransactionPreviewCard title={t('transactions.confirmAndSave')} rows={rows} error={exceedsAvailableBalance ? `Solde ${selectedAssetLabel} insuffisant` : undefined}/>);
+            return (<TransactionPreviewCard title={t('transactions.confirmAndSave')} rows={rows} error={exceedsAvailableBalance ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: selectedAssetLabel }) : undefined}/>);
         })()}
                 </ModalContent>
                 <ModalFooter className={modalFooterClass}>
                     <div className="flex gap-2 w-full">
                         <Button onClick={() => setIsAdjustmentModalOpen(false)} className="flex-1 py-3 rounded-xl font-bold transition-colors bg-neutral-100 text-neutral-700 hover:bg-neutral-200">
-                            Annuler
+                            {t('common.cancel')}
                         </Button>
                         <Button onClick={handleGlobalAdjustment} disabled={isConfirmDisabled} className={`flex-1 py-3 rounded-xl font-bold text-white shadow-sm transition-colors ${isConfirmDisabled
             ? 'cursor-not-allowed bg-neutral-400 opacity-70'
             : 'bg-primary hover:bg-primary-dark'}`} title={!isConfirmDisabled ? undefined : confirmHelperText}>
-                            {isSaving ? t('common.processing') : 'Confirmer'}
+                            {isSaving ? t('common.processing') : t('common.confirm')}
                         </Button>
                     </div>
                 </ModalFooter>

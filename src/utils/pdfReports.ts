@@ -953,7 +953,7 @@ function buildUncostedQuantityWarningsHtml(rows: PamLedgerResult['sellProfitRows
     const hiddenCount = uncostedRows.length - previewRows.length;
     return `
     <section class="section">
-      <h2 class="section-title">Alertes Comptables PAM</h2>
+      <h2 class="section-title">Alertes comptables — prix moyen d’achat (PAM)</h2>
       <div class="pill-row loose">
         <span class="pill">uncostedQuantitySold: ${uncostedRows.length}</span>
         <span class="pill">Quantité sans coût: ${formatAssetQuantity(quantityWithoutCostBasis)} ${escapeHtml(uncostedRows[0]?.currency || 'USDT')}</span>

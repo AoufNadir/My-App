@@ -64,6 +64,17 @@ export function getPaymentMethodLabel(method: string | undefined, t?: TranslateF
         return translate(t, 'transactions.cash', 'Caisse');
     return method || '';
 }
+
+/**
+ * Keeps legacy tag values stable in storage while presenting the unified
+ * financial wording everywhere in the interface and exported reports.
+ */
+export function getTransactionTagLabel(tag: string | undefined, t?: TranslateFn) {
+    const normalized = canonicalize(String(tag || ''));
+    if (normalized === 'credit')
+        return translate(t, 'transactions.credit', 'Paiement différé');
+    return tag || '';
+}
 // Without `t` (PDF exports) the legacy long French labels are kept; with `t`
 // (on-screen ledger) labels are short so they fit on one mobile line and
 // follow the active language.

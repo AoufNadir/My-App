@@ -11,6 +11,7 @@ import { NewTransactionMenuDialog } from '../components/transactions/NewTransact
 import { TransactionFilterMode, DisplayTx } from '../components/transactions/transactionsTypes';
 import { useTransactionsViewModel } from '../components/transactions/useTransactionsViewModel';
 import type { PamLedgerResult } from '../utils/pamLedger';
+import { getTransactionTagLabel } from '../utils/transactionTerminology';
 
 async function exportTransactionsPdf(groupedTransactions: Record<string, DisplayTx[]>, getClientFullName: (c: ClientDzd) => string, clientsDzd: ClientDzd[], filterLabel: string) {
     const { buildTransactionListPdf, openPdfPrintWindow } = await import('../utils/pdfReports');
@@ -23,7 +24,9 @@ async function exportTransactionsPdf(groupedTransactions: Record<string, Display
     const allTxs = Object.values(groupedTransactions).flat() as DisplayTx[];
     const rows = allTxs.map((dtx) => {
         const raw = dtx.rawTx;
-        const tagsStr = Array.isArray((raw as any).tags) ? ((raw as any).tags as string[]).join(';') : '';
+        const tagsStr = Array.isArray((raw as any).tags)
+            ? ((raw as any).tags as string[]).map((tag) => getTransactionTagLabel(tag)).join(';')
+            : '';
         if (dtx.category === 'crypto') {
             const tx = raw as Tx;
             const qty = tx.quantity ?? 0;

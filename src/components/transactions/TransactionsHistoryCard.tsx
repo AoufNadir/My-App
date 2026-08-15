@@ -15,6 +15,7 @@ import { FilterIcon } from '../icons/FilterIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { UsersIcon } from '../icons/UsersIcon';
 import { TransactionDisplayList } from './TransactionDisplayList';
+import { getTransactionTagLabel } from '../../utils/transactionTerminology';
 import {
   DisplayTx,
   SavedTransactionFilter,
@@ -242,13 +243,14 @@ export function TransactionsHistoryCard({
           tx.details.toLowerCase().includes(q) ||
           tx.amountLabel.toLowerCase().includes(q) ||
           notes.toLowerCase().includes(q) ||
-          tags.some((tag) => tag.toLowerCase().includes(q))
+          tags.some((tag) => tag.toLowerCase().includes(q)
+            || getTransactionTagLabel(tag, t).toLowerCase().includes(q))
         );
         const matchesTag = !activeTag || tags.includes(activeTag);
         return matchesSearch && matchesTag;
       })] as [string, DisplayTx[]])
       .filter(([, txs]) => txs.length > 0);
-  }, [dateGroups, deferredSearchQuery, activeTag]);
+  }, [dateGroups, deferredSearchQuery, activeTag, t]);
 
   // Compute total DZD for all filtered transactions when a filter/search is active
   const filteredSummary = useMemo(() => {
@@ -504,7 +506,7 @@ export function TransactionsHistoryCard({
                     : 'bg-primary/10 text-primary hover:bg-primary/20'
                 }`}
               >
-                {tag}
+                {getTransactionTagLabel(tag, t)}
               </button>
             ))}
           </div>
@@ -516,6 +518,7 @@ export function TransactionsHistoryCard({
           {visibleDateGroups.length > 0 ? (
             <TransactionDisplayList
               dateGroups={visibleDateGroups}
+              t={t}
               getRelativeDateLabel={getRelativeDateLabel}
               onEditDisplayTx={onEditDisplayTx}
               onDeleteDisplayTx={onDeleteDisplayTx}
