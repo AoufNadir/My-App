@@ -43,7 +43,7 @@ export function MainAppDialogs(props: MainAppDialogsProps) {
     // personal withdrawal (manager's daily personal expense)
     isPersonalWithdrawalModalOpen, closePersonalWithdrawalModal, personalWithdrawalAmount, setPersonalWithdrawalAmount, personalWithdrawalMethod, setPersonalWithdrawalMethod, personalWithdrawalDate, setPersonalWithdrawalDate, personalWithdrawalNote, setPersonalWithdrawalNote, personalWithdrawalMode, setPersonalWithdrawalMode, editingPersonalExpenseTx, personalExpenseToDelete, setPersonalExpenseToDelete, handleSavePersonalWithdrawal, handleDeletePersonalExpense, managerAvailableProfit, managerExists, 
     // reconcile advance
-    isReconcileAdvanceModalOpen, closeReconcileAdvanceModal, reconcileAdvanceTx, reconcileActualAmount, setReconcileActualAmount, handleReconcilePersonalAdvance } = props;
+    isReconcileAdvanceModalOpen, closeReconcileAdvanceModal, reconcileAdvanceTx, reconcileActualAmount, setReconcileActualAmount, reconcileSpentDescription, setReconcileSpentDescription, handleReconcilePersonalAdvance } = props;
     return (<>
             {isWalletTransferModalOpen && (<Suspense fallback={null}>
                     <WalletTransferDialog {...walletTransferDialogProps}/>
