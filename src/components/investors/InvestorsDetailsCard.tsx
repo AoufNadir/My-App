@@ -22,7 +22,16 @@ type InvestorsDetailsCardProps = {
     onOpenCommissionEditor: () => void;
     reconciliationDifference?: number;
 };
-function DetailRow({ label, value, semantic = 'auto' }: { label: string; value: number; semantic?: 'auto' | 'loss' | 'plain' }) {
+function DetailSection({ children }: { children: React.ReactNode }) {
+    return (
+      <div className="bg-neutral-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-neutral-400">
+        {children}
+      </div>
+    );
+}
+function DetailRow({ label, value, semantic = 'auto', hideWhenZero = false }: { label: string; value: number; semantic?: 'auto' | 'loss' | 'plain'; hideWhenZero?: boolean }) {
+    if (hideWhenZero && Math.abs(value) < 0.005)
+        return null;
     return (<div className="flex items-center justify-between gap-3 px-4 py-3.5">
       <span className="text-sm text-neutral-500">{label}</span>
       <CurrencyAmount value={value} currency="DZD" semantic={semantic} size="lg" decimals={0}/>
@@ -35,19 +44,29 @@ export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercent
     return (<Card>
       <CardHeader className="p-4 pb-3">
         <SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>
-          Détails Financiers
+          Synthèse financière
         </SectionHeading>
       </CardHeader>
       <CardContent className="p-0 divide-y divide-neutral-100">
         {capitalSnapshot && (<>
-            <DetailRow label="Capital Total projet" value={capitalSnapshot.totalCapital} semantic="plain"/>
-            <DetailRow label="Capital réel" value={capitalSnapshot.netOwnedCapital} semantic="plain"/>
-            <DetailRow label="Position nette" value={capitalSnapshot.netClientPosition} semantic="auto"/>
-            <DetailRow label="Stock" value={capitalSnapshot.stockValue} semantic="plain"/>
+            <DetailSection>Actifs du projet</DetailSection>
+            <DetailRow label="Capital projet" value={capitalSnapshot.totalCapital} semantic="plain"/>
+            <DetailRow label="Liquidités" value={capitalSnapshot.cashTotal} semantic="plain"/>
+            <DetailRow label="Stock portefeuille" value={capitalSnapshot.stockValue} semantic="plain"/>
+            <DetailRow label="Solde net clients" value={capitalSnapshot.netClientPosition} semantic="auto"/>
+            <DetailRow label="Cartes" value={capitalSnapshot.treasuryCardsTotal} semantic="plain" hideWhenZero/>
+            <DetailRow label="Services" value={capitalSnapshot.servicesCapitalImpact} semantic="auto" hideWhenZero/>
           </>)}
-        <DetailRow label="Profit distribué" value={stats.totalProfitDistributed} semantic="auto"/>
-        <DetailRow label="Profit disponible" value={stats.totalAvailable} semantic="auto"/>
-        <DetailRow label="Fee gérant" value={stats.managerFee} semantic="auto"/>
+        <DetailSection>Investisseurs et profits</DetailSection>
+        <DetailRow label="Capital investi" value={stats.totalCapital} semantic="plain"/>
+        <DetailRow label="Profits investisseurs à payer" value={stats.totalAvailable} semantic="auto"/>
+        {capitalSnapshot && (<>
+            <DetailSection>Part nette</DetailSection>
+            <DetailRow label="Capital propre" value={capitalSnapshot.netOwnedCapital} semantic="plain"/>
+          </>)}
+        <DetailSection>Résultat</DetailSection>
+        <DetailRow label="Part gérant" value={stats.managerFee} semantic="auto"/>
+        {!hasDeliveryExpenses && (<DetailRow label="Profit net réparti" value={stats.totalProfitDistributed} semantic="auto"/>)}
 
         <button type="button" onClick={onOpenCommissionEditor} className="flex min-h-touch w-full items-center justify-between gap-3 px-4 py-3.5 text-start transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
           <span className="text-sm text-neutral-500">Commission gérant</span>

@@ -60,13 +60,13 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
             <span className="hidden sm:inline">Ajouter</span>
           </Button>)}/>
 
-      <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel="Capital investisseurs" primaryValue={stats.totalCapital} primaryCurrency="DZD" primarySemantic="plain" secondary={[
+      <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel="Capital investi" primaryValue={stats.totalCapital} primaryCurrency="DZD" primarySemantic="plain" secondary={[
             ...(capitalSnapshot ? [
-                { label: 'Capital Total projet', value: capitalSnapshot.totalCapital, currency: 'DZD' as const, semantic: 'plain' as const },
-                { label: 'Capital réel', value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const }
+                { label: 'Capital projet', value: capitalSnapshot.totalCapital, currency: 'DZD' as const, semantic: 'plain' as const },
+                { label: 'Capital propre', value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const }
             ] : []),
-            { label: 'Profits non retirés', value: stats.totalAvailable, currency: 'DZD', semantic: 'auto' },
-            { label: 'Fee gérant', value: stats.managerFee, currency: 'DZD', semantic: 'auto' }
+            { label: 'Profits investisseurs à payer', value: stats.totalAvailable, currency: 'DZD', semantic: 'auto' },
+            { label: 'Part gérant', value: stats.managerFee, currency: 'DZD', semantic: 'auto' }
         ]}/>
 
       {/* Distribution reminder when available profits are significant */}
