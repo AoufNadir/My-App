@@ -76,7 +76,12 @@ export function useMainNavigation() {
         });
     };
     const setNormalizedView = (nextView: string) => {
-        setView(normalizeView(nextView));
+        const targetView = normalizeView(nextView);
+        if (targetView === view)
+            return;
+        startTransition(() => {
+            setView(targetView);
+        });
     };
     return {
         investorIdFromUrl,

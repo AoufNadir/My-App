@@ -10,6 +10,7 @@ import { TransactionsHistoryCard } from '../components/transactions/Transactions
 import { NewTransactionMenuDialog } from '../components/transactions/NewTransactionMenuDialog';
 import { TransactionFilterMode, DisplayTx } from '../components/transactions/transactionsTypes';
 import { useTransactionsViewModel } from '../components/transactions/useTransactionsViewModel';
+import type { PamLedgerResult } from '../utils/pamLedger';
 
 async function exportTransactionsPdf(groupedTransactions: Record<string, DisplayTx[]>, getClientFullName: (c: ClientDzd) => string, clientsDzd: ClientDzd[], filterLabel: string) {
     const { buildTransactionListPdf, openPdfPrintWindow } = await import('../utils/pdfReports');
@@ -47,6 +48,7 @@ type TransactionsPageProps = {
   filterMode: TransactionFilterMode;
   setFilterMode: (mode: TransactionFilterMode) => void;
   transactions: Tx[];
+  profitByTxId: PamLedgerResult['profitByTxId'];
   getRelativeDateLabel: (dateString: string) => string;
   clientTransactionsDzd: ClientTransactionDzd[];
   clientsDzd: ClientDzd[];
@@ -73,6 +75,7 @@ export function TransactionsPage({
   filterMode,
   setFilterMode,
   transactions,
+  profitByTxId: providedProfitByTxId,
   getRelativeDateLabel,
   clientTransactionsDzd,
   clientsDzd,
@@ -126,6 +129,7 @@ export function TransactionsPage({
     handleEditTreasuryTx,
     handleDeleteClientTxClick,
     setTreasuryTxToDelete,
+    providedProfitByTxId,
   });
 
   const stats = useMemo(() => {

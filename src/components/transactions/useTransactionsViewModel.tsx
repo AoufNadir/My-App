@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx } from '../../types';
 import { computePamLedger } from '../../utils/pamLedger';
+import type { PamLedgerResult } from '../../utils/pamLedger';
 import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
 import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { UsersIcon } from '../icons/UsersIcon';
@@ -307,8 +308,10 @@ type UseTransactionsViewModelParams = {
     handleEditTreasuryTx?: (tx: TreasuryTx) => void;
     handleDeleteClientTxClick?: (tx: ClientTransactionDzd) => void;
     setTreasuryTxToDelete?: (tx: TreasuryTx | null) => void;
+    resultLimit?: number;
+    providedProfitByTxId?: PamLedgerResult['profitByTxId'];
 };
-export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRange, setDateRange, transactions, clientTransactionsDzd, clientsDzd, treasuryTransactions, getClientFullName, openForm, openAdjustmentModal, setTxToDelete, handleEditPortfolioTx, handleEditClientTx, handleEditTreasuryTx, handleDeleteClientTxClick, setTreasuryTxToDelete }: UseTransactionsViewModelParams) {
+export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRange, setDateRange, transactions, clientTransactionsDzd, clientsDzd, treasuryTransactions, getClientFullName, openForm, openAdjustmentModal, setTxToDelete, handleEditPortfolioTx, handleEditClientTx, handleEditTreasuryTx, handleDeleteClientTxClick, setTreasuryTxToDelete, resultLimit, providedProfitByTxId }: UseTransactionsViewModelParams) {
     const [savedFilters, setSavedFilters] = useState<SavedTransactionFilter[]>(() => {
         try {
             const raw = localStorage.getItem(SAVED_FILTERS_STORAGE_KEY);
@@ -463,6 +466,19 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
         }
         return map;
     }, [clientTransactionsDzd]);
+    const compactSourceLimit = resultLimit ? Math.max(resultLimit * 8, 40) : null;
+    const transactionRows = useMemo(
+        () => compactSourceLimit ? transactions.slice(-compactSourceLimit) : transactions,
+        [compactSourceLimit, transactions]
+    );
+    const clientTransactionRows = useMemo(
+        () => compactSourceLimit ? clientTransactionsDzd.slice(-compactSourceLimit) : clientTransactionsDzd,
+        [clientTransactionsDzd, compactSourceLimit]
+    );
+    const treasuryTransactionRows = useMemo(
+        () => compactSourceLimit ? treasuryTransactions.slice(-compactSourceLimit) : treasuryTransactions,
+        [compactSourceLimit, treasuryTransactions]
+    );
     const unifiedTransactions = useMemo(() => {
         const all: DisplayTx[] = [];
         const portfolioTxIds = new Set(transactions.map((tx) => tx.id).filter(Boolean));
@@ -476,14 +492,14 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
             }
         }
         const hiddenClientTransferIds = new Set<string>();
-        for (const tx of clientTransactionsDzd) {
+        for (const tx of clientTransactionRows) {
             if (tx.type !== 'Transfert Entrant')
                 continue;
             const counterpart = findClientTransferCounterpart(tx, clientTransactionsDzd);
             if (counterpart?.type === 'Transfert Sortant')
                 hiddenClientTransferIds.add(tx.id);
         }
-        transactions.forEach((tx) => {
+        transactionRows.forEach((tx) => {
             if (tx.linkedTxId) return;
             const isBuy = tx.type === 'buy' || tx.type === 'Ajout Manuel';
             const isUsdtSaleSettledInEur = tx.type === 'sell' && tx.currency === 'USDT' && tx.settlementCurrency === 'EUR';
@@ -566,7 +582,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 rightBottomClassName: showLinkedTreasuryOut ? 'text-financial-loss' : undefined
             });
         });
-        clientTransactionsDzd.forEach((tx) => {
+        clientTransactionRows.forEach((tx) => {
             if (isClientTxLinkedToPortfolio(tx, portfolioTxIds)
                 || isClientTxLinkedToClient(tx, clientTxIds)
                 || tx.origin === 'adjustment'
@@ -605,7 +621,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 sourceType: 'client_tx'
             });
         });
-        treasuryTransactions?.forEach((tx) => {
+        treasuryTransactionRows.forEach((tx) => {
             if (isInternalTreasuryEffect(tx))
                 return;
             const txData = tx as any;
@@ -640,14 +656,17 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 sourceType: 'treasury_tx'
             });
         });
-        return all.sort((a, b) => b.timestamp - a.timestamp);
+        const ordered = all.sort((a, b) => b.timestamp - a.timestamp);
+        return resultLimit ? ordered.slice(0, resultLimit) : ordered;
     }, [
-        transactions,
+        transactionRows,
         clientTransactionsDzd,
-        treasuryTransactions,
+        clientTransactionRows,
+        treasuryTransactionRows,
         linkedClientTxsByTransactionId,
         clientsById,
         getClientFullName,
+        resultLimit,
         t
     ]);
     const filteredTransactions = useMemo(() => {
@@ -663,6 +682,10 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
     }, [unifiedTransactions, filterMode, dateRange]);
     const txFilterCounts: Record<TransactionFilterMode, number> = useMemo(() => {
         const initial = Object.fromEntries(ALL_FILTER_MODES.map((mode) => [mode, 0])) as Record<TransactionFilterMode, number>;
+        if (resultLimit) {
+            initial.all = unifiedTransactions.length;
+            return initial;
+        }
         for (const tx of unifiedTransactions) {
             if (dateRange.start && dateRange.end) {
                 if (tx.timestamp < dateRange.start.getTime() || tx.timestamp > dateRange.end.getTime())
@@ -675,7 +698,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
             }
         }
         return initial;
-    }, [unifiedTransactions, dateRange]);
+    }, [unifiedTransactions, dateRange, resultLimit]);
     const groupedTransactions = useMemo(() => {
         return filteredTransactions.reduce((acc, tx) => {
             if (!acc[tx.date]) {
@@ -685,7 +708,10 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
             return acc;
         }, {} as Record<string, DisplayTx[]>);
     }, [filteredTransactions]);
-    const pamLedger = useMemo(() => computePamLedger(transactions), [transactions]);
+    const computedProfitByTxId = useMemo(
+        () => providedProfitByTxId || computePamLedger(transactions).profitByTxId,
+        [providedProfitByTxId, transactions]
+    );
 
     return {
         savedFilters,
@@ -698,6 +724,6 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
         handleDeleteSavedFilter,
         handleEditDisplayTx,
         handleDeleteDisplayTx,
-        profitByTxId: pamLedger.profitByTxId,
+        profitByTxId: computedProfitByTxId,
     };
 }

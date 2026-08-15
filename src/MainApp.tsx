@@ -1,4 +1,4 @@
-import React, { Suspense, startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction } from './types';
 import { useLanguage } from './contexts/LanguageContext';
 import { signOut } from 'firebase/auth';
@@ -64,6 +64,8 @@ const GlobalSearchDialog = React.lazy(() => import('./components/main/MainDialog
 const MainAppDialogs = React.lazy(() => import('./components/main/MainAppDialogs').then((module) => ({ default: module.MainAppDialogs })));
 const MonthPlanSheet = React.lazy(() => import('./components/calculator/MonthPlanSheet').then((module) => ({ default: module.MonthPlanSheet })));
 const loadPdfReports = () => import('./utils/pdfReports');
+const EMPTY_TRANSACTIONS: Tx[] = [];
+const CORE_DATA_KEYS = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions'] as const;
 const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
     derivedInvestors: [],
     warnings: [],
@@ -130,36 +132,43 @@ export default function MainApp({ user }: {
     const shouldSubscribeInvestors = view === 'investors' || view === 'dashboard' || view === 'tresorerie' || view === 'dzd' || view === 'transactions' || view === 'expenses' || isInvestorRoute;
     const shouldSubscribeTreasuryCards = view === 'dashboard' || view === 'investors' || view === 'tresorerie' || view === 'transactions';
     // 1.1 App Data (Provides userDocRef)
-    const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, portfolioStats, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
+    const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
         subscribeManualAssets: shouldSubscribeManualAssets,
         subscribeInvestors: shouldSubscribeInvestors,
         subscribeTreasuryCards: shouldSubscribeTreasuryCards
     });
     // 1.2 Settings
-    const { managerFeePercentage, setManagerFeePercentage } = useSettings(userDocRef);
+    const { managerFeePercentage, setManagerFeePercentage, isSettingsLoaded } = useSettings(userDocRef);
     const pricingPlanSync = useSmartPricingPlan(userDocRef);
+    const canUseFinancialData = dataStatus.hasServerSynced
+        || (isDataLoaded && typeof navigator !== 'undefined' && navigator.onLine === false);
+    const isFinancialDataReady = canUseFinancialData && isSettingsLoaded;
     // 1.3 Derived Data
-    // FIX-PERF (Phase 3): defer heavy computations so list/UI updates stay
-    // interactive on weak phones. React renders with the previous pamLedger /
-    // investorEconomics while a concurrent transition recomputes the new ones.
-    const deferredTransactions = useDeferredValue(transactions);
-    const deferredInvestors = useDeferredValue(investors);
-    const deferredInvestorTransactions = useDeferredValue(investorTransactions);
-    const pamLedger = useMemo(() => computePamLedger(deferredTransactions), [deferredTransactions]);
+    // Keep one canonical ledger result. Deferring it made financial cards render
+    // an older snapshot for a frame before switching to the current values.
+    const coreCollectionStates = dataStatus.collectionState;
+    const hasCurrentCoreData = CORE_DATA_KEYS
+        .every((key) => coreCollectionStates[key]?.serverSynced)
+        || (typeof navigator !== 'undefined'
+            && navigator.onLine === false
+            && CORE_DATA_KEYS.every((key) => coreCollectionStates[key]?.received));
+    const ledgerTransactions = hasCurrentCoreData ? transactions : EMPTY_TRANSACTIONS;
+    const pamLedger = useMemo(() => computePamLedger(ledgerTransactions), [ledgerTransactions]);
+    const portfolioStats = pamLedger.portfolioStats;
     const deliveryExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense'), [treasuryTransactions]);
     const personalExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense'), [treasuryTransactions]);
     const investorEconomics = useMemo(() => {
-        if (!shouldSubscribeInvestors)
+        if (!isFinancialDataReady)
             return EMPTY_INVESTOR_ECONOMICS;
         return deriveInvestorEconomics({
-            investors: deferredInvestors,
-            investorTransactions: deferredInvestorTransactions,
-            transactions: deferredTransactions,
+            investors,
+            investorTransactions,
+            transactions,
             managerFeePercentage,
             pamLedger,
             deliveryExpenses
         });
-    }, [shouldSubscribeInvestors, deferredInvestors, deferredInvestorTransactions, managerFeePercentage, deferredTransactions, pamLedger, deliveryExpenses]);
+    }, [isFinancialDataReady, investors, investorTransactions, managerFeePercentage, transactions, pamLedger, deliveryExpenses]);
     const derivedInvestors = investorEconomics.derivedInvestors;
 
     const monthlyGoalState = pricingPlanSync.plan.monthlyGoal;
@@ -526,8 +535,8 @@ export default function MainApp({ user }: {
         minDays: 7
     });
     const dashboardDebtClients = useOverdueDebtClients({
-        clients: view === 'dashboard' ? clientsDzd : [],
-        clientTransactions: view === 'dashboard' ? clientTransactionsDzd : [],
+        clients: clientsDzd,
+        clientTransactions: clientTransactionsDzd,
         clientBalances,
         getClientFullName: getClientDisplayName,
         minDays: -1
@@ -1931,6 +1940,9 @@ export default function MainApp({ user }: {
         earlyClientPrevMonthVolumeMap, earlyClientLastSellDateMap, handleZeroOutBalance
     ]);
     if (isInvestorRoute) {
+        if (!isFinancialDataReady) {
+            return <div className="min-h-screen flex items-center justify-center bg-app-bg text-neutral-500">{t('common.loading')}</div>;
+        }
         const investor = derivedInvestors.find(i => i.id === investorIdFromUrl) || derivedInvestors[0];
         if (!investor) {
             return (<div className="min-h-screen flex items-center justify-center bg-app-bg text-neutral-500">
@@ -2009,7 +2021,7 @@ export default function MainApp({ user }: {
         servicesSummary,
         globalNetProfit,
         overdueDebtClients: dashboardDebtClients,
-        isDataSyncing: !dataStatus.hasServerSynced,
+        isDataReady: isFinancialDataReady,
         onNewTransaction: () => openForm('buy_usdt'),
         onOpenClients: () => { setSelectedClientId(null); setView('dzd'); },
         onOpenClient: openDashboardClient,
@@ -2021,6 +2033,7 @@ export default function MainApp({ user }: {
         clientTransactionsDzd,
         clientsDzd,
         treasuryTransactions,
+        profitByTxId: pamLedger.profitByTxId,
         getRelativeDateLabel,
         getClientFullName,
         openForm,
@@ -2041,7 +2054,7 @@ export default function MainApp({ user }: {
         onOpenMonthPlan: () => setIsMonthPlanOpen(true),
         monthlyGoal: monthlyGoalState,
     };
-    const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys };
+    const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys };
     const walletTransferDialogProps = useMemo(() => ({
         isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSource,
@@ -2244,6 +2257,8 @@ export default function MainApp({ user }: {
     // Per-view quick action wired to the bottom-bar center FAB. Returning
     // undefined hides the FAB on read-mostly views.
     const onFabPress = useMemo(() => {
+        if (!isFinancialDataReady)
+            return undefined;
         if (view === 'dashboard')
             return () => openForm('buy_usdt');
         if (view === 'transactions')
@@ -2257,7 +2272,7 @@ export default function MainApp({ user }: {
         if (view === 'tresorerie')
             return () => openAdjustmentModal('add');
         return undefined;
-    }, [view, selectedAssetId, selectedAssetClientId, openForm, openClientModal, openAdjustmentModal, openInvestorModal]);
+    }, [isFinancialDataReady, view, selectedAssetId, selectedAssetClientId, openForm, openClientModal, openAdjustmentModal, openInvestorModal]);
     return (<div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
             <OfflineBanner />
             <div className="mx-auto max-w-4xl px-page-x pb-24 sm:px-4">

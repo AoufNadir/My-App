@@ -1,8 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../firebase';
 import type { AppUser } from '../firebaseAuth';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction } from '../types';
-import { computePamLedger } from '../utils/pamLedger';
 type UseAppDataOptions = {
     subscribeManualAssets?: boolean;
     subscribeInvestors?: boolean;
@@ -26,13 +25,12 @@ const COLLECTION_KEYS: AppDataCollectionKey[] = [
     'investors',
     'investorTransactions'
 ];
-function createInitialCollectionState(activeKeys: Set<AppDataCollectionKey>) {
+function createInitialCollectionState() {
     return COLLECTION_KEYS.reduce((acc, key) => {
-        const inactive = !activeKeys.has(key);
         acc[key] = {
-            received: inactive,
+            received: false,
             fromCache: false,
-            serverSynced: inactive
+            serverSynced: false
         };
         return acc;
     }, {} as Record<AppDataCollectionKey, CollectionLoadState>);
@@ -53,7 +51,29 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     const [manualAssetTransactions, setManualAssetTransactions] = useState<ManualAssetTransaction[]>([]);
     const [investors, setInvestors] = useState<Investor[]>([]);
     const [investorTransactions, setInvestorTransactions] = useState<InvestorTransaction[]>([]);
-    const [collectionState, setCollectionState] = useState<Record<AppDataCollectionKey, CollectionLoadState>>(() => createInitialCollectionState(new Set(COLLECTION_KEYS)));
+    const [collectionState, setCollectionState] = useState<Record<AppDataCollectionKey, CollectionLoadState>>(createInitialCollectionState);
+    // Once an optional dataset has been requested, keep its listener alive for
+    // the rest of the session. Page navigation must not tear down every core
+    // listener and replay cached snapshots from scratch.
+    const [enabledOptionalData, setEnabledOptionalData] = useState(() => ({
+        manualAssets: subscribeManualAssets,
+        investors: subscribeInvestors,
+        treasuryCards: subscribeTreasuryCards
+    }));
+    useEffect(() => {
+        setEnabledOptionalData((current) => {
+            const next = {
+                manualAssets: current.manualAssets || subscribeManualAssets,
+                investors: current.investors || subscribeInvestors,
+                treasuryCards: current.treasuryCards || subscribeTreasuryCards
+            };
+            return next.manualAssets === current.manualAssets
+                && next.investors === current.investors
+                && next.treasuryCards === current.treasuryCards
+                ? current
+                : next;
+        });
+    }, [subscribeManualAssets, subscribeInvestors, subscribeTreasuryCards]);
     const activeCollectionKeys = useMemo(() => {
         const keys: AppDataCollectionKey[] = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions'];
         if (subscribeTreasuryCards)
@@ -64,41 +84,39 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             keys.push('investors', 'investorTransactions');
         return keys;
     }, [subscribeTreasuryCards, subscribeManualAssets, subscribeInvestors]);
-    // Real-time Listeners
-    useEffect(() => {
-        const activeKeys = new Set<AppDataCollectionKey>(activeCollectionKeys);
-        const appliedDocSnapshots = new Set<AppDataCollectionKey>();
-        setCollectionState(createInitialCollectionState(activeKeys));
-        const markSnapshot = (key: AppDataCollectionKey, snap: {
-            metadata?: {
-                fromCache?: boolean;
-            };
-        }) => {
-            const fromCache = Boolean(snap.metadata?.fromCache);
-            setCollectionState(prev => ({
-                ...prev,
+    const subscribeToCollection = useCallback((
+        key: AppDataCollectionKey,
+        query: { onSnapshot: (callback: (snapshot: any) => void, options?: { includeMetadataChanges?: boolean }) => () => void },
+        mapDocs: (docs: any[]) => any[],
+        applyDocs: (docs: any[]) => void
+    ) => {
+        let appliedInitialDocs = false;
+        setCollectionState((current) => ({
+            ...current,
+            [key]: { received: false, fromCache: false, serverSynced: false }
+        }));
+        return query.onSnapshot((snapshot) => {
+            const fromCache = Boolean(snapshot.metadata?.fromCache);
+            setCollectionState((current) => ({
+                ...current,
                 [key]: {
                     received: true,
                     fromCache,
-                    serverSynced: prev[key]?.serverSynced || !fromCache
+                    serverSynced: current[key]?.serverSynced || !fromCache
                 }
             }));
-        };
-        const shouldApplyDocs = (key: AppDataCollectionKey, snap: {
-            docChanges?: () => unknown[];
-        }) => {
-            if (!appliedDocSnapshots.has(key)) {
-                appliedDocSnapshots.add(key);
-                return true;
-            }
-            return (snap.docChanges?.() || []).length > 0;
-        };
-        const snapshotOptions = { includeMetadataChanges: true };
-        const unsubTxs = userDocRef.collection('usdt_txs').orderBy('timestamp', 'asc').onSnapshot(snap => {
-            markSnapshot('transactions', snap);
-            if (!shouldApplyDocs('transactions', snap))
+            if (appliedInitialDocs && (snapshot.docChanges?.() || []).length === 0)
                 return;
-            setTransactions(snap.docs.map(doc => {
+            appliedInitialDocs = true;
+            applyDocs(mapDocs(snapshot.docs));
+        }, { includeMetadataChanges: true });
+    }, []);
+    // Core financial listeners stay mounted across every page transition.
+    useEffect(() => {
+        const unsubTxs = subscribeToCollection(
+            'transactions',
+            userDocRef.collection('usdt_txs').orderBy('timestamp', 'asc'),
+            (docs) => docs.map(doc => {
                 const data = doc.data();
                 const newDoc: any = { id: doc.id, ...data };
                 if (newDoc.usd !== undefined) {
@@ -109,19 +127,19 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
                     newDoc.currency = 'USDT';
                 }
                 return newDoc;
-            }) as Tx[]);
-        }, snapshotOptions);
-        const unsubClients = userDocRef.collection('dzd_clients').orderBy('fullName', 'asc').onSnapshot(snap => {
-            markSnapshot('clients', snap);
-            if (!shouldApplyDocs('clients', snap))
-                return;
-            setClientsDzd(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ClientDzd[]);
-        }, snapshotOptions);
-        const unsubClientTxs = userDocRef.collection('dzd_client_txs').orderBy('timestamp', 'asc').onSnapshot(snap => {
-            markSnapshot('clientTransactions', snap);
-            if (!shouldApplyDocs('clientTransactions', snap))
-                return;
-            setClientTransactionsDzd(snap.docs.map(doc => {
+            }),
+            (docs) => setTransactions(docs as Tx[])
+        );
+        const unsubClients = subscribeToCollection(
+            'clients',
+            userDocRef.collection('dzd_clients').orderBy('fullName', 'asc'),
+            (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            (docs) => setClientsDzd(docs as ClientDzd[])
+        );
+        const unsubClientTxs = subscribeToCollection(
+            'clientTransactions',
+            userDocRef.collection('dzd_client_txs').orderBy('timestamp', 'asc'),
+            (docs) => docs.map(doc => {
                 const data = doc.data();
                 const newDoc: any = { id: doc.id, ...data };
                 if (newDoc.linkedUsdtTxId) {
@@ -129,94 +147,80 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
                     delete newDoc.linkedUsdtTxId;
                 }
                 return newDoc;
-            }) as ClientTransactionDzd[]);
-        }, snapshotOptions);
-        const unsubTreasuryTxs = userDocRef.collection('treasury_txs').orderBy('timestamp', 'asc').onSnapshot(snap => {
-            markSnapshot('treasuryTransactions', snap);
-            if (!shouldApplyDocs('treasuryTransactions', snap))
-                return;
-            setTreasuryTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TreasuryTx[]);
-        }, snapshotOptions);
-        if (!subscribeTreasuryCards) {
-            setTreasuryCards([]);
-        }
-        if (!subscribeManualAssets) {
-            setManualAssets([]);
-            setManualAssetClients([]);
-            setManualAssetTransactions([]);
-        }
-        if (!subscribeInvestors) {
-            setInvestors([]);
-            setInvestorTransactions([]);
-        }
-        const unsubTreasuryCards = subscribeTreasuryCards
-            ? userDocRef.collection('treasury_cards').onSnapshot(snap => {
-                markSnapshot('treasuryCards', snap);
-                if (!shouldApplyDocs('treasuryCards', snap))
-                    return;
-                setTreasuryCards(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TreasuryCard[]);
-            }, snapshotOptions)
-            : () => undefined;
-        const unsubManualAssets = subscribeManualAssets
-            ? userDocRef.collection('manual_assets').orderBy('createdAt', 'desc').onSnapshot(snap => {
-                markSnapshot('manualAssets', snap);
-                if (!shouldApplyDocs('manualAssets', snap))
-                    return;
-                setManualAssets(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ManualAsset[]);
-            }, snapshotOptions)
-            : () => undefined;
-        const unsubManualClients = subscribeManualAssets
-            ? userDocRef.collection('manual_asset_clients').orderBy('fullName', 'asc').onSnapshot(snap => {
-                markSnapshot('manualAssetClients', snap);
-                if (!shouldApplyDocs('manualAssetClients', snap))
-                    return;
-                setManualAssetClients(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ManualAssetClient[]);
-            }, snapshotOptions)
-            : () => undefined;
-        const unsubManualTxs = subscribeManualAssets
-            ? userDocRef.collection('actifTransactions').orderBy('timestamp', 'desc').onSnapshot(snap => {
-                markSnapshot('manualAssetTransactions', snap);
-                if (!shouldApplyDocs('manualAssetTransactions', snap))
-                    return;
-                setManualAssetTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ManualAssetTransaction[]);
-            }, snapshotOptions)
-            : () => undefined;
-        const unsubInvestors = subscribeInvestors
-            ? userDocRef.collection('investors').onSnapshot(snap => {
-                markSnapshot('investors', snap);
-                if (!shouldApplyDocs('investors', snap))
-                    return;
-                setInvestors(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Investor[]);
-            }, snapshotOptions)
-            : () => undefined;
-        const unsubInvestorTxs = subscribeInvestors
-            ? userDocRef.collection('investor_transactions').onSnapshot(snap => {
-                markSnapshot('investorTransactions', snap);
-                if (!shouldApplyDocs('investorTransactions', snap))
-                    return;
-                setInvestorTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as InvestorTransaction[]);
-            }, snapshotOptions)
-            : () => undefined;
+            }),
+            (docs) => setClientTransactionsDzd(docs as ClientTransactionDzd[])
+        );
+        const unsubTreasuryTxs = subscribeToCollection(
+            'treasuryTransactions',
+            userDocRef.collection('treasury_txs').orderBy('timestamp', 'asc'),
+            (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            (docs) => setTreasuryTransactions(docs as TreasuryTx[])
+        );
         return () => {
             unsubTxs();
             unsubClients();
             unsubClientTxs();
             unsubTreasuryTxs();
-            unsubTreasuryCards();
-            unsubManualAssets();
-            unsubManualClients();
-            unsubManualTxs();
-            unsubInvestors();
-            unsubInvestorTxs();
         };
-    }, [userDocRef, refreshKey, subscribeManualAssets, subscribeInvestors, subscribeTreasuryCards, activeCollectionKeys]);
+    }, [userDocRef, refreshKey, subscribeToCollection]);
+    useEffect(() => {
+        if (!enabledOptionalData.treasuryCards)
+            return;
+        return subscribeToCollection(
+            'treasuryCards',
+            userDocRef.collection('treasury_cards'),
+            (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            (docs) => setTreasuryCards(docs as TreasuryCard[])
+        );
+    }, [enabledOptionalData.treasuryCards, userDocRef, refreshKey, subscribeToCollection]);
+    useEffect(() => {
+        if (!enabledOptionalData.manualAssets)
+            return;
+        const unsubAssets = subscribeToCollection(
+            'manualAssets',
+            userDocRef.collection('manual_assets').orderBy('createdAt', 'desc'),
+            (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            (docs) => setManualAssets(docs as ManualAsset[])
+        );
+        const unsubClients = subscribeToCollection(
+            'manualAssetClients',
+            userDocRef.collection('manual_asset_clients').orderBy('fullName', 'asc'),
+            (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            (docs) => setManualAssetClients(docs as ManualAssetClient[])
+        );
+        const unsubTransactions = subscribeToCollection(
+            'manualAssetTransactions',
+            userDocRef.collection('actifTransactions').orderBy('timestamp', 'desc'),
+            (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            (docs) => setManualAssetTransactions(docs as ManualAssetTransaction[])
+        );
+        return () => {
+            unsubAssets();
+            unsubClients();
+            unsubTransactions();
+        };
+    }, [enabledOptionalData.manualAssets, userDocRef, refreshKey, subscribeToCollection]);
+    useEffect(() => {
+        if (!enabledOptionalData.investors)
+            return;
+        const unsubInvestors = subscribeToCollection(
+            'investors',
+            userDocRef.collection('investors'),
+            (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            (docs) => setInvestors(docs as Investor[])
+        );
+        const unsubTransactions = subscribeToCollection(
+            'investorTransactions',
+            userDocRef.collection('investor_transactions'),
+            (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            (docs) => setInvestorTransactions(docs as InvestorTransaction[])
+        );
+        return () => {
+            unsubInvestors();
+            unsubTransactions();
+        };
+    }, [enabledOptionalData.investors, userDocRef, refreshKey, subscribeToCollection]);
     // Derived Calculations
-    // L2: portfolioStats was previously computed inline here, duplicating the math
-    // in utils/pamLedger.ts. Both implementations had to be kept in sync (locked
-    // support lived only here; cost basis math lived in both). Delegate to
-    // computePamLedger so there is a single source of truth — it now supports
-    // locked/lockedBatches natively.
-    const portfolioStats = useMemo(() => computePamLedger(transactions).portfolioStats, [transactions]);
     const treasuryStats = useMemo(() => {
         const normalizeZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : Number(value.toFixed(2)));
         const resolveWallet = (raw: any): 'Caisse' | 'BaridiMob' | null => {
@@ -327,7 +331,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, treasuryCards,
         manualAssets, manualAssetClients, manualAssetTransactions,
         investors, investorTransactions,
-        portfolioStats, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals,
+        treasuryStats, clientBalances, assetClientBalances, assetBalances, totals,
         isDataLoaded, dataStatus
     };
 }

@@ -19,11 +19,16 @@ import { WalletIcon } from '../components/icons/WalletIcon';
 import { ShareIcon } from '../components/icons/ShareIcon';
 import { TransactionDisplayList } from '../components/transactions/TransactionDisplayList';
 import { useTransactionsViewModel } from '../components/transactions/useTransactionsViewModel';
+import { Skeleton } from '../components/ui/Skeleton';
 import type { DisplayTx, TransactionFilterMode } from '../components/transactions/transactionsTypes';
 import type { ClientDzd, ClientTransactionDzd, OverdueDebtClient, TreasuryCard, TreasuryTx, Tx } from '../types';
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
+import type { PamLedgerResult } from '../utils/pamLedger';
 import { useLanguage } from '../contexts/LanguageContext';
 const RECENT_TRANSACTION_LIMIT = 5;
+const EMPTY_RECENT_DATE_RANGE = { start: null, end: null };
+const ignoreRecentFilterChange = (_mode: TransactionFilterMode) => undefined;
+const ignoreRecentDateChange = (_range: { start: Date | null; end: Date | null }) => undefined;
 type DashboardPageProps = {
     dailyOverview: {
         caisse: number;
@@ -57,7 +62,7 @@ type DashboardPageProps = {
     };
     globalNetProfit: number;
     overdueDebtClients: OverdueDebtClient[];
-    isDataSyncing?: boolean;
+    isDataReady: boolean;
     onNewTransaction: () => void;
     onOpenClients: () => void;
     onOpenClient: (clientId: string) => void;
@@ -69,6 +74,7 @@ type DashboardPageProps = {
     clientTransactionsDzd: ClientTransactionDzd[];
     clientsDzd: ClientDzd[];
     treasuryTransactions: TreasuryTx[];
+    profitByTxId: PamLedgerResult['profitByTxId'];
     getRelativeDateLabel: (dateString: string) => string;
     getClientFullName: (client: ClientDzd) => string;
     openForm: (newMode: 'buy_usdt' | 'sell_usdt' | 'buy_eur' | 'sell_eur', txToEdit?: Tx | null) => void;
@@ -358,30 +364,37 @@ function PortfolioStatusCard({ title, stockLabel, valueLabel, portfolioStats, st
       </CardContent>
     </Card>);
 }
-function DashboardSyncHint({ title, body }: {
-    title: string;
-    body: string;
-}) {
-    return (<div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-primary">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-          <ArrowRightLeftIcon className="h-4 w-4"/>
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-bold">{title}</p>
-          <p className="mt-0.5 text-xs leading-snug text-neutral-500">{body}</p>
+function DashboardLoadingState() {
+    return (<div className="anim-page-in space-y-5" aria-busy="true" aria-label="Chargement des donnees financieres">
+      <div className="rounded-card border border-border bg-surface p-5">
+        <Skeleton width="34%" height={14}/>
+        <Skeleton width="58%" height={38} className="mt-4"/>
+        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {Array.from({ length: 4 }, (_, index) => (<div key={index}>
+            <Skeleton width="64%" height={11}/>
+            <Skeleton width="88%" height={24} className="mt-2"/>
+          </div>))}
         </div>
       </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => <Skeleton key={index} height={64}/>) }
+      </div>
+      <Skeleton height={180}/>
     </div>);
 }
-export function DashboardPage({
+
+export function DashboardPage(props: DashboardPageProps) {
+    if (!props.isDataReady)
+        return <DashboardLoadingState/>;
+    return <DashboardContent {...props}/>;
+}
+function DashboardContent({
     dailyOverview,
     portfolioStats,
     capitalSnapshot,
     investorBreakdown,
     overdueDebtClients,
     globalNetProfit,
-    isDataSyncing = false,
     onNewTransaction,
     onOpenClients,
     onOpenClient,
@@ -393,6 +406,7 @@ export function DashboardPage({
     clientTransactionsDzd,
     clientsDzd,
     treasuryTransactions,
+    profitByTxId,
     getRelativeDateLabel,
     getClientFullName,
     openForm,
@@ -411,8 +425,6 @@ export function DashboardPage({
 }: DashboardPageProps) {
     const { t } = useLanguage();
     const [shareCopied, setShareCopied] = useState(false);
-    const [recentFilterMode, setRecentFilterMode] = useState<TransactionFilterMode>('all');
-    const [recentDateRange, setRecentDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
     const {
         groupedTransactions: recentGroupedTransactions,
         formatDzdAmount: formatRecentDzdAmount,
@@ -421,10 +433,10 @@ export function DashboardPage({
         profitByTxId: recentProfitByTxId,
     } = useTransactionsViewModel({
         t: t as (key: string) => string,
-        filterMode: recentFilterMode,
-        setFilterMode: setRecentFilterMode,
-        dateRange: recentDateRange,
-        setDateRange: setRecentDateRange,
+        filterMode: 'all',
+        setFilterMode: ignoreRecentFilterChange,
+        dateRange: EMPTY_RECENT_DATE_RANGE,
+        setDateRange: ignoreRecentDateChange,
         transactions,
         clientTransactionsDzd,
         clientsDzd,
@@ -438,6 +450,8 @@ export function DashboardPage({
         handleEditTreasuryTx,
         handleDeleteClientTxClick,
         setTreasuryTxToDelete,
+        resultLimit: RECENT_TRANSACTION_LIMIT,
+        providedProfitByTxId: profitByTxId,
     });
     const recentTransactionGroups = useMemo<Array<[string, DisplayTx[]]>>(() => {
         const groups: Array<[string, DisplayTx[]]> = [];
@@ -586,8 +600,6 @@ export function DashboardPage({
         { label: t('nav.analytics') as string, icon: <TrendingUpIcon className="h-4 w-4"/>, onClick: onOpenAnalytics }
     ];
     return (<div className="anim-page-in space-y-5">
-      {isDataSyncing && (<DashboardSyncHint title={t('dashboard.syncingTitle') as string} body={t('dashboard.syncingBody') as string}/>)}
-
       <HeroKpiCard accent="sky" icon={<LandmarkIcon className="w-5 h-5"/>} primaryLabel={t('dashboard.capitalTotal') as string} primaryValue={financialHealth} primaryCurrency="DZD" primarySemantic="plain" secondary={capitalSecondaryItems}/>
 
       <ActionStrip actions={primaryActions}/>

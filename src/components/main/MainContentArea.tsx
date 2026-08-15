@@ -62,12 +62,14 @@ const areDashboardPagePropsEqual = (prev: any, next: any) => (prev?.portfolioSta
     && prev?.overdueDebtClients === next?.overdueDebtClients
     && prev?.investors === next?.investors
     && prev?.treasuryTransactions === next?.treasuryTransactions
-    && prev?.isDataSyncing === next?.isDataSyncing
+    && prev?.isDataReady === next?.isDataReady
+    && prev?.profitByTxId === next?.profitByTxId
     && areDailyOverviewsEqual(prev?.dailyOverview, next?.dailyOverview));
 const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainContentAreaProps) => {
     if (prev.alert !== next.alert
         || prev.alertClass !== next.alertClass
         || prev.t !== next.t
+        || prev.isFinancialDataReady !== next.isFinancialDataReady
         || false
         || prev.view !== next.view
         || prev.PageLoadingFallback !== next.PageLoadingFallback
@@ -82,6 +84,7 @@ const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainCont
                 && getDateTimestamp(prev.dateRange?.start) === getDateTimestamp(next.dateRange?.start)
                 && getDateTimestamp(prev.dateRange?.end) === getDateTimestamp(next.dateRange?.end)
                 && prev.transactions === next.transactions
+                && prev.profitByTxId === next.profitByTxId
                 && prev.clientTransactionsDzd === next.clientTransactionsDzd
                 && prev.clientsDzd === next.clientsDzd
                 && prev.treasuryTransactions === next.treasuryTransactions);
@@ -126,10 +129,16 @@ const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainCont
             return true;
     }
 };
-function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDocRef, setAlert, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx, handleEditTreasuryTx, handleDeleteClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys }: MainContentAreaProps) {
+function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDocRef, setAlert, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx, handleEditTreasuryTx, handleDeleteClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys }: MainContentAreaProps) {
     const selectedInvestor = selectedInvestorId
         ? derivedInvestors.find((investor: any) => investor.id === selectedInvestorId) || null
         : null;
+    if (!isFinancialDataReady) {
+        return (<main className="py-4 sm:py-6">
+            {alert && (<div className="anim-fade-slide-down mb-4"><Alert className={`rounded-xl ${alertClass}`}><AlertDescription>{alert}</AlertDescription></Alert></div>)}
+            <SkeletonList rows={6} itemHeight={72} className="mt-2"/>
+        </main>);
+    }
     return (<main className="py-4 sm:py-6">
                     {alert && (<div className="anim-fade-slide-down mb-4"><Alert className={`rounded-xl ${alertClass}`}><AlertDescription>{alert}</AlertDescription></Alert></div>)}
 
@@ -137,7 +146,7 @@ function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDoc
                     <ErrorBoundary key={`${view}-${selectedInvestorId || ''}-${selectedAssetId || ''}-${selectedAssetClientId || ''}`}>
                     {view === 'dashboard' && <DashboardPage {...dashboardPageProps}/>}
 
-                    {view === 'transactions' && <TransactionsPage openAdjustmentModal={openAdjustmentModal} openForm={openForm} filterMode={filterMode} setFilterMode={setFilterMode} transactions={transactions} getRelativeDateLabel={getRelativeDateLabel} clientTransactionsDzd={clientTransactionsDzd} clientsDzd={clientsDzd} getClientFullName={getClientFullName} setTxToDelete={setTxToDelete} openDateFilterModal={openDateFilterModal} dateRange={dateRange} setDateRange={setDateRange} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openDeliveryExpenseModal={openDeliveryExpenseModal} openPersonalWithdrawalModal={openPersonalWithdrawalModal} treasuryTransactions={treasuryTransactions} handleEditPortfolioTx={handleEditPortfolioTx} handleEditClientTx={handleEditClientTx} handleEditTreasuryTx={handleEditTreasuryTx} handleDeleteClientTxClick={handleDeleteClientTxClick} setTreasuryTxToDelete={setTreasuryTxToDelete}/>}
+                    {view === 'transactions' && <TransactionsPage openAdjustmentModal={openAdjustmentModal} openForm={openForm} filterMode={filterMode} setFilterMode={setFilterMode} transactions={transactions} profitByTxId={profitByTxId} getRelativeDateLabel={getRelativeDateLabel} clientTransactionsDzd={clientTransactionsDzd} clientsDzd={clientsDzd} getClientFullName={getClientFullName} setTxToDelete={setTxToDelete} openDateFilterModal={openDateFilterModal} dateRange={dateRange} setDateRange={setDateRange} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openDeliveryExpenseModal={openDeliveryExpenseModal} openPersonalWithdrawalModal={openPersonalWithdrawalModal} treasuryTransactions={treasuryTransactions} handleEditPortfolioTx={handleEditPortfolioTx} handleEditClientTx={handleEditClientTx} handleEditTreasuryTx={handleEditTreasuryTx} handleDeleteClientTxClick={handleDeleteClientTxClick} setTreasuryTxToDelete={setTreasuryTxToDelete}/>}
 
                     {view === 'statistiques' && <PortfolioPage {...portfolioPageProps}/>}
 
