@@ -558,6 +558,7 @@ function ExpenseRow({
     const iconClass = iconTone === 'warning'
         ? 'bg-warning-bg text-warning'
         : 'bg-neutral-100 text-neutral-600';
+    const displayLabel = tx.spentDescription || tx.notes || fallbackLabel;
 
     return (
         <div className="grid gap-3 px-4 py-3.5 transition-colors hover:bg-surface-muted sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
@@ -568,7 +569,7 @@ function ExpenseRow({
                 <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-2">
                         <p className="min-w-0 truncate text-base font-semibold leading-snug text-neutral-900">
-                            {tx.notes || fallbackLabel}
+                            {displayLabel}
                         </p>
                         {badge && <span className="shrink-0">{badge}</span>}
                     </div>

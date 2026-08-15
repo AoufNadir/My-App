@@ -201,6 +201,7 @@ export interface TreasuryTx {
     // Personal expense imprest system (origin === 'personal_expense' only)
     advanceState?: 'pending' | 'settled';
     settledAmount?: number; // Actual amount spent after reconciliation
+    spentDescription?: string; // What the settled advance was spent on
     linkedReturnTxId?: string; // ID of the return TreasuryTx created during reconciliation
 }
 export interface TreasuryCard {

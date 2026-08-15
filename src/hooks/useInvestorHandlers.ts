@@ -59,15 +59,18 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     const [isReconcileAdvanceModalOpen, setIsReconcileAdvanceModalOpen] = useState(false);
     const [reconcileAdvanceTx, setReconcileAdvanceTx] = useState<TreasuryTx | null>(null);
     const [reconcileActualAmount, setReconcileActualAmount] = useState('');
+    const [reconcileSpentDescription, setReconcileSpentDescription] = useState('');
     const openReconcileAdvanceModal = (advanceTx: TreasuryTx) => {
         setReconcileAdvanceTx(advanceTx);
         setReconcileActualAmount('');
+        setReconcileSpentDescription(advanceTx.spentDescription || '');
         setIsReconcileAdvanceModalOpen(true);
     };
     const closeReconcileAdvanceModal = () => {
         setIsReconcileAdvanceModalOpen(false);
         setReconcileAdvanceTx(null);
         setReconcileActualAmount('');
+        setReconcileSpentDescription('');
     };
     const managerInvestor = derivedInvestors.find((inv) => inv.isManager === true) || null;
     const managerAvailableProfit = Number(managerInvestor?.availableProfit || 0);
@@ -294,6 +297,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         }
         const actualSpent = reconciliation.actualSpent;
         const returnAmount = reconciliation.returnAmount;
+        const spentDescription = reconcileSpentDescription.trim();
         if (!managerInvestor) {
             setAlert('⚠️ Aucun gérant défini. Désignez un investisseur comme gérant.');
             return;
@@ -319,9 +323,11 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 date: reconcileAdvanceTx.date,
                 time: reconcileAdvanceTx.time,
                 timestamp: reconcileAdvanceTx.timestamp,
-                notes: reconcileAdvanceTx.notes
-                    ? `Dépense perso: ${reconcileAdvanceTx.notes}`
-                    : 'Dépense personnelle'
+                notes: spentDescription
+                    ? `Dépense perso: ${spentDescription}`
+                    : reconcileAdvanceTx.notes
+                        ? `Dépense perso: ${reconcileAdvanceTx.notes}`
+                        : 'Dépense personnelle'
             };
             if (linkedInvestor.exists) {
                 batch.update(investorTxRef, investorPayload);
@@ -336,6 +342,12 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 settledAmount: actualSpent,
                 linkedInvestorTxId
             };
+            if (spentDescription) {
+                advanceUpdatePayload.spentDescription = spentDescription;
+            }
+            else {
+                advanceUpdatePayload.spentDescription = fieldValueDelete();
+            }
             if (returnAmount > 0.005) {
                 const returnPayload: any = {
                     timestamp,
@@ -828,6 +840,8 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         reconcileAdvanceTx,
         reconcileActualAmount,
         setReconcileActualAmount,
+        reconcileSpentDescription,
+        setReconcileSpentDescription,
         openReconcileAdvanceModal,
         closeReconcileAdvanceModal,
         handleReconcilePersonalAdvance

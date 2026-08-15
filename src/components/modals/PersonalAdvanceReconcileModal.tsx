@@ -2,6 +2,7 @@ import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { MoneyField } from '../ui/MoneyField';
+import { Textarea } from '../ui/Textarea';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 
 import { InfoIcon } from '../icons/InfoIcon';
@@ -16,6 +17,8 @@ interface PersonalAdvanceReconcileModalProps {
     advanceTx: TreasuryTx | null;
     actualAmount: string;
     setActualAmount: (v: string) => void;
+    spentDescription: string;
+    setSpentDescription: (v: string) => void;
     onSave: () => void;
 }
 
@@ -26,6 +29,8 @@ export function PersonalAdvanceReconcileModal({
     advanceTx,
     actualAmount,
     setActualAmount,
+    spentDescription,
+    setSpentDescription,
     onSave,
 }: PersonalAdvanceReconcileModalProps) {
     const { t } = useLanguage();
@@ -88,6 +93,15 @@ export function PersonalAdvanceReconcileModal({
                     )}
                     error={errorMessage}
                     autoFocus
+                />
+
+                <Textarea
+                    label={t('personalAdvance.spentDescription') as string}
+                    value={spentDescription}
+                    onChange={(event) => setSpentDescription(event.target.value)}
+                    placeholder={t('personalAdvance.spentPlaceholder') as string}
+                    helperText={t('personalAdvance.spentDescriptionHint') as string}
+                    rows={3}
                 />
 
                 <div className="grid grid-cols-2 gap-2">
