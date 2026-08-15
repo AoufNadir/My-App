@@ -51,7 +51,7 @@ export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercent
         {capitalSnapshot && (<>
             <DetailSection>Actifs du projet</DetailSection>
             <DetailRow label="Capital projet" value={capitalSnapshot.totalCapital} semantic="plain"/>
-            <DetailRow label="Liquidités" value={capitalSnapshot.cashTotal} semantic="plain"/>
+            <DetailRow label="Caisse + BaridiMob" value={capitalSnapshot.cashTotal} semantic="plain"/>
             <DetailRow label="Stock portefeuille" value={capitalSnapshot.stockValue} semantic="plain"/>
             <DetailRow label="Solde net clients" value={capitalSnapshot.netClientPosition} semantic="auto"/>
             <DetailRow label="Cartes" value={capitalSnapshot.treasuryCardsTotal} semantic="plain" hideWhenZero/>

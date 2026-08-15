@@ -29,7 +29,7 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
     const clientDeleteWarning = isBlockedClientDelete
         ? "Le client ne peut pas être supprimé tant que son solde n'est pas à zéro."
         : isBalanceOnlyClientDelete
-            ? "Son solde client sera retiré du Capital total. L'investisseur reste dans Investisseurs."
+            ? "Son solde client sera retiré du Capital projet. L'investisseur reste dans Investisseurs."
             : isClientOnlyCleanupDelete
                 ? "Les comptes Investisseurs ne seront pas modifiés."
                 : "Cette action est irréversible et supprimera aussi les éléments liés au client.";
