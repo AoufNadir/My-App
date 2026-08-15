@@ -2071,6 +2071,7 @@ export default function MainApp({ user }: {
         fromClientId: transferFromClientId, setFromClientId: setTransferFromClientId, toClientId: transferToClientId, setToClientId: setTransferToClientId,
         amount: transferAmount, setAmount: setTransferAmount, notes: transferNotes, setNotes: setTransferNotes, onSave: handleSaveTransfer,
         isSaving, clients: clientsDzd.map(c => ({ id: c.id, label: getClientFullName(c) })), fromBalance: transferFromBalance,
+
         toBalance: transferToBalance, onMaxFrom: () => setTransferAmount(Math.abs(transferFromBalance).toString()),
         title: editingTransferTx ? `${t('common.edit')} ${t('transactions.clientTransfer')}` : t('transactions.clientTransfer'), infoText: t('transactions.transferDebtCredit'), fromLabel: t('transactions.from'),
         toLabel: t('transactions.to'), amountLabel: t('transactions.amount'), notesLabel: t('common.notes'),
@@ -2098,6 +2099,7 @@ export default function MainApp({ user }: {
                 setTreasuryBalanceEditValue(Math.round(parsed).toString());
         }
     }), [isTreasuryBalanceEditModalOpen, closeTreasuryBalanceEditModal, fieldBase, treasuryBalanceEditAsset, treasuryBalanceEditValue, treasuryBalanceEditNotes, handleSaveTreasuryBalanceEdit, t]);
+
     const portfolioBalanceEditDialogProps = useMemo(() => ({
         isOpen: isPortfolioBalanceEditModalOpen, onClose: closePortfolioBalanceEditModal, fieldBase,
         asset: portfolioBalanceEditAsset, value: portfolioBalanceEditValue, notes: portfolioBalanceEditNotes, setNotes: setPortfolioBalanceEditNotes,
@@ -2148,10 +2150,15 @@ export default function MainApp({ user }: {
         || isInvestorDialogsOpen
         || isDeliveryExpenseModalOpen
         || isPersonalWithdrawalModalOpen
-        || isReconcileAdvanceModalOpen;
+        || isReconcileAdvanceModalOpen
+        || personalExpenseToDelete !== null;
     // Wire Android/browser system back button. Highest-priority handler first;
     // falls through to changing the active tab toward `transactions` (root).
     useBackHandler([
+        () => { if (personalExpenseToDelete) {
+            setPersonalExpenseToDelete(null);
+            return true;
+        } return false; },
         () => { if (selectedAssetClientId) {
             setSelectedAssetClientId(null);
             return true;
@@ -2173,7 +2180,6 @@ export default function MainApp({ user }: {
             return true;
         } return false; }
     ]);
-    // Surface a recap of the previous month's realized profit on first
     // visit of a new month. Banner self-dismisses (persisted in localStorage).
     const { recap: monthlyRecap, dismiss: dismissMonthlyRecap } = useMonthlyRecap(transactions, pamLedger);
 

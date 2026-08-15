@@ -91,6 +91,6 @@ export function MainAppDialogs(props: MainAppDialogsProps) {
             {isReconcileAdvanceModalOpen && (<Suspense fallback={null}>
                     <PersonalAdvanceReconcileModal isOpen={isReconcileAdvanceModalOpen} onClose={closeReconcileAdvanceModal} isSaving={isSaving} advanceTx={reconcileAdvanceTx} actualAmount={reconcileActualAmount} setActualAmount={setReconcileActualAmount} onSave={handleReconcilePersonalAdvance}/>
                 </Suspense>)}
-            <ConfirmDialog isOpen={personalExpenseToDelete !== null} onClose={() => setPersonalExpenseToDelete(null)} onConfirm={handleDeletePersonalExpense} title="Supprimer cette dépense ?" description="La ligne de caisse, le retrait du profit du gérant et le retour lié s'il existe seront supprimés ensemble." confirmLabel="Supprimer" cancelLabel="Annuler" variant="danger" loading={isSaving}/>
+            <ConfirmDialog isOpen={personalExpenseToDelete !== null} onClose={() => setPersonalExpenseToDelete(null)} onConfirm={handleDeletePersonalExpense} title={(t('personalExpenses.deleteTitle') as string) || "Supprimer cette dépense ?"} description={(t('personalExpenses.deleteDesc') as string) || "La ligne de caisse, le retrait du profit du gérant et le retour lié s'il existe seront supprimés ensemble."} confirmLabel={(t('common.delete') as string) || "Supprimer"} cancelLabel={(t('common.cancel') as string) || "Annuler"} variant="danger" loading={isSaving}/>
         </>);
 }

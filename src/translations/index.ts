@@ -728,6 +728,8 @@ export const translations = {
             personalExpense: 'Dépense personnelle',
             settled: 'Régularisé',
             fromAdvance: 'sur avance',
+            deleteTitle: 'Supprimer cette dépense ?',
+            deleteDesc: "La ligne de caisse, le retrait du profit du gérant et le retour lié s'il existe seront supprimés ensemble.",
         },
         personalWithdrawal: {
             editTitle: 'Modifier le prélèvement',
@@ -1671,6 +1673,8 @@ export const translations = {
             personalExpense: 'مصروف شخصي',
             settled: 'تمت التسوية',
             fromAdvance: 'من تسبيق',
+            deleteTitle: 'حذف هذه المعاملة؟',
+            deleteDesc: 'سيتم حذف حركة الخزينة وسحب أرباح المدير والإرجاع المرتبط إن وجد معًا.',
         },
         personalWithdrawal: {
             editTitle: 'تعديل السحب',
