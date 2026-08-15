@@ -505,8 +505,16 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 : getPortfolioOperationLabel(tx.type, tx.currency, t);
             const txClientCandidates = tx.id ? (linkedClientTxsByTransactionId.get(tx.id) || []) : [];
             const txClient = txClientCandidates.find((clientTx) => clientTx.linkRole !== 'dzd_receiver') || txClientCandidates[0];
+            const txDzdReceiver = txClientCandidates.find((clientTx) => clientTx.linkRole === 'dzd_receiver');
             const client = txClient ? clientsById.get(txClient.clientId) : undefined;
+            const receiverClient = txDzdReceiver
+                ? clientsById.get(txDzdReceiver.clientId)
+                : (tx.linkedClientDzdId ? clientsById.get(tx.linkedClientDzdId) : undefined);
             let details = client ? getClientFullName(client) : (tx.notes || '');
+            if (receiverClient && (!client || receiverClient.id !== client.id)) {
+                const settlementAt = String(t('transactions.settlementAt')).replace('{client}', getClientFullName(receiverClient));
+                details = [details, settlementAt].filter(Boolean).join(' - ');
+            }
             if (isUsdtSaleSettledInEur) {
                 const eurRate = Number(tx.eurToDzdRateAtSale || 0);
                 const saleValueDzd = Number(tx.total || 0);

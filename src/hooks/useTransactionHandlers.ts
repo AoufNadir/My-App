@@ -59,6 +59,15 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         cash: 'Espèces'
     };
     const affectsClientBalance = (status: 'credit' | 'baridi' | 'cash') => status === 'credit';
+    const getClientDisplayNameById = (clientId: string) => {
+        const client = clientsDzd.find((item) => item.id === clientId);
+        return client?.fullName || client?.nom || 'Client';
+    };
+    const appendOriginalClientToNote = (baseNote: string, clientId: string) => {
+        if (!clientId || clientId === 'none')
+            return baseNote;
+        return `${baseNote} - Client: ${getClientDisplayNameById(clientId)}`;
+    };
     // Modal State
     const [mode, setMode] = useState<TransactionFormMode | null>(null);
     const [editingTx, setEditingTx] = useState<Tx | null>(null);
@@ -438,7 +447,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 if (shouldLinkCashToDzdClient) {
                     batch.set(userDocRef.collection('dzd_client_txs').doc(), {
                         clientId: linkedClientDzdId, timestamp: timestamp + 1, date, time, montant: totalCost,
-                        type: 'Ajustement Solde', notes: `Avance DZD liee a achat de ${formatNumber(quantity, { min: 0, max: 2 })} ${currency}`,
+                        type: 'Ajustement Solde', notes: appendOriginalClientToNote(`Avance DZD liée à achat de ${formatNumber(quantity, { min: 0, max: 2 })} ${currency}`, linkedClientId),
                         linkedTxId: editingTx.id,
                         linkRole: 'dzd_receiver',
                         paymentMethod: paymentMethodByStatus['credit'],
@@ -484,7 +493,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 if (shouldLinkCashToDzdClient) {
                     batch.set(userDocRef.collection('dzd_client_txs').doc(), {
                         clientId: linkedClientDzdId, timestamp: timestamp + 1, date, time, montant: totalCost,
-                        type: 'Ajustement Solde', notes: `Avance DZD liee a achat de ${formatNumber(quantity, { min: 0, max: 2 })} ${currency}`,
+                        type: 'Ajustement Solde', notes: appendOriginalClientToNote(`Avance DZD liée à achat de ${formatNumber(quantity, { min: 0, max: 2 })} ${currency}`, linkedClientId),
                         linkedTxId: mainTxRef.id,
                         linkRole: 'dzd_receiver',
                         paymentMethod: paymentMethodByStatus['credit'],
@@ -658,7 +667,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 if (shouldLinkSettlementToDzdClient) {
                     batch.set(userDocRef.collection('dzd_client_txs').doc(), {
                         clientId: linkedClientDzdId, timestamp: timestamp + 1, date, time, montant: -totalRevenue,
-                        type: 'Paiement Effectué', notes: `Paiement DZD lie a vente de ${formatNumber(quantity, { min: 0, max: 2 })} ${sellCurrency}`,
+                        type: 'Paiement Effectué', notes: appendOriginalClientToNote(`Paiement DZD lié à vente de ${formatNumber(quantity, { min: 0, max: 2 })} ${sellCurrency}`, linkedClientId),
                         linkedTxId: editingTx.id,
                         linkRole: 'dzd_receiver',
                         paymentMethod: paymentMethodByStatus[clientPaymentStatus],
@@ -721,7 +730,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 if (shouldLinkSettlementToDzdClient) {
                     batch.set(userDocRef.collection('dzd_client_txs').doc(), {
                         clientId: linkedClientDzdId, timestamp: timestamp + 1, date, time, montant: -totalRevenue,
-                        type: 'Paiement Effectué', notes: `Paiement DZD lie a vente de ${formatNumber(quantity, { min: 0, max: 2 })} ${sellCurrency}`,
+                        type: 'Paiement Effectué', notes: appendOriginalClientToNote(`Paiement DZD lié à vente de ${formatNumber(quantity, { min: 0, max: 2 })} ${sellCurrency}`, linkedClientId),
                         linkedTxId: ref.id,
                         linkRole: 'dzd_receiver',
                         paymentMethod: paymentMethodByStatus[clientPaymentStatus],

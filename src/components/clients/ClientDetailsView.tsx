@@ -195,6 +195,21 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
 
                 if (linkedUsdtTx && isLinkedPortfolioTx) {
                     const isBuy = linkedUsdtTx.type === 'buy';
+                    const manualNote = getManualClientNote(tx.notes);
+                    const originalClient = tx.linkRole === 'dzd_receiver' && linkedUsdtTx.linkedClientId
+                        ? clientsById.get(linkedUsdtTx.linkedClientId)
+                        : undefined;
+                    const receiverClient = tx.linkRole !== 'dzd_receiver' && linkedUsdtTx.linkedClientDzdId
+                        ? clientsById.get(linkedUsdtTx.linkedClientDzdId)
+                        : undefined;
+                    const relationDetail = originalClient
+                        ? String(t('transactions.originalClient')).replace('{client}', getClientFullName(originalClient))
+                        : receiverClient
+                            ? String(t('transactions.settlementAt')).replace('{client}', getClientFullName(receiverClient))
+                            : '';
+                    const details = manualNote.includes(relationDetail.replace(/^Client: |^العميل: /, ''))
+                        ? manualNote
+                        : [manualNote, relationDetail].filter(Boolean).join(' - ');
                     return {
                         id: `client_linked_${tx.id}`,
                         originalId: tx.id,
@@ -205,7 +220,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                         amountLabel: `${formatNumber(Number(linkedUsdtTx.quantity || 0), { min: 0, max: 2 })} ${linkedUsdtTx.currency}`,
                         amountColor: isBuy ? 'text-financial-profit' : 'text-financial-loss',
                         icon: iconNode,
-                        details: getManualClientNote(tx.notes),
+                        details,
                         category: 'crypto',
                         rawTx: linkedUsdtTx,
                         actionRawTx: tx,
