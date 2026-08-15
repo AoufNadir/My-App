@@ -11,7 +11,6 @@ import { ArrowUpIcon } from '../icons/ArrowUpIcon';
 import { UsersIcon } from '../icons/UsersIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { LandmarkIcon } from '../icons/LandmarkIcon';
-import { CreditCardIcon } from '../icons/CreditCardIcon';
 import { MenuIcon } from '../icons/MenuIcon';
 import { PlusIcon } from '../icons/PlusIcon';
 import { XIcon } from '../icons/XIcon';
@@ -35,7 +34,6 @@ type NavLabels = {
     treasury: string;
     services: string;
     investors: string;
-    orders: string;
     more: string;
     settings: string;
     money: string;
@@ -80,7 +78,6 @@ function AppDesktopNavComponent({ view, onSelect, labels }: NavSharedProps) {
         <DropdownItem onClick={() => onSelect('tresorerie')} isActive={view === 'tresorerie'} icon={<LandmarkIcon className="h-4 w-4 text-success"/>}>{labels.treasury}</DropdownItem>
         <DropdownItem onClick={() => onSelect('services')} isActive={view === 'services'} icon={<BriefcaseIcon className="h-4 w-4 text-secondary"/>}>{labels.services}</DropdownItem>
         <div className={sectionLabelClass}>{labels.followUp}</div>
-        <DropdownItem onClick={() => onSelect('orders')} isActive={view === 'orders'} icon={<CreditCardIcon className="h-4 w-4 text-primary"/>}>{labels.orders}</DropdownItem>
         <DropdownItem onClick={() => onSelect('investors')} isActive={view === 'investors'} icon={<UserIcon className="h-4 w-4 text-secondary"/>}>{labels.investors}</DropdownItem>
         <DropdownItem onClick={() => onSelect('analytics')} isActive={view === 'analytics'} icon={<ArrowUpIcon className="h-4 w-4 text-warning"/>}>{labels.analytics}</DropdownItem>
         <DropdownItem onClick={() => onSelect('expenses')} isActive={view === 'expenses'} icon={<BanknotesIcon className="h-4 w-4 text-danger"/>}>{labels.expenses}</DropdownItem>
@@ -112,7 +109,6 @@ function AppMobileMenuNavComponent({ view, onSelect, labels, isOpen, onClose, on
             <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="tresorerie" icon={<LandmarkIcon className="w-6 h-6"/>} colorClass="text-success">{labels.treasury}</MobileNavLink>
             <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="services" icon={<BriefcaseIcon className="w-6 h-6"/>} colorClass="text-secondary">{labels.services}</MobileNavLink>
             <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="investors" icon={<UserIcon className="w-6 h-6"/>} colorClass="text-secondary">{labels.investors}</MobileNavLink>
-            <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="orders" icon={<CreditCardIcon className="w-6 h-6"/>} colorClass="text-primary">{labels.orders}</MobileNavLink>
 
             <hr className="border-border my-2" />
 
@@ -143,7 +139,7 @@ function AppMobileMenuNavComponent({ view, onSelect, labels, isOpen, onClose, on
           </div>
     </div>);
 }
-const SECONDARY_VIEWS = ['statistiques', 'analytics', 'tresorerie', 'services', 'investors', 'orders', 'expenses'] as const;
+const SECONDARY_VIEWS = ['statistiques', 'analytics', 'tresorerie', 'services', 'investors', 'expenses'] as const;
 function AppBottomNavComponent({ view, onSelect, labels, onFabPress, fabHidden, onOpenSettings, overdueCount = 0 }: BottomNavProps) {
     const [moreOpen, setMoreOpen] = useState(false);
     const isSecondaryActive = (SECONDARY_VIEWS as readonly string[]).includes(view);
@@ -198,7 +194,6 @@ function AppBottomNavComponent({ view, onSelect, labels, onFabPress, fabHidden, 
           {moreSheetItem('tresorerie', <LandmarkIcon className="h-5 w-5"/>, labels.treasury, 'text-success')}
           {moreSheetItem('services', <BriefcaseIcon className="h-5 w-5"/>, labels.services, 'text-secondary')}
           <div className={sectionLabelClass}>{labels.followUp}</div>
-          {moreSheetItem('orders', <CreditCardIcon className="h-5 w-5"/>, labels.orders, 'text-primary')}
           {moreSheetItem('investors', <UserIcon className="h-5 w-5"/>, labels.investors, 'text-secondary')}
           {moreSheetItem('analytics', <ArrowUpIcon className="h-5 w-5"/>, labels.analytics, 'text-warning')}
           {moreSheetItem('expenses', <BanknotesIcon className="h-5 w-5"/>, labels.expenses, 'text-danger')}

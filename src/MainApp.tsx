@@ -59,7 +59,6 @@ const InvestorsPage = React.lazy(() => import('./pages/InvestorsPage').then((mod
 const InvestorDetailsPage = React.lazy(() => import('./pages/InvestorDetailsPage').then((module) => ({ default: module.InvestorDetailsPage })));
 const InvestorDashboardPage = React.lazy(() => import('./pages/InvestorDashboardPage').then((module) => ({ default: module.InvestorDashboardPage })));
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
-const OrdersAdminPage = React.lazy(() => import('./pages/OrdersAdminPage').then((module) => ({ default: module.OrdersAdminPage })));
 const GlobalSearchDialog = React.lazy(() => import('./components/main/MainDialogs').then((module) => ({ default: module.GlobalSearchDialog })));
 const MainAppDialogs = React.lazy(() => import('./components/main/MainAppDialogs').then((module) => ({ default: module.MainAppDialogs })));
 const MonthPlanSheet = React.lazy(() => import('./components/calculator/MonthPlanSheet').then((module) => ({ default: module.MonthPlanSheet })));
@@ -1985,7 +1984,6 @@ export default function MainApp({ user }: {
         treasury: t('nav.treasury') as string,
         services: t('nav.services') as string || 'Services',
         investors: t('nav.investors') as string || 'Investisseurs',
-        orders: t('nav.orders') as string || 'Commandes',
         more: t('nav.more') as string || 'Menu',
         settings: t('common.settings') as string || 'Parametres',
         money: t('nav.money') as string || 'Argent',
@@ -2301,13 +2299,7 @@ export default function MainApp({ user }: {
                     />
                 )}
 
-                {view === 'orders' ? (
-                    <Suspense fallback={<PageLoadingFallback text={t('common.loading')} />}>
-                        <OrdersAdminPage user={user} setAlert={setAlert} clientsDzd={clientsDzd} portfolioStats={portfolioStats} />
-                    </Suspense>
-                ) : (
-                    <MainContentArea {...mainContentProps}/>
-                )}
+                <MainContentArea {...mainContentProps}/>
 
                 <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onFabPress={onFabPress} overdueCount={overdueDebtClients.length}/>
 

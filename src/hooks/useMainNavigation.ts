@@ -16,7 +16,6 @@ const VALID_VIEWS = new Set([
     'tresorerie',
     'services',
     'investors',
-    'orders',
 ]);
 function normalizeView(value: string | null | undefined, fallback = 'dashboard') {
     if (!value)
