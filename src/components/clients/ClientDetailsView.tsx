@@ -250,6 +250,12 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                         relationDetail,
                         withoutGeneratedRelation(manualNote, relationDetail, relationClientName)
                     ].filter(Boolean).join(' - ');
+                    const amountLabel = currentRowIsReceiver
+                        ? formatDzd(Math.abs(Number(tx.montant || 0)), { min: 2, max: 2 })
+                        : `${formatNumber(Number(linkedUsdtTx.quantity || 0), { min: 0, max: 2 })} ${linkedUsdtTx.currency}`;
+                    const amountColor = currentRowIsReceiver
+                        ? 'text-primary'
+                        : (isBuy ? 'text-financial-profit' : 'text-financial-loss');
                     return {
                         id: `client_linked_${tx.id}`,
                         originalId: tx.id,
@@ -257,8 +263,8 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                         date: tx.date,
                         time: tx.time,
                         typeLabel: getPortfolioOperationLabel(linkedUsdtTx.type, linkedUsdtTx.currency, t as (key: string) => string),
-                        amountLabel: `${formatNumber(Number(linkedUsdtTx.quantity || 0), { min: 0, max: 2 })} ${linkedUsdtTx.currency}`,
-                        amountColor: isBuy ? 'text-financial-profit' : 'text-financial-loss',
+                        amountLabel,
+                        amountColor,
                         icon: iconNode,
                         details,
                         contextLabel: relationDetail || undefined,
