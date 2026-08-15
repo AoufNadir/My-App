@@ -8,8 +8,8 @@ import {
 
 assert.equal(getClientOperationLabel('Transfert Entrant'), 'Transfert entrant');
 assert.equal(getClientOperationLabel('Transfert Sortant'), 'Transfert sortant');
-assert.equal(getClientOperationLabel('Règlement Reçu'), 'Encaissement Client');
-assert.equal(getClientOperationLabel('Paiement Effectué'), 'Décaissement Client');
+assert.equal(getClientOperationLabel('Règlement Reçu'), 'Encaissement client');
+assert.equal(getClientOperationLabel('Paiement Effectué'), 'Décaissement client');
 
 assert.equal(getManualClientNote('Transfert de Omar'), '');
 assert.equal(getManualClientNote('Reçu de Omar'), '');

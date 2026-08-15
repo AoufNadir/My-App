@@ -8,6 +8,7 @@ import { db, FirestoreDocumentReference } from '../../firebase';
 import { now, parseAndEvaluate } from '../../utils';
 import { buildProfitDistributionPlan } from '../../utils/profitDistribution';
 import type { Investor } from '../../types';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 type ActiveInvestor = Investor & { isManager?: boolean };
 
@@ -22,6 +23,7 @@ type Props = {
 };
 
 export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedTotal, userDocRef, setAlert, treasuryStats }: Props) {
+    const { t } = useLanguage();
     const [totalInput, setTotalInput] = useState('');
     const [paymentSource, setPaymentSource] = useState<'Caisse' | 'BaridiMob'>('Caisse');
     const [isSaving, setIsSaving] = useState(false);
@@ -95,19 +97,19 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
     };
 
     return (
-        <BottomSheet isOpen={isOpen} onClose={resetAndClose} title="Plan de distribution">
+        <BottomSheet isOpen={isOpen} onClose={resetAndClose} title={t('profitDistribution.planTitle') as string}>
             <div className="px-4 pb-6 space-y-5">
 
                 <div>
                     <MoneyField
-                        label="Montant total à distribuer"
+                        label={t('profitDistribution.totalToDistribute') as string}
                         value={totalInput}
                         onChange={setTotalInput}
                         currency="DZD"
                         placeholder={suggestedTotal > 0 ? String(Math.round(suggestedTotal)) : '0'}
                         hint={suggestedTotal > 0
-                            ? `Profit disponible à retirer : ${suggestedTotal.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD`
-                            : 'Entrez le montant à distribuer'}
+                            ? `${t('profitDistribution.availableToWithdraw')} : ${suggestedTotal.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD`
+                            : t('profitDistribution.enterAmount')}
                     />
                     {!totalInput && suggestedTotal > 0 && (
                         <button
@@ -115,13 +117,13 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                             onClick={() => setTotalInput(String(Math.round(suggestedTotal)))}
                             className="mt-1 text-xs font-semibold text-primary hover:underline"
                         >
-                            Utiliser le profit disponible →
+                            {t('profitDistribution.useAvailableProfit')}
                         </button>
                     )}
                 </div>
 
                 <div>
-                    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-500">Source de paiement</p>
+                    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-500">{t('profitDistribution.paymentSource')}</p>
                     <div className="grid grid-cols-2 gap-2">
                         {(['Caisse', 'BaridiMob'] as const).map(src => (
                             <button
@@ -142,9 +144,9 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                 {totalAmount > 0 && distribution.length > 0 && (
                     <div className="rounded-xl border border-border overflow-hidden">
                         <div className="grid grid-cols-[1fr_auto_auto] gap-3 bg-surface-muted px-4 py-2 text-[10px] font-bold uppercase text-neutral-400 tracking-wide">
-                            <span>Investisseur</span>
-                            <span className="text-end">Part</span>
-                            <span className="text-end w-28">Montant</span>
+                            <span>{t('profitDistribution.investor')}</span>
+                            <span className="text-end">{t('profitDistribution.share')}</span>
+                            <span className="text-end w-28">{t('profitDistribution.amount')}</span>
                         </div>
                         <div className="divide-y divide-neutral-100">
                             {distribution.map(({ inv, normalizedShare, amount, availableProfit, exceedsAvailable }) => (
@@ -152,11 +154,11 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                                     <div className="min-w-0">
                                         <div className="flex min-w-0 items-center gap-1.5">
                                             <p className="truncate text-sm font-semibold">{inv.name}</p>
-                                            {inv.isManager && <Badge variant="warning" size="sm">Gérant</Badge>}
+                                            {inv.isManager && <Badge variant="warning" size="sm">{t('investors.manager')}</Badge>}
                                         </div>
                                         <p className={`text-[10px] ${exceedsAvailable ? 'text-danger font-semibold' : 'text-neutral-400'}`}>
-                                            Disponible : {availableProfit.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD
-                                            {exceedsAvailable && ' · dépassé'}
+                                            {t('profitDistribution.available')} : {availableProfit.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD
+                                            {exceedsAvailable && ` · ${t('profitDistribution.exceeded')}`}
                                         </p>
                                     </div>
                                     <span className="text-xs font-bold text-neutral-500 tabular-nums">
@@ -169,7 +171,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                             ))}
                         </div>
                         <div className="flex items-center justify-between gap-3 border-t border-border bg-surface-muted px-4 py-3">
-                            <span className="text-sm font-bold text-neutral-700">Total distribué</span>
+                            <span className="text-sm font-bold text-neutral-700">{t('profitDistribution.totalDistributed')}</span>
                             <CurrencyAmount value={totalDistributed} currency="DZD" semantic="profit" size="lg" decimals={0}/>
                         </div>
                     </div>
@@ -177,7 +179,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
 
                 {distribution.length === 0 && totalAmount > 0 && (
                     <p className="text-sm text-center text-neutral-400">
-                        Aucun investisseur actif à distribuer.
+                        {t('profitDistribution.noActiveInvestors')}
                     </p>
                 )}
 
@@ -205,7 +207,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <Button type="button" variant="outline" onClick={() => setConfirmed(false)} className="w-full">
-                                    Annuler
+                                    {t('common.cancel')}
                                 </Button>
                                 <Button
                                     type="button"

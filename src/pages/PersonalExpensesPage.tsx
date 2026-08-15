@@ -21,6 +21,7 @@ import { PencilIcon } from '../components/icons/PencilIcon';
 import { Trash2Icon } from '../components/icons/Trash2Icon';
 import type { TreasuryTx } from '../types';
 import { formatNumber } from './shared/pageFormat';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type Period = 'day' | 'week' | 'month' | 'year';
 
@@ -33,13 +34,6 @@ type PersonalExpensesPageProps = {
     onDeleteExpense?: (tx: TreasuryTx) => void;
     onExportReport?: (period: 'day' | 'week' | 'month' | 'year') => void;
 };
-
-const PERIOD_TABS: Tab[] = [
-    { id: 'day', label: 'Jour' },
-    { id: 'week', label: 'Semaine' },
-    { id: 'month', label: 'Mois' },
-    { id: 'year', label: 'Année' },
-];
 
 function startOfDay(ts: number): number {
     const d = new Date(ts);
@@ -170,7 +164,14 @@ export function PersonalExpensesPage({
     onDeleteExpense,
     onExportReport,
 }: PersonalExpensesPageProps) {
+    const { t } = useLanguage();
     const [period, setPeriod] = useState<Period>('month');
+    const periodTabs: Tab[] = [
+        { id: 'day', label: t('personalExpenses.today') as string },
+        { id: 'week', label: t('personalExpenses.thisWeek') as string },
+        { id: 'month', label: t('portfolio.month') as string },
+        { id: 'year', label: t('portfolio.year') as string },
+    ];
 
     const pendingAdvances = useMemo(() => personalExpenses
         .filter((tx) => tx.origin === 'personal_expense' && tx.advanceState === 'pending')
@@ -309,16 +310,16 @@ export function PersonalExpensesPage({
     return (
         <div className="anim-page-in space-y-5">
             <PageHeader
-                title="Mes dépenses"
-                subtitle="Suivi des avances, dépenses et exports"
+                title={t('nav.expenses') as string}
+                subtitle={t('personalExpenses.subtitle') as string}
                 actions={onExportReport && (
                     <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => onExportReport(period)}
-                        aria-label="Exporter PDF"
-                        title="Exporter PDF"
+                        aria-label={t('treasury.exportPdf')}
+                        title={t('treasury.exportPdf')}
                     >
                         <DownloadCloudIcon className="h-4 w-4" />
                         <span className="hidden sm:inline">PDF</span>
@@ -329,14 +330,14 @@ export function PersonalExpensesPage({
             <HeroKpiCard
                 accent="sky"
                 icon={<BanknotesIcon className="h-5 w-5" />}
-                primaryLabel="Total ce mois"
+                primaryLabel={t('personalExpenses.totalThisMonth') as string}
                 primaryValue={aggregates.month}
                 primaryCurrency="DZD"
                 primarySemantic="plain"
                 secondary={[
-                    { label: "Aujourd'hui", value: aggregates.today, currency: 'DZD', semantic: 'plain' },
-                    { label: 'Cette semaine', value: aggregates.week, currency: 'DZD', semantic: 'plain' },
-                    { label: 'Cette annee', value: aggregates.year, currency: 'DZD', semantic: 'plain' },
+                    { label: t('personalExpenses.today') as string, value: aggregates.today, currency: 'DZD', semantic: 'plain' },
+                    { label: t('personalExpenses.thisWeek') as string, value: aggregates.week, currency: 'DZD', semantic: 'plain' },
+                    { label: t('personalExpenses.thisYear') as string, value: aggregates.year, currency: 'DZD', semantic: 'plain' },
                 ]}
             />
 
@@ -344,7 +345,7 @@ export function PersonalExpensesPage({
                 <Card className="border-warning/20 bg-warning-bg p-4 text-sm text-warning">
                     <div className="flex items-start gap-3">
                         <AlertTriangleIcon className="mt-0.5 h-5 w-5 shrink-0" />
-                        <p>Aucun gérant défini. Désignez un investisseur comme gérant pour activer cette fonctionnalité.</p>
+                        <p>{t('emptyStates.personal.noManager')}</p>
                     </div>
                 </Card>
             )}
@@ -352,7 +353,7 @@ export function PersonalExpensesPage({
             {managerExists && (
                 <Card className="p-4">
                     <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium text-neutral-500">Profit disponible</p>
+                        <p className="text-sm font-medium text-neutral-500">{t('personalExpenses.availableProfit')}</p>
                         <CurrencyAmount value={managerAvailableProfit} currency="DZD" semantic="auto" size="lg" decimals={0}/>
                     </div>
                 </Card>
@@ -361,12 +362,12 @@ export function PersonalExpensesPage({
             <Card>
                 <CardHeader className="p-4 pb-3">
                     <SectionHeading icon={<TrendingUpIcon className="h-4 w-4" />}>
-                        Statistiques
+                        {t('personalExpenses.statistics')}
                     </SectionHeading>
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-3 p-4 pt-0">
                     <MetricBlock
-                        label="% profit consommé"
+                        label={t('personalExpenses.profitConsumed') as string}
                         value={(
                             <span className={`text-xl font-bold tabular-nums ${profitPctTone}`} dir="ltr">
                                 {formatNumber(profitConsumedPct, { min: 1, max: 1 })}%
@@ -374,7 +375,7 @@ export function PersonalExpensesPage({
                         )}
                     />
                     <MetricBlock
-                        label="vs Période préc."
+                        label={t('personalExpenses.vsPreviousPeriod') as string}
                         value={changeVsPrev === null ? (
                             <span className="text-base font-medium text-neutral-500">-</span>
                         ) : (
@@ -385,11 +386,11 @@ export function PersonalExpensesPage({
                         )}
                     />
                     <MetricBlock
-                        label="Moyenne / jour"
+                        label={t('personalExpenses.averagePerDay') as string}
                         value={<CurrencyAmount value={dailyAverage} currency="DZD" semantic="plain" size="xl" decimals={0}/>}
                     />
                     <MetricBlock
-                        label="Plus grosse dép."
+                        label={t('personalExpenses.biggestExpense') as string}
                         value={<CurrencyAmount value={biggestAmount} currency="DZD" semantic="plain" size="xl" decimals={0}/>}
                         caption={biggestExpense?.date}
                     />
@@ -400,11 +401,11 @@ export function PersonalExpensesPage({
                 <Card>
                     <CardHeader className="flex-row items-start justify-between gap-3 p-4 pb-3">
                         <SectionHeading icon={<AlertTriangleIcon className="h-4 w-4" />}>
-                            À régulariser
+                            {t('personalExpenses.toReconcile')}
                             <Badge variant="warning" size="sm">{pendingAdvances.length}</Badge>
                         </SectionHeading>
                         <div className="shrink-0 text-end">
-                            <p className="text-xs font-medium text-neutral-500">En cours</p>
+                            <p className="text-xs font-medium text-neutral-500">{t('personalExpenses.pending')}</p>
                             <CurrencyAmount value={pendingTotal} currency="DZD" semantic="neutral" size="lg" decimals={0}/>
                         </div>
                     </CardHeader>
@@ -415,13 +416,14 @@ export function PersonalExpensesPage({
                                 tx={tx}
                                 amount={Number(tx.amount || 0)}
                                 amountSemantic="neutral"
-                                amountLabel="Avance"
+                                amountLabel={t('personalExpenses.advance') as string}
+                                fallbackLabel={t('personalExpenses.personalAdvance') as string}
                                 iconTone="warning"
-                                badge={<Badge variant="warning" size="sm">Avance</Badge>}
+                                badge={<Badge variant="warning" size="sm">{t('personalExpenses.advance')}</Badge>}
                                 action={onOpenReconcile && (
                                     <Button type="button" size="sm" onClick={() => onOpenReconcile(tx)} className="shrink-0 whitespace-nowrap px-3">
                                         <RefreshCwIcon className="h-3.5 w-3.5" />
-                                        Regulariser
+                                        {t('personalExpenses.reconcile')}
                                     </Button>
                                 )}
                                 onEdit={onEditExpense}
@@ -434,7 +436,7 @@ export function PersonalExpensesPage({
 
             <div className="flex items-center gap-2">
                 <Tabs
-                    tabs={PERIOD_TABS}
+                    tabs={periodTabs}
                     activeTab={period}
                     onChange={(next) => setPeriod(next as Period)}
                     variant="pills"
@@ -445,8 +447,8 @@ export function PersonalExpensesPage({
                         type="button"
                         size="sm"
                         onClick={() => onExportReport(period)}
-                        aria-label="Exporter PDF"
-                        title="Exporter PDF"
+                        aria-label={t('treasury.exportPdf')}
+                        title={t('treasury.exportPdf')}
                         className="shrink-0"
                     >
                         <DownloadCloudIcon className="h-4 w-4" />
@@ -471,8 +473,8 @@ export function PersonalExpensesPage({
                     {filteredExpenses.length === 0 ? (
                         <EmptyState
                             icon={<FileSpreadsheetIcon className="h-6 w-6" />}
-                            title="Aucune dépense"
-                            subtitle="Aucune dépense pour cette période."
+                            title={t('emptyStates.expenses.title') as string}
+                            subtitle={t('emptyStates.expenses.subtitle') as string}
                         />
                     ) : (
                         <div className="divide-y divide-border">
@@ -488,10 +490,11 @@ export function PersonalExpensesPage({
                                         amount={displayAmount > 0 ? -displayAmount : 0}
                                         amountSemantic={displayAmount > 0 ? 'auto' : 'plain'}
                                         iconTone="neutral"
-                                        badge={isSettled ? <Badge variant="success" size="sm">Regularise</Badge> : undefined}
+                                        fallbackLabel={t('personalExpenses.personalExpense') as string}
+                                        badge={isSettled ? <Badge variant="success" size="sm">{t('personalExpenses.settled')}</Badge> : undefined}
                                         caption={isSettled && advanceAmount > displayAmount ? (
                                             <span className="inline-flex flex-wrap items-center justify-end gap-1">
-                                                sur avance
+                                                {t('personalExpenses.fromAdvance')}
                                                 <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                                             </span>
                                         ) : undefined}
@@ -530,6 +533,7 @@ type ExpenseRowProps = {
     amount: number;
     amountSemantic: 'auto' | 'neutral' | 'plain';
     amountLabel?: string;
+    fallbackLabel: ReactNode;
     iconTone: 'warning' | 'neutral';
     badge?: ReactNode;
     caption?: ReactNode;
@@ -543,6 +547,7 @@ function ExpenseRow({
     amount,
     amountSemantic,
     amountLabel,
+    fallbackLabel,
     iconTone,
     badge,
     caption,
@@ -563,7 +568,7 @@ function ExpenseRow({
                 <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-2">
                         <p className="min-w-0 truncate text-base font-semibold leading-snug text-neutral-900">
-                            {tx.notes || (iconTone === 'warning' ? 'Avance personnelle' : 'Dépense personnelle')}
+                            {tx.notes || fallbackLabel}
                         </p>
                         {badge && <span className="shrink-0">{badge}</span>}
                     </div>

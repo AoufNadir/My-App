@@ -60,7 +60,7 @@ function buildStrings(lang: Lang): Strings {
             noTiers: 'Aucun palier de prix pour cette devise.',
             methods: 'Moyens de paiement', addMethod: 'Ajouter un moyen de paiement', type: 'Type', noMethods: 'Aucun moyen de paiement.',
             locations: 'Points cash', addLocation: 'Ajouter un point cash', noLocations: 'Aucun point cash.',
-            typeBaridimob: 'BaridiMob', typeCash: 'Espèces', typeBankTransfer: 'Virement bancaire', typeOther: 'Autre',
+            typeBaridimob: 'BaridiMob', typeCash: 'Caisse', typeBankTransfer: 'Virement bancaire', typeOther: 'Autre',
             saveOk: 'Enregistré.',
         };
 }

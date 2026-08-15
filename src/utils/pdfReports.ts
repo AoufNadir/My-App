@@ -963,7 +963,7 @@ function buildUncostedQuantityWarningsHtml(rows: PamLedgerResult['sellProfitRows
           <thead>
             <tr>
               <th>Date</th>
-              <th>Transaction</th>
+              <th>Opération</th>
               <th>Devise</th>
               <th class="num">Quantité vendue</th>
               <th class="num">Sans cout</th>
@@ -1171,7 +1171,7 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
         </table>
       </div>
       ${hiddenPortfolioRows > 0 ? `<div class="muted muted-note">${hiddenPortfolioRows} opération(s) supplémentaire(s) masquée(s) pour garder le rapport lisible.</div>` : ''}`
-        : '<div class="empty">Aucune transaction portefeuille enregistrée sur cette période.</div>';
+        : '<div class="empty">Aucune opération portefeuille enregistrée sur cette période.</div>';
     const clientMovementsTable = clientMovementPreviewRows.length
         ? `<div class="table-wrap">
         <table>
@@ -1724,7 +1724,7 @@ export function buildPersonalExpensesPdfReport(input: PersonalExpensesReportInpu
           <div class="value ${profitPctTone}">${formatNumber(profitPct, 1, 1)}%</div>
         </div>
         <div class="executive-card">
-          <div class="label">Profit disponible</div>
+          <div class="label">Profit gérant à retirer</div>
           <div class="value">${formatNumber(managerProfitAvailable)} DZD</div>
         </div>
         <div class="executive-card ${vsPrev !== null && vsPrev > 0 ? 'loss' : vsPrev !== null && vsPrev < 0 ? 'profit' : ''}">
@@ -1908,7 +1908,7 @@ export function buildInvestorListPdf(rows: InvestorListRow[]): ReportPayload {
     const totalCap = activeRows.reduce((s, r) => s + r.capitalInvested, 0);
     const totalAvail = rows.reduce((s, r) => s + r.availableProfit, 0);
     const totalGain = rows.reduce((s, r) => s + r.totalProfit, 0);
-    const thead = `<tr><th>#</th><th>Nom</th><th>Rôle</th><th>Statut</th><th class="num">Capital investi</th><th class="num">Profit dispo.</th><th class="num">Total retiré</th><th class="num">Total gagné</th><th class="num">ROI %</th><th>Date entrée</th></tr>`;
+    const thead = `<tr><th>#</th><th>Nom</th><th>Rôle</th><th>Statut</th><th class="num">Capital investi</th><th class="num">Profit à payer</th><th class="num">Total retiré</th><th class="num">Profit attribué cumulé</th><th class="num">ROI %</th><th>Date entrée</th></tr>`;
     const tbody = rows.map((r, i) => {
         const roiCls = r.roi !== null ? (r.roi > 0 ? 'good' : r.roi < 0 ? 'bad' : '') : '';
         return `<tr>
@@ -1928,9 +1928,9 @@ export function buildInvestorListPdf(rows: InvestorListRow[]): ReportPayload {
     <section class="section">
       <h2 class="section-title">Synthèse</h2>
       <div class="executive-grid">
-        <div class="executive-card primary"><div class="label">Capital total (actifs)</div><div class="value">${formatNumber(totalCap, 0)} DZD</div><div class="muted">${activeRows.length} investisseur${activeRows.length > 1 ? 's' : ''}</div></div>
-        <div class="executive-card profit"><div class="label">Profits disponibles</div><div class="value good">+${formatNumber(totalAvail, 0)} DZD</div></div>
-        <div class="executive-card profit"><div class="label">Total gagné (cumulé)</div><div class="value good">+${formatNumber(totalGain, 0)} DZD</div></div>
+        <div class="executive-card primary"><div class="label">Capital investi</div><div class="value">${formatNumber(totalCap, 0)} DZD</div><div class="muted">${activeRows.length} investisseur${activeRows.length > 1 ? 's' : ''}</div></div>
+        <div class="executive-card profit"><div class="label">Profits investisseurs à payer</div><div class="value good">+${formatNumber(totalAvail, 0)} DZD</div></div>
+        <div class="executive-card profit"><div class="label">Profit attribué cumulé</div><div class="value good">+${formatNumber(totalGain, 0)} DZD</div></div>
       </div>
       <div class="pill-row top"><span class="pill">Exporté le ${today}</span><span class="pill">${rows.length} investisseur${rows.length > 1 ? 's' : ''}</span></div>
     </section>
@@ -1938,7 +1938,7 @@ export function buildInvestorListPdf(rows: InvestorListRow[]): ReportPayload {
       <h2 class="section-title">Liste des investisseurs</h2>
       <div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
     </section>`;
-    return reportShell({ fileName: `investisseurs_${new Date().toISOString().slice(0, 10)}.pdf`, title: 'Liste des Investisseurs', subtitle: `Exporté le ${today} · ${rows.length} investisseurs`, bodyHtml, pageSize: 'A4 landscape' });
+    return reportShell({ fileName: `investisseurs_${new Date().toISOString().slice(0, 10)}.pdf`, title: 'Liste des investisseurs', subtitle: `Exporté le ${today} · ${rows.length} investisseurs`, bodyHtml, pageSize: 'A4 landscape' });
 }
 
 export type TransactionListRow = {
@@ -1988,7 +1988,7 @@ export function buildTransactionListPdf(rows: TransactionListRow[], subtitle: st
       <h2 class="section-title">Historique des opérations (${rows.length})</h2>
       <div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
     </section>`;
-    return reportShell({ fileName: `transactions_${new Date().toISOString().slice(0, 10)}.pdf`, title: 'Historique des Opérations', subtitle: `${subtitle} · ${rows.length} opérations`, bodyHtml, pageSize: 'A4 landscape' });
+    return reportShell({ fileName: `transactions_${new Date().toISOString().slice(0, 10)}.pdf`, title: 'Journal des opérations', subtitle: `${subtitle} · ${rows.length} opérations`, bodyHtml, pageSize: 'A4 landscape' });
 }
 
 export type TreasuryMovementRow = {

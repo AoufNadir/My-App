@@ -139,7 +139,7 @@ export function NewTransactionMenuDialog({
             {openPersonalWithdrawalModal && (
               <FinancialActionRow
                 title="Mon prélèvement"
-                subtitle="Dépense personnelle"
+                subtitle={t('personalExpenses.personalExpense') as string}
                 icon={<BanknotesIcon className="h-5 w-5" />}
                 onClick={() => runAfterClose(openPersonalWithdrawalModal)}
               />

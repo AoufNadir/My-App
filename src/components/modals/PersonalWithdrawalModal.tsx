@@ -67,21 +67,22 @@ export function PersonalWithdrawalModal({
     const exceedsProfit = mode === 'expense' && parsedAmount > managerAvailableProfit + currentExpenseCredit + 0.005;
     const exceedsBalance = parsedAmount > availableBalance + 0.005;
     const hasError = !managerExists || (parsedAmount > 0 && (exceedsProfit || exceedsBalance));
+    const sourceInsufficient = String(t('personalWithdrawal.sourceInsufficient')).replace('{source}', method);
     const errorTitle = !managerExists
-        ? 'Aucun gérant défini. Désignez un investisseur comme gérant.'
+        ? t('personalWithdrawal.managerMissing')
         : exceedsProfit
-            ? 'Depasse ton profit disponible'
+            ? t('personalWithdrawal.exceedsProfit')
             : exceedsBalance
-                ? `Solde ${method} insuffisant`
+                ? sourceInsufficient
                 : undefined;
     const errorMessage = !managerExists ? errorTitle : exceedsProfit ? (
         <span className="inline-flex flex-wrap items-center gap-1">
-            Depasse ton profit disponible
+            {t('personalWithdrawal.exceedsProfit')}
             <CurrencyAmount value={managerAvailableProfit} currency="DZD" semantic="plain" size="sm" decimals={0}/>
         </span>
     ) : exceedsBalance ? (
         <span className="inline-flex flex-wrap items-center gap-1">
-            Solde {method} insuffisant
+            {sourceInsufficient}
             <CurrencyAmount value={availableBalance} currency="DZD" semantic="plain" size="sm" decimals={0}/>
         </span>
     ) : undefined;
@@ -90,20 +91,20 @@ export function PersonalWithdrawalModal({
         <Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
             <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
                 <ModalTitle className="text-base sm:text-lg">
-                    {editingTx ? 'Modifier le prélèvement' : 'Mon prélèvement'}
+                    {editingTx ? t('personalWithdrawal.editTitle') : t('personalWithdrawal.title')}
                 </ModalTitle>
                 <p className="mt-0.5 text-sm font-normal text-neutral-500">
                     {mode === 'advance'
-                        ? 'Avance - à régulariser plus tard'
-                        : 'Dépense personnelle déduite de ton profit'}
+                        ? t('personalWithdrawal.advanceSubtitle')
+                        : t('personalWithdrawal.expenseSubtitle')}
                 </p>
             </ModalHeader>
 
             <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
                 <Tabs
                     tabs={[
-                        { id: 'expense', label: 'Dépense directe' },
-                        { id: 'advance', label: 'Avance' },
+                        { id: 'expense', label: t('personalWithdrawal.expenseDirect') },
+                        { id: 'advance', label: t('personalWithdrawal.advance') },
                     ]}
                     activeTab={mode}
                     onChange={(next) => setMode(next as 'expense' | 'advance')}
@@ -111,13 +112,13 @@ export function PersonalWithdrawalModal({
                 />
 
                 <MoneyField
-                    label="Montant"
+                    label={t('personalWithdrawal.amount') as string}
                     value={amount}
                     onChange={setAmount}
                     currency="DZD"
                     hint={(
                         <span className="inline-flex flex-wrap items-center gap-1">
-                            {mode === 'advance' ? 'Déduit du profit à la régularisation' : 'Ton profit dispo:'}
+                            {mode === 'advance' ? t('personalWithdrawal.deductedLater') : `${t('personalWithdrawal.availableProfitHint')}:`}
                             {mode !== 'advance' && (
                                 <CurrencyAmount value={managerAvailableProfit} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                             )}
@@ -130,7 +131,7 @@ export function PersonalWithdrawalModal({
                 />
 
                 <div>
-                    <Label>Source</Label>
+                    <Label>{t('personalWithdrawal.source')}</Label>
                     <Tabs
                         tabs={[
                             { id: 'Caisse', label: t('transactions.cash') },
@@ -144,15 +145,15 @@ export function PersonalWithdrawalModal({
                 </div>
 
                 <div>
-                    <Label>Date</Label>
+                    <Label>{t('personalWithdrawal.date')}</Label>
                     <DatePicker value={date} onChange={setDate} className="mt-1" />
                 </div>
 
                 <Input
-                    label="Pour quoi ?"
+                    label={t('personalWithdrawal.purpose') as string}
                     value={note}
                     onChange={(event) => setNote(event.target.value)}
-                    placeholder="Ex: Carburant, Cafe, Restaurant..."
+                    placeholder={t('personalWithdrawal.purposePlaceholder') as string}
                 />
 
                 <div className={[
@@ -162,8 +163,8 @@ export function PersonalWithdrawalModal({
                     <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" />
                     <p>
                         {mode === 'advance'
-                            ? 'Tu pourras régulariser plus tard en saisissant le montant réellement dépensé. Le reste sera retourné automatiquement.'
-                            : 'Sera déduit de ton profit disponible uniquement. Les autres investisseurs ne sont pas affectés.'}
+                            ? t('personalWithdrawal.advanceInfo')
+                            : t('personalWithdrawal.expenseInfo')}
                     </p>
                 </div>
             </ModalContent>

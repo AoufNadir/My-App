@@ -38,50 +38,51 @@ export function PersonalAdvanceReconcileModal({
     const reconciliation = evaluatePersonalAdvanceReconciliation(actualAmount, advanceAmount);
     const returnAmount = reconciliation.returnAmount;
     const hasError = !reconciliation.isValid;
+    const returnSource = advanceTx.source || 'Caisse';
+    const withSource = (key: string) => String(t(key)).replace('{source}', returnSource);
     const errorTitle = reconciliation.error === 'exceeds'
-        ? "Le retour ne peut pas depasser l'avance prise"
+        ? t('personalAdvance.exceeds')
         : reconciliation.error === 'invalid'
-            ? 'Montant invalide'
+            ? t('common.invalidAmount')
             : reconciliation.error === 'negative'
-                ? 'Le montant doit etre positif ou zero'
+                ? t('personalAdvance.negative')
                 : undefined;
     const errorMessage = reconciliation.error === 'exceeds' ? (
         <span className="inline-flex flex-wrap items-center gap-1">
-            Le retour ne peut pas depasser l'avance prise
+            {t('personalAdvance.exceeds')}
             <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="sm" decimals={0}/>
         </span>
     ) : errorTitle;
-    const returnSource = advanceTx.source || 'Caisse';
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
             <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
-                <ModalTitle className="text-base sm:text-lg">Regulariser l'avance</ModalTitle>
-                <p className="mt-0.5 text-sm font-normal text-neutral-500">Indique ce qui revient a {returnSource}</p>
+                <ModalTitle className="text-base sm:text-lg">{t('personalAdvance.title')}</ModalTitle>
+                <p className="mt-0.5 text-sm font-normal text-neutral-500">{withSource('personalAdvance.subtitle')}</p>
             </ModalHeader>
 
             <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
                 <Card variant="flat" className="p-4">
                     <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm text-neutral-500">Avance prise</span>
+                        <span className="text-sm text-neutral-500">{t('personalAdvance.advanceTaken')}</span>
                         <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="xl" decimals={0}/>
                     </div>
                     <dl className="mt-3 space-y-1 text-xs">
-                        <DetailLine label="Date" value={`${advanceTx.date} · ${advanceTx.time}`} />
-                        <DetailLine label="Source" value={advanceTx.source || '-'} />
-                        {advanceTx.notes && <DetailLine label="Note" value={advanceTx.notes} />}
+                        <DetailLine label={t('common.dateWord') as string} value={`${advanceTx.date} · ${advanceTx.time}`} />
+                        <DetailLine label={t('common.source') as string} value={advanceTx.source || '-'} />
+                        {advanceTx.notes && <DetailLine label={t('common.notes') as string} value={advanceTx.notes} />}
                     </dl>
                 </Card>
 
                 <MoneyField
-                    label="Montant retourne"
+                    label={t('personalAdvance.returnedAmount') as string}
                     value={actualAmount}
                     onChange={setActualAmount}
                     currency="DZD"
                     placeholder="0"
                     hint={(
                         <span className="inline-flex flex-wrap items-center gap-1">
-                            Avance prise:
+                            {t('personalAdvance.advanceTakenHint')}:
                             <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                         </span>
                     )}
@@ -91,10 +92,10 @@ export function PersonalAdvanceReconcileModal({
 
                 <div className="grid grid-cols-2 gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => setActualAmount(String(advanceAmount))}>
-                        Tout retourner
+                        {t('personalAdvance.returnAll')}
                     </Button>
                     <Button type="button" variant="outline" size="sm" onClick={() => setActualAmount('0')}>
-                        Tout dépensé
+                        {t('personalAdvance.spendAll')}
                     </Button>
                 </div>
 
@@ -108,14 +109,14 @@ export function PersonalAdvanceReconcileModal({
                                 'text-sm font-medium',
                                 returnAmount > 0 ? 'text-success' : 'text-neutral-500',
                             ].join(' ')}>
-                                {returnAmount > 0 ? `Retour automatique à ${returnSource}` : 'Aucun retour'}
+                                {returnAmount > 0 ? withSource('personalAdvance.autoReturn') : t('personalAdvance.noReturn')}
                             </span>
                             {returnAmount > 0 && (
                                 <CurrencyAmount value={returnAmount} currency="DZD" semantic="profit" size="xl" showSign decimals={0}/>
                             )}
                         </div>
                         <div className="mt-2 flex items-center justify-between gap-3 text-xs text-neutral-500">
-                            <span>Dépense finale</span>
+                            <span>{t('personalAdvance.finalExpense')}</span>
                             <CurrencyAmount value={reconciliation.actualSpent} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                         </div>
                     </Card>
@@ -124,7 +125,7 @@ export function PersonalAdvanceReconcileModal({
                 <div className="flex items-start gap-2 rounded-lg bg-info-bg p-3 text-xs text-info">
                     <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" />
                     <p>
-                        Saisis le montant que tu as remis dans {returnSource}. Le reste sera considéré comme dépense personnelle et ton profit sera ajusté.
+                        {withSource('personalAdvance.help')}
                     </p>
                 </div>
             </ModalContent>
@@ -142,7 +143,7 @@ export function PersonalAdvanceReconcileModal({
                         loading={isSaving}
                         title={errorTitle}
                     >
-                        {isSaving ? t('common.processing') : 'Confirmer'}
+                        {isSaving ? t('common.processing') : t('common.confirm')}
                     </Button>
                 </div>
             </ModalFooter>

@@ -18,6 +18,7 @@ import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { Investor, InvestorTransaction } from '../../types';
 import { formatNumber } from '../../pages/shared/pageFormat';
+import { useLanguage } from '../../contexts/LanguageContext';
 type InvestorDetailsContentProps = {
     investor: Investor;
     orderedTransactions: InvestorTransaction[];
@@ -30,18 +31,18 @@ type InvestorDetailsContentProps = {
     onDeleteTransaction: (tx: InvestorTransaction) => void;
 };
 type TxMeta = { label: string; isPositive: boolean; icon: React.ReactNode };
-function getTxMeta(tx: InvestorTransaction): TxMeta {
+function getTxMeta(tx: InvestorTransaction, t: (key: string) => any): TxMeta {
     switch (tx.type) {
         case 'profit_distribution':
-            return { label: 'Distribution de Profit', isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
+            return { label: t('investors.txProfitDistribution'), isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
         case 'withdraw_profit':
-            return { label: 'Retrait de Bénéfices', isPositive: false, icon: <WalletIcon className="w-4 h-4"/> };
+            return { label: t('investors.txWithdrawProfit'), isPositive: false, icon: <WalletIcon className="w-4 h-4"/> };
         case 'reinvest_profit':
-            return { label: 'Réinvestissement', isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
+            return { label: t('investors.txReinvestProfit'), isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
         case 'deposit_capital':
-            return { label: 'Ajout de Capital', isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
+            return { label: t('investors.txDepositCapital'), isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
         default:
-            return { label: 'Retrait de Capital', isPositive: false, icon: <MinusIcon className="w-4 h-4"/> };
+            return { label: t('investors.txWithdrawCapital'), isPositive: false, icon: <MinusIcon className="w-4 h-4"/> };
     }
 }
 function diffDaysSince(entryDate: string): number {
@@ -50,6 +51,7 @@ function diffDaysSince(entryDate: string): number {
     return Math.max(0, Math.floor((Date.now() - start) / (1000 * 60 * 60 * 24)));
 }
 export function InvestorDetailsContent({ investor, orderedTransactions, activeTab, setActiveTab, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction }: InvestorDetailsContentProps) {
+    const { t } = useLanguage();
     const currentTotalProfit = investor.totalProfit || 0;
     const currentAvailable = investor.availableProfit || 0;
     const currentWithdrawn = investor.withdrawnProfit || 0;
@@ -65,12 +67,12 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
         ? currentAvailable.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' DZD'
         : null;
     return (<>
-      <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel="Capital Investi" primaryValue={investor.capitalInvested} primaryCurrency="DZD" primarySemantic="plain" secondary={[
-            { label: 'Profit disponible', value: currentAvailable, currency: 'DZD', semantic: 'auto' },
-            { label: 'Total gagné', value: currentTotalProfit, currency: 'DZD', semantic: 'auto' },
-            { label: 'Total retiré', value: currentWithdrawn, currency: 'DZD', semantic: 'plain' },
+      <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel={t('investors.capitalInvested') as string} primaryValue={investor.capitalInvested} primaryCurrency="DZD" primarySemantic="plain" secondary={[
+            { label: t('investors.availableProfit') as string, value: currentAvailable, currency: 'DZD', semantic: 'auto' },
+            { label: t('investors.totalEarned') as string, value: currentTotalProfit, currency: 'DZD', semantic: 'auto' },
+            { label: t('investors.totalWithdrawn') as string, value: currentWithdrawn, currency: 'DZD', semantic: 'plain' },
             {
-                label: 'Part du fonds',
+                label: t('investors.fundShare') as string,
                 value: 0,
                 display: (<span className="text-lg font-semibold">
                 <bdi>{sharePercentDisplay}</bdi>
@@ -89,7 +91,7 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
 
       <Card>
         <CardHeader className="p-4 pb-2">
-          <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>Actions</SectionHeading>
+          <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>{t('investors.actions')}</SectionHeading>
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y divide-neutral-100">
@@ -101,8 +103,8 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
                 <PlusIcon className="w-5 h-5 text-financial-profit"/>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-neutral-900">Ajouter Capital</p>
-                <p className="text-xs text-neutral-400 mt-0.5">Augmenter la mise de l'investisseur</p>
+                <p className="text-sm font-bold text-neutral-900">{t('investors.addCapital')}</p>
+                <p className="text-xs text-neutral-400 mt-0.5">{t('investors.addCapitalHint')}</p>
               </div>
               <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
             </button>
@@ -114,8 +116,8 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
                 <MinusIcon className="w-5 h-5 text-neutral-500"/>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-neutral-900">Retirer Capital</p>
-                <p className="text-xs text-neutral-400 mt-0.5">Rembourser une partie du capital</p>
+                <p className="text-sm font-bold text-neutral-900">{t('investors.withdrawCapital')}</p>
+                <p className="text-xs text-neutral-400 mt-0.5">{t('investors.withdrawCapitalHint')}</p>
               </div>
               <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
             </button>
@@ -127,11 +129,11 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
                 <ArrowUpRightIcon className="w-5 h-5 text-primary"/>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-neutral-900">Retirer Bénéfices</p>
+                <p className="text-sm font-bold text-neutral-900">{t('investors.withdrawProfit')}</p>
                 <p className="text-xs text-neutral-400 mt-0.5">
                   {availableFormatted
-                    ? <><span className="text-financial-profit font-semibold">{availableFormatted}</span> disponibles</>
-                    : 'Virement du profit au compte'}
+                    ? <><span className="text-financial-profit font-semibold">{availableFormatted}</span> {t('investors.availableWord')}</>
+                    : t('investors.profitTransferHint')}
                 </p>
               </div>
               <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
@@ -145,11 +147,11 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
                 <PlusIcon className={`w-5 h-5 ${canReinvest ? 'text-secondary' : 'text-neutral-400'}`}/>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-neutral-900">Réinvestir les profits</p>
+                <p className="text-sm font-bold text-neutral-900">{t('investors.reinvestProfits')}</p>
                 <p className="text-xs text-neutral-400 mt-0.5">
                   {canReinvest
-                    ? 'Convertir les bénéfices en capital'
-                    : 'Aucun bénéfice disponible'}
+                    ? t('investors.reinvestHint')
+                    : t('investors.noProfitAvailable')}
                 </p>
               </div>
               {canReinvest
@@ -162,35 +164,35 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
       </Card>
 
       <Tabs tabs={[
-            { id: 'overview', label: 'Aperçu' },
-            { id: 'history', label: 'Historique', badge: orderedTransactions.length }
+            { id: 'overview', label: t('investors.overview') as string },
+            { id: 'history', label: t('investors.history') as string, badge: orderedTransactions.length }
         ]} activeTab={activeTab} onChange={(id) => setActiveTab(id as 'overview' | 'history')} variant="underline"/>
 
       {activeTab === 'overview' && (<div className="space-y-4">
           <Card>
             <CardHeader className="p-4 pb-3">
-              <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>Informations</SectionHeading>
+              <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>{t('investors.information')}</SectionHeading>
             </CardHeader>
             <CardContent className="p-0 divide-y divide-neutral-100">
               <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-                <span className="text-sm text-neutral-500">Statut</span>
+                <span className="text-sm text-neutral-500">{t('investors.status')}</span>
                 <span className="flex items-center gap-2 text-base font-semibold">
-                  <Badge variant={investor.isActive ? 'success' : 'neutral'}>{investor.isActive ? 'Actif' : 'Inactif'}</Badge>
-                  {investor.isManager && (<Badge variant="warning">Gérant</Badge>)}
+                  <Badge variant={investor.isActive ? 'success' : 'neutral'}>{investor.isActive ? t('investors.active') : t('investors.inactive')}</Badge>
+                  {investor.isManager && (<Badge variant="warning">{t('investors.manager')}</Badge>)}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-                <span className="text-sm text-neutral-500">Date d'entrée</span>
+                <span className="text-sm text-neutral-500">{t('investors.entryDate')}</span>
                 <span className="text-base font-semibold">{formattedEntryDate}</span>
               </div>
               <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-                <span className="text-sm text-neutral-500">Durée d'investissement</span>
+                <span className="text-sm text-neutral-500">{t('investors.investmentDuration')}</span>
                 <span className="text-base font-semibold">
-                  {investmentDays} <span className="text-sm font-normal text-neutral-500">jours</span>
+                  {investmentDays} <span className="text-sm font-normal text-neutral-500">{t('investors.days')}</span>
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-                <span className="text-sm text-neutral-500">Part du fonds</span>
+                <span className="text-sm text-neutral-500">{t('investors.fundShare')}</span>
                 <span className="text-base font-semibold">
                   <bdi>{sharePercentDisplay}</bdi>
                   <span className="ms-1 text-[0.85em] opacity-70 font-normal">%</span>
@@ -201,7 +203,7 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
 
           {investor.notes && (<Card>
               <CardHeader className="p-4 pb-2">
-                <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>Notes</SectionHeading>
+                <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>{t('investors.notes')}</SectionHeading>
               </CardHeader>
               <CardContent className="p-4 pt-0">
                 <p className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-700">{investor.notes}</p>
@@ -211,13 +213,13 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
 
       {activeTab === 'history' && (<Card>
           <CardHeader className="p-4 pb-3 flex flex-row items-center justify-between">
-            <SectionHeading icon={<FileSpreadsheetIcon className="w-4 h-4"/>}>Historique</SectionHeading>
-            <span className="text-sm text-neutral-500">{orderedTransactions.length} opérations</span>
+            <SectionHeading icon={<FileSpreadsheetIcon className="w-4 h-4"/>}>{t('investors.history')}</SectionHeading>
+            <span className="text-sm text-neutral-500">{orderedTransactions.length} {t('investors.operations')}</span>
           </CardHeader>
           <CardContent className="p-0">
-            {orderedTransactions.length === 0 ? (<EmptyState icon={<FileSpreadsheetIcon className="w-5 h-5"/>} title="Aucune transaction"/>) : (<div className="divide-y divide-neutral-100">
+            {orderedTransactions.length === 0 ? (<EmptyState icon={<FileSpreadsheetIcon className="w-5 h-5"/>} title={t('investors.noTransactions') as string}/>) : (<div className="divide-y divide-neutral-100">
                 {orderedTransactions.map((tx) => {
-                    const meta = getTxMeta(tx);
+                    const meta = getTxMeta(tx, t);
                     const signedAmount = (meta.isPositive ? 1 : -1) * Math.abs(tx.amount);
                     return (<React.Fragment key={tx.id}>
                       <SwipeableListItem onDelete={() => onDeleteTransaction(tx)}>

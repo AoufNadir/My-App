@@ -494,7 +494,7 @@ export function DashboardPage({
         { label: t('finance.liquidity') as string, value: cashTotal, currency: 'DZD' as const, semantic: 'plain' as const },
         { label: t('finance.stock') as string, value: stockValue, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
         { label: t('finance.treasuryCards') as string, value: capitalSnapshot.treasuryCardsTotal, currency: 'DZD' as const, semantic: 'plain' as const, hideWhenZero: true },
-        { label: t('nav.services') as string, value: capitalSnapshot.servicesCapitalImpact, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true },
+        { label: t('finance.servicesNetPosition') as string, value: capitalSnapshot.servicesCapitalImpact, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true },
         { label: t('finance.netPosition') as string, value: capitalSnapshot.netClientPosition, currency: 'DZD' as const, semantic: 'auto' as const, hideWhenZero: true }
     ].filter((item) => !item.hideWhenZero || Math.abs(item.value) > 0.005);
     const lowStock = Number(portfolioStats?.usdt?.available || 0) < 100
@@ -597,7 +597,7 @@ export function DashboardPage({
         <button type="button" onClick={onQuickSell}
           className="flex w-full items-center justify-between gap-3 rounded-xl border border-danger/25 bg-danger-bg px-4 py-3 text-start transition-colors hover:bg-danger-bg/80 active:scale-[0.99]">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-financial-loss">⚡ Vente rapide USDT</p>
+            <p className="text-sm font-bold text-financial-loss">⚡ {t('dashboard.quickSellUsdt')}</p>
             <p className="text-xs text-neutral-500 mt-0.5" dir="ltr">
               {quickSellPreview.qty.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} USDT
               @ {quickSellPreview.price.toFixed(2)} DZD
@@ -614,12 +614,12 @@ export function DashboardPage({
 
       {onOpenPersonalWithdrawal && (<Button onClick={onOpenPersonalWithdrawal} variant="outline" size="md" className="flex w-full items-center justify-center gap-2 border-primary/20 bg-primary/10 font-bold text-primary hover:bg-primary/20">
           <BanknotesIcon className="h-4 w-4"/>
-          <span>Ma dépense du jour</span>
+          <span>{t('dashboard.personalExpenseToday')}</span>
         </Button>)}
 
       <TodaySummary title={t('dashboard.profitSummary') as string} last7DaysProfit={dailyOverview.last7DaysProfit} todaySellCount={dailyOverview.todaySellCount} onShare={handleShareDaySummary} shareCopied={shareCopied} items={[
             { label: t('dashboard.profitToday') as string, value: dailyOverview.todayProfit, semantic: 'auto', icon: <BriefcaseIcon className="h-4 w-4"/> },
-            { label: 'Cette semaine', value: dailyOverview.weekToDateProfit ?? 0, semantic: 'auto', icon: <TrendingUpIcon className="h-4 w-4"/> },
+            { label: t('dashboard.thisWeek') as string, value: dailyOverview.weekToDateProfit ?? 0, semantic: 'auto', icon: <TrendingUpIcon className="h-4 w-4"/> },
             { label: t('dashboard.profitMonth') as string, value: dailyOverview.monthToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
             { label: t('dashboard.profitYear') as string, value: dailyOverview.yearToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
         ]}/>
@@ -681,8 +681,8 @@ export function DashboardPage({
       )}
 
       <MoneyMap title={t('dashboard.moneyMap') as string} rows={[
-            { label: 'Caisse', value: capitalSnapshot.caisseBalance, icon: <WalletIcon className="h-4 w-4"/> },
-            { label: 'BaridiMob', value: capitalSnapshot.baridiBalance, icon: <LandmarkIcon className="h-4 w-4"/> },
+            { label: t('common.caisseBalance') as string, value: capitalSnapshot.caisseBalance, icon: <WalletIcon className="h-4 w-4"/> },
+            { label: t('common.baridiBalance') as string, value: capitalSnapshot.baridiBalance, icon: <LandmarkIcon className="h-4 w-4"/> },
             { label: t('finance.stock') as string, value: stockValue, icon: <BriefcaseIcon className="h-4 w-4"/> },
             { label: t('finance.toReceive') as string, value: totalDebt, semantic: totalDebt > 0 ? 'profit' : 'plain', icon: <ArrowUpRightIcon className="h-4 w-4"/> },
             { label: t('finance.clientAdvance') as string, value: totalAdvances, semantic: totalAdvances > 0 ? 'loss' : 'plain', icon: <AlertTriangleIcon className="h-4 w-4"/> },

@@ -83,36 +83,36 @@ export function getPortfolioOperationLabel(type: PortfolioRawType, currency?: st
 export function getClientOperationLabel(type: string, t?: TranslateFn): string {
     const normalized = canonicalize(String(type || ''));
     if (normalized.includes('reglement') && normalized.includes('recu'))
-        return t ? t('ledger.receipt') : 'Encaissement Client';
+        return t ? t('ledger.receipt') : 'Encaissement client';
     if (normalized.includes('paiement') && normalized.includes('effect'))
-        return t ? t('ledger.payout') : 'Décaissement Client';
+        return t ? t('ledger.payout') : 'Décaissement client';
     if (normalized === 'vente usdt')
-        return t ? `${t('ledger.sell')} USDT` : 'Vente USDT au Client';
+        return t ? `${t('ledger.sell')} USDT` : 'Vente USDT';
     if (normalized === 'vente eur')
-        return t ? `${t('ledger.sell')} EUR` : 'Vente EUR au Client';
+        return t ? `${t('ledger.sell')} EUR` : 'Vente EUR';
     if (normalized === 'achat eur')
-        return t ? `${t('ledger.buy')} EUR` : 'Achat EUR (Portefeuille)';
+        return t ? `${t('ledger.buy')} EUR` : 'Achat EUR';
     if (normalized === 'solde initial')
-        return t ? t('ledger.initialBalance') : 'Solde Initial Client';
+        return t ? t('ledger.initialBalance') : 'Solde initial client';
     if (normalized === 'transfert entrant')
         return t ? t('ledger.transferIn') : 'Transfert entrant';
     if (normalized === 'transfert sortant')
         return t ? t('ledger.transferOut') : 'Transfert sortant';
     if (normalized === 'ajustement solde')
-        return t ? t('ledger.balanceFix') : 'Correction Solde Client';
-    return String(type || (t ? t('ledger.clientOp') : 'Opération Client'));
+        return t ? t('ledger.balanceFix') : 'Correction solde client';
+    return String(type || (t ? t('ledger.clientOp') : 'Opération client'));
 }
 export function getTreasuryOperationLabel(type: TreasuryRawType, t?: TranslateFn): string {
     const normalized = canonicalize(String(type || ''));
     if (normalized === 'ajout')
-        return t ? t('ledger.treasuryIn') : 'Entrée Trésorerie';
+        return t ? t('ledger.treasuryIn') : 'Entrée trésorerie';
     if (normalized === 'retrait')
-        return t ? t('ledger.treasuryOut') : 'Sortie Trésorerie';
+        return t ? t('ledger.treasuryOut') : 'Sortie trésorerie';
     if (normalized === 'adjustment (+)' || normalized === 'adjustment +')
-        return t ? `${t('ledger.adjustPlus')}` : 'Ajustement + Trésorerie';
+        return t ? `${t('ledger.adjustPlus')}` : 'Ajustement + trésorerie';
     if (normalized === 'adjustment (-)' || normalized === 'adjustment -')
-        return t ? `${t('ledger.adjustMinus')}` : 'Ajustement - Trésorerie';
+        return t ? `${t('ledger.adjustMinus')}` : 'Ajustement - trésorerie';
     if (normalized === 'transfer')
-        return t ? t('ledger.internalTransfer') : 'Virement Interne (Caisse <-> Baridi)';
-    return String(type || (t ? t('ledger.treasuryOp') : 'Opération Trésorerie'));
+        return t ? t('ledger.internalTransfer') : 'Virement interne (Caisse <-> Baridi)';
+    return String(type || (t ? t('ledger.treasuryOp') : 'Opération trésorerie'));
 }

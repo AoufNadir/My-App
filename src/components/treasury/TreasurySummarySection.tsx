@@ -41,7 +41,7 @@ export function TreasurySummarySection({ caisseBalance, baridiBalance, dettesAbs
     return (<Card>
       <CardHeader className="p-4 pb-3">
         <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>
-          Comptes & Mouvements
+          {t('treasury.accountsMovements')}
         </SectionHeading>
       </CardHeader>
       <CardContent className="p-0 divide-y divide-border">
@@ -49,7 +49,7 @@ export function TreasurySummarySection({ caisseBalance, baridiBalance, dettesAbs
         <AccountRow label={t('common.baridiBalance') as string} value={baridiBalance} onEdit={() => openTreasuryBalanceEditModal('BaridiMob')}/>
         {shouldShowAmount(dettesAbs) && (<AccountRow label={t('finance.toReceive') as string} value={dettesAbs} semantic="profit"/>)}
         {shouldShowAmount(totalAvances) && (<AccountRow label={t('finance.clientAdvance') as string} value={totalAvances} semantic="loss"/>)}
-        {shouldShowAmount(servicesCapitalImpact) && (<AccountRow label={t('nav.services') as string} value={servicesCapitalImpact} semantic="auto"/>)}
+        {shouldShowAmount(servicesCapitalImpact) && (<AccountRow label={t('finance.servicesNetPosition') as string} value={servicesCapitalImpact} semantic="auto"/>)}
         {shouldShowAmount(investorLiability) && (<AccountRow label={t('finance.investorLiability') as string} value={investorLiability} semantic="loss"/>)}
         {openDeliveryExpenseModal && (<div className="p-4">
             <Button onClick={openDeliveryExpenseModal} variant="outline" className="flex w-full items-center justify-center gap-2 py-3 text-sm font-bold">
