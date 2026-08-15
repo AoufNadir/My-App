@@ -283,6 +283,97 @@ function matchesTransactionFilter(mode: TransactionFilterMode, tx: DisplayTx) {
             return false;
     }
 }
+function getMatchingTransactionFilterModes(tx: DisplayTx): TransactionFilterMode[] {
+    const modes = new Set<TransactionFilterMode>(['all']);
+    const rawTx = tx.rawTx;
+
+    if (tx.sourceType === 'usdt_tx') {
+        if (isCryptoBuy(rawTx)) {
+            modes.add('buy');
+            if (rawTx.currency === 'USDT') {
+                modes.add(rawTx.purchaseFundingCurrency === 'EUR' ? 'buy_usdt_eur' : 'buy_usdt_dzd');
+            }
+            else if (rawTx.currency === 'EUR' && !rawTx.linkedTxId) {
+                modes.add('buy_eur_dzd');
+            }
+        }
+        if (isCryptoSell(rawTx)) {
+            modes.add('sell');
+            if (rawTx.currency === 'USDT') {
+                modes.add(rawTx.settlementCurrency === 'EUR' ? 'sell_usdt_eur' : 'sell_usdt_dzd');
+            }
+            else if (rawTx.currency === 'EUR') {
+                modes.add('sell_eur_dzd');
+            }
+        }
+        if (isCryptoManual(rawTx)) {
+            modes.add('adjustments');
+            modes.add('stock');
+            if ((rawTx as Tx).type === 'Ajout Manuel')
+                modes.add('stock_in');
+            if ((rawTx as Tx).type === 'Retrait Manuel')
+                modes.add('stock_out');
+        }
+        return Array.from(modes);
+    }
+
+    if (tx.sourceType === 'client_tx') {
+        const clientTx = rawTx as ClientTransactionDzd;
+        modes.add('clients');
+        if (!isClientTransfer(clientTx))
+            modes.add('client_payments');
+        if (isClientReceipt(clientTx)) {
+            modes.add('client_receipts');
+            const method = normalizePaymentMethod(clientTx.paymentMethod);
+            if (method === 'cash')
+                modes.add('client_receipts_cash');
+            if (method === 'baridi')
+                modes.add('client_receipts_baridi');
+            if (method === 'credit')
+                modes.add('client_receipts_credit');
+        }
+        if (isClientPayout(clientTx)) {
+            modes.add('client_payouts');
+            const method = normalizePaymentMethod(clientTx.paymentMethod);
+            if (method === 'cash')
+                modes.add('client_payouts_cash');
+            if (method === 'baridi')
+                modes.add('client_payouts_baridi');
+            if (method === 'credit')
+                modes.add('client_payouts_credit');
+        }
+        if (isClientAdjustment(clientTx))
+            modes.add('client_adjustments');
+        if (isClientTransfer(clientTx))
+            modes.add('client_transfers');
+        return Array.from(modes);
+    }
+
+    if (tx.sourceType === 'treasury_tx') {
+        const treasuryTx = rawTx as TreasuryTx;
+        modes.add('treasury');
+        if (isTreasuryEntry(treasuryTx)) {
+            modes.add('treasury_in');
+            const wallet = getTreasuryWallet(treasuryTx);
+            if (wallet === 'cash')
+                modes.add('treasury_in_cash');
+            if (wallet === 'baridi')
+                modes.add('treasury_in_baridi');
+        }
+        if (isTreasuryExit(treasuryTx)) {
+            modes.add('treasury_out');
+            const wallet = getTreasuryWallet(treasuryTx);
+            if (wallet === 'cash')
+                modes.add('treasury_out_cash');
+            if (wallet === 'baridi')
+                modes.add('treasury_out_baridi');
+        }
+        if (isTreasuryTransfer(treasuryTx))
+            modes.add('treasury_transfers');
+    }
+
+    return Array.from(modes);
+}
 type UseTransactionsViewModelParams = {
     t: (key: string) => string;
     filterMode: TransactionFilterMode;
@@ -691,10 +782,8 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 if (tx.timestamp < dateRange.start.getTime() || tx.timestamp > dateRange.end.getTime())
                     continue;
             }
-            for (const mode of ALL_FILTER_MODES) {
-                if (matchesTransactionFilter(mode, tx)) {
-                    initial[mode] += 1;
-                }
+            for (const mode of getMatchingTransactionFilterModes(tx)) {
+                initial[mode] += 1;
             }
         }
         return initial;

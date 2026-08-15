@@ -149,8 +149,8 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone }: ContactRowPr
 }
 export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, handleExportClientReport }: ClientDetailsViewProps) {
     const { t } = useLanguage();
-    const INITIAL_VISIBLE_TRANSACTIONS = 120;
-    const LOAD_MORE_TRANSACTIONS = 120;
+    const INITIAL_VISIBLE_TRANSACTIONS = 60;
+    const LOAD_MORE_TRANSACTIONS = 60;
     const [visibleTransactionCount, setVisibleTransactionCount] = useState(INITIAL_VISIBLE_TRANSACTIONS);
     const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
     const dates = Object.keys(groupedHistory);

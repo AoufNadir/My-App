@@ -130,11 +130,17 @@ export default function MainApp({ user }: {
         || selectedAssetClientId !== null;
     const shouldSubscribeInvestors = view === 'investors' || view === 'dashboard' || view === 'tresorerie' || view === 'dzd' || view === 'transactions' || view === 'expenses' || isInvestorRoute;
     const shouldSubscribeTreasuryCards = view === 'dashboard' || view === 'investors' || view === 'tresorerie' || view === 'transactions';
+    const shouldRequireManualAssets = view === 'services' || selectedAssetId !== null || selectedAssetClientId !== null;
+    const shouldRequireInvestors = view === 'investors' || view === 'expenses' || view === 'tresorerie' || isInvestorRoute;
+    const shouldRequireTreasuryCards = view === 'tresorerie';
     // 1.1 App Data (Provides userDocRef)
     const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
         subscribeManualAssets: shouldSubscribeManualAssets,
         subscribeInvestors: shouldSubscribeInvestors,
-        subscribeTreasuryCards: shouldSubscribeTreasuryCards
+        subscribeTreasuryCards: shouldSubscribeTreasuryCards,
+        requireManualAssets: shouldRequireManualAssets,
+        requireInvestors: shouldRequireInvestors,
+        requireTreasuryCards: shouldRequireTreasuryCards
     });
     // 1.2 Settings
     const { managerFeePercentage, setManagerFeePercentage, isSettingsLoaded } = useSettings(userDocRef);
@@ -409,11 +415,12 @@ export default function MainApp({ user }: {
     const transferFromBalance = useMemo(() => (transferFromClientId ? getEditableClientTransferBalance(transferFromClientId) : 0), [clientBalances, clientTransactionsDzd, editingTransferTx, transferFromClientId]);
     const transferToBalance = useMemo(() => (transferToClientId ? getEditableClientTransferBalance(transferToClientId) : 0), [clientBalances, clientTransactionsDzd, editingTransferTx, transferToClientId]);
     const shouldComputeClientDerivations = view === 'dzd' || selectedClientId !== null;
+    const deferredClientSearchQuery = React.useDeferredValue(clientSearchQuery);
     const filteredClientsDzd = useMemo(() => {
         if (!shouldComputeClientDerivations)
             return clientsDzd;
         let list = [...clientsDzd];
-        const normalizedQuery = clientSearchQuery.trim().toLowerCase();
+        const normalizedQuery = deferredClientSearchQuery.trim().toLowerCase();
         if (normalizedQuery) {
             list = list.filter(c =>
                 nameMatchesQuery(getClientDisplayName(c), normalizedQuery) ||
@@ -521,7 +528,7 @@ export default function MainApp({ user }: {
             });
         }
         return list;
-    }, [shouldComputeClientDerivations, clientsDzd, clientSearchQuery, clientSortMode, clientBalances, clientTransactionsDzd]);
+    }, [shouldComputeClientDerivations, clientsDzd, deferredClientSearchQuery, clientSortMode, clientBalances, clientTransactionsDzd]);
     const selectedClient = useMemo(() => shouldComputeClientDerivations ? (clientsDzd.find(c => c.id === selectedClientId) || null) : null, [shouldComputeClientDerivations, clientsDzd, selectedClientId]);
     const selectedClientTransactions = useMemo(() => shouldComputeClientDerivations
         ? clientTransactionsDzd.filter(tx => tx.clientId === selectedClientId).sort((a, b) => b.timestamp - a.timestamp)

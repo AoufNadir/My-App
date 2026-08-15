@@ -79,8 +79,8 @@ const LOYALTY_CONFIG: Record<TierKey, { label: string; dot: string; chipCls: str
 
 export function ClientsListView({ openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, setSelectedClientId, overdueDebtClients, clientLoyaltyMap, clientPrevMonthVolume, clientLastSellDate, handleZeroOutBalance, onImportClients }: ClientsListViewProps) {
     const { t } = useLanguage();
-    const INITIAL_VISIBLE_CLIENTS = 80;
-    const LOAD_MORE_CLIENTS = 80;
+    const INITIAL_VISIBLE_CLIENTS = 50;
+    const LOAD_MORE_CLIENTS = 50;
     const [visibleClientCount, setVisibleClientCount] = useState(INITIAL_VISIBLE_CLIENTS);
     const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(null);
     const [activeTierFilter, setActiveTierFilter] = useState<string | null>(null);

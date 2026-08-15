@@ -6,6 +6,9 @@ type UseAppDataOptions = {
     subscribeManualAssets?: boolean;
     subscribeInvestors?: boolean;
     subscribeTreasuryCards?: boolean;
+    requireManualAssets?: boolean;
+    requireInvestors?: boolean;
+    requireTreasuryCards?: boolean;
 };
 type AppDataCollectionKey = 'transactions' | 'clients' | 'clientTransactions' | 'treasuryTransactions' | 'treasuryCards' | 'manualAssets' | 'manualAssetClients' | 'manualAssetTransactions' | 'investors' | 'investorTransactions';
 type CollectionLoadState = {
@@ -40,6 +43,9 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     const subscribeManualAssets = options.subscribeManualAssets ?? true;
     const subscribeInvestors = options.subscribeInvestors ?? true;
     const subscribeTreasuryCards = options.subscribeTreasuryCards ?? true;
+    const requireManualAssets = options.requireManualAssets ?? subscribeManualAssets;
+    const requireInvestors = options.requireInvestors ?? subscribeInvestors;
+    const requireTreasuryCards = options.requireTreasuryCards ?? subscribeTreasuryCards;
     // Data State
     const [transactions, setTransactions] = useState<Tx[]>([]);
     const [clientsDzd, setClientsDzd] = useState<ClientDzd[]>([]);
@@ -76,14 +82,14 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     }, [subscribeManualAssets, subscribeInvestors, subscribeTreasuryCards]);
     const activeCollectionKeys = useMemo(() => {
         const keys: AppDataCollectionKey[] = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions'];
-        if (subscribeTreasuryCards)
+        if (requireTreasuryCards)
             keys.push('treasuryCards');
-        if (subscribeManualAssets)
+        if (requireManualAssets)
             keys.push('manualAssets', 'manualAssetClients', 'manualAssetTransactions');
-        if (subscribeInvestors)
+        if (requireInvestors)
             keys.push('investors', 'investorTransactions');
         return keys;
-    }, [subscribeTreasuryCards, subscribeManualAssets, subscribeInvestors]);
+    }, [requireTreasuryCards, requireManualAssets, requireInvestors]);
     const subscribeToCollection = useCallback((
         key: AppDataCollectionKey,
         query: { onSnapshot: (callback: (snapshot: any) => void, options?: { includeMetadataChanges?: boolean }) => () => void },

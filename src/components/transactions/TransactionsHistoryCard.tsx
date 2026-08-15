@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -60,10 +60,11 @@ export function TransactionsHistoryCard({
   formatDzdAmount,
   profitByTxId,
 }: TransactionsHistoryCardProps) {
-  const INITIAL_VISIBLE = 120;
-  const LOAD_MORE_COUNT = 120;
+  const INITIAL_VISIBLE = 60;
+  const LOAD_MORE_COUNT = 60;
   const [visibleTransactionCount, setVisibleTransactionCount] = useState(INITIAL_VISIBLE);
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [activeTag, setActiveTag] = useState<string | null>(null);
 
   type FilterItem = { mode: TransactionFilterMode; label?: string; icon: React.ReactNode; tone: string };
@@ -209,7 +210,7 @@ export function TransactionsHistoryCard({
 
   useEffect(() => {
     setVisibleTransactionCount(INITIAL_VISIBLE);
-  }, [groupedTransactions, searchQuery, activeTag]);
+  }, [groupedTransactions, deferredSearchQuery, activeTag]);
 
   const dateGroups = useMemo(
     () => Object.entries(groupedTransactions),
@@ -229,7 +230,7 @@ export function TransactionsHistoryCard({
   }, [dateGroups]);
 
   const filteredDateGroups = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = deferredSearchQuery.trim().toLowerCase();
     const hasFilter = q || activeTag;
     if (!hasFilter) return dateGroups;
     return dateGroups
@@ -247,11 +248,11 @@ export function TransactionsHistoryCard({
         return matchesSearch && matchesTag;
       })] as [string, DisplayTx[]])
       .filter(([, txs]) => txs.length > 0);
-  }, [dateGroups, searchQuery, activeTag]);
+  }, [dateGroups, deferredSearchQuery, activeTag]);
 
   // Compute total DZD for all filtered transactions when a filter/search is active
   const filteredSummary = useMemo(() => {
-    const isFiltered = filterMode !== 'all' || searchQuery.trim().length > 0 || activeTag !== null;
+    const isFiltered = filterMode !== 'all' || deferredSearchQuery.trim().length > 0 || activeTag !== null;
     if (!isFiltered) return null;
     let totalDzd = 0;
     let count = 0;
@@ -265,7 +266,7 @@ export function TransactionsHistoryCard({
       }
     }
     return { totalDzd, count };
-  }, [filteredDateGroups, filterMode, searchQuery]);
+  }, [filteredDateGroups, filterMode, deferredSearchQuery, activeTag]);
 
   const { visibleDateGroups, hiddenTransactionCount, totalTransactionCount } = useMemo(() => {
     let remaining = visibleTransactionCount;
