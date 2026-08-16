@@ -57,7 +57,8 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, orderedTrans
     const currentTotalProfit = investor.totalProfit || 0;
     const currentAvailable = investor.availableProfit || 0;
     const currentWithdrawn = investor.withdrawnProfit || 0;
-    const showManagerOwnedCapital = Boolean(investor.isManager && capitalSnapshot);
+    const isManager = Boolean(investor.isManager);
+    const showManagerOwnedCapital = Boolean(isManager && capitalSnapshot);
     const primaryCapitalLabel = showManagerOwnedCapital
         ? t('investors.capitalOwned') as string
         : t('investors.capitalInvested') as string;
@@ -69,7 +70,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, orderedTrans
         ? formatNumber((investor as any).roi, { min: 2, max: 2 })
         : null;
     const canReinvest = currentAvailable > 0.01;
-    const showReinvestAction = !investor.isManager;
+    const showInvestorOnlyActions = !isManager;
     const investmentDays = useMemo(() => diffDaysSince(investor.entryDate), [investor.entryDate]);
     const formattedEntryDate = useMemo(() => new Date(investor.entryDate).toLocaleDateString('fr-FR'), [investor.entryDate]);
     // Formatted available profit for subtitle
@@ -81,7 +82,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, orderedTrans
             { label: t('investors.availableProfit') as string, value: currentAvailable, currency: 'DZD', semantic: 'auto' },
             { label: t('investors.totalEarned') as string, value: currentTotalProfit, currency: 'DZD', semantic: 'auto' },
             { label: t('investors.totalWithdrawn') as string, value: currentWithdrawn, currency: 'DZD', semantic: 'plain' },
-            {
+            ...(!isManager ? [{
                 label: t('investors.fundShare') as string,
                 value: 0,
                 display: (<span className="text-lg font-semibold">
@@ -96,7 +97,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, orderedTrans
                   <bdi>{(investor as any).roi > 0 ? '+' : ''}{roiDisplay}</bdi>
                   <span className="ms-1 text-[0.85em] opacity-70 font-normal">%</span>
                 </span>) : <span className="text-lg text-neutral-400">—</span>
-            }
+            }] : [])
         ]}/>
 
       <Card>
@@ -133,7 +134,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, orderedTrans
             </button>
 
             {/* Retirer Bénéfices */}
-            <button type="button" onClick={onWithdrawProfit}
+            {showInvestorOnlyActions && (<button type="button" onClick={onWithdrawProfit}
               className="flex w-full items-center gap-4 px-4 py-4 text-start transition-colors hover:bg-neutral-50 active:bg-neutral-100">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10">
                 <ArrowUpRightIcon className="w-5 h-5 text-primary"/>
@@ -147,10 +148,10 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, orderedTrans
                 </p>
               </div>
               <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
-            </button>
+            </button>)}
 
             {/* Réinvestir */}
-            {showReinvestAction && (<button type="button" onClick={canReinvest ? onReinvestProfit : undefined}
+            {showInvestorOnlyActions && (<button type="button" onClick={canReinvest ? onReinvestProfit : undefined}
               disabled={!canReinvest}
               className={`flex w-full items-center gap-4 px-4 py-4 text-start transition-colors ${canReinvest ? 'hover:bg-neutral-50 active:bg-neutral-100' : 'opacity-40 cursor-not-allowed'}`}>
               <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${canReinvest ? 'bg-secondary/10' : 'bg-neutral-100'}`}>
@@ -188,7 +189,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, orderedTrans
                 <span className="text-sm text-neutral-500">{t('investors.status')}</span>
                 <span className="flex items-center gap-2 text-base font-semibold">
                   <Badge variant={investor.isActive ? 'success' : 'neutral'}>{investor.isActive ? t('investors.active') : t('investors.inactive')}</Badge>
-                  {investor.isManager && (<Badge variant="warning">{t('investors.manager')}</Badge>)}
+                  {isManager && (<Badge variant="warning">{t('investors.manager')}</Badge>)}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 px-4 py-3.5">
@@ -201,13 +202,13 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, orderedTrans
                   {investmentDays} <span className="text-sm font-normal text-neutral-500">{t('investors.days')}</span>
                 </span>
               </div>
-              <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+              {!isManager && (<div className="flex items-center justify-between gap-3 px-4 py-3.5">
                 <span className="text-sm text-neutral-500">{t('investors.fundShare')}</span>
                 <span className="text-base font-semibold">
                   <bdi>{sharePercentDisplay}</bdi>
                   <span className="ms-1 text-[0.85em] opacity-70 font-normal">%</span>
                 </span>
-              </div>
+              </div>)}
             </CardContent>
           </Card>
 
