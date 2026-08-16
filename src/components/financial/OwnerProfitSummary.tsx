@@ -59,8 +59,10 @@ export function OwnerProfitBreakdownCard({ breakdown }: { breakdown: ManagerProf
             <CardContent className="grid grid-cols-2 gap-3 p-4 pt-2">
                 <Metric label={`${t('investors.ideaShare') as string} (${rate}%)`} value={breakdown.ideaShareProfit} />
                 <Metric label={t('investors.personalCapitalShare') as string} value={breakdown.personalCapitalProfit} />
+                <Metric label={t('investors.serviceProfit') as string} value={breakdown.serviceProfit} />
                 <Metric label={t('investors.personalTotalProfit') as string} value={breakdown.ownerTotalProfit} />
                 <Metric label={t('investors.externalInvestorsShare') as string} value={breakdown.externalInvestorsProfit} semantic="plain" />
+                <Metric label={t('investors.openingCapital') as string} value={breakdown.openingCapital} semantic="plain" />
                 <Metric label={t('investors.profitWithdrawals') as string} value={breakdown.profitWithdrawals} semantic="plain" />
                 <Metric label={t('investors.historicalPersonalExpenses') as string} value={breakdown.personalExpenses} semantic="plain" />
                 <Metric label={t('investors.currentPersonalExpenses') as string} value={breakdown.currentPersonalExpenses} semantic="plain" />
@@ -77,6 +79,8 @@ export function OwnerProfitBreakdownCard({ breakdown }: { breakdown: ManagerProf
 
 export type FinancialAuditData = {
     openingCapital: number;
+    tradingOwnerProfit: number;
+    serviceProfit: number;
     historicalPersonalExpenses: number;
     currentPersonalExpenses: number;
     totalPersonalExpenses: number;
@@ -94,18 +98,21 @@ export function FinancialAuditCard({ breakdown, audit }: { breakdown: ManagerPro
                 </SectionHeading>
                 <p className="mt-1 text-xs text-neutral-500">{t('dashboard.financialAuditHint') as string}</p>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3 p-4 pt-2 sm:grid-cols-5">
-                <Metric label={t('dashboard.ownerProfitTotal') as string} value={breakdown.ownerTotalProfit} />
-                <Metric label={t('dashboard.historicalPersonalExpenses') as string} value={audit.historicalPersonalExpenses} semantic="plain" />
-                <Metric label={t('dashboard.currentPersonalExpenses') as string} value={audit.currentPersonalExpenses} semantic="plain" />
-                <Metric label={t('dashboard.totalPersonalExpenses') as string} value={audit.totalPersonalExpenses} semantic="plain" />
+            <CardContent className="grid grid-cols-1 gap-3 p-4 pt-2 sm:grid-cols-2 lg:grid-cols-6">
+                <Metric label={t('dashboard.openingCapital') as string} value={audit.openingCapital} semantic="plain" />
                 <Metric label={t('dashboard.actualOwnerCapital') as string} value={audit.actualOwnerCapital} semantic="plain" />
+                <Metric label={t('dashboard.ownerProfitTotal') as string} value={breakdown.ownerTotalProfit} />
+                <Metric label={t('dashboard.serviceProfit') as string} value={audit.serviceProfit} />
+                <Metric label={t('dashboard.historicalPersonalExpenses') as string} value={audit.historicalPersonalExpenses} semantic="plain" />
+                <Metric label={t('dashboard.totalPersonalExpenses') as string} value={audit.totalPersonalExpenses} semantic="plain" />
             </CardContent>
             <details className="border-t border-border px-4 py-3">
                 <summary className="cursor-pointer text-xs font-semibold text-neutral-600">{t('dashboard.auditDetails') as string}</summary>
                 <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
                     <AuditRow label={t('dashboard.openingCapital') as string} value={audit.openingCapital} />
                     <AuditRow label={t('dashboard.actualOwnerCapital') as string} value={audit.actualOwnerCapital} />
+                    <AuditRow label={t('dashboard.tradingOwnerProfit') as string} value={audit.tradingOwnerProfit} />
+                    <AuditRow label={t('dashboard.serviceProfit') as string} value={audit.serviceProfit} />
                     <AuditRow label={t('dashboard.profitWithdrawals') as string} value={breakdown.profitWithdrawals} />
                     <AuditRow label={t('dashboard.reinvestedProfit') as string} value={breakdown.reinvestedProfit} />
                     <AuditRow label={t('dashboard.historicalPersonalExpenses') as string} value={audit.historicalPersonalExpenses} />

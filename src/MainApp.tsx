@@ -588,7 +588,7 @@ export default function MainApp({ user }: {
         const last7DaysProfit = new Array(7).fill(0) as number[];
         const day7StartTs = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6).getTime();
         const activeClientIds = new Set<string>();
-        const deriveOwnerProfitForPeriod = (periodStartTs: number) => getManagerProfitBreakdown(deriveInvestorEconomics({
+        const deriveOwnerTradingProfitForPeriod = (periodStartTs: number) => getManagerProfitBreakdown(deriveInvestorEconomics({
             investors,
             investorTransactions,
             transactions,
@@ -599,10 +599,24 @@ export default function MainApp({ user }: {
             deliveryExpenses,
             treasuryTransactions,
         }), managerFeePercentage).ownerTotalProfit;
-        const ownerProfitToday = deriveOwnerProfitForPeriod(dayStartTs);
-        const ownerProfitWeek = deriveOwnerProfitForPeriod(weekStartTs);
-        const ownerProfitMonth = deriveOwnerProfitForPeriod(monthStartTs);
-        const ownerProfitYear = deriveOwnerProfitForPeriod(yearStartTs);
+        const serviceProfitForPeriod = (periodStartTs: number) => manualAssetTransactions.reduce((sum, tx) => {
+            if (tx.timestamp < periodStartTs || tx.timestamp > nowTs)
+                return sum;
+            if (tx.type !== 'service' && tx.type !== 'invoice')
+                return sum;
+            const amount = Math.abs(Number(tx.amount || 0));
+            return Number.isFinite(amount) ? sum + amount : sum;
+        }, 0);
+        const serviceProfitAllTime = manualAssetTransactions.reduce((sum, tx) => {
+            if (tx.timestamp > nowTs || (tx.type !== 'service' && tx.type !== 'invoice'))
+                return sum;
+            const amount = Math.abs(Number(tx.amount || 0));
+            return Number.isFinite(amount) ? sum + amount : sum;
+        }, 0);
+        const ownerProfitToday = deriveOwnerTradingProfitForPeriod(dayStartTs) + serviceProfitForPeriod(dayStartTs);
+        const ownerProfitWeek = deriveOwnerTradingProfitForPeriod(weekStartTs) + serviceProfitForPeriod(weekStartTs);
+        const ownerProfitMonth = deriveOwnerTradingProfitForPeriod(monthStartTs) + serviceProfitForPeriod(monthStartTs);
+        const ownerProfitYear = deriveOwnerTradingProfitForPeriod(yearStartTs) + serviceProfitForPeriod(yearStartTs);
         pamLedger.sellProfitRows.forEach((tx) => {
             if (tx.timestamp > nowTs)
                 return;
@@ -670,10 +684,10 @@ export default function MainApp({ user }: {
             ownerProfitWeek,
             ownerProfitMonth,
             ownerProfitYear,
-            ownerProfitAllTime: baseManagerProfitBreakdown.ownerTotalProfit,
+            ownerProfitAllTime: baseManagerProfitBreakdown.ownerTotalProfit + serviceProfitAllTime,
             last7DaysProfit,
         };
-    }, [pamLedger, clientTransactionsDzd, treasuryStats, investors, investorTransactions, transactions, managerFeePercentage, deliveryExpenses, treasuryTransactions, baseManagerProfitBreakdown]);
+    }, [pamLedger, clientTransactionsDzd, treasuryStats, investors, investorTransactions, transactions, managerFeePercentage, deliveryExpenses, treasuryTransactions, manualAssetTransactions, baseManagerProfitBreakdown]);
     const pricingMtdProfit = useMemo(() => {
         const d = new Date();
         const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
@@ -763,11 +777,14 @@ export default function MainApp({ user }: {
         breakdown: baseManagerProfitBreakdown,
         openingCapital: OWNER_OPENING_CAPITAL,
         actualOwnerCapital: capitalSnapshot.netOwnedCapital,
-    }), [baseManagerProfitBreakdown, capitalSnapshot.netOwnedCapital]);
+        serviceProfit: servicesSummary.serviceRevenue,
+    }), [baseManagerProfitBreakdown, capitalSnapshot.netOwnedCapital, servicesSummary.serviceRevenue]);
     const financialAudit = useMemo(() => {
         const personalExpenseTotals = summarizePersonalExpenseTotals(treasuryTransactions);
         return {
             openingCapital: OWNER_OPENING_CAPITAL,
+            tradingOwnerProfit: managerProfitBreakdown.tradingOwnerProfit,
+            serviceProfit: managerProfitBreakdown.serviceProfit,
             historicalPersonalExpenses: managerProfitBreakdown.personalExpenses,
             currentPersonalExpenses: personalExpenseTotals.current,
             totalPersonalExpenses: managerProfitBreakdown.totalPersonalExpenses,

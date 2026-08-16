@@ -114,6 +114,10 @@ const ownerReconciliation = reconcileManagerProfitBreakdown({
     breakdown: {
         managerFeePercentage: 30,
         projectNetProfit: 1358357,
+        openingCapital: 0,
+        actualOwnerCapital: 0,
+        tradingOwnerProfit: 1268692,
+        serviceProfit: 0,
         ideaShareProfit: 551235,
         personalCapitalProfit: 717457,
         ownerTotalProfit: 1268692,
@@ -137,5 +141,18 @@ assert.equal(ownerReconciliation.currentPersonalExpenses, 178274);
 assert.equal(ownerReconciliation.totalPersonalExpenses, 311683);
 assert.equal(ownerReconciliation.reinvestedProfit, 957009);
 assert.equal(ownerReconciliation.availableProfit, 0);
+
+const ownerReconciliationWithServices = reconcileManagerProfitBreakdown({
+    breakdown: ownerReconciliation,
+    openingCapital: 2000000,
+    actualOwnerCapital: 2957009,
+    serviceProfit: 137900,
+});
+assert.equal(ownerReconciliationWithServices.tradingOwnerProfit, 1268692);
+assert.equal(ownerReconciliationWithServices.serviceProfit, 137900);
+assert.equal(ownerReconciliationWithServices.ownerTotalProfit, 1406592);
+assert.equal(ownerReconciliationWithServices.personalExpenses, 271309);
+assert.equal(ownerReconciliationWithServices.totalPersonalExpenses, 449583);
+assert.equal(ownerReconciliationWithServices.reinvestedProfit, 957009);
 
 console.log('investor economics unit tests passed');

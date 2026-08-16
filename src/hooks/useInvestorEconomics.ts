@@ -44,6 +44,10 @@ export interface InvestorEconomicsResult {
 export interface ManagerProfitBreakdown {
     managerFeePercentage: number;
     projectNetProfit: number;
+    openingCapital: number;
+    actualOwnerCapital: number;
+    tradingOwnerProfit: number;
+    serviceProfit: number;
     ideaShareProfit: number;
     personalCapitalProfit: number;
     ownerTotalProfit: number;
@@ -65,6 +69,7 @@ export type ManagerProfitReconciliationInput = {
     breakdown: ManagerProfitBreakdown;
     openingCapital: number;
     actualOwnerCapital: number;
+    serviceProfit?: number;
 };
 type InvestorBase = Investor & {
     entryTs: number;
@@ -402,15 +407,19 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
 export function getManagerProfitBreakdown(result: InvestorEconomicsResult, managerFeePercentage: string | number): ManagerProfitBreakdown {
     const manager = result.derivedInvestors.find((investor) => investor.isManager === true);
     const ideaShareProfit = roundM(result.totals.managerShare);
-    const ownerTotalProfit = roundM(manager?.totalProfit ?? ideaShareProfit);
-    const personalCapitalProfit = roundM(ownerTotalProfit - ideaShareProfit);
+    const tradingOwnerProfit = roundM(manager?.totalProfit ?? ideaShareProfit);
+    const personalCapitalProfit = roundM(tradingOwnerProfit - ideaShareProfit);
     const externalInvestorsProfit = roundM(result.totals.investorShare - personalCapitalProfit);
     return {
         managerFeePercentage: Math.max(0, Math.min(100, Number(managerFeePercentage) || 0)),
         projectNetProfit: roundM(result.totals.netDistributableProfit),
+        openingCapital: 0,
+        actualOwnerCapital: 0,
+        tradingOwnerProfit,
+        serviceProfit: 0,
         ideaShareProfit,
         personalCapitalProfit,
-        ownerTotalProfit,
+        ownerTotalProfit: tradingOwnerProfit,
         externalInvestorsProfit,
         totalDeliveryExpenses: roundM(result.totals.totalDeliveryExpenses),
         profitWithdrawals: roundM(manager?.profitWithdrawals || 0),
@@ -419,9 +428,9 @@ export function getManagerProfitBreakdown(result: InvestorEconomicsResult, manag
         totalPersonalExpenses: roundM(manager?.totalPersonalExpenses || 0),
         withdrawnProfit: roundM(manager?.withdrawnProfit || 0),
         reinvestedProfit: roundM(manager?.reinvestedProfit || 0),
-        availableProfit: roundM(manager?.availableProfit ?? ownerTotalProfit),
-        profitDeficit: roundM(Math.max(0, -(manager?.availableProfit ?? ownerTotalProfit))),
-        displayAvailableProfit: roundM(Math.max(0, manager?.availableProfit ?? ownerTotalProfit)),
+        availableProfit: roundM(manager?.availableProfit ?? tradingOwnerProfit),
+        profitDeficit: roundM(Math.max(0, -(manager?.availableProfit ?? tradingOwnerProfit))),
+        displayAvailableProfit: roundM(Math.max(0, manager?.availableProfit ?? tradingOwnerProfit)),
     };
 }
 
@@ -431,12 +440,15 @@ export function reconcileManagerProfitBreakdown(input: ManagerProfitReconciliati
     const actualOwnerCapital = Math.max(0, roundM(Number(input.actualOwnerCapital || 0)));
     if (openingCapital <= 0 || actualOwnerCapital <= 0) return breakdown;
 
+    const serviceProfit = Math.max(0, roundM(Number(input.serviceProfit ?? breakdown.serviceProfit ?? 0)));
+    const tradingOwnerProfit = roundM(breakdown.tradingOwnerProfit || breakdown.ownerTotalProfit);
+    const ownerTotalProfit = roundM(tradingOwnerProfit + serviceProfit);
     const retainedProfit = roundM(actualOwnerCapital - openingCapital);
     const recordedPersonalExpenses = roundM(breakdown.currentPersonalExpenses);
     const explicitHistoricalExpenses = roundM(breakdown.personalExpenses);
     const inferredHistoricalExpenses = roundM(Math.max(
         0,
-        breakdown.ownerTotalProfit
+        ownerTotalProfit
             - breakdown.profitWithdrawals
             - recordedPersonalExpenses
             - explicitHistoricalExpenses
@@ -446,7 +458,7 @@ export function reconcileManagerProfitBreakdown(input: ManagerProfitReconciliati
     const totalPersonalExpenses = roundM(historicalPersonalExpenses + recordedPersonalExpenses);
     const availableProfit = roundM(Math.max(
         0,
-        breakdown.ownerTotalProfit
+        ownerTotalProfit
             - breakdown.profitWithdrawals
             - totalPersonalExpenses
             - Math.max(0, retainedProfit)
@@ -454,6 +466,11 @@ export function reconcileManagerProfitBreakdown(input: ManagerProfitReconciliati
 
     return {
         ...breakdown,
+        openingCapital,
+        actualOwnerCapital,
+        tradingOwnerProfit,
+        serviceProfit,
+        ownerTotalProfit,
         personalExpenses: historicalPersonalExpenses,
         currentPersonalExpenses: recordedPersonalExpenses,
         totalPersonalExpenses,

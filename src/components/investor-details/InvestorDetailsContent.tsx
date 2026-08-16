@@ -82,7 +82,8 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
         : null;
     const secondaryMetrics = isManager && managerProfitBreakdown
         ? [
-            { label: t('investors.totalEarned') as string, value: currentTotalProfit, currency: 'DZD' as const, semantic: 'auto' as const },
+            { label: t('investors.totalEarned') as string, value: managerProfitBreakdown.ownerTotalProfit, currency: 'DZD' as const, semantic: 'auto' as const },
+            { label: t('investors.openingCapital') as string, value: managerProfitBreakdown.openingCapital, currency: 'DZD' as const, semantic: 'plain' as const },
             { label: t('investors.totalPersonalExpenses') as string, value: managerProfitBreakdown.totalPersonalExpenses, currency: 'DZD' as const, semantic: 'plain' as const },
             { label: t('investors.profitWithdrawals') as string, value: managerProfitBreakdown.profitWithdrawals, currency: 'DZD' as const, semantic: 'plain' as const },
         ]
