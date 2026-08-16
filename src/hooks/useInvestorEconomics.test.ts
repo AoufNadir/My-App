@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import type { Investor, TreasuryTx, Tx } from '../types';
-import { deriveInvestorEconomics, getManagerProfitBreakdown } from './useInvestorEconomics';
+import { deriveInvestorEconomics, getManagerProfitBreakdown, reconcileManagerProfitBreakdown } from './useInvestorEconomics';
 
 const SALE_TS = new Date('2026-08-10T12:00:00').getTime();
 
@@ -71,7 +71,9 @@ const separatedMovements = deriveInvestorEconomics({
     treasuryTransactions: [personalExpenseTreasury, profitWithdrawalTreasury],
 });
 const separatedBreakdown = getManagerProfitBreakdown(separatedMovements, 30);
-assert.equal(separatedBreakdown.personalExpenses, 5000);
+assert.equal(separatedBreakdown.personalExpenses, 0);
+assert.equal(separatedBreakdown.currentPersonalExpenses, 5000);
+assert.equal(separatedBreakdown.totalPersonalExpenses, 5000);
 assert.equal(separatedBreakdown.profitWithdrawals, 10000);
 assert.equal(separatedBreakdown.reinvestedProfit, 2000);
 assert.equal(separatedBreakdown.withdrawnProfit, 15000);
@@ -107,5 +109,33 @@ assert.equal(afterDeliveryBreakdown.ideaShareProfit, 27000);
 assert.equal(afterDeliveryBreakdown.personalCapitalProfit, 48075.3);
 assert.equal(afterDeliveryBreakdown.ownerTotalProfit, 75075.3);
 assert.equal(afterDeliveryBreakdown.externalInvestorsProfit, 14924.7);
+
+const ownerReconciliation = reconcileManagerProfitBreakdown({
+    breakdown: {
+        managerFeePercentage: 30,
+        projectNetProfit: 1358357,
+        ideaShareProfit: 551235,
+        personalCapitalProfit: 717457,
+        ownerTotalProfit: 1268692,
+        externalInvestorsProfit: 89665,
+        totalDeliveryExpenses: 12300,
+        profitWithdrawals: 0,
+        personalExpenses: 0,
+        currentPersonalExpenses: 178274,
+        totalPersonalExpenses: 178274,
+        withdrawnProfit: 178274,
+        reinvestedProfit: 1091253,
+        availableProfit: 0,
+        profitDeficit: 0,
+        displayAvailableProfit: 0,
+    },
+    openingCapital: 2000000,
+    actualOwnerCapital: 2957009,
+});
+assert.equal(ownerReconciliation.personalExpenses, 133409);
+assert.equal(ownerReconciliation.currentPersonalExpenses, 178274);
+assert.equal(ownerReconciliation.totalPersonalExpenses, 311683);
+assert.equal(ownerReconciliation.reinvestedProfit, 957009);
+assert.equal(ownerReconciliation.availableProfit, 0);
 
 console.log('investor economics unit tests passed');

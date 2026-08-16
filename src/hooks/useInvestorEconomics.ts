@@ -21,6 +21,10 @@ export type DerivedInvestor = Investor & {
     profitWithdrawals: number;
     /** Settled personal expenses charged against the owner's profit. */
     personalExpenses: number;
+    /** Personal expenses created after the expense-tracking flow was enabled. */
+    currentPersonalExpenses: number;
+    /** Historical plus current personal expenses. */
+    totalPersonalExpenses: number;
     accountingWarnings: InvestorAccountingWarning[];
     /** ROI = totalProfit / capitalInvested × 100 (percentage). Null when capitalInvested = 0. */
     roi: number | null;
@@ -47,6 +51,8 @@ export interface ManagerProfitBreakdown {
     totalDeliveryExpenses: number;
     profitWithdrawals: number;
     personalExpenses: number;
+    currentPersonalExpenses: number;
+    totalPersonalExpenses: number;
     withdrawnProfit: number;
     reinvestedProfit: number;
     availableProfit: number;
@@ -55,6 +61,11 @@ export interface ManagerProfitBreakdown {
     /** Never negative; suitable for the primary UI balance. */
     displayAvailableProfit: number;
 }
+export type ManagerProfitReconciliationInput = {
+    breakdown: ManagerProfitBreakdown;
+    openingCapital: number;
+    actualOwnerCapital: number;
+};
 type InvestorBase = Investor & {
     entryTs: number;
     txs: InvestorTransaction[];
@@ -65,6 +76,8 @@ type InvestorBase = Investor & {
     reinvestedProfit: number;
     profitWithdrawals: number;
     personalExpenses: number;
+    currentPersonalExpenses: number;
+    totalPersonalExpenses: number;
 };
 type InvestorEconomicsInput = {
     investors: Investor[];
@@ -151,9 +164,17 @@ function buildInvestorsBase(investors: Investor[], investorTransactions: Investo
         const profitWithdrawals = periodTxs
             .filter((tx) => tx.type === 'withdraw_profit' && classifyProfitMovement(tx, treasuryById) === 'profit_withdrawal')
             .reduce((sum, tx) => addM(sum, tx.amount), 0);
-        const personalExpenses = periodTxs
-            .filter((tx) => tx.type === 'withdraw_profit' && classifyProfitMovement(tx, treasuryById) === 'personal_expense')
+        const personalExpenseTxs = periodTxs
+            .filter((tx) => tx.type === 'withdraw_profit' && classifyProfitMovement(tx, treasuryById) === 'personal_expense');
+        const historicalPersonalExpenseTxs = personalExpenseTxs
+            .filter((tx) => treasuryById.get(tx.linkedTreasuryTxId || '')?.trackingPhase === 'historical');
+        const currentPersonalExpenseTxs = personalExpenseTxs
+            .filter((tx) => treasuryById.get(tx.linkedTreasuryTxId || '')?.trackingPhase !== 'historical');
+        const personalExpenses = historicalPersonalExpenseTxs
             .reduce((sum, tx) => addM(sum, tx.amount), 0);
+        const currentPersonalExpenses = currentPersonalExpenseTxs
+            .reduce((sum, tx) => addM(sum, tx.amount), 0);
+        const totalPersonalExpenses = addM(personalExpenses, currentPersonalExpenses);
         const reinvestedProfit = periodTxs
             .filter((tx) => tx.type === 'reinvest_profit')
             .reduce((sum, tx) => addM(sum, tx.amount), 0);
@@ -168,6 +189,8 @@ function buildInvestorsBase(investors: Investor[], investorTransactions: Investo
             reinvestedProfit,
             profitWithdrawals,
             personalExpenses,
+            currentPersonalExpenses,
+            totalPersonalExpenses,
         };
     });
 }
@@ -352,6 +375,8 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             roi,
             profitWithdrawals: inv.profitWithdrawals,
             personalExpenses: inv.personalExpenses,
+            currentPersonalExpenses: inv.currentPersonalExpenses,
+            totalPersonalExpenses: inv.totalPersonalExpenses,
             accountingWarnings: warningsByInvestor.get(inv.id) || [],
         };
     });
@@ -390,11 +415,52 @@ export function getManagerProfitBreakdown(result: InvestorEconomicsResult, manag
         totalDeliveryExpenses: roundM(result.totals.totalDeliveryExpenses),
         profitWithdrawals: roundM(manager?.profitWithdrawals || 0),
         personalExpenses: roundM(manager?.personalExpenses || 0),
+        currentPersonalExpenses: roundM(manager?.currentPersonalExpenses || 0),
+        totalPersonalExpenses: roundM(manager?.totalPersonalExpenses || 0),
         withdrawnProfit: roundM(manager?.withdrawnProfit || 0),
         reinvestedProfit: roundM(manager?.reinvestedProfit || 0),
         availableProfit: roundM(manager?.availableProfit ?? ownerTotalProfit),
         profitDeficit: roundM(Math.max(0, -(manager?.availableProfit ?? ownerTotalProfit))),
         displayAvailableProfit: roundM(Math.max(0, manager?.availableProfit ?? ownerTotalProfit)),
+    };
+}
+
+export function reconcileManagerProfitBreakdown(input: ManagerProfitReconciliationInput): ManagerProfitBreakdown {
+    const breakdown = input.breakdown;
+    const openingCapital = Math.max(0, roundM(Number(input.openingCapital || 0)));
+    const actualOwnerCapital = Math.max(0, roundM(Number(input.actualOwnerCapital || 0)));
+    if (openingCapital <= 0 || actualOwnerCapital <= 0) return breakdown;
+
+    const retainedProfit = roundM(actualOwnerCapital - openingCapital);
+    const recordedPersonalExpenses = roundM(breakdown.currentPersonalExpenses);
+    const explicitHistoricalExpenses = roundM(breakdown.personalExpenses);
+    const inferredHistoricalExpenses = roundM(Math.max(
+        0,
+        breakdown.ownerTotalProfit
+            - breakdown.profitWithdrawals
+            - recordedPersonalExpenses
+            - explicitHistoricalExpenses
+            - retainedProfit
+    ));
+    const historicalPersonalExpenses = roundM(explicitHistoricalExpenses + inferredHistoricalExpenses);
+    const totalPersonalExpenses = roundM(historicalPersonalExpenses + recordedPersonalExpenses);
+    const availableProfit = roundM(Math.max(
+        0,
+        breakdown.ownerTotalProfit
+            - breakdown.profitWithdrawals
+            - totalPersonalExpenses
+            - Math.max(0, retainedProfit)
+    ));
+
+    return {
+        ...breakdown,
+        personalExpenses: historicalPersonalExpenses,
+        currentPersonalExpenses: recordedPersonalExpenses,
+        totalPersonalExpenses,
+        reinvestedProfit: Math.max(0, retainedProfit),
+        availableProfit,
+        profitDeficit: 0,
+        displayAvailableProfit: availableProfit,
     };
 }
 export function useInvestorEconomics(investors: Investor[], investorTransactions: InvestorTransaction[], transactions: Tx[], managerFeePercentage: string, deliveryExpenses?: TreasuryTx[], treasuryTransactions?: TreasuryTx[]) {

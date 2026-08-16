@@ -36,6 +36,30 @@ export type PeriodAmountSummary = {
     sinceStart: number;
 };
 
+export type PersonalExpenseTotals = {
+    historical: number;
+    current: number;
+    total: number;
+};
+
+export function summarizePersonalExpenseTotals(expenses: TreasuryTx[]): PersonalExpenseTotals {
+    let historical = 0;
+    let current = 0;
+    for (const expense of expenses) {
+        const amount = getNetPersonalExpenseAmount(expense);
+        if (amount <= 0) continue;
+        if (expense.trackingPhase === 'historical') historical += amount;
+        else current += amount;
+    }
+    historical = roundM(historical);
+    current = roundM(current);
+    return {
+        historical,
+        current,
+        total: roundM(historical + current),
+    };
+}
+
 function startOfWeek(timestamp: number): number {
     const date = new Date(timestamp);
     const day = date.getDay();

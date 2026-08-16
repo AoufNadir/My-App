@@ -36,7 +36,7 @@ import { useClientHandlers } from './hooks/useClientHandlers';
 import { useAssetHandlers } from './hooks/useAssetHandlers';
 import { useGlobalSearch } from './hooks/useGlobalSearch';
 import { useInvestorHandlers } from './hooks/useInvestorHandlers';
-import { deriveInvestorEconomics, getManagerProfitBreakdown, type InvestorEconomicsResult } from './hooks/useInvestorEconomics';
+import { deriveInvestorEconomics, getManagerProfitBreakdown, reconcileManagerProfitBreakdown, type InvestorEconomicsResult } from './hooks/useInvestorEconomics';
 import { useMainNavigation } from './hooks/useMainNavigation';
 import { useBackHandler } from './hooks/useBackHandler';
 import { useOverdueDebtClients } from './hooks/useOverdueDebtClients';
@@ -45,7 +45,7 @@ import { useReportExports } from './hooks/useReportExports';
 import { now, parseAndEvaluate } from './utils';
 import { computePamLedger } from './utils/pamLedger';
 import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot } from './utils/capitalSnapshot';
-import { findProjectStartTimestamp, summarizePersonalExpenses } from './utils/financialAudit';
+import { summarizePersonalExpenseTotals } from './utils/financialAudit';
 import { formatNumber } from './pages/shared/pageFormat';
 const TransactionsPage = React.lazy(() => import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage })));
 const PortfolioPage = React.lazy(() => import('./pages/PortfolioPage').then((module) => ({ default: module.PortfolioPage })));
@@ -66,6 +66,7 @@ const MonthPlanSheet = React.lazy(() => import('./components/calculator/MonthPla
 const loadPdfReports = () => import('./utils/pdfReports');
 const EMPTY_TRANSACTIONS: Tx[] = [];
 const CORE_DATA_KEYS = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions'] as const;
+const OWNER_OPENING_CAPITAL = 2_000_000;
 const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
     derivedInvestors: [],
     warnings: [],
@@ -555,7 +556,7 @@ export default function MainApp({ user }: {
     const globalNetProfit = Number(investorEconomics.totals.netDistributableProfit || pamLedger.totals.derivedProfit || 0);
     const investorLiability = useMemo(() => calculateInvestorLiability(derivedInvestors), [derivedInvestors]);
     const investorBreakdown = useMemo(() => calculateInvestorBreakdown(derivedInvestors), [derivedInvestors]);
-    const managerProfitBreakdown = useMemo(() => getManagerProfitBreakdown(investorEconomics, managerFeePercentage), [investorEconomics, managerFeePercentage]);
+    const baseManagerProfitBreakdown = useMemo(() => getManagerProfitBreakdown(investorEconomics, managerFeePercentage), [investorEconomics, managerFeePercentage]);
     const dailyOverview = useMemo(() => {
         const now = new Date();
         const dayStart = new Date(now);
@@ -669,10 +670,10 @@ export default function MainApp({ user }: {
             ownerProfitWeek,
             ownerProfitMonth,
             ownerProfitYear,
-            ownerProfitAllTime: managerProfitBreakdown.ownerTotalProfit,
+            ownerProfitAllTime: baseManagerProfitBreakdown.ownerTotalProfit,
             last7DaysProfit,
         };
-    }, [pamLedger, clientTransactionsDzd, treasuryStats, investors, investorTransactions, transactions, managerFeePercentage, deliveryExpenses, treasuryTransactions, managerProfitBreakdown]);
+    }, [pamLedger, clientTransactionsDzd, treasuryStats, investors, investorTransactions, transactions, managerFeePercentage, deliveryExpenses, treasuryTransactions, baseManagerProfitBreakdown]);
     const pricingMtdProfit = useMemo(() => {
         const d = new Date();
         const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
@@ -758,22 +759,24 @@ export default function MainApp({ user }: {
         services: servicesSummary,
         managerPendingAdvances
     }), [treasuryStats, portfolioStats, totals, treasuryCards, investorLiability, servicesSummary, managerPendingAdvances]);
+    const managerProfitBreakdown = useMemo(() => reconcileManagerProfitBreakdown({
+        breakdown: baseManagerProfitBreakdown,
+        openingCapital: OWNER_OPENING_CAPITAL,
+        actualOwnerCapital: capitalSnapshot.netOwnedCapital,
+    }), [baseManagerProfitBreakdown, capitalSnapshot.netOwnedCapital]);
     const financialAudit = useMemo(() => {
-        const projectStartTimestamp = findProjectStartTimestamp({
-            investors,
-            investorTransactions,
-            treasuryTransactions,
-            transactions,
-        });
-        const personalExpenseSummary = summarizePersonalExpenses(treasuryTransactions, Date.now(), projectStartTimestamp);
+        const personalExpenseTotals = summarizePersonalExpenseTotals(treasuryTransactions);
         return {
-            historicalPersonalExpenses: personalExpenseSummary.sinceStart,
+            openingCapital: OWNER_OPENING_CAPITAL,
+            historicalPersonalExpenses: managerProfitBreakdown.personalExpenses,
+            currentPersonalExpenses: personalExpenseTotals.current,
+            totalPersonalExpenses: managerProfitBreakdown.totalPersonalExpenses,
             deliveryExpensesSinceStart: deliveryExpenses
                 .filter((tx) => tx.timestamp <= Date.now())
                 .reduce((sum, tx) => sum + Math.max(0, Number(tx.amount || 0)), 0),
             actualOwnerCapital: capitalSnapshot.netOwnedCapital,
         };
-    }, [investors, investorTransactions, treasuryTransactions, transactions, deliveryExpenses, capitalSnapshot]);
+    }, [treasuryTransactions, deliveryExpenses, capitalSnapshot.netOwnedCapital, managerProfitBreakdown]);
     /* Legacy global search logic moved to useGlobalSearch.
                 id: `search_client_${client.id}`,
                 kind: 'client' as const,

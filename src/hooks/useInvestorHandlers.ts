@@ -242,7 +242,8 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 amount: amountNum,
                 notes: trimmedNote || (isAdvance ? 'Avance personnelle' : 'Dépense personnelle'),
                 linkedInvestorTxId,
-                origin: 'personal_expense'
+                origin: 'personal_expense',
+                trackingPhase: editingPersonalExpenseTx?.trackingPhase || 'current'
             };
             if (isAdvance) {
                 treasuryPayload.advanceState = 'pending';
