@@ -20,9 +20,12 @@ import { Investor, InvestorTransaction } from '../../types';
 import { formatNumber } from '../../pages/shared/pageFormat';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { CapitalSnapshot } from '../../utils/capitalSnapshot';
+import type { ManagerProfitBreakdown } from '../../hooks/useInvestorEconomics';
+import { OwnerProfitBreakdownCard } from '../financial/OwnerProfitSummary';
 type InvestorDetailsContentProps = {
     investor: Investor;
     capitalSnapshot?: CapitalSnapshot;
+    managerProfitBreakdown?: ManagerProfitBreakdown;
     orderedTransactions: InvestorTransaction[];
     activeTab: 'overview' | 'history';
     setActiveTab: (tab: 'overview' | 'history') => void;
@@ -52,7 +55,7 @@ function diffDaysSince(entryDate: string): number {
     if (!Number.isFinite(start)) return 0;
     return Math.max(0, Math.floor((Date.now() - start) / (1000 * 60 * 60 * 24)));
 }
-export function InvestorDetailsContent({ investor, capitalSnapshot, orderedTransactions, activeTab, setActiveTab, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction }: InvestorDetailsContentProps) {
+export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfitBreakdown, orderedTransactions, activeTab, setActiveTab, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction }: InvestorDetailsContentProps) {
     const { t } = useLanguage();
     const currentTotalProfit = investor.totalProfit || 0;
     const currentAvailable = investor.availableProfit || 0;
@@ -99,6 +102,8 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, orderedTrans
                 </span>) : <span className="text-lg text-neutral-400">—</span>
             }] : [])
         ]}/>
+
+      {isManager && managerProfitBreakdown && <OwnerProfitBreakdownCard breakdown={managerProfitBreakdown}/>}
 
       <Card>
         <CardHeader className="p-4 pb-2">

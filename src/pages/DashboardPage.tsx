@@ -24,12 +24,15 @@ import type { DisplayTx, TransactionFilterMode } from '../components/transaction
 import type { ClientDzd, ClientTransactionDzd, OverdueDebtClient, TreasuryCard, TreasuryTx, Tx } from '../types';
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
 import type { PamLedgerResult } from '../utils/pamLedger';
+import type { ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
+import { OwnerProfitPeriodSummary } from '../components/financial/OwnerProfitSummary';
 import { useLanguage } from '../contexts/LanguageContext';
 const RECENT_TRANSACTION_LIMIT = 5;
 const EMPTY_RECENT_DATE_RANGE = { start: null, end: null };
 const ignoreRecentFilterChange = (_mode: TransactionFilterMode) => undefined;
 const ignoreRecentDateChange = (_range: { start: Date | null; end: Date | null }) => undefined;
 type DashboardPageProps = {
+    managerProfitBreakdown: ManagerProfitBreakdown;
     dailyOverview: {
         caisse: number;
         baridi: number;
@@ -48,6 +51,11 @@ type DashboardPageProps = {
         yearToDateEurSold: number;
         allTimeUsdtSold: number;
         allTimeEurSold: number;
+        ownerProfitToday: number;
+        ownerProfitWeek: number;
+        ownerProfitMonth: number;
+        ownerProfitYear: number;
+        ownerProfitAllTime: number;
         last7DaysProfit?: number[];
     };
     portfolioStats: any;
@@ -391,6 +399,7 @@ export function DashboardPage(props: DashboardPageProps) {
 }
 function DashboardContent({
     dailyOverview,
+    managerProfitBreakdown,
     portfolioStats,
     capitalSnapshot,
     investorBreakdown,
@@ -625,6 +634,13 @@ function DashboardContent({
             { label: t('dashboard.profitMonth') as string, value: dailyOverview.monthToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
             { label: t('dashboard.profitYear') as string, value: dailyOverview.yearToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
         ]}/>
+
+      <OwnerProfitPeriodSummary periods={{
+          today: dailyOverview.ownerProfitToday,
+          week: dailyOverview.ownerProfitWeek,
+          month: dailyOverview.ownerProfitMonth,
+          year: dailyOverview.ownerProfitYear,
+      }}/>
 
       {/* Month plan — entry to the smart pricing hub (progress + prices live inside) */}
       {monthlyGoal > 0 && onOpenMonthPlan && (

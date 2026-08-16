@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 import type { FirestoreDocumentReference } from '../firebase';
+const DEFAULT_MANAGER_FEE_PERCENTAGE = '30';
+const LEGACY_DEFAULT_MANAGER_FEE_PERCENTAGE = '20';
 export function useSettings(userDocRef: FirestoreDocumentReference) {
-    const [managerFeePercentage, setManagerFeePercentage] = useState(() => localStorage.getItem('managerFeePercentage') || "20");
+    const [managerFeePercentage, setManagerFeePercentage] = useState(() => {
+        const stored = localStorage.getItem('managerFeePercentage');
+        return stored === LEGACY_DEFAULT_MANAGER_FEE_PERCENTAGE ? DEFAULT_MANAGER_FEE_PERCENTAGE : (stored || DEFAULT_MANAGER_FEE_PERCENTAGE);
+    });
     const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
     useEffect(() => {
         localStorage.setItem('managerFeePercentage', managerFeePercentage);
@@ -13,7 +18,8 @@ export function useSettings(userDocRef: FirestoreDocumentReference) {
                 if (doc.exists) {
                     const data = doc.data();
                     if (data?.managerFeePercentage !== undefined) {
-                        setManagerFeePercentage(data.managerFeePercentage.toString());
+                        const stored = data.managerFeePercentage.toString();
+                        setManagerFeePercentage(stored === LEGACY_DEFAULT_MANAGER_FEE_PERCENTAGE ? DEFAULT_MANAGER_FEE_PERCENTAGE : stored);
                     }
                 }
             }

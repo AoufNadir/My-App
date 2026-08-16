@@ -33,6 +33,18 @@ export interface InvestorEconomicsResult {
         netDistributableProfit: number;
     };
 }
+export interface ManagerProfitBreakdown {
+    managerFeePercentage: number;
+    projectNetProfit: number;
+    ideaShareProfit: number;
+    personalCapitalProfit: number;
+    ownerTotalProfit: number;
+    externalInvestorsProfit: number;
+    totalDeliveryExpenses: number;
+    withdrawnProfit: number;
+    reinvestedProfit: number;
+    availableProfit: number;
+}
 type InvestorBase = Investor & {
     entryTs: number;
     txs: InvestorTransaction[];
@@ -308,6 +320,30 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             totalDeliveryExpenses,
             netDistributableProfit,
         },
+    };
+}
+/**
+ * Splits the manager's combined investor row into the two economic sources
+ * that belong to the project owner: the manager fee and the owner's capital
+ * share inside the investor pool.
+ */
+export function getManagerProfitBreakdown(result: InvestorEconomicsResult, managerFeePercentage: string | number): ManagerProfitBreakdown {
+    const manager = result.derivedInvestors.find((investor) => investor.isManager === true);
+    const ideaShareProfit = roundM(result.totals.managerShare);
+    const ownerTotalProfit = roundM(manager?.totalProfit ?? ideaShareProfit);
+    const personalCapitalProfit = roundM(ownerTotalProfit - ideaShareProfit);
+    const externalInvestorsProfit = roundM(result.totals.investorShare - personalCapitalProfit);
+    return {
+        managerFeePercentage: Math.max(0, Math.min(100, Number(managerFeePercentage) || 0)),
+        projectNetProfit: roundM(result.totals.netDistributableProfit),
+        ideaShareProfit,
+        personalCapitalProfit,
+        ownerTotalProfit,
+        externalInvestorsProfit,
+        totalDeliveryExpenses: roundM(result.totals.totalDeliveryExpenses),
+        withdrawnProfit: roundM(manager?.withdrawnProfit || 0),
+        reinvestedProfit: roundM(manager?.reinvestedProfit || 0),
+        availableProfit: roundM(manager?.availableProfit ?? ownerTotalProfit),
     };
 }
 export function useInvestorEconomics(investors: Investor[], investorTransactions: InvestorTransaction[], transactions: Tx[], managerFeePercentage: string, deliveryExpenses?: TreasuryTx[]) {

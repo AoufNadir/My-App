@@ -8,6 +8,7 @@ import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
 import { Investor, InvestorTransaction } from '../types';
 import { InvestorDetailsContent } from '../components/investor-details/InvestorDetailsContent';
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
+import type { ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
 type InvestorReportDateRange = {
     startTs?: number | null;
     endTs?: number | null;
@@ -26,8 +27,9 @@ interface InvestorDetailsPageProps {
     managerFeePercentage: number;
     totalCapital: number;
     capitalSnapshot?: CapitalSnapshot;
+    managerProfitBreakdown?: ManagerProfitBreakdown;
 }
-export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ investor, transactions, onBack, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction, onExportReport, capitalSnapshot }) => {
+export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ investor, transactions, onBack, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction, onExportReport, capitalSnapshot, managerProfitBreakdown }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
     const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
     const [reportStartDate, setReportStartDate] = useState('');
@@ -91,7 +93,7 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ invest
             PDF
           </Button>)}/>
 
-      <InvestorDetailsContent investor={investor} capitalSnapshot={capitalSnapshot} orderedTransactions={orderedTransactions} activeTab={activeTab} setActiveTab={setActiveTab} onAddCapital={onAddCapital} onWithdrawCapital={onWithdrawCapital} onWithdrawProfit={onWithdrawProfit} onReinvestProfit={onReinvestProfit} onDeleteTransaction={onDeleteTransaction}/>
+      <InvestorDetailsContent investor={investor} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} orderedTransactions={orderedTransactions} activeTab={activeTab} setActiveTab={setActiveTab} onAddCapital={onAddCapital} onWithdrawCapital={onWithdrawCapital} onWithdrawProfit={onWithdrawProfit} onReinvestProfit={onReinvestProfit} onDeleteTransaction={onDeleteTransaction}/>
 
       <Modal isOpen={isReportDialogOpen} onClose={() => setIsReportDialogOpen(false)} className="max-w-md bg-surface">
         <ModalHeader onClose={() => setIsReportDialogOpen(false)} className="border-b border-border px-4 py-3 sm:px-5">

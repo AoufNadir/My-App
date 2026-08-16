@@ -36,7 +36,7 @@ import { useClientHandlers } from './hooks/useClientHandlers';
 import { useAssetHandlers } from './hooks/useAssetHandlers';
 import { useGlobalSearch } from './hooks/useGlobalSearch';
 import { useInvestorHandlers } from './hooks/useInvestorHandlers';
-import { deriveInvestorEconomics, type InvestorEconomicsResult } from './hooks/useInvestorEconomics';
+import { deriveInvestorEconomics, getManagerProfitBreakdown, type InvestorEconomicsResult } from './hooks/useInvestorEconomics';
 import { useMainNavigation } from './hooks/useMainNavigation';
 import { useBackHandler } from './hooks/useBackHandler';
 import { useOverdueDebtClients } from './hooks/useOverdueDebtClients';
@@ -553,6 +553,7 @@ export default function MainApp({ user }: {
     const globalNetProfit = Number(investorEconomics.totals.netDistributableProfit || pamLedger.totals.derivedProfit || 0);
     const investorLiability = useMemo(() => calculateInvestorLiability(derivedInvestors), [derivedInvestors]);
     const investorBreakdown = useMemo(() => calculateInvestorBreakdown(derivedInvestors), [derivedInvestors]);
+    const managerProfitBreakdown = useMemo(() => getManagerProfitBreakdown(investorEconomics, managerFeePercentage), [investorEconomics, managerFeePercentage]);
     const dailyOverview = useMemo(() => {
         const now = new Date();
         const dayStart = new Date(now);
@@ -584,6 +585,20 @@ export default function MainApp({ user }: {
         const last7DaysProfit = new Array(7).fill(0) as number[];
         const day7StartTs = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6).getTime();
         const activeClientIds = new Set<string>();
+        const deriveOwnerProfitForPeriod = (periodStartTs: number) => getManagerProfitBreakdown(deriveInvestorEconomics({
+            investors,
+            investorTransactions,
+            transactions,
+            managerFeePercentage,
+            pamLedger,
+            periodStartTs,
+            periodEndTs: nowTs,
+            deliveryExpenses,
+        }), managerFeePercentage).ownerTotalProfit;
+        const ownerProfitToday = deriveOwnerProfitForPeriod(dayStartTs);
+        const ownerProfitWeek = deriveOwnerProfitForPeriod(weekStartTs);
+        const ownerProfitMonth = deriveOwnerProfitForPeriod(monthStartTs);
+        const ownerProfitYear = deriveOwnerProfitForPeriod(yearStartTs);
         pamLedger.sellProfitRows.forEach((tx) => {
             if (tx.timestamp > nowTs)
                 return;
@@ -647,9 +662,14 @@ export default function MainApp({ user }: {
             yearToDateEurSold,
             allTimeUsdtSold,
             allTimeEurSold,
+            ownerProfitToday,
+            ownerProfitWeek,
+            ownerProfitMonth,
+            ownerProfitYear,
+            ownerProfitAllTime: managerProfitBreakdown.ownerTotalProfit,
             last7DaysProfit,
         };
-    }, [pamLedger, clientTransactionsDzd, treasuryStats]);
+    }, [pamLedger, clientTransactionsDzd, treasuryStats, investors, investorTransactions, transactions, managerFeePercentage, deliveryExpenses, managerProfitBreakdown]);
     const pricingMtdProfit = useMemo(() => {
         const d = new Date();
         const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
@@ -2016,6 +2036,7 @@ export default function MainApp({ user }: {
     };
     const dashboardPageProps = {
         dailyOverview,
+        managerProfitBreakdown,
         portfolioStats,
         treasuryStats,
         totals,
@@ -2059,7 +2080,7 @@ export default function MainApp({ user }: {
         onOpenMonthPlan: () => setIsMonthPlanOpen(true),
         monthlyGoal: monthlyGoalState,
     };
-    const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys };
+    const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys };
     const walletTransferDialogProps = useMemo(() => ({
         isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSource,
