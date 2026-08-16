@@ -61,9 +61,9 @@ export function InvestorsListSection({ investors, capitalSnapshot, managerProfit
         {investors.length === 0 ? (<EmptyState icon={<UsersIcon className="w-6 h-6"/>} title={t('emptyStates.investors.title') as string} subtitle={t('emptyStates.investors.subtitle') as string}/>) : (<div className="divide-y divide-neutral-100">
             {investors.map((investor) => {
                 const isManager = Boolean(investor.isManager);
-                const availableProfit = isManager && managerProfitBreakdown
-                    ? managerProfitBreakdown.displayAvailableProfit
-                    : Number(investor.availableProfit || 0);
+                const availableProfit = !isManager
+                    ? Number(investor.availableProfit || 0)
+                    : 0;
                 const displayedCapital = isManager && capitalSnapshot
                     ? Number(capitalSnapshot.netOwnedCapital || 0)
                     : Number(investor.capitalInvested || 0);
@@ -84,12 +84,9 @@ export function InvestorsListSection({ investors, capitalSnapshot, managerProfit
                       <div className="flex shrink-0 items-center gap-3 text-end">
                         <div>
                           <CurrencyAmount value={displayedCapital} currency="DZD" size="lg" decimals={0}/>
-                          <div className="mt-0.5">
-                            <CurrencyAmount value={availableProfit} currency="DZD" semantic="auto" size="md" showSign decimals={0}/>
-                          </div>
-                          {isManager && managerProfitBreakdown && managerProfitBreakdown.profitDeficit > 0.005 && (
-                            <div className="mt-0.5 text-[10px] font-semibold text-financial-loss">
-                              {t('investors.profitDeficit')}: <CurrencyAmount value={managerProfitBreakdown.profitDeficit} currency="DZD" semantic="loss" size="sm" decimals={0}/>
+                          {!isManager && (
+                            <div className="mt-0.5">
+                              <CurrencyAmount value={availableProfit} currency="DZD" semantic="auto" size="md" showSign decimals={0}/>
                             </div>
                           )}
                           {!isManager && (investor as any).roi !== null && (investor as any).roi !== undefined && (<div className={`mt-0.5 text-[10px] font-bold tabular-nums ${(investor as any).roi > 0 ? 'text-financial-profit' : (investor as any).roi < 0 ? 'text-financial-loss' : 'text-neutral-400'}`} dir="ltr">

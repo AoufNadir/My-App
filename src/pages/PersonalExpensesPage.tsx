@@ -351,15 +351,6 @@ export function PersonalExpensesPage({
                 </Card>
             )}
 
-            {managerExists && (
-                <Card className="p-4">
-                    <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium text-neutral-500">{t('personalExpenses.availableProfit')}</p>
-                        <CurrencyAmount value={managerAvailableProfit} currency="DZD" semantic="auto" size="lg" decimals={0}/>
-                    </div>
-                </Card>
-            )}
-
             <Card>
                 <CardHeader className="p-4 pb-3">
                     <SectionHeading icon={<TrendingUpIcon className="h-4 w-4" />}>

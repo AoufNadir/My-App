@@ -45,7 +45,7 @@ import { useReportExports } from './hooks/useReportExports';
 import { now, parseAndEvaluate } from './utils';
 import { computePamLedger } from './utils/pamLedger';
 import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot } from './utils/capitalSnapshot';
-import { findProjectStartTimestamp, formatAuditDate, reconcileOwnerCapital, summarizeDeliveryExpenses, summarizePersonalExpenses } from './utils/financialAudit';
+import { findProjectStartTimestamp, summarizePersonalExpenses } from './utils/financialAudit';
 import { formatNumber } from './pages/shared/pageFormat';
 const TransactionsPage = React.lazy(() => import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage })));
 const PortfolioPage = React.lazy(() => import('./pages/PortfolioPage').then((module) => ({ default: module.PortfolioPage })));
@@ -766,23 +766,14 @@ export default function MainApp({ user }: {
             transactions,
         });
         const personalExpenseSummary = summarizePersonalExpenses(treasuryTransactions, Date.now(), projectStartTimestamp);
-        const deliveryExpenseSummary = summarizeDeliveryExpenses(deliveryExpenses, Date.now(), projectStartTimestamp);
-        const managerInvestor = derivedInvestors.find((investor) => investor.isManager === true);
-        const capitalReconciliation = reconcileOwnerCapital({
-            openingCapital: Number(managerInvestor?.initialCapital || 0),
-            ownerProfit: managerProfitBreakdown.ownerTotalProfit,
-            profitWithdrawals: managerProfitBreakdown.profitWithdrawals,
-            personalExpenses: personalExpenseSummary.sinceStart,
-            actualCapital: capitalSnapshot.netOwnedCapital,
-        });
         return {
-            projectStartTimestamp,
-            projectStartLabel: formatAuditDate(projectStartTimestamp),
-            personalExpenseSummary,
-            deliveryExpenseSummary,
-            capitalReconciliation,
+            historicalPersonalExpenses: personalExpenseSummary.sinceStart,
+            deliveryExpensesSinceStart: deliveryExpenses
+                .filter((tx) => tx.timestamp <= Date.now())
+                .reduce((sum, tx) => sum + Math.max(0, Number(tx.amount || 0)), 0),
+            actualOwnerCapital: capitalSnapshot.netOwnedCapital,
         };
-    }, [investors, investorTransactions, treasuryTransactions, transactions, deliveryExpenses, derivedInvestors, managerProfitBreakdown, capitalSnapshot]);
+    }, [investors, investorTransactions, treasuryTransactions, transactions, deliveryExpenses, capitalSnapshot]);
     /* Legacy global search logic moved to useGlobalSearch.
                 id: `search_client_${client.id}`,
                 kind: 'client' as const,
