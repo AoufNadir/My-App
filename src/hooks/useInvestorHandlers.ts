@@ -310,6 +310,13 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             const batch = db.batch();
             const originalAdvanceRef = userDocRef.collection('treasury_txs').doc(reconcileAdvanceTx.id);
             const linkedInvestor = await resolvePersonalExpenseInvestorTx(reconcileAdvanceTx);
+            const currentExpenseCredit = linkedInvestor.exists
+                ? Number(linkedInvestor.amount || 0)
+                : 0;
+            if (actualSpent > managerAvailableProfit + currentExpenseCredit + 0.005) {
+                setAlert('⚠️ Montant dépasse le profit disponible. Faites un retrait de capital séparé si vous voulez utiliser le capital.');
+                return;
+            }
             const investorTxRef = linkedInvestor.exists && linkedInvestor.id
                 ? userDocRef.collection('investor_transactions').doc(linkedInvestor.id)
                 : userDocRef.collection('investor_transactions').doc();

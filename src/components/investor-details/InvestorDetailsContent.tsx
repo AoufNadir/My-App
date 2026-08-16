@@ -69,6 +69,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, orderedTrans
         ? formatNumber((investor as any).roi, { min: 2, max: 2 })
         : null;
     const canReinvest = currentAvailable > 0.01;
+    const showReinvestAction = !investor.isManager;
     const investmentDays = useMemo(() => diffDaysSince(investor.entryDate), [investor.entryDate]);
     const formattedEntryDate = useMemo(() => new Date(investor.entryDate).toLocaleDateString('fr-FR'), [investor.entryDate]);
     // Formatted available profit for subtitle
@@ -149,7 +150,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, orderedTrans
             </button>
 
             {/* Réinvestir */}
-            <button type="button" onClick={canReinvest ? onReinvestProfit : undefined}
+            {showReinvestAction && (<button type="button" onClick={canReinvest ? onReinvestProfit : undefined}
               disabled={!canReinvest}
               className={`flex w-full items-center gap-4 px-4 py-4 text-start transition-colors ${canReinvest ? 'hover:bg-neutral-50 active:bg-neutral-100' : 'opacity-40 cursor-not-allowed'}`}>
               <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${canReinvest ? 'bg-secondary/10' : 'bg-neutral-100'}`}>
@@ -166,7 +167,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, orderedTrans
               {canReinvest
                 ? <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
                 : <span className="text-[10px] font-bold text-neutral-300 shrink-0">—</span>}
-            </button>
+            </button>)}
 
           </div>
         </CardContent>
