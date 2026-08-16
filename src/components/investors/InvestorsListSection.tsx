@@ -11,18 +11,21 @@ import { DownloadCloudIcon } from '../icons/DownloadCloudIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { Investor } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import type { CapitalSnapshot } from '../../utils/capitalSnapshot';
 
-async function exportInvestorsPdf(investors: Investor[]) {
+async function exportInvestorsPdf(investors: Investor[], capitalSnapshot?: CapitalSnapshot) {
     const { buildInvestorListPdf, openPdfPrintWindow } = await import('../../utils/pdfReports');
     const rows = investors.map((inv) => ({
         name: inv.name,
         isManager: !!inv.isManager,
         isActive: !!inv.isActive,
-        capitalInvested: Number(inv.capitalInvested || 0),
+        capitalInvested: inv.isManager && capitalSnapshot
+            ? Number(capitalSnapshot.netOwnedCapital || 0)
+            : Number(inv.capitalInvested || 0),
         availableProfit: Number(inv.availableProfit || 0),
         withdrawnProfit: Number(inv.withdrawnProfit || 0),
         totalProfit: Number(inv.totalProfit || 0),
-        roi: (inv as any).roi !== null && (inv as any).roi !== undefined ? Number((inv as any).roi) : null,
+        roi: inv.isManager ? null : (inv as any).roi !== null && (inv as any).roi !== undefined ? Number((inv as any).roi) : null,
         entryDate: inv.entryDate || '',
     }));
     const report = buildInvestorListPdf(rows);
@@ -30,12 +33,13 @@ async function exportInvestorsPdf(investors: Investor[]) {
 }
 type InvestorsListSectionProps = {
     investors: Investor[];
+    capitalSnapshot?: CapitalSnapshot;
     activeCount: number;
     onOpenInvestor: (investor: Investor) => void;
     onEditInvestor: (investor: Investor) => void;
     onDeleteInvestor: (investor: Investor) => void;
 };
-export function InvestorsListSection({ investors, activeCount, onOpenInvestor, onEditInvestor, onDeleteInvestor }: InvestorsListSectionProps) {
+export function InvestorsListSection({ investors, capitalSnapshot, activeCount, onOpenInvestor, onEditInvestor, onDeleteInvestor }: InvestorsListSectionProps) {
     const { t } = useLanguage();
     return (<Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 border-b border-border p-4">
@@ -45,7 +49,7 @@ export function InvestorsListSection({ investors, activeCount, onOpenInvestor, o
         <div className="flex items-center gap-2 shrink-0">
           <Badge variant="primary" size="sm">{activeCount} {t('investors.activeSuffix')}</Badge>
           {investors.length > 0 && (
-            <Button onClick={() => exportInvestorsPdf(investors)} variant="icon" size="icon" className="rounded-button bg-neutral-100 hover:bg-neutral-200" aria-label={t('treasury.exportPdf')} title={t('treasury.exportPdf')}>
+            <Button onClick={() => exportInvestorsPdf(investors, capitalSnapshot)} variant="icon" size="icon" className="rounded-button bg-neutral-100 hover:bg-neutral-200" aria-label={t('treasury.exportPdf')} title={t('treasury.exportPdf')}>
               <DownloadCloudIcon className="w-4 h-4"/>
             </Button>
           )}
@@ -55,6 +59,10 @@ export function InvestorsListSection({ investors, activeCount, onOpenInvestor, o
         {investors.length === 0 ? (<EmptyState icon={<UsersIcon className="w-6 h-6"/>} title={t('emptyStates.investors.title') as string} subtitle={t('emptyStates.investors.subtitle') as string}/>) : (<div className="divide-y divide-neutral-100">
             {investors.map((investor) => {
                 const availableProfit = Number(investor.availableProfit || 0);
+                const isManager = Boolean(investor.isManager);
+                const displayedCapital = isManager && capitalSnapshot
+                    ? Number(capitalSnapshot.netOwnedCapital || 0)
+                    : Number(investor.capitalInvested || 0);
                 return (<React.Fragment key={investor.id}>
                   <SwipeableListItem onEdit={() => onEditInvestor(investor)} onDelete={() => onDeleteInvestor(investor)}>
                     <div onClick={() => onOpenInvestor(investor)} className="group flex min-h-touch w-full cursor-pointer items-center justify-between gap-3 bg-surface p-4 transition-colors hover:bg-neutral-50">
@@ -71,11 +79,11 @@ export function InvestorsListSection({ investors, activeCount, onOpenInvestor, o
 
                       <div className="flex shrink-0 items-center gap-3 text-end">
                         <div>
-                          <CurrencyAmount value={investor.capitalInvested} currency="DZD" size="lg" decimals={0}/>
+                          <CurrencyAmount value={displayedCapital} currency="DZD" size="lg" decimals={0}/>
                           <div className="mt-0.5">
                             <CurrencyAmount value={availableProfit} currency="DZD" semantic="auto" size="md" showSign decimals={0}/>
                           </div>
-                          {(investor as any).roi !== null && (investor as any).roi !== undefined && (<div className={`mt-0.5 text-[10px] font-bold tabular-nums ${(investor as any).roi > 0 ? 'text-financial-profit' : (investor as any).roi < 0 ? 'text-financial-loss' : 'text-neutral-400'}`} dir="ltr">
+                          {!isManager && (investor as any).roi !== null && (investor as any).roi !== undefined && (<div className={`mt-0.5 text-[10px] font-bold tabular-nums ${(investor as any).roi > 0 ? 'text-financial-profit' : (investor as any).roi < 0 ? 'text-financial-loss' : 'text-neutral-400'}`} dir="ltr">
                             {(investor as any).roi > 0 ? '+' : ''}{((investor as any).roi as number).toFixed(1)}% ROI
                           </div>)}
                         </div>
