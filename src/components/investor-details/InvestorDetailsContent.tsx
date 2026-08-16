@@ -19,8 +19,10 @@ import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { Investor, InvestorTransaction } from '../../types';
 import { formatNumber } from '../../pages/shared/pageFormat';
 import { useLanguage } from '../../contexts/LanguageContext';
+import type { CapitalSnapshot } from '../../utils/capitalSnapshot';
 type InvestorDetailsContentProps = {
     investor: Investor;
+    capitalSnapshot?: CapitalSnapshot;
     orderedTransactions: InvestorTransaction[];
     activeTab: 'overview' | 'history';
     setActiveTab: (tab: 'overview' | 'history') => void;
@@ -50,11 +52,18 @@ function diffDaysSince(entryDate: string): number {
     if (!Number.isFinite(start)) return 0;
     return Math.max(0, Math.floor((Date.now() - start) / (1000 * 60 * 60 * 24)));
 }
-export function InvestorDetailsContent({ investor, orderedTransactions, activeTab, setActiveTab, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction }: InvestorDetailsContentProps) {
+export function InvestorDetailsContent({ investor, capitalSnapshot, orderedTransactions, activeTab, setActiveTab, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction }: InvestorDetailsContentProps) {
     const { t } = useLanguage();
     const currentTotalProfit = investor.totalProfit || 0;
     const currentAvailable = investor.availableProfit || 0;
     const currentWithdrawn = investor.withdrawnProfit || 0;
+    const showManagerOwnedCapital = Boolean(investor.isManager && capitalSnapshot);
+    const primaryCapitalLabel = showManagerOwnedCapital
+        ? t('investors.capitalOwned') as string
+        : t('investors.capitalInvested') as string;
+    const primaryCapitalValue = showManagerOwnedCapital
+        ? Number(capitalSnapshot?.netOwnedCapital || 0)
+        : investor.capitalInvested;
     const sharePercentDisplay = formatNumber((investor.sharePercentage || 0) * 100, { min: 2, max: 2 });
     const roiDisplay = (investor as any).roi !== null && (investor as any).roi !== undefined
         ? formatNumber((investor as any).roi, { min: 2, max: 2 })
@@ -67,7 +76,7 @@ export function InvestorDetailsContent({ investor, orderedTransactions, activeTa
         ? currentAvailable.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' DZD'
         : null;
     return (<>
-      <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel={t('investors.capitalInvested') as string} primaryValue={investor.capitalInvested} primaryCurrency="DZD" primarySemantic="plain" secondary={[
+      <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel={primaryCapitalLabel} primaryValue={primaryCapitalValue} primaryCurrency="DZD" primarySemantic="plain" secondary={[
             { label: t('investors.availableProfit') as string, value: currentAvailable, currency: 'DZD', semantic: 'auto' },
             { label: t('investors.totalEarned') as string, value: currentTotalProfit, currency: 'DZD', semantic: 'auto' },
             { label: t('investors.totalWithdrawn') as string, value: currentWithdrawn, currency: 'DZD', semantic: 'plain' },
