@@ -145,6 +145,8 @@ export interface InvestorTransaction {
     amount: number;
     paymentSource?: 'Caisse' | 'BaridiMob';
     linkedTreasuryTxId?: string;
+    /** Accounting source for profit movements. Legacy rows are inferred from the linked treasury row/notes. */
+    origin?: 'personal_expense' | 'profit_withdrawal' | 'profit_distribution' | 'reinvestment' | 'capital_movement';
     date: string;
     time: string;
     timestamp: number;

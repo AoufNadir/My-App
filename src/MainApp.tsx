@@ -45,6 +45,7 @@ import { useReportExports } from './hooks/useReportExports';
 import { now, parseAndEvaluate } from './utils';
 import { computePamLedger } from './utils/pamLedger';
 import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot } from './utils/capitalSnapshot';
+import { findProjectStartTimestamp, formatAuditDate, reconcileOwnerCapital, summarizeDeliveryExpenses, summarizePersonalExpenses } from './utils/financialAudit';
 import { formatNumber } from './pages/shared/pageFormat';
 const TransactionsPage = React.lazy(() => import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage })));
 const PortfolioPage = React.lazy(() => import('./pages/PortfolioPage').then((module) => ({ default: module.PortfolioPage })));
@@ -171,9 +172,10 @@ export default function MainApp({ user }: {
             transactions,
             managerFeePercentage,
             pamLedger,
-            deliveryExpenses
+            deliveryExpenses,
+            treasuryTransactions
         });
-    }, [isFinancialDataReady, investors, investorTransactions, managerFeePercentage, transactions, pamLedger, deliveryExpenses]);
+    }, [isFinancialDataReady, investors, investorTransactions, managerFeePercentage, transactions, pamLedger, deliveryExpenses, treasuryTransactions]);
     const derivedInvestors = investorEconomics.derivedInvestors;
 
     const monthlyGoalState = pricingPlanSync.plan.monthlyGoal;
@@ -594,6 +596,7 @@ export default function MainApp({ user }: {
             periodStartTs,
             periodEndTs: nowTs,
             deliveryExpenses,
+            treasuryTransactions,
         }), managerFeePercentage).ownerTotalProfit;
         const ownerProfitToday = deriveOwnerProfitForPeriod(dayStartTs);
         const ownerProfitWeek = deriveOwnerProfitForPeriod(weekStartTs);
@@ -669,7 +672,7 @@ export default function MainApp({ user }: {
             ownerProfitAllTime: managerProfitBreakdown.ownerTotalProfit,
             last7DaysProfit,
         };
-    }, [pamLedger, clientTransactionsDzd, treasuryStats, investors, investorTransactions, transactions, managerFeePercentage, deliveryExpenses, managerProfitBreakdown]);
+    }, [pamLedger, clientTransactionsDzd, treasuryStats, investors, investorTransactions, transactions, managerFeePercentage, deliveryExpenses, treasuryTransactions, managerProfitBreakdown]);
     const pricingMtdProfit = useMemo(() => {
         const d = new Date();
         const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
@@ -755,6 +758,31 @@ export default function MainApp({ user }: {
         services: servicesSummary,
         managerPendingAdvances
     }), [treasuryStats, portfolioStats, totals, treasuryCards, investorLiability, servicesSummary, managerPendingAdvances]);
+    const financialAudit = useMemo(() => {
+        const projectStartTimestamp = findProjectStartTimestamp({
+            investors,
+            investorTransactions,
+            treasuryTransactions,
+            transactions,
+        });
+        const personalExpenseSummary = summarizePersonalExpenses(treasuryTransactions, Date.now(), projectStartTimestamp);
+        const deliveryExpenseSummary = summarizeDeliveryExpenses(deliveryExpenses, Date.now(), projectStartTimestamp);
+        const managerInvestor = derivedInvestors.find((investor) => investor.isManager === true);
+        const capitalReconciliation = reconcileOwnerCapital({
+            openingCapital: Number(managerInvestor?.initialCapital || 0),
+            ownerProfit: managerProfitBreakdown.ownerTotalProfit,
+            profitWithdrawals: managerProfitBreakdown.profitWithdrawals,
+            personalExpenses: personalExpenseSummary.sinceStart,
+            actualCapital: capitalSnapshot.netOwnedCapital,
+        });
+        return {
+            projectStartTimestamp,
+            projectStartLabel: formatAuditDate(projectStartTimestamp),
+            personalExpenseSummary,
+            deliveryExpenseSummary,
+            capitalReconciliation,
+        };
+    }, [investors, investorTransactions, treasuryTransactions, transactions, deliveryExpenses, derivedInvestors, managerProfitBreakdown, capitalSnapshot]);
     /* Legacy global search logic moved to useGlobalSearch.
                 id: `search_client_${client.id}`,
                 kind: 'client' as const,
@@ -2037,6 +2065,7 @@ export default function MainApp({ user }: {
     const dashboardPageProps = {
         dailyOverview,
         managerProfitBreakdown,
+        financialAudit,
         portfolioStats,
         treasuryStats,
         totals,
@@ -2080,7 +2109,7 @@ export default function MainApp({ user }: {
         onOpenMonthPlan: () => setIsMonthPlanOpen(true),
         monthlyGoal: monthlyGoalState,
     };
-    const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys };
+    const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, setManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys };
     const walletTransferDialogProps = useMemo(() => ({
         isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSource,

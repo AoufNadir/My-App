@@ -12,7 +12,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { useLanguage } from '../contexts/LanguageContext';
-import type { InvestorEconomicsResult } from '../hooks/useInvestorEconomics';
+import type { InvestorEconomicsResult, ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
 import type { FirestoreDocumentReference } from '../firebase';
 import type { CapitalSnapshot, InvestorBreakdown } from '../utils/capitalSnapshot';
 interface InvestorsPageProps {
@@ -29,6 +29,7 @@ interface InvestorsPageProps {
     userDocRef: FirestoreDocumentReference;
     setAlert: (msg: string) => void;
     treasuryStats: { caisse: number; baridi: number };
+    managerProfitBreakdown?: ManagerProfitBreakdown;
 }
 type InvestorsStats = {
     totalCapital: number;
@@ -40,7 +41,7 @@ type InvestorsStats = {
     totalDeliveryExpenses: number;
     netDistributableProfit: number;
 };
-export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, setManagerFeePercentage, userDocRef, setAlert, treasuryStats }) => {
+export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, setManagerFeePercentage, userDocRef, setAlert, treasuryStats, managerProfitBreakdown }) => {
     const { t } = useLanguage();
     const stats: InvestorsStats = useMemo(() => {
         const nonManagerInvestors = investors.filter((inv) => inv.isActive && !inv.isManager);
@@ -90,7 +91,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
 
       <InvestorsDetailsCard stats={stats} capitalSnapshot={capitalSnapshot} managerFeePercentage={managerFeePercentage} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference}/>
 
-      <InvestorsListSection investors={investors} capitalSnapshot={capitalSnapshot} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor}/>
+      <InvestorsListSection investors={investors} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor}/>
 
       <CommissionEditorModal isOpen={isCommissionModalOpen} onClose={() => setIsCommissionModalOpen(false)} value={managerFeePercentage} onChange={setManagerFeePercentage} managerFeeAmount={stats.managerFee}/>
 

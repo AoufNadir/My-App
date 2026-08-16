@@ -12,6 +12,7 @@ import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { Investor } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { CapitalSnapshot } from '../../utils/capitalSnapshot';
+import type { ManagerProfitBreakdown } from '../../hooks/useInvestorEconomics';
 
 async function exportInvestorsPdf(investors: Investor[], capitalSnapshot?: CapitalSnapshot) {
     const { buildInvestorListPdf, openPdfPrintWindow } = await import('../../utils/pdfReports');
@@ -34,12 +35,13 @@ async function exportInvestorsPdf(investors: Investor[], capitalSnapshot?: Capit
 type InvestorsListSectionProps = {
     investors: Investor[];
     capitalSnapshot?: CapitalSnapshot;
+    managerProfitBreakdown?: ManagerProfitBreakdown;
     activeCount: number;
     onOpenInvestor: (investor: Investor) => void;
     onEditInvestor: (investor: Investor) => void;
     onDeleteInvestor: (investor: Investor) => void;
 };
-export function InvestorsListSection({ investors, capitalSnapshot, activeCount, onOpenInvestor, onEditInvestor, onDeleteInvestor }: InvestorsListSectionProps) {
+export function InvestorsListSection({ investors, capitalSnapshot, managerProfitBreakdown, activeCount, onOpenInvestor, onEditInvestor, onDeleteInvestor }: InvestorsListSectionProps) {
     const { t } = useLanguage();
     return (<Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 border-b border-border p-4">
@@ -58,8 +60,10 @@ export function InvestorsListSection({ investors, capitalSnapshot, activeCount, 
       <CardContent className="p-0">
         {investors.length === 0 ? (<EmptyState icon={<UsersIcon className="w-6 h-6"/>} title={t('emptyStates.investors.title') as string} subtitle={t('emptyStates.investors.subtitle') as string}/>) : (<div className="divide-y divide-neutral-100">
             {investors.map((investor) => {
-                const availableProfit = Number(investor.availableProfit || 0);
                 const isManager = Boolean(investor.isManager);
+                const availableProfit = isManager && managerProfitBreakdown
+                    ? managerProfitBreakdown.displayAvailableProfit
+                    : Number(investor.availableProfit || 0);
                 const displayedCapital = isManager && capitalSnapshot
                     ? Number(capitalSnapshot.netOwnedCapital || 0)
                     : Number(investor.capitalInvested || 0);
@@ -83,6 +87,11 @@ export function InvestorsListSection({ investors, capitalSnapshot, activeCount, 
                           <div className="mt-0.5">
                             <CurrencyAmount value={availableProfit} currency="DZD" semantic="auto" size="md" showSign decimals={0}/>
                           </div>
+                          {isManager && managerProfitBreakdown && managerProfitBreakdown.profitDeficit > 0.005 && (
+                            <div className="mt-0.5 text-[10px] font-semibold text-financial-loss">
+                              {t('investors.profitDeficit')}: <CurrencyAmount value={managerProfitBreakdown.profitDeficit} currency="DZD" semantic="loss" size="sm" decimals={0}/>
+                            </div>
+                          )}
                           {!isManager && (investor as any).roi !== null && (investor as any).roi !== undefined && (<div className={`mt-0.5 text-[10px] font-bold tabular-nums ${(investor as any).roi > 0 ? 'text-financial-profit' : (investor as any).roi < 0 ? 'text-financial-loss' : 'text-neutral-400'}`} dir="ltr">
                             {(investor as any).roi > 0 ? '+' : ''}{((investor as any).roi as number).toFixed(1)}% ROI
                           </div>)}

@@ -61,6 +61,7 @@ const areDashboardPagePropsEqual = (prev: any, next: any) => (prev?.portfolioSta
     && prev?.capitalSnapshot === next?.capitalSnapshot
     && prev?.servicesSummary === next?.servicesSummary
     && prev?.globalNetProfit === next?.globalNetProfit
+    && prev?.financialAudit === next?.financialAudit
     && prev?.transactions === next?.transactions
     && prev?.clientTransactionsDzd === next?.clientTransactionsDzd
     && prev?.clientsDzd === next?.clientsDzd
@@ -201,7 +202,7 @@ function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDoc
                     setReinvestInput((inv.availableProfit || 0).toFixed(2));
                     setIsReinvestModalOpen(true);
                 }
-            }} onDeleteTransaction={(tx) => { setInvestorTxToDelete(tx); }} onExportReport={(range) => handleExportInvestorReport(selectedInvestorId, range)} globalNetProfit={globalNetProfit} managerFeePercentage={Number(managerFeePercentage)} totalCapital={derivedInvestors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0)} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown}/>) : (<InvestorsPage investors={derivedInvestors} capitalSnapshot={capitalSnapshot} investorBreakdown={investorBreakdown} onOpenInvestor={(inv) => setSelectedInvestorId(inv.id)} onAddInvestor={() => openInvestorModal(null)} onEditInvestor={(inv) => openInvestorModal(inv)} onDeleteInvestor={(inv) => { setInvestorToDelete(inv); }} investorEconomicsTotals={investorEconomicsTotals} managerFeePercentage={managerFeePercentage} setManagerFeePercentage={setManagerFeePercentage} userDocRef={userDocRef} setAlert={setAlert} treasuryStats={treasuryStats}/>))}
+                }} onDeleteTransaction={(tx) => { setInvestorTxToDelete(tx); }} onExportReport={(range) => handleExportInvestorReport(selectedInvestorId, range)} globalNetProfit={globalNetProfit} managerFeePercentage={Number(managerFeePercentage)} totalCapital={derivedInvestors.reduce((sum, inv) => sum + (inv.isActive ? inv.capitalInvested : 0), 0)} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown}/>) : (<InvestorsPage investors={derivedInvestors} capitalSnapshot={capitalSnapshot} investorBreakdown={investorBreakdown} onOpenInvestor={(inv) => setSelectedInvestorId(inv.id)} onAddInvestor={() => openInvestorModal(null)} onEditInvestor={(inv) => openInvestorModal(inv)} onDeleteInvestor={(inv) => { setInvestorToDelete(inv); }} investorEconomicsTotals={investorEconomicsTotals} managerFeePercentage={managerFeePercentage} setManagerFeePercentage={setManagerFeePercentage} userDocRef={userDocRef} setAlert={setAlert} treasuryStats={treasuryStats} managerProfitBreakdown={managerProfitBreakdown}/>))}
                     </ErrorBoundary>
                     </Suspense>
                 </main>);

@@ -338,6 +338,7 @@ export function PersonalExpensesPage({
                     { label: t('personalExpenses.today') as string, value: aggregates.today, currency: 'DZD', semantic: 'plain' },
                     { label: t('personalExpenses.thisWeek') as string, value: aggregates.week, currency: 'DZD', semantic: 'plain' },
                     { label: t('personalExpenses.thisYear') as string, value: aggregates.year, currency: 'DZD', semantic: 'plain' },
+                    { label: t('personalExpenses.sinceStart') as string, value: aggregates.allTime, currency: 'DZD', semantic: 'plain' },
                 ]}
             />
 

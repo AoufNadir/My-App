@@ -216,6 +216,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             const investorPayload = {
                 investorId: managerInvestor.id,
                 type: 'withdraw_profit',
+                origin: 'personal_expense',
                 amount: isAdvance ? 0 : amountNum,
                 paymentSource: personalWithdrawalMethod,
                 linkedTreasuryTxId: treasuryRef.id,
@@ -324,6 +325,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             const investorPayload = {
                 investorId: managerInvestor.id,
                 type: 'withdraw_profit',
+                origin: 'personal_expense',
                 amount: actualSpent,
                 paymentSource: reconcileAdvanceTx.source || 'Caisse',
                 linkedTreasuryTxId: reconcileAdvanceTx.id,
@@ -608,6 +610,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 timestamp
             };
             if (investorTxType === 'withdraw_profit') {
+                investorTxPayload.origin = 'profit_withdrawal';
                 const treasuryRef = userDocRef.collection('treasury_txs').doc();
                 investorTxPayload.paymentSource = investorTxPaymentSource;
                 investorTxPayload.linkedTreasuryTxId = treasuryRef.id;
@@ -691,6 +694,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             batch.set(userDocRef.collection('investor_transactions').doc(), {
                 investorId,
                 type: 'reinvest_profit',
+                origin: 'reinvestment',
                 amount,
                 date: now().date,
                 time: now().time,

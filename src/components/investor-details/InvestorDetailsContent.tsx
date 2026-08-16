@@ -62,6 +62,9 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
     const currentWithdrawn = investor.withdrawnProfit || 0;
     const isManager = Boolean(investor.isManager);
     const showManagerOwnedCapital = Boolean(isManager && capitalSnapshot);
+    const managerDisplayAvailable = isManager && managerProfitBreakdown
+        ? managerProfitBreakdown.displayAvailableProfit
+        : currentAvailable;
     const primaryCapitalLabel = showManagerOwnedCapital
         ? t('investors.capitalOwned') as string
         : t('investors.capitalInvested') as string;
@@ -82,9 +85,15 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
         : null;
     return (<>
       <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel={primaryCapitalLabel} primaryValue={primaryCapitalValue} primaryCurrency="DZD" primarySemantic="plain" secondary={[
-            { label: t('investors.availableProfit') as string, value: currentAvailable, currency: 'DZD', semantic: 'auto' },
+            { label: t('investors.availableProfit') as string, value: managerDisplayAvailable, currency: 'DZD', semantic: 'auto' },
             { label: t('investors.totalEarned') as string, value: currentTotalProfit, currency: 'DZD', semantic: 'auto' },
             { label: t('investors.totalWithdrawn') as string, value: currentWithdrawn, currency: 'DZD', semantic: 'plain' },
+            ...(isManager && managerProfitBreakdown && managerProfitBreakdown.profitDeficit > 0.005 ? [{
+                label: t('investors.profitDeficit') as string,
+                value: managerProfitBreakdown.profitDeficit,
+                currency: 'DZD' as const,
+                semantic: 'loss' as const,
+            }] : []),
             ...(!isManager ? [{
                 label: t('investors.fundShare') as string,
                 value: 0,

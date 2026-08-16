@@ -17,6 +17,10 @@ export type DerivedInvestor = Investor & {
     txs: InvestorTransaction[];
     hasCapitalMovements: boolean;
     reinvestedProfit: number;
+    /** Profit withdrawals sent directly to the owner's account, excluding personal expenses. */
+    profitWithdrawals: number;
+    /** Settled personal expenses charged against the owner's profit. */
+    personalExpenses: number;
     accountingWarnings: InvestorAccountingWarning[];
     /** ROI = totalProfit / capitalInvested × 100 (percentage). Null when capitalInvested = 0. */
     roi: number | null;
@@ -41,17 +45,26 @@ export interface ManagerProfitBreakdown {
     ownerTotalProfit: number;
     externalInvestorsProfit: number;
     totalDeliveryExpenses: number;
+    profitWithdrawals: number;
+    personalExpenses: number;
     withdrawnProfit: number;
     reinvestedProfit: number;
     availableProfit: number;
+    /** Positive amount when withdrawals/reinvestment exceed the derived profit. */
+    profitDeficit: number;
+    /** Never negative; suitable for the primary UI balance. */
+    displayAvailableProfit: number;
 }
 type InvestorBase = Investor & {
     entryTs: number;
     txs: InvestorTransaction[];
     hasCapitalMovements: boolean;
+    capitalBaseline: number;
     capitalInvested: number;
     withdrawnProfit: number;
     reinvestedProfit: number;
+    profitWithdrawals: number;
+    personalExpenses: number;
 };
 type InvestorEconomicsInput = {
     investors: Investor[];
@@ -62,6 +75,7 @@ type InvestorEconomicsInput = {
     periodStartTs?: number | null;
     periodEndTs?: number | null;
     deliveryExpenses?: TreasuryTx[];
+    treasuryTransactions?: TreasuryTx[];
 };
 function toMs(value: unknown, fallback = 0): number {
     if (typeof value === 'number')
@@ -91,8 +105,25 @@ function addWarning(allWarnings: InvestorAccountingWarning[], warningsByInvestor
     list.push(warning);
     warningsByInvestor.set(warning.investorId, list);
 }
-function buildInvestorsBase(investors: Investor[], investorTransactions: InvestorTransaction[], periodStartTs?: number | null, periodEndTs?: number | null): InvestorBase[] {
+type ProfitMovementKind = 'personal_expense' | 'profit_withdrawal';
+
+function classifyProfitMovement(tx: InvestorTransaction, treasuryById: Map<string, TreasuryTx>): ProfitMovementKind {
+    if (tx.origin === 'personal_expense') return 'personal_expense';
+    if (tx.origin === 'profit_withdrawal') return 'profit_withdrawal';
+    const linkedTreasury = tx.linkedTreasuryTxId ? treasuryById.get(tx.linkedTreasuryTxId) : undefined;
+    if (linkedTreasury?.origin === 'personal_expense') return 'personal_expense';
+    if (linkedTreasury?.origin === 'investor_profit_withdrawal') return 'profit_withdrawal';
+    const notes = String(tx.notes || '').toLocaleLowerCase();
+    if (notes.includes('dépense perso') || notes.includes('depense perso') || notes.includes('avance perso') || notes.includes('dépense personnelle') || notes.includes('depense personnelle')) {
+        return 'personal_expense';
+    }
+    // Legacy withdraw_profit rows without a link are direct profit withdrawals.
+    return 'profit_withdrawal';
+}
+
+function buildInvestorsBase(investors: Investor[], investorTransactions: InvestorTransaction[], treasuryTransactions: TreasuryTx[] = [], periodStartTs?: number | null, periodEndTs?: number | null): InvestorBase[] {
     const txByInvestor = new Map<string, InvestorTransaction[]>();
+    const treasuryById = new Map(treasuryTransactions.map((tx) => [tx.id, tx]));
     for (const tx of investorTransactions) {
         const list = txByInvestor.get(tx.investorId) || [];
         list.push(tx);
@@ -100,17 +131,28 @@ function buildInvestorsBase(investors: Investor[], investorTransactions: Investo
     }
     return investors.map((inv) => {
         const myTxs = txByInvestor.get(inv.id) || [];
+        const capitalMovementTxs = myTxs.filter((tx) => tx.type === 'deposit_capital' || tx.type === 'withdraw_capital');
         const movementTxs = myTxs.filter((tx) => tx.type === 'deposit_capital'
             || tx.type === 'reinvest_profit'
             || tx.type === 'withdraw_capital');
+        // A reinvestment is an addition to the opening capital, not proof that
+        // the opening capital was zero. The baseline is zero only when explicit
+        // deposit/withdrawal history already represents the opening capital.
+        const capitalBaseline = capitalMovementTxs.length > 0 ? 0 : Number(inv.initialCapital || 0);
         const currentCapitalFromMovements = movementTxs.reduce((sum, tx) => {
             if (tx.type === 'withdraw_capital')
                 return subM(sum, tx.amount);
             return addM(sum, tx.amount);
-        }, 0);
+        }, capitalBaseline);
         const periodTxs = myTxs.filter((tx) => isInPeriod(toMs(tx.timestamp), periodStartTs, periodEndTs));
         const withdrawnProfit = periodTxs
             .filter((tx) => tx.type === 'withdraw_profit')
+            .reduce((sum, tx) => addM(sum, tx.amount), 0);
+        const profitWithdrawals = periodTxs
+            .filter((tx) => tx.type === 'withdraw_profit' && classifyProfitMovement(tx, treasuryById) === 'profit_withdrawal')
+            .reduce((sum, tx) => addM(sum, tx.amount), 0);
+        const personalExpenses = periodTxs
+            .filter((tx) => tx.type === 'withdraw_profit' && classifyProfitMovement(tx, treasuryById) === 'personal_expense')
             .reduce((sum, tx) => addM(sum, tx.amount), 0);
         const reinvestedProfit = periodTxs
             .filter((tx) => tx.type === 'reinvest_profit')
@@ -120,9 +162,12 @@ function buildInvestorsBase(investors: Investor[], investorTransactions: Investo
             entryTs: toMs(inv.entryDate, Number.MAX_SAFE_INTEGER),
             txs: myTxs,
             hasCapitalMovements: movementTxs.length > 0,
-            capitalInvested: movementTxs.length > 0 ? currentCapitalFromMovements : inv.initialCapital,
+            capitalBaseline,
+            capitalInvested: currentCapitalFromMovements,
             withdrawnProfit,
             reinvestedProfit,
+            profitWithdrawals,
+            personalExpenses,
         };
     });
 }
@@ -132,7 +177,7 @@ function capitalAtTs(inv: InvestorBase, ts: number): number {
             || tx.type === 'reinvest_profit'
             || tx.type === 'withdraw_capital'));
     if (movementsUntilTs.length === 0) {
-        return inv.hasCapitalMovements ? 0 : inv.initialCapital;
+        return inv.capitalBaseline;
     }
     return movementsUntilTs.reduce((sum, tx) => {
         if (tx.type === 'withdraw_capital')
@@ -157,7 +202,7 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
     const pamLedger = input.pamLedger || computePamLedger(input.transactions);
     const feePercent = parseFloat(input.managerFeePercentage) || 0;
     const managerFeeRatio = Math.max(0, Math.min(1, feePercent / 100));
-    const investorsBase = buildInvestorsBase(input.investors, input.investorTransactions, input.periodStartTs, input.periodEndTs);
+    const investorsBase = buildInvestorsBase(input.investors, input.investorTransactions, input.treasuryTransactions, input.periodStartTs, input.periodEndTs);
     const distributedProfitByInvestor = new Map<string, number>();
     const warningsByInvestor = new Map<string, InvestorAccountingWarning[]>();
     const warnings: InvestorAccountingWarning[] = [];
@@ -305,6 +350,8 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             totalProfit,
             availableProfit,
             roi,
+            profitWithdrawals: inv.profitWithdrawals,
+            personalExpenses: inv.personalExpenses,
             accountingWarnings: warningsByInvestor.get(inv.id) || [],
         };
     });
@@ -341,11 +388,15 @@ export function getManagerProfitBreakdown(result: InvestorEconomicsResult, manag
         ownerTotalProfit,
         externalInvestorsProfit,
         totalDeliveryExpenses: roundM(result.totals.totalDeliveryExpenses),
+        profitWithdrawals: roundM(manager?.profitWithdrawals || 0),
+        personalExpenses: roundM(manager?.personalExpenses || 0),
         withdrawnProfit: roundM(manager?.withdrawnProfit || 0),
         reinvestedProfit: roundM(manager?.reinvestedProfit || 0),
         availableProfit: roundM(manager?.availableProfit ?? ownerTotalProfit),
+        profitDeficit: roundM(Math.max(0, -(manager?.availableProfit ?? ownerTotalProfit))),
+        displayAvailableProfit: roundM(Math.max(0, manager?.availableProfit ?? ownerTotalProfit)),
     };
 }
-export function useInvestorEconomics(investors: Investor[], investorTransactions: InvestorTransaction[], transactions: Tx[], managerFeePercentage: string, deliveryExpenses?: TreasuryTx[]) {
-    return useMemo(() => deriveInvestorEconomics({ investors, investorTransactions, transactions, managerFeePercentage, deliveryExpenses }), [investors, investorTransactions, transactions, managerFeePercentage, deliveryExpenses]);
+export function useInvestorEconomics(investors: Investor[], investorTransactions: InvestorTransaction[], transactions: Tx[], managerFeePercentage: string, deliveryExpenses?: TreasuryTx[], treasuryTransactions?: TreasuryTx[]) {
+    return useMemo(() => deriveInvestorEconomics({ investors, investorTransactions, transactions, managerFeePercentage, deliveryExpenses, treasuryTransactions }), [investors, investorTransactions, transactions, managerFeePercentage, deliveryExpenses, treasuryTransactions]);
 }

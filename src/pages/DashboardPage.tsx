@@ -25,7 +25,7 @@ import type { ClientDzd, ClientTransactionDzd, OverdueDebtClient, TreasuryCard, 
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
 import type { PamLedgerResult } from '../utils/pamLedger';
 import type { ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
-import { OwnerProfitPeriodSummary } from '../components/financial/OwnerProfitSummary';
+import { FinancialAuditCard, OwnerProfitPeriodSummary, type FinancialAuditData } from '../components/financial/OwnerProfitSummary';
 import { useLanguage } from '../contexts/LanguageContext';
 const RECENT_TRANSACTION_LIMIT = 5;
 const EMPTY_RECENT_DATE_RANGE = { start: null, end: null };
@@ -33,6 +33,7 @@ const ignoreRecentFilterChange = (_mode: TransactionFilterMode) => undefined;
 const ignoreRecentDateChange = (_range: { start: Date | null; end: Date | null }) => undefined;
 type DashboardPageProps = {
     managerProfitBreakdown: ManagerProfitBreakdown;
+    financialAudit: FinancialAuditData;
     dailyOverview: {
         caisse: number;
         baridi: number;
@@ -400,6 +401,7 @@ export function DashboardPage(props: DashboardPageProps) {
 function DashboardContent({
     dailyOverview,
     managerProfitBreakdown,
+    financialAudit,
     portfolioStats,
     capitalSnapshot,
     investorBreakdown,
@@ -641,6 +643,8 @@ function DashboardContent({
           month: dailyOverview.ownerProfitMonth,
           year: dailyOverview.ownerProfitYear,
       }}/>
+
+      <FinancialAuditCard breakdown={managerProfitBreakdown} audit={financialAudit}/>
 
       {/* Month plan — entry to the smart pricing hub (progress + prices live inside) */}
       {monthlyGoal > 0 && onOpenMonthPlan && (

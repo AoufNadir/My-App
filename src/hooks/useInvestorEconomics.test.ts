@@ -51,6 +51,44 @@ assert.equal(baseBreakdown.personalCapitalProfit, 53417);
 assert.equal(baseBreakdown.ownerTotalProfit, 83417);
 assert.equal(baseBreakdown.externalInvestorsProfit, 16583);
 
+const personalExpenseTreasury: TreasuryTx = {
+    id: 'personal-1', timestamp: SALE_TS + 1, date: '10/08/2026', time: '12:00',
+    type: 'Retrait', source: 'Caisse', amount: 5000, origin: 'personal_expense',
+};
+const profitWithdrawalTreasury: TreasuryTx = {
+    id: 'withdrawal-1', timestamp: SALE_TS + 2, date: '10/08/2026', time: '12:00',
+    type: 'Retrait', source: 'Caisse', amount: 10000, origin: 'investor_profit_withdrawal',
+};
+const separatedMovements = deriveInvestorEconomics({
+    investors,
+    investorTransactions: [
+        { id: 'personal-investor-1', investorId: 'manager', type: 'withdraw_profit', origin: 'personal_expense', amount: 5000, linkedTreasuryTxId: 'personal-1', date: '10/08/2026', time: '12:00', timestamp: SALE_TS + 1 },
+        { id: 'withdrawal-investor-1', investorId: 'manager', type: 'withdraw_profit', origin: 'profit_withdrawal', amount: 10000, linkedTreasuryTxId: 'withdrawal-1', date: '10/08/2026', time: '12:00', timestamp: SALE_TS + 2 },
+        { id: 'reinvest-1', investorId: 'manager', type: 'reinvest_profit', origin: 'reinvestment', amount: 2000, date: '10/08/2026', time: '12:00', timestamp: SALE_TS + 3 },
+    ],
+    transactions,
+    managerFeePercentage: '30',
+    treasuryTransactions: [personalExpenseTreasury, profitWithdrawalTreasury],
+});
+const separatedBreakdown = getManagerProfitBreakdown(separatedMovements, 30);
+assert.equal(separatedBreakdown.personalExpenses, 5000);
+assert.equal(separatedBreakdown.profitWithdrawals, 10000);
+assert.equal(separatedBreakdown.reinvestedProfit, 2000);
+assert.equal(separatedBreakdown.withdrawnProfit, 15000);
+assert.equal(separatedBreakdown.availableProfit, 66417);
+assert.equal(separatedBreakdown.profitDeficit, 0);
+
+const overdrawn = deriveInvestorEconomics({
+    investors,
+    investorTransactions: [{ id: 'overdrawn-1', investorId: 'manager', type: 'withdraw_profit', amount: 90000, date: '10/08/2026', time: '12:00', timestamp: SALE_TS + 4 }],
+    transactions,
+    managerFeePercentage: '30',
+});
+const overdrawnBreakdown = getManagerProfitBreakdown(overdrawn, 30);
+assert.equal(overdrawnBreakdown.availableProfit, -6583);
+assert.equal(overdrawnBreakdown.displayAvailableProfit, 0);
+assert.equal(overdrawnBreakdown.profitDeficit, 6583);
+
 const deliveryExpense: TreasuryTx = {
     id: 'delivery-1', timestamp: SALE_TS, date: '10/08/2026', time: '12:00',
     type: 'Retrait', source: 'Caisse', amount: 10000, origin: 'delivery_expense',
