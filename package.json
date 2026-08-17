@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "node --import tsx src/utils/capitalSnapshot.test.ts && node --import tsx src/services/smartPricingEngine.test.ts && node --import tsx src/utils/clientDebt.test.ts && node --import tsx src/utils/personalExpenses.test.ts && node --import tsx src/utils/digitalServiceAccounting.test.ts && node --import tsx src/utils/transactionTerminology.test.ts && node --import tsx src/translations/translations.test.ts && node --import tsx src/hooks/useInvestorEconomics.test.ts",
+    "test": "node --import tsx src/utils/capitalSnapshot.test.ts && node --import tsx src/services/smartPricingEngine.test.ts && node --import tsx src/utils/clientDebt.test.ts && node --import tsx src/utils/personalExpenses.test.ts && node --import tsx src/utils/numberParsing.test.ts && node --import tsx src/utils/digitalServiceAccounting.test.ts && node --import tsx src/utils/transactionTerminology.test.ts && node --import tsx src/translations/translations.test.ts && node --import tsx src/hooks/useInvestorEconomics.test.ts",
     "typecheck": "tsc --noEmit",
     "ci": "npm run typecheck && npm test && npm run build",
     "build": "vite build",
