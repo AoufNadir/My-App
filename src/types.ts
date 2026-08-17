@@ -20,9 +20,11 @@ export interface Tx {
     notes?: string;
     /** Free-form labels, e.g. "OTC", "Urgent", "Wholesale". Filterable. */
     tags?: string[];
-    origin?: 'digital_service_sale' | 'delivery_expense';
+    origin?: 'digital_service_sale' | 'delivery_expense' | 'personal_expense' | 'personal_expense_return';
     linkedDigitalServiceTxId?: string;
     linkedProjectExpenseTxId?: string;
+    linkedPersonalExpenseTxId?: string;
+    linkedTreasuryTxId?: string;
     currency: 'USDT' | 'EUR';
     linkedTxId?: string;
     linkedClientId?: string;
@@ -146,7 +148,7 @@ export interface InvestorTransaction {
     investorId: string;
     type: 'deposit_capital' | 'withdraw_capital' | 'profit_distribution' | 'withdraw_profit' | 'reinvest_profit';
     amount: number;
-    paymentSource?: 'Caisse' | 'BaridiMob';
+    paymentSource?: 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR';
     linkedTreasuryTxId?: string;
     /** Accounting source for profit movements. Legacy rows are inferred from the linked treasury row/notes. */
     origin?: 'personal_expense' | 'profit_withdrawal' | 'profit_distribution' | 'reinvestment' | 'capital_movement';
