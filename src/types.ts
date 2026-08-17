@@ -20,6 +20,9 @@ export interface Tx {
     notes?: string;
     /** Free-form labels, e.g. "OTC", "Urgent", "Wholesale". Filterable. */
     tags?: string[];
+    origin?: 'digital_service_sale' | 'delivery_expense';
+    linkedDigitalServiceTxId?: string;
+    linkedProjectExpenseTxId?: string;
     currency: 'USDT' | 'EUR';
     linkedTxId?: string;
     linkedClientId?: string;
@@ -172,17 +175,18 @@ export interface ClientTransactionDzd {
     date: string;
     time: string;
     montant: number; // Positive = Credit (Advance), Negative = Debt
-    type: 'Règlement Reçu' | 'Paiement Effectué' | 'Vente USDT' | 'Vente EUR' | 'Achat EUR' | 'Solde Initial' | 'Transfert Entrant' | 'Transfert Sortant' | 'Ajustement Solde';
+    type: 'Règlement Reçu' | 'Paiement Effectué' | 'Vente USDT' | 'Vente EUR' | 'Achat EUR' | 'Vente service numérique' | 'Solde Initial' | 'Transfert Entrant' | 'Transfert Sortant' | 'Ajustement Solde';
     notes?: string;
     /** Free-form labels for filtering (shared with Tx tags). */
     tags?: string[];
     linkedTxId?: string; // ID of the USDT/EUR transaction if applicable
     linkRole?: 'primary' | 'dzd_receiver';
-    paymentMethod?: 'Espèces' | 'BaridiMob' | 'Crédit';
+    paymentMethod?: 'Espèces' | 'BaridiMob' | 'Crédit' | 'USDT' | 'EUR';
     /** ISO yyyy-mm-dd due date for credit debt lots. */
     creditDueDate?: string;
     affectsBalance?: boolean; // false = history-only row that should not alter client balance
-    origin?: 'adjustment';
+    origin?: 'adjustment' | 'digital_service_sale';
+    linkedDigitalServiceTxId?: string;
 }
 export interface TreasuryTx {
     id: string;
@@ -198,10 +202,17 @@ export interface TreasuryTx {
     linkedTxId?: string; // ID of the USDT/EUR transaction if applicable
     linkedInvestorTxId?: string;
     linkedTreasuryTxId?: string; // For personal_expense_return: links back to original advance
-    origin?: 'manual_asset' | 'client_tx' | 'usdt_tx' | 'balance_edit' | 'delivery_expense' | 'investor_profit_withdrawal' | 'investor_capital_deposit' | 'investor_capital_withdrawal' | 'personal_expense' | 'personal_expense_return'; // Source of the transaction
+    origin?: 'manual_asset' | 'client_tx' | 'usdt_tx' | 'balance_edit' | 'delivery_expense' | 'digital_service_sale' | 'investor_profit_withdrawal' | 'investor_capital_deposit' | 'investor_capital_withdrawal' | 'personal_expense' | 'personal_expense_return'; // Source of the transaction
     /** Missing means a recorded tracked expense; use historical only for explicit pre-tracking adjustments. */
     trackingPhase?: 'historical' | 'current';
     linkedAssetTxId?: string; // Link back to actifTransactions
+    linkedDigitalServiceTxId?: string;
+    linkedProjectExpenseTxId?: string;
+    expenseWallet?: 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR';
+    expenseCurrency?: 'DZD' | 'USDT' | 'EUR';
+    originalAmount?: number;
+    conversionRateToDzd?: number;
+    amountDzd?: number;
     // Personal expense imprest system (origin === 'personal_expense' only)
     advanceState?: 'pending' | 'settled';
     settledAmount?: number; // Actual amount spent after reconciliation
@@ -213,6 +224,30 @@ export interface TreasuryCard {
     name: string;
     value: number;
     notes?: string;
+}
+export interface DigitalServiceTransaction {
+    id: string;
+    type: 'digital_service_sale';
+    clientId: string;
+    serviceName: string;
+    purchaseWallet: 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR';
+    purchaseCurrency: 'DZD' | 'USDT' | 'EUR';
+    purchaseAmount: number;
+    purchaseRateToDzd: number;
+    purchaseAmountDzd: number;
+    saleWallet: 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR' | 'Credit';
+    saleCurrency: 'DZD' | 'USDT' | 'EUR';
+    saleAmount: number;
+    saleRateToDzd: number;
+    saleAmountDzd: number;
+    profitDzd: number;
+    date: string;
+    time: string;
+    timestamp: number;
+    notes?: string;
+    linkedTreasuryTxIds?: string[];
+    linkedPortfolioTxIds?: string[];
+    linkedClientTxId?: string;
 }
 // ===== Manual Assets System =====
 export interface ManualAsset {
