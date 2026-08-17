@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx } from '../../types';
+import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, DigitalServiceTransaction } from '../../types';
 import { computePamLedger } from '../../utils/pamLedger';
 import type { PamLedgerResult } from '../../utils/pamLedger';
 import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
 import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { UsersIcon } from '../icons/UsersIcon';
 import { WalletIcon } from '../icons/WalletIcon';
+import { BriefcaseIcon } from '../icons/BriefcaseIcon';
 import { formatDzd, formatNumber } from '../../pages/shared/pageFormat';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel, getTreasuryOperationLabel } from '../../utils/transactionTerminology';
 import { DisplayRawTx, DisplayTx, SavedTransactionFilter, TransactionFilterMode } from './transactionsTypes';
@@ -76,6 +77,7 @@ function isInternalTreasuryEffect(tx: TreasuryTx) {
         );
     return isLinkedPortfolioTreasuryEffect
         || Boolean(tx.linkedAssetTxId && tx.origin === 'manual_asset')
+        || Boolean(tx.linkedDigitalServiceTxId && tx.origin === 'digital_service_sale')
         || tx.origin === 'personal_expense_return';
 }
 function getTreasuryEffectDirection(tx: TreasuryTx) {
@@ -387,6 +389,7 @@ type UseTransactionsViewModelParams = {
         end: Date | null;
     }) => void;
     transactions: Tx[];
+    digitalServiceTransactions?: DigitalServiceTransaction[];
     clientTransactionsDzd: ClientTransactionDzd[];
     clientsDzd: ClientDzd[];
     treasuryTransactions: TreasuryTx[];
@@ -397,12 +400,14 @@ type UseTransactionsViewModelParams = {
     handleEditPortfolioTx?: (tx: Tx) => void;
     handleEditClientTx?: (tx: ClientTransactionDzd) => void;
     handleEditTreasuryTx?: (tx: TreasuryTx) => void;
+    handleEditDigitalServiceTx?: (tx: DigitalServiceTransaction) => void;
+    handleDeleteDigitalServiceTx?: (tx: DigitalServiceTransaction) => void;
     handleDeleteClientTxClick?: (tx: ClientTransactionDzd) => void;
     setTreasuryTxToDelete?: (tx: TreasuryTx | null) => void;
     resultLimit?: number;
     providedProfitByTxId?: PamLedgerResult['profitByTxId'];
 };
-export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRange, setDateRange, transactions, clientTransactionsDzd, clientsDzd, treasuryTransactions, getClientFullName, openForm, openAdjustmentModal, setTxToDelete, handleEditPortfolioTx, handleEditClientTx, handleEditTreasuryTx, handleDeleteClientTxClick, setTreasuryTxToDelete, resultLimit, providedProfitByTxId }: UseTransactionsViewModelParams) {
+export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRange, setDateRange, transactions, digitalServiceTransactions = [], clientTransactionsDzd, clientsDzd, treasuryTransactions, getClientFullName, openForm, openAdjustmentModal, setTxToDelete, handleEditPortfolioTx, handleEditClientTx, handleEditTreasuryTx, handleEditDigitalServiceTx, handleDeleteDigitalServiceTx, handleDeleteClientTxClick, setTreasuryTxToDelete, resultLimit, providedProfitByTxId }: UseTransactionsViewModelParams) {
     const [savedFilters, setSavedFilters] = useState<SavedTransactionFilter[]>(() => {
         try {
             const raw = localStorage.getItem(SAVED_FILTERS_STORAGE_KEY);
@@ -521,6 +526,9 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
             }
             openAdjustmentModal(rawTx.type === 'Ajout' ? 'add' : 'subtract', rawTx);
         }
+        if (tx.sourceType === 'digital_service_tx' && handleEditDigitalServiceTx) {
+            handleEditDigitalServiceTx(tx.rawTx as DigitalServiceTransaction);
+        }
     };
     const handleDeleteDisplayTx = (tx: DisplayTx) => {
         if (tx.sourceType === 'usdt_tx') {
@@ -533,6 +541,10 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
         }
         if (tx.sourceType === 'treasury_tx' && setTreasuryTxToDelete) {
             setTreasuryTxToDelete(tx.rawTx as TreasuryTx);
+            return;
+        }
+        if (tx.sourceType === 'digital_service_tx' && handleDeleteDigitalServiceTx) {
+            handleDeleteDigitalServiceTx(tx.rawTx as DigitalServiceTransaction);
         }
     };
     const clientsById = useMemo(() => {
@@ -570,6 +582,10 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
         () => compactSourceLimit ? treasuryTransactions.slice(-compactSourceLimit) : treasuryTransactions,
         [compactSourceLimit, treasuryTransactions]
     );
+    const digitalServiceRows = useMemo(
+        () => compactSourceLimit ? digitalServiceTransactions.slice(-compactSourceLimit) : digitalServiceTransactions,
+        [compactSourceLimit, digitalServiceTransactions]
+    );
     const unifiedTransactions = useMemo(() => {
         const all: DisplayTx[] = [];
         const portfolioTxIds = new Set(transactions.map((tx) => tx.id).filter(Boolean));
@@ -591,7 +607,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 hiddenClientTransferIds.add(tx.id);
         }
         transactionRows.forEach((tx) => {
-            if (tx.linkedTxId) return;
+            if (tx.linkedTxId || tx.linkedDigitalServiceTxId) return;
             const isBuy = tx.type === 'buy' || tx.type === 'Ajout Manuel';
             const isUsdtSaleSettledInEur = tx.type === 'sell' && tx.currency === 'USDT' && tx.settlementCurrency === 'EUR';
             const saleValueEur = Number(tx.saleValueEur || 0);
@@ -676,6 +692,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
         clientTransactionRows.forEach((tx) => {
             if (isClientTxLinkedToPortfolio(tx, portfolioTxIds)
                 || isClientTxLinkedToClient(tx, clientTxIds)
+                || tx.linkedDigitalServiceTxId
                 || tx.origin === 'adjustment'
                 || hiddenClientTransferIds.has(tx.id))
                 return;
@@ -725,7 +742,8 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
             const transferTo = txData.destination || legacyTransferMatch?.[2] || 'N/A';
             const sourceLabel = isTransfer
                 ? `${transferFrom} -> ${transferTo}`
-                : (txData.source || txData.asset || 'N/A');
+                : (txData.source || txData.asset || txData.expenseWallet || 'N/A');
+            const displayAmount = Number(txData.amountDzd ?? tx.amount ?? 0);
             const typeLabel = isTransfer
                 ? t('ledger.internalTransfer')
                 : getTreasuryOperationLabel(tx.type, t);
@@ -736,7 +754,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 date: tx.date,
                 time: tx.time,
                 typeLabel,
-                amountLabel: formatDzdAmount(tx.amount),
+                amountLabel: formatDzdAmount(displayAmount),
                 amountColor: isTransfer ? 'text-primary' : (isEntry ? 'text-financial-profit' : 'text-financial-loss'),
                 icon: (<div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-neutral-100 text-neutral-600">
             <WalletIcon className="w-5 h-5"/>
@@ -747,6 +765,36 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 sourceType: 'treasury_tx'
             });
         });
+        digitalServiceRows.forEach((tx) => {
+            const client = clientsById.get(tx.clientId);
+            const clientLabel = client ? getClientFullName(client) : 'Client Inconnu';
+            const profit = Number(tx.profitDzd || 0);
+            const details = [
+                clientLabel,
+                tx.notes || '',
+                `${tx.purchaseWallet} → ${tx.saleWallet === 'Credit' ? t('transactions.credit') : tx.saleWallet}`,
+            ].filter(Boolean).join(' - ');
+            all.push({
+                id: `digital_service_${tx.id}`,
+                originalId: tx.id,
+                timestamp: tx.timestamp,
+                date: tx.date,
+                time: tx.time,
+                typeLabel: t('digitalServices.menuTitle'),
+                amountLabel: formatDzdAmount(Math.abs(profit)),
+                amountColor: profit >= 0 ? 'text-financial-profit' : 'text-financial-loss',
+                icon: (<div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-primary/10 text-primary">
+            <BriefcaseIcon className="w-5 h-5"/>
+          </div>),
+                details: [tx.serviceName, details].filter(Boolean).join(' - '),
+                category: 'digital_service',
+                rawTx: tx,
+                sourceType: 'digital_service_tx',
+                rightMiddleLabel: profit >= 0 ? t('digitalServices.margin') : t('digitalServices.loss'),
+                rightBottomLabel: `${formatDzdAmount(Number(tx.saleAmountDzd || 0))} - ${formatDzdAmount(Number(tx.purchaseAmountDzd || 0))}`,
+                rightBottomClassName: profit >= 0 ? 'text-financial-profit' : 'text-financial-loss',
+            });
+        });
         const ordered = all.sort((a, b) => b.timestamp - a.timestamp);
         return resultLimit ? ordered.slice(0, resultLimit) : ordered;
     }, [
@@ -754,6 +802,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
         clientTransactionsDzd,
         clientTransactionRows,
         treasuryTransactionRows,
+        digitalServiceRows,
         linkedClientTxsByTransactionId,
         clientsById,
         getClientFullName,
