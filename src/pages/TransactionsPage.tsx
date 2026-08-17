@@ -63,6 +63,7 @@ type TransactionsPageProps = {
   openWalletTransferModal: () => void;
   openTransferModal: () => void;
   openDeliveryExpenseModal: () => void;
+  onOpenServices?: () => void;
   openPersonalWithdrawalModal?: () => void;
   treasuryTransactions: TreasuryTx[];
   handleEditPortfolioTx?: (tx: Tx) => void;
@@ -90,6 +91,7 @@ export function TransactionsPage({
   openWalletTransferModal,
   openTransferModal,
   openDeliveryExpenseModal,
+  onOpenServices,
   openPersonalWithdrawalModal,
   treasuryTransactions,
   handleEditPortfolioTx,
@@ -213,6 +215,7 @@ export function TransactionsPage({
         openTransferModal={openTransferModal}
         openAdjustmentModal={(type) => openAdjustmentModal(type)}
         openDeliveryExpenseModal={openDeliveryExpenseModal}
+        onOpenServices={onOpenServices}
         openPersonalWithdrawalModal={openPersonalWithdrawalModal}
       />
     </div>

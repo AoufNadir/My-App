@@ -980,10 +980,10 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 type: 'Retrait',
                 source: deliveryExpenseMethod,
                 amount: amountNum,
-                notes: deliveryExpenseNote.trim() || 'Frais de livraison',
+                notes: deliveryExpenseNote.trim() || 'Frais du projet',
                 origin: 'delivery_expense'
             });
-            setAlert('✅ Frais de livraison enregistrés.');
+            setAlert('✅ Frais du projet enregistrés.');
             setIsDeliveryExpenseModalOpen(false);
         }
         catch (e) {
