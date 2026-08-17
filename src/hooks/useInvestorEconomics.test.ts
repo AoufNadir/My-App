@@ -91,6 +91,25 @@ assert.equal(overdrawnBreakdown.availableProfit, -6583);
 assert.equal(overdrawnBreakdown.displayAvailableProfit, 0);
 assert.equal(overdrawnBreakdown.profitDeficit, 6583);
 
+const capitalFundedPersonalExpenseTreasury: TreasuryTx = {
+    id: 'personal-split-1', timestamp: SALE_TS + 5, date: '10/08/2026', time: '12:00',
+    type: 'Retrait', source: 'Caisse', amount: 90000, origin: 'personal_expense',
+    profitAmountDzd: 83417, capitalAmountDzd: 6583,
+};
+const capitalFundedPersonalExpense = deriveInvestorEconomics({
+    investors,
+    investorTransactions: [
+        { id: 'personal-profit-split-1', investorId: 'manager', type: 'withdraw_profit', origin: 'personal_expense', amount: 83417, linkedTreasuryTxId: 'personal-split-1', date: '10/08/2026', time: '12:00', timestamp: SALE_TS + 5 },
+        { id: 'personal-capital-split-1', investorId: 'manager', type: 'withdraw_capital', origin: 'personal_expense', amount: 6583, linkedTreasuryTxId: 'personal-split-1', date: '10/08/2026', time: '12:00', timestamp: SALE_TS + 5 },
+    ],
+    transactions,
+    managerFeePercentage: '30',
+    treasuryTransactions: [capitalFundedPersonalExpenseTreasury],
+});
+const capitalFundedManager = capitalFundedPersonalExpense.derivedInvestors.find((investor) => investor.id === 'manager');
+assert.equal(capitalFundedManager?.availableProfit, 0);
+assert.equal(capitalFundedManager?.capitalInvested, 756517);
+
 const deliveryExpense: TreasuryTx = {
     id: 'delivery-1', timestamp: SALE_TS, date: '10/08/2026', time: '12:00',
     type: 'Retrait', source: 'Caisse', amount: 10000, origin: 'delivery_expense',

@@ -155,9 +155,10 @@ function buildInvestorsBase(investors: Investor[], investorTransactions: Investo
             || tx.type === 'reinvest_profit'
             || tx.type === 'withdraw_capital');
         // A reinvestment is an addition to the opening capital, not proof that
-        // the opening capital was zero. The baseline is zero only when explicit
-        // deposit/withdrawal history already represents the opening capital.
-        const capitalBaseline = capitalMovementTxs.length > 0 ? 0 : Number(inv.initialCapital || 0);
+        // the opening capital was zero. A withdrawal-only history still starts
+        // from the declared opening capital.
+        const hasExplicitCapitalDeposit = capitalMovementTxs.some((tx) => tx.type === 'deposit_capital');
+        const capitalBaseline = hasExplicitCapitalDeposit ? 0 : Number(inv.initialCapital || 0);
         const currentCapitalFromMovements = movementTxs.reduce((sum, tx) => {
             if (tx.type === 'withdraw_capital')
                 return subM(sum, tx.amount);
@@ -212,7 +213,7 @@ function capitalAtTs(inv: InvestorBase, ts: number): number {
         if (tx.type === 'withdraw_capital')
             return subM(sum, tx.amount);
         return addM(sum, tx.amount);
-    }, 0);
+    }, inv.capitalBaseline);
 }
 function chronologicalDerivedSells(pamLedger: PamLedgerResult): PamLedgerSellProfitRow[] {
     return [...pamLedger.sellProfitRows]

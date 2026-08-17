@@ -234,15 +234,21 @@ export async function applyTransactionDelete(transactionId: string, transactionT
             const treasuryData = treasuryDoc.data() as any;
             if (treasuryData?.origin === 'personal_expense') {
                 await deletePersonalPortfolioChildren(transactionId);
+                const investorTxIds = new Set<string>();
                 if (treasuryData.linkedInvestorTxId) {
-                    batch.delete(userDocRef.collection('investor_transactions').doc(treasuryData.linkedInvestorTxId));
-                } else {
-                    const reverseInvestor = await userDocRef
-                        .collection('investor_transactions')
-                        .where('linkedTreasuryTxId', '==', transactionId)
-                        .get();
-                    reverseInvestor.forEach((doc) => batch.delete(doc.ref));
+                    investorTxIds.add(treasuryData.linkedInvestorTxId);
                 }
+                if (treasuryData.linkedCapitalInvestorTxId) {
+                    investorTxIds.add(treasuryData.linkedCapitalInvestorTxId);
+                }
+                const reverseInvestor = await userDocRef
+                    .collection('investor_transactions')
+                    .where('linkedTreasuryTxId', '==', transactionId)
+                    .get();
+                reverseInvestor.forEach((doc) => investorTxIds.add(doc.id));
+                investorTxIds.forEach((id) => {
+                    batch.delete(userDocRef.collection('investor_transactions').doc(id));
+                });
                 const returnDocs = await userDocRef
                     .collection('treasury_txs')
                     .where('linkedTreasuryTxId', '==', transactionId)

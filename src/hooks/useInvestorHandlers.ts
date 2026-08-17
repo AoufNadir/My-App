@@ -12,6 +12,28 @@ import {
     type FinancialWallet,
 } from '../utils/digitalServiceAccounting';
 
+type PersonalExpenseInvestorLink = {
+    id: string;
+    exists: boolean;
+    amount: number;
+};
+
+type PersonalExpenseInvestorLinks = {
+    profit: PersonalExpenseInvestorLink;
+    capital: PersonalExpenseInvestorLink;
+};
+
+const emptyPersonalExpenseInvestorLink = (): PersonalExpenseInvestorLink => ({
+    id: '',
+    exists: false,
+    amount: 0,
+});
+
+const emptyPersonalExpenseInvestorLinks = (): PersonalExpenseInvestorLinks => ({
+    profit: emptyPersonalExpenseInvestorLink(),
+    capital: emptyPersonalExpenseInvestorLink(),
+});
+
 export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, derivedInvestors: any[], treasuryStats: {
     caisse: number;
     baridi: number;
@@ -96,6 +118,19 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     };
     const managerInvestor = derivedInvestors.find((inv) => inv.isManager === true) || null;
     const managerAvailableProfit = Number(managerInvestor?.availableProfit || 0);
+    const managerCapitalInvested = Number(managerInvestor?.capitalInvested || 0);
+    const computePersonalExpenseFunding = (amountDzd: number, currentProfitCredit = 0, currentCapitalCredit = 0) => {
+        const availableProfit = Math.max(0, managerAvailableProfit + currentProfitCredit);
+        const availableCapital = Math.max(0, managerCapitalInvested + currentCapitalCredit);
+        const profitAmount = roundM(Math.min(amountDzd, availableProfit));
+        const capitalAmount = roundM(Math.max(0, amountDzd - profitAmount));
+        return {
+            profitAmount,
+            capitalAmount,
+            availableProfit,
+            availableCapital,
+        };
+    };
     const toDateInput = (timestamp?: number) => {
         if (!timestamp)
             return '';
@@ -104,32 +139,126 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             return '';
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
-    const resolvePersonalExpenseInvestorTx = async (tx: TreasuryTx) => {
+    const resolvePersonalExpenseInvestorTxs = async (tx: TreasuryTx): Promise<PersonalExpenseInvestorLinks> => {
+        const docs = new Map<string, InvestorTransaction & { id: string }>();
+        const addDoc = (id: string, data?: InvestorTransaction) => {
+            if (!id || !data) return;
+            docs.set(id, { ...data, id });
+        };
         if (tx.linkedInvestorTxId) {
             const snap = await userDocRef.collection('investor_transactions').doc(tx.linkedInvestorTxId).get();
             if (snap.exists) {
-                return {
-                    id: tx.linkedInvestorTxId,
-                    exists: true,
-                    amount: Number((snap.data() as InvestorTransaction | undefined)?.amount || 0)
-                };
+                addDoc(tx.linkedInvestorTxId, snap.data() as InvestorTransaction);
+            }
+        }
+        if (tx.linkedCapitalInvestorTxId) {
+            const snap = await userDocRef.collection('investor_transactions').doc(tx.linkedCapitalInvestorTxId).get();
+            if (snap.exists) {
+                addDoc(tx.linkedCapitalInvestorTxId, snap.data() as InvestorTransaction);
             }
         }
         if (tx.id) {
             const snap = await userDocRef.collection('investor_transactions')
                 .where('linkedTreasuryTxId', '==', tx.id)
-                .limit(1)
                 .get();
-            const doc = snap.docs[0];
-            if (doc) {
-                return {
-                    id: doc.id,
-                    exists: true,
-                    amount: Number((doc.data() as InvestorTransaction | undefined)?.amount || 0)
-                };
+            snap.docs.forEach((doc) => addDoc(doc.id, doc.data() as InvestorTransaction));
+        }
+        const rows = Array.from(docs.values());
+        const profitRow = rows.find((row) => row.type === 'withdraw_profit');
+        const capitalRow = rows.find((row) => row.type === 'withdraw_capital');
+        return {
+            profit: profitRow
+                ? { id: profitRow.id, exists: true, amount: Number(profitRow.amount || 0) }
+                : emptyPersonalExpenseInvestorLink(),
+            capital: capitalRow
+                ? { id: capitalRow.id, exists: true, amount: Number(capitalRow.amount || 0) }
+                : emptyPersonalExpenseInvestorLink(),
+        };
+    };
+    const writePersonalExpenseInvestorFunding = (batch: any, options: {
+        links: PersonalExpenseInvestorLinks;
+        treasuryId: string;
+        managerId: string;
+        source: FinancialWallet;
+        date: string;
+        time: string;
+        timestamp: number;
+        note: string;
+        profitAmount: number;
+        capitalAmount: number;
+        forceProfitRow?: boolean;
+    }) => {
+        const {
+            links,
+            treasuryId,
+            managerId,
+            source,
+            date,
+            time,
+            timestamp,
+            note,
+            profitAmount,
+            capitalAmount,
+            forceProfitRow = false,
+        } = options;
+        let linkedInvestorTxId = '';
+        let linkedCapitalInvestorTxId = '';
+        if (profitAmount > 0.005 || forceProfitRow) {
+            const profitRef = links.profit.exists && links.profit.id
+                ? userDocRef.collection('investor_transactions').doc(links.profit.id)
+                : userDocRef.collection('investor_transactions').doc();
+            linkedInvestorTxId = profitRef.id;
+            const profitPayload = {
+                investorId: managerId,
+                type: 'withdraw_profit',
+                origin: 'personal_expense',
+                amount: profitAmount,
+                paymentSource: source,
+                linkedTreasuryTxId: treasuryId,
+                date,
+                time,
+                timestamp,
+                notes: note,
+            };
+            if (links.profit.exists) {
+                batch.update(profitRef, profitPayload);
+            }
+            else {
+                batch.set(profitRef, profitPayload);
             }
         }
-        return { id: '', exists: false, amount: 0 };
+        else if (links.profit.exists && links.profit.id) {
+            batch.delete(userDocRef.collection('investor_transactions').doc(links.profit.id));
+        }
+
+        if (capitalAmount > 0.005) {
+            const capitalRef = links.capital.exists && links.capital.id
+                ? userDocRef.collection('investor_transactions').doc(links.capital.id)
+                : userDocRef.collection('investor_transactions').doc();
+            linkedCapitalInvestorTxId = capitalRef.id;
+            const capitalPayload = {
+                investorId: managerId,
+                type: 'withdraw_capital',
+                origin: 'personal_expense',
+                amount: capitalAmount,
+                paymentSource: source,
+                linkedTreasuryTxId: treasuryId,
+                date,
+                time,
+                timestamp,
+                notes: `${note} (capital)`,
+            };
+            if (links.capital.exists) {
+                batch.update(capitalRef, capitalPayload);
+            }
+            else {
+                batch.set(capitalRef, capitalPayload);
+            }
+        }
+        else if (links.capital.exists && links.capital.id) {
+            batch.delete(userDocRef.collection('investor_transactions').doc(links.capital.id));
+        }
+        return { linkedInvestorTxId, linkedCapitalInvestorTxId };
     };
     const findPersonalAdvanceReturnDocs = async (tx: TreasuryTx) => {
         const docs = new Map<string, any>();
@@ -246,11 +375,17 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         });
         const epsilon = 0.005;
         const isAdvance = personalWithdrawalMode === 'advance';
-        const currentExpenseCredit = editingPersonalExpenseTx && editingPersonalExpenseTx.advanceState !== 'pending'
-            ? Number(editingPersonalExpenseTx.settledAmount ?? editingPersonalExpenseTx.amount ?? 0)
+        const currentProfitCredit = editingPersonalExpenseTx && editingPersonalExpenseTx.advanceState !== 'pending'
+            ? Number(editingPersonalExpenseTx.profitAmountDzd ?? editingPersonalExpenseTx.settledAmount ?? editingPersonalExpenseTx.amount ?? 0)
             : 0;
-        if (!isAdvance && preview.amountDzd > managerAvailableProfit + currentExpenseCredit + epsilon) {
-            setAlert('⚠️ Montant dépasse le profit disponible.');
+        const currentCapitalCredit = editingPersonalExpenseTx && editingPersonalExpenseTx.advanceState !== 'pending'
+            ? Number(editingPersonalExpenseTx.capitalAmountDzd ?? 0)
+            : 0;
+        const validationFunding = isAdvance
+            ? { profitAmount: 0, capitalAmount: 0, availableProfit: 0, availableCapital: managerCapitalInvested }
+            : computePersonalExpenseFunding(preview.amountDzd, currentProfitCredit, currentCapitalCredit);
+        if (!isAdvance && validationFunding.capitalAmount > validationFunding.availableCapital + epsilon) {
+            setAlert('⚠️ Montant dépasse le capital disponible.');
             return;
         }
         const currentSourceCredit = resolvePersonalExpenseWallet(editingPersonalExpenseTx) === personalWithdrawalMethod
@@ -271,33 +406,32 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             const treasuryRef = editingPersonalExpenseTx?.id
                 ? userDocRef.collection('treasury_txs').doc(editingPersonalExpenseTx.id)
                 : userDocRef.collection('treasury_txs').doc();
-            const linkedInvestor = editingPersonalExpenseTx
-                ? await resolvePersonalExpenseInvestorTx(editingPersonalExpenseTx)
-                : { id: '', exists: false, amount: 0 };
-            const investorTxRef = linkedInvestor.exists && linkedInvestor.id
-                ? userDocRef.collection('investor_transactions').doc(linkedInvestor.id)
-                : userDocRef.collection('investor_transactions').doc();
-            const linkedInvestorTxId = linkedInvestor.exists && linkedInvestor.id ? linkedInvestor.id : investorTxRef.id;
-            const investorPayload = {
-                investorId: managerInvestor.id,
-                type: 'withdraw_profit',
-                origin: 'personal_expense',
-                amount: isAdvance ? 0 : preview.amountDzd,
-                paymentSource: personalWithdrawalMethod,
-                linkedTreasuryTxId: treasuryRef.id,
+            const linkedInvestors = editingPersonalExpenseTx
+                ? await resolvePersonalExpenseInvestorTxs(editingPersonalExpenseTx)
+                : emptyPersonalExpenseInvestorLinks();
+            const funding = isAdvance
+                ? { profitAmount: 0, capitalAmount: 0 }
+                : computePersonalExpenseFunding(preview.amountDzd, linkedInvestors.profit.amount, linkedInvestors.capital.amount);
+            if (!isAdvance && funding.capitalAmount > managerCapitalInvested + linkedInvestors.capital.amount + epsilon) {
+                setAlert('⚠️ Montant dépasse le capital disponible.');
+                return;
+            }
+            const investorNote = trimmedNote
+                ? `${isAdvance ? 'Avance perso' : 'Dépense perso'}: ${trimmedNote}`
+                : (isAdvance ? 'Avance personnelle' : 'Dépense personnelle');
+            const fundingLinks = writePersonalExpenseInvestorFunding(batch, {
+                links: linkedInvestors,
+                treasuryId: treasuryRef.id,
+                managerId: managerInvestor.id,
+                source: personalWithdrawalMethod,
                 date: dateStr,
                 time: timeStr,
                 timestamp,
-                notes: trimmedNote
-                    ? `${isAdvance ? 'Avance perso' : 'Dépense perso'}: ${trimmedNote}`
-                    : (isAdvance ? 'Avance personnelle' : 'Dépense personnelle')
-            };
-            if (linkedInvestor.exists) {
-                batch.update(investorTxRef, investorPayload);
-            }
-            else {
-                batch.set(investorTxRef, investorPayload);
-            }
+                note: investorNote,
+                profitAmount: funding.profitAmount,
+                capitalAmount: funding.capitalAmount,
+                forceProfitRow: isAdvance,
+            });
             const treasuryPayload: any = {
                 timestamp,
                 date: dateStr,
@@ -306,15 +440,28 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 ...(isCashWallet(personalWithdrawalMethod) ? { source: personalWithdrawalMethod } : {}),
                 amount: preview.amountDzd,
                 notes: trimmedNote || (isAdvance ? 'Avance personnelle' : 'Dépense personnelle'),
-                linkedInvestorTxId,
                 origin: 'personal_expense',
                 trackingPhase: editingPersonalExpenseTx?.trackingPhase || 'current',
                 expenseWallet: personalWithdrawalMethod,
                 expenseCurrency: preview.currency,
                 originalAmount: amountNum,
                 conversionRateToDzd: preview.rateToDzd,
-                amountDzd: preview.amountDzd
+                amountDzd: preview.amountDzd,
+                profitAmountDzd: funding.profitAmount,
+                capitalAmountDzd: funding.capitalAmount,
             };
+            if (fundingLinks.linkedInvestorTxId) {
+                treasuryPayload.linkedInvestorTxId = fundingLinks.linkedInvestorTxId;
+            }
+            else if (editingPersonalExpenseTx) {
+                treasuryPayload.linkedInvestorTxId = fieldValueDelete();
+            }
+            if (fundingLinks.linkedCapitalInvestorTxId) {
+                treasuryPayload.linkedCapitalInvestorTxId = fundingLinks.linkedCapitalInvestorTxId;
+            }
+            else if (editingPersonalExpenseTx) {
+                treasuryPayload.linkedCapitalInvestorTxId = fieldValueDelete();
+            }
             if (isAdvance) {
                 treasuryPayload.advanceState = 'pending';
                 if (editingPersonalExpenseTx) {
@@ -355,7 +502,11 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             await batch.commit();
             setAlert(editingPersonalExpenseTx
                 ? '✅ Dépense mise à jour.'
-                : (isAdvance ? "✅ Avance enregistrée — elle ne sera déduite du profit qu'à la régularisation." : '✅ Dépense personnelle enregistrée.'));
+                : (isAdvance
+                    ? "✅ Avance enregistrée — elle ne sera déduite du profit qu'à la régularisation."
+                    : funding.capitalAmount > 0.005
+                        ? `✅ Dépense personnelle enregistrée — ${funding.capitalAmount.toFixed(0)} DZD déduit du capital.`
+                        : '✅ Dépense personnelle enregistrée.'));
             setIsPersonalWithdrawalModalOpen(false);
             setEditingPersonalExpenseTx(null);
         }
@@ -414,47 +565,49 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             const { date, time, timestamp } = now();
             const batch = db.batch();
             const originalAdvanceRef = userDocRef.collection('treasury_txs').doc(reconcileAdvanceTx.id);
-            const linkedInvestor = await resolvePersonalExpenseInvestorTx(reconcileAdvanceTx);
-            const currentExpenseCredit = linkedInvestor.exists
-                ? Number(linkedInvestor.amount || 0)
-                : 0;
-            if (actualSpentDzd > managerAvailableProfit + currentExpenseCredit + 0.005) {
-                setAlert('⚠️ Montant dépasse le profit disponible. Faites un retrait de capital séparé si vous voulez utiliser le capital.');
+            const linkedInvestors = await resolvePersonalExpenseInvestorTxs(reconcileAdvanceTx);
+            const funding = computePersonalExpenseFunding(actualSpentDzd, linkedInvestors.profit.amount, linkedInvestors.capital.amount);
+            if (funding.capitalAmount > funding.availableCapital + 0.005) {
+                setAlert('⚠️ Montant dépasse le capital disponible.');
                 return;
             }
-            const investorTxRef = linkedInvestor.exists && linkedInvestor.id
-                ? userDocRef.collection('investor_transactions').doc(linkedInvestor.id)
-                : userDocRef.collection('investor_transactions').doc();
-            const linkedInvestorTxId = linkedInvestor.exists && linkedInvestor.id ? linkedInvestor.id : investorTxRef.id;
-            const investorPayload = {
-                investorId: managerInvestor.id,
-                type: 'withdraw_profit',
-                origin: 'personal_expense',
-                amount: actualSpentDzd,
-                paymentSource: advanceWallet,
-                linkedTreasuryTxId: reconcileAdvanceTx.id,
+            const investorNote = spentDescription
+                ? `Dépense perso: ${spentDescription}`
+                : reconcileAdvanceTx.notes
+                    ? `Dépense perso: ${reconcileAdvanceTx.notes}`
+                    : 'Dépense personnelle';
+            const fundingLinks = writePersonalExpenseInvestorFunding(batch, {
+                links: linkedInvestors,
+                treasuryId: reconcileAdvanceTx.id,
+                managerId: managerInvestor.id,
+                source: advanceWallet,
                 date: reconcileAdvanceTx.date,
                 time: reconcileAdvanceTx.time,
                 timestamp: reconcileAdvanceTx.timestamp,
-                notes: spentDescription
-                    ? `Dépense perso: ${spentDescription}`
-                    : reconcileAdvanceTx.notes
-                        ? `Dépense perso: ${reconcileAdvanceTx.notes}`
-                        : 'Dépense personnelle'
-            };
-            if (linkedInvestor.exists) {
-                batch.update(investorTxRef, investorPayload);
-            }
-            else {
-                batch.set(investorTxRef, investorPayload);
-            }
+                note: investorNote,
+                profitAmount: funding.profitAmount,
+                capitalAmount: funding.capitalAmount,
+            });
             const returnDocs = await findPersonalAdvanceReturnDocs(reconcileAdvanceTx);
             const primaryReturnDoc = returnDocs[0] || null;
             const advanceUpdatePayload: any = {
                 advanceState: 'settled',
                 settledAmount: actualSpentDzd,
-                linkedInvestorTxId
+                profitAmountDzd: funding.profitAmount,
+                capitalAmountDzd: funding.capitalAmount,
             };
+            if (fundingLinks.linkedInvestorTxId) {
+                advanceUpdatePayload.linkedInvestorTxId = fundingLinks.linkedInvestorTxId;
+            }
+            else {
+                advanceUpdatePayload.linkedInvestorTxId = fieldValueDelete();
+            }
+            if (fundingLinks.linkedCapitalInvestorTxId) {
+                advanceUpdatePayload.linkedCapitalInvestorTxId = fundingLinks.linkedCapitalInvestorTxId;
+            }
+            else {
+                advanceUpdatePayload.linkedCapitalInvestorTxId = fieldValueDelete();
+            }
             if (spentDescription) {
                 advanceUpdatePayload.spentDescription = spentDescription;
             }
@@ -478,8 +631,8 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     conversionRateToDzd: rateToDzd,
                     amountDzd: returnAmountDzd,
                 };
-                if (linkedInvestorTxId) {
-                    returnPayload.linkedInvestorTxId = linkedInvestorTxId;
+                if (fundingLinks.linkedInvestorTxId) {
+                    returnPayload.linkedInvestorTxId = fundingLinks.linkedInvestorTxId;
                 }
                 let returnTxId = '';
                 if (primaryReturnDoc) {
@@ -528,7 +681,9 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             await batch.commit();
             setAlert(returnAmount > 0.005
                 ? `✅ Avance régularisée — ${returnAmount.toFixed(2)} ${advanceCurrency} retourné à ${advanceWallet}.`
-                : '✅ Avance régularisée.');
+                : funding.capitalAmount > 0.005
+                    ? `✅ Avance régularisée — ${funding.capitalAmount.toFixed(0)} DZD déduit du capital.`
+                    : '✅ Avance régularisée.');
             closeReconcileAdvanceModal();
         }
         catch (e) {
@@ -550,9 +705,10 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             const tx = personalExpenseToDelete;
             batch.delete(userDocRef.collection('treasury_txs').doc(tx.id));
             await deleteLinkedPersonalExpensePortfolioDocs(batch, tx.id);
-            const linkedInvestor = await resolvePersonalExpenseInvestorTx(tx);
-            if (linkedInvestor.exists && linkedInvestor.id) {
-                batch.delete(userDocRef.collection('investor_transactions').doc(linkedInvestor.id));
+            const linkedInvestors = await resolvePersonalExpenseInvestorTxs(tx);
+            const linkedInvestorIds = new Set([linkedInvestors.profit.id, linkedInvestors.capital.id].filter(Boolean));
+            for (const investorTxId of linkedInvestorIds) {
+                batch.delete(userDocRef.collection('investor_transactions').doc(investorTxId));
             }
             const returnDocs = await findPersonalAdvanceReturnDocs(tx);
             for (const doc of returnDocs) {
@@ -986,6 +1142,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         handleSavePersonalWithdrawal,
         handleDeletePersonalExpense,
         managerAvailableProfit,
+        managerCapitalInvested,
         managerExists: Boolean(managerInvestor),
         // Reconcile advance
         isReconcileAdvanceModalOpen,

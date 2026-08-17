@@ -35,6 +35,7 @@ interface PersonalWithdrawalModalProps {
     portfolioStats: PortfolioStats;
     preview: ProjectExpensePreview | null;
     managerAvailableProfit: number;
+    managerCapitalInvested: number;
     managerExists: boolean;
     editingTx?: TreasuryTx | null;
     onSave: () => void;
@@ -58,6 +59,7 @@ export function PersonalWithdrawalModal({
     portfolioStats,
     preview,
     managerAvailableProfit,
+    managerCapitalInvested,
     managerExists,
     editingTx = null,
     onSave,
@@ -77,24 +79,32 @@ export function PersonalWithdrawalModal({
     const parsedAmountRaw = parseAndEvaluate(amount);
     const parsedAmount = Number.isFinite(parsedAmountRaw) ? parsedAmountRaw : 0;
     const parsedAmountDzd = preview?.amountDzd ?? parsedAmount;
-    const currentExpenseCredit = editingTx && editingTx.advanceState !== 'pending'
-        ? Number(editingTx.settledAmount ?? editingTx.amount ?? 0)
+    const currentProfitCredit = editingTx && editingTx.advanceState !== 'pending'
+        ? Number(editingTx.profitAmountDzd ?? editingTx.settledAmount ?? editingTx.amount ?? 0)
         : 0;
-    const exceedsProfit = mode === 'expense' && parsedAmountDzd > managerAvailableProfit + currentExpenseCredit + 0.005;
+    const currentCapitalCredit = editingTx && editingTx.advanceState !== 'pending'
+        ? Number(editingTx.capitalAmountDzd ?? 0)
+        : 0;
+    const availableProfitForExpense = Math.max(0, managerAvailableProfit + currentProfitCredit);
+    const capitalDrawAmount = mode === 'expense'
+        ? Math.max(0, parsedAmountDzd - availableProfitForExpense)
+        : 0;
+    const availableCapitalForExpense = Math.max(0, managerCapitalInvested + currentCapitalCredit);
+    const exceedsCapital = mode === 'expense' && capitalDrawAmount > availableCapitalForExpense + 0.005;
     const exceedsBalance = parsedAmount > availableBalance + 0.005;
-    const hasError = !managerExists || (parsedAmount > 0 && (exceedsProfit || exceedsBalance));
+    const hasError = !managerExists || (parsedAmount > 0 && (exceedsCapital || exceedsBalance));
     const sourceInsufficient = String(t('personalWithdrawal.sourceInsufficient')).replace('{source}', method);
     const errorTitle = !managerExists
         ? t('personalWithdrawal.managerMissing')
-        : exceedsProfit
-            ? t('personalWithdrawal.exceedsProfit')
+        : exceedsCapital
+            ? t('personalWithdrawal.capitalInsufficient')
             : exceedsBalance
                 ? sourceInsufficient
                 : undefined;
-    const errorMessage = !managerExists ? errorTitle : exceedsProfit ? (
+    const errorMessage = !managerExists ? errorTitle : exceedsCapital ? (
         <span className="inline-flex flex-wrap items-center gap-1">
-            {t('personalWithdrawal.exceedsProfit')}
-            <CurrencyAmount value={managerAvailableProfit} currency="DZD" semantic="plain" size="sm" decimals={0}/>
+            {t('personalWithdrawal.capitalInsufficient')}
+            <CurrencyAmount value={availableCapitalForExpense} currency="DZD" semantic="plain" size="sm" decimals={0}/>
         </span>
     ) : exceedsBalance ? (
         <span className="inline-flex flex-wrap items-center gap-1">
@@ -135,7 +145,7 @@ export function PersonalWithdrawalModal({
                         <span className="inline-flex flex-wrap items-center gap-1">
                             {mode === 'advance' ? t('personalWithdrawal.deductedLater') : `${t('personalWithdrawal.availableProfitHint')}:`}
                             {mode !== 'advance' && (
-                                <CurrencyAmount value={managerAvailableProfit} currency="DZD" semantic="plain" size="sm" decimals={0}/>
+                                <CurrencyAmount value={availableProfitForExpense} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                             )}
                             <span>· {method}:</span>
                             <CurrencyAmount value={availableBalance} currency={currency} semantic="plain" size="sm" decimals={currency === 'DZD' ? 0 : 2}/>
@@ -145,6 +155,16 @@ export function PersonalWithdrawalModal({
                     currency={currency}
                     placeholder="0"
                 />
+
+                {mode === 'expense' && capitalDrawAmount > 0.005 && !exceedsCapital && parsedAmount > 0 && (
+                    <div className="flex items-start gap-2 rounded-lg bg-warning-bg p-3 text-xs text-warning">
+                        <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                        <p className="inline-flex flex-wrap items-center gap-1">
+                            <span>{t('personalWithdrawal.capitalWarning')}</span>
+                            <CurrencyAmount value={capitalDrawAmount} currency="DZD" semantic="loss" size="sm" decimals={0}/>
+                        </p>
+                    </div>
+                )}
 
                 <div>
                     <Label>{t('personalWithdrawal.source')}</Label>
