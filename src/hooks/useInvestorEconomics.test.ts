@@ -112,7 +112,7 @@ assert.equal(afterDeliveryBreakdown.externalInvestorsProfit, 14924.7);
 
 const preCapitalProjectExpense: TreasuryTx = {
     id: 'pre-capital-project-expense', timestamp: new Date('2026-07-30T12:00:00').getTime(), date: '30/07/2026', time: '12:00',
-    type: 'Retrait', source: 'Caisse', amount: 1200, origin: 'delivery_expense',
+    type: 'Retrait', amount: 5, amountDzd: 1200, expenseWallet: 'USDT', expenseCurrency: 'USDT', conversionRateToDzd: 240, origin: 'delivery_expense',
 };
 const preCapitalExpenseResult = deriveInvestorEconomics({
     investors,
