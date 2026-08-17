@@ -311,12 +311,13 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
     // and investors absorb the remainder allocated by capital-at-time-of-expense.
     let totalDeliveryExpenses = 0;
     const sortedDeliveryExpenses = (input.deliveryExpenses || [])
-        .filter((tx) => Number.isFinite(Number(tx.amount)) && Number(tx.amount) > 0)
-        .map((tx) => ({ tx, ts: toMs(tx.timestamp) }))
+        .map((tx) => ({ tx, amount: Number(tx.amountDzd ?? tx.amount ?? 0) }))
+        .filter((row) => Number.isFinite(row.amount) && row.amount > 0)
+        .map((row) => ({ ...row, ts: toMs(row.tx.timestamp) }))
         .filter((row) => isInPeriod(row.ts, input.periodStartTs, input.periodEndTs))
         .sort((a, b) => a.ts - b.ts);
-    for (const { tx, ts: expenseTs } of sortedDeliveryExpenses) {
-        const amount = roundM(Number(tx.amount));
+    for (const { amount: rawAmount, ts: expenseTs } of sortedDeliveryExpenses) {
+        const amount = roundM(rawAmount);
         if (amount <= 0)
             continue;
         totalDeliveryExpenses = addM(totalDeliveryExpenses, amount);
