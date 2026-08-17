@@ -306,7 +306,7 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             distributedProfitByInvestor.set(item.id, addM(distributedProfitByInvestor.get(item.id) || 0, shares[index]));
         });
     }
-    // Delivery expenses: shared operating cost. Subtract from gross profit BEFORE
+    // Project expenses: shared operating cost. Subtract from gross profit BEFORE
     // manager fee, so manager bears their proportional share via the fee ratio,
     // and investors absorb the remainder allocated by capital-at-time-of-expense.
     let totalDeliveryExpenses = 0;
@@ -325,13 +325,19 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             .map((inv) => ({ id: inv.id, cap: Math.max(0, capitalAtTs(inv, expenseTs)) }))
             .filter((item) => item.cap > 0);
         const totalCapAtExpense = eligible.reduce((sum, item) => sum + item.cap, 0);
-        if (totalCapAtExpense <= 0)
-            continue; // no eligible investors → expense remains unallocated
+        if (totalCapAtExpense <= 0) {
+            // If the expense predates all recorded capital, charge it to the
+            // manager/owner bucket so totals still reconcile instead of leaving
+            // a shared project cost floating unallocated.
+            managerShare = subM(managerShare, amount);
+            creditManager(-amount);
+            continue;
+        }
         const investorBurden = roundM(amount * (1 - managerFeeRatio));
         const managerBurden = subM(amount, investorBurden);
         managerShare = subM(managerShare, managerBurden);
         investorShare = subM(investorShare, investorBurden);
-        // H1 fix: mirror the manager fee accounting from sells — delivery expenses
+        // H1 fix: mirror the manager fee accounting from sells — project expenses
         // reduce manager's distributable profit proportionally so personal expenses
         // / withdraw_profit validation reflects the true post-expense entitlement.
         creditManager(-managerBurden);
