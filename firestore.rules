@@ -2,6 +2,10 @@ rules_version = '2';
 
 // Pro Digital — Firestore security rules.
 //
+// The client/agent order portal is retired in the app. Keep po_* order-system
+// collections admin-only so stale client code or direct Firestore calls cannot
+// create financial records through that surface.
+//
 // Roles (admin / client / agent) are resolved from po_users/{uid} because the
 // app is client-only (no backend, so no custom claims). The single operator is
 // bootstrapped by hard-coded UID so they are admin even before any po_users doc
@@ -67,16 +71,6 @@ service cloud.firestore {
       // Bootstrap operator can seed their own admin profile.
       allow create: if isBootstrapAdmin() && request.auth.uid == uid;
 
-      // Self-registration: only a pending client, no privileged fields.
-      allow create: if signedIn()
-        && request.auth.uid == uid
-        && request.resource.data.uid == uid
-        && request.resource.data.role == 'client'
-        && request.resource.data.status == 'pending'
-        && request.resource.data.operatorUid == operatorUid()
-        && request.resource.data.keys().hasOnly(
-             ['uid', 'role', 'status', 'email', 'operatorUid', 'createdAt', 'displayName', 'phone']);
-
       // Self-update: contact fields only — never role/status/links/debt.
       allow update: if signedIn()
         && request.auth.uid == uid
@@ -87,81 +81,34 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // ── Orders. ──
+    // ── Retired order portal: admin-only. ──
     match /po_orders/{orderId} {
-      allow read: if isAdmin()
-        || (isApprovedClient() && resource.data.clientUid == request.auth.uid)
-        || (isAgent() && resource.data.cashLocationId == profile().assignedCashLocationId);
-
-      // Client creates own order, forced to NEW. deliveryAddress (wallet/bank
-      // info the admin must send the currency to) is mandatory.
-      allow create: if isApprovedClient()
-        && request.resource.data.clientUid == request.auth.uid
-        && request.resource.data.status == 'NEW'
-        && request.resource.data.operatorUid == operatorUid()
-        && request.resource.data.paymentType in ['prepaid', 'debt']
-        && request.resource.data.deliveryAddress is string
-        && request.resource.data.deliveryAddress.size() > 0;
-
-      // Client: submit proof or cancel. Financial fields are immutable
-      // (excluded from the affectedKeys allowlist).
-      allow update: if isApprovedClient()
-        && resource.data.clientUid == request.auth.uid
-        && (
-             (resource.data.status == 'WAITING_PAYMENT'
-               && request.resource.data.status == 'PAYMENT_PROOF_SUBMITTED'
-               && request.resource.data.diff(resource.data).affectedKeys()
-                    .hasOnly(['proofUrl', 'status', 'updatedAt']))
-          || (resource.data.status in ['NEW', 'WAITING_PAYMENT']
-               && request.resource.data.status == 'CANCELLED'
-               && request.resource.data.diff(resource.data).affectedKeys()
-                    .hasOnly(['status', 'updatedAt']))
-           );
-
-      // Agent: only flip their location's order to WAITING_ADMIN_CONFIRMATION.
-      allow update: if isAgent()
-        && resource.data.cashLocationId == profile().assignedCashLocationId
-        && resource.data.status in ['WAITING_PAYMENT', 'PAYMENT_PROOF_SUBMITTED']
-        && request.resource.data.status == 'WAITING_ADMIN_CONFIRMATION'
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['status', 'updatedAt', 'agentId']);
-
-      // Admin owns all final-state transitions and deletion.
-      allow create, update, delete: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
-    // ── Catalog: approved users read (to build quotes / pick methods). ──
+    // ── Retired order catalog: admin-only. ──
     match /po_currencies/{id} {
-      allow read: if isApprovedClient() || isAgent() || isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
     match /po_pricing_tiers/{id} {
-      allow read: if isApprovedClient() || isAgent() || isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
     match /po_payment_methods/{id} {
-      allow read: if isApprovedClient() || isAgent() || isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
     match /po_cash_locations/{id} {
-      allow read: if isApprovedClient() || isAgent() || isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
-    // ── Agent cash confirmations (never final on their own). ──
+    // ── Retired agent cash confirmations: admin-only. ──
     match /po_agent_confirmations/{id} {
-      allow read: if isAdmin() || (isAgent() && resource.data.agentUid == request.auth.uid);
-      allow create: if isAgent()
-        && request.resource.data.agentUid == request.auth.uid
-        && request.resource.data.cashLocationId == profile().assignedCashLocationId
-        && request.resource.data.confirmedByAdmin == false;
-      allow update, delete: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
-    // ── Audit log: admin reads, any signed-in appends, immutable. ──
+    // ── Audit log: admin-only append, immutable. ──
     match /po_audit_logs/{id} {
       allow read: if isAdmin();
-      allow create: if signedIn() && request.resource.data.actorUid == request.auth.uid;
+      allow create: if isAdmin() && request.resource.data.actorUid == request.auth.uid;
       allow update, delete: if false;
     }
 
