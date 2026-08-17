@@ -10,7 +10,9 @@ import { Tabs } from '../ui/Tabs';
 import { InfoIcon } from '../icons/InfoIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { parseAndEvaluate } from '../../utils';
-import type { TreasuryTx } from '../../types';
+import type { PortfolioStats, TreasuryTx } from '../../types';
+import type { FinancialWallet, ProjectExpensePreview } from '../../utils/digitalServiceAccounting';
+import { getWalletCurrency, isAssetWallet } from '../../utils/digitalServiceAccounting';
 
 interface PersonalWithdrawalModalProps {
     isOpen: boolean;
@@ -18,8 +20,8 @@ interface PersonalWithdrawalModalProps {
     isSaving: boolean;
     amount: string;
     setAmount: (v: string) => void;
-    method: 'Caisse' | 'BaridiMob';
-    setMethod: (v: 'Caisse' | 'BaridiMob') => void;
+    method: FinancialWallet;
+    setMethod: (v: FinancialWallet) => void;
     date: string;
     setDate: (v: string) => void;
     note: string;
@@ -30,6 +32,8 @@ interface PersonalWithdrawalModalProps {
         caisse: number;
         baridi: number;
     };
+    portfolioStats: PortfolioStats;
+    preview: ProjectExpensePreview | null;
     managerAvailableProfit: number;
     managerExists: boolean;
     editingTx?: TreasuryTx | null;
@@ -51,20 +55,32 @@ export function PersonalWithdrawalModal({
     mode,
     setMode,
     treasuryStats,
+    portfolioStats,
+    preview,
     managerAvailableProfit,
     managerExists,
     editingTx = null,
     onSave,
 }: PersonalWithdrawalModalProps) {
     const { t } = useLanguage();
-    const currentSourceCredit = editingTx?.source === method ? Number(editingTx.amount || 0) : 0;
-    const availableBalance = (method === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi) + currentSourceCredit;
+    const currency = getWalletCurrency(method);
+    const currentSourceCredit = (editingTx?.expenseWallet || editingTx?.source) === method
+        ? Number(editingTx.originalAmount ?? editingTx.amount ?? 0)
+        : 0;
+    const availableBalance = (method === 'Caisse'
+        ? treasuryStats.caisse
+        : method === 'BaridiMob'
+            ? treasuryStats.baridi
+            : method === 'USDT'
+                ? Number(portfolioStats.usdt.available || 0)
+                : Number(portfolioStats.eur.available || 0)) + currentSourceCredit;
     const parsedAmountRaw = parseAndEvaluate(amount);
     const parsedAmount = Number.isFinite(parsedAmountRaw) ? parsedAmountRaw : 0;
+    const parsedAmountDzd = preview?.amountDzd ?? parsedAmount;
     const currentExpenseCredit = editingTx && editingTx.advanceState !== 'pending'
         ? Number(editingTx.settledAmount ?? editingTx.amount ?? 0)
         : 0;
-    const exceedsProfit = mode === 'expense' && parsedAmount > managerAvailableProfit + currentExpenseCredit + 0.005;
+    const exceedsProfit = mode === 'expense' && parsedAmountDzd > managerAvailableProfit + currentExpenseCredit + 0.005;
     const exceedsBalance = parsedAmount > availableBalance + 0.005;
     const hasError = !managerExists || (parsedAmount > 0 && (exceedsProfit || exceedsBalance));
     const sourceInsufficient = String(t('personalWithdrawal.sourceInsufficient')).replace('{source}', method);
@@ -83,7 +99,7 @@ export function PersonalWithdrawalModal({
     ) : exceedsBalance ? (
         <span className="inline-flex flex-wrap items-center gap-1">
             {sourceInsufficient}
-            <CurrencyAmount value={availableBalance} currency="DZD" semantic="plain" size="sm" decimals={0}/>
+            <CurrencyAmount value={availableBalance} currency={currency} semantic="plain" size="sm" decimals={currency === 'DZD' ? 0 : 2}/>
         </span>
     ) : undefined;
 
@@ -115,7 +131,6 @@ export function PersonalWithdrawalModal({
                     label={t('personalWithdrawal.amount') as string}
                     value={amount}
                     onChange={setAmount}
-                    currency="DZD"
                     hint={(
                         <span className="inline-flex flex-wrap items-center gap-1">
                             {mode === 'advance' ? t('personalWithdrawal.deductedLater') : `${t('personalWithdrawal.availableProfitHint')}:`}
@@ -123,10 +138,11 @@ export function PersonalWithdrawalModal({
                                 <CurrencyAmount value={managerAvailableProfit} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                             )}
                             <span>· {method}:</span>
-                            <CurrencyAmount value={availableBalance} currency="DZD" semantic="plain" size="sm" decimals={0}/>
+                            <CurrencyAmount value={availableBalance} currency={currency} semantic="plain" size="sm" decimals={currency === 'DZD' ? 0 : 2}/>
                         </span>
                     )}
                     error={errorMessage}
+                    currency={currency}
                     placeholder="0"
                 />
 
@@ -136,13 +152,27 @@ export function PersonalWithdrawalModal({
                         tabs={[
                             { id: 'Caisse', label: t('transactions.cash') },
                             { id: 'BaridiMob', label: t('transactions.baridi') },
+                            { id: 'USDT', label: 'USDT' },
+                            { id: 'EUR', label: 'EUR' },
                         ]}
                         activeTab={method}
-                        onChange={(next) => setMethod(next as 'Caisse' | 'BaridiMob')}
+                        onChange={(next) => setMethod(next as FinancialWallet)}
                         variant="pills"
                         className="mt-1"
                     />
                 </div>
+
+                {preview && isAssetWallet(method) && (
+                    <div className="rounded-xl bg-surface-muted p-3 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                            <span className="text-neutral-500">{t('delivery.valueDzd')}</span>
+                            <CurrencyAmount value={preview.amountDzd} currency="DZD" semantic="loss" size="sm" decimals={0}/>
+                        </div>
+                        <div className="mt-1 text-xs text-neutral-500">
+                            {t('delivery.autoPma')}: {preview.rateToDzd.toFixed(2)} DZD
+                        </div>
+                    </div>
+                )}
 
                 <div>
                     <Label>{t('personalWithdrawal.date')}</Label>
