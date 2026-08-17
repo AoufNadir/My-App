@@ -8,6 +8,9 @@ import { CurrencyAmount } from '../financial/CurrencyAmount';
 
 import { Tabs } from '../ui/Tabs';
 import { useLanguage } from '../../contexts/LanguageContext';
+import type { PortfolioStats } from '../../types';
+import type { FinancialWallet, ProjectExpensePreview } from '../../utils/digitalServiceAccounting';
+import { getWalletCurrency, isAssetWallet } from '../../utils/digitalServiceAccounting';
 
 interface DeliveryExpenseModalProps {
     isOpen: boolean;
@@ -15,8 +18,8 @@ interface DeliveryExpenseModalProps {
     isSaving: boolean;
     amount: string;
     setAmount: (v: string) => void;
-    method: 'Caisse' | 'BaridiMob';
-    setMethod: (v: 'Caisse' | 'BaridiMob') => void;
+    method: FinancialWallet;
+    setMethod: (v: FinancialWallet) => void;
     date: string;
     setDate: (v: string) => void;
     note: string;
@@ -25,6 +28,8 @@ interface DeliveryExpenseModalProps {
         caisse: number;
         baridi: number;
     };
+    portfolioStats: PortfolioStats;
+    preview: ProjectExpensePreview | null;
     onSave: () => void;
 }
 
@@ -41,10 +46,19 @@ export function DeliveryExpenseModal({
     note,
     setNote,
     treasuryStats,
+    portfolioStats,
+    preview,
     onSave,
 }: DeliveryExpenseModalProps) {
     const { t } = useLanguage();
-    const availableBalance = method === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+    const currency = getWalletCurrency(method);
+    const availableBalance = method === 'Caisse'
+        ? treasuryStats.caisse
+        : method === 'BaridiMob'
+            ? treasuryStats.baridi
+            : method === 'USDT'
+                ? Number(portfolioStats.usdt.available || 0)
+                : Number(portfolioStats.eur.available || 0);
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
@@ -58,11 +72,11 @@ export function DeliveryExpenseModal({
                     label={t('delivery.amount')}
                     value={amount}
                     onChange={setAmount}
-                    currency="DZD"
+                    currency={currency}
                     hint={(
                         <span className="inline-flex flex-wrap items-center gap-1">
                             {t('delivery.availableBalance')}:
-                            <CurrencyAmount value={availableBalance} currency="DZD" semantic="plain" size="sm" decimals={0}/>
+                            <CurrencyAmount value={availableBalance} currency={currency} semantic="plain" size="sm" decimals={currency === 'DZD' ? 0 : 2}/>
                         </span>
                     )}
                     placeholder="0"
@@ -74,13 +88,27 @@ export function DeliveryExpenseModal({
                         tabs={[
                             { id: 'Caisse', label: t('transactions.cash') },
                             { id: 'BaridiMob', label: t('transactions.baridi') },
+                            { id: 'USDT', label: 'USDT' },
+                            { id: 'EUR', label: 'EUR' },
                         ]}
                         activeTab={method}
-                        onChange={(next) => setMethod(next as 'Caisse' | 'BaridiMob')}
+                        onChange={(next) => setMethod(next as FinancialWallet)}
                         variant="pills"
                         className="mt-1"
                     />
                 </div>
+
+                {preview && isAssetWallet(method) && (
+                    <div className="rounded-xl bg-surface-muted p-3 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                            <span className="text-neutral-500">{t('delivery.valueDzd')}</span>
+                            <CurrencyAmount value={preview.amountDzd} currency="DZD" semantic="loss" size="sm" decimals={0}/>
+                        </div>
+                        <div className="mt-1 text-xs text-neutral-500">
+                            {t('delivery.autoPma')}: {preview.rateToDzd.toFixed(2)} DZD
+                        </div>
+                    </div>
+                )}
 
                 <div>
                     <Label>{t('delivery.date')}</Label>
