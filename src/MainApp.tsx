@@ -2244,6 +2244,7 @@ export default function MainApp({ user }: {
         || isClientSummaryOpen
         || isInvestorDialogsOpen
         || isDeliveryExpenseModalOpen
+        || isDigitalServiceModalOpen
         || isPersonalWithdrawalModalOpen
         || isReconcileAdvanceModalOpen
         || personalExpenseToDelete !== null;
