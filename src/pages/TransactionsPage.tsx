@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Button } from '../components/ui/Button';
-import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx } from '../types';
+import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, DigitalServiceTransaction } from '../types';
 import { PlusIcon } from '../components/icons/PlusIcon';
 import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
 import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
@@ -36,9 +36,12 @@ async function exportTransactionsPdf(groupedTransactions: Record<string, Display
         } else if (dtx.category === 'client') {
             const tx = raw as ClientTransactionDzd;
             return { date: dtx.date, time: dtx.time, category: 'Client', type: dtx.typeLabel, currency: 'DZD', quantity: '', price: '', totalDzd: String(Math.round(Math.abs(Number(tx.montant ?? 0)))), client: getClientName(tx.clientId), notes: tx.notes ?? '', tags: tagsStr };
+        } else if (dtx.category === 'digital_service') {
+            const tx = raw as DigitalServiceTransaction;
+            return { date: dtx.date, time: dtx.time, category: 'Service numérique', type: dtx.typeLabel, currency: tx.saleCurrency, quantity: String(tx.saleAmount), price: '', totalDzd: String(Math.round(tx.saleAmountDzd)), client: getClientName(tx.clientId), notes: tx.notes ?? '', tags: tagsStr };
         } else {
             const tx = raw as TreasuryTx;
-            return { date: dtx.date, time: dtx.time, category: 'Trésorerie', type: dtx.typeLabel, currency: 'DZD', quantity: '', price: '', totalDzd: String(Math.round(Number(tx.amount ?? 0))), client: '', notes: tx.notes ?? '', tags: tagsStr };
+            return { date: dtx.date, time: dtx.time, category: 'Trésorerie', type: dtx.typeLabel, currency: 'DZD', quantity: '', price: '', totalDzd: String(Math.round(Number(tx.amountDzd ?? tx.amount ?? 0))), client: '', notes: tx.notes ?? '', tags: tagsStr };
         }
     });
     const report = buildTransactionListPdf(rows, filterLabel);
@@ -54,6 +57,7 @@ type TransactionsPageProps = {
   profitByTxId: PamLedgerResult['profitByTxId'];
   getRelativeDateLabel: (dateString: string) => string;
   clientTransactionsDzd: ClientTransactionDzd[];
+  digitalServiceTransactions: DigitalServiceTransaction[];
   clientsDzd: ClientDzd[];
   getClientFullName: (client: ClientDzd) => string;
   setTxToDelete: (tx: Tx | null) => void;
@@ -63,12 +67,14 @@ type TransactionsPageProps = {
   openWalletTransferModal: () => void;
   openTransferModal: () => void;
   openDeliveryExpenseModal: () => void;
-  onOpenServices?: () => void;
+  openDigitalServiceModal?: (tx?: DigitalServiceTransaction | null) => void;
   openPersonalWithdrawalModal?: () => void;
   treasuryTransactions: TreasuryTx[];
   handleEditPortfolioTx?: (tx: Tx) => void;
   handleEditClientTx?: (tx: ClientTransactionDzd) => void;
   handleEditTreasuryTx?: (tx: TreasuryTx) => void;
+  handleEditDigitalServiceTx?: (tx: DigitalServiceTransaction) => void;
+  handleDeleteDigitalServiceTx?: (tx: DigitalServiceTransaction) => void;
   handleDeleteClientTxClick?: (tx: ClientTransactionDzd) => void;
   setTreasuryTxToDelete?: (tx: TreasuryTx | null) => void;
 };
@@ -82,6 +88,7 @@ export function TransactionsPage({
   profitByTxId: providedProfitByTxId,
   getRelativeDateLabel,
   clientTransactionsDzd,
+  digitalServiceTransactions,
   clientsDzd,
   getClientFullName,
   setTxToDelete,
@@ -91,12 +98,14 @@ export function TransactionsPage({
   openWalletTransferModal,
   openTransferModal,
   openDeliveryExpenseModal,
-  onOpenServices,
+  openDigitalServiceModal,
   openPersonalWithdrawalModal,
   treasuryTransactions,
   handleEditPortfolioTx,
   handleEditClientTx,
   handleEditTreasuryTx,
+  handleEditDigitalServiceTx,
+  handleDeleteDigitalServiceTx,
   handleDeleteClientTxClick,
   setTreasuryTxToDelete,
 }: TransactionsPageProps) {
@@ -123,6 +132,7 @@ export function TransactionsPage({
     setDateRange,
     transactions,
     clientTransactionsDzd,
+    digitalServiceTransactions,
     clientsDzd,
     treasuryTransactions,
     getClientFullName,
@@ -132,6 +142,8 @@ export function TransactionsPage({
     handleEditPortfolioTx,
     handleEditClientTx,
     handleEditTreasuryTx,
+    handleEditDigitalServiceTx,
+    handleDeleteDigitalServiceTx,
     handleDeleteClientTxClick,
     setTreasuryTxToDelete,
     providedProfitByTxId,
@@ -144,6 +156,7 @@ export function TransactionsPage({
       crypto:   allTxs.filter((tx) => tx.category === 'crypto').length,
       client:   allTxs.filter((tx) => tx.category === 'client').length,
       treasury: allTxs.filter((tx) => tx.category === 'treasury').length,
+      digital:  allTxs.filter((tx) => tx.category === 'digital_service').length,
     };
   }, [groupedTransactions]);
 
@@ -160,6 +173,7 @@ export function TransactionsPage({
           { label: 'Portefeuille',               value: stats.crypto,   currency: null, semantic: 'plain' },
           { label: t('nav.clients') as string,   value: stats.client,   currency: null, semantic: 'plain' },
           { label: t('nav.treasury') as string,  value: stats.treasury, currency: null, semantic: 'plain' },
+          { label: t('digitalServices.short') as string, value: stats.digital, currency: null, semantic: 'plain' },
         ]}
       />
 
@@ -215,7 +229,7 @@ export function TransactionsPage({
         openTransferModal={openTransferModal}
         openAdjustmentModal={(type) => openAdjustmentModal(type)}
         openDeliveryExpenseModal={openDeliveryExpenseModal}
-        onOpenServices={onOpenServices}
+        openDigitalServiceModal={openDigitalServiceModal ? () => openDigitalServiceModal(null) : undefined}
         openPersonalWithdrawalModal={openPersonalWithdrawalModal}
       />
     </div>
