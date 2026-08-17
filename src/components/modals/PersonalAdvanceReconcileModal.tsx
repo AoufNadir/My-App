@@ -8,6 +8,8 @@ import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { InfoIcon } from '../icons/InfoIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { TreasuryTx } from '../../types';
+import type { FinancialWallet } from '../../utils/digitalServiceAccounting';
+import { getWalletCurrency } from '../../utils/digitalServiceAccounting';
 import { evaluatePersonalAdvanceReconciliation } from '../../utils/personalExpenses';
 
 interface PersonalAdvanceReconcileModalProps {
@@ -39,11 +41,17 @@ export function PersonalAdvanceReconcileModal({
         return null;
     }
 
-    const advanceAmount = Number(advanceTx.amount || 0);
+    const advanceWallet = (advanceTx.expenseWallet || advanceTx.source || 'Caisse') as FinancialWallet;
+    const advanceCurrency = getWalletCurrency(advanceWallet);
+    const advanceAmount = Number(advanceTx.originalAmount ?? advanceTx.amount ?? 0);
+    const rateToDzd = Number(advanceTx.conversionRateToDzd || 1);
+    const advanceAmountDzd = Number(advanceTx.amountDzd ?? advanceTx.amount ?? 0);
     const reconciliation = evaluatePersonalAdvanceReconciliation(actualAmount, advanceAmount);
     const returnAmount = reconciliation.returnAmount;
+    const returnAmountDzd = returnAmount * rateToDzd;
+    const actualSpentDzd = reconciliation.actualSpent * rateToDzd;
     const hasError = !reconciliation.isValid;
-    const returnSource = advanceTx.source || 'Caisse';
+    const returnSource = advanceWallet;
     const withSource = (key: string) => String(t(key)).replace('{source}', returnSource);
     const errorTitle = reconciliation.error === 'exceeds'
         ? t('personalAdvance.exceeds')
@@ -55,7 +63,7 @@ export function PersonalAdvanceReconcileModal({
     const errorMessage = reconciliation.error === 'exceeds' ? (
         <span className="inline-flex flex-wrap items-center gap-1">
             {t('personalAdvance.exceeds')}
-            <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="sm" decimals={0}/>
+            <CurrencyAmount value={advanceAmount} currency={advanceCurrency} semantic="plain" size="sm" decimals={advanceCurrency === 'DZD' ? 0 : 2}/>
         </span>
     ) : errorTitle;
 
@@ -70,11 +78,14 @@ export function PersonalAdvanceReconcileModal({
                 <Card variant="flat" className="p-4">
                     <div className="flex items-center justify-between gap-3">
                         <span className="text-sm text-neutral-500">{t('personalAdvance.advanceTaken')}</span>
-                        <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="xl" decimals={0}/>
+                        <CurrencyAmount value={advanceAmount} currency={advanceCurrency} semantic="plain" size="xl" decimals={advanceCurrency === 'DZD' ? 0 : 2}/>
                     </div>
                     <dl className="mt-3 space-y-1 text-xs">
                         <DetailLine label={t('common.dateWord') as string} value={`${advanceTx.date} · ${advanceTx.time}`} />
-                        <DetailLine label={t('common.source') as string} value={advanceTx.source || '-'} />
+                        <DetailLine label={t('common.source') as string} value={advanceWallet} />
+                        {advanceCurrency !== 'DZD' && (
+                            <DetailLine label={t('delivery.valueDzd') as string} value={`${advanceAmountDzd.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD`} />
+                        )}
                         {advanceTx.notes && <DetailLine label={t('common.notes') as string} value={advanceTx.notes} />}
                     </dl>
                 </Card>
@@ -83,12 +94,12 @@ export function PersonalAdvanceReconcileModal({
                     label={t('personalAdvance.returnedAmount') as string}
                     value={actualAmount}
                     onChange={setActualAmount}
-                    currency="DZD"
+                    currency={advanceCurrency}
                     placeholder="0"
                     hint={(
                         <span className="inline-flex flex-wrap items-center gap-1">
                             {t('personalAdvance.advanceTakenHint')}:
-                            <CurrencyAmount value={advanceAmount} currency="DZD" semantic="plain" size="sm" decimals={0}/>
+                            <CurrencyAmount value={advanceAmount} currency={advanceCurrency} semantic="plain" size="sm" decimals={advanceCurrency === 'DZD' ? 0 : 2}/>
                         </span>
                     )}
                     error={errorMessage}
@@ -126,12 +137,18 @@ export function PersonalAdvanceReconcileModal({
                                 {returnAmount > 0 ? withSource('personalAdvance.autoReturn') : t('personalAdvance.noReturn')}
                             </span>
                             {returnAmount > 0 && (
-                                <CurrencyAmount value={returnAmount} currency="DZD" semantic="profit" size="xl" showSign decimals={0}/>
+                                <CurrencyAmount value={returnAmount} currency={advanceCurrency} semantic="profit" size="xl" showSign decimals={advanceCurrency === 'DZD' ? 0 : 2}/>
                             )}
                         </div>
+                        {returnAmount > 0 && advanceCurrency !== 'DZD' && (
+                            <div className="mt-2 flex items-center justify-between gap-3 text-xs text-neutral-500">
+                                <span>{t('delivery.valueDzd')}</span>
+                                <CurrencyAmount value={returnAmountDzd} currency="DZD" semantic="profit" size="sm" decimals={0}/>
+                            </div>
+                        )}
                         <div className="mt-2 flex items-center justify-between gap-3 text-xs text-neutral-500">
                             <span>{t('personalAdvance.finalExpense')}</span>
-                            <CurrencyAmount value={reconciliation.actualSpent} currency="DZD" semantic="plain" size="sm" decimals={0}/>
+                            <CurrencyAmount value={actualSpentDzd} currency="DZD" semantic="plain" size="sm" decimals={0}/>
                         </div>
                     </Card>
                 )}
