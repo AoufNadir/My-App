@@ -61,6 +61,9 @@ async function resolveDeletionTarget(transactionId: string, transactionType: Tra
         }
     }
     if (transactionType === 'usdt_tx' && txData.linkedTxId) {
+        if (txData.origin === 'delivery_expense' || txData.origin === 'personal_expense' || txData.origin === 'personal_expense_return') {
+            return resolveDeletionTarget(txData.linkedTxId, 'treasury_tx', userDocRef, visited);
+        }
         return resolveDeletionTarget(txData.linkedTxId, 'usdt_tx', userDocRef, visited);
     }
     return { transactionId, transactionType };
@@ -157,6 +160,23 @@ export async function applyTransactionDelete(transactionId: string, transactionT
         for (const linkedTx of linkedTxs) {
             batch.delete(userDocRef.collection(linkedTx.collection).doc(linkedTx.id));
         }
+        const deletePersonalPortfolioChildren = async (txId: string) => {
+            const [byLinkedTx, byPersonalId] = await Promise.all([
+                userDocRef.collection('usdt_txs').where('linkedTxId', '==', txId).get(),
+                userDocRef.collection('usdt_txs').where('linkedPersonalExpenseTxId', '==', txId).get(),
+            ]);
+            const seen = new Set<string>();
+            byLinkedTx.forEach((doc) => {
+                const data = doc.data() as any;
+                if (data.origin !== 'personal_expense' && data.origin !== 'personal_expense_return') return;
+                seen.add(doc.id);
+                batch.delete(doc.ref);
+            });
+            byPersonalId.forEach((doc) => {
+                if (seen.has(doc.id)) return;
+                batch.delete(doc.ref);
+            });
+        };
         // Backward compatibility:
         // Older "buy USDT with EUR" flows created an extra EUR withdrawal row
         // without linkedTxId. If no linked USDT row was found, try to remove it safely.
@@ -213,6 +233,7 @@ export async function applyTransactionDelete(transactionId: string, transactionT
             const treasuryDoc = await userDocRef.collection('treasury_txs').doc(transactionId).get();
             const treasuryData = treasuryDoc.data() as any;
             if (treasuryData?.origin === 'personal_expense') {
+                await deletePersonalPortfolioChildren(transactionId);
                 if (treasuryData.linkedInvestorTxId) {
                     batch.delete(userDocRef.collection('investor_transactions').doc(treasuryData.linkedInvestorTxId));
                 } else {
@@ -227,7 +248,10 @@ export async function applyTransactionDelete(transactionId: string, transactionT
                     .where('linkedTreasuryTxId', '==', transactionId)
                     .where('origin', '==', 'personal_expense_return')
                     .get();
-                returnDocs.forEach((doc) => batch.delete(doc.ref));
+                for (const doc of returnDocs.docs) {
+                    await deletePersonalPortfolioChildren(doc.id);
+                    batch.delete(doc.ref);
+                }
             }
         }
         await batch.commit();
