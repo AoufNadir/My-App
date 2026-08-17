@@ -21,6 +21,7 @@ type NewTransactionMenuDialogProps = {
   openTransferModal: () => void;
   openAdjustmentModal: (type: 'add' | 'subtract') => void;
   openDeliveryExpenseModal: () => void;
+  onOpenServices?: () => void;
   openPersonalWithdrawalModal?: () => void;
 };
 
@@ -88,6 +89,7 @@ export function NewTransactionMenuDialog({
   openTransferModal,
   openAdjustmentModal,
   openDeliveryExpenseModal,
+  onOpenServices,
   openPersonalWithdrawalModal,
 }: NewTransactionMenuDialogProps) {
   const runAfterClose = (action: () => void) => {
@@ -162,6 +164,14 @@ export function NewTransactionMenuDialog({
               icon={<WalletIcon className="h-5 w-5" />}
               onClick={() => runAfterClose(() => openAdjustmentModal('add'))}
             />
+            {onOpenServices && (
+              <FinancialActionRow
+                title={t('services.sellService')}
+                subtitle={t('services.sellServiceSubtitle')}
+                icon={<BriefcaseIcon className="h-5 w-5" />}
+                onClick={() => runAfterClose(onOpenServices)}
+              />
+            )}
             <FinancialActionRow
               title={t('delivery.addExpense')}
               subtitle={t('delivery.subtitle')}
