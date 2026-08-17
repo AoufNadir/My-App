@@ -105,7 +105,7 @@ export function summarizePersonalExpenses(expenses: TreasuryTx[], nowTimestamp =
 export function summarizeDeliveryExpenses(expenses: TreasuryTx[], nowTimestamp = Date.now(), projectStartTimestamp = 0): PeriodAmountSummary {
     const normalized = expenses
         .filter((tx) => tx.origin === 'delivery_expense')
-        .map((tx) => ({ ...tx, amount: Math.max(0, Number(tx.amount || 0)) }));
+        .map((tx) => ({ ...tx, amount: Math.max(0, Number(tx.amountDzd ?? tx.amount ?? 0)) }));
     return summarizeSimpleAmounts(normalized, nowTimestamp, projectStartTimestamp);
 }
 
