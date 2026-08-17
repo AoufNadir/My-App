@@ -1,40 +1,8 @@
 import React, { useDeferredValue, useMemo } from 'react';
 import { Input } from './Input';
 import { useLanguage } from '../../contexts/LanguageContext';
-/**
- * Safely evaluates a mathematical expression string without using `eval()`.
- * Supports +, -, *, /, and parentheses.
- * @param {string} expr The expression to evaluate.
- * @returns An object with success status, the resulting value, or an error message.
- */
-const evaluateExpression = (expr: string): {
-    success: boolean;
-    value?: number;
-    error?: string;
-} => {
-    if (!expr) {
-        return { success: true, value: 0 };
-    }
-    try {
-        const sanitizedExpr = expr.replace(/,/g, '.').replace(/\s+/g, '');
-        if (!sanitizedExpr) {
-            return { success: true, value: 0 };
-        }
-        if (/[^0-9.+\-*/().]/.test(sanitizedExpr)) {
-            return { success: false, error: 'common.invalidChars' };
-        }
-        // This is a safer alternative to eval
-        const result = new Function(`return ${sanitizedExpr}`)();
-        if (typeof result !== 'number' || !isFinite(result)) {
-            return { success: false, error: 'common.invalidExpression' };
-        }
-        return { success: true, value: result };
-    }
-    catch (e) {
-        // We catch syntax errors from the Function constructor
-        return { success: false, error: 'common.invalidSyntax' };
-    }
-};
+import { evaluateNumericExpression } from '../../utils';
+
 export const NumberInput = ({ value, onChange, className, ...props }: {
     value: string;
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -45,7 +13,7 @@ export const NumberInput = ({ value, onChange, className, ...props }: {
         if (!deferredValue) {
             return null;
         }
-        const evalResult = evaluateExpression(deferredValue);
+        const evalResult = evaluateNumericExpression(deferredValue);
         if (!evalResult.success) {
             return { error: evalResult.error };
         }
