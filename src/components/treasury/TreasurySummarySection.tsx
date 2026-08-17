@@ -54,7 +54,7 @@ export function TreasurySummarySection({ caisseBalance, baridiBalance, dettesAbs
         {openDeliveryExpenseModal && (<div className="p-4">
             <Button onClick={openDeliveryExpenseModal} variant="outline" className="flex w-full items-center justify-center gap-2 py-3 text-sm font-bold">
               <PlusIcon className="w-4 h-4"/>
-              {deliveryExpenseLabel || 'Frais de livraison'}
+              {deliveryExpenseLabel || 'Frais du projet'}
             </Button>
           </div>)}
       </CardContent>
