@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../firebase';
 import type { AppUser } from '../firebaseAuth';
-import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction } from '../types';
+import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from '../types';
 type UseAppDataOptions = {
     subscribeManualAssets?: boolean;
     subscribeInvestors?: boolean;
@@ -10,7 +10,7 @@ type UseAppDataOptions = {
     requireInvestors?: boolean;
     requireTreasuryCards?: boolean;
 };
-type AppDataCollectionKey = 'transactions' | 'clients' | 'clientTransactions' | 'treasuryTransactions' | 'treasuryCards' | 'manualAssets' | 'manualAssetClients' | 'manualAssetTransactions' | 'investors' | 'investorTransactions';
+type AppDataCollectionKey = 'transactions' | 'clients' | 'clientTransactions' | 'treasuryTransactions' | 'digitalServiceTransactions' | 'treasuryCards' | 'manualAssets' | 'manualAssetClients' | 'manualAssetTransactions' | 'investors' | 'investorTransactions';
 type CollectionLoadState = {
     received: boolean;
     fromCache: boolean;
@@ -21,6 +21,7 @@ const COLLECTION_KEYS: AppDataCollectionKey[] = [
     'clients',
     'clientTransactions',
     'treasuryTransactions',
+    'digitalServiceTransactions',
     'treasuryCards',
     'manualAssets',
     'manualAssetClients',
@@ -51,6 +52,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     const [clientsDzd, setClientsDzd] = useState<ClientDzd[]>([]);
     const [clientTransactionsDzd, setClientTransactionsDzd] = useState<ClientTransactionDzd[]>([]);
     const [treasuryTransactions, setTreasuryTransactions] = useState<TreasuryTx[]>([]);
+    const [digitalServiceTransactions, setDigitalServiceTransactions] = useState<DigitalServiceTransaction[]>([]);
     const [treasuryCards, setTreasuryCards] = useState<TreasuryCard[]>([]);
     const [manualAssets, setManualAssets] = useState<ManualAsset[]>([]);
     const [manualAssetClients, setManualAssetClients] = useState<ManualAssetClient[]>([]);
@@ -81,7 +83,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         });
     }, [subscribeManualAssets, subscribeInvestors, subscribeTreasuryCards]);
     const activeCollectionKeys = useMemo(() => {
-        const keys: AppDataCollectionKey[] = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions'];
+        const keys: AppDataCollectionKey[] = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions', 'digitalServiceTransactions'];
         if (requireTreasuryCards)
             keys.push('treasuryCards');
         if (requireManualAssets)
@@ -162,11 +164,18 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
             (docs) => setTreasuryTransactions(docs as TreasuryTx[])
         );
+        const unsubDigitalServices = subscribeToCollection(
+            'digitalServiceTransactions',
+            userDocRef.collection('digital_service_txs').orderBy('timestamp', 'asc'),
+            (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            (docs) => setDigitalServiceTransactions(docs as DigitalServiceTransaction[])
+        );
         return () => {
             unsubTxs();
             unsubClients();
             unsubClientTxs();
             unsubTreasuryTxs();
+            unsubDigitalServices();
         };
     }, [userDocRef, refreshKey, subscribeToCollection]);
     useEffect(() => {
@@ -334,7 +343,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     const isDataLoaded = dataStatus.hasReceivedInitialSnapshot;
     return {
         userDocRef,
-        transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, treasuryCards,
+        transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, digitalServiceTransactions, treasuryCards,
         manualAssets, manualAssetClients, manualAssetTransactions,
         investors, investorTransactions,
         treasuryStats, clientBalances, assetClientBalances, assetBalances, totals,
