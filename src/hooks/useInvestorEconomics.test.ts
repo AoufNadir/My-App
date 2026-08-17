@@ -110,6 +110,23 @@ assert.equal(afterDeliveryBreakdown.personalCapitalProfit, 48075.3);
 assert.equal(afterDeliveryBreakdown.ownerTotalProfit, 75075.3);
 assert.equal(afterDeliveryBreakdown.externalInvestorsProfit, 14924.7);
 
+const preCapitalProjectExpense: TreasuryTx = {
+    id: 'pre-capital-project-expense', timestamp: new Date('2026-07-30T12:00:00').getTime(), date: '30/07/2026', time: '12:00',
+    type: 'Retrait', source: 'Caisse', amount: 1200, origin: 'delivery_expense',
+};
+const preCapitalExpenseResult = deriveInvestorEconomics({
+    investors,
+    investorTransactions: [],
+    transactions: [],
+    managerFeePercentage: '30',
+    deliveryExpenses: [preCapitalProjectExpense],
+});
+const preCapitalExpenseBreakdown = getManagerProfitBreakdown(preCapitalExpenseResult, 30);
+assert.equal(preCapitalExpenseResult.totals.netDistributableProfit, -1200);
+assert.equal(preCapitalExpenseResult.totals.reconciliationDifference, 0);
+assert.equal(preCapitalExpenseBreakdown.ownerTotalProfit, -1200);
+assert.equal(preCapitalExpenseBreakdown.externalInvestorsProfit, 0);
+
 const ownerReconciliation = reconcileManagerProfitBreakdown({
     breakdown: {
         managerFeePercentage: 30,
