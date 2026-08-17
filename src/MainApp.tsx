@@ -552,8 +552,8 @@ export default function MainApp({ user }: {
         minDays: -1
     });
     // M2: previously this was pamLedger.totals.derivedProfit (gross trading profit
-    // before delivery expenses). The Dashboard label says "Net", so use the
-    // post-delivery netDistributableProfit from investorEconomics for honesty.
+    // before shared project expenses). The Dashboard label says "Net", so use the
+    // post-expense netDistributableProfit from investorEconomics for honesty.
     const globalNetProfit = Number(investorEconomics.totals.netDistributableProfit || pamLedger.totals.derivedProfit || 0);
     const investorLiability = useMemo(() => calculateInvestorLiability(derivedInvestors), [derivedInvestors]);
     const investorBreakdown = useMemo(() => calculateInvestorBreakdown(derivedInvestors), [derivedInvestors]);
