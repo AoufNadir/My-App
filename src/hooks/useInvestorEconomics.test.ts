@@ -155,4 +155,19 @@ assert.equal(ownerReconciliationWithServices.personalExpenses, 271309);
 assert.equal(ownerReconciliationWithServices.totalPersonalExpenses, 449583);
 assert.equal(ownerReconciliationWithServices.reinvestedProfit, 957009);
 
+const ownerReconciliationWithFixedPreTrackingExpenses = reconcileManagerProfitBreakdown({
+    breakdown: {
+        ...ownerReconciliation,
+        personalExpenses: 0,
+        totalPersonalExpenses: 178274,
+    },
+    openingCapital: 2000000,
+    actualOwnerCapital: 2957009,
+    serviceProfit: 231900,
+    preTrackingPersonalExpenses: 365350,
+});
+assert.equal(ownerReconciliationWithFixedPreTrackingExpenses.personalExpenses, 365350);
+assert.equal(ownerReconciliationWithFixedPreTrackingExpenses.serviceProfit, 231900);
+assert.equal(ownerReconciliationWithFixedPreTrackingExpenses.ownerTotalProfit, 1500592);
+
 console.log('investor economics unit tests passed');

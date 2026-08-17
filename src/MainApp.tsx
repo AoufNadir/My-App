@@ -67,6 +67,7 @@ const loadPdfReports = () => import('./utils/pdfReports');
 const EMPTY_TRANSACTIONS: Tx[] = [];
 const CORE_DATA_KEYS = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions'] as const;
 const OWNER_OPENING_CAPITAL = 2_000_000;
+const OWNER_PRE_TRACKING_EXPENSES = 365_350;
 const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
     derivedInvestors: [],
     warnings: [],
@@ -778,6 +779,7 @@ export default function MainApp({ user }: {
         openingCapital: OWNER_OPENING_CAPITAL,
         actualOwnerCapital: capitalSnapshot.netOwnedCapital,
         serviceProfit: servicesSummary.serviceRevenue,
+        preTrackingPersonalExpenses: OWNER_PRE_TRACKING_EXPENSES,
     }), [baseManagerProfitBreakdown, capitalSnapshot.netOwnedCapital, servicesSummary.serviceRevenue]);
     const financialAudit = useMemo(() => {
         const personalExpenseTotals = summarizePersonalExpenseTotals(treasuryTransactions);

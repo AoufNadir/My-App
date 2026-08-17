@@ -70,6 +70,7 @@ export type ManagerProfitReconciliationInput = {
     openingCapital: number;
     actualOwnerCapital: number;
     serviceProfit?: number;
+    preTrackingPersonalExpenses?: number;
 };
 type InvestorBase = Investor & {
     entryTs: number;
@@ -446,14 +447,16 @@ export function reconcileManagerProfitBreakdown(input: ManagerProfitReconciliati
     const retainedProfit = roundM(actualOwnerCapital - openingCapital);
     const recordedPersonalExpenses = roundM(breakdown.currentPersonalExpenses);
     const explicitHistoricalExpenses = roundM(breakdown.personalExpenses);
-    const inferredHistoricalExpenses = roundM(Math.max(
-        0,
-        ownerTotalProfit
-            - breakdown.profitWithdrawals
-            - recordedPersonalExpenses
-            - explicitHistoricalExpenses
-            - retainedProfit
-    ));
+    const inferredHistoricalExpenses = input.preTrackingPersonalExpenses == null
+        ? roundM(Math.max(
+            0,
+            ownerTotalProfit
+                - breakdown.profitWithdrawals
+                - recordedPersonalExpenses
+                - explicitHistoricalExpenses
+                - retainedProfit
+        ))
+        : Math.max(0, roundM(Number(input.preTrackingPersonalExpenses || 0)));
     const historicalPersonalExpenses = roundM(explicitHistoricalExpenses + inferredHistoricalExpenses);
     const totalPersonalExpenses = roundM(historicalPersonalExpenses + recordedPersonalExpenses);
     const availableProfit = roundM(Math.max(
