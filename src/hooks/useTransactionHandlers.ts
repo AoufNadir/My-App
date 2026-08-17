@@ -6,6 +6,12 @@ import { roundM } from '../utils/money';
 import { formatNumber } from '../pages/shared/pageFormat';
 import { applyTransactionDelete } from '../transactionService';
 import type { SmartSaleSnapshot } from '../services/smartPricingEngine';
+import {
+    computeProjectExpensePreview,
+    isAssetWallet,
+    isCashWallet,
+    type FinancialWallet,
+} from '../utils/digitalServiceAccounting';
 interface HandlerProps {
     userDocRef: FirestoreDocumentReference;
     portfolioStats: PortfolioStats;
@@ -25,6 +31,7 @@ interface HandlerProps {
 type TransactionFormMode = 'buy_usdt' | 'sell_usdt' | 'buy_eur' | 'sell_eur';
 type PortfolioCurrency = 'USDT' | 'EUR';
 type SettlementCurrency = 'DZD' | 'EUR';
+type DeliveryExpenseMethod = FinancialWallet;
 const pricingRiskFingerprint = (snapshot: SmartSaleSnapshot) => JSON.stringify([
     snapshot.currency, snapshot.clientId, snapshot.quantity,
     snapshot.payment.kind, snapshot.payment.dueDate || '', snapshot.actual.unitPrice,
@@ -109,9 +116,22 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [editingTreasuryTx, setEditingTreasuryTx] = useState<TreasuryTx | null>(null);
     const [isDeliveryExpenseModalOpen, setIsDeliveryExpenseModalOpen] = useState(false);
     const [deliveryExpenseAmount, setDeliveryExpenseAmount] = useState('');
-    const [deliveryExpenseMethod, setDeliveryExpenseMethod] = useState<'Caisse' | 'BaridiMob'>('Caisse');
+    const [deliveryExpenseMethod, setDeliveryExpenseMethod] = useState<DeliveryExpenseMethod>('Caisse');
     const [deliveryExpenseDate, setDeliveryExpenseDate] = useState<string>('');
     const [deliveryExpenseNote, setDeliveryExpenseNote] = useState('');
+    const projectExpenseRates = useMemo(() => ({
+        usdtPma: Number(portfolioStats.usdt.avgBuy || 0),
+        eurPma: Number(portfolioStats.eur.avgBuy || 0),
+    }), [portfolioStats.usdt.avgBuy, portfolioStats.eur.avgBuy]);
+    const deliveryExpensePreview = useMemo(() => {
+        const amount = parseAndEvaluate(deliveryExpenseAmount);
+        if (!Number.isFinite(amount)) return null;
+        return computeProjectExpensePreview({
+            wallet: deliveryExpenseMethod,
+            amount,
+            rates: projectExpenseRates,
+        });
+    }, [deliveryExpenseAmount, deliveryExpenseMethod, projectExpenseRates]);
     const getPortfolioAssetStats = (currency: PortfolioCurrency) => (currency === 'USDT' ? portfolioStats.usdt : portfolioStats.eur);
     const usdtFromEurCalc = useMemo(() => {
         const eurQty = parseAndEvaluate(buyEurForUsdtAmount);
@@ -928,17 +948,35 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setIsDeliveryExpenseModalOpen(false);
     };
     const handleSaveDeliveryExpense = async () => {
-        const amountNum = parseAndEvaluate(deliveryExpenseAmount);
+        const amountNum = roundM(parseAndEvaluate(deliveryExpenseAmount));
         if (isNaN(amountNum) || amountNum <= 0) {
             setAlert('⚠️ Montant invalide.');
             return;
         }
+        if (isAssetWallet(deliveryExpenseMethod)) {
+            const rate = deliveryExpenseMethod === 'USDT' ? projectExpenseRates.usdtPma : projectExpenseRates.eurPma;
+            if (rate <= 0) {
+                setAlert(`⚠️ PMA ${deliveryExpenseMethod} indisponible.`);
+                return;
+            }
+        }
         const epsilon = 0.005;
-        const availableBalance = deliveryExpenseMethod === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+        const availableBalance = deliveryExpenseMethod === 'Caisse'
+            ? treasuryStats.caisse
+            : deliveryExpenseMethod === 'BaridiMob'
+                ? treasuryStats.baridi
+                : deliveryExpenseMethod === 'USDT'
+                    ? Number(portfolioStats.usdt.available || 0)
+                    : Number(portfolioStats.eur.available || 0);
         if (amountNum > availableBalance + epsilon) {
-            setAlert(deliveryExpenseMethod === 'Caisse' ? '⚠️ Solde Caisse insuffisant.' : '⚠️ Solde BaridiMob insuffisant.');
+            setAlert(`⚠️ Solde ${deliveryExpenseMethod} insuffisant.`);
             return;
         }
+        const preview = computeProjectExpensePreview({
+            wallet: deliveryExpenseMethod,
+            amount: amountNum,
+            rates: projectExpenseRates,
+        });
         if (isSaving)
             return;
         setIsSaving(true);
@@ -973,16 +1011,40 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 dateStr = nowStamp.date;
                 timeStr = nowStamp.time;
             }
-            await userDocRef.collection('treasury_txs').add({
+            const expenseRef = userDocRef.collection('treasury_txs').doc();
+            const batch = db.batch();
+            batch.set(expenseRef, {
                 timestamp,
                 date: dateStr,
                 time: timeStr,
                 type: 'Retrait',
-                source: deliveryExpenseMethod,
-                amount: amountNum,
+                ...(isCashWallet(deliveryExpenseMethod) ? { source: deliveryExpenseMethod } : {}),
+                amount: preview.amountDzd,
                 notes: deliveryExpenseNote.trim() || 'Frais du projet',
-                origin: 'delivery_expense'
+                origin: 'delivery_expense',
+                expenseWallet: deliveryExpenseMethod,
+                expenseCurrency: preview.currency,
+                originalAmount: amountNum,
+                conversionRateToDzd: preview.rateToDzd,
+                amountDzd: preview.amountDzd,
             });
+            if (isAssetWallet(deliveryExpenseMethod)) {
+                batch.set(userDocRef.collection('usdt_txs').doc(), {
+                    timestamp,
+                    date: dateStr,
+                    time: timeStr,
+                    type: 'Retrait Manuel',
+                    currency: deliveryExpenseMethod,
+                    quantity: amountNum,
+                    price: preview.rateToDzd,
+                    total: preview.amountDzd,
+                    notes: deliveryExpenseNote.trim() || 'Frais du projet',
+                    linkedTxId: expenseRef.id,
+                    linkedProjectExpenseTxId: expenseRef.id,
+                    origin: 'delivery_expense',
+                });
+            }
+            await batch.commit();
             setAlert('✅ Frais du projet enregistrés.');
             setIsDeliveryExpenseModalOpen(false);
         }
@@ -1231,6 +1293,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         deliveryExpenseMethod, setDeliveryExpenseMethod,
         deliveryExpenseDate, setDeliveryExpenseDate,
         deliveryExpenseNote, setDeliveryExpenseNote,
+        deliveryExpensePreview,
         openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense,
         txToDelete, setTxToDelete, handleConfirmDeleteTx,
         isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount,
