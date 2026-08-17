@@ -1,12 +1,21 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
-import { Investor, InvestorTransaction, TreasuryTx } from '../types';
+import { Investor, InvestorTransaction, PortfolioStats, TreasuryTx } from '../types';
 import { now, parseAndEvaluate } from '../utils';
+import { roundM } from '../utils/money';
 import { evaluatePersonalAdvanceReconciliation } from '../utils/personalExpenses';
+import {
+    computeProjectExpensePreview,
+    getWalletCurrency,
+    isAssetWallet,
+    isCashWallet,
+    type FinancialWallet,
+} from '../utils/digitalServiceAccounting';
+
 export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, derivedInvestors: any[], treasuryStats: {
     caisse: number;
     baridi: number;
-}, setAlert: (msg: string) => void) {
+}, portfolioStats: PortfolioStats, setAlert: (msg: string) => void) {
     const [isSaving, setIsSaving] = useState(false);
     // Modal & form state
     const [isInvestorModalOpen, setIsInvestorModalOpen] = useState(false);
@@ -36,12 +45,25 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     // Personal withdrawal state (manager only — daily personal expense)
     const [isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen] = useState(false);
     const [personalWithdrawalAmount, setPersonalWithdrawalAmount] = useState('');
-    const [personalWithdrawalMethod, setPersonalWithdrawalMethod] = useState<'Caisse' | 'BaridiMob'>('Caisse');
+    const [personalWithdrawalMethod, setPersonalWithdrawalMethod] = useState<FinancialWallet>('Caisse');
     const [personalWithdrawalDate, setPersonalWithdrawalDate] = useState<string>('');
     const [personalWithdrawalNote, setPersonalWithdrawalNote] = useState('');
     const [personalWithdrawalMode, setPersonalWithdrawalMode] = useState<'expense' | 'advance'>('expense');
     const [editingPersonalExpenseTx, setEditingPersonalExpenseTx] = useState<TreasuryTx | null>(null);
     const [personalExpenseToDelete, setPersonalExpenseToDelete] = useState<TreasuryTx | null>(null);
+    const personalWithdrawalRates = useMemo(() => ({
+        usdtPma: Number(portfolioStats.usdt.avgBuy || 0),
+        eurPma: Number(portfolioStats.eur.avgBuy || 0),
+    }), [portfolioStats.usdt.avgBuy, portfolioStats.eur.avgBuy]);
+    const personalWithdrawalPreview = useMemo(() => {
+        const amount = parseAndEvaluate(personalWithdrawalAmount);
+        if (!Number.isFinite(amount)) return null;
+        return computeProjectExpensePreview({
+            wallet: personalWithdrawalMethod,
+            amount,
+            rates: personalWithdrawalRates,
+        });
+    }, [personalWithdrawalAmount, personalWithdrawalMethod, personalWithdrawalRates]);
     const openPersonalWithdrawalModal = () => {
         setEditingPersonalExpenseTx(null);
         setPersonalWithdrawalAmount('');
@@ -125,6 +147,35 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         }
         return Array.from(docs.entries()).map(([id, ref]) => ({ id, ref }));
     };
+    const resolvePersonalExpenseWallet = (tx?: TreasuryTx | null): FinancialWallet => {
+        const wallet = tx?.expenseWallet || tx?.source || 'Caisse';
+        return wallet === 'USDT' || wallet === 'EUR' || wallet === 'BaridiMob' ? wallet : 'Caisse';
+    };
+    const getWalletAvailableBalance = (wallet: FinancialWallet): number => {
+        if (wallet === 'Caisse') return Number(treasuryStats.caisse || 0);
+        if (wallet === 'BaridiMob') return Number(treasuryStats.baridi || 0);
+        if (wallet === 'USDT') return Number(portfolioStats.usdt.available || 0);
+        return Number(portfolioStats.eur.available || 0);
+    };
+    const getSourceAmountFromPersonalExpense = (tx?: TreasuryTx | null): number => Number(tx?.originalAmount ?? tx?.amount ?? 0);
+    const deleteLinkedPersonalExpensePortfolioDocs = async (batch: ReturnType<typeof db.batch>, txId: string) => {
+        const [direct, legacy] = await Promise.all([
+            userDocRef.collection('usdt_txs').where('linkedPersonalExpenseTxId', '==', txId).get(),
+            userDocRef.collection('usdt_txs').where('linkedTxId', '==', txId).get(),
+        ]);
+        const seen = new Set<string>();
+        direct.forEach((doc) => {
+            seen.add(doc.id);
+            batch.delete(doc.ref);
+        });
+        legacy.forEach((doc) => {
+            if (seen.has(doc.id)) return;
+            const data = doc.data() as any;
+            if (data.origin === 'personal_expense' || data.origin === 'personal_expense_return') {
+                batch.delete(doc.ref);
+            }
+        });
+    };
     const buildPersonalWithdrawalStamp = (dateInput: string, editingTx?: TreasuryTx | null) => {
         if (dateInput) {
             const [y, m, d] = dateInput.split('-').map(Number);
@@ -154,23 +205,25 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     };
     const openEditPersonalExpense = (tx: TreasuryTx) => {
         if (tx.advanceState === 'settled') {
-            const advanceAmount = Number(tx.amount || 0);
-            const returnedAmount = Math.max(0, advanceAmount - Number(tx.settledAmount || 0));
+            const advanceAmount = getSourceAmountFromPersonalExpense(tx);
+            const rate = Number(tx.conversionRateToDzd || 1);
+            const settledAmountSource = rate > 0 ? Number(tx.settledAmount || 0) / rate : Number(tx.settledAmount || 0);
+            const returnedAmount = Math.max(0, advanceAmount - settledAmountSource);
             setReconcileAdvanceTx(tx);
             setReconcileActualAmount(String(returnedAmount));
             setIsReconcileAdvanceModalOpen(true);
             return;
         }
         setEditingPersonalExpenseTx(tx);
-        setPersonalWithdrawalAmount(String(Number(tx.amount || 0)));
-        setPersonalWithdrawalMethod(tx.source === 'BaridiMob' ? 'BaridiMob' : 'Caisse');
+        setPersonalWithdrawalAmount(String(getSourceAmountFromPersonalExpense(tx)));
+        setPersonalWithdrawalMethod(resolvePersonalExpenseWallet(tx));
         setPersonalWithdrawalDate(toDateInput(tx.timestamp));
         setPersonalWithdrawalNote(tx.notes || '');
         setPersonalWithdrawalMode(tx.advanceState === 'pending' ? 'advance' : 'expense');
         setIsPersonalWithdrawalModalOpen(true);
     };
     const handleSavePersonalWithdrawal = async () => {
-        const amountNum = parseAndEvaluate(personalWithdrawalAmount);
+        const amountNum = roundM(parseAndEvaluate(personalWithdrawalAmount));
         if (isNaN(amountNum) || amountNum <= 0) {
             setAlert('⚠️ Montant invalide.');
             return;
@@ -179,21 +232,33 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             setAlert('⚠️ Aucun gérant défini. Désignez un investisseur comme gérant.');
             return;
         }
+        if (isAssetWallet(personalWithdrawalMethod)) {
+            const rate = personalWithdrawalMethod === 'USDT' ? personalWithdrawalRates.usdtPma : personalWithdrawalRates.eurPma;
+            if (rate <= 0) {
+                setAlert(`⚠️ PMA ${personalWithdrawalMethod} indisponible.`);
+                return;
+            }
+        }
+        const preview = computeProjectExpensePreview({
+            wallet: personalWithdrawalMethod,
+            amount: amountNum,
+            rates: personalWithdrawalRates,
+        });
         const epsilon = 0.005;
         const isAdvance = personalWithdrawalMode === 'advance';
         const currentExpenseCredit = editingPersonalExpenseTx && editingPersonalExpenseTx.advanceState !== 'pending'
             ? Number(editingPersonalExpenseTx.settledAmount ?? editingPersonalExpenseTx.amount ?? 0)
             : 0;
-        if (!isAdvance && amountNum > managerAvailableProfit + currentExpenseCredit + epsilon) {
+        if (!isAdvance && preview.amountDzd > managerAvailableProfit + currentExpenseCredit + epsilon) {
             setAlert('⚠️ Montant dépasse le profit disponible.');
             return;
         }
-        const currentSourceCredit = editingPersonalExpenseTx?.source === personalWithdrawalMethod
-            ? Number(editingPersonalExpenseTx.amount || 0)
+        const currentSourceCredit = resolvePersonalExpenseWallet(editingPersonalExpenseTx) === personalWithdrawalMethod
+            ? getSourceAmountFromPersonalExpense(editingPersonalExpenseTx)
             : 0;
-        const availableBalance = (personalWithdrawalMethod === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi) + currentSourceCredit;
+        const availableBalance = getWalletAvailableBalance(personalWithdrawalMethod) + currentSourceCredit;
         if (amountNum > availableBalance + epsilon) {
-            setAlert(personalWithdrawalMethod === 'Caisse' ? '⚠️ Solde Caisse insuffisant.' : '⚠️ Solde BaridiMob insuffisant.');
+            setAlert(`⚠️ Solde ${personalWithdrawalMethod} insuffisant.`);
             return;
         }
         if (isSaving)
@@ -217,7 +282,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 investorId: managerInvestor.id,
                 type: 'withdraw_profit',
                 origin: 'personal_expense',
-                amount: isAdvance ? 0 : amountNum,
+                amount: isAdvance ? 0 : preview.amountDzd,
                 paymentSource: personalWithdrawalMethod,
                 linkedTreasuryTxId: treasuryRef.id,
                 date: dateStr,
@@ -238,12 +303,17 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 date: dateStr,
                 time: timeStr,
                 type: 'Retrait',
-                source: personalWithdrawalMethod,
-                amount: amountNum,
+                ...(isCashWallet(personalWithdrawalMethod) ? { source: personalWithdrawalMethod } : {}),
+                amount: preview.amountDzd,
                 notes: trimmedNote || (isAdvance ? 'Avance personnelle' : 'Dépense personnelle'),
                 linkedInvestorTxId,
                 origin: 'personal_expense',
-                trackingPhase: editingPersonalExpenseTx?.trackingPhase || 'current'
+                trackingPhase: editingPersonalExpenseTx?.trackingPhase || 'current',
+                expenseWallet: personalWithdrawalMethod,
+                expenseCurrency: preview.currency,
+                originalAmount: amountNum,
+                conversionRateToDzd: preview.rateToDzd,
+                amountDzd: preview.amountDzd
             };
             if (isAdvance) {
                 treasuryPayload.advanceState = 'pending';
@@ -257,11 +327,30 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 treasuryPayload.settledAmount = fieldValueDelete();
                 treasuryPayload.linkedReturnTxId = fieldValueDelete();
             }
+            if (editingPersonalExpenseTx?.id) {
+                await deleteLinkedPersonalExpensePortfolioDocs(batch, editingPersonalExpenseTx.id);
+            }
             if (editingPersonalExpenseTx) {
                 batch.update(treasuryRef, treasuryPayload);
             }
             else {
                 batch.set(treasuryRef, treasuryPayload);
+            }
+            if (isAssetWallet(personalWithdrawalMethod)) {
+                batch.set(userDocRef.collection('usdt_txs').doc(), {
+                    timestamp,
+                    date: dateStr,
+                    time: timeStr,
+                    type: 'Retrait Manuel',
+                    currency: personalWithdrawalMethod,
+                    quantity: amountNum,
+                    price: preview.rateToDzd,
+                    total: preview.amountDzd,
+                    notes: trimmedNote || (isAdvance ? 'Avance personnelle' : 'Dépense personnelle'),
+                    linkedTxId: treasuryRef.id,
+                    linkedPersonalExpenseTxId: treasuryRef.id,
+                    origin: 'personal_expense',
+                });
             }
             await batch.commit();
             setAlert(editingPersonalExpenseTx
@@ -283,11 +372,23 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             setAlert('⚠️ Avance introuvable.');
             return;
         }
-        const advanceAmount = Number(reconcileAdvanceTx.amount || 0);
+        const advanceWallet = resolvePersonalExpenseWallet(reconcileAdvanceTx);
+        const fallbackRate = advanceWallet === 'USDT'
+            ? personalWithdrawalRates.usdtPma
+            : advanceWallet === 'EUR'
+                ? personalWithdrawalRates.eurPma
+                : 1;
+        const rateToDzd = Number(reconcileAdvanceTx.conversionRateToDzd || fallbackRate || 0);
+        if (rateToDzd <= 0) {
+            setAlert(`⚠️ PMA ${advanceWallet} indisponible.`);
+            return;
+        }
+        const advanceAmount = getSourceAmountFromPersonalExpense(reconcileAdvanceTx);
+        const advanceCurrency = getWalletCurrency(advanceWallet);
         const reconciliation = evaluatePersonalAdvanceReconciliation(reconcileActualAmount, advanceAmount);
         if (!reconciliation.isValid) {
             if (reconciliation.error === 'exceeds') {
-                setAlert(`⚠️ Le montant retourné ne peut pas dépasser l'avance (${advanceAmount}).`);
+                setAlert(`⚠️ Le montant retourné ne peut pas dépasser l'avance (${advanceAmount} ${advanceCurrency}).`);
             }
             else if (reconciliation.error === 'negative') {
                 setAlert('⚠️ Le montant retourné doit être positif ou zéro.');
@@ -299,6 +400,8 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         }
         const actualSpent = reconciliation.actualSpent;
         const returnAmount = reconciliation.returnAmount;
+        const actualSpentDzd = roundM(actualSpent * rateToDzd);
+        const returnAmountDzd = roundM(returnAmount * rateToDzd);
         const spentDescription = reconcileSpentDescription.trim();
         if (!managerInvestor) {
             setAlert('⚠️ Aucun gérant défini. Désignez un investisseur comme gérant.');
@@ -315,7 +418,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             const currentExpenseCredit = linkedInvestor.exists
                 ? Number(linkedInvestor.amount || 0)
                 : 0;
-            if (actualSpent > managerAvailableProfit + currentExpenseCredit + 0.005) {
+            if (actualSpentDzd > managerAvailableProfit + currentExpenseCredit + 0.005) {
                 setAlert('⚠️ Montant dépasse le profit disponible. Faites un retrait de capital séparé si vous voulez utiliser le capital.');
                 return;
             }
@@ -327,8 +430,8 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 investorId: managerInvestor.id,
                 type: 'withdraw_profit',
                 origin: 'personal_expense',
-                amount: actualSpent,
-                paymentSource: reconcileAdvanceTx.source || 'Caisse',
+                amount: actualSpentDzd,
+                paymentSource: advanceWallet,
                 linkedTreasuryTxId: reconcileAdvanceTx.id,
                 date: reconcileAdvanceTx.date,
                 time: reconcileAdvanceTx.time,
@@ -349,7 +452,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             const primaryReturnDoc = returnDocs[0] || null;
             const advanceUpdatePayload: any = {
                 advanceState: 'settled',
-                settledAmount: actualSpent,
+                settledAmount: actualSpentDzd,
                 linkedInvestorTxId
             };
             if (spentDescription) {
@@ -364,35 +467,67 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     date,
                     time,
                     type: 'Ajout',
-                    source: reconcileAdvanceTx.source || 'Caisse',
-                    amount: returnAmount,
-                    notes: `Régularisation avance · Retour ${reconcileAdvanceTx.source || 'Caisse'}`,
+                    ...(isCashWallet(advanceWallet) ? { source: advanceWallet } : {}),
+                    amount: returnAmountDzd,
+                    notes: `Régularisation avance · Retour ${advanceWallet}`,
                     linkedTreasuryTxId: reconcileAdvanceTx.id,
-                    origin: 'personal_expense_return'
+                    origin: 'personal_expense_return',
+                    expenseWallet: advanceWallet,
+                    expenseCurrency: advanceCurrency,
+                    originalAmount: returnAmount,
+                    conversionRateToDzd: rateToDzd,
+                    amountDzd: returnAmountDzd,
                 };
                 if (linkedInvestorTxId) {
                     returnPayload.linkedInvestorTxId = linkedInvestorTxId;
                 }
+                let returnTxId = '';
                 if (primaryReturnDoc) {
+                    await deleteLinkedPersonalExpensePortfolioDocs(batch, primaryReturnDoc.id);
                     const { timestamp: _timestamp, date: _date, time: _time, ...returnUpdatePayload } = returnPayload;
                     batch.update(primaryReturnDoc.ref, returnUpdatePayload);
                     advanceUpdatePayload.linkedReturnTxId = primaryReturnDoc.id;
+                    returnTxId = primaryReturnDoc.id;
                 }
                 else {
                     const returnTxRef = userDocRef.collection('treasury_txs').doc();
                     batch.set(returnTxRef, returnPayload);
                     advanceUpdatePayload.linkedReturnTxId = returnTxRef.id;
+                    returnTxId = returnTxRef.id;
                 }
-                returnDocs.slice(1).forEach((doc) => batch.delete(doc.ref));
+                if (isAssetWallet(advanceWallet)) {
+                    batch.set(userDocRef.collection('usdt_txs').doc(), {
+                        timestamp,
+                        date,
+                        time,
+                        type: 'Ajout Manuel',
+                        currency: advanceWallet,
+                        quantity: returnAmount,
+                        price: rateToDzd,
+                        total: returnAmountDzd,
+                        notes: `Régularisation avance · Retour ${advanceWallet}`,
+                        linkedTxId: returnTxId,
+                        linkedTreasuryTxId: reconcileAdvanceTx.id,
+                        linkedPersonalExpenseTxId: returnTxId,
+                        origin: 'personal_expense_return',
+                    });
+                }
+                for (const doc of returnDocs.slice(1)) {
+                    await deleteLinkedPersonalExpensePortfolioDocs(batch, doc.id);
+                    batch.delete(doc.ref);
+                }
             }
             else {
                 advanceUpdatePayload.linkedReturnTxId = fieldValueDelete();
-                returnDocs.forEach((doc) => batch.delete(doc.ref));
+                for (const doc of returnDocs) {
+                    await deleteLinkedPersonalExpensePortfolioDocs(batch, doc.id);
+                    batch.delete(doc.ref);
+                }
             }
             batch.update(originalAdvanceRef, advanceUpdatePayload);
             await batch.commit();
             setAlert(returnAmount > 0.005
-                ? `✅ Avance régularisée — ${returnAmount.toFixed(2)} DZD retourné à ${reconcileAdvanceTx.source || 'Caisse'}.`
+                ? `✅ Avance régularisée — ${returnAmount.toFixed(2)} ${advanceCurrency} retourné à ${advanceWallet}.`
                 : '✅ Avance régularisée.');
             closeReconcileAdvanceModal();
         }
@@ -414,12 +549,16 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             const batch = db.batch();
             const tx = personalExpenseToDelete;
             batch.delete(userDocRef.collection('treasury_txs').doc(tx.id));
+            await deleteLinkedPersonalExpensePortfolioDocs(batch, tx.id);
             const linkedInvestor = await resolvePersonalExpenseInvestorTx(tx);
             if (linkedInvestor.exists && linkedInvestor.id) {
                 batch.delete(userDocRef.collection('investor_transactions').doc(linkedInvestor.id));
             }
             const returnDocs = await findPersonalAdvanceReturnDocs(tx);
-            returnDocs.forEach((doc) => batch.delete(doc.ref));
+            for (const doc of returnDocs) {
+                await deleteLinkedPersonalExpensePortfolioDocs(batch, doc.id);
+                batch.delete(doc.ref);
+            }
             await batch.commit();
             setAlert('✅ Dépense supprimée.');
             setPersonalExpenseToDelete(null);
@@ -837,6 +976,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         setPersonalWithdrawalNote,
         personalWithdrawalMode,
         setPersonalWithdrawalMode,
+        personalWithdrawalPreview,
         editingPersonalExpenseTx,
         personalExpenseToDelete,
         setPersonalExpenseToDelete,
