@@ -265,6 +265,7 @@ export function TransactionsHistoryCard({
         if (tx.sourceType === 'usdt_tx') totalDzd += Math.abs(Number(raw.total ?? (raw.quantity ?? 0) * (raw.price ?? raw.sell ?? 0)));
         else if (tx.sourceType === 'client_tx') totalDzd += Math.abs(Number(raw.montant ?? 0));
         else if (tx.sourceType === 'treasury_tx') totalDzd += Math.abs(Number(raw.amount ?? 0));
+        else if (tx.sourceType === 'digital_service_tx') totalDzd += Math.abs(Number(raw.saleAmountDzd ?? raw.profitDzd ?? 0));
       }
     }
     return { totalDzd, count };
