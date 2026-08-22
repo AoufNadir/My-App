@@ -168,12 +168,27 @@ export type OwnerCapitalReconciliation = {
 export function reconcileOwnerCapital(input: {
     openingCapital: number;
     ownerProfit: number;
-    profitWithdrawals: number;
     personalExpenses: number;
+    capitalAdditions?: number;
+    capitalWithdrawals?: number;
+    personalExpensesChargedToCapital?: number;
     actualCapital: number;
 }): OwnerCapitalReconciliation {
     const openingCapital = Number.isFinite(Number(input.openingCapital)) ? Math.max(0, Number(input.openingCapital)) : 0;
-    const expectedCapital = roundM(openingCapital + Number(input.ownerProfit || 0) - Number(input.profitWithdrawals || 0) - Number(input.personalExpenses || 0));
+    const ownerProfit = roundM(Number(input.ownerProfit || 0));
+    const personalExpenses = roundM(Number(input.personalExpenses || 0));
+    const expensesChargedToProfit = Math.max(0, Math.min(personalExpenses, Math.max(0, ownerProfit)));
+    const expensesChargedToCapital = input.personalExpensesChargedToCapital == null
+        ? Math.max(0, roundM(personalExpenses - expensesChargedToProfit))
+        : Math.max(0, roundM(Number(input.personalExpensesChargedToCapital || 0)));
+    const retainedProfit = roundM(ownerProfit - expensesChargedToProfit);
+    const expectedCapital = roundM(
+        openingCapital
+            + retainedProfit
+            + Number(input.capitalAdditions || 0)
+            - Number(input.capitalWithdrawals || 0)
+            - expensesChargedToCapital
+    );
     const actualCapital = roundM(Number(input.actualCapital || 0));
     return {
         openingCapital: roundM(openingCapital),

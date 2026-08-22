@@ -16,7 +16,7 @@ export function formatManagerFeePercentage(value: string | number): string {
     return Number.isInteger(parsed) ? String(parsed) : parsed.toString();
 }
 
-function normalizeStoredManagerFeePercentage(value: unknown): string {
+export function normalizeStoredManagerFeePercentage(value: unknown): string {
     if (value === undefined || value === null || value === '') {
         return String(LEGACY_MANAGER_FEE_PERCENTAGE);
     }

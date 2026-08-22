@@ -50,10 +50,12 @@ export function calculateTotalPersonalExpenses(personalExpenses: TreasuryTx[] = 
 }
 
 export function isSyntheticInitialCapitalDeposit(tx: InvestorTransaction, investor: Investor, initialAlreadyHandled = false): boolean {
-    if (initialAlreadyHandled || tx.type !== 'deposit_capital')
+    if (tx.type !== 'deposit_capital')
         return false;
     if (tx.origin === 'initial_capital')
         return true;
+    if (initialAlreadyHandled)
+        return false;
     const initialCapital = Number(investor.initialCapital || 0);
     if (initialCapital <= EPSILON)
         return false;

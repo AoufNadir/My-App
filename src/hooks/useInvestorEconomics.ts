@@ -216,8 +216,9 @@ function buildInvestorsBase(investors: Investor[], investorTransactions: Investo
     const managerPersonalExpenses = calculateTotalPersonalExpenses(personalExpenses || [], periodStartTs, periodEndTs);
     return investors.map((inv) => {
         const myTxs = txByInvestor.get(inv.id) || [];
+        const orderedTxs = [...myTxs].sort((a, b) => toMs(a.timestamp) - toMs(b.timestamp));
         let initialDepositHandled = false;
-        const movementTxs = myTxs.filter((tx) => tx.type === 'deposit_capital'
+        const movementTxs = orderedTxs.filter((tx) => tx.type === 'deposit_capital'
             || tx.type === 'reinvest_profit'
             || tx.type === 'withdraw_capital')
             .filter((tx) => {
@@ -280,7 +281,8 @@ function buildInvestorsBase(investors: Investor[], investorTransactions: Investo
 }
 function capitalAtTs(inv: InvestorBase, ts: number): number {
     let initialDepositHandled = false;
-    const movementsUntilTs = inv.txs.filter((tx) => toMs(tx.timestamp) <= ts
+    const movementsUntilTs = [...inv.txs].sort((a, b) => toMs(a.timestamp) - toMs(b.timestamp))
+        .filter((tx) => toMs(tx.timestamp) <= ts
         && (tx.type === 'deposit_capital'
             || tx.type === 'reinvest_profit'
             || tx.type === 'withdraw_capital'))

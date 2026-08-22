@@ -72,7 +72,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
       <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel={t('investors.capitalInvested') as string} primaryValue={stats.totalCapital} primaryCurrency="DZD" primarySemantic="plain" secondary={[
             ...(capitalSnapshot ? [
                 { label: t('investors.capitalProject') as string, value: capitalSnapshot.totalCapital, currency: 'DZD' as const, semantic: 'plain' as const },
-                { label: t('investors.capitalOwned') as string, value: capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const }
+                { label: t('investors.capitalOwned') as string, value: managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const }
             ] : []),
             { label: t('investors.profitsToPay') as string, value: stats.totalAvailable, currency: 'DZD', semantic: 'auto' },
             { label: t('investors.managerShare') as string, value: stats.managerFee, currency: 'DZD', semantic: 'auto' }
@@ -95,7 +95,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
           </svg>
         </button>)}
 
-      <InvestorsDetailsCard stats={stats} capitalSnapshot={capitalSnapshot} managerFeePercentage={managerFeePercentage} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference}/>
+      <InvestorsDetailsCard stats={stats} capitalSnapshot={capitalSnapshot} managerFeePercentage={managerFeePercentage} managerProfitBreakdown={managerProfitBreakdown} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference}/>
 
       <InvestorsListSection investors={investors} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor}/>
 

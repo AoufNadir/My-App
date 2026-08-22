@@ -7,6 +7,7 @@ import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { CapitalSnapshot } from '../../utils/capitalSnapshot';
+import type { ManagerProfitBreakdown } from '../../hooks/useInvestorEconomics';
 type InvestorsStats = {
     totalCapital: number;
     totalProfitDistributed: number;
@@ -20,6 +21,7 @@ type InvestorsDetailsCardProps = {
     stats: InvestorsStats;
     capitalSnapshot?: CapitalSnapshot;
     managerFeePercentage: string;
+    managerProfitBreakdown?: ManagerProfitBreakdown;
     onOpenCommissionEditor: () => void;
     reconciliationDifference?: number;
 };
@@ -38,11 +40,12 @@ function DetailRow({ label, value, semantic = 'auto', hideWhenZero = false }: { 
       <CurrencyAmount value={value} currency="DZD" semantic={semantic} size="lg" decimals={0}/>
     </div>);
 }
-export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercentage, onOpenCommissionEditor, reconciliationDifference = 0 }: InvestorsDetailsCardProps) {
+export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercentage, managerProfitBreakdown, onOpenCommissionEditor, reconciliationDifference = 0 }: InvestorsDetailsCardProps) {
     const { t } = useLanguage();
     const hasDeliveryExpenses = (stats.totalDeliveryExpenses ?? 0) > 0;
     const hasReconciliationIssue = Math.abs(reconciliationDifference) > 0.05;
     const displayPercentage = managerFeePercentage?.trim() ? managerFeePercentage : '0';
+    const ownerCapital = Number(managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot?.netOwnedCapital ?? 0);
     return (<Card>
       <CardHeader className="p-4 pb-3">
         <SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>
@@ -62,9 +65,9 @@ export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercent
         <DetailSection>{t('investors.investorsAndProfits')}</DetailSection>
         <DetailRow label={t('investors.capitalInvested') as string} value={stats.totalCapital} semantic="plain"/>
         <DetailRow label={t('investors.profitsToPay') as string} value={stats.totalAvailable} semantic="auto"/>
-        {capitalSnapshot && (<>
+        {(managerProfitBreakdown || capitalSnapshot) && (<>
             <DetailSection>{t('investors.netPart')}</DetailSection>
-            <DetailRow label={t('investors.capitalOwned') as string} value={capitalSnapshot.netOwnedCapital} semantic="plain"/>
+            <DetailRow label={t('investors.capitalOwned') as string} value={ownerCapital} semantic="plain"/>
           </>)}
         <DetailSection>{t('investors.result')}</DetailSection>
         <DetailRow label={t('investors.managerShare') as string} value={stats.managerFee} semantic="auto"/>

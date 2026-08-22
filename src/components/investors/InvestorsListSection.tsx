@@ -14,14 +14,14 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import type { CapitalSnapshot } from '../../utils/capitalSnapshot';
 import type { ManagerProfitBreakdown } from '../../hooks/useInvestorEconomics';
 
-async function exportInvestorsPdf(investors: Investor[], capitalSnapshot?: CapitalSnapshot) {
+async function exportInvestorsPdf(investors: Investor[], capitalSnapshot?: CapitalSnapshot, managerProfitBreakdown?: ManagerProfitBreakdown) {
     const { buildInvestorListPdf, openPdfPrintWindow } = await import('../../utils/pdfReports');
     const rows = investors.map((inv) => ({
         name: inv.name,
         isManager: !!inv.isManager,
         isActive: !!inv.isActive,
-        capitalInvested: inv.isManager && capitalSnapshot
-            ? Number(capitalSnapshot.netOwnedCapital || 0)
+        capitalInvested: inv.isManager
+            ? Number(managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot?.netOwnedCapital ?? inv.capitalInvested ?? 0)
             : Number(inv.capitalInvested || 0),
         availableProfit: Number(inv.availableProfit || 0),
         withdrawnProfit: Number(inv.withdrawnProfit || 0),
@@ -51,7 +51,7 @@ export function InvestorsListSection({ investors, capitalSnapshot, managerProfit
         <div className="flex items-center gap-2 shrink-0">
           <Badge variant="primary" size="sm">{activeCount} {t('investors.activeSuffix')}</Badge>
           {investors.length > 0 && (
-            <Button onClick={() => exportInvestorsPdf(investors, capitalSnapshot)} variant="icon" size="icon" className="rounded-button bg-neutral-100 hover:bg-neutral-200" aria-label={t('treasury.exportPdf')} title={t('treasury.exportPdf')}>
+            <Button onClick={() => exportInvestorsPdf(investors, capitalSnapshot, managerProfitBreakdown)} variant="icon" size="icon" className="rounded-button bg-neutral-100 hover:bg-neutral-200" aria-label={t('treasury.exportPdf')} title={t('treasury.exportPdf')}>
               <DownloadCloudIcon className="w-4 h-4"/>
             </Button>
           )}
@@ -64,8 +64,8 @@ export function InvestorsListSection({ investors, capitalSnapshot, managerProfit
                 const availableProfit = !isManager
                     ? Number(investor.availableProfit || 0)
                     : 0;
-                const displayedCapital = isManager && capitalSnapshot
-                    ? Number(capitalSnapshot.netOwnedCapital || 0)
+                const displayedCapital = isManager
+                    ? Number(managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot?.netOwnedCapital ?? investor.capitalInvested ?? 0)
                     : Number(investor.capitalInvested || 0);
                 return (<React.Fragment key={investor.id}>
                   <SwipeableListItem onEdit={() => onEditInvestor(investor)} onDelete={() => onDeleteInvestor(investor)}>

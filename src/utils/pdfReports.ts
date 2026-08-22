@@ -1,6 +1,6 @@
 import type { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, Tx, TreasuryTx } from '../types';
 import type { PamLedgerResult } from './pamLedger';
-import { calculateManagerOwnerCapital } from './managerCapital';
+import { calculateManagerOwnerCapital, isPersonalExpenseCapitalWithdrawal } from './managerCapital';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel } from './transactionTerminology';
 type PortfolioSnapshot = {
     usdt: {
@@ -1466,9 +1466,11 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
     const depositCapital = orderedTxs
         .filter((tx) => tx.type === 'deposit_capital')
         .reduce((sum, tx) => sum + tx.amount, 0);
-    const withdrawCapital = orderedTxs
-        .filter((tx) => tx.type === 'withdraw_capital')
-        .reduce((sum, tx) => sum + tx.amount, 0);
+    const withdrawCapital = isManager && managerCapital
+        ? managerCapital.capitalWithdrawals
+        : orderedTxs
+            .filter((tx) => tx.type === 'withdraw_capital' && !isPersonalExpenseCapitalWithdrawal(tx, input.personalExpenses || []))
+            .reduce((sum, tx) => sum + tx.amount, 0);
     const reinvestedProfit = orderedTxs
         .filter((tx) => tx.type === 'reinvest_profit')
         .reduce((sum, tx) => sum + tx.amount, 0);
@@ -1584,7 +1586,7 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
         <tbody>
           ${orderedTxs.map((tx, i) => {
             const typeLabel = tx.type === 'deposit_capital' ? 'Dépôt capital'
-                : tx.type === 'withdraw_capital' ? 'Retrait capital'
+                : tx.type === 'withdraw_capital' ? (isManager && isPersonalExpenseCapitalWithdrawal(tx, input.personalExpenses || []) ? 'Dépense personnelle (capital)' : 'Retrait capital')
                 : tx.type === 'withdraw_profit' ? (isManager ? 'Dépense personnelle' : 'Retrait bénéfice')
                 : tx.type === 'reinvest_profit' ? (isManager ? 'Bénéfices conservés' : 'Réinvestissement')
                 : tx.type;

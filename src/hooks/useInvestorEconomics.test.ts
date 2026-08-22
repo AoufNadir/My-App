@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { deriveInvestorEconomics, getManagerFeeAt, type ManagerFeeHistoryEntry } from './useInvestorEconomics';
-import { formatManagerFeePercentage, parseManagerFeePercentage } from './useSettings';
+import { formatManagerFeePercentage, normalizeStoredManagerFeePercentage, parseManagerFeePercentage } from './useSettings';
 import type { Investor, InvestorTransaction, TreasuryTx, Tx } from '../types';
 
 function tx(input: Partial<Tx> & Pick<Tx, 'id' | 'type' | 'quantity' | 'timestamp'>): Tx {
@@ -150,8 +150,39 @@ test('manager fee input preserves valid values instead of forcing 30', () => {
     assert.equal(parseManagerFeePercentage('10'), 10);
     assert.equal(parseManagerFeePercentage('40'), 40);
     assert.equal(formatManagerFeePercentage(20), '20');
+    assert.equal(normalizeStoredManagerFeePercentage('20'), '20');
+    assert.equal(normalizeStoredManagerFeePercentage(null), '30');
     assert.throws(() => parseManagerFeePercentage('-1'));
     assert.throws(() => parseManagerFeePercentage('101'));
+});
+
+test('initial capital remains part of capitalAtTs when a later top-up deposit exists', () => {
+    const investors = [
+        investor({ id: 'aouf', name: 'Aouf', initialCapital: 1000, entryDate: new Date(0).toISOString() }),
+        investor({ id: 'rostom', name: 'Rostom', initialCapital: 1000, entryDate: new Date(0).toISOString() }),
+    ];
+    const result = deriveInvestorEconomics({
+        investors,
+        investorTransactions: [
+            investorTx({ id: 'aouf-initial', investorId: 'aouf', type: 'deposit_capital', origin: 'initial_capital', amount: 1000, timestamp: 0 }),
+            investorTx({ id: 'aouf-top-up', investorId: 'aouf', type: 'deposit_capital', origin: 'capital_movement', amount: 1000, timestamp: 3000, notes: 'Ajout réel' }),
+        ],
+        transactions: [
+            tx({ id: 'buy-1', type: 'buy', quantity: 20, price: 100, total: 2000, timestamp: 1000 }),
+            tx({ id: 'sell-before-top-up', type: 'sell', quantity: 10, sell: 150, timestamp: 2000 }),
+            tx({ id: 'sell-after-top-up', type: 'sell', quantity: 10, sell: 150, timestamp: 4000 }),
+        ],
+        managerFeePercentage: '0',
+        managerFeeHistory: undefined,
+    });
+
+    const aouf = result.derivedInvestors.find((item) => item.id === 'aouf');
+    const rostom = result.derivedInvestors.find((item) => item.id === 'rostom');
+
+    assertMoney(aouf?.capitalInvested || 0, 2000, 'Initial capital plus real top-up are both kept');
+    assertMoney(rostom?.capitalInvested || 0, 1000);
+    assertMoney(aouf?.totalProfit || 0, 583.33, 'Aouf receives 50% before top-up and 66.67% after top-up');
+    assertMoney(rostom?.totalProfit || 0, 416.67);
 });
 
 test('Rostom and Karim only receive profit for periods where they were investors', () => {

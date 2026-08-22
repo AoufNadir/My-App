@@ -89,4 +89,28 @@ assertMoney(withCapitalMovements.capitalWithdrawals, 10000);
 assertMoney(withCapitalMovements.ownerCapital, 115800, 'Capital propre = initial + retained + additions - withdrawals');
 assertMoney(withCapitalMovements.personalProfitTotal, 1000, 'Capital movements do not change historical personal profit');
 
+const managerWithExpenseExcess = investor({
+    id: 'manager-3',
+    entryDate: new Date(1000).toISOString(),
+    initialCapital: 1000,
+    totalProfit: 100,
+});
+
+const expenseExcess = calculateManagerOwnerCapital({
+    investor: managerWithExpenseExcess,
+    investorTransactions: [
+        investorTx({ id: 'expense-capital-part', investorId: 'manager-3', type: 'withdraw_capital', origin: 'personal_expense', amount: 50, timestamp: 2000, linkedTreasuryTxId: 'expense-1' }),
+        investorTx({ id: 'real-capital-withdrawal', investorId: 'manager-3', type: 'withdraw_capital', origin: 'capital_movement', amount: 20, timestamp: 3000 }),
+    ],
+    personalExpenses: [
+        personalExpense({ id: 'expense-1', amount: 150, timestamp: 2000 }),
+    ],
+});
+
+assertMoney(expenseExcess.personalExpensesChargedToProfit, 100);
+assertMoney(expenseExcess.personalExpensesChargedToCapital, 50);
+assertMoney(expenseExcess.retainedProfit, 0);
+assertMoney(expenseExcess.capitalWithdrawals, 20, 'Personal-expense capital rows are excluded from real capital withdrawals');
+assertMoney(expenseExcess.ownerCapital, 930, 'Capital propre subtracts the expense excess only once plus real capital withdrawals');
+
 console.log('managerCapital tests passed');
