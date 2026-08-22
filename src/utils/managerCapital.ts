@@ -8,6 +8,8 @@ export type ManagerOwnerCapitalBreakdown = {
     initialCapital: number;
     personalProfitTotal: number;
     personalExpensesTotal: number;
+    personalExpensesChargedToProfit: number;
+    personalExpensesChargedToCapital: number;
     retainedProfit: number;
     capitalAdditions: number;
     capitalWithdrawals: number;
@@ -47,9 +49,11 @@ export function calculateTotalPersonalExpenses(personalExpenses: TreasuryTx[] = 
         .reduce((sum, tx) => addM(sum, netPersonalExpenseAmount(tx)), 0);
 }
 
-function isInitialCapitalDeposit(tx: InvestorTransaction, investor: Investor, initialAlreadyHandled: boolean): boolean {
+export function isSyntheticInitialCapitalDeposit(tx: InvestorTransaction, investor: Investor, initialAlreadyHandled = false): boolean {
     if (initialAlreadyHandled || tx.type !== 'deposit_capital')
         return false;
+    if (tx.origin === 'initial_capital')
+        return true;
     const initialCapital = Number(investor.initialCapital || 0);
     if (initialCapital <= EPSILON)
         return false;
@@ -57,27 +61,36 @@ function isInitialCapitalDeposit(tx: InvestorTransaction, investor: Investor, in
     if (!amountMatches)
         return false;
     const note = String(tx.notes || '').toLowerCase();
-    if (note.includes('capital initial'))
-        return true;
     const entryTs = toMs(investor.entryDate, Number.NaN);
     const txTs = toMs(tx.timestamp, Number.NaN);
-    return Number.isFinite(entryTs) && Number.isFinite(txTs) && Math.abs(txTs - entryTs) <= INITIAL_CAPITAL_WINDOW_MS;
+    const nearEntry = Number.isFinite(entryTs) && Number.isFinite(txTs) && Math.abs(txTs - entryTs) <= INITIAL_CAPITAL_WINDOW_MS;
+    return nearEntry && (note.includes('capital initial') || note.includes('initial capital'));
 }
 
-export function calculateCapitalMovements(investor: Investor, investorTransactions: InvestorTransaction[]) {
+export function isPersonalExpenseCapitalWithdrawal(tx: InvestorTransaction, personalExpenses: TreasuryTx[] = []): boolean {
+    if (tx.type !== 'withdraw_capital')
+        return false;
+    if (tx.origin === 'personal_expense')
+        return true;
+    if (!tx.linkedTreasuryTxId)
+        return false;
+    return personalExpenses.some((expense) => expense.id === tx.linkedTreasuryTxId && expense.origin === 'personal_expense');
+}
+
+export function calculateCapitalMovements(investor: Investor, investorTransactions: InvestorTransaction[], personalExpenses: TreasuryTx[] = []) {
     let capitalAdditions = 0;
     let capitalWithdrawals = 0;
     let initialDepositHandled = false;
     const orderedTransactions = [...investorTransactions].sort((a, b) => toMs(a.timestamp) - toMs(b.timestamp));
     for (const tx of orderedTransactions) {
-        if (isInitialCapitalDeposit(tx, investor, initialDepositHandled)) {
+        if (isSyntheticInitialCapitalDeposit(tx, investor, initialDepositHandled)) {
             initialDepositHandled = true;
             continue;
         }
         if (tx.type === 'deposit_capital') {
             capitalAdditions = addM(capitalAdditions, Number(tx.amount || 0));
         }
-        if (tx.type === 'withdraw_capital') {
+        if (tx.type === 'withdraw_capital' && !isPersonalExpenseCapitalWithdrawal(tx, personalExpenses)) {
             capitalWithdrawals = addM(capitalWithdrawals, Number(tx.amount || 0));
         }
     }
@@ -94,13 +107,17 @@ export function calculateManagerOwnerCapital(input: {
     const initialCapital = Number(input.investor.initialCapital || 0);
     const personalProfitTotal = Number(input.investor.totalProfit || 0);
     const personalExpensesTotal = calculateTotalPersonalExpenses(input.personalExpenses || [], input.periodStartTs, input.periodEndTs);
-    const retainedProfit = subM(personalProfitTotal, personalExpensesTotal);
-    const { capitalAdditions, capitalWithdrawals } = calculateCapitalMovements(input.investor, input.investorTransactions);
-    const ownerCapital = subM(addM(addM(initialCapital, retainedProfit), capitalAdditions), capitalWithdrawals);
+    const personalExpensesChargedToProfit = Math.max(0, Math.min(personalExpensesTotal, Math.max(0, personalProfitTotal)));
+    const personalExpensesChargedToCapital = Math.max(0, subM(personalExpensesTotal, personalExpensesChargedToProfit));
+    const retainedProfit = subM(personalProfitTotal, personalExpensesChargedToProfit);
+    const { capitalAdditions, capitalWithdrawals } = calculateCapitalMovements(input.investor, input.investorTransactions, input.personalExpenses || []);
+    const ownerCapital = subM(subM(addM(addM(initialCapital, retainedProfit), capitalAdditions), capitalWithdrawals), personalExpensesChargedToCapital);
     return {
         initialCapital,
         personalProfitTotal,
         personalExpensesTotal,
+        personalExpensesChargedToProfit,
+        personalExpensesChargedToCapital,
         retainedProfit,
         capitalAdditions,
         capitalWithdrawals,
