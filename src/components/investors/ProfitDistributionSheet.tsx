@@ -58,6 +58,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                 batch.set(investorTxRef, {
                     investorId: inv.id,
                     type: 'withdraw_profit',
+                    origin: 'profit_distribution',
                     amount,
                     paymentSource,
                     linkedTreasuryTxId: treasuryTxRef.id,

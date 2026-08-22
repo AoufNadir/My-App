@@ -605,6 +605,7 @@ export default function MainApp({ user }: {
             investorTransactions,
             transactions,
             managerFeePercentage,
+            managerFeeHistory,
             pamLedger,
             periodStartTs,
             periodEndTs: nowTs,
@@ -711,7 +712,7 @@ export default function MainApp({ user }: {
             ownerProfitAllTime: baseManagerProfitBreakdown.ownerTotalProfit + serviceProfitAllTime + digitalServiceProfitAllTime,
             last7DaysProfit,
         };
-    }, [pamLedger, clientTransactionsDzd, treasuryStats, investors, investorTransactions, transactions, managerFeePercentage, deliveryExpenses, treasuryTransactions, manualAssetTransactions, digitalServiceTransactions, baseManagerProfitBreakdown]);
+    }, [pamLedger, clientTransactionsDzd, treasuryStats, investors, investorTransactions, transactions, managerFeePercentage, managerFeeHistory, deliveryExpenses, treasuryTransactions, manualAssetTransactions, digitalServiceTransactions, baseManagerProfitBreakdown]);
     const pricingMtdProfit = useMemo(() => {
         const d = new Date();
         const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
@@ -823,9 +824,9 @@ export default function MainApp({ user }: {
             deliveryExpensesSinceStart: deliveryExpenses
                 .filter((tx) => tx.timestamp <= Date.now())
                 .reduce((sum, tx) => sum + Math.max(0, Number(tx.amountDzd ?? tx.amount ?? 0)), 0),
-            actualOwnerCapital: capitalSnapshot.netOwnedCapital,
+            actualOwnerCapital: managerProfitBreakdown.actualOwnerCapital,
         };
-    }, [treasuryTransactions, deliveryExpenses, capitalSnapshot.netOwnedCapital, managerProfitBreakdown]);
+    }, [treasuryTransactions, deliveryExpenses, managerProfitBreakdown]);
     /* Legacy global search logic moved to useGlobalSearch.
                 id: `search_client_${client.id}`,
                 kind: 'client' as const,

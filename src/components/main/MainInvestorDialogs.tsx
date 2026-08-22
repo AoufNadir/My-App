@@ -71,7 +71,8 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                         <label htmlFor="isManager" className="mt-2 flex min-h-touch cursor-pointer items-center gap-3 rounded-xl bg-surface-muted p-3 transition-colors hover:bg-neutral-100">
                             <input type="checkbox" id="isManager" checked={isManager} onChange={e => setIsManager(e.target.checked)} className="h-5 w-5 rounded accent-primary"/>
                             <span className="text-sm font-medium select-none">
-                                {t('investorDialog.managerFlag')}
+                                <span>{t('investorDialog.managerFlag')}</span>
+                                <span className="mt-0.5 block text-xs font-normal text-neutral-500">{t('investorDialog.singleManagerHint')}</span>
                             </span>
                         </label>
                     </ModalContent>

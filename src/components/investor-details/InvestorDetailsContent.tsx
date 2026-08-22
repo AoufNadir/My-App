@@ -88,7 +88,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
             { label: t('investors.totalEarned') as string, value: managerProfitBreakdown.ownerTotalProfit, currency: 'DZD', semantic: 'auto' },
             { label: t('investors.openingCapital') as string, value: managerProfitBreakdown.openingCapital, currency: 'DZD', semantic: 'plain' },
             { label: t('investors.totalPersonalExpenses') as string, value: managerProfitBreakdown.totalPersonalExpenses, currency: 'DZD', semantic: 'plain' },
-            { label: t('investors.profitWithdrawals') as string, value: managerProfitBreakdown.profitWithdrawals, currency: 'DZD', semantic: 'plain' },
+            { label: t('investors.profitsReinvestedInCapital') as string, value: managerProfitBreakdown.retainedProfit, currency: 'DZD', semantic: 'auto' },
         ]
         : [
             { label: t('investors.totalEarned') as string, value: managerCapital?.personalProfitTotal || 0, currency: 'DZD', semantic: 'auto' },
@@ -120,7 +120,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
         },
     ];
     const primaryCapitalLabel = isManager ? t('investors.managerOwnedCapital') as string : t('investors.capitalInvested') as string;
-    const primaryCapitalValue = isManager ? Number(capitalSnapshot?.netOwnedCapital ?? managerCapital?.ownerCapital ?? 0) : investor.capitalInvested;
+    const primaryCapitalValue = isManager ? Number(managerProfitBreakdown?.actualOwnerCapital ?? managerCapital?.ownerCapital ?? capitalSnapshot?.netOwnedCapital ?? 0) : investor.capitalInvested;
     return (<>
       <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel={primaryCapitalLabel} primaryValue={primaryCapitalValue} primaryCurrency="DZD" primarySemantic="plain" secondary={isManager ? managerSecondary : investorSecondary}/>
 

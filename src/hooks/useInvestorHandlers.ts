@@ -762,6 +762,15 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             setAlert('⚠️ Capital initial invalide.');
             return;
         }
+        if (isManager) {
+            const existingActiveManager = derivedInvestors.find((investor) => investor.isManager === true
+                && investor.isActive !== false
+                && investor.id !== editingInvestor?.id);
+            if (existingActiveManager) {
+                setAlert(`⚠️ Un seul gérant actif est autorisé. Gérant actuel : ${existingActiveManager.name}.`);
+                return;
+            }
+        }
         setIsSaving(true);
         try {
             const batch = db.batch();
@@ -806,6 +815,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                         date: depositDate,
                         time: depositTime,
                         timestamp: depositTs,
+                        origin: 'initial_capital',
                         notes: 'Capital Initial'
                     };
                     // M3: when the user picks Caisse/BaridiMob the cash actually moved
