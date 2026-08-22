@@ -18,7 +18,7 @@ import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { Investor, InvestorTransaction, TreasuryTx } from '../../types';
 import { formatNumber } from '../../pages/shared/pageFormat';
-import { calculateManagerOwnerCapital } from '../../utils/managerCapital';
+import { calculateManagerOwnerCapital, isPersonalExpenseCapitalWithdrawal } from '../../utils/managerCapital';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { CapitalSnapshot } from '../../utils/capitalSnapshot';
 import type { ManagerProfitBreakdown } from '../../hooks/useInvestorEconomics';
@@ -38,7 +38,7 @@ type InvestorDetailsContentProps = {
     personalExpenses?: TreasuryTx[];
 };
 type TxMeta = { label: string; isPositive: boolean; icon: React.ReactNode };
-function getTxMeta(tx: InvestorTransaction, t: (key: string) => any, isManager: boolean): TxMeta {
+function getTxMeta(tx: InvestorTransaction, t: (key: string) => any, isManager: boolean, personalExpenses: TreasuryTx[] = []): TxMeta {
     switch (tx.type) {
         case 'profit_distribution':
             return { label: t('investors.txProfitDistribution'), isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
@@ -49,6 +49,9 @@ function getTxMeta(tx: InvestorTransaction, t: (key: string) => any, isManager: 
         case 'deposit_capital':
             return { label: t('investors.txDepositCapital'), isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
         default:
+            if (isManager && isPersonalExpenseCapitalWithdrawal(tx, personalExpenses)) {
+                return { label: t('investors.txPersonalExpenseCapital'), isPositive: false, icon: <WalletIcon className="w-4 h-4"/> };
+            }
             return { label: t('investors.txWithdrawCapital'), isPositive: false, icon: <MinusIcon className="w-4 h-4"/> };
     }
 }
@@ -258,7 +261,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
           <CardContent className="p-0">
             {orderedTransactions.length === 0 ? (<EmptyState icon={<FileSpreadsheetIcon className="w-5 h-5"/>} title={t('investors.noTransactions') as string}/>) : (<div className="divide-y divide-neutral-100">
                 {orderedTransactions.map((tx) => {
-                    const meta = getTxMeta(tx, t, isManager);
+                    const meta = getTxMeta(tx, t, isManager, personalExpenses);
                     const signedAmount = (meta.isPositive ? 1 : -1) * Math.abs(tx.amount);
                     return (<React.Fragment key={tx.id}>
                       <SwipeableListItem onDelete={() => onDeleteTransaction(tx)}>

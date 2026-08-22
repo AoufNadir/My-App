@@ -10,15 +10,17 @@ type InvestorDashboardTransactionsTableProps = {
     orderedTransactions: InvestorTransaction[];
     isManager?: boolean;
 };
-function getInvestorDashboardTxMeta(type: InvestorTransaction['type'], t: (key: string) => any, isManager: boolean) {
-    if (type === 'profit_distribution')
+function getInvestorDashboardTxMeta(tx: InvestorTransaction, t: (key: string) => any, isManager: boolean) {
+    if (tx.type === 'profit_distribution')
         return { label: t('investors.txProfitDistribution'), badgeVariant: 'success' as const, positive: true };
-    if (type === 'deposit_capital')
+    if (tx.type === 'deposit_capital')
         return { label: t('investorDialog.depositCapitalTitle'), badgeVariant: 'primary' as const, positive: true };
-    if (type === 'withdraw_profit')
+    if (tx.type === 'withdraw_profit')
         return { label: isManager ? t('investors.txPersonalExpense') : t('investorDialog.withdrawProfitTitle'), badgeVariant: 'warning' as const, positive: false };
-    if (type === 'reinvest_profit')
+    if (tx.type === 'reinvest_profit')
         return { label: isManager ? t('investors.profitsReinvestedInCapital') : t('investors.txReinvestProfit'), badgeVariant: 'success' as const, positive: true };
+    if (isManager && tx.type === 'withdraw_capital' && tx.origin === 'personal_expense')
+        return { label: t('investors.txPersonalExpenseCapital'), badgeVariant: 'warning' as const, positive: false };
     return { label: t('investorDialog.withdrawCapitalTitle'), badgeVariant: 'neutral' as const, positive: false };
 }
 export function InvestorDashboardTransactionsTable({ orderedTransactions, isManager = false }: InvestorDashboardTransactionsTableProps) {
@@ -36,7 +38,7 @@ export function InvestorDashboardTransactionsTable({ orderedTransactions, isMana
             key: 'type',
             label: t('transactions.type') as string,
             render: (tx) => {
-                const meta = getInvestorDashboardTxMeta(tx.type, t, isManager);
+                const meta = getInvestorDashboardTxMeta(tx, t, isManager);
                 return <Badge variant={meta.badgeVariant}>{meta.label}</Badge>;
             },
         },
@@ -45,7 +47,7 @@ export function InvestorDashboardTransactionsTable({ orderedTransactions, isMana
             label: t('transactions.amount') as string,
             align: 'end',
             render: (tx) => {
-                const meta = getInvestorDashboardTxMeta(tx.type, t, isManager);
+                const meta = getInvestorDashboardTxMeta(tx, t, isManager);
                 const signedAmount = (meta.positive ? 1 : -1) * Math.abs(tx.amount);
                 return <CurrencyAmount value={signedAmount} currency="DZD" semantic="auto" size="lg" showSign decimals={0}/>;
             },
