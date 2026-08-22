@@ -1,4 +1,4 @@
-const CACHE_NAME = 'prodigital-cache-v11';
+const CACHE_NAME = 'prodigital-cache-v12';
 
 // ─── Push Notifications ───────────────────────────────────────────────────────
 
@@ -34,8 +34,6 @@ self.addEventListener('notificationclick', (event) => {
     );
 });
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
   '/manifest.webmanifest',
   '/logo.png',
   '/pwa-icon.png'
@@ -89,10 +87,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first for index.html so users get latest hashed assets after deployment.
+  // Network-first for the app shell so users get latest hashed assets after deployment.
   if (url.pathname === '/' || url.pathname === '/index.html' || url.pathname.endsWith('/')) {
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, { cache: 'no-store' })
         .then((response) => {
           const clonedResponse = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
