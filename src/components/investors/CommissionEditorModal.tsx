@@ -43,7 +43,7 @@ export function CommissionEditorModal({ isOpen, onClose, value, onSave, managerF
     const fieldBase = 'min-h-touch rounded-lg border border-border-strong bg-surface px-3 py-2 text-end text-lg font-bold text-neutral-900';
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface">
         <ModalHeader onClose={onClose} className="border-b border-border px-4 py-3 sm:px-5">
-          <ModalTitle className="text-base sm:text-lg">Taux de commission gerant</ModalTitle>
+          <ModalTitle className="text-base sm:text-lg">Taux actuel du gérant</ModalTitle>
           <ModalDescription className="text-neutral-500">
             Le taux saisi s'applique seulement aux operations apres l'enregistrement.
           </ModalDescription>

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { Investor, InvestorTransaction, TreasuryTx, Tx } from '../types';
 import { addM, distributeProportionally, roundM, subM, sumM } from '../utils/money';
-import { calculateManagerOwnerCapital, calculateTotalPersonalExpenses, isPersonalExpenseCapitalWithdrawal, isSyntheticInitialCapitalDeposit, type ManagerOwnerCapitalBreakdown } from '../utils/managerCapital';
+import { buildInvestorCapitalReconciliation, calculateManagerOwnerCapital, calculateTotalPersonalExpenses, isPersonalExpenseCapitalWithdrawal, isSyntheticInitialCapitalDeposit, type InvestorCapitalReconciliation, type ManagerOwnerCapitalBreakdown } from '../utils/managerCapital';
 import { computePamLedger, type PamLedgerResult, type PamLedgerSellProfitRow } from '../utils/pamLedger';
 export const LEGACY_MANAGER_FEE_PERCENTAGE = 30;
 export type InvestorAccountingWarningCode = 'available_profit_negative' | 'withdrawals_exceed_derived_profit' | 'uncosted_quantity_sold' | 'negative_derived_profit';
@@ -93,6 +93,8 @@ type InvestorBase = Investor & {
     txs: InvestorTransaction[];
     hasCapitalMovements: boolean;
     capitalBaseline: number;
+    capitalMovements: InvestorTransaction[];
+    capitalReconciliation: InvestorCapitalReconciliation;
     capitalInvested: number;
     withdrawnProfit: number;
     reinvestedProfit: number;
@@ -167,18 +169,7 @@ function createManagerFeeRatioResolver(input: InvestorEconomicsInput): (timestam
         const staticRatio = normalizeFeePercentage(input.managerFeePercentage, 0) / 100;
         return () => staticRatio;
     }
-    const sortedHistory = normalizeManagerFeeHistory(input.managerFeeHistory);
-    const legacyPercentage = normalizeFeePercentage(LEGACY_MANAGER_FEE_PERCENTAGE, LEGACY_MANAGER_FEE_PERCENTAGE);
-    return (timestamp: unknown) => {
-        const ts = toMs(timestamp);
-        let activePercentage = legacyPercentage;
-        for (const entry of sortedHistory) {
-            if (entry.effectiveFrom > ts)
-                break;
-            activePercentage = entry.percentage;
-        }
-        return activePercentage / 100;
-    };
+    return (timestamp: unknown) => getManagerFeeAt(timestamp, input.managerFeeHistory) / 100;
 }
 function addWarning(allWarnings: InvestorAccountingWarning[], warningsByInvestor: Map<string, InvestorAccountingWarning[]>, warning: InvestorAccountingWarning): void {
     allWarnings.push(warning);
@@ -217,23 +208,18 @@ function buildInvestorsBase(investors: Investor[], investorTransactions: Investo
     return investors.map((inv) => {
         const myTxs = txByInvestor.get(inv.id) || [];
         const orderedTxs = [...myTxs].sort((a, b) => toMs(a.timestamp) - toMs(b.timestamp));
-        let initialDepositHandled = false;
+        const capitalReconciliation = buildInvestorCapitalReconciliation(inv, orderedTxs, personalExpenses || []);
         const movementTxs = orderedTxs.filter((tx) => tx.type === 'deposit_capital'
             || tx.type === 'reinvest_profit'
             || tx.type === 'withdraw_capital')
             .filter((tx) => {
-            if (isSyntheticInitialCapitalDeposit(tx, inv, initialDepositHandled)) {
-                initialDepositHandled = true;
+            if (isSyntheticInitialCapitalDeposit(tx, inv)) {
                 return false;
             }
             return !isPersonalExpenseCapitalWithdrawal(tx, personalExpenses || []);
         });
-        const capitalBaseline = Number(inv.initialCapital || 0);
-        const currentCapitalFromMovements = movementTxs.reduce((sum, tx) => {
-            if (tx.type === 'withdraw_capital')
-                return subM(sum, tx.amount);
-            return addM(sum, tx.amount);
-        }, capitalBaseline);
+        const capitalBaseline = capitalReconciliation.openingCapital;
+        const currentCapitalFromMovements = capitalReconciliation.currentCapital;
         const periodTxs = myTxs.filter((tx) => isInPeriod(toMs(tx.timestamp), periodStartTs, periodEndTs));
         const transactionWithdrawnProfit = periodTxs
             .filter((tx) => tx.type === 'withdraw_profit')
@@ -269,6 +255,8 @@ function buildInvestorsBase(investors: Investor[], investorTransactions: Investo
             txs: myTxs,
             hasCapitalMovements: movementTxs.length > 0,
             capitalBaseline,
+            capitalMovements: movementTxs,
+            capitalReconciliation,
             capitalInvested: currentCapitalFromMovements,
             withdrawnProfit,
             reinvestedProfit,
@@ -280,19 +268,8 @@ function buildInvestorsBase(investors: Investor[], investorTransactions: Investo
     });
 }
 function capitalAtTs(inv: InvestorBase, ts: number): number {
-    let initialDepositHandled = false;
-    const movementsUntilTs = [...inv.txs].sort((a, b) => toMs(a.timestamp) - toMs(b.timestamp))
-        .filter((tx) => toMs(tx.timestamp) <= ts
-        && (tx.type === 'deposit_capital'
-            || tx.type === 'reinvest_profit'
-            || tx.type === 'withdraw_capital'))
-        .filter((tx) => {
-        if (isSyntheticInitialCapitalDeposit(tx, inv, initialDepositHandled)) {
-            initialDepositHandled = true;
-            return false;
-        }
-        return !isPersonalExpenseCapitalWithdrawal(tx);
-    });
+    const movementsUntilTs = inv.capitalMovements
+        .filter((tx) => toMs(tx.timestamp) <= ts);
     if (movementsUntilTs.length === 0) {
         return inv.capitalBaseline;
     }

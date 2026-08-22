@@ -4,6 +4,35 @@ import { addM, subM } from './money';
 const EPSILON = 0.005;
 const INITIAL_CAPITAL_WINDOW_MS = 10 * 60 * 1000;
 
+export type CapitalDepositClassification = 'initial' | 'real_top_up';
+export type CapitalOpeningSource = 'initial_transaction' | 'declared_initial_capital';
+
+export type CapitalDepositAuditRow = {
+    id: string;
+    amount: number;
+    origin?: InvestorTransaction['origin'];
+    timestamp: number;
+    notes: string;
+    classification: CapitalDepositClassification;
+};
+
+export type InvestorCapitalReconciliation = {
+    declaredInitialCapital: number;
+    openingCapital: number;
+    openingSource: CapitalOpeningSource;
+    deposits: CapitalDepositAuditRow[];
+    realCapitalAdditions: number;
+    reinvestments: number;
+    realCapitalWithdrawals: number;
+    currentCapital: number;
+    /**
+     * Diagnostic only: the balance produced by the old amount-matching rule.
+     * It lets the UI explain exactly why a historic document changed.
+     */
+    legacyCurrentCapital: number;
+    differenceFromLegacy: number;
+};
+
 export type ManagerOwnerCapitalBreakdown = {
     initialCapital: number;
     personalProfitTotal: number;
@@ -49,24 +78,45 @@ export function calculateTotalPersonalExpenses(personalExpenses: TreasuryTx[] = 
         .reduce((sum, tx) => addM(sum, netPersonalExpenseAmount(tx)), 0);
 }
 
-export function isSyntheticInitialCapitalDeposit(tx: InvestorTransaction, investor: Investor, initialAlreadyHandled = false): boolean {
+function normalizeLegacyNote(value: unknown): string {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+}
+
+function isLegacyOpeningCapitalDeposit(tx: InvestorTransaction, investor: Investor): boolean {
     if (tx.type !== 'deposit_capital')
         return false;
-    if (tx.origin === 'initial_capital')
-        return true;
-    if (initialAlreadyHandled)
+    // Historical versions created this exact row in the same batch as the
+    // investor document, before `origin: initial_capital` existed. The amount
+    // is deliberately NOT part of the signature: `initialCapital` was once
+    // overwritten by reinvestment code, so matching amounts was unsafe.
+    if (tx.origin !== undefined)
         return false;
-    const initialCapital = Number(investor.initialCapital || 0);
-    if (initialCapital <= EPSILON)
+    if (normalizeLegacyNote(tx.notes) !== 'capital initial')
         return false;
-    const amountMatches = Math.abs(Number(tx.amount || 0) - initialCapital) <= EPSILON;
-    if (!amountMatches)
-        return false;
-    const note = String(tx.notes || '').toLowerCase();
     const entryTs = toMs(investor.entryDate, Number.NaN);
     const txTs = toMs(tx.timestamp, Number.NaN);
     const nearEntry = Number.isFinite(entryTs) && Number.isFinite(txTs) && Math.abs(txTs - entryTs) <= INITIAL_CAPITAL_WINDOW_MS;
-    return nearEntry && (note.includes('capital initial') || note.includes('initial capital'));
+    return nearEntry;
+}
+
+function isOpeningCapitalDeposit(tx: InvestorTransaction, investor: Investor): boolean {
+    return tx.type === 'deposit_capital'
+        && (tx.origin === 'initial_capital' || isLegacyOpeningCapitalDeposit(tx, investor));
+}
+
+/**
+ * An opening-capital row is the physical counterpart of `initialCapital`.
+ * It must not be added a second time. Legacy rows are accepted only when they
+ * match the exact historic creation signature, never because their amount
+ * happens to match the profile field.
+ */
+export function isSyntheticInitialCapitalDeposit(tx: InvestorTransaction, investor: Investor): boolean {
+    return isOpeningCapitalDeposit(tx, investor);
 }
 
 export function isPersonalExpenseCapitalWithdrawal(tx: InvestorTransaction, personalExpenses: TreasuryTx[] = []): boolean {
@@ -79,24 +129,92 @@ export function isPersonalExpenseCapitalWithdrawal(tx: InvestorTransaction, pers
     return personalExpenses.some((expense) => expense.id === tx.linkedTreasuryTxId && expense.origin === 'personal_expense');
 }
 
-export function calculateCapitalMovements(investor: Investor, investorTransactions: InvestorTransaction[], personalExpenses: TreasuryTx[] = []) {
-    let capitalAdditions = 0;
-    let capitalWithdrawals = 0;
-    let initialDepositHandled = false;
+function calculateLegacyCapital(investor: Investor, investorTransactions: InvestorTransaction[], personalExpenses: TreasuryTx[]): number {
+    let legacyOpeningHandled = false;
+    let capital = Number(investor.initialCapital || 0);
     const orderedTransactions = [...investorTransactions].sort((a, b) => toMs(a.timestamp) - toMs(b.timestamp));
     for (const tx of orderedTransactions) {
-        if (isSyntheticInitialCapitalDeposit(tx, investor, initialDepositHandled)) {
-            initialDepositHandled = true;
+        if (tx.origin === 'initial_capital') {
             continue;
         }
-        if (tx.type === 'deposit_capital') {
-            capitalAdditions = addM(capitalAdditions, Number(tx.amount || 0));
+        if (tx.type === 'deposit_capital'
+            && !legacyOpeningHandled
+            && isLegacyOpeningCapitalDeposit(tx, investor)
+            && Math.abs(Number(tx.amount || 0) - Number(investor.initialCapital || 0)) <= EPSILON) {
+            legacyOpeningHandled = true;
+            continue;
+        }
+        if (tx.type === 'deposit_capital' || tx.type === 'reinvest_profit') {
+            capital = addM(capital, Number(tx.amount || 0));
         }
         if (tx.type === 'withdraw_capital' && !isPersonalExpenseCapitalWithdrawal(tx, personalExpenses)) {
-            capitalWithdrawals = addM(capitalWithdrawals, Number(tx.amount || 0));
+            capital = subM(capital, Number(tx.amount || 0));
         }
     }
-    return { capitalAdditions, capitalWithdrawals };
+    return capital;
+}
+
+export function buildInvestorCapitalReconciliation(investor: Investor, investorTransactions: InvestorTransaction[], personalExpenses: TreasuryTx[] = []): InvestorCapitalReconciliation {
+    const orderedTransactions = [...investorTransactions].sort((a, b) => toMs(a.timestamp) - toMs(b.timestamp));
+    const openingDeposits = orderedTransactions.filter((tx) => isOpeningCapitalDeposit(tx, investor));
+    const openingDeposit = openingDeposits[0];
+    const declaredInitialCapital = Number(investor.initialCapital || 0);
+    const openingCapital = openingDeposit ? Number(openingDeposit.amount || 0) : declaredInitialCapital;
+    const openingSource: CapitalOpeningSource = openingDeposit ? 'initial_transaction' : 'declared_initial_capital';
+    let realCapitalAdditions = 0;
+    let reinvestments = 0;
+    let realCapitalWithdrawals = 0;
+    const deposits = orderedTransactions
+        .filter((tx) => tx.type === 'deposit_capital')
+        .map((tx): CapitalDepositAuditRow => {
+            const classification: CapitalDepositClassification = isOpeningCapitalDeposit(tx, investor) ? 'initial' : 'real_top_up';
+            if (classification === 'real_top_up') {
+                realCapitalAdditions = addM(realCapitalAdditions, Number(tx.amount || 0));
+            }
+            return {
+                id: tx.id,
+                amount: Number(tx.amount || 0),
+                origin: tx.origin,
+                timestamp: toMs(tx.timestamp),
+                notes: String(tx.notes || ''),
+                classification,
+            };
+        });
+
+    for (const tx of orderedTransactions) {
+        if (tx.type === 'reinvest_profit') {
+            reinvestments = addM(reinvestments, Number(tx.amount || 0));
+        }
+        if (tx.type === 'withdraw_capital' && !isPersonalExpenseCapitalWithdrawal(tx, personalExpenses)) {
+            realCapitalWithdrawals = addM(realCapitalWithdrawals, Number(tx.amount || 0));
+        }
+    }
+
+    const currentCapital = subM(
+        addM(addM(openingCapital, realCapitalAdditions), reinvestments),
+        realCapitalWithdrawals
+    );
+    const legacyCurrentCapital = calculateLegacyCapital(investor, orderedTransactions, personalExpenses);
+    return {
+        declaredInitialCapital,
+        openingCapital,
+        openingSource,
+        deposits,
+        realCapitalAdditions,
+        reinvestments,
+        realCapitalWithdrawals,
+        currentCapital,
+        legacyCurrentCapital,
+        differenceFromLegacy: subM(currentCapital, legacyCurrentCapital),
+    };
+}
+
+export function calculateCapitalMovements(investor: Investor, investorTransactions: InvestorTransaction[], personalExpenses: TreasuryTx[] = []) {
+    const reconciliation = buildInvestorCapitalReconciliation(investor, investorTransactions, personalExpenses);
+    return {
+        capitalAdditions: reconciliation.realCapitalAdditions,
+        capitalWithdrawals: reconciliation.realCapitalWithdrawals,
+    };
 }
 
 export function calculateManagerOwnerCapital(input: {
@@ -106,7 +224,8 @@ export function calculateManagerOwnerCapital(input: {
     periodStartTs?: number | null;
     periodEndTs?: number | null;
 }): ManagerOwnerCapitalBreakdown {
-    const initialCapital = Number(input.investor.initialCapital || 0);
+    const capitalReconciliation = buildInvestorCapitalReconciliation(input.investor, input.investorTransactions, input.personalExpenses || []);
+    const initialCapital = capitalReconciliation.openingCapital;
     const personalProfitTotal = Number(input.investor.totalProfit || 0);
     const personalExpensesTotal = calculateTotalPersonalExpenses(input.personalExpenses || [], input.periodStartTs, input.periodEndTs);
     const personalExpensesChargedToProfit = Math.max(0, Math.min(personalExpensesTotal, Math.max(0, personalProfitTotal)));

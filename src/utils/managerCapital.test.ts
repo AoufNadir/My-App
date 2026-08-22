@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { calculateManagerOwnerCapital } from './managerCapital';
+import { buildInvestorCapitalReconciliation, calculateManagerOwnerCapital } from './managerCapital';
 import type { Investor, InvestorTransaction, TreasuryTx } from '../types';
 
 function investor(input: Partial<Investor> & Pick<Investor, 'id'>): Investor {
@@ -112,5 +112,31 @@ assertMoney(expenseExcess.personalExpensesChargedToCapital, 50);
 assertMoney(expenseExcess.retainedProfit, 0);
 assertMoney(expenseExcess.capitalWithdrawals, 20, 'Personal-expense capital rows are excluded from real capital withdrawals');
 assertMoney(expenseExcess.ownerCapital, 930, 'Capital propre subtracts the expense excess only once plus real capital withdrawals');
+
+const investorWithMutatedProfileCapital = investor({
+    id: 'legacy-opening',
+    entryDate: new Date(1000).toISOString(),
+    // Historical reinvestment code could overwrite this field. The opening
+    // deposit below remains the reliable opening-capital record.
+    initialCapital: 5000,
+    totalProfit: 0,
+});
+
+const openingCapitalAudit = buildInvestorCapitalReconciliation(investorWithMutatedProfileCapital, [
+    investorTx({ id: 'opening', investorId: 'legacy-opening', type: 'deposit_capital', amount: 1000, timestamp: 1000, notes: 'Capital Initial' }),
+    investorTx({ id: 'top-up', investorId: 'legacy-opening', type: 'deposit_capital', origin: 'capital_movement', amount: 200, timestamp: 2000, notes: 'Ajout de capital' }),
+    // Same amount as the opening capital is still a real top-up when it does
+    // not carry the exact opening-capital signature.
+    investorTx({ id: 'same-amount-top-up', investorId: 'legacy-opening', type: 'deposit_capital', amount: 1000, timestamp: 3000, notes: 'Apport complémentaire' }),
+]);
+
+assertMoney(openingCapitalAudit.declaredInitialCapital, 5000);
+assertMoney(openingCapitalAudit.openingCapital, 1000, 'Opening deposit is authoritative when the profile field was historically overwritten');
+assert.equal(openingCapitalAudit.openingSource, 'initial_transaction');
+assert.deepEqual(openingCapitalAudit.deposits.map((row) => row.classification), ['initial', 'real_top_up', 'real_top_up']);
+assertMoney(openingCapitalAudit.realCapitalAdditions, 1200);
+assertMoney(openingCapitalAudit.currentCapital, 2200, 'Opening capital is counted once, then only real top-ups are added');
+assertMoney(openingCapitalAudit.legacyCurrentCapital, 7200, 'Diagnostic preserves the old double-counted outcome');
+assertMoney(openingCapitalAudit.differenceFromLegacy, -5000);
 
 console.log('managerCapital tests passed');

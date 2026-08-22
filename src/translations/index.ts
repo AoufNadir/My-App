@@ -730,7 +730,7 @@ export const translations = {
             netPart: 'Part nette',
             result: 'Résultat',
             attributedProfit: 'Profit attribué cumulé',
-            managerCommissionRate: 'Taux de commission gérant',
+            managerCommissionRate: 'Taux actuel du gérant',
             deliveryExpenses: 'Frais du projet',
             netDistributableProfit: 'Profit net distribuable',
             reconciliationIssue: 'Écart de réconciliation détecté',

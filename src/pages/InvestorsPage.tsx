@@ -60,7 +60,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
     const distributableInvestors = useMemo(() => investors.filter((investor) => !investor.isManager), [investors]);
     const handleSaveCommission = useCallback(async (nextValue: string) => {
         await saveManagerFeePercentage(nextValue);
-        setAlert('✅ Taux de commission gerant sauvegarde.');
+        setAlert('✅ Taux actuel du gérant sauvegardé.');
         setIsCommissionModalOpen(false);
     }, [saveManagerFeePercentage, setAlert]);
     return (<div className="anim-page-in space-y-6">

@@ -185,6 +185,75 @@ test('initial capital remains part of capitalAtTs when a later top-up deposit ex
     assertMoney(rostom?.totalProfit || 0, 416.67);
 });
 
+test('a legacy opening deposit prevents double-counting a historically mutated initialCapital field', () => {
+    const investors = [
+        investor({ id: 'manager', name: 'Manager', isManager: true, initialCapital: 5000, entryDate: new Date(1000).toISOString() }),
+        investor({ id: 'dalal', name: 'Dalal', initialCapital: 1000, entryDate: new Date(1000).toISOString() }),
+    ];
+    const result = deriveInvestorEconomics({
+        investors,
+        investorTransactions: [
+            investorTx({ id: 'manager-opening', investorId: 'manager', type: 'deposit_capital', amount: 1000, timestamp: 1000, notes: 'Capital Initial' }),
+        ],
+        transactions: [
+            tx({ id: 'buy-1', type: 'buy', quantity: 20, price: 100, total: 2000, timestamp: 1000 }),
+            tx({ id: 'sell-1', type: 'sell', quantity: 20, sell: 150, timestamp: 2000 }),
+        ],
+        managerFeePercentage: '0',
+        managerFeeHistory: undefined,
+    });
+
+    const manager = result.derivedInvestors.find((item) => item.id === 'manager');
+    const dalal = result.derivedInvestors.find((item) => item.id === 'dalal');
+    assertMoney(manager?.capitalInvested || 0, 1500, 'Manager capital uses the 1,000 DZD opening record plus retained profit, not the overwritten 5,000 DZD profile field');
+    assertMoney(dalal?.capitalInvested || 0, 1000);
+    assertMoney(manager?.totalProfit || 0, 500, 'Historic profit uses the corrected 1,000 / 1,000 capital split');
+    assertMoney(dalal?.totalProfit || 0, 500, 'Correcting capital does not give Dalal a distorted historic share');
+});
+
+test('25 then 50 percent applies each manager rate only to sells after its effective date', () => {
+    const investors = [
+        investor({ id: 'manager', name: 'Manager', isManager: true, initialCapital: 1000, entryDate: new Date(0).toISOString() }),
+        investor({ id: 'rostom', name: 'Rostom', initialCapital: 1000, entryDate: new Date(0).toISOString() }),
+    ];
+    const history = [
+        { percentage: 25, effectiveFrom: 1500 },
+        { percentage: 50, effectiveFrom: 3000 },
+    ];
+    const result = deriveInvestorEconomics({
+        investors,
+        investorTransactions: [],
+        transactions: [
+            tx({ id: 'buy-1', type: 'buy', quantity: 200, price: 100, total: 20000, timestamp: 1000 }),
+            tx({ id: 'sell-at-25', type: 'sell', quantity: 100, sell: 150, timestamp: 2000 }),
+            tx({ id: 'sell-at-50', type: 'sell', quantity: 100, sell: 150, timestamp: 4000 }),
+        ],
+        managerFeePercentage: '50',
+        managerFeeHistory: history,
+    });
+    const manager = result.derivedInvestors.find((item) => item.id === 'manager');
+    const rostom = result.derivedInvestors.find((item) => item.id === 'rostom');
+
+    assertMoney(result.totals.derivedProfit, 10000);
+    assertMoney(result.totals.managerShare, 3750, 'Manager receives 1,250 at 25% then 2,500 at 50%');
+    assertMoney(result.totals.investorShare, 6250, 'Investor pool is 3,750 at 25% then 2,500 at 50%');
+    assertMoney(manager?.totalProfit || 0, 6875, 'Manager also receives their proportional investor-pool share');
+    assertMoney(rostom?.totalProfit || 0, 3125, 'Rostom receives only the pool remaining after each historic rate');
+
+    const withoutSecondSale = deriveInvestorEconomics({
+        investors,
+        investorTransactions: [],
+        transactions: [
+            tx({ id: 'buy-1', type: 'buy', quantity: 100, price: 100, total: 10000, timestamp: 1000 }),
+            tx({ id: 'sell-at-25', type: 'sell', quantity: 100, sell: 150, timestamp: 2000 }),
+        ],
+        managerFeePercentage: '50',
+        managerFeeHistory: history,
+    });
+    assertMoney(withoutSecondSale.totals.managerShare, 1250, 'Saving 50% alone never rewrites the sale that happened at 25%');
+    assertMoney(withoutSecondSale.derivedInvestors.find((item) => item.id === 'rostom')?.totalProfit || 0, 1875);
+});
+
 test('Rostom and Karim only receive profit for periods where they were investors', () => {
     const investors = [
         investor({ id: 'manager', name: 'Manager', isManager: true, initialCapital: 0 }),
