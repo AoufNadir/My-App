@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
 import type { Investor, InvestorTransaction, TreasuryTx, Tx } from '../types';
 import { addM, distributeProportionally, roundM, subM, sumM } from '../utils/money';
+import { calculateManagerOwnerCapital, calculateTotalPersonalExpenses } from '../utils/managerCapital';
 import { computePamLedger, type PamLedgerResult, type PamLedgerSellProfitRow } from '../utils/pamLedger';
+export const LEGACY_MANAGER_FEE_PERCENTAGE = 30;
 export type InvestorAccountingWarningCode = 'available_profit_negative' | 'withdrawals_exceed_derived_profit' | 'uncosted_quantity_sold' | 'negative_derived_profit';
 export type InvestorAccountingWarningSeverity = 'info' | 'warning' | 'high';
 export interface InvestorAccountingWarning {
@@ -72,6 +74,12 @@ export type ManagerProfitReconciliationInput = {
     serviceProfit?: number;
     preTrackingPersonalExpenses?: number;
 };
+export interface ManagerFeeHistoryEntry {
+    id?: string;
+    percentage: number;
+    effectiveFrom: number;
+    createdAt?: number;
+}
 type InvestorBase = Investor & {
     entryTs: number;
     txs: InvestorTransaction[];
@@ -90,11 +98,13 @@ type InvestorEconomicsInput = {
     investorTransactions: InvestorTransaction[];
     transactions: Tx[];
     managerFeePercentage: string;
+    managerFeeHistory?: ManagerFeeHistoryEntry[];
     pamLedger?: PamLedgerResult;
     periodStartTs?: number | null;
     periodEndTs?: number | null;
     deliveryExpenses?: TreasuryTx[];
     treasuryTransactions?: TreasuryTx[];
+    personalExpenses?: TreasuryTx[];
 };
 function toMs(value: unknown, fallback = 0): number {
     if (typeof value === 'number')
@@ -116,6 +126,51 @@ function isInPeriod(ts: number, startTs?: number | null, endTs?: number | null):
         return false;
     return true;
 }
+function normalizeFeePercentage(value: unknown, fallback = 0): number {
+    const parsed = typeof value === 'string' ? parseFloat(value) : Number(value);
+    if (!Number.isFinite(parsed))
+        return fallback;
+    return Math.max(0, Math.min(100, parsed));
+}
+function normalizeManagerFeeHistory(history: ManagerFeeHistoryEntry[] | undefined): ManagerFeeHistoryEntry[] {
+    return (history || [])
+        .map((entry) => ({
+        ...entry,
+        percentage: normalizeFeePercentage(entry.percentage, Number.NaN),
+        effectiveFrom: toMs(entry.effectiveFrom, Number.NaN),
+    }))
+        .filter((entry) => Number.isFinite(entry.percentage) && Number.isFinite(entry.effectiveFrom))
+        .sort((a, b) => a.effectiveFrom - b.effectiveFrom);
+}
+export function getManagerFeeAt(timestamp: unknown, managerFeeHistory: ManagerFeeHistoryEntry[] = [], legacyPercentage = LEGACY_MANAGER_FEE_PERCENTAGE): number {
+    const ts = toMs(timestamp);
+    const sortedHistory = normalizeManagerFeeHistory(managerFeeHistory);
+    let activePercentage = normalizeFeePercentage(legacyPercentage, LEGACY_MANAGER_FEE_PERCENTAGE);
+    for (const entry of sortedHistory) {
+        if (entry.effectiveFrom > ts)
+            break;
+        activePercentage = entry.percentage;
+    }
+    return activePercentage;
+}
+function createManagerFeeRatioResolver(input: InvestorEconomicsInput): (timestamp: unknown) => number {
+    if (input.managerFeeHistory === undefined) {
+        const staticRatio = normalizeFeePercentage(input.managerFeePercentage, 0) / 100;
+        return () => staticRatio;
+    }
+    const sortedHistory = normalizeManagerFeeHistory(input.managerFeeHistory);
+    const legacyPercentage = normalizeFeePercentage(LEGACY_MANAGER_FEE_PERCENTAGE, LEGACY_MANAGER_FEE_PERCENTAGE);
+    return (timestamp: unknown) => {
+        const ts = toMs(timestamp);
+        let activePercentage = legacyPercentage;
+        for (const entry of sortedHistory) {
+            if (entry.effectiveFrom > ts)
+                break;
+            activePercentage = entry.percentage;
+        }
+        return activePercentage / 100;
+    };
+}
 function addWarning(allWarnings: InvestorAccountingWarning[], warningsByInvestor: Map<string, InvestorAccountingWarning[]>, warning: InvestorAccountingWarning): void {
     allWarnings.push(warning);
     if (!warning.investorId)
@@ -124,7 +179,7 @@ function addWarning(allWarnings: InvestorAccountingWarning[], warningsByInvestor
     list.push(warning);
     warningsByInvestor.set(warning.investorId, list);
 }
-type ProfitMovementKind = 'personal_expense' | 'profit_withdrawal';
+type ProfitMovementKind = 'personal_expense' | 'profit_withdrawal' | 'ignored';
 
 function classifyProfitMovement(tx: InvestorTransaction, treasuryById: Map<string, TreasuryTx>): ProfitMovementKind {
     if (tx.origin === 'personal_expense') return 'personal_expense';
@@ -136,11 +191,12 @@ function classifyProfitMovement(tx: InvestorTransaction, treasuryById: Map<strin
     if (notes.includes('dépense perso') || notes.includes('depense perso') || notes.includes('avance perso') || notes.includes('dépense personnelle') || notes.includes('depense personnelle')) {
         return 'personal_expense';
     }
-    // Legacy withdraw_profit rows without a link are direct profit withdrawals.
-    return 'profit_withdrawal';
+    // Legacy rows without a link predate the personal-expense flow and should
+    // not reduce the manager's current available profit.
+    return 'ignored';
 }
 
-function buildInvestorsBase(investors: Investor[], investorTransactions: InvestorTransaction[], treasuryTransactions: TreasuryTx[] = [], periodStartTs?: number | null, periodEndTs?: number | null): InvestorBase[] {
+function buildInvestorsBase(investors: Investor[], investorTransactions: InvestorTransaction[], treasuryTransactions: TreasuryTx[] = [], periodStartTs?: number | null, periodEndTs?: number | null, personalExpenses?: TreasuryTx[]): InvestorBase[] {
     const txByInvestor = new Map<string, InvestorTransaction[]>();
     const treasuryById = new Map(treasuryTransactions.map((tx) => [tx.id, tx]));
     for (const tx of investorTransactions) {
@@ -148,6 +204,7 @@ function buildInvestorsBase(investors: Investor[], investorTransactions: Investo
         list.push(tx);
         txByInvestor.set(tx.investorId, list);
     }
+    const managerPersonalExpenses = calculateTotalPersonalExpenses(personalExpenses || [], periodStartTs, periodEndTs);
     return investors.map((inv) => {
         const myTxs = txByInvestor.get(inv.id) || [];
         const capitalMovementTxs = myTxs.filter((tx) => tx.type === 'deposit_capital' || tx.type === 'withdraw_capital');
@@ -165,7 +222,7 @@ function buildInvestorsBase(investors: Investor[], investorTransactions: Investo
             return addM(sum, tx.amount);
         }, capitalBaseline);
         const periodTxs = myTxs.filter((tx) => isInPeriod(toMs(tx.timestamp), periodStartTs, periodEndTs));
-        const withdrawnProfit = periodTxs
+        const transactionWithdrawnProfit = periodTxs
             .filter((tx) => tx.type === 'withdraw_profit')
             .reduce((sum, tx) => addM(sum, tx.amount), 0);
         const profitWithdrawals = periodTxs
@@ -181,10 +238,18 @@ function buildInvestorsBase(investors: Investor[], investorTransactions: Investo
             .reduce((sum, tx) => addM(sum, tx.amount), 0);
         const currentPersonalExpenses = currentPersonalExpenseTxs
             .reduce((sum, tx) => addM(sum, tx.amount), 0);
-        const totalPersonalExpenses = addM(personalExpenses, currentPersonalExpenses);
-        const reinvestedProfit = periodTxs
+        let finalPersonalExpenses = personalExpenses;
+        let finalCurrentPersonalExpenses = currentPersonalExpenses;
+        const linkedPersonalExpenses = addM(finalPersonalExpenses, finalCurrentPersonalExpenses);
+        if (inv.isManager && managerPersonalExpenses > linkedPersonalExpenses) {
+            finalCurrentPersonalExpenses = addM(finalCurrentPersonalExpenses, subM(managerPersonalExpenses, linkedPersonalExpenses));
+        }
+        const totalPersonalExpenses = addM(finalPersonalExpenses, finalCurrentPersonalExpenses);
+        const transactionReinvestedProfit = periodTxs
             .filter((tx) => tx.type === 'reinvest_profit')
             .reduce((sum, tx) => addM(sum, tx.amount), 0);
+        const withdrawnProfit = inv.isManager ? addM(profitWithdrawals, totalPersonalExpenses) : transactionWithdrawnProfit;
+        const reinvestedProfit = inv.isManager ? 0 : transactionReinvestedProfit;
         return {
             ...inv,
             entryTs: toMs(inv.entryDate, Number.MAX_SAFE_INTEGER),
@@ -195,8 +260,8 @@ function buildInvestorsBase(investors: Investor[], investorTransactions: Investo
             withdrawnProfit,
             reinvestedProfit,
             profitWithdrawals,
-            personalExpenses,
-            currentPersonalExpenses,
+            personalExpenses: finalPersonalExpenses,
+            currentPersonalExpenses: finalCurrentPersonalExpenses,
             totalPersonalExpenses,
         };
     });
@@ -230,9 +295,8 @@ function chronologicalDerivedSells(pamLedger: PamLedgerResult): PamLedgerSellPro
 }
 export function deriveInvestorEconomics(input: InvestorEconomicsInput): InvestorEconomicsResult {
     const pamLedger = input.pamLedger || computePamLedger(input.transactions);
-    const feePercent = parseFloat(input.managerFeePercentage) || 0;
-    const managerFeeRatio = Math.max(0, Math.min(1, feePercent / 100));
-    const investorsBase = buildInvestorsBase(input.investors, input.investorTransactions, input.treasuryTransactions, input.periodStartTs, input.periodEndTs);
+    const getManagerFeeRatioAt = createManagerFeeRatioResolver(input);
+    const investorsBase = buildInvestorsBase(input.investors, input.investorTransactions, input.treasuryTransactions, input.periodStartTs, input.periodEndTs, input.personalExpenses);
     const distributedProfitByInvestor = new Map<string, number>();
     const warningsByInvestor = new Map<string, InvestorAccountingWarning[]>();
     const warnings: InvestorAccountingWarning[] = [];
@@ -256,6 +320,7 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
         if (!isInPeriod(sellTs, input.periodStartTs, input.periodEndTs))
             continue;
         const derivedProfit = roundM(sellRow.derivedProfit || 0);
+        const managerFeeRatio = getManagerFeeRatioAt(sellTs);
         totalDerivedProfit = addM(totalDerivedProfit, derivedProfit);
         const eligible = investorsBase
             .filter((inv) => inv.entryTs <= sellTs)
@@ -321,6 +386,7 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
         const amount = roundM(rawAmount);
         if (amount <= 0)
             continue;
+        const managerFeeRatio = getManagerFeeRatioAt(expenseTs);
         totalDeliveryExpenses = addM(totalDeliveryExpenses, amount);
         const eligible = investorsBase
             .filter((inv) => inv.entryTs <= expenseTs)
@@ -348,15 +414,7 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             distributedProfitByInvestor.set(item.id, subM(distributedProfitByInvestor.get(item.id) || 0, burdenShares[index]));
         });
     }
-    const totalCurrentCapital = investorsBase.reduce((sum, inv) => {
-        if (!inv.isActive || inv.capitalInvested <= 0)
-            return sum;
-        return sum + inv.capitalInvested;
-    }, 0);
-    const derivedInvestors = investorsBase.map((inv): DerivedInvestor => {
-        const currentShare = inv.isActive && totalCurrentCapital > 0
-            ? Math.max(0, inv.capitalInvested) / totalCurrentCapital
-            : 0;
+    const investorDrafts = investorsBase.map((inv) => {
         const totalProfit = distributedProfitByInvestor.get(inv.id) || 0;
         const withdrawnAndReinvested = addM(inv.withdrawnProfit, inv.reinvestedProfit);
         const availableProfit = subM(totalProfit, withdrawnAndReinvested);
@@ -378,20 +436,42 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
                 message: 'Investor withdrawals plus reinvested profit exceed derived totalProfit.',
             });
         }
-        const roi = inv.capitalInvested > 0.005
-            ? roundM((totalProfit / inv.capitalInvested) * 100)
+        const managerCapital = inv.isManager
+            ? calculateManagerOwnerCapital({
+                investor: { ...inv, totalProfit },
+                investorTransactions: inv.txs,
+                personalExpenses: input.personalExpenses || [],
+                periodStartTs: input.periodStartTs,
+                periodEndTs: input.periodEndTs,
+            })
             : null;
+        const capitalInvested = managerCapital ? managerCapital.ownerCapital : inv.capitalInvested;
+        const roi = capitalInvested > 0.005
+            ? roundM((totalProfit / capitalInvested) * 100)
+            : null;
+        return { inv, totalProfit, availableProfit, capitalInvested, roi };
+    });
+    const totalCurrentCapital = investorDrafts.reduce((sum, draft) => {
+        if (!draft.inv.isActive || draft.capitalInvested <= 0)
+            return sum;
+        return sum + draft.capitalInvested;
+    }, 0);
+    const derivedInvestors = investorDrafts.map((draft): DerivedInvestor => {
+        const currentShare = draft.inv.isActive && totalCurrentCapital > 0
+            ? Math.max(0, draft.capitalInvested) / totalCurrentCapital
+            : 0;
         return {
-            ...inv,
+            ...draft.inv,
+            capitalInvested: draft.capitalInvested,
             sharePercentage: currentShare,
-            totalProfit,
-            availableProfit,
-            roi,
-            profitWithdrawals: inv.profitWithdrawals,
-            personalExpenses: inv.personalExpenses,
-            currentPersonalExpenses: inv.currentPersonalExpenses,
-            totalPersonalExpenses: inv.totalPersonalExpenses,
-            accountingWarnings: warningsByInvestor.get(inv.id) || [],
+            totalProfit: draft.totalProfit,
+            availableProfit: draft.availableProfit,
+            roi: draft.roi,
+            profitWithdrawals: draft.inv.profitWithdrawals,
+            personalExpenses: draft.inv.personalExpenses,
+            currentPersonalExpenses: draft.inv.currentPersonalExpenses,
+            totalPersonalExpenses: draft.inv.totalPersonalExpenses,
+            accountingWarnings: warningsByInvestor.get(draft.inv.id) || [],
         };
     });
     const netDistributableProfit = subM(totalDerivedProfit, totalDeliveryExpenses);
@@ -491,6 +571,6 @@ export function reconcileManagerProfitBreakdown(input: ManagerProfitReconciliati
         displayAvailableProfit: availableProfit,
     };
 }
-export function useInvestorEconomics(investors: Investor[], investorTransactions: InvestorTransaction[], transactions: Tx[], managerFeePercentage: string, deliveryExpenses?: TreasuryTx[], treasuryTransactions?: TreasuryTx[]) {
-    return useMemo(() => deriveInvestorEconomics({ investors, investorTransactions, transactions, managerFeePercentage, deliveryExpenses, treasuryTransactions }), [investors, investorTransactions, transactions, managerFeePercentage, deliveryExpenses, treasuryTransactions]);
+export function useInvestorEconomics(investors: Investor[], investorTransactions: InvestorTransaction[], transactions: Tx[], managerFeePercentage: string, managerFeeHistory?: ManagerFeeHistoryEntry[], deliveryExpenses?: TreasuryTx[], treasuryTransactions?: TreasuryTx[], personalExpenses?: TreasuryTx[]) {
+    return useMemo(() => deriveInvestorEconomics({ investors, investorTransactions, transactions, managerFeePercentage, managerFeeHistory, deliveryExpenses, treasuryTransactions, personalExpenses }), [investors, investorTransactions, transactions, managerFeePercentage, managerFeeHistory, deliveryExpenses, treasuryTransactions, personalExpenses]);
 }

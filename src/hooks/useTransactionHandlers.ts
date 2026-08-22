@@ -790,6 +790,17 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             return;
         }
         const epsilon = 0.005;
+        // When editing an existing subtract adjustment on the same wallet, restore
+        // its old effect before checking affordability — otherwise the balance
+        // already reflects the old withdrawal and a valid same-or-larger edit gets
+        // wrongly rejected. Mirrors the compensation pattern used for investor and
+        // personal withdrawal edits.
+        const oldSubtractAmountOnWallet = (wallet: 'Caisse' | 'BaridiMob') =>
+            editingTreasuryTx
+                && (editingTreasuryTx.type === 'Retrait' || editingTreasuryTx.type === 'Adjustment (-)')
+                && editingTreasuryTx.source === wallet
+                ? Number(editingTreasuryTx.amount || 0)
+                : 0;
         if (adjustmentTab === 'subtract') {
             if (adjustmentAsset === 'USDT' && amountNum > (portfolioStats.usdt.available + epsilon)) {
                 setAlert('⚠️ Solde USDT insuffisant.');
@@ -799,11 +810,11 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 setAlert('⚠️ Solde EUR insuffisant.');
                 return;
             }
-            if (adjustmentAsset === 'DZD-Caisse' && amountNum > (treasuryStats.caisse + epsilon)) {
+            if (adjustmentAsset === 'DZD-Caisse' && amountNum > (treasuryStats.caisse + oldSubtractAmountOnWallet('Caisse') + epsilon)) {
                 setAlert('⚠️ Solde Caisse insuffisant.');
                 return;
             }
-            if (adjustmentAsset === 'DZD-Baridi' && amountNum > (treasuryStats.baridi + epsilon)) {
+            if (adjustmentAsset === 'DZD-Baridi' && amountNum > (treasuryStats.baridi + oldSubtractAmountOnWallet('BaridiMob') + epsilon)) {
                 setAlert('⚠️ Solde BaridiMob insuffisant.');
                 return;
             }

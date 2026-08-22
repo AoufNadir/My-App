@@ -891,6 +891,8 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 return;
             }
         }
+        if (isSaving)
+            return;
         setIsSaving(true);
         try {
             const { date, time, timestamp } = now();
@@ -980,6 +982,13 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     const handleReinvestProfit = async (investorId: string, amount: number) => {
         const investor = derivedInvestors.find((i) => i.id === investorId);
         if (!investor || amount <= 0)
+            return;
+        const availableProfit = Number(investor.availableProfit || 0);
+        if (amount > availableProfit + 0.005) {
+            setAlert('⚠️ Montant dépasse le profit disponible.');
+            return;
+        }
+        if (isSaving)
             return;
         setIsSaving(true);
         try {

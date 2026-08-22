@@ -286,7 +286,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
                 factor = 1;
             else if (tx.type === 'Retrait' || tx.type === 'Adjustment (-)')
                 factor = -1;
-            const source = txData.source
+            const source = resolveWallet(txData.source)
                 || (txData.asset === 'DZD-Caisse' ? 'Caisse' : txData.asset === 'DZD-Baridi' ? 'BaridiMob' : null);
             if (source === 'Caisse')
                 caisse += (amount * factor);

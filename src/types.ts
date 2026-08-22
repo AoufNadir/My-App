@@ -203,6 +203,7 @@ export interface TreasuryTx {
     notes?: string;
     linkedTxId?: string; // ID of the USDT/EUR transaction if applicable
     linkedInvestorTxId?: string;
+    linkedCapitalInvestorTxId?: string;
     linkedTreasuryTxId?: string; // For personal_expense_return: links back to original advance
     origin?: 'manual_asset' | 'client_tx' | 'usdt_tx' | 'balance_edit' | 'delivery_expense' | 'digital_service_sale' | 'investor_profit_withdrawal' | 'investor_capital_deposit' | 'investor_capital_withdrawal' | 'personal_expense' | 'personal_expense_return'; // Source of the transaction
     /** Missing means a recorded tracked expense; use historical only for explicit pre-tracking adjustments. */
@@ -218,6 +219,8 @@ export interface TreasuryTx {
     // Personal expense imprest system (origin === 'personal_expense' only)
     advanceState?: 'pending' | 'settled';
     settledAmount?: number; // Actual amount spent after reconciliation
+    profitAmountDzd?: number; // Portion charged to manager profit
+    capitalAmountDzd?: number; // Portion charged to manager capital
     spentDescription?: string; // What the settled advance was spent on
     linkedReturnTxId?: string; // ID of the return TreasuryTx created during reconciliation
 }

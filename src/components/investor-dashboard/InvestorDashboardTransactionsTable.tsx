@@ -8,17 +8,20 @@ import { InvestorTransaction } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 type InvestorDashboardTransactionsTableProps = {
     orderedTransactions: InvestorTransaction[];
+    isManager?: boolean;
 };
-function getInvestorDashboardTxMeta(type: InvestorTransaction['type'], t: (key: string) => any) {
+function getInvestorDashboardTxMeta(type: InvestorTransaction['type'], t: (key: string) => any, isManager: boolean) {
     if (type === 'profit_distribution')
         return { label: t('investors.txProfitDistribution'), badgeVariant: 'success' as const, positive: true };
     if (type === 'deposit_capital')
         return { label: t('investorDialog.depositCapitalTitle'), badgeVariant: 'primary' as const, positive: true };
     if (type === 'withdraw_profit')
-        return { label: t('investorDialog.withdrawProfitTitle'), badgeVariant: 'warning' as const, positive: false };
+        return { label: isManager ? t('investors.txPersonalExpense') : t('investorDialog.withdrawProfitTitle'), badgeVariant: 'warning' as const, positive: false };
+    if (type === 'reinvest_profit')
+        return { label: isManager ? t('investors.profitsReinvestedInCapital') : t('investors.txReinvestProfit'), badgeVariant: 'success' as const, positive: true };
     return { label: t('investorDialog.withdrawCapitalTitle'), badgeVariant: 'neutral' as const, positive: false };
 }
-export function InvestorDashboardTransactionsTable({ orderedTransactions }: InvestorDashboardTransactionsTableProps) {
+export function InvestorDashboardTransactionsTable({ orderedTransactions, isManager = false }: InvestorDashboardTransactionsTableProps) {
     const { t } = useLanguage();
     const columns: MobileTableColumn<InvestorTransaction>[] = [
         {
@@ -33,7 +36,7 @@ export function InvestorDashboardTransactionsTable({ orderedTransactions }: Inve
             key: 'type',
             label: t('transactions.type') as string,
             render: (tx) => {
-                const meta = getInvestorDashboardTxMeta(tx.type, t);
+                const meta = getInvestorDashboardTxMeta(tx.type, t, isManager);
                 return <Badge variant={meta.badgeVariant}>{meta.label}</Badge>;
             },
         },
@@ -42,7 +45,7 @@ export function InvestorDashboardTransactionsTable({ orderedTransactions }: Inve
             label: t('transactions.amount') as string,
             align: 'end',
             render: (tx) => {
-                const meta = getInvestorDashboardTxMeta(tx.type, t);
+                const meta = getInvestorDashboardTxMeta(tx.type, t, isManager);
                 const signedAmount = (meta.positive ? 1 : -1) * Math.abs(tx.amount);
                 return <CurrencyAmount value={signedAmount} currency="DZD" semantic="auto" size="lg" showSign decimals={0}/>;
             },

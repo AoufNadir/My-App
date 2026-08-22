@@ -5,7 +5,7 @@ import { SectionHeading } from '../ui/SectionHeading';
 import { Tabs } from '../ui/Tabs';
 import { EmptyState } from '../ui/EmptyState';
 import { Badge } from '../ui/Badge';
-import { HeroKpiCard } from '../ui/HeroKpiCard';
+import { HeroKpiCard, type HeroKpiSecondary } from '../ui/HeroKpiCard';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { PlusIcon } from '../icons/PlusIcon';
 import { MinusIcon } from '../icons/MinusIcon';
@@ -16,8 +16,9 @@ import { FileSpreadsheetIcon } from '../icons/FileSpreadsheetIcon';
 import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
-import { Investor, InvestorTransaction } from '../../types';
+import { Investor, InvestorTransaction, TreasuryTx } from '../../types';
 import { formatNumber } from '../../pages/shared/pageFormat';
+import { calculateManagerOwnerCapital } from '../../utils/managerCapital';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { CapitalSnapshot } from '../../utils/capitalSnapshot';
 import type { ManagerProfitBreakdown } from '../../hooks/useInvestorEconomics';
@@ -34,16 +35,17 @@ type InvestorDetailsContentProps = {
     onWithdrawProfit: () => void;
     onReinvestProfit: () => void;
     onDeleteTransaction: (tx: InvestorTransaction) => void;
+    personalExpenses?: TreasuryTx[];
 };
 type TxMeta = { label: string; isPositive: boolean; icon: React.ReactNode };
-function getTxMeta(tx: InvestorTransaction, t: (key: string) => any): TxMeta {
+function getTxMeta(tx: InvestorTransaction, t: (key: string) => any, isManager: boolean): TxMeta {
     switch (tx.type) {
         case 'profit_distribution':
             return { label: t('investors.txProfitDistribution'), isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
         case 'withdraw_profit':
-            return { label: t('investors.txWithdrawProfit'), isPositive: false, icon: <WalletIcon className="w-4 h-4"/> };
+            return { label: isManager ? t('investors.txPersonalExpense') : t('investors.txWithdrawProfit'), isPositive: false, icon: <WalletIcon className="w-4 h-4"/> };
         case 'reinvest_profit':
-            return { label: t('investors.txReinvestProfit'), isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
+            return { label: isManager ? t('investors.profitsReinvestedInCapital') : t('investors.txReinvestProfit'), isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
         case 'deposit_capital':
             return { label: t('investors.txDepositCapital'), isPositive: true, icon: <PlusIcon className="w-4 h-4"/> };
         default:
@@ -55,63 +57,72 @@ function diffDaysSince(entryDate: string): number {
     if (!Number.isFinite(start)) return 0;
     return Math.max(0, Math.floor((Date.now() - start) / (1000 * 60 * 60 * 24)));
 }
-export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfitBreakdown, orderedTransactions, activeTab, setActiveTab, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction }: InvestorDetailsContentProps) {
+export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfitBreakdown, orderedTransactions, activeTab, setActiveTab, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction, personalExpenses = [] }: InvestorDetailsContentProps) {
     const { t } = useLanguage();
     const currentTotalProfit = investor.totalProfit || 0;
     const currentAvailable = investor.availableProfit || 0;
     const currentWithdrawn = investor.withdrawnProfit || 0;
     const isManager = Boolean(investor.isManager);
-    const showManagerOwnedCapital = Boolean(isManager && capitalSnapshot);
-    const primaryCapitalLabel = showManagerOwnedCapital
-        ? t('investors.capitalOwned') as string
-        : t('investors.capitalInvested') as string;
-    const primaryCapitalValue = showManagerOwnedCapital
-        ? Number(capitalSnapshot?.netOwnedCapital || 0)
-        : investor.capitalInvested;
     const sharePercentDisplay = formatNumber((investor.sharePercentage || 0) * 100, { min: 2, max: 2 });
     const roiDisplay = (investor as any).roi !== null && (investor as any).roi !== undefined
         ? formatNumber((investor as any).roi, { min: 2, max: 2 })
         : null;
+    const managerCapital = useMemo(() => {
+        if (!isManager)
+            return null;
+        return calculateManagerOwnerCapital({
+            investor,
+            investorTransactions: orderedTransactions,
+            personalExpenses,
+        });
+    }, [isManager, investor, orderedTransactions, personalExpenses]);
     const canReinvest = currentAvailable > 0.01;
     const showInvestorOnlyActions = !isManager;
     const investmentDays = useMemo(() => diffDaysSince(investor.entryDate), [investor.entryDate]);
     const formattedEntryDate = useMemo(() => new Date(investor.entryDate).toLocaleDateString('fr-FR'), [investor.entryDate]);
-    // Formatted available profit for subtitle
     const availableFormatted = currentAvailable > 0
         ? currentAvailable.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' DZD'
         : null;
-    const secondaryMetrics = isManager && managerProfitBreakdown
+    const managerSecondary: HeroKpiSecondary[] = managerProfitBreakdown
         ? [
-            { label: t('investors.totalEarned') as string, value: managerProfitBreakdown.ownerTotalProfit, currency: 'DZD' as const, semantic: 'auto' as const },
-            { label: t('investors.openingCapital') as string, value: managerProfitBreakdown.openingCapital, currency: 'DZD' as const, semantic: 'plain' as const },
-            { label: t('investors.totalPersonalExpenses') as string, value: managerProfitBreakdown.totalPersonalExpenses, currency: 'DZD' as const, semantic: 'plain' as const },
-            { label: t('investors.profitWithdrawals') as string, value: managerProfitBreakdown.profitWithdrawals, currency: 'DZD' as const, semantic: 'plain' as const },
+            { label: t('investors.totalEarned') as string, value: managerProfitBreakdown.ownerTotalProfit, currency: 'DZD', semantic: 'auto' },
+            { label: t('investors.openingCapital') as string, value: managerProfitBreakdown.openingCapital, currency: 'DZD', semantic: 'plain' },
+            { label: t('investors.totalPersonalExpenses') as string, value: managerProfitBreakdown.totalPersonalExpenses, currency: 'DZD', semantic: 'plain' },
+            { label: t('investors.profitWithdrawals') as string, value: managerProfitBreakdown.profitWithdrawals, currency: 'DZD', semantic: 'plain' },
         ]
         : [
-            { label: t('investors.availableProfit') as string, value: currentAvailable, currency: 'DZD' as const, semantic: 'auto' as const },
-            { label: t('investors.totalEarned') as string, value: currentTotalProfit, currency: 'DZD' as const, semantic: 'auto' as const },
-            { label: t('investors.totalWithdrawn') as string, value: currentWithdrawn, currency: 'DZD' as const, semantic: 'plain' as const },
+            { label: t('investors.totalEarned') as string, value: managerCapital?.personalProfitTotal || 0, currency: 'DZD', semantic: 'auto' },
+            { label: t('investors.totalPersonalExpenses') as string, value: managerCapital?.personalExpensesTotal || 0, currency: 'DZD', semantic: 'plain' },
+            { label: t('investors.profitsReinvestedInCapital') as string, value: managerCapital?.retainedProfit || 0, currency: 'DZD', semantic: 'auto' },
+            { label: t('investors.initialCapital') as string, value: managerCapital?.initialCapital || 0, currency: 'DZD', semantic: 'plain' },
+            { label: t('investors.capitalAdded') as string, value: managerCapital?.capitalAdditions || 0, currency: 'DZD', semantic: 'plain' },
+            { label: t('investors.capitalWithdrawn') as string, value: managerCapital?.capitalWithdrawals || 0, currency: 'DZD', semantic: 'loss' },
         ];
+    const investorSecondary: HeroKpiSecondary[] = [
+        { label: t('investors.availableProfit') as string, value: currentAvailable, currency: 'DZD', semantic: 'auto' },
+        { label: t('investors.totalEarned') as string, value: currentTotalProfit, currency: 'DZD', semantic: 'auto' },
+        { label: t('investors.totalWithdrawn') as string, value: currentWithdrawn, currency: 'DZD', semantic: 'plain' },
+        {
+            label: t('investors.fundShare') as string,
+            value: 0,
+            display: (<span className="text-lg font-semibold">
+              <bdi>{sharePercentDisplay}</bdi>
+              <span className="ms-1 text-[0.85em] opacity-70 font-normal">%</span>
+            </span>),
+        },
+        {
+            label: 'ROI',
+            value: 0,
+            display: roiDisplay !== null ? (<span className={`text-lg font-semibold ${(investor as any).roi > 0 ? 'text-financial-profit' : (investor as any).roi < 0 ? 'text-financial-loss' : 'text-neutral-500'}`}>
+              <bdi>{(investor as any).roi > 0 ? '+' : ''}{roiDisplay}</bdi>
+              <span className="ms-1 text-[0.85em] opacity-70 font-normal">%</span>
+            </span>) : <span className="text-lg text-neutral-400">-</span>,
+        },
+    ];
+    const primaryCapitalLabel = isManager ? t('investors.managerOwnedCapital') as string : t('investors.capitalInvested') as string;
+    const primaryCapitalValue = isManager ? Number(capitalSnapshot?.netOwnedCapital ?? managerCapital?.ownerCapital ?? 0) : investor.capitalInvested;
     return (<>
-      <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel={primaryCapitalLabel} primaryValue={primaryCapitalValue} primaryCurrency="DZD" primarySemantic="plain" secondary={[
-            ...secondaryMetrics,
-            ...(!isManager ? [{
-                label: t('investors.fundShare') as string,
-                value: 0,
-                display: (<span className="text-lg font-semibold">
-                <bdi>{sharePercentDisplay}</bdi>
-                <span className="ms-1 text-[0.85em] opacity-70 font-normal">%</span>
-              </span>),
-            },
-            {
-                label: 'ROI',
-                value: 0,
-                display: roiDisplay !== null ? (<span className={`text-lg font-semibold ${(investor as any).roi > 0 ? 'text-financial-profit' : (investor as any).roi < 0 ? 'text-financial-loss' : 'text-neutral-500'}`}>
-                  <bdi>{(investor as any).roi > 0 ? '+' : ''}{roiDisplay}</bdi>
-                  <span className="ms-1 text-[0.85em] opacity-70 font-normal">%</span>
-                </span>) : <span className="text-lg text-neutral-400">—</span>
-            }] : [])
-        ]}/>
+      <HeroKpiCard accent="sky" icon={<UserIcon className="w-5 h-5"/>} primaryLabel={primaryCapitalLabel} primaryValue={primaryCapitalValue} primaryCurrency="DZD" primarySemantic="plain" secondary={isManager ? managerSecondary : investorSecondary}/>
 
       {isManager && managerProfitBreakdown && <OwnerProfitBreakdownCard breakdown={managerProfitBreakdown}/>}
 
@@ -148,6 +159,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
               <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
             </button>
 
+            {!isManager && (<>
             {/* Retirer Bénéfices */}
             {showInvestorOnlyActions && (<button type="button" onClick={onWithdrawProfit}
               className="flex w-full items-center gap-4 px-4 py-4 text-start transition-colors hover:bg-neutral-50 active:bg-neutral-100">
@@ -184,6 +196,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
                 ? <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
                 : <span className="text-[10px] font-bold text-neutral-300 shrink-0">—</span>}
             </button>)}
+            </>)}
 
           </div>
         </CardContent>
@@ -245,7 +258,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
           <CardContent className="p-0">
             {orderedTransactions.length === 0 ? (<EmptyState icon={<FileSpreadsheetIcon className="w-5 h-5"/>} title={t('investors.noTransactions') as string}/>) : (<div className="divide-y divide-neutral-100">
                 {orderedTransactions.map((tx) => {
-                    const meta = getTxMeta(tx, t);
+                    const meta = getTxMeta(tx, t, isManager);
                     const signedAmount = (meta.isPositive ? 1 : -1) * Math.abs(tx.amount);
                     return (<React.Fragment key={tx.id}>
                       <SwipeableListItem onDelete={() => onDeleteTransaction(tx)}>
