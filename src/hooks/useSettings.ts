@@ -3,8 +3,6 @@ import type { FirestoreDocumentReference } from '../firebase';
 import type { ManagerFeeHistoryEntry } from './useInvestorEconomics';
 import { LEGACY_MANAGER_FEE_PERCENTAGE } from './useInvestorEconomics';
 
-const OLD_DEFAULT_MANAGER_FEE_PERCENTAGE = '20';
-
 export function parseManagerFeePercentage(value: string | number): number {
     const parsed = typeof value === 'string' ? parseFloat(value.replace(',', '.').trim()) : Number(value);
     if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
@@ -22,8 +20,7 @@ function normalizeStoredManagerFeePercentage(value: unknown): string {
     if (value === undefined || value === null || value === '') {
         return String(LEGACY_MANAGER_FEE_PERCENTAGE);
     }
-    const formatted = formatManagerFeePercentage(value as string | number);
-    return formatted === OLD_DEFAULT_MANAGER_FEE_PERCENTAGE ? String(LEGACY_MANAGER_FEE_PERCENTAGE) : formatted;
+    return formatManagerFeePercentage(value as string | number);
 }
 
 function toMs(value: unknown, fallback = 0): number {
