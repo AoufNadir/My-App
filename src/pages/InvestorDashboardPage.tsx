@@ -120,7 +120,7 @@ export const InvestorDashboardPage: React.FC<InvestorDashboardPageProps> = ({ in
         <InvestorPerformanceChart transactions={transactions} currentCapital={stats.totalValue}/>
       </div>
 
-      <InvestorDashboardTransactionsTable orderedTransactions={orderedTransactions}/>
+      <InvestorDashboardTransactionsTable orderedTransactions={orderedTransactions} isManager={investor.isManager === true}/>
 
       <Modal isOpen={isReportDialogOpen} onClose={() => setIsReportDialogOpen(false)} className="max-w-md bg-surface">
         <ModalHeader onClose={() => setIsReportDialogOpen(false)} className="border-b border-border px-4 py-3 sm:px-5">

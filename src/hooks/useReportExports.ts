@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, PortfolioStats, TreasuryTx, Tx } from '../types';
 import { computePamLedger, type PamLedgerResult } from '../utils/pamLedger';
-import { deriveInvestorEconomics } from './useInvestorEconomics';
+import { deriveInvestorEconomics, type ManagerFeeHistoryEntry } from './useInvestorEconomics';
 type Translator = (key: string) => unknown;
 type UseReportExportsArgs = {
     clientBalances: Map<string, number>;
@@ -12,6 +12,7 @@ type UseReportExportsArgs = {
     investorTransactions: InvestorTransaction[];
     loadPdfReports: () => Promise<typeof import('../utils/pdfReports')>;
     managerFeePercentage: string;
+    managerFeeHistory?: ManagerFeeHistoryEntry[];
     pamLedger?: PamLedgerResult;
     portfolioStats: PortfolioStats;
     setAlert: (message: string) => void;
@@ -35,7 +36,7 @@ function isMobileDevice() {
         return false;
     return /android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent || '');
 }
-export function useReportExports({ clientBalances, clientTransactionsDzd, clientsDzd, derivedInvestors, getClientFullName, investorTransactions, loadPdfReports, managerFeePercentage, pamLedger: providedPamLedger, portfolioStats, setAlert, t, transactions, deliveryExpenses, personalExpenses }: UseReportExportsArgs) {
+export function useReportExports({ clientBalances, clientTransactionsDzd, clientsDzd, derivedInvestors, getClientFullName, investorTransactions, loadPdfReports, managerFeePercentage, managerFeeHistory, pamLedger: providedPamLedger, portfolioStats, setAlert, t, transactions, deliveryExpenses, personalExpenses }: UseReportExportsArgs) {
     const [usdtReportMonth, setUsdtReportMonth] = useState(new Date().getMonth());
     const [usdtReportYear, setUsdtReportYear] = useState(new Date().getFullYear());
     const [reportClient, setReportClient] = useState('');
@@ -106,10 +107,12 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
             investorTransactions,
             transactions,
             managerFeePercentage,
+            managerFeeHistory,
             pamLedger: reportPamLedger,
             periodStartTs: range.startTs,
             periodEndTs: range.endTs,
-            deliveryExpenses
+            deliveryExpenses,
+            personalExpenses
         });
         const investor = periodEconomics.derivedInvestors.find((item) => item.id === investorId);
         if (!investor) {
@@ -120,6 +123,7 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
         const report = buildInvestorPdfReport({
             investor,
             investorTransactions: investorTransactions.filter((tx) => tx.investorId === investorId),
+            personalExpenses,
             reportStartTs: range.startTs,
             reportEndTs: range.endTs
         });

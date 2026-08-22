@@ -1,5 +1,6 @@
 import type { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, Tx, TreasuryTx } from '../types';
 import type { PamLedgerResult } from './pamLedger';
+import { calculateManagerOwnerCapital } from './managerCapital';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel } from './transactionTerminology';
 type PortfolioSnapshot = {
     usdt: {
@@ -53,6 +54,7 @@ type ClientReportInput = {
 type InvestorReportInput = {
     investor: Investor;
     investorTransactions: InvestorTransaction[];
+    personalExpenses?: TreasuryTx[];
     reportStartTs?: number | null;
     reportEndTs?: number | null;
 };
@@ -1451,6 +1453,16 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
         return true;
     });
     const orderedTxs = [...periodTxs].sort((a, b) => b.timestamp - a.timestamp);
+    const isManager = input.investor.isManager === true;
+    const managerCapital = isManager
+        ? calculateManagerOwnerCapital({
+            investor: input.investor,
+            investorTransactions: periodTxs,
+            personalExpenses: input.personalExpenses || [],
+            periodStartTs: input.reportStartTs,
+            periodEndTs: input.reportEndTs,
+        })
+        : null;
     const depositCapital = orderedTxs
         .filter((tx) => tx.type === 'deposit_capital')
         .reduce((sum, tx) => sum + tx.amount, 0);
@@ -1465,11 +1477,11 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
         .reduce((sum, tx) => sum + tx.amount, 0);
     const investorTotalProfit = Number(input.investor.totalProfit || 0);
     const investorAvailableProfit = Number(input.investor.availableProfit || 0);
-    const investorCapital = Number(input.investor.capitalInvested || 0);
+    const investorCapital = managerCapital ? managerCapital.ownerCapital : Number(input.investor.capitalInvested || 0);
     const investorSharePercent = Number(input.investor.sharePercentage || 0) * 100;
     const estimatedValue = investorCapital + investorAvailableProfit;
     const estimatedYield = investorCapital > 0 ? (investorTotalProfit / investorCapital) * 100 : null;
-    const netCapitalMovement = depositCapital + reinvestedProfit - withdrawCapital;
+    const netCapitalMovement = depositCapital + (isManager ? 0 : reinvestedProfit) - withdrawCapital;
     const toneClass = (value: number) => (value > 0 ? 'good' : value < 0 ? 'bad' : '');
     const signedMoney = (value: number) => {
         const sign = value > 0 ? '+' : value < 0 ? '-' : '';
@@ -1479,6 +1491,23 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
         const sign = value > 0 ? '+' : value < 0 ? '-' : '';
         return `${sign}${formatNumber(Math.abs(value), 2, 2)}%`;
     };
+    const profitMovementCards = isManager
+        ? `<div class="movement-card">
+          <div class="label">D&eacute;penses personnelles</div>
+          <div class="value bad">${formatNumber(managerCapital?.personalExpensesTotal || 0)} DZD</div>
+        </div>
+        <div class="movement-card">
+          <div class="label">B&eacute;n&eacute;fices conserv&eacute;s</div>
+          <div class="value good">${formatNumber(managerCapital?.retainedProfit || 0)} DZD</div>
+        </div>`
+        : `<div class="movement-card">
+          <div class="label">Retraits b&eacute;n&eacute;fices</div>
+          <div class="value bad">${formatNumber(withdrawnProfit)} DZD</div>
+        </div>
+        <div class="movement-card">
+          <div class="label">R&eacute;investi</div>
+          <div class="value good">${formatNumber(reinvestedProfit)} DZD</div>
+        </div>`;
     const movementsHtml = orderedTxs.length
         ? `<div class="movement-grid">
         <div class="movement-card">
@@ -1489,14 +1518,7 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
           <div class="label">Retraits capital</div>
           <div class="value bad">${formatNumber(withdrawCapital)} DZD</div>
         </div>
-        <div class="movement-card">
-          <div class="label">Retraits b&eacute;n&eacute;fices</div>
-          <div class="value bad">${formatNumber(withdrawnProfit)} DZD</div>
-        </div>
-        <div class="movement-card">
-          <div class="label">R&eacute;investi</div>
-          <div class="value good">${formatNumber(reinvestedProfit)} DZD</div>
-        </div>
+        ${profitMovementCards}
         <div class="movement-card">
           <div class="label">Nombre de mouvements</div>
           <div class="value">${orderedTxs.length}</div>
@@ -1563,8 +1585,8 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
           ${orderedTxs.map((tx, i) => {
             const typeLabel = tx.type === 'deposit_capital' ? 'Dépôt capital'
                 : tx.type === 'withdraw_capital' ? 'Retrait capital'
-                : tx.type === 'withdraw_profit' ? 'Retrait bénéfice'
-                : tx.type === 'reinvest_profit' ? 'Réinvestissement'
+                : tx.type === 'withdraw_profit' ? (isManager ? 'Dépense personnelle' : 'Retrait bénéfice')
+                : tx.type === 'reinvest_profit' ? (isManager ? 'Bénéfices conservés' : 'Réinvestissement')
                 : tx.type;
             const isPositive = tx.type === 'deposit_capital' || tx.type === 'reinvest_profit';
             const color = isPositive ? '#16a34a' : '#dc2626';

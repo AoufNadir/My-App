@@ -1,7 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import type { FirestoreDocumentReference } from '../firebase';
+import type { ManagerFeeHistoryEntry } from './useInvestorEconomics';
+import { LEGACY_MANAGER_FEE_PERCENTAGE } from './useInvestorEconomics';
+
+export function parseManagerFeePercentage(value: string | number): number {
+    const parsed = typeof value === 'string' ? parseFloat(value.replace(',', '.').trim()) : Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+        throw new Error('Le taux doit etre compris entre 0 et 100.');
+    }
+    return Number(parsed.toFixed(2));
+}
+
+export function formatManagerFeePercentage(value: string | number): string {
+    const parsed = parseManagerFeePercentage(value);
+    return Number.isInteger(parsed) ? String(parsed) : parsed.toString();
+}
+
+function toMs(value: unknown, fallback = 0): number {
+    if (typeof value === 'number')
+        return value;
+    if (value && typeof (value as { toMillis?: () => number }).toMillis === 'function') {
+        return (value as { toMillis: () => number }).toMillis();
+    }
+    const parsed = new Date(value as string).getTime();
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 export function useSettings(userDocRef: FirestoreDocumentReference) {
-    const [managerFeePercentage, setManagerFeePercentage] = useState(() => localStorage.getItem('managerFeePercentage') || "20");
+    const [managerFeePercentage, setManagerFeePercentage] = useState(() => localStorage.getItem('managerFeePercentage') || String(LEGACY_MANAGER_FEE_PERCENTAGE));
+    const [managerFeeHistory, setManagerFeeHistory] = useState<ManagerFeeHistoryEntry[]>([]);
     const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
     useEffect(() => {
         localStorage.setItem('managerFeePercentage', managerFeePercentage);
@@ -9,13 +36,31 @@ export function useSettings(userDocRef: FirestoreDocumentReference) {
     useEffect(() => {
         const loadSettings = async () => {
             try {
-                const doc = await userDocRef.get();
+                const [doc, historySnapshot] = await Promise.all([
+                    userDocRef.get(),
+                    userDocRef.collection('manager_fee_history').orderBy('effectiveFrom', 'asc').get()
+                ]);
                 if (doc.exists) {
                     const data = doc.data();
                     if (data?.managerFeePercentage !== undefined) {
-                        setManagerFeePercentage(data.managerFeePercentage.toString());
+                        setManagerFeePercentage(formatManagerFeePercentage(data.managerFeePercentage));
                     }
                 }
+                const history = historySnapshot.docs.reduce<ManagerFeeHistoryEntry[]>((items, historyDoc) => {
+                    const data = historyDoc.data();
+                    const percentage = Number(data?.percentage);
+                    const effectiveFrom = toMs(data?.effectiveFrom, Number.NaN);
+                    if (!Number.isFinite(percentage) || !Number.isFinite(effectiveFrom))
+                        return items;
+                    items.push({
+                        id: historyDoc.id,
+                        percentage,
+                        effectiveFrom,
+                        createdAt: toMs(data?.createdAt, effectiveFrom),
+                    });
+                    return items;
+                }, []);
+                setManagerFeeHistory(history);
             }
             catch (e) {
                 console.error('Error loading settings:', e);
@@ -26,24 +71,36 @@ export function useSettings(userDocRef: FirestoreDocumentReference) {
         };
         loadSettings();
     }, [userDocRef]);
-    useEffect(() => {
-        if (!isSettingsLoaded)
-            return;
-        const timer = setTimeout(async () => {
-            try {
-                const val = parseFloat(managerFeePercentage);
-                if (!isNaN(val)) {
-                    await userDocRef.update({ managerFeePercentage: val });
-                }
-            }
-            catch (e) {
-                console.error('Error saving manager fee:', e);
-            }
-        }, 1000);
-        return () => clearTimeout(timer);
-    }, [managerFeePercentage, userDocRef, isSettingsLoaded]);
+    const saveManagerFeePercentage = useCallback(async (value: string | number) => {
+        const percentage = parseManagerFeePercentage(value);
+        const effectiveFrom = Date.now();
+        const historyRef = userDocRef.collection('manager_fee_history').doc();
+        const batch = userDocRef.firestore.batch();
+        batch.set(userDocRef, {
+            managerFeePercentage: percentage,
+            managerFeeUpdatedAt: effectiveFrom,
+        }, { merge: true });
+        batch.set(historyRef, {
+            percentage,
+            effectiveFrom,
+            createdAt: effectiveFrom,
+        });
+        await batch.commit();
+        const formatted = formatManagerFeePercentage(percentage);
+        const entry: ManagerFeeHistoryEntry = {
+            id: historyRef.id,
+            percentage,
+            effectiveFrom,
+            createdAt: effectiveFrom,
+        };
+        setManagerFeePercentage(formatted);
+        setManagerFeeHistory((current) => [...current, entry].sort((a, b) => a.effectiveFrom - b.effectiveFrom));
+        localStorage.setItem('managerFeePercentage', formatted);
+    }, [userDocRef]);
     return {
-        managerFeePercentage, setManagerFeePercentage,
+        managerFeePercentage,
+        managerFeeHistory,
+        saveManagerFeePercentage,
         isSettingsLoaded
     };
 }

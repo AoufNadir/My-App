@@ -46,7 +46,7 @@ export function calculateWithdrawableProfit<T extends ProfitDistributionInvestor
     investors: ReadonlyArray<T>
 ): number {
     return investors.reduce((sum, investor) => {
-        if (!investor.isActive) {
+        if (!investor.isActive || investor.isManager) {
             return sum;
         }
 
@@ -59,7 +59,7 @@ export function buildProfitDistributionPlan<T extends ProfitDistributionInvestor
     totalAmount: number
 ): ProfitDistributionRow<T>[] {
     const eligible = investors
-        .filter((investor) => investor.isActive)
+        .filter((investor) => investor.isActive && !investor.isManager)
         .map((investor) => ({
             investor,
             availableProfit: toPositiveAmount(investor.availableProfit)

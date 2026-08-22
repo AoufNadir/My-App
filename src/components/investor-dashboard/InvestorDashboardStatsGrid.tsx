@@ -21,7 +21,7 @@ export function InvestorDashboardStatsGrid({ investor, stats }: InvestorDashboar
     return (<div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
       <Card className="border border-border bg-surface shadow-sm">
         <CardContent className="p-4">
-          <p className="text-[11px] font-semibold uppercase text-neutral-500">{t('investors.capitalInvested')}</p>
+          <p className="text-[11px] font-semibold uppercase text-neutral-500">{investor.isManager ? t('investors.managerOwnedCapital') : t('investors.capitalInvested')}</p>
           <p className="mt-1"><CurrencyAmount value={investor.capitalInvested} currency="DZD" size="lg" decimals={0}/></p>
           <div className="mt-2 flex items-center gap-1 text-xs">
             <Badge variant={investor.isActive ? 'success' : 'neutral'} size="sm">{investor.isActive ? t('investors.active') : t('investors.inactive')}</Badge>

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "tsx src/utils/capitalSnapshot.test.ts && tsx src/services/smartPricingEngine.test.ts && tsx src/utils/clientDebt.test.ts && tsx src/utils/personalExpenses.test.ts && tsx src/utils/transactionTerminology.test.ts && tsx src/translations/translations.test.ts",
+    "test": "tsx src/utils/capitalSnapshot.test.ts && tsx src/utils/managerCapital.test.ts && tsx src/hooks/useInvestorEconomics.test.ts && tsx src/utils/profitDistribution.test.ts && tsx src/services/smartPricingEngine.test.ts && tsx src/utils/clientDebt.test.ts && tsx src/utils/personalExpenses.test.ts && tsx src/utils/transactionTerminology.test.ts && tsx src/translations/translations.test.ts",
+    "ci": "tsc --noEmit && npm run test && npm run build",
     "build": "vite build",
     "preview": "vite preview"
   },

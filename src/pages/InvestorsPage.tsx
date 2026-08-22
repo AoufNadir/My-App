@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { UserIcon } from '../components/icons/UserIcon';
 import { PlusIcon } from '../components/icons/PlusIcon';
 import { BanknotesIcon } from '../components/icons/BanknotesIcon';
@@ -25,7 +25,7 @@ interface InvestorsPageProps {
     onDeleteInvestor: (investor: Investor) => void;
     investorEconomicsTotals: InvestorEconomicsResult['totals'];
     managerFeePercentage: string;
-    setManagerFeePercentage: (val: string) => void;
+    saveManagerFeePercentage: (val: string) => Promise<void>;
     userDocRef: FirestoreDocumentReference;
     setAlert: (msg: string) => void;
     treasuryStats: { caisse: number; baridi: number };
@@ -40,7 +40,7 @@ type InvestorsStats = {
     totalDeliveryExpenses: number;
     netDistributableProfit: number;
 };
-export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, setManagerFeePercentage, userDocRef, setAlert, treasuryStats }) => {
+export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, saveManagerFeePercentage, userDocRef, setAlert, treasuryStats }) => {
     const { t } = useLanguage();
     const stats: InvestorsStats = useMemo(() => {
         const nonManagerInvestors = investors.filter((inv) => inv.isActive && !inv.isManager);
@@ -56,6 +56,12 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
     }, [investors, investorBreakdown, investorEconomicsTotals]);
     const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false);
     const [isDistributionOpen, setIsDistributionOpen] = useState(false);
+    const distributableInvestors = useMemo(() => investors.filter((investor) => !investor.isManager), [investors]);
+    const handleSaveCommission = useCallback(async (nextValue: string) => {
+        await saveManagerFeePercentage(nextValue);
+        setAlert('✅ Taux de commission gerant sauvegarde.');
+        setIsCommissionModalOpen(false);
+    }, [saveManagerFeePercentage, setAlert]);
     return (<div className="anim-page-in space-y-6">
       <PageHeader title={t('investors.title') as string} subtitle={`${stats.activeCount} ${t('investors.activeSuffix')}`} className="-mx-4 sm:mx-0 sm:rounded-card" actions={(<Button onClick={onAddInvestor} variant="primary" size="md" className="font-semibold">
             <PlusIcon className="h-4 w-4"/>
@@ -72,7 +78,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
         ]}/>
 
       {/* Distribution reminder when available profits are significant */}
-      {stats.netDistributableProfit > 5000 && (<button
+      {stats.totalAvailable > 5000 && (<button
           type="button"
           onClick={() => setIsDistributionOpen(true)}
           className="flex w-full items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-start transition-colors hover:bg-primary/10 active:scale-[0.99]">
@@ -80,7 +86,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-primary">{t('investors.distributeProfits')}</p>
             <p className="mt-0.5 text-xs text-primary/60">
-              {t('investors.netProfitAvailable')} : <CurrencyAmount value={stats.netDistributableProfit} currency="DZD" semantic="plain" size="sm" decimals={0}/> - {t('investors.tapToViewPlan')}
+              {t('investors.profitsToPay')} : <CurrencyAmount value={stats.totalAvailable} currency="DZD" semantic="plain" size="sm" decimals={0}/> - {t('investors.tapToViewPlan')}
             </p>
           </div>
           <svg className="w-5 h-5 shrink-0 text-primary/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -92,13 +98,13 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
 
       <InvestorsListSection investors={investors} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor}/>
 
-      <CommissionEditorModal isOpen={isCommissionModalOpen} onClose={() => setIsCommissionModalOpen(false)} value={managerFeePercentage} onChange={setManagerFeePercentage} managerFeeAmount={stats.managerFee}/>
+      <CommissionEditorModal isOpen={isCommissionModalOpen} onClose={() => setIsCommissionModalOpen(false)} value={managerFeePercentage} onSave={handleSaveCommission} managerFeeAmount={stats.managerFee}/>
 
       <ProfitDistributionSheet
         isOpen={isDistributionOpen}
         onClose={() => setIsDistributionOpen(false)}
-        investors={investors}
-        suggestedTotal={stats.netDistributableProfit}
+        investors={distributableInvestors}
+        suggestedTotal={stats.totalAvailable}
         userDocRef={userDocRef}
         setAlert={setAlert}
         treasuryStats={treasuryStats}
