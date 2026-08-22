@@ -12,11 +12,11 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { useLanguage } from '../contexts/LanguageContext';
-import type { InvestorEconomicsResult, ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
+import type { DerivedInvestor, InvestorEconomicsResult, ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
 import type { FirestoreDocumentReference } from '../firebase';
 import type { CapitalSnapshot, InvestorBreakdown } from '../utils/capitalSnapshot';
 interface InvestorsPageProps {
-    investors: Investor[];
+    investors: DerivedInvestor[];
     capitalSnapshot?: CapitalSnapshot;
     investorBreakdown?: InvestorBreakdown;
     onOpenInvestor: (investor: Investor) => void;
@@ -55,6 +55,13 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
         const netDistributableProfit = investorEconomicsTotals.netDistributableProfit || 0;
         return { totalCapital, totalProfitDistributed, totalAvailable, managerFee, totalWithdrawn, activeCount, totalDeliveryExpenses, netDistributableProfit }; // netDistributableProfit used for distribution banner
     }, [investors, investorBreakdown, investorEconomicsTotals]);
+    const displayedTotalAvailable = useMemo(
+        () => investors
+            .filter((investor) => !investor.isManager)
+            .reduce((sum, investor) => sum + Number(investor.displayAvailableProfit || 0), 0),
+        [investors]
+    );
+    const displayedStats = useMemo(() => ({ ...stats, totalAvailable: displayedTotalAvailable }), [stats, displayedTotalAvailable]);
     const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false);
     const [isDistributionOpen, setIsDistributionOpen] = useState(false);
     const distributableInvestors = useMemo(() => investors.filter((investor) => !investor.isManager), [investors]);
@@ -74,7 +81,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
                 { label: t('investors.capitalProject') as string, value: capitalSnapshot.totalCapital, currency: 'DZD' as const, semantic: 'plain' as const },
                 { label: t('investors.capitalOwned') as string, value: managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot.netOwnedCapital, currency: 'DZD' as const, semantic: 'plain' as const }
             ] : []),
-            { label: t('investors.profitsToPay') as string, value: stats.totalAvailable, currency: 'DZD', semantic: 'auto' },
+            { label: t('investors.profitsToPay') as string, value: displayedStats.totalAvailable, currency: 'DZD', semantic: 'auto' },
             { label: t('investors.managerShare') as string, value: stats.managerFee, currency: 'DZD', semantic: 'auto' }
         ]}/>
 
@@ -87,7 +94,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-primary">{t('investors.distributeProfits')}</p>
             <p className="mt-0.5 text-xs text-primary/60">
-              {t('investors.profitsToPay')} : <CurrencyAmount value={stats.totalAvailable} currency="DZD" semantic="plain" size="sm" decimals={0}/> - {t('investors.tapToViewPlan')}
+              {t('investors.profitsToPay')} : <CurrencyAmount value={displayedStats.totalAvailable} currency="DZD" semantic="plain" size="sm" decimals={0}/> - {t('investors.tapToViewPlan')}
             </p>
           </div>
           <svg className="w-5 h-5 shrink-0 text-primary/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -95,7 +102,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
           </svg>
         </button>)}
 
-      <InvestorsDetailsCard stats={stats} capitalSnapshot={capitalSnapshot} managerFeePercentage={managerFeePercentage} managerProfitBreakdown={managerProfitBreakdown} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference}/>
+      <InvestorsDetailsCard stats={displayedStats} capitalSnapshot={capitalSnapshot} managerFeePercentage={managerFeePercentage} managerProfitBreakdown={managerProfitBreakdown} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference}/>
 
       <InvestorsListSection investors={investors} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor}/>
 

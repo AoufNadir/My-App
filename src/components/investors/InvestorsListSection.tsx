@@ -12,9 +12,9 @@ import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { Investor } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { CapitalSnapshot } from '../../utils/capitalSnapshot';
-import type { ManagerProfitBreakdown } from '../../hooks/useInvestorEconomics';
+import type { DerivedInvestor, ManagerProfitBreakdown } from '../../hooks/useInvestorEconomics';
 
-async function exportInvestorsPdf(investors: Investor[], capitalSnapshot?: CapitalSnapshot, managerProfitBreakdown?: ManagerProfitBreakdown) {
+async function exportInvestorsPdf(investors: DerivedInvestor[], capitalSnapshot?: CapitalSnapshot, managerProfitBreakdown?: ManagerProfitBreakdown) {
     const { buildInvestorListPdf, openPdfPrintWindow } = await import('../../utils/pdfReports');
     const rows = investors.map((inv) => ({
         name: inv.name,
@@ -23,7 +23,7 @@ async function exportInvestorsPdf(investors: Investor[], capitalSnapshot?: Capit
         capitalInvested: inv.isManager
             ? Number(managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot?.netOwnedCapital ?? inv.capitalInvested ?? 0)
             : Number(inv.capitalInvested || 0),
-        availableProfit: Number(inv.availableProfit || 0),
+        availableProfit: inv.isManager ? 0 : Number(inv.displayAvailableProfit || 0),
         withdrawnProfit: Number(inv.withdrawnProfit || 0),
         totalProfit: Number(inv.totalProfit || 0),
         roi: inv.isManager ? null : (inv as any).roi !== null && (inv as any).roi !== undefined ? Number((inv as any).roi) : null,
@@ -33,7 +33,7 @@ async function exportInvestorsPdf(investors: Investor[], capitalSnapshot?: Capit
     openPdfPrintWindow(report);
 }
 type InvestorsListSectionProps = {
-    investors: Investor[];
+    investors: DerivedInvestor[];
     capitalSnapshot?: CapitalSnapshot;
     managerProfitBreakdown?: ManagerProfitBreakdown;
     activeCount: number;
@@ -61,9 +61,9 @@ export function InvestorsListSection({ investors, capitalSnapshot, managerProfit
         {investors.length === 0 ? (<EmptyState icon={<UsersIcon className="w-6 h-6"/>} title={t('emptyStates.investors.title') as string} subtitle={t('emptyStates.investors.subtitle') as string}/>) : (<div className="divide-y divide-neutral-100">
             {investors.map((investor) => {
                 const isManager = Boolean(investor.isManager);
-                const availableProfit = !isManager
-                    ? Number(investor.availableProfit || 0)
-                    : 0;
+                const rawAvailableProfit = Number(investor.availableProfit || 0);
+                const availableProfit = isManager ? 0 : Number(investor.displayAvailableProfit || 0);
+                const requiresRegularization = !isManager && rawAvailableProfit < -0.005;
                 const displayedCapital = isManager
                     ? Number(managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot?.netOwnedCapital ?? investor.capitalInvested ?? 0)
                     : Number(investor.capitalInvested || 0);
@@ -85,12 +85,16 @@ export function InvestorsListSection({ investors, capitalSnapshot, managerProfit
                         <div>
                           <CurrencyAmount value={displayedCapital} currency="DZD" size="lg" decimals={0}/>
                           {!isManager && (
-                            <div className="mt-0.5">
-                              <CurrencyAmount value={availableProfit} currency="DZD" semantic="auto" size="md" showSign decimals={0}/>
+                            <div className="mt-1 flex items-baseline justify-end gap-1.5">
+                              <span className={`text-[10px] font-semibold ${requiresRegularization ? 'text-financial-loss' : 'text-neutral-400'}`}>
+                                {requiresRegularization ? t('investors.balanceToRegularize') : t('investors.availableProfit')}
+                              </span>
+                              <CurrencyAmount value={requiresRegularization ? Math.abs(availableProfit) : availableProfit} currency="DZD" semantic={requiresRegularization ? 'loss' : 'auto'} size="md" showSign={!requiresRegularization} decimals={0}/>
                             </div>
                           )}
-                          {!isManager && (investor as any).roi !== null && (investor as any).roi !== undefined && (<div className={`mt-0.5 text-[10px] font-bold tabular-nums ${(investor as any).roi > 0 ? 'text-financial-profit' : (investor as any).roi < 0 ? 'text-financial-loss' : 'text-neutral-400'}`} dir="ltr">
-                            {(investor as any).roi > 0 ? '+' : ''}{((investor as any).roi as number).toFixed(1)}% ROI
+                          {!isManager && investor.roi !== null && investor.roi !== undefined && (<div className={`mt-0.5 flex items-baseline justify-end gap-1 text-[10px] font-bold tabular-nums ${investor.roi > 0 ? 'text-financial-profit' : investor.roi < 0 ? 'text-financial-loss' : 'text-neutral-400'}`} dir="ltr">
+                            <span className="text-neutral-400">{t('investors.cumulativeReturn')}</span>
+                            <span>{investor.roi > 0 ? '+' : ''}{investor.roi.toFixed(1)}%</span>
                           </div>)}
                         </div>
                         <ChevronRightIcon className="w-5 h-5 text-neutral-400"/>

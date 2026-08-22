@@ -40,3 +40,34 @@ export const distributeProportionally = (total: number, weights: ReadonlyArray<n
         floored[order[k % order.length].i] += 1;
     return floored.map(fromCents);
 };
+
+/**
+ * Presentation-only DZD rounding. The stored/accounting values stay in cents;
+ * this allocates whole-DZD display values so their visible sum equals the
+ * visible total instead of leaking a dinar through independent rounding.
+ */
+export const allocateRoundedDzd = <T extends string>(values: ReadonlyArray<{ id: T; value: number }>): Map<T, number> => {
+    const normalized = values.map((item, index) => {
+        const cents = toCents(Number.isFinite(item.value) ? item.value : 0);
+        const base = cents >= 0 ? Math.floor(cents / 100) : Math.ceil(cents / 100);
+        return { ...item, index, cents, base, remainder: cents / 100 - base };
+    });
+    const totalCents = normalized.reduce((sum, item) => sum + item.cents, 0);
+    const totalRounded = totalCents >= 0
+        ? Math.floor((totalCents + 50) / 100)
+        : Math.ceil((totalCents - 50) / 100);
+    const baseTotal = normalized.reduce((sum, item) => sum + item.base, 0);
+    const adjustment = totalRounded - baseTotal;
+    const ordered = [...normalized].sort((a, b) => {
+        const remainderDifference = adjustment >= 0
+            ? b.remainder - a.remainder
+            : a.remainder - b.remainder;
+        return remainderDifference || a.index - b.index;
+    });
+    const result = new Map<T, number>(normalized.map((item) => [item.id, item.base]));
+    for (let index = 0; index < Math.abs(adjustment); index += 1) {
+        const item = ordered[index % ordered.length];
+        result.set(item.id, (result.get(item.id) || 0) + Math.sign(adjustment));
+    }
+    return result;
+};

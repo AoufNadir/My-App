@@ -43,7 +43,7 @@ function DetailRow({ label, value, semantic = 'auto', hideWhenZero = false }: { 
 export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercentage, managerProfitBreakdown, onOpenCommissionEditor, reconciliationDifference = 0 }: InvestorsDetailsCardProps) {
     const { t } = useLanguage();
     const hasDeliveryExpenses = (stats.totalDeliveryExpenses ?? 0) > 0;
-    const hasReconciliationIssue = Math.abs(reconciliationDifference) > 0.05;
+    const hasReconciliationIssue = Math.abs(reconciliationDifference) > 0.01;
     const displayPercentage = managerFeePercentage?.trim() ? managerFeePercentage : '0';
     const ownerCapital = Number(managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot?.netOwnedCapital ?? 0);
     return (<Card>
@@ -89,14 +89,16 @@ export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercent
             <DetailRow label={t('investors.netDistributableProfit') as string} value={stats.netDistributableProfit || 0} semantic="auto"/>
           </>)}
       </CardContent>
-      {hasReconciliationIssue && (<div className="mx-4 mb-4 flex items-start gap-2 rounded-xl bg-danger-bg px-3 py-2.5">
-          <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-danger"/>
-          <div>
-            <p className="text-xs font-bold text-danger">{t('investors.reconciliationIssue')}</p>
+      <div className={`mx-4 mb-4 flex items-start gap-2 rounded-xl px-3 py-2.5 ${hasReconciliationIssue ? 'bg-danger-bg' : 'bg-success-bg'}`}>
+        {hasReconciliationIssue && <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-danger"/>}
+        <div>
+          {hasReconciliationIssue ? (<>
+            <p className="text-xs font-bold text-danger">{t('investors.reconciliationGap')}</p>
             <p className="mt-0.5 text-xs text-danger/80">
-              {t('investors.reconciliationDifference')}: <span dir="ltr" className="font-mono">{reconciliationDifference.toFixed(2)} DZD</span> - {t('investors.reconciliationBody')}
+              <CurrencyAmount value={reconciliationDifference} currency="DZD" semantic="loss" size="sm" decimals={2}/> - {t('investors.reconciliationBody')}
             </p>
-          </div>
-        </div>)}
+          </>) : <p className="text-xs font-bold text-financial-profit">{t('investors.reconciliationOk')}</p>}
+        </div>
+      </div>
     </Card>);
 }

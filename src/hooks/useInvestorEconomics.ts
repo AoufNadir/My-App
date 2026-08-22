@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Investor, InvestorTransaction, TreasuryTx, Tx } from '../types';
-import { addM, distributeProportionally, roundM, subM, sumM } from '../utils/money';
+import { addM, allocateRoundedDzd, distributeProportionally, roundM, subM, sumM } from '../utils/money';
 import { buildInvestorCapitalReconciliation, calculateManagerOwnerCapital, calculateTotalPersonalExpenses, isPersonalExpenseCapitalWithdrawal, isSyntheticInitialCapitalDeposit, type InvestorCapitalReconciliation, type ManagerOwnerCapitalBreakdown } from '../utils/managerCapital';
 import { computePamLedger, type PamLedgerResult, type PamLedgerSellProfitRow } from '../utils/pamLedger';
 export const LEGACY_MANAGER_FEE_PERCENTAGE = 30;
@@ -29,7 +29,9 @@ export type DerivedInvestor = Investor & {
     totalPersonalExpenses: number;
     managerCapital?: ManagerOwnerCapitalBreakdown | null;
     accountingWarnings: InvestorAccountingWarning[];
-    /** ROI = totalProfit / capitalInvested × 100 (percentage). Null when capitalInvested = 0. */
+    /** Presentation-only whole-DZD amount whose investor-list sum matches the rounded total. */
+    displayAvailableProfit: number;
+    /** Rendement cumulé = totalProfit / capitalInvested × 100. Null when capitalInvested is 0. */
     roi: number | null;
 };
 export interface InvestorEconomicsResult {
@@ -48,6 +50,9 @@ export interface ManagerProfitBreakdown {
     managerFeePercentage: number;
     projectNetProfit: number;
     openingCapital: number;
+    /** Capital reconstructed from the recorded owner movements and retained profit. */
+    historicalOwnerCapital: number;
+    /** Net owner capital from the current balance sheet (assets less external liabilities). */
     actualOwnerCapital: number;
     tradingOwnerProfit: number;
     serviceProfit: number;
@@ -455,6 +460,13 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             return sum;
         return sum + draft.capitalInvested;
     }, 0);
+    // Preserve cent-precision in availableProfit for accounting. This map is only
+    // for whole-DZD display values, so every investor-facing aggregate agrees.
+    const displayAvailableProfitByInvestor = allocateRoundedDzd(
+        investorDrafts
+            .filter((draft) => !draft.inv.isManager)
+            .map((draft) => ({ id: draft.inv.id, value: draft.availableProfit }))
+    );
     const derivedInvestors = investorDrafts.map((draft): DerivedInvestor => {
         const currentShare = draft.inv.isActive && totalCurrentCapital > 0
             ? Math.max(0, draft.capitalInvested) / totalCurrentCapital
@@ -465,6 +477,9 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             sharePercentage: currentShare,
             totalProfit: draft.totalProfit,
             availableProfit: draft.availableProfit,
+            displayAvailableProfit: draft.inv.isManager
+                ? draft.availableProfit
+                : displayAvailableProfitByInvestor.get(draft.inv.id) ?? draft.availableProfit,
             roi: draft.roi,
             profitWithdrawals: draft.inv.profitWithdrawals,
             personalExpenses: draft.inv.personalExpenses,
@@ -501,12 +516,13 @@ export function getManagerProfitBreakdown(result: InvestorEconomicsResult, manag
     const personalCapitalProfit = roundM(tradingOwnerProfit - ideaShareProfit);
     const externalInvestorsProfit = roundM(result.totals.investorShare - personalCapitalProfit);
     const retainedProfit = roundM(managerCapital?.retainedProfit ?? Math.max(0, manager?.availableProfit ?? tradingOwnerProfit));
-    const actualOwnerCapital = roundM(managerCapital?.ownerCapital || 0);
+    const historicalOwnerCapital = roundM(managerCapital?.ownerCapital || 0);
     return {
         managerFeePercentage: Math.max(0, Math.min(100, Number(managerFeePercentage) || 0)),
         projectNetProfit: roundM(result.totals.netDistributableProfit),
         openingCapital: roundM(managerCapital?.initialCapital || 0),
-        actualOwnerCapital,
+        historicalOwnerCapital,
+        actualOwnerCapital: historicalOwnerCapital,
         tradingOwnerProfit,
         serviceProfit: 0,
         ideaShareProfit,
@@ -551,7 +567,7 @@ export function reconcileManagerProfitBreakdown(input: ManagerProfitReconciliati
     const retainedProfit = roundM(subM(ownerTotalProfit, personalExpensesChargedToProfit));
     const capitalAdditions = roundM(breakdown.capitalAdditions || 0);
     const capitalWithdrawals = roundM(breakdown.capitalWithdrawals || 0);
-    const actualOwnerCapital = roundM(
+    const historicalOwnerCapital = roundM(
         subM(
             subM(addM(addM(openingCapital, retainedProfit), capitalAdditions), capitalWithdrawals),
             personalExpensesChargedToCapital
@@ -562,7 +578,11 @@ export function reconcileManagerProfitBreakdown(input: ManagerProfitReconciliati
     return {
         ...breakdown,
         openingCapital,
-        actualOwnerCapital,
+        historicalOwnerCapital,
+        // The balance sheet is the source of truth for the capital currently
+        // owned by the manager. The reconstructed historical value remains
+        // available for reconciliation and never changes profit allocation.
+        actualOwnerCapital: balanceSheetOwnerCapital,
         tradingOwnerProfit,
         serviceProfit,
         ownerTotalProfit,
@@ -579,7 +599,7 @@ export function reconcileManagerProfitBreakdown(input: ManagerProfitReconciliati
         profitDeficit: personalExpensesChargedToCapital,
         displayAvailableProfit: availableProfit,
         balanceSheetOwnerCapital,
-        ownerCapitalReconciliationDifference: roundM(subM(balanceSheetOwnerCapital, actualOwnerCapital)),
+        ownerCapitalReconciliationDifference: roundM(subM(balanceSheetOwnerCapital, historicalOwnerCapital)),
     };
 }
 export function useInvestorEconomics(investors: Investor[], investorTransactions: InvestorTransaction[], transactions: Tx[], managerFeePercentage: string, managerFeeHistory?: ManagerFeeHistoryEntry[], deliveryExpenses?: TreasuryTx[], treasuryTransactions?: TreasuryTx[], personalExpenses?: TreasuryTx[]) {

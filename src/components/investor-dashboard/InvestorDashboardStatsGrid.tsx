@@ -39,11 +39,11 @@ export function InvestorDashboardStatsGrid({ investor, stats }: InvestorDashboar
 
       <Card className="border border-border bg-surface shadow-sm">
         <CardContent className="p-4">
-          <p className="text-[11px] font-semibold uppercase text-neutral-500">{t('investorDashboard.totalNetProfit')}</p>
+          <p className="text-[11px] font-semibold uppercase text-neutral-500">{t('investors.totalProfitCumulative')}</p>
           <p className="mt-1"><CurrencyAmount value={stats.currentTotalProfit} currency="DZD" semantic="auto" size="lg" showSign decimals={0}/></p>
           <div className={`mt-2 flex items-center gap-1 text-xs ${stats.profitPercentage >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
             <TrendingUpIcon className="w-3 h-3"/>
-            <span dir="ltr" className="font-medium">{profitPercentSign}{formatNumber(stats.profitPercentage, { min: 2, max: 2 })}% {t('investorDashboard.returnLabel')}</span>
+            <span dir="ltr" className="font-medium">{profitPercentSign}{formatNumber(stats.profitPercentage, { min: 2, max: 2 })}% {t('investors.cumulativeReturn')}</span>
           </div>
         </CardContent>
       </Card>

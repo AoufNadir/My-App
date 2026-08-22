@@ -1930,9 +1930,9 @@ export function buildInvestorListPdf(rows: InvestorListRow[]): ReportPayload {
     const today = new Date().toLocaleDateString(FR_LOCALE, { day: '2-digit', month: 'long', year: 'numeric' });
     const activeRows = rows.filter(r => r.isActive && !r.isManager);
     const totalCap = activeRows.reduce((s, r) => s + r.capitalInvested, 0);
-    const totalAvail = rows.reduce((s, r) => s + r.availableProfit, 0);
+    const totalAvail = rows.filter(r => !r.isManager).reduce((s, r) => s + r.availableProfit, 0);
     const totalGain = rows.reduce((s, r) => s + r.totalProfit, 0);
-    const thead = `<tr><th>#</th><th>Nom</th><th>Rôle</th><th>Statut</th><th class="num">Capital investi</th><th class="num">Profit à payer</th><th class="num">Total retiré</th><th class="num">Profit attribué cumulé</th><th class="num">ROI %</th><th>Date entrée</th></tr>`;
+    const thead = `<tr><th>#</th><th>Nom</th><th>Rôle</th><th>Statut</th><th class="num">Capital investi</th><th class="num">Profit disponible</th><th class="num">Total retiré</th><th class="num">Profit total cumulé</th><th class="num">Rendement cumulé</th><th>Date entrée</th></tr>`;
     const tbody = rows.map((r, i) => {
         const roiCls = r.roi !== null ? (r.roi > 0 ? 'good' : r.roi < 0 ? 'bad' : '') : '';
         return `<tr>
@@ -1953,8 +1953,8 @@ export function buildInvestorListPdf(rows: InvestorListRow[]): ReportPayload {
       <h2 class="section-title">Synthèse</h2>
       <div class="executive-grid">
         <div class="executive-card primary"><div class="label">Capital investi</div><div class="value">${formatNumber(totalCap, 0)} DZD</div><div class="muted">${activeRows.length} investisseur${activeRows.length > 1 ? 's' : ''}</div></div>
-        <div class="executive-card profit"><div class="label">Profits investisseurs à payer</div><div class="value good">+${formatNumber(totalAvail, 0)} DZD</div></div>
-        <div class="executive-card profit"><div class="label">Profit attribué cumulé</div><div class="value good">+${formatNumber(totalGain, 0)} DZD</div></div>
+        <div class="executive-card profit"><div class="label">Profits disponibles des investisseurs</div><div class="value good">+${formatNumber(totalAvail, 0)} DZD</div></div>
+        <div class="executive-card profit"><div class="label">Profit total cumulé</div><div class="value good">+${formatNumber(totalGain, 0)} DZD</div></div>
       </div>
       <div class="pill-row top"><span class="pill">Exporté le ${today}</span><span class="pill">${rows.length} investisseur${rows.length > 1 ? 's' : ''}</span></div>
     </section>

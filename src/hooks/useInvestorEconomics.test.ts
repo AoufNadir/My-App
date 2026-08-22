@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { deriveInvestorEconomics, getManagerFeeAt, type ManagerFeeHistoryEntry } from './useInvestorEconomics';
+import { deriveInvestorEconomics, getManagerFeeAt, getManagerProfitBreakdown, reconcileManagerProfitBreakdown, type ManagerFeeHistoryEntry } from './useInvestorEconomics';
 import { formatManagerFeePercentage, normalizeStoredManagerFeePercentage, parseManagerFeePercentage } from './useSettings';
 import type { Investor, InvestorTransaction, TreasuryTx, Tx } from '../types';
 
@@ -156,6 +156,31 @@ test('manager fee input preserves valid values instead of forcing 30', () => {
     assert.throws(() => parseManagerFeePercentage('101'));
 });
 
+test('owner capital reconciliation keeps the balance sheet capital and exposes a historical variance', () => {
+    const base = getManagerProfitBreakdown(deriveInvestorEconomics({
+        investors: [investor({ id: 'manager', name: 'Manager', isManager: true })],
+        investorTransactions: [],
+        transactions: [],
+        managerFeePercentage: '30',
+    }), '30');
+    const result = reconcileManagerProfitBreakdown({
+        breakdown: {
+            ...base,
+            tradingOwnerProfit: 1_502_220,
+            ownerTotalProfit: 1_502_220,
+            personalExpenses: 0,
+            currentPersonalExpenses: 543_824,
+            totalPersonalExpenses: 543_824,
+        },
+        openingCapital: 2_008_843,
+        actualOwnerCapital: 2_967_307,
+    });
+
+    assertMoney(result.historicalOwnerCapital, 2_967_239);
+    assertMoney(result.actualOwnerCapital, 2_967_307, 'Balance-sheet capital remains the displayed capital');
+    assertMoney(result.ownerCapitalReconciliationDifference, 68, 'The source variance remains explicit instead of being hidden');
+});
+
 test('initial capital remains part of capitalAtTs when a later top-up deposit exists', () => {
     const investors = [
         investor({ id: 'aouf', name: 'Aouf', initialCapital: 1000, entryDate: new Date(0).toISOString() }),
@@ -271,6 +296,113 @@ test('Rostom and Karim only receive profit for periods where they were investors
     assertMoney(result.derivedInvestors.find((item) => item.id === 'rostom')?.totalProfit || 0, 5500);
     assertMoney(result.derivedInvestors.find((item) => item.id === 'karim')?.totalProfit || 0, 2000);
     assertMoney(result.totals.managerShare, 2500);
+});
+
+test('an investor entering after historic profit receives zero from the past and participates only after entry', () => {
+    const beforeEntry = Date.UTC(2026, 7, 19, 12);
+    const entryAt = Date.UTC(2026, 7, 20, 9);
+    const afterEntry = Date.UTC(2026, 7, 21, 12);
+    const result = deriveInvestorEconomics({
+        investors: [
+            investor({ id: 'manager', name: 'Manager', isManager: true, initialCapital: 1000, entryDate: new Date(0).toISOString() }),
+            investor({ id: 'new-investor', name: 'Investor A', initialCapital: 1000, entryDate: new Date(entryAt).toISOString() }),
+        ],
+        investorTransactions: [],
+        transactions: [
+            tx({ id: 'buy', type: 'buy', quantity: 200, price: 100, total: 20000, timestamp: beforeEntry - 1_000 }),
+            tx({ id: 'sell-before-entry', type: 'sell', quantity: 100, sell: 150, timestamp: beforeEntry }),
+            tx({ id: 'sell-after-entry', type: 'sell', quantity: 100, sell: 150, timestamp: afterEntry }),
+        ],
+        managerFeePercentage: '0',
+    });
+
+    const newInvestor = result.derivedInvestors.find((item) => item.id === 'new-investor');
+    const manager = result.derivedInvestors.find((item) => item.id === 'manager');
+    assertMoney(newInvestor?.totalProfit || 0, 2500, 'Investor A receives only half of the sale after 20/08, never the historic sale');
+    assertMoney(manager?.totalProfit || 0, 7500, 'The manager keeps the full historic profit plus their post-entry share');
+});
+
+test('current inactive status does not remove an investor from historic profit allocation', () => {
+    const result = deriveInvestorEconomics({
+        investors: [
+            investor({ id: 'manager', name: 'Manager', isManager: true, initialCapital: 1000, entryDate: new Date(0).toISOString() }),
+            investor({ id: 'former-investor', name: 'Former investor', initialCapital: 1000, entryDate: new Date(0).toISOString(), isActive: false }),
+        ],
+        investorTransactions: [],
+        transactions: [
+            tx({ id: 'buy', type: 'buy', quantity: 100, price: 100, total: 10000, timestamp: 1_000 }),
+            tx({ id: 'sell', type: 'sell', quantity: 100, sell: 150, timestamp: 2_000 }),
+        ],
+        managerFeePercentage: '0',
+    });
+
+    assertMoney(result.derivedInvestors.find((item) => item.id === 'former-investor')?.totalProfit || 0, 2500);
+});
+
+test('a later capital withdrawal changes only allocations after its timestamp', () => {
+    const investors = [
+        investor({ id: 'manager', name: 'Manager', isManager: true, initialCapital: 1000, entryDate: new Date(0).toISOString() }),
+        investor({ id: 'aouf', name: 'Aouf', initialCapital: 1000, entryDate: new Date(0).toISOString() }),
+    ];
+    const historicalOnly = deriveInvestorEconomics({
+        investors,
+        investorTransactions: [investorTx({ id: 'later-withdrawal', investorId: 'aouf', type: 'withdraw_capital', amount: 500, timestamp: 3_000 })],
+        transactions: [
+            tx({ id: 'buy', type: 'buy', quantity: 100, price: 100, total: 10000, timestamp: 1_000 }),
+            tx({ id: 'sell-before-withdrawal', type: 'sell', quantity: 100, sell: 150, timestamp: 2_000 }),
+        ],
+        managerFeePercentage: '0',
+    });
+    const fullHistory = deriveInvestorEconomics({
+        investors,
+        investorTransactions: [investorTx({ id: 'later-withdrawal', investorId: 'aouf', type: 'withdraw_capital', amount: 500, timestamp: 3_000 })],
+        transactions: [
+            tx({ id: 'buy', type: 'buy', quantity: 200, price: 100, total: 20000, timestamp: 1_000 }),
+            tx({ id: 'sell-before-withdrawal', type: 'sell', quantity: 100, sell: 150, timestamp: 2_000 }),
+            tx({ id: 'sell-after-withdrawal', type: 'sell', quantity: 100, sell: 150, timestamp: 4_000 }),
+        ],
+        managerFeePercentage: '0',
+    });
+
+    assertMoney(historicalOnly.derivedInvestors.find((item) => item.id === 'aouf')?.totalProfit || 0, 2500, 'Future withdrawal cannot rewrite the older 50/50 sale');
+    assertMoney(fullHistory.derivedInvestors.find((item) => item.id === 'aouf')?.totalProfit || 0, 4166.67, 'The later sale uses 500 / 1,500 capital only after the withdrawal');
+});
+
+test('total profit remains historical while available profit reflects an independent withdrawal balance', () => {
+    const result = deriveInvestorEconomics({
+        investors: [investor({ id: 'aouf', name: 'Aouf', initialCapital: 1000, entryDate: new Date(0).toISOString() })],
+        investorTransactions: [investorTx({ id: 'withdrawn', investorId: 'aouf', type: 'withdraw_profit', amount: 6000, timestamp: 3_000 })],
+        transactions: [
+            tx({ id: 'buy', type: 'buy', quantity: 100, price: 100, total: 10000, timestamp: 1_000 }),
+            tx({ id: 'sell', type: 'sell', quantity: 100, sell: 150, timestamp: 2_000 }),
+        ],
+        managerFeePercentage: '0',
+    });
+    const aouf = result.derivedInvestors[0];
+
+    assertMoney(aouf.totalProfit, 5000, 'Historic entitlement never changes');
+    assertMoney(aouf.availableProfit, -1000, 'Available balance can be negative and remains separate');
+    assertMoney(aouf.displayAvailableProfit, -1000, 'The display-only amount does not change accounting');
+});
+
+test('displayed investor profits add up to the rounded financial summary', () => {
+    const result = deriveInvestorEconomics({
+        investors: [
+            investor({ id: 'a', initialCapital: 1 }),
+            investor({ id: 'b', initialCapital: 1 }),
+            investor({ id: 'c', initialCapital: 1 }),
+        ],
+        investorTransactions: [],
+        transactions: [
+            tx({ id: 'buy', type: 'buy', quantity: 3, price: 100, total: 300, timestamp: 1_000 }),
+            tx({ id: 'sell', type: 'sell', quantity: 3, sell: 133.33, timestamp: 2_000 }),
+        ],
+        managerFeePercentage: '0',
+    });
+    const displayTotal = result.derivedInvestors.reduce((sum, investor) => sum + investor.displayAvailableProfit, 0);
+
+    assertMoney(result.totals.investorShare, 99.99);
+    assert.equal(displayTotal, 100, 'The visible rows use the same rounded source as the visible total');
 });
 
 test('manager available profit ignores legacy profit withdrawals and uses personal expenses only', () => {

@@ -5,16 +5,16 @@ import { Label } from '../components/ui/Label';
 import { DatePicker } from '../components/ui/DatePicker';
 import { PageHeader } from '../components/ui/PageHeader';
 import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
-import { Investor, InvestorTransaction, TreasuryTx } from '../types';
+import { InvestorTransaction, TreasuryTx } from '../types';
 import { InvestorDetailsContent } from '../components/investor-details/InvestorDetailsContent';
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
-import type { ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
+import type { DerivedInvestor, ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
 type InvestorReportDateRange = {
     startTs?: number | null;
     endTs?: number | null;
 };
 interface InvestorDetailsPageProps {
-    investor: Investor;
+    investor: DerivedInvestor;
     transactions: InvestorTransaction[];
     onBack: () => void;
     onAddCapital: () => void;
