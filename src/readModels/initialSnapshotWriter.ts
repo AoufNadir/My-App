@@ -140,10 +140,17 @@ function snapshotWriteEnvelope(input: {
     payloadHash: string;
     firestoreUpdatedAt: unknown;
 }): Record<string, unknown> {
+    const readModel = input.readModel as Record<string, unknown>;
+    const meta = (readModel.meta || {}) as Record<string, unknown>;
     return {
-        ...(input.readModel as Record<string, unknown>),
+        ...readModel,
         readModelName: input.readModelName,
+        schemaVersion: meta.schemaVersion,
+        revision: readModel.revision,
+        snapshotRevision: meta.snapshotRevision,
+        generationId: meta.generationId,
         payloadHash: input.payloadHash,
+        updatedAt: meta.updatedAt,
         writeMode: 'manual_initial_snapshot',
         sourceOfTruth: 'legacy_rebuild',
         firestoreUpdatedAt: input.firestoreUpdatedAt,

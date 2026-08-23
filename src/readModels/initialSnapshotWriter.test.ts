@@ -256,6 +256,11 @@ assert.equal(dashboardDoc?.payloadHash, firstWrite.payloadHash);
 assert.equal(dashboardDoc?.writeMode, 'manual_initial_snapshot');
 assert.equal(dashboardDoc?.sourceOfTruth, 'legacy_rebuild');
 assert.equal(dashboardDoc?.firestoreUpdatedAt, 'SERVER_TIMESTAMP');
+assert.equal(dashboardDoc?.schemaVersion, firstWrite.readModels.dashboard.meta.schemaVersion);
+assert.equal(dashboardDoc?.revision, firstWrite.readModels.dashboard.revision);
+assert.equal(dashboardDoc?.snapshotRevision, firstWrite.readModels.dashboard.meta.snapshotRevision);
+assert.equal(dashboardDoc?.generationId, firstWrite.readModels.dashboard.meta.generationId);
+assert.equal(dashboardDoc?.updatedAt, firstWrite.readModels.dashboard.meta.updatedAt);
 
 const secondWrite = await writeInitialReadModelSnapshot({
     userDocRef,
