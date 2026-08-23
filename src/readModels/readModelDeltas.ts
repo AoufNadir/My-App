@@ -26,12 +26,14 @@ export type CurrencyInventoryDelta = {
 };
 
 export type ClientPositionDelta = {
+    clientCountDelta?: number;
     receivablesDelta: number;
     advancesDelta: number;
     activeClientsTodayDelta?: number;
 };
 
 export type InvestorPositionDelta = {
+    investorCountDelta?: number;
     externalInvestorCapitalDelta?: number;
     externalInvestorProfitsDelta?: number;
     investorLiabilityDelta?: number;
@@ -43,6 +45,8 @@ export type InvestorPositionDelta = {
 };
 
 export type ServicePositionDelta = {
+    servicesCountDelta?: number;
+    clientsCountDelta?: number;
     amountToReceiveDelta?: number;
     clientAdvancesDelta?: number;
     cashReceivedDelta?: number;
@@ -138,11 +142,18 @@ export function transitionClientBalanceDelta(beforeBalance: number, afterBalance
 }
 
 export function combineClientPositionDeltas(deltas: readonly ClientPositionDelta[]): ClientPositionDelta {
-    return deltas.reduce<ClientPositionDelta>((acc, delta) => ({
+    const combined = deltas.reduce<ClientPositionDelta>((acc, delta) => ({
         receivablesDelta: add(acc.receivablesDelta, delta.receivablesDelta),
         advancesDelta: add(acc.advancesDelta, delta.advancesDelta),
+        clientCountDelta: addInteger(acc.clientCountDelta || 0, delta.clientCountDelta || 0),
         activeClientsTodayDelta: addInteger(acc.activeClientsTodayDelta || 0, delta.activeClientsTodayDelta || 0),
-    }), { receivablesDelta: 0, advancesDelta: 0, activeClientsTodayDelta: 0 });
+    }), { clientCountDelta: 0, receivablesDelta: 0, advancesDelta: 0, activeClientsTodayDelta: 0 });
+    return {
+        receivablesDelta: combined.receivablesDelta,
+        advancesDelta: combined.advancesDelta,
+        activeClientsTodayDelta: combined.activeClientsTodayDelta || 0,
+        ...(combined.clientCountDelta ? { clientCountDelta: combined.clientCountDelta } : {}),
+    };
 }
 
 function applyTreasuryDelta(summary: TreasuryReadModel, delta: ReadModelDelta): TreasuryReadModel {
@@ -229,6 +240,7 @@ function applyClientsDelta(summary: ClientsReadModel, delta: ReadModelDelta): Cl
     const clientDelta = delta.clients || { receivablesDelta: 0, advancesDelta: 0 };
     return {
         ...withRevision(summary),
+        clientCount: addInteger(summary.clientCount, clientDelta.clientCountDelta || 0),
         totalReceivables: add(summary.totalReceivables, clientDelta.receivablesDelta),
         totalAdvances: add(summary.totalAdvances, clientDelta.advancesDelta),
         netClientPosition: add(summary.netClientPosition, (clientDelta.receivablesDelta || 0) - (clientDelta.advancesDelta || 0)),
@@ -244,8 +256,27 @@ function applyInvestorsDelta(summary: InvestorsReadModel, delta: ReadModelDelta)
     const externalInvestorCapital = add(summary.externalInvestorCapital, investorDelta.externalInvestorCapitalDelta || 0);
     const externalInvestorProfits = add(summary.externalInvestorProfits, investorDelta.externalInvestorProfitsDelta || 0);
     const investorLiability = add(summary.investorLiability, investorDelta.investorLiabilityDelta ?? ((investorDelta.externalInvestorCapitalDelta || 0) + (investorDelta.externalInvestorProfitsDelta || 0)));
+    const previousManager = summary.managerProfitBreakdown;
+    const tradingOwnerProfit = add(previousManager.tradingOwnerProfit, investorDelta.managerTradingOwnerProfitDelta || 0);
+    const serviceProfit = add(previousManager.serviceProfit, investorDelta.managerServiceProfitDelta || 0);
+    const ownerTotalProfit = money(tradingOwnerProfit + serviceProfit);
+    const personalExpenses = add(previousManager.personalExpenses, investorDelta.managerPersonalExpensesDelta || 0);
+    const totalPersonalExpenses = add(previousManager.totalPersonalExpenses, investorDelta.managerPersonalExpensesDelta || 0);
+    const personalExpensesChargedToProfit = money(Math.max(0, Math.min(totalPersonalExpenses, Math.max(0, ownerTotalProfit))));
+    const personalExpensesChargedToCapital = money(Math.max(0, totalPersonalExpenses - personalExpensesChargedToProfit));
+    const retainedProfit = money(ownerTotalProfit - personalExpensesChargedToProfit);
+    const availableProfit = money(Math.max(0, retainedProfit));
+    const actualOwnerCapital = add(previousManager.actualOwnerCapital, investorDelta.managerActualOwnerCapitalDelta || 0);
+    const historicalOwnerCapital = money(
+        previousManager.openingCapital
+        + retainedProfit
+        + Number(previousManager.capitalAdditions || 0)
+        - Number(previousManager.capitalWithdrawals || 0)
+        - personalExpensesChargedToCapital
+    );
     return {
         ...withRevision(summary),
+        investorCount: addInteger(summary.investorCount, investorDelta.investorCountDelta || 0),
         externalInvestorCapital,
         externalInvestorProfits,
         investorLiability,
@@ -256,12 +287,23 @@ function applyInvestorsDelta(summary: InvestorsReadModel, delta: ReadModelDelta)
         },
         globalNetProfit: add(summary.globalNetProfit, investorDelta.globalNetProfitDelta || 0),
         managerProfitBreakdown: {
-            ...summary.managerProfitBreakdown,
-            tradingOwnerProfit: add(summary.managerProfitBreakdown.tradingOwnerProfit, investorDelta.managerTradingOwnerProfitDelta || 0),
-            serviceProfit: add(summary.managerProfitBreakdown.serviceProfit, investorDelta.managerServiceProfitDelta || 0),
-            personalExpenses: add(summary.managerProfitBreakdown.personalExpenses, investorDelta.managerPersonalExpensesDelta || 0),
-            totalPersonalExpenses: add(summary.managerProfitBreakdown.totalPersonalExpenses, investorDelta.managerPersonalExpensesDelta || 0),
-            actualOwnerCapital: add(summary.managerProfitBreakdown.actualOwnerCapital, investorDelta.managerActualOwnerCapitalDelta || 0),
+            ...previousManager,
+            tradingOwnerProfit,
+            serviceProfit,
+            ownerTotalProfit,
+            personalExpenses,
+            totalPersonalExpenses,
+            personalExpensesChargedToProfit,
+            personalExpensesChargedToCapital,
+            retainedProfit,
+            reinvestedProfit: retainedProfit,
+            availableProfit,
+            displayAvailableProfit: availableProfit,
+            profitDeficit: personalExpensesChargedToCapital,
+            historicalOwnerCapital,
+            actualOwnerCapital,
+            balanceSheetOwnerCapital: actualOwnerCapital,
+            ownerCapitalReconciliationDifference: money(actualOwnerCapital - historicalOwnerCapital),
         },
     };
 }
@@ -272,6 +314,8 @@ function applyServicesDelta(summary: ServicesReadModel, delta: ReadModelDelta): 
     const serviceDelta = delta.services || {};
     return {
         ...withRevision(summary),
+        servicesCount: addInteger(summary.servicesCount, serviceDelta.servicesCountDelta || 0),
+        clientsCount: addInteger(summary.clientsCount, serviceDelta.clientsCountDelta || 0),
         amountToReceive: add(summary.amountToReceive, serviceDelta.amountToReceiveDelta || 0),
         clientAdvances: add(summary.clientAdvances, serviceDelta.clientAdvancesDelta || 0),
         cashReceived: add(summary.cashReceived, serviceDelta.cashReceivedDelta || 0),

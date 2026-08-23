@@ -2,6 +2,7 @@ import type { FirestoreDocumentReference } from './firebase';
 import { formatNumber } from './pages/shared/pageFormat';
 import { recordTreasuryLegacyDeletionShadow, recordTreasuryShadow } from './accounting/treasuryShadowDiagnostics';
 import { resolveLegacyMutationPolicy } from './readModels/readModelActivation';
+import { commitLegacyWithReadModelDeltas } from './readModels/productionSummaryWriter';
 import {
     createLegacyOperationIndexDoc,
     deterministicLinkedId,
@@ -342,7 +343,11 @@ export async function applyTransactionDelete(transactionId: string, transactionT
             deletedAt,
             status: 'deleted',
         }));
-        await batch.commit();
+        await commitLegacyWithReadModelDeltas({
+            userDocRef,
+            batch,
+            deltas: [],
+        });
         return { success: true };
     }
     catch (e: any) {
@@ -497,7 +502,11 @@ export async function applyTransactionUpdate(transactionId: string, transactionT
             updatedAt: Date.now(),
             status: 'active',
         }));
-        await batch.commit();
+        await commitLegacyWithReadModelDeltas({
+            userDocRef,
+            batch,
+            deltas: [],
+        });
         return { success: true };
     }
     catch (e: any) {

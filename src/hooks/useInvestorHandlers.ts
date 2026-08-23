@@ -15,6 +15,9 @@ import {
     isCashWallet,
     type FinancialWallet,
 } from '../utils/digitalServiceAccounting';
+import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
+import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
+import type { ReadModelDelta } from '../readModels/readModelDeltas';
 
 type PersonalExpenseInvestorLink = {
     id: string;
@@ -284,6 +287,12 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         const wallet = tx?.expenseWallet || tx?.source || 'Caisse';
         return wallet === 'USDT' || wallet === 'EUR' || wallet === 'BaridiMob' ? wallet : 'Caisse';
     };
+    const walletDeltaFor = (wallet: FinancialWallet, dzdDelta: number) => (
+        isCashWallet(wallet) ? { [wallet]: dzdDelta } : undefined
+    );
+    const portfolioDeltaFor = (wallet: FinancialWallet, quantityDelta: number, costBasisDeltaDzd: number) => (
+        isAssetWallet(wallet) ? { [wallet]: { quantityDelta, costBasisDeltaDzd } } : undefined
+    );
     const getWalletAvailableBalance = (wallet: FinancialWallet): number => {
         if (wallet === 'Caisse') return Number(treasuryStats.caisse || 0);
         if (wallet === 'BaridiMob') return Number(treasuryStats.baridi || 0);
@@ -566,7 +575,44 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     ...(editingPersonalExpenseTx ? { warnings: ['Legacy edit replaces prior rows; V2 immutable reversal is prepared only.'] } : {}),
                 });
             }
-            await batch.commit();
+            const readModelDelta = !editingPersonalExpenseTx
+                ? mustPrepareWriterReadModelDelta('investors.personal-expenses', {
+                    operationId: `legacy:investors.personal-expenses:${treasuryRef.id}`,
+                    effectiveAt: timestamp,
+                    payload: {
+                        type: isAdvance ? 'manager_personal_advance' : 'manager_personal_expense',
+                        treasuryTxId: treasuryRef.id,
+                        wallet: personalWithdrawalMethod,
+                        originalAmount: amountNum,
+                        amountDzd: preview.amountDzd,
+                        profitAmount: funding.profitAmount,
+                        capitalAmount: funding.capitalAmount,
+                    },
+                    affectedSummaries: ['dashboard_summary', 'investors_summary', 'treasury_summary', 'portfolio_summary', 'financial_summary'],
+                    wallets: walletDeltaFor(personalWithdrawalMethod, -preview.amountDzd),
+                    portfolio: portfolioDeltaFor(
+                        personalWithdrawalMethod,
+                        -amountNum,
+                        -roundM(Number((personalWithdrawalMethod === 'USDT' ? portfolioStats.usdt.avgBuy : portfolioStats.eur.avgBuy) || 0) * amountNum),
+                    ),
+                    managerPendingAdvancesDelta: isAdvance ? preview.amountDzd : 0,
+                    investors: isAdvance ? {} : {
+                        managerPersonalExpensesDelta: preview.amountDzd,
+                        managerActualOwnerCapitalDelta: -preview.amountDzd,
+                    },
+                    recentOperation: {
+                        operationId: `legacy:investors.personal-expenses:${treasuryRef.id}`,
+                        source: 'legacy',
+                        type: isAdvance ? 'Avance personnelle' : 'Dépense personnelle',
+                        effectiveAt: timestamp,
+                    },
+                })
+                : null;
+            await commitLegacyWithReadModelDeltas({
+                userDocRef,
+                batch,
+                deltas: readModelDelta ? [readModelDelta] : [],
+            });
             setAlert(editingPersonalExpenseTx
                 ? '✅ Dépense mise à jour.'
                 : (isAdvance
@@ -793,7 +839,40 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 cashDeltasDzd: isCashWallet(advanceWallet) ? { [advanceWallet]: returnAmountDzd } : {},
                 ...(returnDocs.length > 1 ? { warnings: ['Legacy has duplicate advance-return rows; V2 keeps one immutable reconciliation.'] } : {}),
             });
-            await batch.commit();
+            const advanceAmountDzd = roundM(advanceAmount * rateToDzd);
+            const readModelDelta = mustPrepareWriterReadModelDelta('investors.personal-expenses', {
+                operationId: `legacy:investors.personal-advance-reconcile:${reconcileAdvanceTx.id}:${timestamp}`,
+                effectiveAt: timestamp,
+                payload: {
+                    type: 'manager_personal_advance_reconcile',
+                    treasuryTxId: reconcileAdvanceTx.id,
+                    wallet: advanceWallet,
+                    advanceAmountDzd,
+                    returnedAmountDzd: returnAmountDzd,
+                    spentAmountDzd: actualSpentDzd,
+                    profitAmount: funding.profitAmount,
+                    capitalAmount: funding.capitalAmount,
+                },
+                affectedSummaries: ['dashboard_summary', 'investors_summary', 'treasury_summary', 'portfolio_summary', 'financial_summary'],
+                wallets: walletDeltaFor(advanceWallet, returnAmountDzd),
+                portfolio: portfolioDeltaFor(advanceWallet, returnAmount, returnAmountDzd),
+                managerPendingAdvancesDelta: -advanceAmountDzd,
+                investors: {
+                    managerPersonalExpensesDelta: actualSpentDzd,
+                    managerActualOwnerCapitalDelta: -actualSpentDzd,
+                },
+                recentOperation: {
+                    operationId: `legacy:investors.personal-advance-reconcile:${reconcileAdvanceTx.id}:${timestamp}`,
+                    source: 'legacy',
+                    type: 'Régularisation avance',
+                    effectiveAt: timestamp,
+                },
+            });
+            await commitLegacyWithReadModelDeltas({
+                userDocRef,
+                batch,
+                deltas: [readModelDelta],
+            });
             setAlert(returnAmount > 0.005
                 ? `✅ Avance régularisée — ${returnAmount.toFixed(2)} ${advanceCurrency} retourné à ${advanceWallet}.`
                 : funding.capitalAmount > 0.005
@@ -836,7 +915,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 await deleteLinkedPersonalExpensePortfolioDocs(batch, doc.id);
                 batch.delete(doc.ref);
             }
-            await batch.commit();
+            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [] });
             setAlert('✅ Dépense supprimée.');
             setPersonalExpenseToDelete(null);
         }
@@ -895,6 +974,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         setIsSaving(true);
         try {
             const batch = db.batch();
+            let readModelDelta: ReadModelDelta | null = null;
             if (editingInvestor) {
                 const updatePayload: any = {
                     name: investorName.trim(),
@@ -981,10 +1061,55 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                         cashDeltasDzd: investorInitialCapitalSource === 'none' ? {} : { [investorInitialCapitalSource]: capital },
                     });
                     batch.set(investorTxRef, investorTxPayload);
+                    readModelDelta = mustPrepareWriterReadModelDelta('investors.capital', {
+                        operationId: `legacy:investors.capital:${investorTxRef.id}`,
+                        effectiveAt: depositTs,
+                        payload: {
+                            type: 'investor_initial_capital',
+                            investorId: ref.id,
+                            amount: capital,
+                            isManager,
+                            paymentSource: investorInitialCapitalSource,
+                        },
+                        affectedSummaries: ['dashboard_summary', 'investors_summary', 'treasury_summary', 'financial_summary'],
+                        wallets: investorInitialCapitalSource === 'none' ? undefined : { [investorInitialCapitalSource]: capital },
+                        investors: {
+                            investorCountDelta: 1,
+                            externalInvestorCapitalDelta: isManager ? 0 : capital,
+                            externalInvestorProfitsDelta: 0,
+                            investorLiabilityDelta: isManager ? 0 : capital,
+                            managerActualOwnerCapitalDelta: isManager && investorInitialCapitalSource !== 'none' ? capital : 0,
+                        },
+                        recentOperation: {
+                            operationId: `legacy:investors.capital:${investorTxRef.id}`,
+                            source: 'legacy',
+                            type: 'Capital investisseur',
+                            effectiveAt: depositTs,
+                        },
+                    });
+                }
+                else {
+                    readModelDelta = mustPrepareWriterReadModelDelta('investors.capital', {
+                        operationId: `legacy:investors.capital:${ref.id}:create-zero`,
+                        effectiveAt: Date.now(),
+                        payload: { type: 'investor_create_zero_capital', investorId: ref.id, isManager },
+                        affectedSummaries: ['dashboard_summary', 'investors_summary', 'treasury_summary', 'financial_summary'],
+                        investors: { investorCountDelta: 1 },
+                        recentOperation: {
+                            operationId: `legacy:investors.capital:${ref.id}:create-zero`,
+                            source: 'legacy',
+                            type: 'Investisseur',
+                            effectiveAt: Date.now(),
+                        },
+                    });
                 }
                 setAlert('✅ Investisseur ajouté.');
             }
-            await batch.commit();
+            await commitLegacyWithReadModelDeltas({
+                userDocRef,
+                batch,
+                deltas: readModelDelta ? [readModelDelta] : [],
+            });
             closeInvestorModal();
             return true;
         }
@@ -1166,7 +1291,74 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 });
             }
             batch.set(txRef, investorTxPayload);
-            await batch.commit();
+            const isManagerTx = selectedInvestor.isManager === true;
+            const capitalDelta = investorTxType === 'deposit_capital'
+                ? amount
+                : investorTxType === 'withdraw_capital'
+                    ? -amount
+                    : 0;
+            const readModelDelta = investorTxType === 'reinvest_profit'
+                ? mustPrepareWriterReadModelDelta('investors.reinvest-profit', {
+                    operationId: `legacy:investors.reinvest-profit:${txRef.id}`,
+                    effectiveAt: timestamp,
+                    payload: { type: 'investor_reinvest_profit', investorId: selectedInvestorId, amount, isManager: isManagerTx },
+                    affectedSummaries: ['dashboard_summary', 'investors_summary', 'financial_summary'],
+                    investors: isManagerTx ? {} : {
+                        externalInvestorCapitalDelta: amount,
+                        externalInvestorProfitsDelta: -amount,
+                        investorLiabilityDelta: 0,
+                    },
+                    recentOperation: {
+                        operationId: `legacy:investors.reinvest-profit:${txRef.id}`,
+                        source: 'legacy',
+                        type: 'Réinvestissement profit',
+                        effectiveAt: timestamp,
+                    },
+                })
+                : investorTxType === 'withdraw_profit'
+                    ? mustPrepareWriterReadModelDelta('investors.profit-payout', {
+                        operationId: `legacy:investors.profit-payout:${txRef.id}`,
+                        effectiveAt: timestamp,
+                        payload: { type: 'investor_profit_payout', investorId: selectedInvestorId, amount, isManager: isManagerTx, paymentSource: investorTxPaymentSource },
+                        affectedSummaries: ['dashboard_summary', 'investors_summary', 'treasury_summary', 'financial_summary'],
+                        wallets: { [investorTxPaymentSource]: -amount },
+                        investors: isManagerTx ? {
+                            managerActualOwnerCapitalDelta: -amount,
+                        } : {
+                            externalInvestorProfitsDelta: -amount,
+                            investorLiabilityDelta: -amount,
+                        },
+                        recentOperation: {
+                            operationId: `legacy:investors.profit-payout:${txRef.id}`,
+                            source: 'legacy',
+                            type: 'Retrait profit investisseur',
+                            effectiveAt: timestamp,
+                        },
+                    })
+                    : mustPrepareWriterReadModelDelta('investors.capital', {
+                        operationId: `legacy:investors.capital:${txRef.id}`,
+                        effectiveAt: timestamp,
+                        payload: { type: investorTxType, investorId: selectedInvestorId, amount, isManager: isManagerTx, paymentSource: investorTxPaymentSource },
+                        affectedSummaries: ['dashboard_summary', 'investors_summary', 'treasury_summary', 'financial_summary'],
+                        wallets: { [investorTxPaymentSource]: capitalDelta },
+                        investors: isManagerTx ? {
+                            managerActualOwnerCapitalDelta: capitalDelta,
+                        } : {
+                            externalInvestorCapitalDelta: capitalDelta,
+                            investorLiabilityDelta: capitalDelta,
+                        },
+                        recentOperation: {
+                            operationId: `legacy:investors.capital:${txRef.id}`,
+                            source: 'legacy',
+                            type: investorTxType === 'deposit_capital' ? 'Apport capital investisseur' : 'Retrait capital investisseur',
+                            effectiveAt: timestamp,
+                        },
+                    });
+            await commitLegacyWithReadModelDeltas({
+                userDocRef,
+                batch,
+                deltas: [readModelDelta],
+            });
             setAlert('✅ Transaction enregistrée.');
             setIsInvestorTxModalOpen(false);
             setInvestorTxAmount('');
@@ -1225,7 +1417,28 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 timestamp: stamp.timestamp,
                 notes: 'Reinvestissement profit'
             });
-            await batch.commit();
+            const readModelDelta = mustPrepareWriterReadModelDelta('investors.reinvest-profit', {
+                operationId: `legacy:investors.reinvest-profit:${txRef.id}`,
+                effectiveAt: stamp.timestamp,
+                payload: { type: 'investor_reinvest_profit', investorId, amount, isManager: investor.isManager === true },
+                affectedSummaries: ['dashboard_summary', 'investors_summary', 'financial_summary'],
+                investors: investor.isManager ? {} : {
+                    externalInvestorCapitalDelta: amount,
+                    externalInvestorProfitsDelta: -amount,
+                    investorLiabilityDelta: 0,
+                },
+                recentOperation: {
+                    operationId: `legacy:investors.reinvest-profit:${txRef.id}`,
+                    source: 'legacy',
+                    type: 'Réinvestissement profit',
+                    effectiveAt: stamp.timestamp,
+                },
+            });
+            await commitLegacyWithReadModelDeltas({
+                userDocRef,
+                batch,
+                deltas: [readModelDelta],
+            });
             setAlert('✅ Réinvestissement enregistré.');
             return true;
         }

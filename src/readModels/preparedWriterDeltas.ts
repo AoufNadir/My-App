@@ -63,3 +63,14 @@ export function prepareWriterReadModelDelta(
         },
     };
 }
+
+export function mustPrepareWriterReadModelDelta(
+    writerId: string,
+    input: ReadModelDeltaBuildInput,
+): ReadModelDelta {
+    const result = prepareWriterReadModelDelta(writerId, input);
+    if (result.ok === false) {
+        throw new Error(`READ_MODEL_DELTA_PREPARATION_FAILED:${writerId}:${result.reason}`);
+    }
+    return result.prepared.delta;
+}

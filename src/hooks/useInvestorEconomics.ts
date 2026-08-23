@@ -93,6 +93,14 @@ export interface ManagerFeeHistoryEntry {
     effectiveFrom: number;
     createdAt?: number;
 }
+export type ProfitAllocationDeltaAtTimestamp = {
+    projectProfitDzd: number;
+    managerProfitDeltaDzd: number;
+    externalInvestorProfitsDeltaDzd: number;
+    investorLiabilityDeltaDzd: number;
+    managerFeePercentage: number;
+    eligibleInvestorCapitalDzd: number;
+};
 type InvestorBase = Investor & {
     entryTs: number;
     txs: InvestorTransaction[];
@@ -283,6 +291,58 @@ function capitalAtTs(inv: InvestorBase, ts: number): number {
             return subM(sum, tx.amount);
         return addM(sum, tx.amount);
     }, inv.capitalBaseline);
+}
+export function allocateProfitDeltaAtTimestamp(input: {
+    investors: Investor[];
+    investorTransactions: InvestorTransaction[];
+    treasuryTransactions?: TreasuryTx[];
+    personalExpenses?: TreasuryTx[];
+    managerFeeHistory?: ManagerFeeHistoryEntry[];
+    managerFeePercentage?: string | number;
+    projectProfitDzd: number;
+    timestamp: number;
+}): ProfitAllocationDeltaAtTimestamp {
+    const timestamp = toMs(input.timestamp);
+    const projectProfitDzd = roundM(input.projectProfitDzd);
+    const investorsBase = buildInvestorsBase(
+        input.investors,
+        input.investorTransactions,
+        input.treasuryTransactions || [],
+        null,
+        null,
+        input.personalExpenses || [],
+    );
+    const managerFeePercentage = input.managerFeeHistory === undefined
+        ? normalizeFeePercentage(input.managerFeePercentage, LEGACY_MANAGER_FEE_PERCENTAGE)
+        : getManagerFeeAt(timestamp, input.managerFeeHistory);
+    const managerFeeRatio = managerFeePercentage / 100;
+    const eligible = investorsBase
+        .filter((inv) => inv.entryTs <= timestamp)
+        .map((inv) => ({ id: inv.id, isManager: inv.isManager === true, cap: Math.max(0, capitalAtTs(inv, timestamp)) }))
+        .filter((item) => item.cap > 0);
+    const eligibleInvestorCapitalDzd = roundM(eligible.reduce((sum, item) => sum + item.cap, 0));
+    if (eligibleInvestorCapitalDzd <= 0) {
+        return {
+            projectProfitDzd,
+            managerProfitDeltaDzd: projectProfitDzd,
+            externalInvestorProfitsDeltaDzd: 0,
+            investorLiabilityDeltaDzd: 0,
+            managerFeePercentage,
+            eligibleInvestorCapitalDzd,
+        };
+    }
+    const investorPool = roundM(projectProfitDzd * (1 - managerFeeRatio));
+    const shares = distributeProportionally(investorPool, eligible.map((item) => item.cap));
+    const externalInvestorProfitsDeltaDzd = roundM(eligible.reduce((sum, item, index) => item.isManager ? sum : sum + shares[index], 0));
+    const managerProfitDeltaDzd = roundM(projectProfitDzd - externalInvestorProfitsDeltaDzd);
+    return {
+        projectProfitDzd,
+        managerProfitDeltaDzd,
+        externalInvestorProfitsDeltaDzd,
+        investorLiabilityDeltaDzd: externalInvestorProfitsDeltaDzd,
+        managerFeePercentage,
+        eligibleInvestorCapitalDzd,
+    };
 }
 function chronologicalDerivedSells(pamLedger: PamLedgerResult): PamLedgerSellProfitRow[] {
     return [...pamLedger.sellProfitRows]

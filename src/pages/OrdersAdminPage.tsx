@@ -6,13 +6,21 @@ import { usePoOrderHandlers, type ApproveUserOptions, type CompleteOrderContext 
 import { inventoryFromLegacyPortfolioStats } from '../accounting/portfolioShadowLegacyAdapter';
 import { Button } from '../components/ui/Button';
 import { CatalogManager } from '../components/orders/CatalogManager';
-import type { ClientDzd, PoCashLocation, PoOrder, PoOrderStatus, PoRole, PoUser, PortfolioStats } from '../types';
+import type { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, PoCashLocation, PoOrder, PoOrderStatus, PoRole, PoUser, PortfolioStats, TreasuryTx } from '../types';
+import type { ManagerFeeHistoryEntry } from '../hooks/useInvestorEconomics';
 
 type OrdersAdminPageProps = {
     user: User;
     setAlert: (message: string) => void;
     clientsDzd: ClientDzd[];
+    clientTransactionsDzd?: ClientTransactionDzd[];
     portfolioStats: PortfolioStats;
+    investors?: Investor[];
+    investorTransactions?: InvestorTransaction[];
+    treasuryTransactions?: TreasuryTx[];
+    personalExpenses?: TreasuryTx[];
+    managerFeePercentage?: number;
+    managerFeeHistory?: ManagerFeeHistoryEntry[];
 };
 
 const FINAL_STATUSES: PoOrderStatus[] = ['DELIVERED', 'CANCELLED', 'REJECTED', 'DEBT_ACTIVE', 'DEBT_PAID'];
@@ -306,10 +314,30 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, clientLabel, strings, lang, 
 // Admin order-management surface (operator-only — MainApp is gated to the
 // operator). Lists incoming orders, approves/links/blocks accounts, completes
 // orders into the existing ledger, and writes audit entries.
-export function OrdersAdminPage({ user, setAlert, clientsDzd, portfolioStats }: OrdersAdminPageProps) {
+export function OrdersAdminPage({
+    user,
+    setAlert,
+    clientsDzd,
+    clientTransactionsDzd = [],
+    portfolioStats,
+    investors = [],
+    investorTransactions = [],
+    treasuryTransactions = [],
+    personalExpenses = [],
+    managerFeePercentage = 30,
+    managerFeeHistory = [],
+}: OrdersAdminPageProps) {
     const { lang } = useLanguage();
     const data = usePoAdminData(true);
-    const handlers = usePoOrderHandlers(user.uid);
+    const handlers = usePoOrderHandlers(user.uid, {
+        investors,
+        investorTransactions,
+        treasuryTransactions,
+        personalExpenses,
+        managerFeePercentage,
+        managerFeeHistory,
+        clientTransactionsDzd,
+    });
     const strings = useMemo(() => buildStrings(lang), [lang]);
 
     const clientName = useMemo(() => {

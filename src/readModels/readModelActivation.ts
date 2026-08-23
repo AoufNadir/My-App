@@ -35,7 +35,13 @@ export type LegacyMutationPolicy = {
 
 function configuredSummaryWriteMode(): string | undefined {
     const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
-    return env?.VITE_READ_MODELS_SUMMARY_WRITE_MODE;
+    if (env?.VITE_READ_MODELS_SUMMARY_WRITE_MODE)
+        return env.VITE_READ_MODELS_SUMMARY_WRITE_MODE;
+    if (env?.VITE_READ_MODELS_MODE === 'shadow')
+        return 'summary_write_shadow';
+    if (env?.VITE_READ_MODELS_MODE === 'read')
+        return 'read';
+    return undefined;
 }
 
 export function getSummaryWriteMode(value = configuredSummaryWriteMode()): SummaryWriteMode {

@@ -6,6 +6,9 @@ import { normalizeLedgerLabel } from '../utils/financialUx';
 import { recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
 import { recordClientShadow } from '../accounting/clientShadowDiagnostics';
 import { clientPositionFromLegacyRows } from '../accounting/clientShadowLegacyAdapter';
+import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
+import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
+import { combineClientPositionDeltas, transitionClientBalanceDelta, type ClientPositionDelta } from '../readModels/readModelDeltas';
 type ClientDeleteMode = 'history' | 'balance_only' | 'client_only_cleanup' | 'blocked';
 const CLIENT_DELETE_EPSILON = 0.01;
 const CLIENT_TX_PAYMENT_RECEIVED = 'Règlement Reçu';
@@ -35,6 +38,19 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     baridi: number;
 }, investors: Investor[], setAlert: (msg: string) => void) {
     const [isSaving, setIsSaving] = useState(false);
+    const activeClientTodayDelta = (clientId: string, timestamp: number) => {
+        const day = new Date(timestamp);
+        day.setHours(0, 0, 0, 0);
+        const dayStart = day.getTime();
+        const dayEnd = dayStart + 86_400_000 - 1;
+        return clientTransactionsDzd.some((tx) => tx.clientId === clientId && tx.timestamp >= dayStart && tx.timestamp <= dayEnd)
+            ? 0
+            : 1;
+    };
+    const balanceTransitionForClient = (clientId: string, amountDelta: number): ClientPositionDelta => {
+        const before = clientBalances.get(clientId) || 0;
+        return transitionClientBalanceDelta(before, before + amountDelta);
+    };
     // Modal & Form State
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
     const [editingClient, setEditingClient] = useState<ClientDzd | null>(null);
@@ -95,6 +111,8 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         setIsSaving(true);
         try {
             const parsedLimit = parseFloat(clientCreditLimit) || 0;
+            const batch = db.batch();
+            let readModelDelta: ReturnType<typeof mustPrepareWriterReadModelDelta> | null = null;
             const data: any = {
                 fullName: clientFullName.trim(),
                 phone: clientPhone.trim(),
@@ -107,7 +125,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 nom: clientFullName.trim()
             };
             if (editingClient) {
-                await userDocRef.collection('dzd_clients').doc(editingClient.id).update(data);
+                batch.update(userDocRef.collection('dzd_clients').doc(editingClient.id), data);
                 const currentBal = clientBalances.get(editingClient.id) || 0;
                 const newBal = parseAndEvaluate(clientBalanceInput);
                 if (!isNaN(newBal) && Math.abs(newBal - currentBal) > 0.01) {
@@ -124,10 +142,24 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                         reason: 'Mise à jour manuelle du solde',
                         counterpartAccount: 'equity.client_balance_correction',
                     }, { clientDeltas: { [editingClient.id]: amountDzd } });
-                    await userDocRef.collection('dzd_client_txs').add({
+                    const clientTxRef = userDocRef.collection('dzd_client_txs').doc();
+                    batch.set(clientTxRef, {
                         clientId: editingClient.id, timestamp, date, time,
                         montant: amountDzd, type: 'Ajustement Solde',
                         notes: 'Mise à jour manuelle du solde', paymentMethod: 'Crédit'
+                    });
+                    readModelDelta = mustPrepareWriterReadModelDelta('clients.initial-adjustment-remise', {
+                        operationId: `legacy:clients.initial-adjustment-remise:${clientTxRef.id}`,
+                        effectiveAt: timestamp,
+                        payload: { type: 'client_balance_update', clientId: editingClient.id, txId: clientTxRef.id, amountDzd },
+                        affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                        clients: transitionClientBalanceDelta(currentBal, newBal),
+                        recentOperation: {
+                            operationId: `legacy:clients.initial-adjustment-remise:${clientTxRef.id}`,
+                            source: 'legacy',
+                            type: 'Ajustement Solde',
+                            effectiveAt: timestamp,
+                        },
                     });
                 }
                 setAlert('✅ Client mis à jour.');
@@ -140,7 +172,8 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     setIsSaving(false);
                     return;
                 }
-                const ref = await userDocRef.collection('dzd_clients').add(data);
+                const ref = userDocRef.collection('dzd_clients').doc();
+                batch.set(ref, data);
                 const initBal = parseAndEvaluate(initialBalance);
                 if (initBal !== 0 && !isNaN(initBal)) {
                     const { date, time, timestamp } = now();
@@ -155,12 +188,49 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                         reason: 'Solde initial',
                         counterpartAccount: 'equity.client_opening_balance',
                     }, { clientDeltas: { [ref.id]: initBal } });
-                    await userDocRef.collection('dzd_client_txs').add({
+                    const clientTxRef = userDocRef.collection('dzd_client_txs').doc();
+                    batch.set(clientTxRef, {
                         clientId: ref.id, timestamp, date, time,
                         type: 'Solde Initial', montant: initBal, notes: 'Solde initial', paymentMethod: 'Crédit'
                     });
+                    const clientsDelta = transitionClientBalanceDelta(0, initBal);
+                    clientsDelta.clientCountDelta = 1;
+                    readModelDelta = mustPrepareWriterReadModelDelta('clients.initial-adjustment-remise', {
+                        operationId: `legacy:clients.initial-adjustment-remise:${clientTxRef.id}`,
+                        effectiveAt: timestamp,
+                        payload: { type: 'client_initial_balance', clientId: ref.id, txId: clientTxRef.id, amountDzd: initBal },
+                        affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                        clients: clientsDelta,
+                        recentOperation: {
+                            operationId: `legacy:clients.initial-adjustment-remise:${clientTxRef.id}`,
+                            source: 'legacy',
+                            type: 'Solde Initial',
+                            effectiveAt: timestamp,
+                        },
+                    });
+                }
+                else {
+                    readModelDelta = mustPrepareWriterReadModelDelta('clients.initial-adjustment-remise', {
+                        operationId: `legacy:clients.initial-adjustment-remise:${ref.id}:create-zero`,
+                        effectiveAt: Date.now(),
+                        payload: { type: 'client_create_zero_balance', clientId: ref.id },
+                        affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                        clients: { clientCountDelta: 1, receivablesDelta: 0, advancesDelta: 0 },
+                        recentOperation: {
+                            operationId: `legacy:clients.initial-adjustment-remise:${ref.id}:create-zero`,
+                            source: 'legacy',
+                            type: 'Client',
+                            effectiveAt: Date.now(),
+                        },
+                    });
                 }
                 setAlert('✅ Client ajouté.');
+            }
+            if (readModelDelta) {
+                await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [readModelDelta] });
+            }
+            else {
+                await batch.commit();
             }
             closeClientModal();
             return true;
@@ -393,6 +463,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             const paymentMethod = paymentMethodMap[effectiveClientPaymentStatus];
             const walletSource = effectiveClientPaymentStatus === 'cash' ? 'Caisse' : 'BaridiMob';
             const treasuryTxType = isPaymentReceived ? 'Ajout' : 'Retrait';
+            let readModelDelta: ReturnType<typeof mustPrepareWriterReadModelDelta> | null = null;
             if (effectiveClientPaymentStatus !== 'credit' && !isPaymentReceived && receiverClientId === 'none') {
                 const linkedTreasuryTx = editingClientTx?.linkedTxId
                     ? treasuryTransactions.find(tx => tx.id === editingClientTx.linkedTxId)
@@ -440,6 +511,28 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     });
                 }
                 batch.update(clientTxRef, clientTxPayload);
+                const oldMontant = Number(editingClientTx.montant || 0);
+                const beforeClientBalance = (clientBalances.get(editingClientTx.clientId) || 0) - oldMontant;
+                const clientsDelta = transitionClientBalanceDelta(beforeClientBalance, beforeClientBalance + montant);
+                const walletDeltas = { Caisse: 0, BaridiMob: 0 };
+                const linkedTreasuryTx = editingClientTx.linkedTxId
+                    ? treasuryTransactions.find(tx => tx.id === editingClientTx.linkedTxId)
+                    : null;
+                if (linkedTreasuryTx?.source === 'Caisse' || linkedTreasuryTx?.source === 'BaridiMob') {
+                    walletDeltas[linkedTreasuryTx.source] -= linkedTreasuryTx.type === 'Ajout' ? Number(linkedTreasuryTx.amount || 0) : -Number(linkedTreasuryTx.amount || 0);
+                }
+                if (effectiveClientPaymentStatus !== 'credit') {
+                    walletDeltas[walletSource] += isPaymentReceived ? amount : -amount;
+                }
+                readModelDelta = mustPrepareWriterReadModelDelta('clients.settlement', {
+                    operationId: `legacy:clients.settlement:${editingClientTx.id}:update`,
+                    effectiveAt: timestamp,
+                    payload: { type: 'client_settlement_update', txId: editingClientTx.id, oldMontant, montant, walletDeltas },
+                    affectedSummaries: ['dashboard_summary', 'clients_summary', 'treasury_summary', 'financial_summary'],
+                    clients: clientsDelta,
+                    wallets: walletDeltas,
+                    recentOperation: { operationId: `legacy:clients.settlement:${editingClientTx.id}`, source: 'legacy', type: normalizedClientTxType, effectiveAt: timestamp },
+                });
                 setAlert('✅ Transaction mise à jour.');
             }
             else {
@@ -470,6 +563,20 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                             linkedTxId: outgoingTransferRef.id
                         });
                         setAlert('✅ Dette transférée au client qui a reçu.');
+                        const clientsDelta = combineClientPositionDeltas([
+                            balanceTransitionForClient(targetClientId, amount),
+                            balanceTransitionForClient(receiverClientId, -amount),
+                        ]);
+                        clientsDelta.activeClientsTodayDelta = activeClientTodayDelta(targetClientId, timestamp)
+                            + activeClientTodayDelta(receiverClientId, timestamp);
+                        readModelDelta = mustPrepareWriterReadModelDelta('clients.transfer', {
+                            operationId: `legacy:clients.transfer:${outgoingTransferRef.id}`,
+                            effectiveAt: timestamp,
+                            payload: { type: 'client_receivable_transfer', fromClientId: targetClientId, toClientId: receiverClientId, amount },
+                            affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                            clients: clientsDelta,
+                            recentOperation: { operationId: `legacy:clients.transfer:${outgoingTransferRef.id}`, source: 'legacy', type: 'Transfert client', effectiveAt: timestamp },
+                        });
                     }
                     else {
                         batch.set(outgoingTransferRef, {
@@ -494,6 +601,20 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                             linkedTxId: outgoingTransferRef.id
                         });
                         setAlert('✅ Droit transféré au client qui a reçu.');
+                        const clientsDelta = combineClientPositionDeltas([
+                            balanceTransitionForClient(receiverClientId, amount),
+                            balanceTransitionForClient(targetClientId, -amount),
+                        ]);
+                        clientsDelta.activeClientsTodayDelta = activeClientTodayDelta(targetClientId, timestamp)
+                            + activeClientTodayDelta(receiverClientId, timestamp);
+                        readModelDelta = mustPrepareWriterReadModelDelta('clients.transfer', {
+                            operationId: `legacy:clients.transfer:${outgoingTransferRef.id}`,
+                            effectiveAt: timestamp,
+                            payload: { type: 'client_advance_transfer', fromClientId: receiverClientId, toClientId: targetClientId, amount },
+                            affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                            clients: clientsDelta,
+                            recentOperation: { operationId: `legacy:clients.transfer:${outgoingTransferRef.id}`, source: 'legacy', type: 'Transfert client', effectiveAt: timestamp },
+                        });
                     }
                 }
                 else {
@@ -512,6 +633,21 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                         });
                     }
                     batch.set(clientTxRef, clientTxPayload);
+                    const clientsDelta = balanceTransitionForClient(targetClientId, montant);
+                    clientsDelta.activeClientsTodayDelta = activeClientTodayDelta(targetClientId, timestamp);
+                    const walletDeltas = { Caisse: 0, BaridiMob: 0 };
+                    if (effectiveClientPaymentStatus !== 'credit') {
+                        walletDeltas[walletSource] = isPaymentReceived ? amount : -amount;
+                    }
+                    readModelDelta = mustPrepareWriterReadModelDelta('clients.settlement', {
+                        operationId: `legacy:clients.settlement:${clientTxRef.id}`,
+                        effectiveAt: timestamp,
+                        payload: { type: 'client_settlement_create', txId: clientTxRef.id, clientId: targetClientId, montant, walletDeltas },
+                        affectedSummaries: ['dashboard_summary', 'clients_summary', 'treasury_summary', 'financial_summary'],
+                        clients: clientsDelta,
+                        wallets: walletDeltas,
+                        recentOperation: { operationId: `legacy:clients.settlement:${clientTxRef.id}`, source: 'legacy', type: normalizedClientTxType, effectiveAt: timestamp },
+                    });
                     setAlert('✅ Transaction ajoutée.');
                 }
             }
@@ -573,7 +709,11 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     });
                 }
             }
-            await batch.commit();
+            await commitLegacyWithReadModelDeltas({
+                userDocRef,
+                batch,
+                deltas: readModelDelta ? [readModelDelta] : [],
+            });
             setIsClientTxModalOpen(false);
             setEditingClientTx(null);
             setClientTxReceiverClientId('none');
@@ -636,7 +776,9 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             }, balance < 0
                 ? { clientDeltas: { [clientId]: montant }, receivableDzd: -Math.abs(montant) }
                 : { clientDeltas: { [clientId]: montant }, clientAdvanceDzd: -Math.abs(montant) });
-            await userDocRef.collection('dzd_client_txs').add({
+            const batch = db.batch();
+            const txRef = userDocRef.collection('dzd_client_txs').doc();
+            batch.set(txRef, {
                 clientId,
                 timestamp, date, time,
                 type: 'Remise solde',
@@ -644,6 +786,20 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 notes: `Effacement solde résiduel (${balance > 0 ? '+' : ''}${balance.toFixed(2)} DZD)`,
                 paymentMethod: 'Remise',
             });
+            const readModelDelta = mustPrepareWriterReadModelDelta('clients.initial-adjustment-remise', {
+                operationId: `legacy:clients.initial-adjustment-remise:${txRef.id}`,
+                effectiveAt: timestamp,
+                payload: { type: 'client_zero_out_balance', clientId, txId: txRef.id, balance, montant },
+                affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                clients: transitionClientBalanceDelta(balance, 0),
+                recentOperation: {
+                    operationId: `legacy:clients.initial-adjustment-remise:${txRef.id}`,
+                    source: 'legacy',
+                    type: 'Remise solde',
+                    effectiveAt: timestamp,
+                },
+            });
+            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [readModelDelta] });
             setAlert('✅ Solde effacé.');
         } catch {
             setAlert('❌ Erreur lors de l\'effacement.');

@@ -10,6 +10,8 @@ import { buildProfitDistributionPlan } from '../../utils/profitDistribution';
 import { recordTreasuryShadow } from '../../accounting/treasuryShadowDiagnostics';
 import type { Investor } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { mustPrepareWriterReadModelDelta } from '../../readModels/preparedWriterDeltas';
+import { commitLegacyWithReadModelDeltas } from '../../readModels/productionSummaryWriter';
 
 type ActiveInvestor = Investor & { isManager?: boolean };
 
@@ -89,7 +91,29 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                     investorId: inv.id,
                 }, [{ type: 'Retrait', source: paymentSource, amount }]);
             }
-            await batch.commit();
+            const readModelDelta = mustPrepareWriterReadModelDelta('investors.profit-payout', {
+                operationId: `legacy:investors.profit-payout:distribution:${timestamp}`,
+                effectiveAt: timestamp,
+                payload: {
+                    type: 'investor_group_profit_distribution',
+                    paymentSource,
+                    totalDistributed,
+                    rows: distribution.map(({ inv, amount }) => ({ investorId: inv.id, amount })),
+                },
+                affectedSummaries: ['dashboard_summary', 'investors_summary', 'treasury_summary', 'financial_summary'],
+                wallets: { [paymentSource]: -totalDistributed },
+                investors: {
+                    externalInvestorProfitsDelta: -totalDistributed,
+                    investorLiabilityDelta: -totalDistributed,
+                },
+                recentOperation: {
+                    operationId: `legacy:investors.profit-payout:distribution:${timestamp}`,
+                    source: 'legacy',
+                    type: 'Distribution profits',
+                    effectiveAt: timestamp,
+                },
+            });
+            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [readModelDelta] });
             setAlert(`✅ Distribution enregistrée — ${distribution.length} investisseur${distribution.length > 1 ? 's' : ''} · ${totalDistributed.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD depuis ${paymentSource}`);
             setConfirmed(false);
             setTotalInput('');

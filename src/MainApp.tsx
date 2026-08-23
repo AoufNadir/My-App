@@ -58,6 +58,9 @@ import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServic
 import { summarizePersonalExpenseTotals } from './utils/financialAudit';
 import { buildDashboardReadModelShadowFromLegacy, getReadModelsMode, reconcileDashboardReadModelsWithLegacy, type DashboardReadModelShadowDiagnostic } from './readModels/dashboardReadModels';
 import { shouldUseDashboardSummaryForView } from './readModels/readModelActivation';
+import { mustPrepareWriterReadModelDelta } from './readModels/preparedWriterDeltas';
+import { commitLegacyWithReadModelDeltas } from './readModels/productionSummaryWriter';
+import { transitionClientBalanceDelta, type ReadModelDelta } from './readModels/readModelDeltas';
 import { HISTORICAL_CLOSING_BASELINE_DZD } from './accounting/closure';
 import { formatNumber } from './pages/shared/pageFormat';
 const TransactionsPage = React.lazy(() => import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage })));
@@ -396,7 +399,8 @@ export default function MainApp({ user }: {
     // by handleSell as the sp* snapshot (negotiation-loss tracking).
     const smartQuoteRef = React.useRef<SmartSaleSnapshot | null>(null);
     const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, deliveryExpensePreview, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer, handleApplyLock24hToRecentBuys, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime } = useTransactionHandlers({
-        userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, treasuryStats,
+        userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd,
+        investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats,
         setAlert, setSelectedClientId: (id: string | null) => setSelectedClientId(id), setView: (v: string) => setView(v),
         smartQuoteRef,
     });
@@ -1219,6 +1223,7 @@ export default function MainApp({ user }: {
             const currentVal = treasuryBalanceEditAsset === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
             const baseVal = Math.round(currentVal - getTreasuryBalanceEditEffect(editingTreasuryBalanceTx));
             const diff = Math.round(newVal - baseVal);
+            const batch = db.batch();
             if (diff === 0) {
                 if (editingTreasuryBalanceTx) {
                     recordTreasuryLegacyDeletionShadow({
@@ -1227,7 +1232,20 @@ export default function MainApp({ user }: {
                         effectiveAt: Date.now(),
                         row: editingTreasuryBalanceTx,
                     });
-                    await userDocRef.collection('treasury_txs').doc(editingTreasuryBalanceTx.id).delete();
+                    batch.delete(userDocRef.collection('treasury_txs').doc(editingTreasuryBalanceTx.id));
+                    const deletedEffect = -getTreasuryBalanceEditEffect(editingTreasuryBalanceTx);
+                    await commitLegacyWithReadModelDeltas({
+                        userDocRef,
+                        batch,
+                        deltas: [mustPrepareWriterReadModelDelta('treasury.adjustment', {
+                            operationId: `legacy:treasury.adjustment:delete:${editingTreasuryBalanceTx.id}`,
+                            effectiveAt: Date.now(),
+                            payload: { type: 'treasury_balance_delete', txId: editingTreasuryBalanceTx.id, deletedEffect },
+                            affectedSummaries: ['dashboard_summary', 'treasury_summary', 'financial_summary'],
+                            wallets: { [editingTreasuryBalanceTx.source === 'BaridiMob' ? 'BaridiMob' : 'Caisse']: deletedEffect },
+                            recentOperation: { operationId: `legacy:treasury.adjustment:delete:${editingTreasuryBalanceTx.id}`, source: 'legacy', type: 'Correction solde supprimée', effectiveAt: Date.now() },
+                        })],
+                    });
                     setAlert("✅ Correction supprimée.");
                 }
                 closeTreasuryBalanceEditModal();
@@ -1245,6 +1263,9 @@ export default function MainApp({ user }: {
                 timestamp,
                 origin: 'balance_edit'
             };
+            const txRef = editingTreasuryBalanceTx
+                ? userDocRef.collection('treasury_txs').doc(editingTreasuryBalanceTx.id)
+                : userDocRef.collection('treasury_txs').doc();
             recordTreasuryShadow({
                 operationId: `shadow:treasury-balance-edit:${editingTreasuryBalanceTx?.id || timestamp}`,
                 actorUid: userDocRef.id,
@@ -1254,11 +1275,25 @@ export default function MainApp({ user }: {
                 amountDzd: Math.abs(diff),
             }, [{ type: diff > 0 ? 'Ajout' : 'Retrait', source: treasuryBalanceEditAsset, amount: Math.abs(diff) }]);
             if (editingTreasuryBalanceTx) {
-                await userDocRef.collection('treasury_txs').doc(editingTreasuryBalanceTx.id).update(payload);
+                batch.update(txRef, payload);
             }
             else {
-                await userDocRef.collection('treasury_txs').add(payload);
+                batch.set(txRef, payload);
             }
+            const oldEffect = getTreasuryBalanceEditEffect(editingTreasuryBalanceTx);
+            const effectDelta = diff - oldEffect;
+            await commitLegacyWithReadModelDeltas({
+                userDocRef,
+                batch,
+                deltas: [mustPrepareWriterReadModelDelta('treasury.adjustment', {
+                    operationId: `legacy:treasury.adjustment:${txRef.id}:${editingTreasuryBalanceTx ? 'update' : 'create'}`,
+                    effectiveAt: timestamp,
+                    payload: { type: 'treasury_balance_edit', txId: txRef.id, oldEffect, newEffect: diff, effectDelta },
+                    affectedSummaries: ['dashboard_summary', 'treasury_summary', 'financial_summary'],
+                    wallets: { [treasuryBalanceEditAsset]: effectDelta },
+                    recentOperation: { operationId: `legacy:treasury.adjustment:${txRef.id}`, source: 'legacy', type: 'Correction solde', effectiveAt: timestamp },
+                })],
+            });
             setAlert("✅ Solde mis à jour.");
             closeTreasuryBalanceEditModal();
         }
@@ -1292,7 +1327,9 @@ export default function MainApp({ user }: {
             const diff = Number((newVal - baseVal).toFixed(2));
             if (Math.abs(diff) < 0.005) {
                 if (editingPortfolioBalanceTx) {
-                    await userDocRef.collection('usdt_txs').doc(editingPortfolioBalanceTx.id).delete();
+                    const batch = db.batch();
+                    batch.delete(userDocRef.collection('usdt_txs').doc(editingPortfolioBalanceTx.id));
+                    await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [] });
                     setAlert(t('common.operationSuccess'));
                 }
                 closePortfolioBalanceEditModal();
@@ -1343,14 +1380,41 @@ export default function MainApp({ user }: {
                     txPayload.price = fieldValueDelete();
                     txPayload.total = fieldValueDelete();
                 }
-                await userDocRef.collection('usdt_txs').doc(editingPortfolioBalanceTx.id).update(txPayload);
+                const batch = db.batch();
+                batch.update(userDocRef.collection('usdt_txs').doc(editingPortfolioBalanceTx.id), txPayload);
+                await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [] });
             }
             else {
+                const batch = db.batch();
+                const txRef = userDocRef.collection('usdt_txs').doc();
                 if (type === 'Ajout Manuel' && referencePrice > 0) {
                     txPayload.price = Number(referencePrice.toFixed(2));
                     txPayload.total = Number((quantity * referencePrice).toFixed(2));
                 }
-                await userDocRef.collection('usdt_txs').add(txPayload);
+                batch.set(txRef, txPayload);
+                const valueDzd = Number((quantity * referencePrice).toFixed(2));
+                await commitLegacyWithReadModelDeltas({
+                    userDocRef,
+                    batch,
+                    deltas: [mustPrepareWriterReadModelDelta('portfolio.manual-adjustment', {
+                        operationId: `legacy:portfolio.manual-adjustment:${txRef.id}`,
+                        effectiveAt: timestamp,
+                        payload: { type: 'portfolio_balance_correction', txId: txRef.id, currency: portfolioBalanceEditAsset, quantity, direction: type, valueDzd },
+                        affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'financial_summary'],
+                        portfolio: {
+                            [portfolioBalanceEditAsset]: {
+                                quantityDelta: type === 'Ajout Manuel' ? quantity : -quantity,
+                                costBasisDeltaDzd: type === 'Ajout Manuel' ? valueDzd : -Number((avgBuy * quantity).toFixed(2)),
+                            },
+                        },
+                        recentOperation: {
+                            operationId: `legacy:portfolio.manual-adjustment:${txRef.id}`,
+                            source: 'legacy',
+                            type: `Correction ${portfolioBalanceEditAsset}`,
+                            effectiveAt: timestamp,
+                        },
+                    })],
+                });
             }
             const valueDzd = Number((quantity * referencePrice).toFixed(2));
             const inventoryBefore = inventoryFromLegacyPortfolioStats(portfolioStats, portfolioBalanceEditAsset);
@@ -1553,14 +1617,39 @@ export default function MainApp({ user }: {
                 to: walletTransferDest,
                 amountDzd: amount,
             }, [{ type: 'Transfer', source: walletTransferSource, destination: walletTransferDest, amount }]);
+            const batch = db.batch();
+            const txRef = editingWalletTransferTx
+                ? userDocRef.collection('treasury_txs').doc(editingWalletTransferTx.id)
+                : userDocRef.collection('treasury_txs').doc();
             if (editingWalletTransferTx) {
-                await userDocRef.collection('treasury_txs').doc(editingWalletTransferTx.id).update(payload);
+                batch.update(txRef, payload);
                 setAlert("✅ Transfert mis à jour.");
             }
             else {
-                await userDocRef.collection('treasury_txs').add(payload);
+                batch.set(txRef, payload);
                 setAlert("✅ Transfert enregistré.");
             }
+            const walletDeltas = { Caisse: 0, BaridiMob: 0 };
+            if (editingWalletTransferTx) {
+                const oldSource = editingWalletTransferTx.source === 'BaridiMob' ? 'BaridiMob' : 'Caisse';
+                const oldDest = editingWalletTransferTx.destination === 'Caisse' ? 'Caisse' : 'BaridiMob';
+                walletDeltas[oldSource] += Math.abs(Number(editingWalletTransferTx.amount || 0));
+                walletDeltas[oldDest] -= Math.abs(Number(editingWalletTransferTx.amount || 0));
+            }
+            walletDeltas[walletTransferSource] -= amount;
+            walletDeltas[walletTransferDest] += amount;
+            await commitLegacyWithReadModelDeltas({
+                userDocRef,
+                batch,
+                deltas: [mustPrepareWriterReadModelDelta('treasury.transfer', {
+                    operationId: `legacy:treasury.transfer:${txRef.id}:${editingWalletTransferTx ? 'update' : 'create'}`,
+                    effectiveAt: ts,
+                    payload: { type: 'treasury_transfer', txId: txRef.id, from: walletTransferSource, to: walletTransferDest, amount, previous: editingWalletTransferTx || null },
+                    affectedSummaries: ['dashboard_summary', 'treasury_summary', 'financial_summary'],
+                    wallets: walletDeltas,
+                    recentOperation: { operationId: `legacy:treasury.transfer:${txRef.id}`, source: 'legacy', type: 'Transfert interne', effectiveAt: ts },
+                })],
+            });
             closeWalletTransferModal();
         }
         catch (e) {
@@ -1781,12 +1870,29 @@ export default function MainApp({ user }: {
         setIsSaving(true);
         try {
             const payload = { name, value: Number(value.toFixed(2)), notes };
+            const batch = db.batch();
+            const cardRef = editingTreasuryCard
+                ? userDocRef.collection('treasury_cards').doc(editingTreasuryCard.id)
+                : userDocRef.collection('treasury_cards').doc();
             if (editingTreasuryCard) {
-                await userDocRef.collection('treasury_cards').doc(editingTreasuryCard.id).update(payload);
+                batch.update(cardRef, payload);
             }
             else {
-                await userDocRef.collection('treasury_cards').add(payload);
+                batch.set(cardRef, payload);
             }
+            const previousValue = Number(editingTreasuryCard?.value || 0);
+            const nextValue = Number(value.toFixed(2));
+            await commitLegacyWithReadModelDeltas({
+                userDocRef,
+                batch,
+                deltas: [mustPrepareWriterReadModelDelta('treasury.cards', {
+                    operationId: `legacy:treasury.cards:${cardRef.id}:${editingTreasuryCard ? 'update' : 'create'}`,
+                    effectiveAt: Date.now(),
+                    payload: { type: 'treasury_card_save', cardId: cardRef.id, previousValue, nextValue },
+                    affectedSummaries: ['dashboard_summary', 'treasury_summary', 'financial_summary'],
+                    treasuryCardsDelta: nextValue - previousValue,
+                })],
+            });
             setAlert(`✅ ${t('common.operationSuccess')}`);
             setIsTreasuryCardModalOpen(false);
             setEditingTreasuryCard(null);
@@ -1806,7 +1912,19 @@ export default function MainApp({ user }: {
             return;
         setIsSaving(true);
         try {
-            await userDocRef.collection('treasury_cards').doc(treasuryCardToDelete.id).delete();
+            const batch = db.batch();
+            batch.delete(userDocRef.collection('treasury_cards').doc(treasuryCardToDelete.id));
+            await commitLegacyWithReadModelDeltas({
+                userDocRef,
+                batch,
+                deltas: [mustPrepareWriterReadModelDelta('treasury.cards', {
+                    operationId: `legacy:treasury.cards:${treasuryCardToDelete.id}:delete`,
+                    effectiveAt: Date.now(),
+                    payload: { type: 'treasury_card_delete', cardId: treasuryCardToDelete.id, previousValue: treasuryCardToDelete.value || 0 },
+                    affectedSummaries: ['dashboard_summary', 'treasury_summary', 'financial_summary'],
+                    treasuryCardsDelta: -Number(treasuryCardToDelete.value || 0),
+                })],
+            });
             setAlert(`✅ ${t('common.operationSuccess')}`);
             setTreasuryCardToDelete(null);
         }
@@ -1832,7 +1950,11 @@ export default function MainApp({ user }: {
                 });
                 batch.delete(userDocRef.collection('treasury_txs').doc(treasuryTxToDelete.id));
                 batch.delete(userDocRef.collection('investor_transactions').doc(treasuryTxToDelete.linkedInvestorTxId));
-                await batch.commit();
+                await commitLegacyWithReadModelDeltas({
+                    userDocRef,
+                    batch,
+                    deltas: [],
+                });
                 setAlert('✅ Retrait investisseur supprimé.');
             }
             catch (e) {
@@ -1940,7 +2062,11 @@ export default function MainApp({ user }: {
                 txUpdatePayload.linkedTreasuryTxId = fieldValueDelete();
             }
             batch.update(txRef, txUpdatePayload);
-            await batch.commit();
+            await commitLegacyWithReadModelDeltas({
+                userDocRef,
+                batch,
+                deltas: [],
+            });
             setAlert(t('common.operationSuccess'));
         }
         catch (e) {
@@ -1987,7 +2113,11 @@ export default function MainApp({ user }: {
                     batch.delete(d.ref);
                 });
             }
-            await batch.commit();
+            await commitLegacyWithReadModelDeltas({
+                userDocRef,
+                batch,
+                deltas: [],
+            });
             setAlert(t('common.operationSuccess'));
         }
         catch (e) {
@@ -2018,7 +2148,11 @@ export default function MainApp({ user }: {
                 if (counterpart) {
                     batch.delete(userDocRef.collection('dzd_client_txs').doc(counterpart.id));
                 }
-                await batch.commit();
+                await commitLegacyWithReadModelDeltas({
+                    userDocRef,
+                    batch,
+                    deltas: [],
+                });
                 setAlert("✅ Transaction supprimée.");
             }
             catch (e) {
@@ -2051,7 +2185,11 @@ export default function MainApp({ user }: {
             if (investorTxToDelete.linkedTreasuryTxId) {
                 batch.delete(userDocRef.collection('treasury_txs').doc(investorTxToDelete.linkedTreasuryTxId));
             }
-            await batch.commit();
+            await commitLegacyWithReadModelDeltas({
+                userDocRef,
+                batch,
+                deltas: [],
+            });
             setAlert('✅ Transaction investisseur supprimée.');
         }
         catch (e) {

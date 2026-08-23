@@ -221,9 +221,16 @@ class FirestoreCollectionReference {
         };
     }
 }
-class FirestoreWriteBatch {
+export type FirestoreBatchOperation =
+    | { kind: 'set'; ref: FirestoreDocumentReference; data: DocumentData; options?: SetOptions }
+    | { kind: 'update'; ref: FirestoreDocumentReference; data: DocumentData }
+    | { kind: 'delete'; ref: FirestoreDocumentReference };
+
+export class FirestoreWriteBatch {
+    readonly operations: FirestoreBatchOperation[] = [];
     constructor(private readonly nativeBatch: NativeWriteBatch) { }
     set(ref: FirestoreDocumentReference, data: DocumentData, options?: SetOptions) {
+        this.operations.push({ kind: 'set', ref, data, options });
         if (options) {
             this.nativeBatch.set(ref.nativeRef, data, options);
             return;
@@ -231,16 +238,18 @@ class FirestoreWriteBatch {
         this.nativeBatch.set(ref.nativeRef, data);
     }
     update(ref: FirestoreDocumentReference, data: DocumentData) {
+        this.operations.push({ kind: 'update', ref, data });
         this.nativeBatch.update(ref.nativeRef, data);
     }
     delete(ref: FirestoreDocumentReference) {
+        this.operations.push({ kind: 'delete', ref });
         this.nativeBatch.delete(ref.nativeRef);
     }
     commit() {
         return this.nativeBatch.commit();
     }
 }
-class FirestoreTransaction {
+export class FirestoreTransaction {
     constructor(private readonly nativeTransaction: NativeTransaction, private readonly compatDb: FirestoreCompat) { }
     async get(ref: FirestoreDocumentReference) {
         firestoreReadDiagnostics.trackGet(`transaction:${ref.nativeRef.path}`);

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { db, type FirestoreDocumentReference } from '../firebase';
 import { ManualAsset, ManualAssetClient, ManualAssetTransaction } from '../types';
 import { recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
+import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
+import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
 type AssetClientInput = {
     fullName: string;
     phone?: string;
@@ -9,6 +11,19 @@ type AssetClientInput = {
     notes?: string;
     balance?: number;
 };
+function serviceBalanceDelta(beforeBalance: number, afterBalance: number) {
+    const beforeReceivable = beforeBalance < -0.005 ? Math.abs(beforeBalance) : 0;
+    const beforeAdvance = beforeBalance > 0.005 ? beforeBalance : 0;
+    const afterReceivable = afterBalance < -0.005 ? Math.abs(afterBalance) : 0;
+    const afterAdvance = afterBalance > 0.005 ? afterBalance : 0;
+    const amountToReceiveDelta = afterReceivable - beforeReceivable;
+    const clientAdvancesDelta = afterAdvance - beforeAdvance;
+    return {
+        amountToReceiveDelta,
+        clientAdvancesDelta,
+        netCapitalImpactDelta: amountToReceiveDelta - clientAdvancesDelta,
+    };
+}
 export function useAssetHandlers(userDocRef: FirestoreDocumentReference, manualAssets: ManualAsset[], manualAssetClients: ManualAssetClient[], assetClientBalances: Map<string, number>, setAlert: (msg: string) => void) {
     const [isSaving, setIsSaving] = useState(false);
     // Asset modal state
@@ -92,6 +107,14 @@ export function useAssetHandlers(userDocRef: FirestoreDocumentReference, manualA
             const isCashOrBaridi = data.paymentMethod === 'cash' || data.paymentMethod === 'baridi';
             const isInflow = data.type === 'payment_received';
             const isOutflow = data.type === 'payment_made';
+            const absoluteAmount = Math.abs(Number(data.amount));
+            const wallet = data.paymentMethod === 'baridi' ? 'BaridiMob' : 'Caisse';
+            const beforeBalance = assetClientBalances.get(`${data.actifId}_${data.clientId}`) || 0;
+            const afterBalance = beforeBalance + payload.amount;
+            const balanceDelta = serviceBalanceDelta(beforeBalance, afterBalance);
+            const walletDelta = (isInflow || isOutflow) && isCashOrBaridi
+                ? { Caisse: wallet === 'Caisse' ? (isInflow ? absoluteAmount : -absoluteAmount) : 0, BaridiMob: wallet === 'BaridiMob' ? (isInflow ? absoluteAmount : -absoluteAmount) : 0 }
+                : { Caisse: 0, BaridiMob: 0 };
             if ((isInflow || isOutflow) && isCashOrBaridi) {
                 const client = manualAssetClients.find((c) => c.id === data.clientId);
                 const asset = manualAssets.find((a) => a.id === data.actifId);
@@ -110,18 +133,35 @@ export function useAssetHandlers(userDocRef: FirestoreDocumentReference, manualA
                     linkedAssetTxId: assetTxRef.id
                 });
                 batch.update(assetTxRef, { linkedTreasuryTxId: treasuryTxRef.id });
-                const wallet = data.paymentMethod === 'cash' ? 'Caisse' : 'BaridiMob';
                 recordTreasuryShadow({
                     operationId: `shadow:manual-asset:${assetTxRef.id}`,
                     actorUid: userDocRef.id,
                     effectiveAt: data.timestamp,
                     kind: isInflow ? 'manual_asset_receipt_cash' : 'manual_asset_payout_cash',
                     wallet,
-                    amountDzd: Math.abs(Number(data.amount)),
+                    amountDzd: absoluteAmount,
                     clientId: data.clientId,
-                }, [{ type: treasuryType, source: wallet, amount: Math.abs(Number(data.amount)) }]);
+                }, [{ type: treasuryType, source: wallet, amount: absoluteAmount }]);
             }
-            await batch.commit();
+            const isServiceRevenue = data.type === 'service' || data.type === 'invoice';
+            await commitLegacyWithReadModelDeltas({
+                userDocRef,
+                batch,
+                deltas: [mustPrepareWriterReadModelDelta('services.manual-assets', {
+                    operationId: `legacy:services.manual-assets:${assetTxRef.id}`,
+                    effectiveAt: data.timestamp,
+                    payload: { type: 'manual_asset_transaction', txId: assetTxRef.id, data: payload },
+                    affectedSummaries: ['dashboard_summary', 'services_summary', 'treasury_summary', 'financial_summary'],
+                    wallets: walletDelta,
+                    services: {
+                        ...balanceDelta,
+                        cashReceivedDelta: isInflow ? absoluteAmount : 0,
+                        manualServiceRevenueDelta: isServiceRevenue ? absoluteAmount : 0,
+                        serviceRevenueDelta: isServiceRevenue ? absoluteAmount : 0,
+                    },
+                    recentOperation: { operationId: `legacy:services.manual-assets:${assetTxRef.id}`, source: 'legacy', type: data.type, effectiveAt: data.timestamp },
+                })],
+            });
             setAlert('✅ Transaction ajoutée.');
             return true;
         }
