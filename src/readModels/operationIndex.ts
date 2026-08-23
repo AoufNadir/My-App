@@ -2,7 +2,14 @@ export const LEGACY_OPERATION_INDEX_COLLECTION = 'legacy_operation_index';
 export const OPERATION_INDEX_REQUIRED = 'OPERATION_INDEX_REQUIRED';
 export const OPERATION_INDEX_SCHEMA_VERSION = 1;
 
-export type LegacyMutationTransactionType = 'usdt_tx' | 'client_tx' | 'treasury_tx' | 'asset_tx';
+export type LegacyMutationTransactionType =
+    | 'usdt_tx'
+    | 'client_tx'
+    | 'treasury_tx'
+    | 'asset_tx'
+    | 'investor_tx'
+    | 'treasury_card'
+    | 'digital_service_tx';
 
 export type IndexedFinancialRow = {
     collection: string;
@@ -27,6 +34,9 @@ const LEGACY_COLLECTION_BY_TYPE: Record<LegacyMutationTransactionType, string> =
     client_tx: 'dzd_client_txs',
     treasury_tx: 'treasury_txs',
     asset_tx: 'actifTransactions',
+    investor_tx: 'investor_transactions',
+    treasury_card: 'treasury_cards',
+    digital_service_tx: 'digital_service_txs',
 };
 
 const TYPE_BY_LEGACY_COLLECTION: Record<string, LegacyMutationTransactionType> = {
@@ -34,6 +44,13 @@ const TYPE_BY_LEGACY_COLLECTION: Record<string, LegacyMutationTransactionType> =
     dzd_client_txs: 'client_tx',
     treasury_txs: 'treasury_tx',
     actifTransactions: 'asset_tx',
+    investor_transactions: 'investor_tx',
+    treasury_cards: 'treasury_card',
+    digital_service_txs: 'digital_service_tx',
+};
+
+export const LEGACY_OPERATION_INDEX_COLLECTIONS: Record<string, LegacyMutationTransactionType> = {
+    ...TYPE_BY_LEGACY_COLLECTION,
 };
 
 export function sanitizeOperationIndexId(value: string): string {

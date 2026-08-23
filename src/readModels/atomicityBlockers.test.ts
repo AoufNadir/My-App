@@ -6,6 +6,7 @@ import {
     deterministicLinkedId,
     flattenLegacyOperationIndexRows,
     isOperationIndexRequiredError,
+    LEGACY_OPERATION_INDEX_COLLECTIONS,
     legacyOperationIndexId,
     OPERATION_INDEX_REQUIRED,
 } from './operationIndex';
@@ -26,6 +27,10 @@ function sourceSlice(file: string, marker: string, endMarker: string): string {
     const id = legacyOperationIndexId('usdt_tx', 'abc/def');
     assert.equal(id, 'legacy:usdt_tx:abc__slash__def');
     assert.equal(deterministicLinkedId('root/1', 'treasury-sell-cash'), 'root__slash__1:treasury-sell-cash');
+    assert.equal(LEGACY_OPERATION_INDEX_COLLECTIONS.investor_transactions, 'investor_tx');
+    assert.equal(LEGACY_OPERATION_INDEX_COLLECTIONS.treasury_cards, 'treasury_card');
+    assert.equal(LEGACY_OPERATION_INDEX_COLLECTIONS.digital_service_txs, 'digital_service_tx');
+    assert.equal(legacyOperationIndexId('digital_service_tx', 'svc-1'), 'legacy:digital_service_tx:svc-1');
 }
 
 {
@@ -102,6 +107,16 @@ function sourceSlice(file: string, marker: string, endMarker: string): string {
 {
     const mainApp = source('src/MainApp.tsx');
     assert.match(mainApp, /readModelsMode === 'read'[\s\S]*Réinitialisation globale désactivée en mode Read Models/, 'Global Reset must be blocked in read mode');
+}
+
+{
+    const backfillScript = source('scripts/legacyOperationIndexBackfill.cjs');
+    assert.match(backfillScript, /investor_transactions: 'investor_tx'/, 'Backfill must index investor_transactions metadata');
+    assert.match(backfillScript, /treasury_cards: 'treasury_card'/, 'Backfill must index treasury_cards metadata');
+    assert.match(backfillScript, /digital_service_txs: 'digital_service_tx'/, 'Backfill must index digital_service_txs metadata');
+    assert.match(backfillScript, /linkedPortfolioTxIds/, 'Backfill must link digital service portfolio children');
+    assert.match(backfillScript, /linkedTreasuryTxIds/, 'Backfill must link digital service treasury children');
+    assert.match(backfillScript, /currentDocument = precondition/, 'Real backfill writes must use Firestore preconditions');
 }
 
 console.log('atomicityBlockers tests passed');
