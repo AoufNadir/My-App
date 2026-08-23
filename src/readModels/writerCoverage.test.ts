@@ -7,8 +7,11 @@ import {
     applyReadModelDelta,
     buildReadModelDelta,
     combineClientPositionDeltas,
+    derivePortfolioSellReadModelEconomics,
     transitionClientBalanceDelta,
 } from './readModelDeltas';
+import { allocateProfitDeltaAtTimestamp } from '../hooks/useInvestorEconomics';
+import { distributeProportionally, roundM } from '../utils/money';
 import {
     WRITER_COVERAGE_MATRIX,
     WRITER_COVERAGE_NON_ATOMIC_RISKS,
@@ -260,6 +263,87 @@ assert.equal(afterSale.investors.externalInvestorProfits, base.investors.externa
 assert.equal(afterSale.financial.dailyOverview.todayProfit, base.financial.dailyOverview.todayProfit + 500);
 assert.equal(afterSale.dashboard.money.investorLiability, afterSale.investors.investorLiability);
 assert.equal(afterSale.dashboard.portfolio.soldQuantity.USDT.today, afterSale.portfolio.soldQuantity.USDT.today);
+{
+    const operationId = 'DK96K4g84HJ7jH9lcNK4';
+    const effectiveAt = new Date('2026-08-23T20:49:41.398Z').getTime();
+    const canonicalSellTx: Tx = {
+        id: operationId,
+        type: 'sell',
+        quantity: 500,
+        sell: 250,
+        total: 125000,
+        profit: 1635,
+        date: '23/08/2026',
+        time: '20:49',
+        timestamp: effectiveAt,
+        currency: 'USDT',
+        clientPaymentStatus: 'credit',
+        linkedClientId: 'clplZYjwqgHTuS3n5Fmz',
+        settlementCurrency: 'DZD',
+    };
+    const economics = derivePortfolioSellReadModelEconomics({
+        transactions: [{
+            id: 'dk-regression-opening-buy',
+            type: 'buy',
+            quantity: 500,
+            price: 246.73178,
+            total: 123365.89,
+            date: '23/08/2026',
+            time: '20:00',
+            timestamp: effectiveAt - 1000,
+            currency: 'USDT',
+        }],
+        sellTx: canonicalSellTx,
+        fallbackProfitDzd: canonicalSellTx.profit || 0,
+        fallbackCostBasisDzd: 123365,
+        nowMs: effectiveAt,
+    });
+    assert.equal(economics.realizedProfitDzd, 1634.11, 'sell-credit delta must use canonical PAM derived profit, not stored tx.profit');
+    assert.equal(economics.soldCostDzd, 123365.89);
+
+    const managerFeePercentage = 20;
+    const managerFee = roundM(economics.realizedProfitDzd * (managerFeePercentage / 100));
+    const investorPool = roundM(economics.realizedProfitDzd - managerFee);
+    const [managerCapitalShare, externalInvestorShare] = distributeProportionally(investorPool, [2000000, 1000000]);
+    const allocation = allocateProfitDeltaAtTimestamp({
+        investors: [
+            {
+                id: 'manager',
+                name: 'Manager',
+                entryDate: '2026-01-01',
+                capitalInvested: 2000000,
+                initialCapital: 2000000,
+                sharePercentage: 0,
+                totalProfit: 0,
+                withdrawnProfit: 0,
+                availableProfit: 0,
+                isActive: true,
+                isManager: true,
+            },
+            {
+                id: 'external',
+                name: 'External Investor',
+                entryDate: '2026-01-01',
+                capitalInvested: 1000000,
+                initialCapital: 1000000,
+                sharePercentage: 0,
+                totalProfit: 0,
+                withdrawnProfit: 0,
+                availableProfit: 0,
+                isActive: true,
+            },
+        ] as Investor[],
+        investorTransactions: [] as InvestorTransaction[],
+        treasuryTransactions: [] as TreasuryTx[],
+        personalExpenses: [] as TreasuryTx[],
+        managerFeeHistory: [{ id: 'rate-20', percentage: managerFeePercentage, effectiveFrom: effectiveAt - 1, createdAt: effectiveAt - 1 }],
+        projectProfitDzd: economics.realizedProfitDzd,
+        timestamp: effectiveAt,
+    });
+    assert.equal(allocation.externalInvestorProfitsDeltaDzd, externalInvestorShare);
+    assert.equal(allocation.managerProfitDeltaDzd, roundM(managerFee + managerCapitalShare));
+    assert.equal(roundM(allocation.managerProfitDeltaDzd + allocation.externalInvestorProfitsDeltaDzd), economics.realizedProfitDzd);
+}
 
 const firstClientDelta = transitionClientBalanceDelta(-1000, -400);
 assert.deepEqual(firstClientDelta, { receivablesDelta: -600, advancesDelta: 0 });

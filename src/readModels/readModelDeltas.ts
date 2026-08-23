@@ -11,6 +11,8 @@ import type {
 } from './dashboardReadModels';
 import { stableReadModelPayloadHash } from './initialSnapshotWriter';
 import { roundM } from '../utils/money';
+import { computePamLedger } from '../utils/pamLedger';
+import type { Tx } from '../types';
 
 export type ReadModelCurrency = 'USDT' | 'EUR';
 export type ReadModelWallet = 'Caisse' | 'BaridiMob';
@@ -127,6 +129,23 @@ export function buildReadModelDelta(input: ReadModelDeltaBuildInput): ReadModelD
         ...rest,
         affectedSummaries: uniqueReadModelNames(affectedSummaries),
         payloadHash: stableReadModelPayloadHash(payload),
+    };
+}
+
+export function derivePortfolioSellReadModelEconomics(input: {
+    transactions: readonly Tx[];
+    sellTx: Tx;
+    fallbackProfitDzd: number;
+    fallbackCostBasisDzd: number;
+    nowMs?: number;
+}): { realizedProfitDzd: number; soldCostDzd: number } {
+    const ledger = computePamLedger([...input.transactions, input.sellTx], {
+        nowMs: input.nowMs ?? input.sellTx.timestamp,
+    });
+    const row = ledger.profitByTxId[input.sellTx.id];
+    return {
+        realizedProfitDzd: roundM(row?.derivedProfit ?? input.fallbackProfitDzd),
+        soldCostDzd: roundM(row?.soldCostDzd ?? input.fallbackCostBasisDzd),
     };
 }
 

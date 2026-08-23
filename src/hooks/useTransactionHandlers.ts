@@ -20,7 +20,7 @@ import {
 import { allocateProfitDeltaAtTimestamp, type ManagerFeeHistoryEntry } from './useInvestorEconomics';
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
-import { combineClientPositionDeltas, transitionClientBalanceDelta, type ClientPositionDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
+import { combineClientPositionDeltas, derivePortfolioSellReadModelEconomics, transitionClientBalanceDelta, type ClientPositionDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
 interface HandlerProps {
     userDocRef: FirestoreDocumentReference;
     portfolioStats: PortfolioStats;
@@ -1084,6 +1084,34 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                             recentOperation: { operationId: `legacy:portfolio.exchange:${committedSellTxId}:usdt-to-eur`, source: 'legacy', type: 'Vente USDT / EUR', effectiveAt: timestamp },
                         });
                     }
+                    const readModelSellTx: Tx = {
+                        id: committedSellTxId,
+                        timestamp,
+                        type: 'sell',
+                        quantity,
+                        sell,
+                        total: totalRevenue,
+                        profit,
+                        date,
+                        time,
+                        notes: notes.trim(),
+                        currency: sellCurrency,
+                        linkedClientId,
+                        clientPaymentStatus,
+                        settlementCurrency: 'DZD',
+                        ...(clientPaymentStatus === 'credit' ? { creditDueDate } : {}),
+                        ...(shouldLinkSettlementToDzdClient ? { linkedClientDzdId } : {}),
+                    };
+                    const sellEconomics = derivePortfolioSellReadModelEconomics({
+                        transactions,
+                        sellTx: readModelSellTx,
+                        fallbackProfitDzd: profit,
+                        fallbackCostBasisDzd: getPortfolioRemovalCost(sellCurrency, quantity),
+                        nowMs: timestamp,
+                    });
+                    portfolioDelta[sellCurrency].costBasisDeltaDzd = -sellEconomics.soldCostDzd;
+                    portfolioDelta[sellCurrency].realizedProfitDeltaDzd = sellEconomics.realizedProfitDzd;
+                    const realizedProfit = sellEconomics.realizedProfitDzd;
                     const allocation = allocateProfitDeltaAtTimestamp({
                         investors,
                         investorTransactions,
@@ -1091,7 +1119,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         personalExpenses,
                         managerFeePercentage,
                         managerFeeHistory,
-                        projectProfitDzd: profit,
+                        projectProfitDzd: realizedProfit,
                         timestamp,
                     });
                     if (clientPaymentStatus === 'credit' || shouldLinkSettlementToDzdClient) {
@@ -1101,7 +1129,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         return mustPrepareWriterReadModelDelta('portfolio.sell-credit', {
                             operationId: `legacy:portfolio.sell-credit:${committedSellTxId}`,
                             effectiveAt: timestamp,
-                            payload: { type: 'portfolio_sell_credit', clientId, quantity, sellCurrency, totalRevenue, profit, allocation },
+                            payload: { type: 'portfolio_sell_credit', clientId, quantity, sellCurrency, totalRevenue, storedProfit: profit, realizedProfit, allocation },
                             affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'clients_summary', 'investors_summary', 'financial_summary'],
                             portfolio: portfolioDelta,
                             clients: clientsDelta,
@@ -1112,7 +1140,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                                 managerActualOwnerCapitalDelta: allocation.managerProfitDeltaDzd,
                                 globalNetProfitDelta: allocation.projectProfitDzd,
                             },
-                            dashboardDaily: periodProfitDeltas(timestamp, profit, allocation.managerProfitDeltaDzd, sellCurrency, quantity),
+                            dashboardDaily: periodProfitDeltas(timestamp, realizedProfit, allocation.managerProfitDeltaDzd, sellCurrency, quantity),
                             recentOperation: { operationId: `legacy:portfolio.sell-credit:${committedSellTxId}`, source: 'legacy', type: `Vente ${sellCurrency}`, effectiveAt: timestamp },
                         });
                     }
@@ -1120,7 +1148,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     return mustPrepareWriterReadModelDelta('portfolio.sell-cash', {
                         operationId: `legacy:portfolio.sell-cash:${committedSellTxId}`,
                         effectiveAt: timestamp,
-                        payload: { type: 'portfolio_sell_cash', wallet, quantity, sellCurrency, totalRevenue, profit, allocation },
+                        payload: { type: 'portfolio_sell_cash', wallet, quantity, sellCurrency, totalRevenue, storedProfit: profit, realizedProfit, allocation },
                         affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'treasury_summary', 'investors_summary', 'financial_summary'],
                         wallets: { [wallet]: totalRevenue },
                         portfolio: portfolioDelta,
@@ -1131,7 +1159,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                             managerActualOwnerCapitalDelta: allocation.managerProfitDeltaDzd,
                             globalNetProfitDelta: allocation.projectProfitDzd,
                         },
-                        dashboardDaily: periodProfitDeltas(timestamp, profit, allocation.managerProfitDeltaDzd, sellCurrency, quantity),
+                        dashboardDaily: periodProfitDeltas(timestamp, realizedProfit, allocation.managerProfitDeltaDzd, sellCurrency, quantity),
                         recentOperation: { operationId: `legacy:portfolio.sell-cash:${committedSellTxId}`, source: 'legacy', type: `Vente ${sellCurrency}`, effectiveAt: timestamp },
                     });
                 })()
