@@ -417,4 +417,45 @@ assert.equal(bounded.dashboard.recentOperations.items.length, 5);
 assert.equal(bounded.dashboard.recentOperations.items[0].operationId, 'op:recent:5');
 assert.equal(bounded.dashboard.recentOperations.items[4].operationId, 'op:recent:1');
 
+// ── Regression: canonical actualOwnerCapital (legacy vs read-model drift) ──
+// Production symptom: legacy computed actualOwnerCapital fresh from the
+// balance-sheet pipeline (computeCapitalSnapshot → netOwnedCapital →
+// reconcileManagerProfitBreakdown) while the read models accumulated
+// managerActualOwnerCapitalDeltas into an independent copy — the two
+// disagreed by 0.18 DZD on dashboard.financialAudit.actualOwnerCapital /
+// financialAudit.actualOwnerCapital. The fix derives the canonical value
+// from the POST-DELTA components on every apply and mirrors it into
+// investors_summary, so read model == legacy recomputation at every step.
+{
+    const driftBase = buildBaseSnapshot();
+    const beforeAoc = driftBase.financial.capitalSnapshot.netOwnedCapital;
+    assert.equal(driftBase.financial.financialAudit.actualOwnerCapital, beforeAoc, 'base snapshot builds actualOwnerCapital from the balance sheet');
+    assert.equal(driftBase.investors.managerProfitBreakdown.actualOwnerCapital, beforeAoc, 'investors_summary agrees with the balance sheet at generation time');
+
+    // Two operations whose manager-capital deltas carry fractional cent tails
+    // (+0.09 twice = +0.18) while the balance-sheet components stay put —
+    // exactly the op class that made the old accumulated copy creep 0.18 DZD
+    // above the legacy balance-sheet value.
+    const driftOps = [0, 1].map((index) => buildReadModelDelta({
+        operationId: `op:aoc-drift:${index}`,
+        effectiveAt: asOf + index,
+        payload: { kind: 'manager_capital_reclass', amountDzd: 0.09 },
+        affectedSummaries: ['dashboard_summary', 'investors_summary', 'financial_summary'],
+        investors: { managerActualOwnerCapitalDelta: 0.09 },
+    }));
+    const drifted = driftOps.reduce((snapshot, delta) => applyReadModelDelta(snapshot, delta), driftBase);
+
+    // Legacy-equivalent recomputation: components unchanged by these internal
+    // reclasses ⇒ legacy still reports the opening balance-sheet value.
+    const legacyEquivalent = beforeAoc;
+    const readModelValue = drifted.financial.financialAudit.actualOwnerCapital;
+    assert.ok(
+        Math.abs(readModelValue - legacyEquivalent) <= 0.01,
+        `actualOwnerCapital must track the balance-sheet derivation (expected ${legacyEquivalent}, got ${readModelValue})`
+    );
+    // Single source of truth across every surface:
+    assert.equal(drifted.investors.managerProfitBreakdown.actualOwnerCapital, readModelValue, 'investors_summary mirrors the canonical value');
+    assert.equal(drifted.dashboard.financialAudit.actualOwnerCapital, readModelValue, 'dashboard_summary mirrors the canonical value');
+}
+
 console.log('read model writer coverage tests passed');

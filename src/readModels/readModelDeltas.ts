@@ -416,7 +416,14 @@ function applyFinancialDelta(summary: FinancialReadModel, delta: ReadModelDelta,
             historicalPersonalExpenses: next.investors.managerProfitBreakdown.personalExpenses,
             totalPersonalExpenses: next.investors.managerProfitBreakdown.totalPersonalExpenses,
             deliveryExpensesSinceStart: next.treasury.deliveryExpensesTotal,
-            actualOwnerCapital: next.investors.managerProfitBreakdown.actualOwnerCapital || capitalSnapshot.netOwnedCapital,
+            // Canonical owner-capital derivation (single path): reuse the
+            // netOwnedCapital computed above from the POST-DELTA domain
+            // summaries (same inputs as computeCapitalSnapshot), instead of
+            // reading the independently-rounded, delta-accumulated
+            // managerProfitBreakdown.actualOwnerCapital — the two paths had
+            // drifted 0.18 DZD vs Legacy on dashboard.financialAudit.
+            // actualOwnerCapital and financialAudit.actualOwnerCapital.
+            actualOwnerCapital: capitalSnapshot.netOwnedCapital,
         },
     };
 }
@@ -497,9 +504,24 @@ export function applyReadModelDelta(snapshot: DashboardReadModelSet, delta: Read
     const treasury = applyTreasuryDelta(snapshot.treasury, delta);
     const portfolio = applyPortfolioDelta(snapshot.portfolio, delta);
     const clients = applyClientsDelta(snapshot.clients, delta);
-    const investors = applyInvestorsDelta(snapshot.investors, delta);
+    const investorsSummary = applyInvestorsDelta(snapshot.investors, delta);
     const services = applyServicesDelta(snapshot.services, delta);
-    const financial = applyFinancialDelta(snapshot.financial, delta, { treasury, portfolio, clients, investors, services });
+    const financial = applyFinancialDelta(snapshot.financial, delta, { treasury, portfolio, clients, investors: investorsSummary, services });
+    // Canonical owner-capital sync (single source of truth): the balance-sheet
+    // derivation in applyFinancialDelta is THE value. Mirror it into
+    // investors_summary so no surface reads the independently-rounded,
+    // delta-accumulated copy (root cause of the 0.18 DZD legacy/read-model
+    // drift on actualOwnerCapital).
+    const canonicalActualOwnerCapital = financial.financialAudit.actualOwnerCapital;
+    const investors: InvestorsReadModel = {
+        ...investorsSummary,
+        managerProfitBreakdown: {
+            ...investorsSummary.managerProfitBreakdown,
+            actualOwnerCapital: canonicalActualOwnerCapital,
+            balanceSheetOwnerCapital: canonicalActualOwnerCapital,
+            ownerCapitalReconciliationDifference: roundM(canonicalActualOwnerCapital - investorsSummary.managerProfitBreakdown.historicalOwnerCapital),
+        },
+    };
     const dashboard = rebuildDashboardFromDomains(snapshot.dashboard, { treasury, portfolio, clients, investors, services, financial }, delta);
     return { ...snapshot, treasury, portfolio, clients, investors, services, financial, dashboard };
 }
