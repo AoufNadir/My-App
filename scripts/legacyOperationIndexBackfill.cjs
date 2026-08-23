@@ -44,6 +44,9 @@ function parseArgs(argv) {
     projectId: PROJECT_ID,
     chunkSize: DEFAULT_CHUNK_SIZE,
     runId: `legacy-index-${new Date().toISOString().replace(/[:.]/g, '-')}`,
+    fixturePath: '',
+    outputPath: '',
+    resume: false,
   };
   for (const arg of argv) {
     if (arg === '--dry-run') options.mode = 'dry-run';
@@ -51,8 +54,11 @@ function parseArgs(argv) {
     else if (arg.startsWith('--project=')) options.projectId = arg.slice('--project='.length);
     else if (arg.startsWith('--chunk-size=')) options.chunkSize = Math.max(1, Math.min(400, Number(arg.slice('--chunk-size='.length)) || DEFAULT_CHUNK_SIZE));
     else if (arg.startsWith('--run-id=')) options.runId = sanitizeId(arg.slice('--run-id='.length));
+    else if (arg.startsWith('--fixture=')) options.fixturePath = path.resolve(arg.slice('--fixture='.length));
+    else if (arg.startsWith('--out=')) options.outputPath = path.resolve(arg.slice('--out='.length));
+    else if (arg === '--resume') options.resume = true;
     else if (arg === '--help') {
-      console.log('Usage: node scripts/legacyOperationIndexBackfill.cjs --dry-run|--apply [--chunk-size=350] [--run-id=id]');
+      console.log('Usage: node scripts/legacyOperationIndexBackfill.cjs --dry-run|--apply [--chunk-size=350] [--run-id=id] [--resume] [--fixture=fixture.json] [--out=report.json]');
       process.exit(0);
     }
   }
@@ -365,7 +371,7 @@ function buildIndexPlan(userReport, byCollection, runId) {
 
 async function loadUserCollections(projectId, token, uid, report) {
   const byCollection = {};
-  for (const collection of [...Object.keys(SUPPORTED_COLLECTIONS), INDEX_COLLECTION]) {
+  for (const collection of [...Object.keys(SUPPORTED_COLLECTIONS), INDEX_COLLECTION, CHECKPOINT_COLLECTION]) {
     const docs = await listDocuments(projectId, token, `users/${encodeURIComponent(uid)}/${collection}`);
     byCollection[collection] = docs;
     report.collectionCounts[collection] = docs.length;
@@ -391,6 +397,132 @@ function checkpointPayload(input) {
     lastIndexId: input.lastIndexId || '',
     updatedAt: input.updatedAt,
   };
+}
+
+function createBaseReport(options) {
+  return {
+    mode: options.mode,
+    projectId: options.projectId,
+    runId: options.runId,
+    chunkSize: options.chunkSize,
+    fixturePath: options.fixturePath || undefined,
+    resume: Boolean(options.resume),
+    users: [],
+    totals: {
+      usersRead: 0,
+      documentsRead: 0,
+      estimatedReads: 0,
+      legacyOperationsCandidate: 0,
+      expectedIndexesToCreate: 0,
+      existingIndexes: 0,
+      matchingExistingIndexes: 0,
+      skipped: 0,
+      skippedByCheckpoint: 0,
+      created: 0,
+      duplicates: 0,
+      mismatches: 0,
+      unsupported: 0,
+      immutableLegacy: 0,
+      missingLinkedTargets: 0,
+      checkpointsWritten: 0,
+      lastCheckpoint: null,
+    },
+  };
+}
+
+function createUserReport(uid) {
+  return {
+    uid,
+    documentsRead: 0,
+    collectionCounts: {},
+    legacyOperationsCandidate: 0,
+    expectedIndexesToCreate: 0,
+    existingIndexes: 0,
+    matchingExistingIndexes: 0,
+    skippedExisting: 0,
+    skippedByCheckpoint: 0,
+    duplicates: 0,
+    mismatches: [],
+    unsupported: [],
+    immutableLegacy: [],
+    missingLinkedTargets: [],
+    checkpoint: null,
+  };
+}
+
+function addUserReportToTotals(report, userReport) {
+  report.totals.documentsRead += userReport.documentsRead;
+  report.totals.legacyOperationsCandidate += userReport.legacyOperationsCandidate;
+  report.totals.expectedIndexesToCreate += userReport.expectedIndexesToCreate;
+  report.totals.existingIndexes += userReport.existingIndexes;
+  report.totals.matchingExistingIndexes += userReport.matchingExistingIndexes;
+  report.totals.skipped += userReport.skippedExisting;
+  report.totals.skippedByCheckpoint += userReport.skippedByCheckpoint;
+  report.totals.duplicates += userReport.duplicates;
+  report.totals.mismatches += userReport.mismatches.length;
+  report.totals.unsupported += userReport.unsupported.length;
+  report.totals.immutableLegacy += userReport.immutableLegacy.length;
+  report.totals.missingLinkedTargets += userReport.missingLinkedTargets.length;
+  report.users.push({
+    uid: userReport.uid,
+    collectionCounts: userReport.collectionCounts,
+    legacyOperationsCandidate: userReport.legacyOperationsCandidate,
+    expectedIndexesToCreate: userReport.expectedIndexesToCreate,
+    existingIndexes: userReport.existingIndexes,
+    matchingExistingIndexes: userReport.matchingExistingIndexes,
+    skippedExisting: userReport.skippedExisting,
+    skippedByCheckpoint: userReport.skippedByCheckpoint,
+    duplicates: userReport.duplicates,
+    mismatches: userReport.mismatches.length,
+    unsupported: userReport.unsupported.length,
+    immutableLegacy: userReport.immutableLegacy.length,
+    missingLinkedTargets: userReport.missingLinkedTargets.length,
+    checkpoint: userReport.checkpoint,
+    mismatchSamples: userReport.mismatches.slice(0, 5),
+    immutableLegacySamples: userReport.immutableLegacy.slice(0, 5),
+    missingLinkedTargetSamples: userReport.missingLinkedTargets.slice(0, 10),
+  });
+}
+
+function checkpointFromCollections(byCollection) {
+  const docs = byCollection[CHECKPOINT_COLLECTION] || [];
+  return docs.find((doc) => doc.id === 'backfill_latest') || null;
+}
+
+function sortPlan(plan) {
+  return [...plan].sort((a, b) => `${a.uid}:${a.indexId}`.localeCompare(`${b.uid}:${b.indexId}`));
+}
+
+function applyResumeCheckpoints(plan, checkpointByUid, runId, userReports) {
+  if (!checkpointByUid || checkpointByUid.size === 0) return plan;
+  return plan.filter((item) => {
+    const checkpoint = checkpointByUid.get(item.uid);
+    if (!checkpoint || checkpoint.runId !== runId || !checkpoint.lastIndexId)
+      return true;
+    if (String(item.indexId).localeCompare(String(checkpoint.lastIndexId)) > 0)
+      return true;
+    const userReport = userReports.get(item.uid);
+    if (userReport) userReport.skippedByCheckpoint += 1;
+    return false;
+  });
+}
+
+function assertReadyForApply(report, options) {
+  if (report.totals.duplicates || report.totals.mismatches || report.totals.missingLinkedTargets || report.totals.unsupported) {
+    report.readyForApply = false;
+    if (options.mode === 'apply') {
+      report.applyBlockedReason = 'duplicates, mismatches, missing linked targets, or unsupported rows were detected.';
+    }
+    return false;
+  }
+  report.readyForApply = true;
+  return true;
+}
+
+function emitReport(report, outputPath) {
+  const text = JSON.stringify(report, null, 2);
+  if (outputPath) fs.writeFileSync(outputPath, `${text}\n`, 'utf8');
+  console.log(text);
 }
 
 function writeForSet(projectId, uid, collection, id, payload, precondition) {
@@ -436,108 +568,171 @@ async function applyPlan(projectId, token, runId, plan, chunkSize, report) {
   }
 }
 
-async function main() {
-  const options = parseArgs(process.argv.slice(2));
-  const token = firebaseCliAccessToken();
-  const report = {
-    mode: options.mode,
-    projectId: options.projectId,
-    runId: options.runId,
-    chunkSize: options.chunkSize,
-    users: [],
-    totals: {
-      usersRead: 0,
-      documentsRead: 0,
-      estimatedReads: 0,
-      legacyOperationsCandidate: 0,
-      expectedIndexesToCreate: 0,
-      existingIndexes: 0,
-      matchingExistingIndexes: 0,
-      skipped: 0,
-      created: 0,
-      duplicates: 0,
-      mismatches: 0,
-      unsupported: 0,
-      immutableLegacy: 0,
-      missingLinkedTargets: 0,
-      checkpointsWritten: 0,
-      lastCheckpoint: null,
-    },
-  };
-
-  const users = await listDocuments(options.projectId, token, 'users');
-  report.totals.usersRead = users.length;
-  report.totals.documentsRead += users.length;
-
-  const fullPlan = [];
-  for (const user of users) {
-    const userReport = {
-      uid: user.id,
-      documentsRead: 0,
-      collectionCounts: {},
-      legacyOperationsCandidate: 0,
-      expectedIndexesToCreate: 0,
-      existingIndexes: 0,
-      matchingExistingIndexes: 0,
-      skippedExisting: 0,
-      duplicates: 0,
-      mismatches: [],
-      unsupported: [],
-      immutableLegacy: [],
-      missingLinkedTargets: [],
-    };
-    const byCollection = await loadUserCollections(options.projectId, token, user.id, userReport);
-    const userPlan = buildIndexPlan(userReport, byCollection, options.runId);
-    fullPlan.push(...userPlan);
-
-    report.totals.documentsRead += userReport.documentsRead;
-    report.totals.legacyOperationsCandidate += userReport.legacyOperationsCandidate;
-    report.totals.expectedIndexesToCreate += userReport.expectedIndexesToCreate;
-    report.totals.existingIndexes += userReport.existingIndexes;
-    report.totals.matchingExistingIndexes += userReport.matchingExistingIndexes;
-    report.totals.skipped += userReport.skippedExisting;
-    report.totals.duplicates += userReport.duplicates;
-    report.totals.mismatches += userReport.mismatches.length;
-    report.totals.unsupported += userReport.unsupported.length;
-    report.totals.immutableLegacy += userReport.immutableLegacy.length;
-    report.totals.missingLinkedTargets += userReport.missingLinkedTargets.length;
-    report.users.push({
-      uid: userReport.uid,
-      collectionCounts: userReport.collectionCounts,
-      legacyOperationsCandidate: userReport.legacyOperationsCandidate,
-      expectedIndexesToCreate: userReport.expectedIndexesToCreate,
-      existingIndexes: userReport.existingIndexes,
-      matchingExistingIndexes: userReport.matchingExistingIndexes,
-      skippedExisting: userReport.skippedExisting,
-      duplicates: userReport.duplicates,
-      mismatches: userReport.mismatches.length,
-      unsupported: userReport.unsupported.length,
-      immutableLegacy: userReport.immutableLegacy.length,
-      missingLinkedTargets: userReport.missingLinkedTargets.length,
-      mismatchSamples: userReport.mismatches.slice(0, 5),
-      immutableLegacySamples: userReport.immutableLegacy.slice(0, 5),
-      missingLinkedTargetSamples: userReport.missingLinkedTargets.slice(0, 10),
-    });
-  }
-
-  report.totals.estimatedReads = report.totals.documentsRead;
-
-  if (report.totals.duplicates || report.totals.mismatches || report.totals.missingLinkedTargets || report.totals.unsupported) {
-    report.readyForApply = false;
-    console.log(JSON.stringify(report, null, 2));
-    if (options.mode === 'apply') process.exit(2);
-    return;
-  }
-
-  report.readyForApply = true;
-  if (options.mode === 'apply') {
-    await applyPlan(options.projectId, token, options.runId, fullPlan, options.chunkSize, report);
-  }
-
-  console.log(JSON.stringify(report, null, 2));
+function normalizeFixtureDoc(doc) {
+  if (!doc || typeof doc !== 'object') return null;
+  if (!doc.id) return null;
+  return { ...doc, id: String(doc.id) };
 }
 
-main().catch((error) => {
+function loadFixture(fixturePath) {
+  const raw = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+  const users = Array.isArray(raw.users)
+    ? raw.users
+    : Object.entries(raw.users || {}).map(([id, value]) => ({ id, ...(value || {}) }));
+  return users.map((user) => {
+    const uid = String(user.id || user.uid || '');
+    const collections = user.collections || {};
+    const normalizedCollections = {};
+    for (const collection of [...Object.keys(SUPPORTED_COLLECTIONS), INDEX_COLLECTION, CHECKPOINT_COLLECTION]) {
+      normalizedCollections[collection] = (collections[collection] || [])
+        .map(normalizeFixtureDoc)
+        .filter(Boolean);
+    }
+    return { id: uid, collections: normalizedCollections };
+  }).filter((user) => user.id);
+}
+
+function loadFixtureUserCollections(fixtureUser, report) {
+  const byCollection = {};
+  for (const collection of [...Object.keys(SUPPORTED_COLLECTIONS), INDEX_COLLECTION, CHECKPOINT_COLLECTION]) {
+    const docs = fixtureUser.collections[collection] || [];
+    byCollection[collection] = docs;
+    report.collectionCounts[collection] = docs.length;
+    report.documentsRead += docs.length;
+  }
+  return byCollection;
+}
+
+async function buildBackfillPlan(options, loadUsers, loadCollections) {
+  const report = createBaseReport(options);
+  const users = await loadUsers();
+  report.totals.usersRead = users.length;
+  report.totals.documentsRead += users.length;
+  const checkpointByUid = new Map();
+  const userReportsByUid = new Map();
+  const fullPlan = [];
+
+  for (const user of users) {
+    const uid = user.id;
+    const userReport = createUserReport(uid);
+    userReportsByUid.set(uid, userReport);
+    const byCollection = await loadCollections(user, userReport);
+    const checkpoint = checkpointFromCollections(byCollection);
+    userReport.checkpoint = checkpoint ? {
+      runId: checkpoint.runId || '',
+      processed: Number(checkpoint.processed || 0),
+      created: Number(checkpoint.created || 0),
+      lastIndexId: checkpoint.lastIndexId || '',
+      batchNumber: Number(checkpoint.batchNumber || 0),
+    } : null;
+    if (options.resume && checkpoint) checkpointByUid.set(uid, checkpoint);
+    const userPlan = buildIndexPlan(userReport, byCollection, options.runId);
+    fullPlan.push(...userPlan);
+  }
+
+  let sortedPlan = sortPlan(fullPlan);
+  if (options.resume) {
+    sortedPlan = applyResumeCheckpoints(sortedPlan, checkpointByUid, options.runId, userReportsByUid);
+  }
+
+  for (const userReport of userReportsByUid.values()) {
+    addUserReportToTotals(report, userReport);
+  }
+  report.totals.estimatedReads = report.totals.documentsRead;
+  report.plan = {
+    totalItems: sortedPlan.length,
+    firstIndexId: sortedPlan[0]?.indexId || null,
+    lastIndexId: sortedPlan[sortedPlan.length - 1]?.indexId || null,
+  };
+  return { report, plan: sortedPlan };
+}
+
+function applyFixturePlan(options, plan, report) {
+  let batchNumber = 0;
+  let processed = 0;
+  const createdIndexes = [];
+  for (let start = 0; start < plan.length; start += options.chunkSize) {
+    const chunk = plan.slice(start, start + options.chunkSize);
+    batchNumber += 1;
+    const last = chunk[chunk.length - 1];
+    for (const item of chunk) {
+      createdIndexes.push({
+        uid: item.uid,
+        collection: INDEX_COLLECTION,
+        id: item.indexId,
+        payloadHash: item.payload.payloadHash,
+        rows: parseIndexRows(item.payload),
+      });
+    }
+    processed += chunk.length;
+    report.totals.created += chunk.length;
+    report.totals.checkpointsWritten += 1;
+    report.totals.lastCheckpoint = {
+      runId: options.runId,
+      batchNumber,
+      processed,
+      lastIndexId: last.indexId,
+      uid: last.uid,
+    };
+  }
+  report.fixtureApply = {
+    createdIndexes,
+    noFirestoreWrites: true,
+  };
+}
+
+async function runWithFixture(options) {
+  const fixtureUsers = loadFixture(options.fixturePath);
+  const { report, plan } = await buildBackfillPlan(
+    options,
+    async () => fixtureUsers,
+    async (user, userReport) => loadFixtureUserCollections(user, userReport),
+  );
+  const ready = assertReadyForApply(report, options);
+  if (options.mode === 'apply' && ready) {
+    applyFixturePlan(options, plan, report);
+  }
+  emitReport(report, options.outputPath);
+  if (options.mode === 'apply' && !ready) process.exit(2);
+}
+
+async function main() {
+  const options = parseArgs(process.argv.slice(2));
+  if (options.fixturePath) {
+    await runWithFixture(options);
+    return;
+  }
+  const token = firebaseCliAccessToken();
+  const { report, plan } = await buildBackfillPlan(
+    options,
+    async () => listDocuments(options.projectId, token, 'users'),
+    async (user, userReport) => loadUserCollections(options.projectId, token, user.id, userReport),
+  );
+  const ready = assertReadyForApply(report, options);
+  if (options.mode === 'apply') {
+    if (!ready) {
+      emitReport(report, options.outputPath);
+      process.exit(2);
+      return;
+    }
+    await applyPlan(options.projectId, token, options.runId, plan, options.chunkSize, report);
+  }
+
+  emitReport(report, options.outputPath);
+}
+
+if (require.main === module) main().catch((error) => {
   console.error(error && error.stack ? error.stack : error);
   process.exit(1);
 });
+
+module.exports = {
+  buildIndexPlan,
+  createIndexDoc,
+  hashPayload,
+  indexId,
+  parseArgs,
+  parseIndexRows,
+  runWithFixture,
+  sanitizeId,
+};

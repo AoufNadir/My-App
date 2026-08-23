@@ -3,6 +3,7 @@ import { db } from '../firebase';
 import type { AppUser } from '../firebaseAuth';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from '../types';
 type UseAppDataOptions = {
+    subscribeCoreFinancial?: boolean;
     subscribeManualAssets?: boolean;
     subscribeInvestors?: boolean;
     subscribeTreasuryCards?: boolean;
@@ -41,6 +42,7 @@ function createInitialCollectionState() {
 }
 export function useAppData(user: AppUser, refreshKey: number, options: UseAppDataOptions = {}) {
     const userDocRef = useMemo(() => db.collection('users').doc(user.uid), [user.uid]);
+    const subscribeCoreFinancial = options.subscribeCoreFinancial ?? true;
     const subscribeManualAssets = options.subscribeManualAssets ?? true;
     const subscribeInvestors = options.subscribeInvestors ?? true;
     const subscribeTreasuryCards = options.subscribeTreasuryCards ?? true;
@@ -61,7 +63,9 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     const [investorTransactions, setInvestorTransactions] = useState<InvestorTransaction[]>([]);
     const [collectionState, setCollectionState] = useState<Record<AppDataCollectionKey, CollectionLoadState>>(createInitialCollectionState);
     const activeCollectionKeys = useMemo(() => {
-        const keys: AppDataCollectionKey[] = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions', 'digitalServiceTransactions'];
+        const keys: AppDataCollectionKey[] = subscribeCoreFinancial
+            ? ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions', 'digitalServiceTransactions']
+            : [];
         if (requireTreasuryCards)
             keys.push('treasuryCards');
         if (requireManualAssets)
@@ -69,7 +73,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         if (requireInvestors)
             keys.push('investors', 'investorTransactions');
         return keys;
-    }, [requireTreasuryCards, requireManualAssets, requireInvestors]);
+    }, [subscribeCoreFinancial, requireTreasuryCards, requireManualAssets, requireInvestors]);
     const subscribeToCollection = useCallback((
         key: AppDataCollectionKey,
         query: { onSnapshot: (callback: (snapshot: any) => void, options?: { includeMetadataChanges?: boolean }) => () => void },
@@ -99,6 +103,22 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     }, []);
     // Core financial listeners stay mounted across every page transition.
     useEffect(() => {
+        if (!subscribeCoreFinancial) {
+            setTransactions([]);
+            setClientsDzd([]);
+            setClientTransactionsDzd([]);
+            setTreasuryTransactions([]);
+            setDigitalServiceTransactions([]);
+            setCollectionState((current) => ({
+                ...current,
+                transactions: { received: false, fromCache: false, serverSynced: false },
+                clients: { received: false, fromCache: false, serverSynced: false },
+                clientTransactions: { received: false, fromCache: false, serverSynced: false },
+                treasuryTransactions: { received: false, fromCache: false, serverSynced: false },
+                digitalServiceTransactions: { received: false, fromCache: false, serverSynced: false },
+            }));
+            return;
+        }
         const unsubTxs = subscribeToCollection(
             'transactions',
             userDocRef.collection('usdt_txs').orderBy('timestamp', 'asc'),
@@ -155,10 +175,16 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             unsubTreasuryTxs();
             unsubDigitalServices();
         };
-    }, [userDocRef, refreshKey, subscribeToCollection]);
+    }, [subscribeCoreFinancial, userDocRef, refreshKey, subscribeToCollection]);
     useEffect(() => {
-        if (!subscribeTreasuryCards)
+        if (!subscribeTreasuryCards) {
+            setTreasuryCards([]);
+            setCollectionState((current) => ({
+                ...current,
+                treasuryCards: { received: false, fromCache: false, serverSynced: false },
+            }));
             return;
+        }
         return subscribeToCollection(
             'treasuryCards',
             userDocRef.collection('treasury_cards'),
@@ -167,8 +193,18 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         );
     }, [subscribeTreasuryCards, userDocRef, refreshKey, subscribeToCollection]);
     useEffect(() => {
-        if (!subscribeManualAssets)
+        if (!subscribeManualAssets) {
+            setManualAssets([]);
+            setManualAssetClients([]);
+            setManualAssetTransactions([]);
+            setCollectionState((current) => ({
+                ...current,
+                manualAssets: { received: false, fromCache: false, serverSynced: false },
+                manualAssetClients: { received: false, fromCache: false, serverSynced: false },
+                manualAssetTransactions: { received: false, fromCache: false, serverSynced: false },
+            }));
             return;
+        }
         const unsubAssets = subscribeToCollection(
             'manualAssets',
             userDocRef.collection('manual_assets').orderBy('createdAt', 'desc'),
@@ -194,8 +230,16 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         };
     }, [subscribeManualAssets, userDocRef, refreshKey, subscribeToCollection]);
     useEffect(() => {
-        if (!subscribeInvestors)
+        if (!subscribeInvestors) {
+            setInvestors([]);
+            setInvestorTransactions([]);
+            setCollectionState((current) => ({
+                ...current,
+                investors: { received: false, fromCache: false, serverSynced: false },
+                investorTransactions: { received: false, fromCache: false, serverSynced: false },
+            }));
             return;
+        }
         const unsubInvestors = subscribeToCollection(
             'investors',
             userDocRef.collection('investors'),

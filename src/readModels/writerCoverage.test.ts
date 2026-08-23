@@ -14,6 +14,10 @@ import {
     WRITER_COVERAGE_NON_ATOMIC_RISKS,
     findWriterCoverageById,
 } from './writerCoverageMatrix';
+import {
+    prepareWriterReadModelDelta,
+    writerIdsReadyForPreparedDeltas,
+} from './preparedWriterDeltas';
 
 const asOf = new Date('2026-08-23T12:00:00.000Z').getTime();
 const dayStart = new Date('2026-08-23T00:00:00.000Z').getTime();
@@ -160,6 +164,37 @@ assert.equal(findWriterCoverageById('entity.archive-only')?.atomicMechanism, 're
 assert.equal(findWriterCoverageById('main.global-reset')?.atomicMechanism, 'dev_admin_only_block_before_read_mode');
 assert.match(findWriterCoverageById('treasury.adjustment')?.incrementalDelta || '', /correction/i);
 assert.ok(WRITER_COVERAGE_NON_ATOMIC_RISKS.length >= 3);
+
+const preparedWriterIds = writerIdsReadyForPreparedDeltas();
+assert.equal(preparedWriterIds.includes('main.global-reset'), false, 'Global reset must not be represented as a financial delta');
+WRITER_COVERAGE_MATRIX
+    .filter((row) => row.id !== 'main.global-reset')
+    .forEach((row) => {
+        assert.ok(preparedWriterIds.includes(row.id), `${row.id} must be ready for prepared/shadow deltas`);
+        const result = prepareWriterReadModelDelta(row.id, {
+            operationId: `prepared:${row.id}`,
+            effectiveAt: asOf,
+            payload: { writerId: row.id },
+            affectedSummaries: [...row.domainSummaries],
+        });
+        assert.equal(result.ok, true, `${row.id} should accept its coverage summaries`);
+        if (result.ok) {
+            assert.equal(result.prepared.delta.operationId, `prepared:${row.id}`);
+            assert.equal(result.prepared.coverage.id, row.id);
+        }
+    });
+assert.equal(prepareWriterReadModelDelta('main.global-reset', {
+    operationId: 'prepared:reset',
+    effectiveAt: asOf,
+    payload: {},
+    affectedSummaries: [],
+}).ok, false);
+assert.equal(prepareWriterReadModelDelta('treasury.adjustment', {
+    operationId: 'prepared:bad',
+    effectiveAt: asOf,
+    payload: {},
+    affectedSummaries: ['dashboard_summary'],
+}).ok, false, 'Prepared deltas must not silently drift from the coverage matrix');
 
 const deltasSource = readFileSync('src/readModels/readModelDeltas.ts', 'utf8');
 const matrixSource = readFileSync('src/readModels/writerCoverageMatrix.ts', 'utf8');

@@ -37,6 +37,7 @@ import { useNotifications } from './hooks/useNotifications';
 import { useWeeklyRecap } from './hooks/useWeeklyRecap';
 // Custom Hooks
 import { useAppData } from './hooks/useAppData';
+import { useDashboardSummaryReadModel } from './hooks/useDashboardSummaryReadModel';
 import { useSettings } from './hooks/useSettings';
 import { useSmartPricingPlan } from './hooks/useSmartPricingPlan';
 import { useTransactionHandlers, type PrefillSell } from './hooks/useTransactionHandlers';
@@ -56,6 +57,7 @@ import { computePamLedger } from './utils/pamLedger';
 import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot } from './utils/capitalSnapshot';
 import { summarizePersonalExpenseTotals } from './utils/financialAudit';
 import { buildDashboardReadModelShadowFromLegacy, getReadModelsMode, reconcileDashboardReadModelsWithLegacy, type DashboardReadModelShadowDiagnostic } from './readModels/dashboardReadModels';
+import { shouldUseDashboardSummaryForView } from './readModels/readModelActivation';
 import { HISTORICAL_CLOSING_BASELINE_DZD } from './accounting/closure';
 import { formatNumber } from './pages/shared/pageFormat';
 const TransactionsPage = React.lazy(() => import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage })));
@@ -76,6 +78,10 @@ const MainAppDialogs = React.lazy(() => import('./components/main/MainAppDialogs
 const MonthPlanSheet = React.lazy(() => import('./components/calculator/MonthPlanSheet').then((module) => ({ default: module.MonthPlanSheet })));
 const loadPdfReports = () => import('./utils/pdfReports');
 const EMPTY_TRANSACTIONS: Tx[] = [];
+const EMPTY_CLIENTS_DZD: ClientDzd[] = [];
+const EMPTY_CLIENT_TRANSACTIONS_DZD: ClientTransactionDzd[] = [];
+const EMPTY_TREASURY_TRANSACTIONS: TreasuryTx[] = [];
+const EMPTY_PROFIT_BY_TX_ID = new Map<string, number>();
 const CORE_DATA_KEYS = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions', 'digitalServiceTransactions'] as const;
 const OWNER_OPENING_CAPITAL = 2_000_000;
 // Historical accounting closure: 365 350 - 3 062 = 362 288 DZD.
@@ -133,9 +139,11 @@ export default function MainApp({ user }: {
     };
     // --- 1. CORE DATA & SETTINGS ---
     const { t } = useLanguage();
+    const readModelsMode = getReadModelsMode();
     const [refreshKey, setRefreshKey] = useState(0);
     const [alert, setAlert] = useState('');
     const { investorIdFromUrl, isInvestorRoute, navigateToView, selectedClientId, setSelectedClientId, setView, view } = useMainNavigation();
+    const shouldUseDashboardReadModel = shouldUseDashboardSummaryForView({ readModelsMode, view });
     const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
     const [selectedAssetClientId, setSelectedAssetClientId] = useState<string | null>(null);
     const shouldSubscribeManualAssets = view === 'services'
@@ -151,23 +159,28 @@ export default function MainApp({ user }: {
     const shouldRequireTreasuryCards = view === 'tresorerie';
     // 1.1 App Data (Provides userDocRef)
     const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, digitalServiceTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
-        subscribeManualAssets: shouldSubscribeManualAssets,
-        subscribeInvestors: shouldSubscribeInvestors,
-        subscribeTreasuryCards: shouldSubscribeTreasuryCards,
+        subscribeCoreFinancial: !shouldUseDashboardReadModel,
+        subscribeManualAssets: !shouldUseDashboardReadModel && shouldSubscribeManualAssets,
+        subscribeInvestors: !shouldUseDashboardReadModel && shouldSubscribeInvestors,
+        subscribeTreasuryCards: !shouldUseDashboardReadModel && shouldSubscribeTreasuryCards,
         requireManualAssets: shouldRequireManualAssets,
         requireInvestors: shouldRequireInvestors,
         requireTreasuryCards: shouldRequireTreasuryCards
     });
+    const dashboardSummaryRead = useDashboardSummaryReadModel(userDocRef, readModelsMode);
     // 1.2 Settings
     const { managerFeePercentage, managerFeeHistory, saveManagerFeePercentage, isSettingsLoaded } = useSettings(userDocRef);
     const pricingPlanSync = useSmartPricingPlan(userDocRef);
-    const canUseFinancialData = dataStatus.hasServerSynced
-        || (isDataLoaded && typeof navigator !== 'undefined' && navigator.onLine === false);
+    const canUseFinancialData = shouldUseDashboardReadModel
+        ? (dashboardSummaryRead.hasServerSynced
+            || (dashboardSummaryRead.isDashboardSummaryReady && typeof navigator !== 'undefined' && navigator.onLine === false))
+        : (dataStatus.hasServerSynced
+            || (isDataLoaded && typeof navigator !== 'undefined' && navigator.onLine === false));
     const isFinancialDataReady = canUseFinancialData && isSettingsLoaded;
     const clientShadowReadReconciliation = useMemo(() => {
-        if (!isFinancialDataReady) return null;
+        if (!isFinancialDataReady || shouldUseDashboardReadModel) return null;
         return reconcileLegacyClientsToShadow(clientTransactionsDzd, clientsDzd.map((client) => client.id));
-    }, [isFinancialDataReady, clientTransactionsDzd, clientsDzd]);
+    }, [isFinancialDataReady, shouldUseDashboardReadModel, clientTransactionsDzd, clientsDzd]);
     const clientShadowReconciliationFingerprint = useRef('');
     useEffect(() => {
         if (!clientShadowReadReconciliation) return;
@@ -214,7 +227,7 @@ export default function MainApp({ user }: {
     }, [isFinancialDataReady, investors, investorTransactions, managerFeePercentage, managerFeeHistory, transactions, pamLedger, deliveryExpenses, treasuryTransactions, personalExpenses]);
     const derivedInvestors = investorEconomics.derivedInvestors;
     const investorShadowReadReconciliation = useMemo(() => {
-        if (!isFinancialDataReady) return null;
+        if (!isFinancialDataReady || shouldUseDashboardReadModel) return null;
         return reconcileLegacyInvestorsToShadow({
             investors,
             investorTransactions,
@@ -226,7 +239,7 @@ export default function MainApp({ user }: {
             legacyDerivedInvestors: derivedInvestors,
             legacyManagerShareDzd: investorEconomics.totals.managerShare,
         });
-    }, [isFinancialDataReady, investors, investorTransactions, transactions, deliveryExpenses, treasuryTransactions, personalExpenses, managerFeeHistory, derivedInvestors, investorEconomics.totals.managerShare]);
+    }, [isFinancialDataReady, shouldUseDashboardReadModel, investors, investorTransactions, transactions, deliveryExpenses, treasuryTransactions, personalExpenses, managerFeeHistory, derivedInvestors, investorEconomics.totals.managerShare]);
     const investorShadowReconciliationFingerprint = useRef('');
     useEffect(() => {
         if (!investorShadowReadReconciliation) return;
@@ -243,9 +256,9 @@ export default function MainApp({ user }: {
         else console.warn(label, investorShadowReadReconciliation);
     }, [investorShadowReadReconciliation]);
     const serviceShadowReadReconciliation = useMemo(() => {
-        if (!isFinancialDataReady) return null;
+        if (!isFinancialDataReady || shouldUseDashboardReadModel) return null;
         return reconcileLegacyServicesToShadow(digitalServiceTransactions);
-    }, [isFinancialDataReady, digitalServiceTransactions]);
+    }, [isFinancialDataReady, shouldUseDashboardReadModel, digitalServiceTransactions]);
     const serviceShadowReconciliationFingerprint = useRef('');
     useEffect(() => {
         if (!serviceShadowReadReconciliation) return;
@@ -906,7 +919,6 @@ export default function MainApp({ user }: {
             actualOwnerCapital: managerProfitBreakdown.actualOwnerCapital,
         };
     }, [treasuryTransactions, deliveryExpenses, managerProfitBreakdown]);
-    const readModelsMode = getReadModelsMode();
     const readModelShadowDiagnostic = useMemo<DashboardReadModelShadowDiagnostic | null>(() => {
         if (readModelsMode !== 'shadow' || !isFinancialDataReady)
             return null;
@@ -2376,20 +2388,54 @@ export default function MainApp({ user }: {
         setSelectedClientId(clientId);
         setView('dzd');
     };
+    const dashboardSummary = shouldUseDashboardReadModel ? dashboardSummaryRead.dashboardSummary : null;
+    const dashboardDailyOverview = dashboardSummary?.dailyOverview ?? dailyOverview;
+    const dashboardManagerProfitBreakdown = dashboardSummary?.investors.managerProfitBreakdown ?? managerProfitBreakdown;
+    const dashboardFinancialAudit = dashboardSummary?.financialAudit ?? financialAudit;
+    const dashboardPortfolioStats = useMemo(() => {
+        if (!dashboardSummary)
+            return portfolioStats;
+        return {
+            usdt: dashboardSummary.portfolio.usdt,
+            eur: dashboardSummary.portfolio.eur,
+        };
+    }, [dashboardSummary, portfolioStats]);
+    const dashboardTreasuryStats = useMemo(() => {
+        if (!dashboardSummary)
+            return treasuryStats;
+        return {
+            caisse: dashboardSummary.money.caisseBalance,
+            baridi: dashboardSummary.money.baridiBalance,
+        };
+    }, [dashboardSummary, treasuryStats]);
+    const dashboardTotals = useMemo(() => {
+        if (!dashboardSummary)
+            return totals;
+        return {
+            totalDettes: -Math.abs(Number(dashboardSummary.money.clientReceivables || 0)),
+            totalAvances: Math.abs(Number(dashboardSummary.money.clientAdvances || 0)),
+        };
+    }, [dashboardSummary, totals]);
+    const dashboardInvestorBreakdown = dashboardSummary?.investors.investorBreakdown ?? investorBreakdown;
+    const dashboardInvestorLiability = dashboardSummary?.money.investorLiability ?? investorLiability;
+    const dashboardCapitalSnapshot = dashboardSummary?.capitalSnapshot ?? capitalSnapshot;
+    const dashboardServicesSummary = dashboardSummary?.services ?? servicesSummary;
+    const effectiveDashboardDebtClients = dashboardSummary?.clients.topOverdueClients.items ?? dashboardDebtClients;
+    const dashboardCanQuickSell = Number(dashboardPortfolioStats?.usdt?.available || 0) > 0;
     const dashboardPageProps = {
-        dailyOverview,
-        managerProfitBreakdown,
-        financialAudit,
-        portfolioStats,
-        treasuryStats,
-        totals,
-        treasuryCards,
-        investorLiability,
-        investorBreakdown,
-        capitalSnapshot,
-        servicesSummary,
+        dailyOverview: dashboardDailyOverview,
+        managerProfitBreakdown: dashboardManagerProfitBreakdown,
+        financialAudit: dashboardFinancialAudit,
+        portfolioStats: dashboardPortfolioStats,
+        treasuryStats: dashboardTreasuryStats,
+        totals: dashboardTotals,
+        treasuryCards: dashboardSummary ? [] : treasuryCards,
+        investorLiability: dashboardInvestorLiability,
+        investorBreakdown: dashboardInvestorBreakdown,
+        capitalSnapshot: dashboardCapitalSnapshot,
+        servicesSummary: dashboardServicesSummary,
         globalNetProfit,
-        overdueDebtClients: dashboardDebtClients,
+        overdueDebtClients: effectiveDashboardDebtClients,
         isDataReady: isFinancialDataReady,
         onNewTransaction: () => openForm('buy_usdt'),
         onOpenClients: () => { setSelectedClientId(null); setView('dzd'); },
@@ -2398,11 +2444,11 @@ export default function MainApp({ user }: {
         onOpenTreasury: () => setView('tresorerie'),
         onOpenAnalytics: () => setView('analytics'),
         onOpenPersonalWithdrawal: openPersonalWithdrawalModal,
-        transactions,
-        clientTransactionsDzd,
-        clientsDzd,
-        treasuryTransactions,
-        profitByTxId: pamLedger.profitByTxId,
+        transactions: dashboardSummary ? EMPTY_TRANSACTIONS : transactions,
+        clientTransactionsDzd: dashboardSummary ? EMPTY_CLIENT_TRANSACTIONS_DZD : clientTransactionsDzd,
+        clientsDzd: dashboardSummary ? EMPTY_CLIENTS_DZD : clientsDzd,
+        treasuryTransactions: dashboardSummary ? EMPTY_TREASURY_TRANSACTIONS : treasuryTransactions,
+        profitByTxId: dashboardSummary ? EMPTY_PROFIT_BY_TX_ID : pamLedger.profitByTxId,
         getRelativeDateLabel,
         getClientFullName,
         openForm,
@@ -2414,11 +2460,11 @@ export default function MainApp({ user }: {
         handleDeleteClientTxClick: handleDeleteLinkedClientTxClick,
         setTreasuryTxToDelete,
         onOpenTransactions: () => setView('transactions'),
-        onQuickSell: portfolioStats.usdt.available > 0 ? openQuickSell : undefined,
-        quickSellPreview: portfolioStats.usdt.available > 0 ? {
-            qty: portfolioStats.usdt.available,
-            price: smartTargetPrices.usdt > 0 ? smartTargetPrices.usdt : portfolioStats.usdt.avgBuy,
-            pam: portfolioStats.usdt.avgBuy,
+        onQuickSell: dashboardCanQuickSell ? openQuickSell : undefined,
+        quickSellPreview: dashboardCanQuickSell ? {
+            qty: dashboardPortfolioStats.usdt.available,
+            price: smartTargetPrices.usdt > 0 ? smartTargetPrices.usdt : dashboardPortfolioStats.usdt.avgBuy,
+            pam: dashboardPortfolioStats.usdt.avgBuy,
         } : null,
         onOpenMonthPlan: () => setIsMonthPlanOpen(true),
         monthlyGoal: monthlyGoalState,
