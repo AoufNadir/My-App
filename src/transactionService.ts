@@ -1,7 +1,7 @@
 import type { FirestoreDocumentReference } from './firebase';
 import { formatNumber } from './pages/shared/pageFormat';
 import { recordTreasuryLegacyDeletionShadow, recordTreasuryShadow } from './accounting/treasuryShadowDiagnostics';
-import { getReadModelsMode } from './readModels/dashboardReadModels';
+import { resolveLegacyMutationPolicy } from './readModels/readModelActivation';
 import {
     createLegacyOperationIndexDoc,
     deterministicLinkedId,
@@ -9,7 +9,6 @@ import {
     legacyOperationIndexId,
     LEGACY_OPERATION_INDEX_COLLECTION,
     legacyTypeForCollection,
-    OPERATION_INDEX_REQUIRED,
     type IndexedFinancialRow,
     type LegacyOperationIndexDoc,
 } from './readModels/operationIndex';
@@ -56,39 +55,6 @@ async function findLinkedTransactionsFromOperationIndex(transactionId: string, t
     const rows = await loadOperationIndexRows(transactionId, transactionType, userDocRef);
     if (!rows) return null;
     return linkedTransactionsFromIndexedRows(rows, transactionType, transactionId);
-}
-
-async function applyIndexedTransactionDelete(transactionId: string, transactionType: TransactionType, userDocRef: FirestoreDocumentReference): Promise<{
-    success: boolean;
-    error?: string;
-}> {
-    const indexedRows = await loadOperationIndexRows(transactionId, transactionType, userDocRef);
-    if (!indexedRows) {
-        return { success: false, error: OPERATION_INDEX_REQUIRED };
-    }
-    const deletedAt = Date.now();
-    const batch = userDocRef.firestore.batch();
-    const treasuryRows: any[] = [];
-    for (const row of indexedRows) {
-        const rowRef = userDocRef.collection(row.collection).doc(row.id);
-        if (row.collection === 'treasury_txs') {
-            const rowSnap = await rowRef.get();
-            const rowData = rowSnap.data();
-            if (rowData) treasuryRows.push(rowData);
-        }
-        batch.delete(rowRef);
-    }
-    batch.set(operationIndexRef(userDocRef, transactionType, transactionId), createLegacyOperationIndexDoc({
-        transactionId,
-        transactionType,
-        linkedRows: indexedRows.filter((row) => row.role !== 'root'),
-        updatedAt: deletedAt,
-        deletedAt,
-        status: 'deleted',
-    }));
-    recordTreasuryDeletionShadow(userDocRef, transactionId, treasuryRows);
-    await batch.commit();
-    return { success: true };
 }
 
 function recordTreasuryDeletionShadow(userDocRef: FirestoreDocumentReference, operationId: string, rows: readonly any[]): void {
@@ -234,8 +200,9 @@ export async function applyTransactionDelete(transactionId: string, transactionT
     error?: string;
 }> {
     try {
-        if (getReadModelsMode() === 'read') {
-            return applyIndexedTransactionDelete(transactionId, transactionType, userDocRef);
+        const legacyMutationPolicy = resolveLegacyMutationPolicy({});
+        if (!legacyMutationPolicy.canMutate) {
+            return { success: false, error: legacyMutationPolicy.reason };
         }
         const resolvedTarget = await resolveDeletionTarget(transactionId, transactionType, userDocRef);
         if (resolvedTarget.error) {
@@ -406,10 +373,11 @@ export async function applyTransactionUpdate(transactionId: string, transactionT
             'asset_tx': 'actifTransactions'
         };
         const mainCollection = collectionMap[transactionType];
-        const indexedLinkedTxs = await findLinkedTransactionsFromOperationIndex(transactionId, transactionType, userDocRef);
-        if (getReadModelsMode() === 'read' && !indexedLinkedTxs) {
-            return { success: false, error: OPERATION_INDEX_REQUIRED };
+        const legacyMutationPolicy = resolveLegacyMutationPolicy({});
+        if (!legacyMutationPolicy.canMutate) {
+            return { success: false, error: legacyMutationPolicy.reason };
         }
+        const indexedLinkedTxs = await findLinkedTransactionsFromOperationIndex(transactionId, transactionType, userDocRef);
         const nextLinkedRows: IndexedFinancialRow[] = [];
         // Update main transaction
         const mainTxRef = userDocRef.collection(mainCollection).doc(transactionId);

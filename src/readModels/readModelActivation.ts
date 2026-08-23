@@ -9,6 +9,10 @@ import {
 
 export type SummaryWriteMode = 'off' | 'summary_write_shadow' | 'read';
 export type DashboardReadSource = 'legacy_full_history' | 'dashboard_summary' | 'controlled_legacy_fallback' | 'unavailable';
+export type LegacyMutationStatus = 'mutable_legacy' | 'immutable_legacy';
+
+export const IMMUTABLE_LEGACY = 'IMMUTABLE_LEGACY';
+export const LEGACY_BACKFILL_REQUIRED_FOR_READ_MODE = false;
 
 export type PreparedReadModelDeltaApplication = {
     status: 'disabled' | 'prepared';
@@ -20,6 +24,13 @@ export type PreparedReadModelDeltaApplication = {
     idempotencyDocId: string;
     failureBlocksLegacy: boolean;
     nextSnapshot?: DashboardReadModelSet;
+};
+
+export type LegacyMutationPolicy = {
+    status: LegacyMutationStatus;
+    canMutate: boolean;
+    reason?: typeof IMMUTABLE_LEGACY;
+    legacyBackfillRequired: false;
 };
 
 function configuredSummaryWriteMode(): string | undefined {
@@ -68,6 +79,28 @@ export function resolveDashboardReadSource(input: {
     if (!input.fallbackAlreadyUsed)
         return 'controlled_legacy_fallback';
     return 'unavailable';
+}
+
+export function resolveLegacyMutationPolicy(input: {
+    readModelsMode?: ReadModelsMode | string;
+}): LegacyMutationPolicy {
+    if (getReadModelsMode(input.readModelsMode) === 'read') {
+        return {
+            status: 'immutable_legacy',
+            canMutate: false,
+            reason: IMMUTABLE_LEGACY,
+            legacyBackfillRequired: LEGACY_BACKFILL_REQUIRED_FOR_READ_MODE,
+        };
+    }
+    return {
+        status: 'mutable_legacy',
+        canMutate: true,
+        legacyBackfillRequired: LEGACY_BACKFILL_REQUIRED_FOR_READ_MODE,
+    };
+}
+
+export function isImmutableLegacyMutationError(error?: string): boolean {
+    return error === IMMUTABLE_LEGACY;
 }
 
 export function prepareReadModelDeltaApplication(input: {

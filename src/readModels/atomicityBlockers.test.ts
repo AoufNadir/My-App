@@ -5,11 +5,14 @@ import {
     createLegacyOperationIndexDoc,
     deterministicLinkedId,
     flattenLegacyOperationIndexRows,
-    isOperationIndexRequiredError,
     LEGACY_OPERATION_INDEX_COLLECTIONS,
     legacyOperationIndexId,
-    OPERATION_INDEX_REQUIRED,
 } from './operationIndex';
+import {
+    IMMUTABLE_LEGACY,
+    LEGACY_BACKFILL_REQUIRED_FOR_READ_MODE,
+    isImmutableLegacyMutationError,
+} from './readModelActivation';
 
 const root = process.cwd();
 const source = (path: string) => readFileSync(join(root, path), 'utf8');
@@ -64,14 +67,17 @@ function sourceSlice(file: string, marker: string, endMarker: string): string {
         linkedRows: [{ collection: 'treasury_txs', id: 't1' }],
     });
     assert.deepEqual(flattenLegacyOperationIndexRows(deleted), [], 'deleted operation index must stop double delete');
-    assert.equal(isOperationIndexRequiredError(OPERATION_INDEX_REQUIRED), true);
+    assert.equal(isImmutableLegacyMutationError(IMMUTABLE_LEGACY), true);
 }
 
 {
     const transactionService = source('src/transactionService.ts');
-    assert.match(transactionService, /getReadModelsMode\(\) === 'read'/, 'read mode must block non-indexed legacy edit/delete');
-    assert.match(transactionService, /OPERATION_INDEX_REQUIRED/, 'missing operation index must be explicit');
-    assert.match(transactionService, /findLinkedTransactionsFromOperationIndex/, 'legacy edit/delete needs indexed linked rows');
+    const activationPolicy = source('src/readModels/readModelActivation.ts');
+    assert.equal(LEGACY_BACKFILL_REQUIRED_FOR_READ_MODE, false, 'Legacy index backfill must not be required for read mode activation');
+    assert.match(activationPolicy, /status:\s*'immutable_legacy'/, 'read mode must classify old Legacy operations as immutable');
+    assert.match(activationPolicy, /reason:\s*IMMUTABLE_LEGACY/, 'immutable Legacy mutations need an explicit reason');
+    assert.match(transactionService, /resolveLegacyMutationPolicy\(\{\}\)/, 'legacy edit/delete must use activation policy');
+    assert.match(transactionService, /!legacyMutationPolicy\.canMutate/, 'read mode must block direct Legacy edit/delete');
     assert.match(transactionService, /deterministicLinkedId\(transactionId, 'treasury-buy-cash'\)/, 'retryable edits need deterministic treasury child ids');
     assert.match(transactionService, /deterministicLinkedId\(transactionId, 'client-sell'\)/, 'retryable edits need deterministic client child ids');
 }

@@ -3,10 +3,14 @@ import { readFileSync } from 'node:fs';
 import type { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, TreasuryTx, Tx } from '../types';
 import { buildDashboardReadModelShadowFromLegacy } from './dashboardReadModels';
 import {
+    IMMUTABLE_LEGACY,
+    LEGACY_BACKFILL_REQUIRED_FOR_READ_MODE,
     getSummaryWriteMode,
+    isImmutableLegacyMutationError,
     isSummaryWriteFailureBlocking,
     prepareReadModelDeltaApplication,
     resolveDashboardReadSource,
+    resolveLegacyMutationPolicy,
     shouldSubscribeFullLegacyHistory,
     shouldUseDashboardSummaryForView,
 } from './readModelActivation';
@@ -66,6 +70,26 @@ assert.equal(resolveDashboardReadSource({ readModelsMode: 'shadow', hasDashboard
 assert.equal(resolveDashboardReadSource({ readModelsMode: 'read', hasDashboardSummary: true }), 'dashboard_summary');
 assert.equal(resolveDashboardReadSource({ readModelsMode: 'read', hasDashboardSummary: false }), 'controlled_legacy_fallback');
 assert.equal(resolveDashboardReadSource({ readModelsMode: 'read', hasDashboardSummary: false, fallbackAlreadyUsed: true }), 'unavailable');
+
+assert.equal(LEGACY_BACKFILL_REQUIRED_FOR_READ_MODE, false);
+assert.deepEqual(resolveLegacyMutationPolicy({ readModelsMode: 'legacy' }), {
+    status: 'mutable_legacy',
+    canMutate: true,
+    legacyBackfillRequired: false,
+});
+assert.deepEqual(resolveLegacyMutationPolicy({ readModelsMode: 'shadow' }), {
+    status: 'mutable_legacy',
+    canMutate: true,
+    legacyBackfillRequired: false,
+});
+assert.deepEqual(resolveLegacyMutationPolicy({ readModelsMode: 'read' }), {
+    status: 'immutable_legacy',
+    canMutate: false,
+    reason: IMMUTABLE_LEGACY,
+    legacyBackfillRequired: false,
+});
+assert.equal(isImmutableLegacyMutationError(IMMUTABLE_LEGACY), true);
+assert.equal(isImmutableLegacyMutationError('OPERATION_INDEX_REQUIRED'), false);
 
 const snapshot = baseSnapshot();
 const delta = buildReadModelDelta({
