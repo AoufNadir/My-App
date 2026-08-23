@@ -3,6 +3,7 @@ import type { User } from 'firebase/auth';
 import { useLanguage } from '../contexts/LanguageContext';
 import { usePoAdminData } from '../hooks/usePoAdminData';
 import { usePoOrderHandlers, type ApproveUserOptions, type CompleteOrderContext } from '../hooks/usePoOrderHandlers';
+import { inventoryFromLegacyPortfolioStats } from '../accounting/portfolioShadowLegacyAdapter';
 import { Button } from '../components/ui/Button';
 import { CatalogManager } from '../components/orders/CatalogManager';
 import type { ClientDzd, PoCashLocation, PoOrder, PoOrderStatus, PoRole, PoUser, PortfolioStats } from '../types';
@@ -402,7 +403,12 @@ export function OrdersAdminPage({ user, setAlert, clientsDzd, portfolioStats }: 
             const method = data.paymentMethods.find((pm) => pm.id === order.paymentMethodId);
             clientPaymentStatus = method?.type === 'cash' ? 'cash' : 'baridi';
         }
-        return { currencyCode: code, avgBuy, clientPaymentStatus };
+        return {
+            currencyCode: code,
+            avgBuy,
+            inventoryBefore: inventoryFromLegacyPortfolioStats(portfolioStats, code),
+            clientPaymentStatus,
+        };
     };
 
     const handleConfirm = async (order: PoOrder) => {

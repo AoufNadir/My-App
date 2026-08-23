@@ -5,6 +5,11 @@ import { now, parseAndEvaluate } from '../utils';
 import { roundM } from '../utils/money';
 import { formatNumber } from '../pages/shared/pageFormat';
 import { applyTransactionDelete } from '../transactionService';
+import { recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
+import { recordPortfolioShadow } from '../accounting/portfolioShadowDiagnostics';
+import { inventoryFromLegacyPortfolioStats } from '../accounting/portfolioShadowLegacyAdapter';
+import { recordClientShadow } from '../accounting/clientShadowDiagnostics';
+import { clientPositionFromLegacyRows } from '../accounting/clientShadowLegacyAdapter';
 import type { SmartSaleSnapshot } from '../services/smartPricingEngine';
 import {
     computeProjectExpensePreview,
@@ -133,6 +138,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         });
     }, [deliveryExpenseAmount, deliveryExpenseMethod, projectExpenseRates]);
     const getPortfolioAssetStats = (currency: PortfolioCurrency) => (currency === 'USDT' ? portfolioStats.usdt : portfolioStats.eur);
+    const getPortfolioInventory = (currency: PortfolioCurrency) => inventoryFromLegacyPortfolioStats(portfolioStats, currency);
+    const getPortfolioRemovalCost = (currency: PortfolioCurrency, quantity: number) => roundM(getPortfolioAssetStats(currency).avgBuy * quantity);
     const usdtFromEurCalc = useMemo(() => {
         const eurQty = parseAndEvaluate(buyEurForUsdtAmount);
         const eurPrice = parseAndEvaluate(eurDzdPrice);
@@ -522,6 +529,102 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 }
                 setAlert('✅ Transaction ajoutée.');
             }
+            if (buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit' && !shouldLinkCashToDzdClient) {
+                const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                recordTreasuryShadow({
+                    operationId: `shadow:portfolio-buy:${mainTxId}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'portfolio_purchase_cash',
+                    wallet,
+                    amountDzd: totalCost,
+                    currency: currency as PortfolioCurrency,
+                }, [{ type: 'Retrait', source: wallet, amount: totalCost }]);
+            }
+            const portfolioWarnings = editingTx
+                ? ['Legacy update replaces existing Portfolio rows; V2 uses an immutable future reversal and is not active yet.']
+                : [];
+            if (buyUsdtMode === 'with_eur') {
+                const eurRate = parseAndEvaluate(eurDzdPrice);
+                recordPortfolioShadow({
+                    operationId: `shadow:portfolio-exchange-eur-to-usdt:${mainTxId}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'portfolio_exchange_eur_to_usdt',
+                    fromCurrency: 'EUR',
+                    toCurrency: 'USDT',
+                    quantityOut: eurSpentForConversion,
+                    quantityIn: quantity,
+                    fromInventoryBefore: getPortfolioInventory('EUR'),
+                    exchangeValueDzd: usdtFromEurCalc?.totalCostDzd || 0,
+                    fromQuotedValueDzd: eurSpentForConversion * eurRate,
+                    toQuotedValueDzd: quantity * price,
+                }, {
+                    quantityDeltas: { USDT: quantity, EUR: -eurSpentForConversion },
+                    costBasisDeltasDzd: { USDT: totalCost, EUR: -getPortfolioRemovalCost('EUR', eurSpentForConversion) },
+                    warnings: portfolioWarnings,
+                });
+            }
+            else if (clientPaymentStatus === 'credit' || shouldLinkCashToDzdClient) {
+                recordPortfolioShadow({
+                    operationId: `shadow:portfolio-buy-credit:${mainTxId}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'portfolio_purchase_credit',
+                    currency: currency as PortfolioCurrency,
+                    quantity,
+                    inventoryBefore: getPortfolioInventory(currency as PortfolioCurrency),
+                    clientId: shouldLinkCashToDzdClient ? linkedClientDzdId : linkedClientId,
+                    valueDzd: totalCost,
+                }, {
+                    quantityDeltas: { [currency]: quantity },
+                    costBasisDeltasDzd: { [currency]: totalCost },
+                    clientPayableDzd: totalCost,
+                    warnings: portfolioWarnings,
+                });
+            }
+            else {
+                const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                recordPortfolioShadow({
+                    operationId: `shadow:portfolio-buy-cash:${mainTxId}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'portfolio_purchase_cash',
+                    currency: currency as PortfolioCurrency,
+                    quantity,
+                    inventoryBefore: getPortfolioInventory(currency as PortfolioCurrency),
+                    wallet,
+                    valueDzd: totalCost,
+                }, {
+                    quantityDeltas: { [currency]: quantity },
+                    costBasisDeltasDzd: { [currency]: totalCost },
+                    cashDeltasDzd: { [wallet]: -totalCost },
+                    warnings: portfolioWarnings,
+                });
+            }
+            if (!editingTx && clientPaymentStatus === 'credit' && linkedClientId !== 'none') {
+                recordClientShadow({
+                    operationId: `shadow:client-credit-purchase:${mainTxId}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'client_credit_purchase',
+                    amountDzd: totalCost,
+                    counterparty: { kind: 'client', id: linkedClientId },
+                }, { clientDeltas: { [linkedClientId]: totalCost }, clientPayableDzd: totalCost });
+            }
+            else if (!editingTx && shouldLinkCashToDzdClient) {
+                recordClientShadow({
+                    operationId: `shadow:client-buy-collector-adjustment:${mainTxId}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp + 1,
+                    kind: 'client_balance_adjustment',
+                    clientId: linkedClientDzdId,
+                    amountDzd: totalCost,
+                    positionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, linkedClientDzdId, timestamp),
+                    reason: 'Avance DZD liée à achat de devise',
+                    counterpartAccount: 'equity.client_balance_correction',
+                }, { clientDeltas: { [linkedClientDzdId]: totalCost } });
+            }
             await batch.commit();
             closeForm();
             if (linkedClientId !== 'none') {
@@ -759,6 +862,95 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 }
                 setAlert('✅ Transaction ajoutée.');
             }
+            if (!isUsdtSettledInEur && clientPaymentStatus !== 'credit' && !shouldLinkSettlementToDzdClient) {
+                const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                recordTreasuryShadow({
+                    operationId: `shadow:portfolio-sell:${editingTx?.id || `${timestamp}:${sellCurrency}`}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'portfolio_sale_cash',
+                    wallet,
+                    amountDzd: totalRevenue,
+                    currency: sellCurrency,
+                }, [{ type: 'Ajout', source: wallet, amount: totalRevenue }]);
+            }
+            const portfolioWarnings = editingTx
+                ? ['Legacy update replaces existing Portfolio rows; V2 uses an immutable future reversal and is not active yet.']
+                : [];
+            if (isUsdtSettledInEur) {
+                recordPortfolioShadow({
+                    operationId: `shadow:portfolio-exchange-usdt-to-eur:${editingTx?.id || `${timestamp}:USDT`}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'portfolio_exchange_usdt_to_eur',
+                    fromCurrency: 'USDT',
+                    toCurrency: 'EUR',
+                    quantityOut: quantity,
+                    quantityIn: saleValueEur,
+                    fromInventoryBefore: getPortfolioInventory('USDT'),
+                    exchangeValueDzd: saleValueDzd,
+                    fromQuotedValueDzd: quantity * sell,
+                    toQuotedValueDzd: saleValueEur * eurToDzdRateAtSale,
+                }, {
+                    quantityDeltas: { USDT: -quantity, EUR: saleValueEur },
+                    costBasisDeltasDzd: { USDT: -getPortfolioRemovalCost('USDT', quantity), EUR: totalRevenue },
+                    warnings: portfolioWarnings,
+                });
+            }
+            else if (clientPaymentStatus === 'credit' || shouldLinkSettlementToDzdClient) {
+                recordPortfolioShadow({
+                    operationId: `shadow:portfolio-sell-credit:${editingTx?.id || `${timestamp}:${sellCurrency}`}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'portfolio_sale_credit',
+                    currency: sellCurrency,
+                    quantity,
+                    inventoryBefore: getPortfolioInventory(sellCurrency),
+                    clientId: shouldLinkSettlementToDzdClient ? linkedClientDzdId : linkedClientId,
+                    proceedsDzd: totalRevenue,
+                }, {
+                    quantityDeltas: { [sellCurrency]: -quantity },
+                    costBasisDeltasDzd: { [sellCurrency]: -getPortfolioRemovalCost(sellCurrency, quantity) },
+                    clientReceivableDzd: totalRevenue,
+                    realizedTradingProfitDzd: profit,
+                    warnings: portfolioWarnings,
+                });
+            }
+            else {
+                const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                recordPortfolioShadow({
+                    operationId: `shadow:portfolio-sell-cash:${editingTx?.id || `${timestamp}:${sellCurrency}`}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'portfolio_sale_cash',
+                    currency: sellCurrency,
+                    quantity,
+                    inventoryBefore: getPortfolioInventory(sellCurrency),
+                    wallet,
+                    proceedsDzd: totalRevenue,
+                }, {
+                    quantityDeltas: { [sellCurrency]: -quantity },
+                    costBasisDeltasDzd: { [sellCurrency]: -getPortfolioRemovalCost(sellCurrency, quantity) },
+                    cashDeltasDzd: { [wallet]: totalRevenue },
+                    realizedTradingProfitDzd: profit,
+                    warnings: portfolioWarnings,
+                });
+            }
+            if (!editingTx && !isUsdtSettledInEur && (clientPaymentStatus === 'credit' || shouldLinkSettlementToDzdClient)) {
+                const clientId = shouldLinkSettlementToDzdClient ? linkedClientDzdId : linkedClientId;
+                if (clientId !== 'none') {
+                    recordClientShadow({
+                        operationId: `shadow:client-credit-sale:${editingTx?.id || `${timestamp}:${sellCurrency}`}`,
+                        actorUid: userDocRef.id,
+                        effectiveAt: timestamp,
+                        kind: 'client_credit_sale',
+                        clientId,
+                        amountDzd: totalRevenue,
+                        positionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, clientId, timestamp),
+                        revenueAccount: 'income.portfolio_sale',
+                    }, { clientDeltas: { [clientId]: -totalRevenue } });
+                }
+            }
             await batch.commit();
             closeForm();
             if (linkedClientId !== 'none') {
@@ -891,6 +1083,63 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         }
                     }
                 }
+            }
+            if (adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') {
+                const wallet = adjustmentAsset === 'DZD-Caisse' ? 'Caisse' : 'BaridiMob';
+                const kind = adjustmentTab === 'add' ? 'treasury_adjustment_in' : 'treasury_adjustment_out';
+                recordTreasuryShadow({
+                    operationId: `shadow:treasury-adjustment:${editingTreasuryTx?.id || stamp.timestamp}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: stamp.timestamp,
+                    kind,
+                    wallet,
+                    amountDzd: amountNum,
+                }, [{ type: adjustmentTab === 'add' ? 'Ajout' : 'Retrait', source: wallet, amount: amountNum }]);
+                if (!editingTreasuryTx && adjustmentClientId) {
+                    const clientAmount = adjustmentTab === 'add' ? amountNum : -amountNum;
+                    recordClientShadow({
+                        operationId: `shadow:client-linked-cash-adjustment:${adjustmentClientId}:${stamp.timestamp}`,
+                        actorUid: userDocRef.id,
+                        effectiveAt: stamp.timestamp,
+                        kind: adjustmentTab === 'add' ? 'client_cash_receipt' : 'client_cash_payout',
+                        clientId: adjustmentClientId,
+                        amountDzd: amountNum,
+                        positionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, adjustmentClientId, stamp.timestamp),
+                        wallet,
+                    }, {
+                        clientDeltas: { [adjustmentClientId]: clientAmount },
+                        cashDeltasDzd: { [wallet]: adjustmentTab === 'add' ? amountNum : -amountNum },
+                    });
+                }
+            }
+            else if (adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR') {
+                const currency = adjustmentAsset;
+                const quantity = roundM(amountNum);
+                const price = parseAndEvaluate(adjustmentPrice);
+                const valueDzd = roundM(quantity * price);
+                const isAddition = adjustmentTab === 'add';
+                recordPortfolioShadow(isAddition ? {
+                    operationId: `shadow:portfolio-adjustment:${stamp.timestamp}:${currency}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: stamp.timestamp,
+                    kind: 'portfolio_manual_add',
+                    currency,
+                    quantity,
+                    inventoryBefore: getPortfolioInventory(currency),
+                    valueDzd,
+                } : {
+                    operationId: `shadow:portfolio-adjustment:${stamp.timestamp}:${currency}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: stamp.timestamp,
+                    kind: 'portfolio_manual_remove',
+                    currency,
+                    quantity,
+                    inventoryBefore: getPortfolioInventory(currency),
+                }, {
+                    quantityDeltas: { [currency]: isAddition ? quantity : -quantity },
+                    costBasisDeltasDzd: { [currency]: isAddition ? valueDzd : -getPortfolioRemovalCost(currency, quantity) },
+                    ...(isAddition && price <= 0 ? { warnings: ['Legacy manual addition has no DZD value and cannot become a balanced V2 posting.'] } : {}),
+                });
             }
             await batch.commit();
             setAlert('✅ Ajustement enregistré.');
@@ -1055,6 +1304,31 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     origin: 'delivery_expense',
                 });
             }
+            if (isCashWallet(deliveryExpenseMethod)) {
+                recordTreasuryShadow({
+                    operationId: `shadow:project-expense:${expenseRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'project_expense_cash',
+                    wallet: deliveryExpenseMethod,
+                    amountDzd: preview.amountDzd,
+                }, [{ type: 'Retrait', source: deliveryExpenseMethod, amount: preview.amountDzd }]);
+            }
+            else if (isAssetWallet(deliveryExpenseMethod)) {
+                const currency = deliveryExpenseMethod;
+                recordPortfolioShadow({
+                    operationId: `shadow:project-expense-asset:${expenseRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'portfolio_project_expense_asset',
+                    currency,
+                    quantity: amountNum,
+                    inventoryBefore: getPortfolioInventory(currency),
+                }, {
+                    quantityDeltas: { [currency]: -amountNum },
+                    costBasisDeltasDzd: { [currency]: -getPortfolioRemovalCost(currency, amountNum) },
+                });
+            }
             await batch.commit();
             setAlert('✅ Frais du projet enregistrés.');
             setIsDeliveryExpenseModalOpen(false);
@@ -1165,6 +1439,17 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 type: 'Transfert Entrant', notes: note,
                 paymentMethod: 'Crédit', linkedTxId: outgoingTransferRef.id
             });
+            recordClientShadow({
+                operationId: `shadow:client-advance-transfer:${transferFromClientId}:${transferToClientId}:${timestamp}`,
+                actorUid: userDocRef.id,
+                effectiveAt: timestamp,
+                kind: 'client_advance_transfer',
+                fromClientId: transferFromClientId,
+                toClientId: transferToClientId,
+                amountDzd: amt,
+                fromPositionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, transferFromClientId, timestamp),
+                toPositionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, transferToClientId, timestamp),
+            }, { clientDeltas: { [transferFromClientId]: -amt, [transferToClientId]: amt }, clientAdvanceDzd: 0 });
             await batch.commit();
             setAlert('✅ Transfert réussi.');
             setIsTransferModalOpen(false);

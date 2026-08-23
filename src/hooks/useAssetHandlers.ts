@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { db, type FirestoreDocumentReference } from '../firebase';
 import { ManualAsset, ManualAssetClient, ManualAssetTransaction } from '../types';
+import { recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
 type AssetClientInput = {
     fullName: string;
     phone?: string;
@@ -60,14 +61,14 @@ export function useAssetHandlers(userDocRef: FirestoreDocumentReference, manualA
         }
     };
     const handleDeleteAsset = async (assetId: string, txCount: number) => {
-        if (txCount > 0) {
-            setAlert('⚠️ Impossible de supprimer : Transactions existantes.');
-            return;
-        }
         setIsSaving(true);
         try {
-            await userDocRef.collection('manual_assets').doc(assetId).delete();
-            setAlert('✅ Service supprimé.');
+            await userDocRef.collection('manual_assets').doc(assetId).update({
+                archived: true,
+                archivedAt: Date.now(),
+                archivedReason: txCount > 0 ? 'user_delete_with_history' : 'user_delete',
+            });
+            setAlert('✅ Service archivé.');
             return true;
         }
         catch (e) {
@@ -109,6 +110,16 @@ export function useAssetHandlers(userDocRef: FirestoreDocumentReference, manualA
                     linkedAssetTxId: assetTxRef.id
                 });
                 batch.update(assetTxRef, { linkedTreasuryTxId: treasuryTxRef.id });
+                const wallet = data.paymentMethod === 'cash' ? 'Caisse' : 'BaridiMob';
+                recordTreasuryShadow({
+                    operationId: `shadow:manual-asset:${assetTxRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: data.timestamp,
+                    kind: isInflow ? 'manual_asset_receipt_cash' : 'manual_asset_payout_cash',
+                    wallet,
+                    amountDzd: Math.abs(Number(data.amount)),
+                    clientId: data.clientId,
+                }, [{ type: treasuryType, source: wallet, amount: Math.abs(Number(data.amount)) }]);
             }
             await batch.commit();
             setAlert('✅ Transaction ajoutée.');
@@ -214,51 +225,15 @@ export function useAssetHandlers(userDocRef: FirestoreDocumentReference, manualA
         const client = manualAssetClients.find((c) => c.id === clientId);
         if (!client)
             return;
-        const bal = assetClientBalances.get(`${client.assetId}_${clientId}`) || 0;
-        if (Math.abs(bal) > 0.01) {
-            setAlert('⚠️ Impossible de supprimer : Solde non nul.');
-            return;
-        }
         setIsSaving(true);
         try {
-            // FIX-6 (Q8): cascade-delete the client's actifTransactions (and any linked
-            // treasury_txs) so deletion does not leave orphan rows. Mirrors the pattern in
-            // useClientHandlers.handleDeleteClient (B-014). Batched for atomicity.
-            const assetTxsSnap = await userDocRef
-                .collection('actifTransactions')
-                .where('clientId', '==', clientId)
-                .get();
-            const linkedTreasuryIds: string[] = [];
-            assetTxsSnap.forEach((doc) => {
-                const data = doc.data() as {
-                    linkedTreasuryTxId?: string;
-                };
-                if (data.linkedTreasuryTxId)
-                    linkedTreasuryIds.push(data.linkedTreasuryTxId);
+            const bal = assetClientBalances.get(`${client.assetId}_${clientId}`) || 0;
+            await userDocRef.collection('manual_asset_clients').doc(clientId).update({
+                archived: true,
+                archivedAt: Date.now(),
+                archivedReason: Math.abs(bal) > 0.01 ? 'user_delete_with_open_balance' : 'user_delete',
             });
-            let batch = db.batch();
-            let opCount = 0;
-            const flush = async () => {
-                if (opCount === 0)
-                    return;
-                await batch.commit();
-                batch = db.batch();
-                opCount = 0;
-            };
-            assetTxsSnap.forEach((doc) => {
-                batch.delete(doc.ref);
-                opCount += 1;
-            });
-            for (const treasuryId of linkedTreasuryIds) {
-                batch.delete(userDocRef.collection('treasury_txs').doc(treasuryId));
-                opCount += 1;
-                if (opCount >= 400)
-                    await flush();
-            }
-            batch.delete(userDocRef.collection('manual_asset_clients').doc(clientId));
-            opCount += 1;
-            await flush();
-            setAlert('✅ Client supprimé.');
+            setAlert('✅ Client archivé (historique financier conservé).');
             return true;
         }
         catch (e) {

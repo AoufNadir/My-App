@@ -3,6 +3,9 @@ import { db, fieldValueDelete, type FirestoreDocumentReference } from '../fireba
 import { ClientDzd, ClientTransactionDzd, Investor, TreasuryTx } from '../types';
 import { now, parseAndEvaluate } from '../utils';
 import { normalizeLedgerLabel } from '../utils/financialUx';
+import { recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
+import { recordClientShadow } from '../accounting/clientShadowDiagnostics';
+import { clientPositionFromLegacyRows } from '../accounting/clientShadowLegacyAdapter';
 type ClientDeleteMode = 'history' | 'balance_only' | 'client_only_cleanup' | 'blocked';
 const CLIENT_DELETE_EPSILON = 0.01;
 const CLIENT_TX_PAYMENT_RECEIVED = 'Règlement Reçu';
@@ -109,9 +112,21 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 const newBal = parseAndEvaluate(clientBalanceInput);
                 if (!isNaN(newBal) && Math.abs(newBal - currentBal) > 0.01) {
                     const { date, time, timestamp } = now();
+                    const amountDzd = newBal - currentBal;
+                    recordClientShadow({
+                        operationId: `shadow:client-balance-adjustment:${editingClient.id}:${timestamp}`,
+                        actorUid: userDocRef.id,
+                        effectiveAt: timestamp,
+                        kind: 'client_balance_adjustment',
+                        clientId: editingClient.id,
+                        amountDzd,
+                        positionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, editingClient.id, timestamp),
+                        reason: 'Mise à jour manuelle du solde',
+                        counterpartAccount: 'equity.client_balance_correction',
+                    }, { clientDeltas: { [editingClient.id]: amountDzd } });
                     await userDocRef.collection('dzd_client_txs').add({
                         clientId: editingClient.id, timestamp, date, time,
-                        montant: newBal - currentBal, type: 'Ajustement Solde',
+                        montant: amountDzd, type: 'Ajustement Solde',
                         notes: 'Mise à jour manuelle du solde', paymentMethod: 'Crédit'
                     });
                 }
@@ -129,6 +144,17 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 const initBal = parseAndEvaluate(initialBalance);
                 if (initBal !== 0 && !isNaN(initBal)) {
                     const { date, time, timestamp } = now();
+                    recordClientShadow({
+                        operationId: `shadow:client-initial-balance:${ref.id}:${timestamp}`,
+                        actorUid: userDocRef.id,
+                        effectiveAt: timestamp,
+                        kind: 'client_initial_balance',
+                        clientId: ref.id,
+                        amountDzd: initBal,
+                        positionBefore: clientPositionFromLegacyRows([], ref.id, timestamp),
+                        reason: 'Solde initial',
+                        counterpartAccount: 'equity.client_opening_balance',
+                    }, { clientDeltas: { [ref.id]: initBal } });
                     await userDocRef.collection('dzd_client_txs').add({
                         clientId: ref.id, timestamp, date, time,
                         type: 'Solde Initial', montant: initBal, notes: 'Solde initial', paymentMethod: 'Crédit'
@@ -202,27 +228,13 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             return false;
         return investors.some((investor) => normalizePersonName(investor.name) === clientName);
     };
-    const commitDeleteRefs = async (deleteRefs: Array<{
-        collection: string;
-        id: string;
-    }>) => {
-        let batch = db.batch();
-        let operationsCount = 0;
-        const flushIfNeeded = async () => {
-            if (operationsCount < 400)
-                return;
-            await batch.commit();
-            batch = db.batch();
-            operationsCount = 0;
-        };
-        for (const refInfo of deleteRefs) {
-            batch.delete(userDocRef.collection(refInfo.collection).doc(refInfo.id));
-            operationsCount += 1;
-            await flushIfNeeded();
-        }
-        if (operationsCount > 0) {
-            await batch.commit();
-        }
+    const archiveClient = async (clientId: string) => {
+        await userDocRef.collection('dzd_clients').doc(clientId).update({
+            isActive: false,
+            archived: true,
+            archivedAt: Date.now(),
+            archivedReason: 'user_delete',
+        });
     };
     const requestClientDelete = async (client: ClientDzd | null) => {
         if (!client || isSaving)
@@ -241,8 +253,8 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         if (clientHistory.length === 0) {
             setIsSaving(true);
             try {
-                await commitDeleteRefs([{ collection: 'dzd_clients', id: client.id }]);
-                setAlert('✅ Client supprimé.');
+                await archiveClient(client.id);
+                setAlert('✅ Client archivé.');
                 closeClientDeleteDialog();
                 return true;
             }
@@ -264,16 +276,10 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             return false;
         setIsSaving(true);
         try {
-            const clientTxIdsToDelete = new Set<string>();
-            const treasuryTxIdsToDelete = new Set<string>();
-            const treasuryTxIds = new Set(treasuryTransactions.map((tx) => tx.id));
             const clientHistory = clientTransactionsDzd.filter((tx) => tx.clientId === clientToDelete.id);
             if (clientDeleteMode === 'client_only_cleanup') {
-                await commitDeleteRefs([
-                    { collection: 'dzd_clients', id: clientToDelete.id },
-                    ...clientHistory.map((tx) => ({ collection: 'dzd_client_txs', id: tx.id }))
-                ]);
-                setAlert('✅ Client supprimé (clients quotidiens uniquement).');
+                await archiveClient(clientToDelete.id);
+                setAlert('✅ Client archivé (historique financier conservé).');
                 closeClientDeleteDialog();
                 return true;
             }
@@ -282,31 +288,8 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 setAlert("⚠️ Suppression bloquée : ce client contient une opération liée.");
                 return false;
             }
-            for (const tx of clientHistory) {
-                clientTxIdsToDelete.add(tx.id);
-                const transferCounterpart = findTransferCounterpart(tx);
-                if (transferCounterpart) {
-                    clientTxIdsToDelete.add(transferCounterpart.id);
-                }
-                if (tx.linkedTxId && treasuryTxIds.has(tx.linkedTxId)) {
-                    treasuryTxIdsToDelete.add(tx.linkedTxId);
-                }
-            }
-            for (const treasuryTx of treasuryTransactions) {
-                if (treasuryTx.linkedTxId && clientTxIdsToDelete.has(treasuryTx.linkedTxId)) {
-                    treasuryTxIdsToDelete.add(treasuryTx.id);
-                }
-            }
-            const deleteRefs: Array<{
-                collection: string;
-                id: string;
-            }> = [
-                { collection: 'dzd_clients', id: clientToDelete.id },
-                ...Array.from(clientTxIdsToDelete, (id) => ({ collection: 'dzd_client_txs', id })),
-                ...Array.from(treasuryTxIdsToDelete, (id) => ({ collection: 'treasury_txs', id }))
-            ];
-            await commitDeleteRefs(deleteRefs);
-            setAlert('✅ Client et historique supprimés.');
+            await archiveClient(clientToDelete.id);
+            setAlert('✅ Client archivé (historique financier conservé).');
             closeClientDeleteDialog();
             return true;
         }
@@ -532,6 +515,64 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     setAlert('✅ Transaction ajoutée.');
                 }
             }
+            if (effectiveClientPaymentStatus !== 'credit' && receiverClientId === 'none') {
+                const kind = isPaymentReceived ? 'client_receipt_cash' : 'client_payout_cash';
+                recordTreasuryShadow({
+                    operationId: `shadow:client-settlement:${editingClientTx?.id || `${targetClientId}:${timestamp}`}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind,
+                    wallet: walletSource,
+                    amountDzd: amount,
+                    clientId: targetClientId,
+                }, [{ type: treasuryTxType, source: walletSource, amount }]);
+            }
+            if (!editingClientTx) {
+                if (receiverClientId !== 'none') {
+                    if (isPaymentReceived) {
+                        recordClientShadow({
+                            operationId: `shadow:client-receivable-transfer:${targetClientId}:${receiverClientId}:${timestamp}`,
+                            actorUid: userDocRef.id,
+                            effectiveAt: timestamp,
+                            kind: 'client_receivable_transfer',
+                            fromClientId: targetClientId,
+                            toClientId: receiverClientId,
+                            amountDzd: amount,
+                            fromPositionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, targetClientId, timestamp),
+                            toPositionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, receiverClientId, timestamp),
+                        }, { clientDeltas: { [targetClientId]: amount, [receiverClientId]: -amount }, receivableDzd: 0 });
+                    }
+                    else {
+                        recordClientShadow({
+                            operationId: `shadow:client-advance-transfer:${receiverClientId}:${targetClientId}:${timestamp}`,
+                            actorUid: userDocRef.id,
+                            effectiveAt: timestamp,
+                            kind: 'client_advance_transfer',
+                            fromClientId: receiverClientId,
+                            toClientId: targetClientId,
+                            amountDzd: amount,
+                            fromPositionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, receiverClientId, timestamp),
+                            toPositionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, targetClientId, timestamp),
+                        }, { clientDeltas: { [receiverClientId]: -amount, [targetClientId]: amount }, clientAdvanceDzd: 0 });
+                    }
+                }
+                else if (effectiveClientPaymentStatus !== 'credit') {
+                    const positionBefore = clientPositionFromLegacyRows(clientTransactionsDzd, targetClientId, timestamp);
+                    recordClientShadow({
+                        operationId: `shadow:client-cash-settlement:${targetClientId}:${timestamp}`,
+                        actorUid: userDocRef.id,
+                        effectiveAt: timestamp,
+                        kind: isPaymentReceived ? 'client_cash_receipt' : 'client_cash_payout',
+                        clientId: targetClientId,
+                        amountDzd: amount,
+                        positionBefore,
+                        wallet: walletSource,
+                    }, {
+                        clientDeltas: { [targetClientId]: montant },
+                        cashDeltasDzd: { [walletSource]: isPaymentReceived ? amount : -amount },
+                    });
+                }
+            }
             await batch.commit();
             setIsClientTxModalOpen(false);
             setEditingClientTx(null);
@@ -573,6 +614,28 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         // balance > 0 → we owe client → create a debit (remise d'avance)
         const montant = -balance; // opposite sign zeroes the balance
         try {
+            const positionBefore = clientPositionFromLegacyRows(clientTransactionsDzd, clientId, timestamp);
+            recordClientShadow(balance < 0 ? {
+                operationId: `shadow:client-receivable-write-off:${clientId}:${timestamp}`,
+                actorUid: userDocRef.id,
+                effectiveAt: timestamp,
+                kind: 'client_write_off_receivable',
+                clientId,
+                amountDzd: Math.abs(montant),
+                positionBefore,
+                reason: 'Effacement solde résiduel',
+            } : {
+                operationId: `shadow:client-advance-cancellation:${clientId}:${timestamp}`,
+                actorUid: userDocRef.id,
+                effectiveAt: timestamp,
+                kind: 'client_advance_cancellation',
+                clientId,
+                amountDzd: Math.abs(montant),
+                positionBefore,
+                reason: 'Effacement solde résiduel',
+            }, balance < 0
+                ? { clientDeltas: { [clientId]: montant }, receivableDzd: -Math.abs(montant) }
+                : { clientDeltas: { [clientId]: montant }, clientAdvanceDzd: -Math.abs(montant) });
             await userDocRef.collection('dzd_client_txs').add({
                 clientId,
                 timestamp, date, time,

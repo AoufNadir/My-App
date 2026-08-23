@@ -142,6 +142,9 @@ export interface Investor {
     phone?: string;
     password?: string; // For simple auth simulation if needed
     isManager?: boolean;
+    archived?: boolean;
+    archivedAt?: number;
+    archivedReason?: string;
 }
 export interface InvestorTransaction {
     id: string;
@@ -167,6 +170,10 @@ export interface ClientDzd {
     creditLimit?: number;
     group?: string;
     isFournisseur?: boolean;
+    isActive?: boolean;
+    archived?: boolean;
+    archivedAt?: number;
+    archivedReason?: string;
     nom?: string; // Legacy support
     prenom?: string; // Legacy support
 }
@@ -262,6 +269,8 @@ export interface ManualAsset {
     createdAt: number;
     updatedAt: number;
     archived?: boolean;
+    archivedAt?: number;
+    archivedReason?: string;
 }
 export interface ManualAssetClient {
     id: string;
@@ -272,6 +281,9 @@ export interface ManualAssetClient {
     notes?: string;
     createdAt: number;
     updatedAt: number;
+    archived?: boolean;
+    archivedAt?: number;
+    archivedReason?: string;
 }
 export type ManualAssetTransactionType = 'service' | 'payment_received' | 'payment_made' | 'adjustment' | 'invoice';
 export interface ManualAssetTransaction {

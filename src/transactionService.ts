@@ -1,5 +1,18 @@
 import type { FirestoreDocumentReference } from './firebase';
 import { formatNumber } from './pages/shared/pageFormat';
+import { recordTreasuryLegacyDeletionShadow, recordTreasuryShadow } from './accounting/treasuryShadowDiagnostics';
+import { getReadModelsMode } from './readModels/dashboardReadModels';
+import {
+    createLegacyOperationIndexDoc,
+    deterministicLinkedId,
+    flattenLegacyOperationIndexRows,
+    legacyOperationIndexId,
+    LEGACY_OPERATION_INDEX_COLLECTION,
+    legacyTypeForCollection,
+    OPERATION_INDEX_REQUIRED,
+    type IndexedFinancialRow,
+    type LegacyOperationIndexDoc,
+} from './readModels/operationIndex';
 type TransactionType = 'usdt_tx' | 'client_tx' | 'treasury_tx' | 'asset_tx';
 interface LinkedTransaction {
     id: string;
@@ -13,6 +26,85 @@ const COLLECTION_MAP: Record<TransactionType, string> = {
     treasury_tx: 'treasury_txs',
     asset_tx: 'actifTransactions'
 };
+
+function operationIndexRef(userDocRef: FirestoreDocumentReference, transactionType: TransactionType, transactionId: string) {
+    return userDocRef
+        .collection(LEGACY_OPERATION_INDEX_COLLECTION)
+        .doc(legacyOperationIndexId(transactionType, transactionId));
+}
+
+function linkedTransactionsFromIndexedRows(rows: readonly IndexedFinancialRow[], transactionType: TransactionType, transactionId: string): LinkedTransaction[] {
+    const mainCollection = COLLECTION_MAP[transactionType];
+    return rows
+        .filter((row) => !(row.collection === mainCollection && row.id === transactionId))
+        .map((row) => ({
+            id: row.id,
+            collection: row.collection,
+            type: (row.transactionType || legacyTypeForCollection(row.collection) || transactionType) as TransactionType,
+            data: {},
+        }));
+}
+
+async function loadOperationIndexRows(transactionId: string, transactionType: TransactionType, userDocRef: FirestoreDocumentReference): Promise<IndexedFinancialRow[] | null> {
+    const indexDoc = await operationIndexRef(userDocRef, transactionType, transactionId).get();
+    if (!indexDoc.exists) return null;
+    const rows = flattenLegacyOperationIndexRows(indexDoc.data() as LegacyOperationIndexDoc);
+    return rows.length > 0 ? rows : null;
+}
+
+async function findLinkedTransactionsFromOperationIndex(transactionId: string, transactionType: TransactionType, userDocRef: FirestoreDocumentReference): Promise<LinkedTransaction[] | null> {
+    const rows = await loadOperationIndexRows(transactionId, transactionType, userDocRef);
+    if (!rows) return null;
+    return linkedTransactionsFromIndexedRows(rows, transactionType, transactionId);
+}
+
+async function applyIndexedTransactionDelete(transactionId: string, transactionType: TransactionType, userDocRef: FirestoreDocumentReference): Promise<{
+    success: boolean;
+    error?: string;
+}> {
+    const indexedRows = await loadOperationIndexRows(transactionId, transactionType, userDocRef);
+    if (!indexedRows) {
+        return { success: false, error: OPERATION_INDEX_REQUIRED };
+    }
+    const deletedAt = Date.now();
+    const batch = userDocRef.firestore.batch();
+    const treasuryRows: any[] = [];
+    for (const row of indexedRows) {
+        const rowRef = userDocRef.collection(row.collection).doc(row.id);
+        if (row.collection === 'treasury_txs') {
+            const rowSnap = await rowRef.get();
+            const rowData = rowSnap.data();
+            if (rowData) treasuryRows.push(rowData);
+        }
+        batch.delete(rowRef);
+    }
+    batch.set(operationIndexRef(userDocRef, transactionType, transactionId), createLegacyOperationIndexDoc({
+        transactionId,
+        transactionType,
+        linkedRows: indexedRows.filter((row) => row.role !== 'root'),
+        updatedAt: deletedAt,
+        deletedAt,
+        status: 'deleted',
+    }));
+    recordTreasuryDeletionShadow(userDocRef, transactionId, treasuryRows);
+    await batch.commit();
+    return { success: true };
+}
+
+function recordTreasuryDeletionShadow(userDocRef: FirestoreDocumentReference, operationId: string, rows: readonly any[]): void {
+    rows.forEach((row, index) => {
+        const wallet = row?.source === 'Caisse' || row?.source === 'BaridiMob' ? row.source : null;
+        const amount = Math.abs(Number(row?.amount || 0));
+        if (!wallet || !Number.isFinite(amount) || amount <= 0) return;
+        const destination = row?.destination === 'Caisse' || row?.destination === 'BaridiMob' ? row.destination : undefined;
+        recordTreasuryLegacyDeletionShadow({
+            operationId: `shadow:legacy-delete:${operationId}:${index}`,
+            actorUid: userDocRef.id,
+            effectiveAt: Date.now(),
+            row: { type: row.type, source: wallet, destination, amount },
+        });
+    });
+}
 async function resolveDeletionTarget(transactionId: string, transactionType: TransactionType, userDocRef: FirestoreDocumentReference, visited = new Set<string>()): Promise<{
     transactionId: string;
     transactionType: TransactionType;
@@ -142,6 +234,9 @@ export async function applyTransactionDelete(transactionId: string, transactionT
     error?: string;
 }> {
     try {
+        if (getReadModelsMode() === 'read') {
+            return applyIndexedTransactionDelete(transactionId, transactionType, userDocRef);
+        }
         const resolvedTarget = await resolveDeletionTarget(transactionId, transactionType, userDocRef);
         if (resolvedTarget.error) {
             return {
@@ -153,10 +248,16 @@ export async function applyTransactionDelete(transactionId: string, transactionT
         transactionType = resolvedTarget.transactionType;
         const batch = userDocRef.firestore.batch();
         const mainCollection = COLLECTION_MAP[transactionType];
+        const mainSnapshot = await userDocRef.collection(mainCollection).doc(transactionId).get();
+        const mainData = mainSnapshot.data() as any;
         // Delete main transaction
         batch.delete(userDocRef.collection(mainCollection).doc(transactionId));
         // Find and delete all linked transactions
         const linkedTxs = await findLinkedTransactions(transactionId, userDocRef);
+        recordTreasuryDeletionShadow(userDocRef, transactionId, [
+            ...(transactionType === 'treasury_tx' && mainData ? [mainData] : []),
+            ...linkedTxs.filter((tx) => tx.collection === 'treasury_txs').map((tx) => tx.data),
+        ]);
         for (const linkedTx of linkedTxs) {
             batch.delete(userDocRef.collection(linkedTx.collection).doc(linkedTx.id));
         }
@@ -260,6 +361,20 @@ export async function applyTransactionDelete(transactionId: string, transactionT
                 }
             }
         }
+        const deletedAt = Date.now();
+        batch.set(operationIndexRef(userDocRef, transactionType, transactionId), createLegacyOperationIndexDoc({
+            transactionId,
+            transactionType,
+            linkedRows: linkedTxs.map((linkedTx) => ({
+                collection: linkedTx.collection,
+                id: linkedTx.id,
+                role: 'linked',
+                transactionType: linkedTx.type,
+            })),
+            updatedAt: deletedAt,
+            deletedAt,
+            status: 'deleted',
+        }));
         await batch.commit();
         return { success: true };
     }
@@ -291,11 +406,16 @@ export async function applyTransactionUpdate(transactionId: string, transactionT
             'asset_tx': 'actifTransactions'
         };
         const mainCollection = collectionMap[transactionType];
+        const indexedLinkedTxs = await findLinkedTransactionsFromOperationIndex(transactionId, transactionType, userDocRef);
+        if (getReadModelsMode() === 'read' && !indexedLinkedTxs) {
+            return { success: false, error: OPERATION_INDEX_REQUIRED };
+        }
+        const nextLinkedRows: IndexedFinancialRow[] = [];
         // Update main transaction
         const mainTxRef = userDocRef.collection(mainCollection).doc(transactionId);
         batch.update(mainTxRef, newData);
         // Find and delete all old linked transactions
-        const linkedTxs = await findLinkedTransactions(transactionId, userDocRef);
+        const linkedTxs = indexedLinkedTxs || await findLinkedTransactions(transactionId, userDocRef);
         for (const linkedTx of linkedTxs) {
             batch.delete(userDocRef.collection(linkedTx.collection).doc(linkedTx.id));
         }
@@ -311,7 +431,8 @@ export async function applyTransactionUpdate(transactionId: string, transactionT
                 // Treasury Transaction (if Cash or Baridi)
                 if (resolvedPaymentMethod === 'Espèces' || resolvedPaymentMethod === 'BaridiMob') {
                     const source = resolvedPaymentMethod === 'BaridiMob' ? 'BaridiMob' : 'Caisse';
-                    batch.set(userDocRef.collection('treasury_txs').doc(), {
+                    const treasuryRef = userDocRef.collection('treasury_txs').doc(deterministicLinkedId(transactionId, 'treasury-buy-cash'));
+                    batch.set(treasuryRef, {
                         timestamp,
                         date,
                         time,
@@ -322,10 +443,21 @@ export async function applyTransactionUpdate(transactionId: string, transactionT
                         linkedTxId: transactionId,
                         origin: 'usdt_tx'
                     });
+                    nextLinkedRows.push({ collection: 'treasury_txs', id: treasuryRef.id, role: 'linked', transactionType: 'treasury_tx' });
+                    recordTreasuryShadow({
+                        operationId: `shadow:transaction-update:buy:${transactionId}`,
+                        actorUid: userDocRef.id,
+                        effectiveAt: timestamp,
+                        kind: 'portfolio_purchase_cash',
+                        wallet: source,
+                        amountDzd: totalCost,
+                        currency: newData.currency === 'EUR' ? 'EUR' : 'USDT',
+                    }, [{ type: 'Retrait', source, amount: totalCost }]);
                 }
                 // Client transaction is always stored for history.
                 if (linkedClientId && linkedClientId !== 'none') {
-                    batch.set(userDocRef.collection('dzd_client_txs').doc(), {
+                    const clientRef = userDocRef.collection('dzd_client_txs').doc(deterministicLinkedId(transactionId, 'client-buy'));
+                    batch.set(clientRef, {
                         clientId: linkedClientId,
                         timestamp,
                         date,
@@ -337,6 +469,7 @@ export async function applyTransactionUpdate(transactionId: string, transactionT
                         paymentMethod: resolvedPaymentMethod,
                         affectsBalance: resolvedPaymentMethod === 'Crédit'
                     });
+                    nextLinkedRows.push({ collection: 'dzd_client_txs', id: clientRef.id, role: 'linked', transactionType: 'client_tx' });
                 }
             }
             else if (newData.type === 'sell') {
@@ -344,7 +477,8 @@ export async function applyTransactionUpdate(transactionId: string, transactionT
                 // Treasury Transaction (if Cash or Baridi)
                 if (resolvedPaymentMethod === 'Espèces' || resolvedPaymentMethod === 'BaridiMob') {
                     const source = resolvedPaymentMethod === 'BaridiMob' ? 'BaridiMob' : 'Caisse';
-                    batch.set(userDocRef.collection('treasury_txs').doc(), {
+                    const treasuryRef = userDocRef.collection('treasury_txs').doc(deterministicLinkedId(transactionId, 'treasury-sell-cash'));
+                    batch.set(treasuryRef, {
                         timestamp,
                         date,
                         time,
@@ -355,10 +489,21 @@ export async function applyTransactionUpdate(transactionId: string, transactionT
                         linkedTxId: transactionId,
                         origin: 'usdt_tx'
                     });
+                    nextLinkedRows.push({ collection: 'treasury_txs', id: treasuryRef.id, role: 'linked', transactionType: 'treasury_tx' });
+                    recordTreasuryShadow({
+                        operationId: `shadow:transaction-update:sell:${transactionId}`,
+                        actorUid: userDocRef.id,
+                        effectiveAt: timestamp,
+                        kind: 'portfolio_sale_cash',
+                        wallet: source,
+                        amountDzd: totalRevenue,
+                        currency: newData.currency === 'EUR' ? 'EUR' : 'USDT',
+                    }, [{ type: 'Ajout', source, amount: totalRevenue }]);
                 }
                 // Client transaction is always stored for history.
                 if (linkedClientId && linkedClientId !== 'none') {
-                    batch.set(userDocRef.collection('dzd_client_txs').doc(), {
+                    const clientRef = userDocRef.collection('dzd_client_txs').doc(deterministicLinkedId(transactionId, 'client-sell'));
+                    batch.set(clientRef, {
                         clientId: linkedClientId,
                         timestamp,
                         date,
@@ -370,12 +515,20 @@ export async function applyTransactionUpdate(transactionId: string, transactionT
                         paymentMethod: resolvedPaymentMethod,
                         affectsBalance: resolvedPaymentMethod === 'Crédit'
                     });
+                    nextLinkedRows.push({ collection: 'dzd_client_txs', id: clientRef.id, role: 'linked', transactionType: 'client_tx' });
                 }
             }
         }
         // For client_tx and treasury_tx updates, we typically don't recreate links
         // because they are usually edited directly through their own forms
         // The main use case for applyTransactionUpdate is for USDT transactions
+        batch.set(operationIndexRef(userDocRef, transactionType, transactionId), createLegacyOperationIndexDoc({
+            transactionId,
+            transactionType,
+            linkedRows: nextLinkedRows,
+            updatedAt: Date.now(),
+            status: 'active',
+        }));
         await batch.commit();
         return { success: true };
     }

@@ -35,10 +35,11 @@ export function useManualAssetClientManager({ assetId, clients, clientBalances, 
     const [editingClient, setEditingClient] = useState<ManualAssetClient | null>(null);
     const [clientForm, setClientForm] = useState<ClientFormData>(getEmptyClientForm());
     const filteredClients = useMemo(() => {
+        const activeClients = clients.filter((client) => client.archived !== true);
         const normalizedQuery = searchQuery.trim().toLowerCase();
         if (!normalizedQuery)
-            return clients;
-        return clients.filter((client) => client.fullName.toLowerCase().includes(normalizedQuery) ||
+            return activeClients;
+        return activeClients.filter((client) => client.fullName.toLowerCase().includes(normalizedQuery) ||
             (client.phone || '').includes(normalizedQuery));
     }, [clients, searchQuery]);
     const openCreateModal = () => {

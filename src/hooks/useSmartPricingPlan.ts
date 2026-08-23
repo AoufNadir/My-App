@@ -147,6 +147,7 @@ function overrideDocId(override: Pick<PricingOverride, 'kind' | 'currency' | 'cl
         ? `market_${override.currency}`
         : `client_${override.currency}_${override.clientId || 'none'}`;
 }
+const seededDefaultDocs = new Set<string>();
 
 export function useSmartPricingPlan(userDocRef: FirestoreDocumentReference) {
     const monthKey = useMemo(() => monthKeyFor(), []);
@@ -161,19 +162,52 @@ export function useSmartPricingPlan(userDocRef: FirestoreDocumentReference) {
         let unsubPolicy: (() => void) | undefined;
         let unsubPlan: (() => void) | undefined;
         let unsubOverrides: (() => void) | undefined;
+        let seededMissingPolicy = false;
+        let seededMissingPlan = false;
         const settingsRef = userDocRef.collection('pricing_settings').doc('current');
         const planRef = userDocRef.collection('pricing_plans').doc(monthKey);
         const overridesRef = userDocRef.collection('pricing_overrides');
+        const policySeedKey = `${userDocRef.id}:pricing_settings/current`;
+        const planSeedKey = `${userDocRef.id}:pricing_plans/${monthKey}`;
 
-        const initialize = async () => {
+        const seedMissingPolicy = async () => {
+            if (seededMissingPolicy || seededDefaultDocs.has(policySeedKey))
+                return;
+            seededMissingPolicy = true;
+            seededDefaultDocs.add(policySeedKey);
+            setSyncState('saving');
+            try {
+                await settingsRef.set(migratePolicyFromLocalStorage());
+            } catch (cause) {
+                if (!active)
+                    return;
+                console.error('Smart pricing policy seed failed', cause);
+                seededDefaultDocs.delete(policySeedKey);
+                setError('pricing_sync_failed');
+                setSyncState('error');
+            }
+        };
+        const seedMissingPlan = async () => {
+            if (seededMissingPlan || seededDefaultDocs.has(planSeedKey))
+                return;
+            seededMissingPlan = true;
+            seededDefaultDocs.add(planSeedKey);
+            setSyncState('saving');
+            try {
+                await planRef.set(migratePlanFromLocalStorage(monthKey));
+            } catch (cause) {
+                if (!active)
+                    return;
+                console.error('Smart pricing plan seed failed', cause);
+                seededDefaultDocs.delete(planSeedKey);
+                setError('pricing_sync_failed');
+                setSyncState('error');
+            }
+        };
+        const initialize = () => {
             setSyncState('loading');
             setError(null);
             try {
-                const [settingsSnap, planSnap] = await Promise.all([settingsRef.get(), planRef.get()]);
-                if (!settingsSnap.exists) await settingsRef.set(migratePolicyFromLocalStorage());
-                if (!planSnap.exists) await planRef.set(migratePlanFromLocalStorage(monthKey));
-                if (!active) return;
-
                 unsubPolicy = settingsRef.onSnapshot((snapshot) => {
                     if (!active) return;
                     if (snapshot.exists) {
@@ -184,6 +218,9 @@ export function useSmartPricingPlan(userDocRef: FirestoreDocumentReference) {
                             return;
                         }
                         setPolicy(normalizePolicy(data));
+                    } else {
+                        void seedMissingPolicy();
+                        return;
                     }
                     setSyncState(navigator.onLine ? 'synced' : 'offline');
                 });
@@ -197,6 +234,9 @@ export function useSmartPricingPlan(userDocRef: FirestoreDocumentReference) {
                             return;
                         }
                         setPlan(normalizePlan(data, monthKey));
+                    } else {
+                        void seedMissingPlan();
+                        return;
                     }
                     setSyncState(navigator.onLine ? 'synced' : 'offline');
                 });
@@ -216,7 +256,7 @@ export function useSmartPricingPlan(userDocRef: FirestoreDocumentReference) {
                 setSyncState('error');
             }
         };
-        void initialize();
+        initialize();
         return () => {
             active = false;
             unsubPolicy?.();

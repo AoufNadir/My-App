@@ -1,8 +1,14 @@
 import { useMemo, useState } from 'react';
 import { db, type FirestoreDocumentReference } from '../firebase';
-import type { ClientDzd, DigitalServiceTransaction, PortfolioStats } from '../types';
+import type { ClientDzd, ClientTransactionDzd, DigitalServiceTransaction, PortfolioStats } from '../types';
 import { now, parseAndEvaluate } from '../utils';
 import { roundM } from '../utils/money';
+import { recordTreasuryLegacyDeletionShadow, recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
+import { recordPortfolioShadow } from '../accounting/portfolioShadowDiagnostics';
+import { inventoryFromLegacyPortfolioStats } from '../accounting/portfolioShadowLegacyAdapter';
+import { recordClientShadow } from '../accounting/clientShadowDiagnostics';
+import { clientPositionFromLegacyRows } from '../accounting/clientShadowLegacyAdapter';
+import { recordServiceShadow } from '../accounting/serviceShadowDiagnostics';
 import {
     computeDigitalServicePreview,
     isAssetWallet,
@@ -14,6 +20,7 @@ import {
 type UseDigitalServiceHandlersArgs = {
     userDocRef: FirestoreDocumentReference;
     clientsDzd: ClientDzd[];
+    clientTransactionsDzd: ClientTransactionDzd[];
     portfolioStats: PortfolioStats;
     treasuryStats: {
         caisse: number;
@@ -55,7 +62,7 @@ function clientName(client?: ClientDzd) {
     return client?.fullName || client?.nom || 'Client';
 }
 
-export function useDigitalServiceHandlers({ userDocRef, clientsDzd, portfolioStats, treasuryStats, setAlert }: UseDigitalServiceHandlersArgs) {
+export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransactionsDzd, portfolioStats, treasuryStats, setAlert }: UseDigitalServiceHandlersArgs) {
     const [isDigitalServiceModalOpen, setIsDigitalServiceModalOpen] = useState(false);
     const [isDigitalServiceSaving, setIsDigitalServiceSaving] = useState(false);
     const [editingDigitalServiceTx, setEditingDigitalServiceTx] = useState<DigitalServiceTransaction | null>(null);
@@ -163,7 +170,15 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, portfolioSta
             userDocRef.collection('usdt_txs').where('linkedDigitalServiceTxId', '==', txId).get(),
             userDocRef.collection('dzd_client_txs').where('linkedDigitalServiceTxId', '==', txId).get(),
         ]);
-        treasuryChildren.forEach((doc) => batch.delete(doc.ref));
+        treasuryChildren.forEach((doc) => {
+            recordTreasuryLegacyDeletionShadow({
+                operationId: `shadow:digital-service-delete:${txId}:${doc.id}`,
+                actorUid: userDocRef.id,
+                effectiveAt: Date.now(),
+                row: doc.data(),
+            });
+            batch.delete(doc.ref);
+        });
         portfolioChildren.forEach((doc) => batch.delete(doc.ref));
         clientChildren.forEach((doc) => batch.delete(doc.ref));
     };
@@ -312,6 +327,111 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, portfolioSta
                 linkedTreasuryTxIds,
                 linkedPortfolioTxIds,
                 linkedClientTxId,
+            });
+            if (isCashWallet(digitalServicePurchaseWallet)) {
+                recordTreasuryShadow({
+                    operationId: `shadow:digital-service-purchase:${mainRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: stamp.timestamp,
+                    kind: 'digital_service_purchase_cash',
+                    wallet: digitalServicePurchaseWallet,
+                    amountDzd: preview.purchaseAmountDzd,
+                    clientId: digitalServiceClientId,
+                }, [{ type: 'Retrait', source: digitalServicePurchaseWallet, amount: preview.purchaseAmountDzd }]);
+            }
+            if (isCashWallet(digitalServiceSaleWallet)) {
+                recordTreasuryShadow({
+                    operationId: `shadow:digital-service-sale:${mainRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: stamp.timestamp + 1,
+                    kind: 'digital_service_sale_cash',
+                    wallet: digitalServiceSaleWallet,
+                    amountDzd: preview.saleAmountDzd,
+                    clientId: digitalServiceClientId,
+                }, [{ type: 'Ajout', source: digitalServiceSaleWallet, amount: preview.saleAmountDzd }]);
+            }
+            const portfolioWarnings = editingDigitalServiceTx
+                ? ['Legacy update replaces existing Portfolio rows; V2 immutable reversal is prepared only.']
+                : [];
+            if (isAssetWallet(digitalServicePurchaseWallet)) {
+                const currency = digitalServicePurchaseWallet;
+                const avgBuy = currency === 'USDT' ? portfolioStats.usdt.avgBuy : portfolioStats.eur.avgBuy;
+                recordPortfolioShadow({
+                    operationId: `shadow:digital-service-purchase-asset:${mainRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: stamp.timestamp,
+                    kind: 'portfolio_digital_service_purchase_asset',
+                    currency,
+                    quantity: purchaseAmount,
+                    inventoryBefore: inventoryFromLegacyPortfolioStats(portfolioStats, currency),
+                }, {
+                    quantityDeltas: { [currency]: -purchaseAmount },
+                    costBasisDeltasDzd: { [currency]: -roundM(avgBuy * purchaseAmount) },
+                    warnings: portfolioWarnings,
+                });
+            }
+            if (isAssetWallet(digitalServiceSaleWallet)) {
+                const currency = digitalServiceSaleWallet;
+                recordPortfolioShadow({
+                    operationId: `shadow:digital-service-sale-asset:${mainRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: stamp.timestamp + 1,
+                    kind: 'portfolio_digital_service_sale_asset',
+                    currency,
+                    quantity: saleAmount,
+                    inventoryBefore: inventoryFromLegacyPortfolioStats(portfolioStats, currency),
+                    valueDzd: preview.saleAmountDzd,
+                }, {
+                    quantityDeltas: { [currency]: saleAmount },
+                    costBasisDeltasDzd: { [currency]: preview.saleAmountDzd },
+                    warnings: portfolioWarnings,
+                });
+            }
+            if (!editingDigitalServiceTx && digitalServiceSaleWallet === 'Credit') {
+                recordClientShadow({
+                    operationId: `shadow:digital-service-client-credit:${mainRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: stamp.timestamp + 2,
+                    kind: 'client_service_credit_sale',
+                    clientId: digitalServiceClientId,
+                    amountDzd: preview.saleAmountDzd,
+                    positionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, digitalServiceClientId, stamp.timestamp),
+                    revenueAccount: 'income.digital_service_sale',
+                }, { clientDeltas: { [digitalServiceClientId]: -preview.saleAmountDzd } });
+            }
+            const servicePurchase = isAssetWallet(digitalServicePurchaseWallet)
+                ? {
+                    wallet: digitalServicePurchaseWallet,
+                    quantity: purchaseAmount,
+                    amountDzd: preview.purchaseAmountDzd,
+                    // Legacy values use current PAM for the purchase DZD value.
+                    // PortfolioV2 therefore reports no unexplained FX here.
+                    assetCostBasisDzd: preview.purchaseAmountDzd,
+                }
+                : { wallet: digitalServicePurchaseWallet, amountDzd: preview.purchaseAmountDzd };
+            const serviceSale = digitalServiceSaleWallet === 'Credit'
+                ? { wallet: 'Credit' as const, amountDzd: preview.saleAmountDzd, clientId: digitalServiceClientId }
+                : isAssetWallet(digitalServiceSaleWallet)
+                    ? { wallet: digitalServiceSaleWallet, quantity: saleAmount, amountDzd: preview.saleAmountDzd }
+                    : { wallet: digitalServiceSaleWallet, amountDzd: preview.saleAmountDzd };
+            recordServiceShadow({
+                operationId: `shadow:digital-service:${mainRef.id}`,
+                actorUid: userDocRef.id,
+                effectiveAt: stamp.timestamp,
+                kind: 'digital_service_sale',
+                clientId: digitalServiceClientId,
+                serviceName: serviceLabel,
+                purchase: servicePurchase,
+                sale: serviceSale,
+            }, {
+                serviceRevenueDzd: preview.saleAmountDzd,
+                serviceCostDzd: preview.purchaseAmountDzd,
+                directFeesDzd: 0,
+                serviceProfitDzd: preview.profitDzd,
+                fxGainLossDzd: 0,
+                clientReceivableDzd: digitalServiceSaleWallet === 'Credit' ? preview.saleAmountDzd : 0,
+                supplierPayableDzd: 0,
+                ...(editingDigitalServiceTx ? { warnings: ['Legacy edit replaces linked rows; V2 immutable reversal is prepared only.'] } : {}),
             });
             await batch.commit();
             setAlert(editingDigitalServiceTx ? '✅ Vente de service numérique mise à jour.' : '✅ Vente de service numérique enregistrée.');

@@ -7,6 +7,7 @@ import { Badge } from '../ui/Badge';
 import { db, FirestoreDocumentReference } from '../../firebase';
 import { now, parseAndEvaluate } from '../../utils';
 import { buildProfitDistributionPlan } from '../../utils/profitDistribution';
+import { recordTreasuryShadow } from '../../accounting/treasuryShadowDiagnostics';
 import type { Investor } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -78,6 +79,15 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                     linkedInvestorTxId: investorTxRef.id,
                     origin: 'investor_profit_withdrawal'
                 });
+                recordTreasuryShadow({
+                    operationId: `shadow:investor-distribution:${investorTxRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'investor_profit_withdrawal_cash',
+                    wallet: paymentSource,
+                    amountDzd: amount,
+                    investorId: inv.id,
+                }, [{ type: 'Retrait', source: paymentSource, amount }]);
             }
             await batch.commit();
             setAlert(`✅ Distribution enregistrée — ${distribution.length} investisseur${distribution.length > 1 ? 's' : ''} · ${totalDistributed.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD depuis ${paymentSource}`);

@@ -4,6 +4,10 @@ import { Investor, InvestorTransaction, PortfolioStats, TreasuryTx } from '../ty
 import { now, parseAndEvaluate } from '../utils';
 import { roundM } from '../utils/money';
 import { evaluatePersonalAdvanceReconciliation } from '../utils/personalExpenses';
+import { recordTreasuryLegacyDeletionShadow, recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
+import { recordPortfolioShadow } from '../accounting/portfolioShadowDiagnostics';
+import { inventoryFromLegacyPortfolioStats } from '../accounting/portfolioShadowLegacyAdapter';
+import { recordInvestorShadow } from '../accounting/investorShadowDiagnostics';
 import {
     computeProjectExpensePreview,
     getWalletCurrency,
@@ -499,6 +503,69 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     origin: 'personal_expense',
                 });
             }
+            if (isCashWallet(personalWithdrawalMethod)) {
+                recordTreasuryShadow({
+                    operationId: `shadow:personal-withdrawal:${treasuryRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: isAdvance ? 'personal_advance_cash' : 'personal_expense_cash',
+                    wallet: personalWithdrawalMethod,
+                    amountDzd: preview.amountDzd,
+                    investorId: managerInvestor.id,
+                }, [{ type: 'Retrait', source: personalWithdrawalMethod, amount: preview.amountDzd }]);
+            }
+            else if (isAssetWallet(personalWithdrawalMethod)) {
+                const currency = personalWithdrawalMethod;
+                recordPortfolioShadow({
+                    operationId: `shadow:personal-withdrawal-asset:${treasuryRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: isAdvance ? 'portfolio_personal_advance_asset' : 'portfolio_personal_expense_asset',
+                    currency,
+                    quantity: amountNum,
+                    inventoryBefore: inventoryFromLegacyPortfolioStats(portfolioStats, currency),
+                }, {
+                    quantityDeltas: { [currency]: -amountNum },
+                    costBasisDeltasDzd: { [currency]: -roundM(Number((currency === 'USDT' ? portfolioStats.usdt.avgBuy : portfolioStats.eur.avgBuy) || 0) * amountNum) },
+                    ...(editingPersonalExpenseTx ? { warnings: ['Legacy update replaces existing Portfolio rows; V2 immutable reversal is prepared only.'] } : {}),
+                });
+            }
+            if (isAdvance) {
+                recordInvestorShadow({
+                    operationId: `shadow:investor-personal-withdrawal:${treasuryRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'personal_advance',
+                    investorId: managerInvestor.id,
+                    isManager: true,
+                    amountDzd: preview.amountDzd,
+                    wallet: personalWithdrawalMethod,
+                }, {
+                    managerAdvanceDzd: preview.amountDzd,
+                    cashDeltasDzd: isCashWallet(personalWithdrawalMethod) ? { [personalWithdrawalMethod]: -preview.amountDzd } : {},
+                });
+            }
+            else {
+                recordInvestorShadow({
+                    operationId: `shadow:investor-personal-withdrawal:${treasuryRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'personal_expense',
+                    investorId: managerInvestor.id,
+                    isManager: true,
+                    amountDzd: preview.amountDzd,
+                    profitAmountDzd: funding.profitAmount,
+                    capitalAmountDzd: funding.capitalAmount,
+                    wallet: personalWithdrawalMethod,
+                }, {
+                    personalExpenseProfitDzd: funding.profitAmount,
+                    personalExpenseCapitalDzd: funding.capitalAmount,
+                    profitDueDeltasDzd: { [managerInvestor.id]: -funding.profitAmount },
+                    capitalDeltasDzd: { [managerInvestor.id]: -funding.capitalAmount },
+                    cashDeltasDzd: isCashWallet(personalWithdrawalMethod) ? { [personalWithdrawalMethod]: -preview.amountDzd } : {},
+                    ...(editingPersonalExpenseTx ? { warnings: ['Legacy edit replaces prior rows; V2 immutable reversal is prepared only.'] } : {}),
+                });
+            }
             await batch.commit();
             setAlert(editingPersonalExpenseTx
                 ? '✅ Dépense mise à jour.'
@@ -678,6 +745,54 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 }
             }
             batch.update(originalAdvanceRef, advanceUpdatePayload);
+            if (returnAmount > 0.005 && isCashWallet(advanceWallet)) {
+                recordTreasuryShadow({
+                    operationId: `shadow:personal-return:${reconcileAdvanceTx.id}:${timestamp}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'personal_advance_return_cash',
+                    wallet: advanceWallet,
+                    amountDzd: returnAmountDzd,
+                    investorId: managerInvestor.id,
+                }, [{ type: 'Ajout', source: advanceWallet, amount: returnAmountDzd }]);
+            }
+            else if (returnAmount > 0.005 && isAssetWallet(advanceWallet)) {
+                const currency = advanceWallet;
+                recordPortfolioShadow({
+                    operationId: `shadow:personal-return-asset:${reconcileAdvanceTx.id}:${timestamp}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'portfolio_personal_advance_return_asset',
+                    currency,
+                    quantity: returnAmount,
+                    inventoryBefore: inventoryFromLegacyPortfolioStats(portfolioStats, currency),
+                    valueDzd: returnAmountDzd,
+                }, {
+                    quantityDeltas: { [currency]: returnAmount },
+                    costBasisDeltasDzd: { [currency]: returnAmountDzd },
+                });
+            }
+            recordInvestorShadow({
+                operationId: `shadow:investor-advance-reconcile:${reconcileAdvanceTx.id}:${timestamp}`,
+                actorUid: userDocRef.id,
+                effectiveAt: timestamp,
+                kind: 'personal_advance_reconcile',
+                investorId: managerInvestor.id,
+                isManager: true,
+                advanceAmountDzd: roundM(advanceAmount * rateToDzd),
+                returnedAmountDzd: returnAmountDzd,
+                profitAmountDzd: funding.profitAmount,
+                capitalAmountDzd: funding.capitalAmount,
+                wallet: advanceWallet,
+            }, {
+                managerAdvanceDzd: -roundM(advanceAmount * rateToDzd),
+                personalExpenseProfitDzd: funding.profitAmount,
+                personalExpenseCapitalDzd: funding.capitalAmount,
+                profitDueDeltasDzd: { [managerInvestor.id]: -funding.profitAmount },
+                capitalDeltasDzd: { [managerInvestor.id]: -funding.capitalAmount },
+                cashDeltasDzd: isCashWallet(advanceWallet) ? { [advanceWallet]: returnAmountDzd } : {},
+                ...(returnDocs.length > 1 ? { warnings: ['Legacy has duplicate advance-return rows; V2 keeps one immutable reconciliation.'] } : {}),
+            });
             await batch.commit();
             setAlert(returnAmount > 0.005
                 ? `✅ Avance régularisée — ${returnAmount.toFixed(2)} ${advanceCurrency} retourné à ${advanceWallet}.`
@@ -703,6 +818,12 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         try {
             const batch = db.batch();
             const tx = personalExpenseToDelete;
+            recordTreasuryLegacyDeletionShadow({
+                operationId: `shadow:personal-expense-delete:${tx.id}`,
+                actorUid: userDocRef.id,
+                effectiveAt: Date.now(),
+                row: tx,
+            });
             batch.delete(userDocRef.collection('treasury_txs').doc(tx.id));
             await deleteLinkedPersonalExpensePortfolioDocs(batch, tx.id);
             const linkedInvestors = await resolvePersonalExpenseInvestorTxs(tx);
@@ -836,7 +957,29 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                             linkedInvestorTxId: investorTxRef.id,
                             origin: 'investor_capital_deposit'
                         });
+                        recordTreasuryShadow({
+                            operationId: `shadow:investor-initial-capital:${investorTxRef.id}`,
+                            actorUid: userDocRef.id,
+                            effectiveAt: depositTs,
+                            kind: 'investor_capital_deposit_cash',
+                            wallet: investorInitialCapitalSource,
+                            amountDzd: capital,
+                            investorId: ref.id,
+                        }, [{ type: 'Ajout', source: investorInitialCapitalSource, amount: capital }]);
                     }
+                    recordInvestorShadow({
+                        operationId: `shadow:investor-initial-capital:${investorTxRef.id}`,
+                        actorUid: userDocRef.id,
+                        effectiveAt: depositTs,
+                        kind: 'investor_initial_capital',
+                        investorId: ref.id,
+                        isManager,
+                        amountDzd: capital,
+                        wallet: investorInitialCapitalSource,
+                    }, {
+                        capitalDeltasDzd: { [ref.id]: capital },
+                        cashDeltasDzd: investorInitialCapitalSource === 'none' ? {} : { [investorInitialCapitalSource]: capital },
+                    });
                     batch.set(investorTxRef, investorTxPayload);
                 }
                 setAlert('✅ Investisseur ajouté.');
@@ -972,6 +1115,56 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     origin: 'investor_capital_deposit'
                 });
             }
+            if (investorTxType !== 'reinvest_profit') {
+                const kind = investorTxType === 'withdraw_profit'
+                    ? 'investor_profit_withdrawal_cash'
+                    : investorTxType === 'withdraw_capital'
+                        ? 'investor_capital_withdrawal_cash'
+                        : 'investor_capital_deposit_cash';
+                const legacyType = investorTxType === 'deposit_capital' ? 'Ajout' : 'Retrait';
+                recordTreasuryShadow({
+                    operationId: `shadow:investor-tx:${txRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind,
+                    wallet: investorTxPaymentSource,
+                    amountDzd: amount,
+                    investorId: selectedInvestorId,
+                }, [{ type: legacyType, source: investorTxPaymentSource, amount }]);
+            }
+            if (investorTxType === 'withdraw_profit') {
+                recordInvestorShadow({
+                    operationId: `shadow:investor-profit-payout:${txRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'profit_payout',
+                    investorId: selectedInvestorId,
+                    isManager: selectedInvestor.isManager === true,
+                    amountDzd: amount,
+                    availableProfitBeforeDzd: Number(selectedInvestor.availableProfit || 0),
+                    wallet: investorTxPaymentSource,
+                }, {
+                    profitDueDeltasDzd: { [selectedInvestorId]: -amount },
+                    profitPayoutsDzd: { [selectedInvestorId]: amount },
+                    cashDeltasDzd: { [investorTxPaymentSource]: -amount },
+                });
+            }
+            else if (investorTxType === 'withdraw_capital' || investorTxType === 'deposit_capital') {
+                const isWithdrawal = investorTxType === 'withdraw_capital';
+                recordInvestorShadow({
+                    operationId: `shadow:investor-capital:${txRef.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: isWithdrawal ? 'investor_capital_withdrawal' : 'investor_capital_top_up',
+                    investorId: selectedInvestorId,
+                    isManager: selectedInvestor.isManager === true,
+                    amountDzd: amount,
+                    wallet: investorTxPaymentSource,
+                }, {
+                    capitalDeltasDzd: { [selectedInvestorId]: isWithdrawal ? -amount : amount },
+                    cashDeltasDzd: { [investorTxPaymentSource]: isWithdrawal ? -amount : amount },
+                });
+            }
             batch.set(txRef, investorTxPayload);
             await batch.commit();
             setAlert('✅ Transaction enregistrée.');
@@ -1003,17 +1196,33 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         setIsSaving(true);
         try {
             const batch = db.batch();
+            const stamp = now();
+            const txRef = userDocRef.collection('investor_transactions').doc();
+            recordInvestorShadow({
+                operationId: `shadow:investor-profit-reinvestment:${txRef.id}`,
+                actorUid: userDocRef.id,
+                effectiveAt: stamp.timestamp,
+                kind: 'profit_reinvestment',
+                investorId,
+                isManager: investor.isManager === true,
+                amountDzd: amount,
+                availableProfitBeforeDzd: availableProfit,
+            }, {
+                capitalDeltasDzd: { [investorId]: amount },
+                profitDueDeltasDzd: { [investorId]: -amount },
+                reinvestmentsDzd: { [investorId]: amount },
+            });
             // Record the reinvestment transaction only.
             // capitalInvested is derived dynamically from transaction history in
             // buildInvestorsBase (useInvestorEconomics) — no direct Firestore field update needed.
-            batch.set(userDocRef.collection('investor_transactions').doc(), {
+            batch.set(txRef, {
                 investorId,
                 type: 'reinvest_profit',
                 origin: 'reinvestment',
                 amount,
-                date: now().date,
-                time: now().time,
-                timestamp: now().timestamp,
+                date: stamp.date,
+                time: stamp.time,
+                timestamp: stamp.timestamp,
                 notes: 'Reinvestissement profit'
             });
             await batch.commit();
@@ -1037,50 +1246,13 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         setIsSaving(true);
         try {
             const investorRef = userDocRef.collection('investors').doc(targetInvestorId);
-            const txCollection = userDocRef.collection('investor_transactions');
-            const DELETE_CHUNK = 400;
-            let deletedTxCount = 0;
-            let investorDeleted = false;
-            while (true) {
-                const txSnap = await txCollection.where('investorId', '==', targetInvestorId).limit(DELETE_CHUNK).get();
-                if (txSnap.empty)
-                    break;
-                const batch = db.batch();
-                // M6: a personal expense advance treasury_tx may have a paired
-                // personal_expense_return row. The return is linked to the advance
-                // (not directly to the investor_tx), so we must look it up and
-                // delete it explicitly — otherwise it orphans when the manager
-                // investor is removed.
-                const linkedTreasuryIds: string[] = [];
-                txSnap.docs.forEach((doc) => {
-                    const txData = doc.data() as InvestorTransaction;
-                    if (txData.linkedTreasuryTxId) {
-                        linkedTreasuryIds.push(txData.linkedTreasuryTxId);
-                        batch.delete(userDocRef.collection('treasury_txs').doc(txData.linkedTreasuryTxId));
-                    }
-                    batch.delete(doc.ref);
-                });
-                for (const treasuryId of linkedTreasuryIds) {
-                    const returnDocs = await userDocRef
-                        .collection('treasury_txs')
-                        .where('linkedTreasuryTxId', '==', treasuryId)
-                        .where('origin', '==', 'personal_expense_return')
-                        .get();
-                    returnDocs.forEach((doc) => batch.delete(doc.ref));
-                }
-                if (!investorDeleted) {
-                    batch.delete(investorRef);
-                    investorDeleted = true;
-                }
-                await batch.commit();
-                deletedTxCount += txSnap.size;
-                if (txSnap.size < DELETE_CHUNK)
-                    break;
-            }
-            if (!investorDeleted) {
-                await investorRef.delete();
-            }
-            setAlert(`✅ Investisseur supprimé (${deletedTxCount} transaction${deletedTxCount > 1 ? 's' : ''}).`);
+            await investorRef.update({
+                isActive: false,
+                archived: true,
+                archivedAt: Date.now(),
+                archivedReason: 'user_delete',
+            });
+            setAlert('✅ Investisseur archivé (historique financier conservé).');
             setInvestorToDelete(null);
             return true;
         }

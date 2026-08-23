@@ -52,6 +52,7 @@ function buildServiceStats(asset: ManualAsset, clients: ManualAssetClient[], tra
 export function ServicesPage({ manualAssets, manualAssetClients, manualAssetTransactions, assetClientBalances, onOpenManualAsset, onOpenCreateManualAsset, onDeleteManualAsset }: ServicesPageProps) {
     const { t } = useLanguage();
     const serviceRows = useMemo(() => manualAssets
+        .filter((asset) => asset.archived !== true)
         .map((asset) => buildServiceStats(asset, manualAssetClients, manualAssetTransactions, assetClientBalances))
         .sort((left, right) => {
             if (right.netCapitalImpact !== left.netCapitalImpact) return right.netCapitalImpact - left.netCapitalImpact;

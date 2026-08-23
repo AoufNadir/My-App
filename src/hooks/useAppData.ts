@@ -60,28 +60,6 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     const [investors, setInvestors] = useState<Investor[]>([]);
     const [investorTransactions, setInvestorTransactions] = useState<InvestorTransaction[]>([]);
     const [collectionState, setCollectionState] = useState<Record<AppDataCollectionKey, CollectionLoadState>>(createInitialCollectionState);
-    // Once an optional dataset has been requested, keep its listener alive for
-    // the rest of the session. Page navigation must not tear down every core
-    // listener and replay cached snapshots from scratch.
-    const [enabledOptionalData, setEnabledOptionalData] = useState(() => ({
-        manualAssets: subscribeManualAssets,
-        investors: subscribeInvestors,
-        treasuryCards: subscribeTreasuryCards
-    }));
-    useEffect(() => {
-        setEnabledOptionalData((current) => {
-            const next = {
-                manualAssets: current.manualAssets || subscribeManualAssets,
-                investors: current.investors || subscribeInvestors,
-                treasuryCards: current.treasuryCards || subscribeTreasuryCards
-            };
-            return next.manualAssets === current.manualAssets
-                && next.investors === current.investors
-                && next.treasuryCards === current.treasuryCards
-                ? current
-                : next;
-        });
-    }, [subscribeManualAssets, subscribeInvestors, subscribeTreasuryCards]);
     const activeCollectionKeys = useMemo(() => {
         const keys: AppDataCollectionKey[] = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions', 'digitalServiceTransactions'];
         if (requireTreasuryCards)
@@ -179,7 +157,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         };
     }, [userDocRef, refreshKey, subscribeToCollection]);
     useEffect(() => {
-        if (!enabledOptionalData.treasuryCards)
+        if (!subscribeTreasuryCards)
             return;
         return subscribeToCollection(
             'treasuryCards',
@@ -187,9 +165,9 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
             (docs) => setTreasuryCards(docs as TreasuryCard[])
         );
-    }, [enabledOptionalData.treasuryCards, userDocRef, refreshKey, subscribeToCollection]);
+    }, [subscribeTreasuryCards, userDocRef, refreshKey, subscribeToCollection]);
     useEffect(() => {
-        if (!enabledOptionalData.manualAssets)
+        if (!subscribeManualAssets)
             return;
         const unsubAssets = subscribeToCollection(
             'manualAssets',
@@ -214,9 +192,9 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             unsubClients();
             unsubTransactions();
         };
-    }, [enabledOptionalData.manualAssets, userDocRef, refreshKey, subscribeToCollection]);
+    }, [subscribeManualAssets, userDocRef, refreshKey, subscribeToCollection]);
     useEffect(() => {
-        if (!enabledOptionalData.investors)
+        if (!subscribeInvestors)
             return;
         const unsubInvestors = subscribeToCollection(
             'investors',
@@ -234,7 +212,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             unsubInvestors();
             unsubTransactions();
         };
-    }, [enabledOptionalData.investors, userDocRef, refreshKey, subscribeToCollection]);
+    }, [subscribeInvestors, userDocRef, refreshKey, subscribeToCollection]);
     // Derived Calculations
     const treasuryStats = useMemo(() => {
         const normalizeZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : Number(value.toFixed(2)));

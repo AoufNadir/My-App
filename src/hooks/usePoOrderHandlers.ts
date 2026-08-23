@@ -2,6 +2,11 @@ import { useMemo } from 'react';
 import { db } from '../firebase';
 import { now } from '../utils';
 import { roundM } from '../utils/money';
+import { recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
+import { recordPortfolioShadow } from '../accounting/portfolioShadowDiagnostics';
+import { recordClientShadow } from '../accounting/clientShadowDiagnostics';
+import { clientPositionFromLegacyRows } from '../accounting/clientShadowLegacyAdapter';
+import type { PortfolioInventoryState } from '../accounting/portfolioShadow';
 import type { PoAuditAction, PoCurrencyCode, PoOrder, PoOrderStatus, PoPaymentMethodType, PoRole, PoUser } from '../types';
 
 /** Drop undefined keys — Firestore rejects undefined field values. */
@@ -31,6 +36,7 @@ export type ApproveUserOptions = {
 export type CompleteOrderContext = {
     currencyCode: 'USDT' | 'EUR';
     avgBuy: number;
+    inventoryBefore: PortfolioInventoryState;
     clientPaymentStatus: 'credit' | 'baridi' | 'cash';
 };
 
@@ -130,9 +136,6 @@ export function usePoOrderHandlers(actorUid: string): PoOrderHandlers {
         // operator's existing accounting (portfolio, clients, treasury,
         // investors) stays correct. Admin-only, idempotent via linkedUsdtTxId.
         const completeOrder: PoOrderHandlers['completeOrder'] = async (order, ctx) => {
-            if (order.linkedUsdtTxId) {
-                throw new Error('ALREADY_COMPLETED');
-            }
             if (ctx.clientPaymentStatus === 'credit' && !order.clientId) {
                 throw new Error('CLIENT_REQUIRED');
             }
@@ -144,69 +147,156 @@ export function usePoOrderHandlers(actorUid: string): PoOrderHandlers {
             const { date, time, timestamp } = now();
             const orderNote = `Commande ${order.orderCode}`;
             const opRef = db.collection('users').doc(actorUid);
-            const batch = db.batch();
-
+            const orderRef = db.collection('po_orders').doc(order.id);
             const sellRef = opRef.collection('usdt_txs').doc();
-            batch.set(sellRef, {
-                timestamp,
-                type: 'sell',
-                quantity,
-                sell,
-                total: totalRevenue,
-                profit,
-                date,
-                time,
-                notes: orderNote,
-                currency: ctx.currencyCode,
-                linkedClientId: order.clientId || 'none',
-                clientPaymentStatus: ctx.clientPaymentStatus,
-                settlementCurrency: 'DZD',
+            const treasuryReceiptRef = ctx.clientPaymentStatus !== 'credit'
+                ? opRef.collection('treasury_txs').doc()
+                : null;
+            const clientTxRef = order.clientId
+                ? opRef.collection('dzd_client_txs').doc()
+                : null;
+            const clientTxId = clientTxRef?.id;
+            const nextStatus: PoOrderStatus = ctx.clientPaymentStatus === 'credit' ? 'DEBT_ACTIVE' : 'DELIVERED';
+
+            await db.runTransaction(async (transaction) => {
+                const freshOrderSnapshot = await transaction.get(orderRef);
+                if (!freshOrderSnapshot.exists) {
+                    throw new Error('ORDER_NOT_FOUND');
+                }
+                const freshOrder = freshOrderSnapshot.data() as PoOrder;
+                if (freshOrder?.linkedUsdtTxId) {
+                    throw new Error('ALREADY_COMPLETED');
+                }
+
+                transaction.set(sellRef, {
+                    timestamp,
+                    type: 'sell',
+                    quantity,
+                    sell,
+                    total: totalRevenue,
+                    profit,
+                    date,
+                    time,
+                    notes: orderNote,
+                    currency: ctx.currencyCode,
+                    linkedClientId: order.clientId || 'none',
+                    clientPaymentStatus: ctx.clientPaymentStatus,
+                    settlementCurrency: 'DZD',
+                });
+
+                // Customer sale receipt: prepaid cash/BaridiMob only; credit creates no cash movement.
+                if (ctx.clientPaymentStatus !== 'credit') {
+                    const source = ctx.clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                    transaction.set(treasuryReceiptRef!, {
+                        timestamp,
+                        date,
+                        time,
+                        type: 'Ajout',
+                        source,
+                        amount: totalRevenue,
+                        notes: orderNote,
+                        linkedTxId: sellRef.id,
+                    });
+                }
+
+                // Client ledger row (when the account is linked to a ClientDzd).
+                if (order.clientId && clientTxRef) {
+                    transaction.set(clientTxRef, {
+                        clientId: order.clientId,
+                        timestamp,
+                        date,
+                        time,
+                        montant: -totalRevenue,
+                        type: ctx.currencyCode === 'EUR' ? 'Vente EUR' : 'Vente USDT',
+                        notes: orderNote,
+                        linkedTxId: sellRef.id,
+                        linkRole: 'primary',
+                        paymentMethod: PAYMENT_METHOD_BY_STATUS[ctx.clientPaymentStatus],
+                        affectsBalance: ctx.clientPaymentStatus === 'credit',
+                    });
+                }
+
+                transaction.update(orderRef, clean({
+                    status: nextStatus,
+                    linkedUsdtTxId: sellRef.id,
+                    linkedClientTxId: clientTxId,
+                    updatedAt: Date.now(),
+                }));
             });
 
-            // Treasury inflow only for prepaid (cash/baridi), never for debt.
+            const legacyCost = roundM(ctx.avgBuy * quantity);
             if (ctx.clientPaymentStatus !== 'credit') {
-                const source = ctx.clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
-                batch.set(opRef.collection('treasury_txs').doc(), {
-                    timestamp,
-                    date,
-                    time,
-                    type: 'Ajout',
-                    source,
-                    amount: totalRevenue,
-                    notes: orderNote,
-                    linkedTxId: sellRef.id,
-                });
-            }
-
-            // Client ledger row (when the account is linked to a ClientDzd).
-            let clientTxId: string | undefined;
-            if (order.clientId) {
-                const clientTxRef = opRef.collection('dzd_client_txs').doc();
-                clientTxId = clientTxRef.id;
-                batch.set(clientTxRef, {
+                const wallet = ctx.clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                recordTreasuryShadow({
+                    operationId: `shadow:po-order:${order.id}`,
+                    actorUid,
+                    effectiveAt: timestamp,
+                    kind: 'po_order_sale_receipt_cash',
+                    wallet,
+                    amountDzd: totalRevenue,
                     clientId: order.clientId,
-                    timestamp,
-                    date,
-                    time,
-                    montant: -totalRevenue,
-                    type: ctx.currencyCode === 'EUR' ? 'Vente EUR' : 'Vente USDT',
-                    notes: orderNote,
-                    linkedTxId: sellRef.id,
-                    linkRole: 'primary',
-                    paymentMethod: PAYMENT_METHOD_BY_STATUS[ctx.clientPaymentStatus],
-                    affectsBalance: ctx.clientPaymentStatus === 'credit',
+                }, [{ type: 'Ajout', source: wallet, amount: totalRevenue }]);
+                recordPortfolioShadow({
+                    operationId: `shadow:po-portfolio-cash:${order.id}`,
+                    actorUid,
+                    effectiveAt: timestamp,
+                    kind: 'portfolio_order_sale_cash',
+                    currency: ctx.currencyCode,
+                    quantity,
+                    inventoryBefore: ctx.inventoryBefore,
+                    wallet,
+                    clientId: order.clientId,
+                    proceedsDzd: totalRevenue,
+                }, {
+                    quantityDeltas: { [ctx.currencyCode]: -quantity },
+                    costBasisDeltasDzd: { [ctx.currencyCode]: -legacyCost },
+                    cashDeltasDzd: { [wallet]: totalRevenue },
+                    realizedTradingProfitDzd: profit,
+                });
+            }
+            else {
+                recordPortfolioShadow({
+                    operationId: `shadow:po-portfolio-credit:${order.id}`,
+                    actorUid,
+                    effectiveAt: timestamp,
+                    kind: 'portfolio_order_sale_credit',
+                    currency: ctx.currencyCode,
+                    quantity,
+                    inventoryBefore: ctx.inventoryBefore,
+                    clientId: order.clientId,
+                    proceedsDzd: totalRevenue,
+                }, {
+                    quantityDeltas: { [ctx.currencyCode]: -quantity },
+                    costBasisDeltasDzd: { [ctx.currencyCode]: -legacyCost },
+                    clientReceivableDzd: totalRevenue,
+                    realizedTradingProfitDzd: profit,
                 });
             }
 
-            const nextStatus: PoOrderStatus = ctx.clientPaymentStatus === 'credit' ? 'DEBT_ACTIVE' : 'DELIVERED';
-            batch.update(db.collection('po_orders').doc(order.id), clean({
-                status: nextStatus,
-                linkedUsdtTxId: sellRef.id,
-                linkedClientTxId: clientTxId,
-                updatedAt: Date.now(),
-            }));
-
-            await batch.commit();
+            // This read is intentionally asynchronous and diagnostic only. It
+            // starts after the Legacy transaction commits, and any failure is
+            // unable to delay or change delivery. V2 never writes in this phase.
+            if (order.clientId && ctx.clientPaymentStatus === 'credit' && clientTxId) {
+                const shadowClientId = order.clientId;
+                const shadowClientTxId = clientTxId;
+                void opRef.collection('dzd_client_txs').where('clientId', '==', shadowClientId).get()
+                    .then((snapshot) => {
+                        const beforeRows = snapshot.docs
+                            .filter((document) => document.id !== shadowClientTxId)
+                            .map((document) => ({ id: document.id, ...document.data() }));
+                        recordClientShadow({
+                            operationId: `shadow:po-client-credit:${order.id}`,
+                            actorUid,
+                            effectiveAt: timestamp,
+                            kind: 'client_order_credit_sale',
+                            clientId: shadowClientId,
+                            amountDzd: totalRevenue,
+                            positionBefore: clientPositionFromLegacyRows(beforeRows as any[], shadowClientId, timestamp),
+                            revenueAccount: 'income.purchase_order_sale',
+                        }, { clientDeltas: { [shadowClientId]: -totalRevenue } });
+                    })
+                    .catch((error) => console.warn('[clientsV2 shadow read failure]', { orderId: order.id, error }));
+            }
             await logAudit(
                 nextStatus === 'DEBT_ACTIVE' ? 'debt_activated' : 'admin_marked_delivered',
                 'order',

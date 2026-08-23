@@ -4,6 +4,14 @@ import { useLanguage } from './contexts/LanguageContext';
 import { signOut } from 'firebase/auth';
 import { auth, type AppUser } from './firebaseAuth';
 import { db, fieldValueDelete } from './firebase';
+import { recordTreasuryLegacyDeletionShadow, recordTreasuryShadow } from './accounting/treasuryShadowDiagnostics';
+import { recordPortfolioShadow } from './accounting/portfolioShadowDiagnostics';
+import { inventoryFromLegacyPortfolioStats } from './accounting/portfolioShadowLegacyAdapter';
+import { recordClientShadow } from './accounting/clientShadowDiagnostics';
+import { clientPositionFromLegacyRows } from './accounting/clientShadowLegacyAdapter';
+import { reconcileLegacyClientsToShadow } from './accounting/clientShadowReadReconciliation';
+import { reconcileLegacyInvestorsToShadow } from './accounting/investorShadowReadReconciliation';
+import { reconcileLegacyServicesToShadow } from './accounting/serviceShadowReadReconciliation';
 import { AlertTriangleIcon } from './components/icons/AlertTriangleIcon';
 import { Trash2Icon } from './components/icons/Trash2Icon';
 import { ArrowDownIcon } from './components/icons/ArrowDownIcon';
@@ -47,6 +55,8 @@ import { now, parseAndEvaluate } from './utils';
 import { computePamLedger } from './utils/pamLedger';
 import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot } from './utils/capitalSnapshot';
 import { summarizePersonalExpenseTotals } from './utils/financialAudit';
+import { buildDashboardReadModelShadowFromLegacy, getReadModelsMode, reconcileDashboardReadModelsWithLegacy, type DashboardReadModelShadowDiagnostic } from './readModels/dashboardReadModels';
+import { HISTORICAL_CLOSING_BASELINE_DZD } from './accounting/closure';
 import { formatNumber } from './pages/shared/pageFormat';
 const TransactionsPage = React.lazy(() => import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage })));
 const PortfolioPage = React.lazy(() => import('./pages/PortfolioPage').then((module) => ({ default: module.PortfolioPage })));
@@ -68,7 +78,9 @@ const loadPdfReports = () => import('./utils/pdfReports');
 const EMPTY_TRANSACTIONS: Tx[] = [];
 const CORE_DATA_KEYS = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions', 'digitalServiceTransactions'] as const;
 const OWNER_OPENING_CAPITAL = 2_000_000;
-const OWNER_PRE_TRACKING_EXPENSES = 365_350;
+// Historical accounting closure: 365 350 - 3 062 = 362 288 DZD.
+// This is a locked baseline, never an automatic reconciliation bucket.
+const OWNER_PRE_TRACKING_EXPENSES = HISTORICAL_CLOSING_BASELINE_DZD;
 const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
     derivedInvestors: [],
     warnings: [],
@@ -152,6 +164,25 @@ export default function MainApp({ user }: {
     const canUseFinancialData = dataStatus.hasServerSynced
         || (isDataLoaded && typeof navigator !== 'undefined' && navigator.onLine === false);
     const isFinancialDataReady = canUseFinancialData && isSettingsLoaded;
+    const clientShadowReadReconciliation = useMemo(() => {
+        if (!isFinancialDataReady) return null;
+        return reconcileLegacyClientsToShadow(clientTransactionsDzd, clientsDzd.map((client) => client.id));
+    }, [isFinancialDataReady, clientTransactionsDzd, clientsDzd]);
+    const clientShadowReconciliationFingerprint = useRef('');
+    useEffect(() => {
+        if (!clientShadowReadReconciliation) return;
+        const fingerprint = JSON.stringify({
+            clients: clientShadowReadReconciliation.clientCount,
+            transactions: clientShadowReadReconciliation.transactionCount,
+            differences: clientShadowReadReconciliation.differences,
+            mismatchCount: clientShadowReadReconciliation.mismatches.length,
+        });
+        if (clientShadowReconciliationFingerprint.current === fingerprint) return;
+        clientShadowReconciliationFingerprint.current = fingerprint;
+        const label = '[clientsV2 read reconciliation]';
+        if (clientShadowReadReconciliation.ok) console.info(label, clientShadowReadReconciliation);
+        else console.warn(label, clientShadowReadReconciliation);
+    }, [clientShadowReadReconciliation]);
     // 1.3 Derived Data
     // Keep one canonical ledger result. Deferring it made financial cards render
     // an older snapshot for a frame before switching to the current values.
@@ -182,6 +213,53 @@ export default function MainApp({ user }: {
         });
     }, [isFinancialDataReady, investors, investorTransactions, managerFeePercentage, managerFeeHistory, transactions, pamLedger, deliveryExpenses, treasuryTransactions, personalExpenses]);
     const derivedInvestors = investorEconomics.derivedInvestors;
+    const investorShadowReadReconciliation = useMemo(() => {
+        if (!isFinancialDataReady) return null;
+        return reconcileLegacyInvestorsToShadow({
+            investors,
+            investorTransactions,
+            transactions,
+            deliveryExpenses,
+            treasuryTransactions,
+            personalExpenses,
+            managerFeeHistory,
+            legacyDerivedInvestors: derivedInvestors,
+            legacyManagerShareDzd: investorEconomics.totals.managerShare,
+        });
+    }, [isFinancialDataReady, investors, investorTransactions, transactions, deliveryExpenses, treasuryTransactions, personalExpenses, managerFeeHistory, derivedInvestors, investorEconomics.totals.managerShare]);
+    const investorShadowReconciliationFingerprint = useRef('');
+    useEffect(() => {
+        if (!investorShadowReadReconciliation) return;
+        const fingerprint = JSON.stringify({
+            investors: investorShadowReadReconciliation.investorCount,
+            events: investorShadowReadReconciliation.allocationEventCount,
+            errors: investorShadowReadReconciliation.errors,
+            differences: investorShadowReadReconciliation.totals,
+        });
+        if (investorShadowReconciliationFingerprint.current === fingerprint) return;
+        investorShadowReconciliationFingerprint.current = fingerprint;
+        const label = '[investorsV2 read reconciliation]';
+        if (investorShadowReadReconciliation.ok) console.info(label, investorShadowReadReconciliation);
+        else console.warn(label, investorShadowReadReconciliation);
+    }, [investorShadowReadReconciliation]);
+    const serviceShadowReadReconciliation = useMemo(() => {
+        if (!isFinancialDataReady) return null;
+        return reconcileLegacyServicesToShadow(digitalServiceTransactions);
+    }, [isFinancialDataReady, digitalServiceTransactions]);
+    const serviceShadowReconciliationFingerprint = useRef('');
+    useEffect(() => {
+        if (!serviceShadowReadReconciliation) return;
+        const fingerprint = JSON.stringify({
+            transactions: serviceShadowReadReconciliation.transactionCount,
+            differences: serviceShadowReadReconciliation.differences,
+            mismatchCount: serviceShadowReadReconciliation.mismatches.length,
+        });
+        if (serviceShadowReconciliationFingerprint.current === fingerprint) return;
+        serviceShadowReconciliationFingerprint.current = fingerprint;
+        const label = '[servicesV2 read reconciliation]';
+        if (serviceShadowReadReconciliation.ok) console.info(label, serviceShadowReadReconciliation);
+        else console.warn(label, serviceShadowReadReconciliation);
+    }, [serviceShadowReadReconciliation]);
 
     const monthlyGoalState = pricingPlanSync.plan.monthlyGoal;
     const minimumGoalState = pricingPlanSync.plan.minimumGoal;
@@ -312,6 +390,7 @@ export default function MainApp({ user }: {
     const { isDigitalServiceModalOpen, isDigitalServiceSaving, editingDigitalServiceTx, digitalServiceClientId, setDigitalServiceClientId, digitalServiceName, setDigitalServiceName, digitalServicePurchaseWallet, setDigitalServicePurchaseWallet, digitalServicePurchaseAmount, setDigitalServicePurchaseAmount, digitalServiceSaleWallet, setDigitalServiceSaleWallet, digitalServiceSaleAmount, setDigitalServiceSaleAmount, digitalServiceDate, setDigitalServiceDate, digitalServiceNote, setDigitalServiceNote, digitalServicePreview, openDigitalServiceModal, closeDigitalServiceModal, handleSaveDigitalService, handleDeleteDigitalService } = useDigitalServiceHandlers({
         userDocRef,
         clientsDzd,
+        clientTransactionsDzd,
         portfolioStats,
         treasuryStats,
         setAlert,
@@ -434,7 +513,7 @@ export default function MainApp({ user }: {
     const filteredClientsDzd = useMemo(() => {
         if (!shouldComputeClientDerivations)
             return clientsDzd;
-        let list = [...clientsDzd];
+        let list = clientsDzd.filter((client) => client.isActive !== false && client.archived !== true);
         const normalizedQuery = deferredClientSearchQuery.trim().toLowerCase();
         if (normalizedQuery) {
             list = list.filter(c =>
@@ -827,6 +906,83 @@ export default function MainApp({ user }: {
             actualOwnerCapital: managerProfitBreakdown.actualOwnerCapital,
         };
     }, [treasuryTransactions, deliveryExpenses, managerProfitBreakdown]);
+    const readModelsMode = getReadModelsMode();
+    const readModelShadowDiagnostic = useMemo<DashboardReadModelShadowDiagnostic | null>(() => {
+        if (readModelsMode !== 'shadow' || !isFinancialDataReady)
+            return null;
+        const readModels = buildDashboardReadModelShadowFromLegacy({
+            transactions,
+            clientsDzd,
+            clientTransactionsDzd,
+            treasuryTransactions,
+            treasuryCards,
+            manualAssets,
+            manualAssetClients,
+            manualAssetTransactions,
+            digitalServiceTransactions,
+            investors,
+            investorTransactions,
+            managerFeePercentage,
+            managerFeeHistory,
+            ownerOpeningCapital: OWNER_OPENING_CAPITAL,
+            preTrackingPersonalExpenses: OWNER_PRE_TRACKING_EXPENSES,
+            getClientFullName,
+        });
+        const reconciliation = reconcileDashboardReadModelsWithLegacy(readModels, {
+            treasuryStats,
+            portfolioStats,
+            totals,
+            investorBreakdown,
+            investorLiability,
+            capitalSnapshot,
+            servicesSummary,
+            dailyOverview,
+            globalNetProfit,
+            managerProfitBreakdown,
+            financialAudit,
+        });
+        readModels.financial.reconciliationStatus = reconciliation.ok ? 'OK' : 'MISMATCH';
+        return { mode: 'shadow', readModels, reconciliation };
+    }, [
+        readModelsMode,
+        isFinancialDataReady,
+        transactions,
+        clientsDzd,
+        clientTransactionsDzd,
+        treasuryTransactions,
+        treasuryCards,
+        manualAssets,
+        manualAssetClients,
+        manualAssetTransactions,
+        digitalServiceTransactions,
+        investors,
+        investorTransactions,
+        managerFeePercentage,
+        managerFeeHistory,
+        treasuryStats,
+        portfolioStats,
+        totals,
+        investorBreakdown,
+        investorLiability,
+        capitalSnapshot,
+        servicesSummary,
+        dailyOverview,
+        globalNetProfit,
+        managerProfitBreakdown,
+        financialAudit,
+    ]);
+    useEffect(() => {
+        if (typeof window === 'undefined')
+            return;
+        if (!readModelShadowDiagnostic) {
+            delete window.__PRO_DIGITAL_READ_MODELS_SHADOW__;
+            return;
+        }
+        window.__PRO_DIGITAL_READ_MODELS_SHADOW__ = readModelShadowDiagnostic;
+        if (!readModelShadowDiagnostic.reconciliation.ok) {
+            console.warn('Read Models shadow reconciliation mismatch', readModelShadowDiagnostic.reconciliation);
+        }
+    }, [readModelShadowDiagnostic]);
     /* Legacy global search logic moved to useGlobalSearch.
                 id: `search_client_${client.id}`,
                 kind: 'client' as const,
@@ -1053,6 +1209,12 @@ export default function MainApp({ user }: {
             const diff = Math.round(newVal - baseVal);
             if (diff === 0) {
                 if (editingTreasuryBalanceTx) {
+                    recordTreasuryLegacyDeletionShadow({
+                        operationId: `shadow:treasury-balance-delete:${editingTreasuryBalanceTx.id}`,
+                        actorUid: userDocRef.id,
+                        effectiveAt: Date.now(),
+                        row: editingTreasuryBalanceTx,
+                    });
                     await userDocRef.collection('treasury_txs').doc(editingTreasuryBalanceTx.id).delete();
                     setAlert("✅ Correction supprimée.");
                 }
@@ -1071,6 +1233,14 @@ export default function MainApp({ user }: {
                 timestamp,
                 origin: 'balance_edit'
             };
+            recordTreasuryShadow({
+                operationId: `shadow:treasury-balance-edit:${editingTreasuryBalanceTx?.id || timestamp}`,
+                actorUid: userDocRef.id,
+                effectiveAt: timestamp,
+                kind: diff > 0 ? 'treasury_adjustment_in' : 'treasury_adjustment_out',
+                wallet: treasuryBalanceEditAsset,
+                amountDzd: Math.abs(diff),
+            }, [{ type: diff > 0 ? 'Ajout' : 'Retrait', source: treasuryBalanceEditAsset, amount: Math.abs(diff) }]);
             if (editingTreasuryBalanceTx) {
                 await userDocRef.collection('treasury_txs').doc(editingTreasuryBalanceTx.id).update(payload);
             }
@@ -1170,6 +1340,34 @@ export default function MainApp({ user }: {
                 }
                 await userDocRef.collection('usdt_txs').add(txPayload);
             }
+            const valueDzd = Number((quantity * referencePrice).toFixed(2));
+            const inventoryBefore = inventoryFromLegacyPortfolioStats(portfolioStats, portfolioBalanceEditAsset);
+            const portfolioShadowWarnings = [
+                ...(type === 'Ajout Manuel' && referencePrice <= 0 ? ['Legacy balance addition has no DZD value and cannot become a balanced V2 posting.'] : []),
+                ...(editingPortfolioBalanceTx ? ['Legacy update replaces an existing Portfolio row; V2 immutable reversal is prepared only.'] : []),
+            ];
+            recordPortfolioShadow(type === 'Ajout Manuel' ? {
+                operationId: `shadow:portfolio-balance-edit:${editingPortfolioBalanceTx?.id || timestamp}`,
+                actorUid: userDocRef.id,
+                effectiveAt: timestamp,
+                kind: 'portfolio_manual_add',
+                currency: portfolioBalanceEditAsset,
+                quantity,
+                inventoryBefore,
+                valueDzd,
+            } : {
+                operationId: `shadow:portfolio-balance-edit:${editingPortfolioBalanceTx?.id || timestamp}`,
+                actorUid: userDocRef.id,
+                effectiveAt: timestamp,
+                kind: 'portfolio_manual_remove',
+                currency: portfolioBalanceEditAsset,
+                quantity,
+                inventoryBefore,
+            }, {
+                quantityDeltas: { [portfolioBalanceEditAsset]: type === 'Ajout Manuel' ? quantity : -quantity },
+                costBasisDeltasDzd: { [portfolioBalanceEditAsset]: type === 'Ajout Manuel' ? valueDzd : -Number((avgBuy * quantity).toFixed(2)) },
+                ...(portfolioShadowWarnings.length > 0 ? { warnings: portfolioShadowWarnings } : {}),
+            });
             setAlert(t('common.operationSuccess'));
             closePortfolioBalanceEditModal();
         }
@@ -1334,6 +1532,15 @@ export default function MainApp({ user }: {
                 notes: walletTransferNotes || 'Transfert interne',
                 date, time, timestamp: ts
             };
+            recordTreasuryShadow({
+                operationId: `shadow:wallet-transfer:${editingWalletTransferTx?.id || ts}`,
+                actorUid: userDocRef.id,
+                effectiveAt: ts,
+                kind: 'treasury_transfer',
+                from: walletTransferSource,
+                to: walletTransferDest,
+                amountDzd: amount,
+            }, [{ type: 'Transfer', source: walletTransferSource, destination: walletTransferDest, amount }]);
             if (editingWalletTransferTx) {
                 await userDocRef.collection('treasury_txs').doc(editingWalletTransferTx.id).update(payload);
                 setAlert("✅ Transfert mis à jour.");
@@ -1605,6 +1812,12 @@ export default function MainApp({ user }: {
             setIsSaving(true);
             try {
                 const batch = db.batch();
+                recordTreasuryLegacyDeletionShadow({
+                    operationId: `shadow:treasury-delete:${treasuryTxToDelete.id}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: Date.now(),
+                    row: treasuryTxToDelete,
+                });
                 batch.delete(userDocRef.collection('treasury_txs').doc(treasuryTxToDelete.id));
                 batch.delete(userDocRef.collection('investor_transactions').doc(treasuryTxToDelete.linkedInvestorTxId));
                 await batch.commit();
@@ -1691,8 +1904,26 @@ export default function MainApp({ user }: {
                     batch.set(newTreasuryRef, treasuryPayload);
                     txUpdatePayload.linkedTreasuryTxId = newTreasuryRef.id;
                 }
+                recordTreasuryShadow({
+                    operationId: `shadow:manual-asset-update:${txId}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: data.timestamp,
+                    kind: 'manual_asset_receipt_cash',
+                    wallet: source,
+                    amountDzd: Math.abs(amount),
+                    clientId: data.clientId,
+                }, [{ type: 'Ajout', source, amount: Math.abs(amount) }]);
             }
             else if (linkedTreasuryId) {
+                const treasurySnapshot = await userDocRef.collection('treasury_txs').doc(linkedTreasuryId).get();
+                if (treasurySnapshot.exists) {
+                    recordTreasuryLegacyDeletionShadow({
+                        operationId: `shadow:manual-asset-unlink:${txId}:${linkedTreasuryId}`,
+                        actorUid: userDocRef.id,
+                        effectiveAt: Date.now(),
+                        row: treasurySnapshot.data(),
+                    });
+                }
                 batch.delete(userDocRef.collection('treasury_txs').doc(linkedTreasuryId));
                 txUpdatePayload.linkedTreasuryTxId = fieldValueDelete();
             }
@@ -1721,11 +1952,28 @@ export default function MainApp({ user }: {
             const batch = db.batch();
             batch.delete(txRef);
             if (txData?.linkedTreasuryTxId) {
+                const treasurySnapshot = await userDocRef.collection('treasury_txs').doc(txData.linkedTreasuryTxId).get();
+                if (treasurySnapshot.exists) {
+                    recordTreasuryLegacyDeletionShadow({
+                        operationId: `shadow:manual-asset-delete:${id}:${treasurySnapshot.id}`,
+                        actorUid: userDocRef.id,
+                        effectiveAt: Date.now(),
+                        row: treasurySnapshot.data(),
+                    });
+                }
                 batch.delete(userDocRef.collection('treasury_txs').doc(txData.linkedTreasuryTxId));
             }
             else {
                 const linkedTreasury = await userDocRef.collection('treasury_txs').where('linkedAssetTxId', '==', id).get();
-                linkedTreasury.forEach(d => batch.delete(d.ref));
+                linkedTreasury.forEach(d => {
+                    recordTreasuryLegacyDeletionShadow({
+                        operationId: `shadow:manual-asset-delete:${id}:${d.id}`,
+                        actorUid: userDocRef.id,
+                        effectiveAt: Date.now(),
+                        row: d.data(),
+                    });
+                    batch.delete(d.ref);
+                });
             }
             await batch.commit();
             setAlert(t('common.operationSuccess'));
@@ -1804,6 +2052,11 @@ export default function MainApp({ user }: {
         }
     };
     const handleGlobalReset = async () => {
+        if (readModelsMode === 'read') {
+            setAlert('⚠️ Réinitialisation globale désactivée en mode Read Models.');
+            setIsResetModalOpen(false);
+            return;
+        }
         setIsSaving(true);
         try {
             const colls = ['usdt_txs', 'treasury_txs', 'dzd_clients', 'dzd_client_txs', 'treasury_cards', 'manual_assets', 'manual_asset_clients', 'actifTransactions', 'investors', 'investor_transactions'];
@@ -1982,6 +2235,17 @@ export default function MainApp({ user }: {
                 const initBal = initBalRaw ? Number(initBalRaw) : 0;
                 if (!isNaN(initBal) && initBal !== 0) {
                     const { date, time, timestamp } = now();
+                    recordClientShadow({
+                        operationId: `shadow:csv-client-initial-balance:${ref.id}:${timestamp}`,
+                        actorUid: userDocRef.id,
+                        effectiveAt: timestamp,
+                        kind: 'client_initial_balance',
+                        clientId: ref.id,
+                        amountDzd: initBal,
+                        positionBefore: clientPositionFromLegacyRows([], ref.id, timestamp),
+                        reason: 'Import CSV',
+                        counterpartAccount: 'equity.client_opening_balance',
+                    }, { clientDeltas: { [ref.id]: initBal } });
                     await userDocRef.collection('dzd_client_txs').add({
                         clientId: ref.id, timestamp, date, time,
                         type: 'Solde Initial', montant: initBal, notes: 'Import CSV', paymentMethod: 'Crédit'
