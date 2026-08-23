@@ -182,6 +182,7 @@ async function commitReadModelTransaction(input: Required<Pick<CommitLegacyWithR
             transaction.set(userDocRef.collection(READ_MODEL_APPLIED_OPS_PATH).doc(delta.operationId), {
                 operationId: delta.operationId,
                 payloadHash: delta.payloadHash,
+                generationId: nextSnapshot.meta.generationId,
                 affectedSummaries: delta.affectedSummaries,
                 effectiveAt: delta.effectiveAt,
                 appliedAt: updatedAt,
@@ -269,6 +270,7 @@ export async function applyReadModelDeltasWithinTransaction(input: {
             input.transaction.set(input.userDocRef.collection(READ_MODEL_APPLIED_OPS_PATH).doc(delta.operationId), {
                 operationId: delta.operationId,
                 payloadHash: delta.payloadHash,
+                generationId: nextSnapshot.meta.generationId,
                 affectedSummaries: delta.affectedSummaries,
                 effectiveAt: delta.effectiveAt,
                 appliedAt: updatedAt,

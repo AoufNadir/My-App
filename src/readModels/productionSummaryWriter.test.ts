@@ -187,6 +187,7 @@ const delta = buildReadModelDelta({
     assert.equal(batch.commitCount, 0, 'legacy writes must be replayed inside the transaction');
     assert.equal(store.get('users/test-user/treasury_txs/tx-1')?.amount, 250);
     assert.equal(store.get('users/test-user/read_model_applied_ops/op:treasury-add:1')?.payloadHash, delta.payloadHash);
+    assert.equal(store.get('users/test-user/read_model_applied_ops/op:treasury-add:1')?.generationId, 'production-writer-test');
     assert.equal(store.get('users/test-user/read_models/treasury_summary')?.caisseBalance, 1250);
     assert.equal(store.get('users/test-user/read_models/dashboard_summary')?.writeMode, 'incremental_delta');
 }
