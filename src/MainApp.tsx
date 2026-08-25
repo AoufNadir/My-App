@@ -63,7 +63,7 @@ import { buildDashboardReadModelShadowFromLegacy, getReadModelsMode, reconcileDa
 import { shouldUseDashboardSummaryForView } from './readModels/readModelActivation';
 import { mustPrepareWriterReadModelDelta } from './readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from './readModels/productionSummaryWriter';
-import { transitionClientBalanceDelta, invertReadModelDelta, combineReadModelDeltas, type ReadModelDelta } from './readModels/readModelDeltas';
+import { transitionClientBalanceDelta, invertReadModelDelta, combineReadModelDeltas, combineClientPositionDeltas, buildReadModelDelta, type ReadModelDelta } from './readModels/readModelDeltas';
 import { HISTORICAL_CLOSING_BASELINE_DZD } from './accounting/closure';
 import { formatNumber } from './pages/shared/pageFormat';
 const TransactionsPage = React.lazy(() => import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage })));
@@ -203,6 +203,12 @@ export default function MainApp({ user }: {
     const pamLedger = useMemo(() => computePamLedger(ledgerTransactions), [ledgerTransactions]);
     const portfolioStats = pamLedger.portfolioStats;
     const getPortfolioRemovalCost = (currency: 'USDT' | 'EUR', quantity: number) => roundM((currency === 'USDT' ? portfolioStats.usdt.avgBuy : portfolioStats.eur.avgBuy) * quantity);
+    const clientBalanceTransition = (clientId: string, amountDelta: number, timestamp: number) => {
+        if (!clientId || clientId === 'none')
+            return transitionClientBalanceDelta(0, 0);
+        const before = clientPositionFromLegacyRows(clientTransactionsDzd, clientId, timestamp).balanceDzd;
+        return transitionClientBalanceDelta(before, before + amountDelta);
+    };
     const deliveryExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense'), [treasuryTransactions]);
     const personalExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense'), [treasuryTransactions]);
     const investorEconomics = useMemo(() => {
@@ -1958,6 +1964,31 @@ export default function MainApp({ user }: {
         if (treasuryTxToDelete.origin === 'investor_profit_withdrawal' && treasuryTxToDelete.linkedInvestorTxId) {
             setIsSaving(true);
             try {
+                const linkedInvestorTx = investorTransactions.find((t) => t.id === treasuryTxToDelete.linkedInvestorTxId);
+                const amount = Number(linkedInvestorTx?.amount || treasuryTxToDelete.amount || 0);
+                const wallet = (treasuryTxToDelete.source || linkedInvestorTx?.paymentSource || 'Caisse') as 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR';
+                const isUsdtEurWallet = wallet === 'USDT' || wallet === 'EUR';
+                const walletDeltas: Record<string, number> = isUsdtEurWallet ? {} : { [wallet]: amount };
+                const investorPosition: Record<string, number> = {
+                    externalInvestorProfitsDelta: -amount,
+                };
+                const investorTxDelta = mustPrepareWriterReadModelDelta('investors.transaction', {
+                    operationId: `legacy:delete-build:investor_transactions:${treasuryTxToDelete.linkedInvestorTxId}`,
+                    effectiveAt: Number(treasuryTxToDelete.timestamp || Date.now()),
+                    payload: { type: 'withdraw_profit', txId: treasuryTxToDelete.linkedInvestorTxId, investorId: linkedInvestorTx?.investorId, amount, origin: 'profit_withdrawal', deleteInverse: true },
+                    affectedSummaries: ['dashboard_summary', 'investors_summary', 'treasury_summary', 'financial_summary'],
+                    wallets: Object.keys(walletDeltas).length > 0 ? walletDeltas as any : undefined,
+                    investors: investorPosition as any,
+                    recentOperation: { operationId: `legacy:delete-build:investor_transactions:${treasuryTxToDelete.linkedInvestorTxId}`, source: 'legacy', type: 'withdraw_profit', effectiveAt: Number(treasuryTxToDelete.timestamp || Date.now()) },
+                });
+                const { recentOperation: _omitDel, ...invertedFields } = invertReadModelDelta(investorTxDelta);
+                const deleteDelta = buildReadModelDelta({
+                    ...invertedFields,
+                    payload: { editInverse: true, type: 'legacy_delete', txId: treasuryTxToDelete.linkedInvestorTxId, collection: 'investor_transactions', deleteOperation: 'inverse_profit_withdrawal' },
+                    operationId: `legacy:delete:investor_transactions:${treasuryTxToDelete.linkedInvestorTxId}`,
+                    effectiveAt: investorTxDelta.effectiveAt,
+                    affectedSummaries: investorTxDelta.affectedSummaries,
+                });
                 const batch = db.batch();
                 recordTreasuryLegacyDeletionShadow({
                     operationId: `shadow:treasury-delete:${treasuryTxToDelete.id}`,
@@ -1970,7 +2001,7 @@ export default function MainApp({ user }: {
                 await commitLegacyWithReadModelDeltas({
                     userDocRef,
                     batch,
-                    deltas: [],
+                    deltas: [deleteDelta],
                 });
                 setAlert('✅ Retrait investisseur supprimé.');
             }
@@ -2194,10 +2225,30 @@ export default function MainApp({ user }: {
                     batch.delete(d.ref);
                 });
             }
+            const oldClientBalance = assetClientBalances.get(`${txData.actifId}_${txData.clientId}`) || 0;
+            const oldAssetDelta = buildManualAssetReadModelDelta({
+                txId: id,
+                operationId: `legacy:delete-build:actifTransactions:${id}`,
+                timestamp: Number(txData.timestamp || Date.now()),
+                actifId: txData.actifId,
+                clientId: txData.clientId,
+                clientBalance: oldClientBalance,
+                amount: Number(txData.amount || 0),
+                type: txData.type,
+                paymentMethod: txData.paymentMethod,
+            });
+            const { recentOperation: _omitDel, ...invertedFields } = invertReadModelDelta(oldAssetDelta);
+            const deleteDelta = buildReadModelDelta({
+                ...invertedFields,
+                payload: { editInverse: true, type: 'legacy_delete', txId: id, collection: 'actifTransactions', deleteOperation: 'inverse' },
+                operationId: `legacy:delete:actifTransactions:${id}`,
+                effectiveAt: oldAssetDelta.effectiveAt,
+                affectedSummaries: oldAssetDelta.affectedSummaries,
+            });
             await commitLegacyWithReadModelDeltas({
                 userDocRef,
                 batch,
-                deltas: [],
+                deltas: [deleteDelta],
             });
             setAlert(t('common.operationSuccess'));
         }
@@ -2224,6 +2275,28 @@ export default function MainApp({ user }: {
             const counterpart = findClientTransferCounterpartInState(clientTxToDelete);
             setIsSaving(true);
             try {
+                const fromClientId = clientTxToDelete.type === 'Transfert Sortant' ? clientTxToDelete.clientId : counterpart?.clientId || clientTxToDelete.clientId;
+                const toClientId = clientTxToDelete.type === 'Transfert Entrant' ? clientTxToDelete.clientId : counterpart?.clientId || clientTxToDelete.clientId;
+                const amt = Math.abs(Number(clientTxToDelete.montant || counterpart?.montant || 0));
+                const fromClientDelta = clientBalanceTransition(fromClientId, amt, Number(clientTxToDelete.timestamp || Date.now()));
+                const toClientDelta = clientBalanceTransition(toClientId, -amt, Number(clientTxToDelete.timestamp || Date.now()));
+                const transferDelta = mustPrepareWriterReadModelDelta('clients.transfer', {
+                    operationId: `legacy:delete-build:clients.transfer:${clientTxToDelete.id}`,
+                    effectiveAt: Number(clientTxToDelete.timestamp || Date.now()),
+                    payload: { type: 'client_transfer', fromClientId, toClientId, amount: amt, deleteInverse: true },
+                    affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                    clients: combineClientPositionDeltas([fromClientDelta, toClientDelta]),
+                    recentOperation: { operationId: `legacy:delete-build:clients.transfer:${clientTxToDelete.id}`, source: 'legacy', type: 'Transfert client', effectiveAt: Number(clientTxToDelete.timestamp || Date.now()) },
+                });
+                const deleteOpId = `legacy:delete:dzd_client_txs:${clientTxToDelete.id}`;
+                const { recentOperation: _omit, ...invertedFields } = invertReadModelDelta(transferDelta);
+                const deleteDelta = buildReadModelDelta({
+                    ...invertedFields,
+                    payload: { editInverse: true, type: 'legacy_delete', txId: clientTxToDelete.id, collection: 'dzd_client_txs', deleteOperation: 'inverse_transfer_pair' },
+                    operationId: deleteOpId,
+                    effectiveAt: transferDelta.effectiveAt,
+                    affectedSummaries: transferDelta.affectedSummaries,
+                });
                 const batch = db.batch();
                 batch.delete(userDocRef.collection('dzd_client_txs').doc(clientTxToDelete.id));
                 if (counterpart) {
@@ -2232,7 +2305,7 @@ export default function MainApp({ user }: {
                 await commitLegacyWithReadModelDeltas({
                     userDocRef,
                     batch,
-                    deltas: [],
+                    deltas: [deleteDelta],
                 });
                 setAlert("✅ Transaction supprimée.");
             }
@@ -2261,15 +2334,62 @@ export default function MainApp({ user }: {
         }
         setIsSaving(true);
         try {
+            const tx = investorTxToDelete;
+            const linkedTreasury = tx.linkedTreasuryTxId ? treasuryTransactions.find((t) => t.id === tx.linkedTreasuryTxId) : null;
+            const amount = Number(tx.amount || 0);
+            const wallet = (tx.paymentSource || (linkedTreasury?.source) || 'Caisse') as 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR';
+            const investorPosition: Record<string, number> = {};
+            const walletDeltas: Record<string, number> = {};
+            const isUsdtEurWallet = wallet === 'USDT' || wallet === 'EUR';
+            if (tx.type === 'deposit_capital') {
+                investorPosition.externalInvestorCapitalDelta = amount;
+                investorPosition.investorLiabilityDelta = amount;
+                if (!isUsdtEurWallet) walletDeltas[wallet] = amount;
+            }
+            else if (tx.type === 'withdraw_capital') {
+                investorPosition.externalInvestorCapitalDelta = -amount;
+                investorPosition.investorLiabilityDelta = -amount;
+                if (!isUsdtEurWallet) walletDeltas[wallet] = -amount;
+            }
+            else if (tx.type === 'profit_distribution') {
+                investorPosition.externalInvestorProfitsDelta = amount;
+                investorPosition.investorLiabilityDelta = amount;
+                if (!isUsdtEurWallet) walletDeltas[wallet] = -amount;
+            }
+            else if (tx.type === 'withdraw_profit') {
+                investorPosition.externalInvestorProfitsDelta = -amount;
+                if (!isUsdtEurWallet) walletDeltas[wallet] = -amount;
+            }
+            else if (tx.type === 'reinvest_profit') {
+                investorPosition.externalInvestorProfitsDelta = -amount;
+                investorPosition.externalInvestorCapitalDelta = amount;
+            }
+            const investorTxDelta = mustPrepareWriterReadModelDelta('investors.transaction', {
+                operationId: `legacy:delete-build:investor_transactions:${tx.id}`,
+                effectiveAt: Number(tx.timestamp || Date.now()),
+                payload: { type: tx.type, txId: tx.id, investorId: tx.investorId, amount, origin: tx.origin, deleteInverse: true },
+                affectedSummaries: ['dashboard_summary', 'investors_summary', 'treasury_summary', 'financial_summary'],
+                wallets: Object.keys(walletDeltas).length > 0 ? walletDeltas as any : undefined,
+                investors: investorPosition as any,
+                recentOperation: { operationId: `legacy:delete-build:investor_transactions:${tx.id}`, source: 'legacy', type: tx.type, effectiveAt: Number(tx.timestamp || Date.now()) },
+            });
+            const { recentOperation: _omitDel, ...invertedFields } = invertReadModelDelta(investorTxDelta);
+            const deleteDelta = buildReadModelDelta({
+                ...invertedFields,
+                payload: { editInverse: true, type: 'legacy_delete', txId: tx.id, collection: 'investor_transactions', deleteOperation: 'inverse', investorTxType: tx.type },
+                operationId: `legacy:delete:investor_transactions:${tx.id}`,
+                effectiveAt: investorTxDelta.effectiveAt,
+                affectedSummaries: investorTxDelta.affectedSummaries,
+            });
             const batch = db.batch();
-            batch.delete(userDocRef.collection('investor_transactions').doc(investorTxToDelete.id));
-            if (investorTxToDelete.linkedTreasuryTxId) {
-                batch.delete(userDocRef.collection('treasury_txs').doc(investorTxToDelete.linkedTreasuryTxId));
+            batch.delete(userDocRef.collection('investor_transactions').doc(tx.id));
+            if (tx.linkedTreasuryTxId) {
+                batch.delete(userDocRef.collection('treasury_txs').doc(tx.linkedTreasuryTxId));
             }
             await commitLegacyWithReadModelDeltas({
                 userDocRef,
                 batch,
-                deltas: [],
+                deltas: [deleteDelta],
             });
             setAlert('✅ Transaction investisseur supprimée.');
         }

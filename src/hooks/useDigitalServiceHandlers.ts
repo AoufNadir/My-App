@@ -11,7 +11,7 @@ import { clientPositionFromLegacyRows } from '../accounting/clientShadowLegacyAd
 import { recordServiceShadow } from '../accounting/serviceShadowDiagnostics';
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
-import { transitionClientBalanceDelta, invertReadModelDelta, combineReadModelDeltas, type ReadModelDelta } from '../readModels/readModelDeltas';
+import { transitionClientBalanceDelta, invertReadModelDelta, combineReadModelDeltas, buildReadModelDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
 import {
     computeDigitalServicePreview,
     isAssetWallet,
@@ -594,10 +594,36 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
         if (isDigitalServiceSaving) return;
         setIsDigitalServiceSaving(true);
         try {
+            const oldPreview = computeDigitalServicePreview({
+                purchaseWallet: (tx.purchaseWallet || 'Caisse') as FinancialWallet,
+                purchaseAmount: roundM(Number(tx.purchaseAmount || 0)),
+                saleWallet: (tx.saleWallet || 'Caisse') as DigitalServiceSaleWallet,
+                saleAmount: roundM(Number(tx.saleAmount || 0)),
+                rates,
+            });
+            const oldDigitalServiceDelta = computeDigitalServiceReadModelDelta({
+                mainRefId: tx.id,
+                operationId: `legacy:delete-build:digital_service_txs:${tx.id}`,
+                stamp: { timestamp: Number(tx.timestamp || Date.now()), date: tx.date || '', time: tx.time || '' },
+                purchaseWallet: (tx.purchaseWallet || 'Caisse') as FinancialWallet,
+                saleWallet: (tx.saleWallet || 'Caisse') as DigitalServiceSaleWallet,
+                purchaseAmount: roundM(Number(tx.purchaseAmount || 0)),
+                saleAmount: roundM(Number(tx.saleAmount || 0)),
+                preview: oldPreview,
+                clientId: tx.clientId,
+            });
+            const { recentOperation: _omit, ...invertedFields } = invertReadModelDelta(oldDigitalServiceDelta);
+            const deleteDelta = buildReadModelDelta({
+                ...invertedFields,
+                payload: { editInverse: true, type: 'legacy_delete', txId: tx.id, collection: 'digital_service_txs', deleteOperation: 'inverse' },
+                operationId: `legacy:delete:digital_service_txs:${tx.id}`,
+                effectiveAt: oldDigitalServiceDelta.effectiveAt,
+                affectedSummaries: oldDigitalServiceDelta.affectedSummaries,
+            });
             const batch = db.batch();
             batch.delete(userDocRef.collection('digital_service_txs').doc(tx.id));
             await deleteLinkedDigitalServiceChildren(batch, tx.id);
-            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [] });
+            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [deleteDelta] });
             setAlert('✅ Vente de service numérique supprimée.');
         }
         catch (e) {

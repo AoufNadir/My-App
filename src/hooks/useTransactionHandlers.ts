@@ -1632,7 +1632,125 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const handleDeleteTx = async (txId: string, type: 'usdt_tx' | 'client_tx' | 'treasury_tx' | 'asset_tx') => {
         setIsSaving(true);
         try {
-            const result = await applyTransactionDelete(txId, type, userDocRef);
+            const buildOldDelta = (mainData: any, linkedData: any[]): ReadModelDelta | null => {
+                if (!mainData) return null;
+                if (type === 'usdt_tx') {
+                    if (mainData.type === 'buy') {
+                        return computeBuyReadModelDelta({
+                            mainTxId: txId,
+                            operationId: `legacy:delete-build:usdt_txs:${txId}`,
+                            timestamp: Number(mainData.timestamp || Date.now()),
+                            buyUsdtMode: mainData.purchaseFundingCurrency === 'EUR' ? 'with_eur' : 'with_dzd',
+                            mode: mainData.currency === 'EUR' ? 'buy_eur' : 'buy_usdt',
+                            quantity: roundM(Number(mainData.quantity || 0)),
+                            totalCost: roundM(Number(mainData.total || (Number(mainData.quantity || 0) * Number(mainData.price || 0)))),
+                            eurSpentForConversion: roundM(Number(mainData.eurSpentForConversion || mainData.purchaseAmountEur || 0)),
+                            currency: (mainData.currency === 'EUR' ? 'EUR' : 'USDT') as 'USDT' | 'EUR',
+                            clientPaymentStatus: (mainData.clientPaymentStatus || (mainData.paymentMethod === 'Caisse' ? 'cash' : (mainData.paymentMethod === 'BaridiMob' ? 'baridi' : 'credit'))) as 'cash' | 'baridi' | 'credit',
+                            linkedClientId: mainData.linkedClientId || 'none',
+                            linkedClientDzdId: mainData.linkedClientDzdId || 'none',
+                            shouldLinkCashToDzdClient: !!(mainData.linkedClientDzdId && mainData.linkedClientDzdId !== 'none' && (mainData.clientPaymentStatus === 'cash' || mainData.clientPaymentStatus === 'baridi' || (!mainData.clientPaymentStatus && (mainData.paymentMethod === 'Caisse' || mainData.paymentMethod === 'BaridiMob')))),
+                        });
+                    }
+                    if (mainData.type === 'sell') {
+                        const sellCurrency = (mainData.currency === 'EUR' ? 'EUR' : 'USDT') as 'USDT' | 'EUR';
+                        const isUsdtSettledInEur = sellCurrency === 'USDT' && mainData.settlementCurrency === 'EUR';
+                        const quantity = roundM(Number(mainData.quantity || 0));
+                        const sell = roundM(Number(mainData.sell || mainData.price || 0));
+                        const totalRevenue = roundM(Number(mainData.total || mainData.totalRevenue || (quantity * sell)));
+                        const profit = roundM(Number(mainData.profit || 0));
+                        return computeSellReadModelDelta({
+                            committedSellTxId: txId,
+                            operationId: `legacy:delete-build:usdt_txs:${txId}`,
+                            timestamp: Number(mainData.timestamp || Date.now()),
+                            sellCurrency,
+                            quantity,
+                            sell,
+                            totalRevenue,
+                            profit,
+                            notes: String(mainData.notes || ''),
+                            isUsdtSettledInEur,
+                            saleValueEur: roundM(Number(mainData.saleValueEur || (isUsdtSettledInEur ? totalRevenue : 0))),
+                            saleValueDzd: roundM(Number(mainData.saleValueDzd || (!isUsdtSettledInEur ? totalRevenue : 0))),
+                            linkedClientId: mainData.linkedClientId || 'none',
+                            clientPaymentStatus: (mainData.clientPaymentStatus || 'cash') as 'cash' | 'baridi' | 'credit',
+                            creditDueDate: mainData.creditDueDate ? Number(mainData.creditDueDate) : undefined,
+                            shouldLinkSettlementToDzdClient: !!(mainData.linkedClientDzdId && mainData.linkedClientDzdId !== 'none' && !isUsdtSettledInEur && (mainData.clientPaymentStatus === 'cash' || mainData.clientPaymentStatus === 'baridi')),
+                            linkedClientDzdId: mainData.linkedClientDzdId || 'none',
+                        });
+                    }
+                }
+                if (type === 'treasury_tx') {
+                    if (mainData.type === 'Transfert interne' || mainData.source || mainData.destination) {
+                        const walletDeltas: Record<string, number> = { Caisse: 0, BaridiMob: 0 };
+                        if (mainData.destination === 'Caisse' || mainData.destination === 'BaridiMob') {
+                            walletDeltas[mainData.destination as 'Caisse' | 'BaridiMob'] = Math.abs(Number(mainData.amount || 0));
+                        }
+                        if (mainData.source === 'Caisse' || mainData.source === 'BaridiMob') {
+                            walletDeltas[mainData.source as 'Caisse' | 'BaridiMob'] = -Math.abs(Number(mainData.amount || 0));
+                        }
+                        const linkedClientTx = linkedData.find((d) => d?.collection === 'dzd_client_txs' || d?.origin === 'transfer');
+                        const clientsDelta = linkedClientTx ? clientBalanceTransition(linkedClientTx.clientId, Number(linkedClientTx.montant || 0), Number(mainData.timestamp || Date.now())) : undefined;
+                        return mustPrepareWriterReadModelDelta('treasury.transfer', {
+                            operationId: `legacy:delete-build:treasury_txs:${txId}`,
+                            effectiveAt: Number(mainData.timestamp || Date.now()),
+                            payload: { type: 'treasury_transfer', txId, from: mainData.source, to: mainData.destination, amount: Math.abs(Number(mainData.amount || 0)) },
+                            affectedSummaries: ['dashboard_summary', 'treasury_summary', 'financial_summary'],
+                            wallets: walletDeltas,
+                            clients: clientsDelta,
+                            recentOperation: { operationId: `legacy:delete-build:treasury_txs:${txId}`, source: 'legacy', type: 'Transfert interne', effectiveAt: Number(mainData.timestamp || Date.now()) },
+                        });
+                    }
+                    if (mainData.origin === 'balance_edit' || mainData.type === 'Ajout' || mainData.type === 'Retrait' || mainData.type === 'Adjustment (+)' || mainData.type === 'Adjustment (-)') {
+                        const source = (mainData.source || 'Caisse') as 'Caisse' | 'BaridiMob';
+                        const amount = Math.abs(Number(mainData.amount || 0));
+                        const isAdd = mainData.type === 'Ajout' || mainData.type === 'Adjustment (+)';
+                        const walletDelta = { [source]: isAdd ? amount : -amount };
+                        const linkedAdjustment = linkedData.find((d) => d?.origin === 'adjustment' && d?.linkedTxId === txId);
+                        const clientsDelta = linkedAdjustment ? clientBalanceTransition(linkedAdjustment.clientId, Number(linkedAdjustment.montant || 0), Number(mainData.timestamp || Date.now())) : undefined;
+                        return mustPrepareWriterReadModelDelta('treasury.adjustment', {
+                            operationId: `legacy:delete-build:treasury_txs:${txId}`,
+                            effectiveAt: Number(mainData.timestamp || Date.now()),
+                            payload: { type: 'treasury_adjustment', txId, source, amount, direction: isAdd ? 'add' : 'subtract' },
+                            affectedSummaries: ['dashboard_summary', 'treasury_summary', 'financial_summary'],
+                            wallets: walletDelta,
+                            clients: clientsDelta,
+                            recentOperation: { operationId: `legacy:delete-build:treasury_txs:${txId}`, source: 'legacy', type: isAdd ? 'Ajout' : 'Retrait', effectiveAt: Number(mainData.timestamp || Date.now()) },
+                        });
+                    }
+                }
+                if (type === 'client_tx') {
+                    if (mainData.type === 'Remise solde' || mainData.type === 'Ajustement solde') {
+                        const balance = Number(mainData.notes?.match(/-?\d+(\.\d+)?/)?.[0] || 0);
+                        return mustPrepareWriterReadModelDelta('clients.initial-adjustment-remise', {
+                            operationId: `legacy:delete-build:dzd_client_txs:${txId}`,
+                            effectiveAt: Number(mainData.timestamp || Date.now()),
+                            payload: { type: 'client_zero_out_balance', clientId: mainData.clientId, txId, balance, montant: Number(mainData.montant || 0) },
+                            affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                            clients: clientBalanceTransition(mainData.clientId, -Number(mainData.montant || 0), Number(mainData.timestamp || Date.now())),
+                            recentOperation: { operationId: `legacy:delete-build:dzd_client_txs:${txId}`, source: 'legacy', type: mainData.type, effectiveAt: Number(mainData.timestamp || Date.now()) },
+                        });
+                    }
+                    if (mainData.linkedTxId) {
+                        return null;
+                    }
+                    const isOutflow = Number(mainData.montant || 0) < 0;
+                    const amount = Math.abs(Number(mainData.montant || 0));
+                    return mustPrepareWriterReadModelDelta('clients.settlement', {
+                        operationId: `legacy:delete-build:dzd_client_txs:${txId}`,
+                        effectiveAt: Number(mainData.timestamp || Date.now()),
+                        payload: { type: isOutflow ? 'settlement_out' : 'settlement_in', clientId: mainData.clientId, txId, amount, paymentMethod: mainData.paymentMethod },
+                        affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                        clients: clientBalanceTransition(mainData.clientId, isOutflow ? amount : -amount, Number(mainData.timestamp || Date.now())),
+                        recentOperation: { operationId: `legacy:delete-build:dzd_client_txs:${txId}`, source: 'legacy', type: mainData.type, effectiveAt: Number(mainData.timestamp || Date.now()) },
+                    });
+                }
+                if (type === 'asset_tx') {
+                    return null;
+                }
+                return null;
+            };
+            const result = await applyTransactionDelete(txId, type, userDocRef, buildOldDelta);
             if (result.success)
                 setAlert('✅ Transaction supprimée.');
             else

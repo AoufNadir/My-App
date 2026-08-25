@@ -3,6 +3,7 @@ import { formatNumber } from './pages/shared/pageFormat';
 import { recordTreasuryLegacyDeletionShadow, recordTreasuryShadow } from './accounting/treasuryShadowDiagnostics';
 import { resolveLegacyMutationPolicy } from './readModels/readModelActivation';
 import { commitLegacyWithReadModelDeltas } from './readModels/productionSummaryWriter';
+import { invertReadModelDelta, buildReadModelDelta, type ReadModelDelta } from './readModels/readModelDeltas';
 import {
     createLegacyOperationIndexDoc,
     deterministicLinkedId,
@@ -196,7 +197,7 @@ export async function findLinkedTransactions(transactionId: string, userDocRef: 
  * Delete a transaction and all its linked transactions
  * Uses Firestore batch for atomic operations
  */
-export async function applyTransactionDelete(transactionId: string, transactionType: TransactionType, userDocRef: FirestoreDocumentReference): Promise<{
+export async function applyTransactionDelete(transactionId: string, transactionType: TransactionType, userDocRef: FirestoreDocumentReference, buildOldDelta?: (mainData: any, linkedData: any[]) => ReadModelDelta | null | Promise<ReadModelDelta | null>): Promise<{
     success: boolean;
     error?: string;
 }> {
@@ -343,10 +344,29 @@ export async function applyTransactionDelete(transactionId: string, transactionT
             deletedAt,
             status: 'deleted',
         }));
+        let deleteDeltas: ReadModelDelta[] = [];
+        if (buildOldDelta && mainData) {
+            const linkedData = linkedTxs.map((lt) => lt.data);
+            const oldDelta = await buildOldDelta(mainData, linkedData);
+            if (oldDelta) {
+                const inverted = invertReadModelDelta(oldDelta);
+                const { recentOperation: _omit, ...invertedFields } = inverted;
+                const deleteOpId = `legacy:delete:${mainCollection}:${transactionId}`;
+                const deletePayload = { editInverse: true, type: 'legacy_delete', txId: transactionId, collection: mainCollection, deleteOperation: 'inverse' };
+                const deleteDelta = buildReadModelDelta({
+                    ...invertedFields,
+                    payload: deletePayload,
+                    operationId: deleteOpId,
+                    effectiveAt: oldDelta.effectiveAt,
+                    affectedSummaries: oldDelta.affectedSummaries,
+                });
+                deleteDeltas = [deleteDelta];
+            }
+        }
         await commitLegacyWithReadModelDeltas({
             userDocRef,
             batch,
-            deltas: [],
+            deltas: deleteDeltas,
         });
         return { success: true };
     }

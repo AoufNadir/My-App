@@ -17,7 +17,7 @@ import {
 } from '../utils/digitalServiceAccounting';
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
-import { transitionClientBalanceDelta, invertReadModelDelta, combineReadModelDeltas, type ReadModelDelta } from '../readModels/readModelDeltas';
+import { transitionClientBalanceDelta, invertReadModelDelta, combineReadModelDeltas, buildReadModelDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
 
 type PersonalExpenseInvestorLink = {
     id: string;
@@ -960,7 +960,36 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 await deleteLinkedPersonalExpensePortfolioDocs(batch, doc.id);
                 batch.delete(doc.ref);
             }
-            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [] });
+            const oldWallet = (tx.expenseWallet || resolvePersonalExpenseWallet(tx) || 'Caisse') as FinancialWallet;
+            const oldAmountDzd = Number(tx.amountDzd || tx.amount || 0);
+            const oldIsAdvance = tx.advanceState === 'pending';
+            const oldProfitAmount = Number(tx.profitAmountDzd || 0);
+            const oldCapitalAmount = Number(tx.capitalAmountDzd || 0);
+            const oldAmountNum = (tx.originalAmount && Number(tx.originalAmount) > 0)
+                ? Number(tx.originalAmount)
+                : (tx.expenseCurrency && tx.conversionRateToDzd
+                    ? roundM(oldAmountDzd / Number(tx.conversionRateToDzd))
+                    : oldAmountDzd);
+            const oldPersonalExpenseDelta = buildPersonalExpenseReadModelDelta({
+                treasuryRefId: tx.id,
+                operationId: `legacy:delete-build:treasury_txs:${tx.id}`,
+                timestamp: Number(tx.timestamp || Date.now()),
+                wallet: oldWallet,
+                amountNum: oldAmountNum,
+                amountDzd: oldAmountDzd,
+                isAdvance: oldIsAdvance,
+                profitAmount: oldProfitAmount,
+                capitalAmount: oldCapitalAmount,
+            });
+            const { recentOperation: _omitDel, ...invertedFields } = invertReadModelDelta(oldPersonalExpenseDelta);
+            const deleteDelta = buildReadModelDelta({
+                ...invertedFields,
+                payload: { editInverse: true, type: 'legacy_delete', txId: tx.id, collection: 'treasury_txs', deleteOperation: 'inverse_personal_expense' },
+                operationId: `legacy:delete:treasury_txs:${tx.id}`,
+                effectiveAt: oldPersonalExpenseDelta.effectiveAt,
+                affectedSummaries: oldPersonalExpenseDelta.affectedSummaries,
+            });
+            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [deleteDelta] });
             setAlert('✅ Dépense supprimée.');
             setPersonalExpenseToDelete(null);
         }
