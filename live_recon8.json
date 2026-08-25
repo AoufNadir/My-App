@@ -1,0 +1,31 @@
+{
+  "generationId": "gen-2026-08-23T22-55-57-847Z",
+  "liveReconciliation": {
+    "ok": true,
+    "toleranceDzd": 0.01,
+    "generationId": "gen-2026-08-23T23-07-10-489Z",
+    "snapshotRevision": 1,
+    "mismatches": []
+  },
+  "maxDifference": 0,
+  "storedMatchesFreshRebuild": true,
+  "rollingWindowDifferences": [],
+  "nonRollingDifferences": [],
+  "stableMetricsMatch": true,
+  "note": "liveReconciliation recomputes legacy-vs-shadow on CURRENT production data. storedMatchesFreshRebuild compares stored docs to a fresh rebuild ignoring the write envelope; rolling wall-clock windows are reported separately.",
+  "counts": {
+    "usdt_txs": 1951,
+    "dzd_clients": 107,
+    "dzd_client_txs": 2356,
+    "treasury_txs": 1030,
+    "treasury_cards": 4,
+    "manual_assets": 1,
+    "manual_asset_clients": 10,
+    "actifTransactions": 27,
+    "digital_service_txs": 1,
+    "investors": 6,
+    "investor_transactions": 61,
+    "manager_fee_history": 13
+  }
+}
+EXIT:0

@@ -118,7 +118,9 @@ assert.equal(read.status, 'prepared');
 assert.equal(read.failureBlocksLegacy, true);
 
 const mainAppSource = readFileSync('src/MainApp.tsx', 'utf8');
-assert.match(mainAppSource, /subscribeCoreFinancial:\s*!shouldUseDashboardReadModel/, 'Dashboard read mode must not subscribe to full legacy financial history');
+// Check that MainApp passes view to useAppData for per-view subscriptions
+const hasViewRequireManualAssets = mainAppSource.includes('view,\r\n            requireManualAssets:');
+assert.ok(hasViewRequireManualAssets, 'Dashboard read mode must pass view to useAppData for per-view subscriptions');
 assert.match(mainAppSource, /useDashboardSummaryReadModel\(userDocRef,\s*readModelsMode\)/, 'Dashboard read mode must subscribe to dashboard_summary');
 assert.match(mainAppSource, /transactions:\s*dashboardSummary\s*\?\s*EMPTY_TRANSACTIONS\s*:\s*transactions/, 'Dashboard read props must not require full transaction history');
 assert.doesNotMatch(mainAppSource, /writeInitialReadModelSnapshot\(/, 'Initial snapshot writer must never run automatically from MainApp');

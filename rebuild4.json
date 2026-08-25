@@ -1,0 +1,9 @@
+[readModelsOps] FAILED: 400 Bad Request: {
+  "error": {
+    "code": 400,
+    "message": "Document name \"https://firestore.googleapis.com/v1/projects/proodigital-7ec70/databases/(default)/documents/users/JIz5y9XWhuc1hsoL3uOFjQ338cb2/read_models/dashboard_summary\" lacks \"projects\" at index 0.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+
+EXIT:1

@@ -40,16 +40,49 @@ function createInitialCollectionState() {
         return acc;
     }, {} as Record<AppDataCollectionKey, CollectionLoadState>);
 }
-export function useAppData(user: AppUser, refreshKey: number, options: UseAppDataOptions = {}) {
+function getCollectionsForView(view: string): AppDataCollectionKey[] {
+    // Dashboard uses read models only - no legacy listeners
+    if (view === 'dashboard') return [];
+    // Core financial needed by most views
+    const core: AppDataCollectionKey[] = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions', 'digitalServiceTransactions'];
+    switch (view) {
+        case 'transactions':
+            // transactions, clients, treasury, digital services, investors (for profit), treasuryCards
+            return [...core, 'treasuryCards', 'investors', 'investorTransactions'] as AppDataCollectionKey[];
+        case 'dzd':
+            // clients + their transactions, core financial, investors
+            return [...core, 'investors', 'investorTransactions'] as AppDataCollectionKey[];
+        case 'statistiques':
+        case 'analytics':
+            // portfolio stats from transactions only
+            return ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions', 'digitalServiceTransactions'] as AppDataCollectionKey[];
+        case 'expenses':
+            // personal expenses from treasury, investors for manager profit
+            return [...core, 'investors', 'investorTransactions'] as AppDataCollectionKey[];
+        case 'tresorerie':
+            // treasury stats, transactions, investors, treasuryCards
+            return [...core, 'treasuryCards', 'investors', 'investorTransactions'] as AppDataCollectionKey[];
+        case 'services':
+            // manual assets + core for context
+            return [...core, 'manualAssets', 'manualAssetClients', 'manualAssetTransactions'] as AppDataCollectionKey[];
+        case 'investors':
+            // investors + their transactions + core for portfolio stats
+            return [...core, 'treasuryCards', 'investors', 'investorTransactions'] as AppDataCollectionKey[];
+        default:
+            return [] as AppDataCollectionKey[];
+    }
+}
+export function useAppData(user: AppUser, refreshKey: number, options: UseAppDataOptions & { view?: string } = {}) {
+    const view = options.view ?? 'dashboard';
     const userDocRef = useMemo(() => db.collection('users').doc(user.uid), [user.uid]);
-    const subscribeCoreFinancial = options.subscribeCoreFinancial ?? true;
-    const subscribeManualAssets = options.subscribeManualAssets ?? true;
-    const subscribeInvestors = options.subscribeInvestors ?? true;
-    const subscribeTreasuryCards = options.subscribeTreasuryCards ?? true;
+    const subscribeCoreFinancial = options.subscribeCoreFinancial ?? (view !== 'dashboard');
+    const subscribeManualAssets = options.subscribeManualAssets ?? false;
+    const subscribeInvestors = options.subscribeInvestors ?? false;
+    const subscribeTreasuryCards = options.subscribeTreasuryCards ?? false;
     const requireManualAssets = options.requireManualAssets ?? subscribeManualAssets;
     const requireInvestors = options.requireInvestors ?? subscribeInvestors;
     const requireTreasuryCards = options.requireTreasuryCards ?? subscribeTreasuryCards;
-    // Data State
+    // Data State - persist data across view changes (cache retention)
     const [transactions, setTransactions] = useState<Tx[]>([]);
     const [clientsDzd, setClientsDzd] = useState<ClientDzd[]>([]);
     const [clientTransactionsDzd, setClientTransactionsDzd] = useState<ClientTransactionDzd[]>([]);
@@ -63,17 +96,19 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     const [investorTransactions, setInvestorTransactions] = useState<InvestorTransaction[]>([]);
     const [collectionState, setCollectionState] = useState<Record<AppDataCollectionKey, CollectionLoadState>>(createInitialCollectionState);
     const activeCollectionKeys = useMemo(() => {
-        const keys: AppDataCollectionKey[] = subscribeCoreFinancial
-            ? ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions', 'digitalServiceTransactions']
-            : [];
-        if (requireTreasuryCards)
-            keys.push('treasuryCards');
-        if (requireManualAssets)
-            keys.push('manualAssets', 'manualAssetClients', 'manualAssetTransactions');
-        if (requireInvestors)
-            keys.push('investors', 'investorTransactions');
-        return keys;
-    }, [subscribeCoreFinancial, requireTreasuryCards, requireManualAssets, requireInvestors]);
+                    const coreKeys: AppDataCollectionKey[] = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions', 'digitalServiceTransactions'];
+                    const viewKeys = getCollectionsForView(view);
+                    const keys: AppDataCollectionKey[] = subscribeCoreFinancial
+                        ? viewKeys.filter((k): k is AppDataCollectionKey => coreKeys.includes(k))
+                        : [];
+                    if (requireTreasuryCards && viewKeys.includes('treasuryCards' as AppDataCollectionKey))
+                        keys.push('treasuryCards' as AppDataCollectionKey);
+                    if (requireManualAssets && ['manualAssets', 'manualAssetClients', 'manualAssetTransactions'].some(k => viewKeys.includes(k as AppDataCollectionKey)))
+                        keys.push('manualAssets' as AppDataCollectionKey, 'manualAssetClients' as AppDataCollectionKey, 'manualAssetTransactions' as AppDataCollectionKey);
+                    if (requireInvestors && ['investors', 'investorTransactions'].some(k => viewKeys.includes(k as AppDataCollectionKey)))
+                        keys.push('investors' as AppDataCollectionKey, 'investorTransactions' as AppDataCollectionKey);
+                    return keys;
+                }, [subscribeCoreFinancial, view, requireTreasuryCards, requireManualAssets, requireInvestors]);
     const subscribeToCollection = useCallback((
         key: AppDataCollectionKey,
         query: { onSnapshot: (callback: (snapshot: any) => void, options?: { includeMetadataChanges?: boolean }) => () => void },
@@ -101,14 +136,11 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             applyDocs(mapDocs(snapshot.docs));
         }, { includeMetadataChanges: true });
     }, []);
-    // Core financial listeners stay mounted across every page transition.
+    // Core financial listeners - only for views that need them
     useEffect(() => {
         if (!subscribeCoreFinancial) {
-            setTransactions([]);
-            setClientsDzd([]);
-            setClientTransactionsDzd([]);
-            setTreasuryTransactions([]);
-            setDigitalServiceTransactions([]);
+            // Don't clear data - retain cache for instant navigation back
+            // Just mark as not receiving new updates
             setCollectionState((current) => ({
                 ...current,
                 transactions: { received: false, fromCache: false, serverSynced: false },
@@ -178,7 +210,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     }, [subscribeCoreFinancial, userDocRef, refreshKey, subscribeToCollection]);
     useEffect(() => {
         if (!subscribeTreasuryCards) {
-            setTreasuryCards([]);
+            // Retain cache
             setCollectionState((current) => ({
                 ...current,
                 treasuryCards: { received: false, fromCache: false, serverSynced: false },
@@ -194,9 +226,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     }, [subscribeTreasuryCards, userDocRef, refreshKey, subscribeToCollection]);
     useEffect(() => {
         if (!subscribeManualAssets) {
-            setManualAssets([]);
-            setManualAssetClients([]);
-            setManualAssetTransactions([]);
+            // Retain cache
             setCollectionState((current) => ({
                 ...current,
                 manualAssets: { received: false, fromCache: false, serverSynced: false },
@@ -231,8 +261,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     }, [subscribeManualAssets, userDocRef, refreshKey, subscribeToCollection]);
     useEffect(() => {
         if (!subscribeInvestors) {
-            setInvestors([]);
-            setInvestorTransactions([]);
+            // Retain cache
             setCollectionState((current) => ({
                 ...current,
                 investors: { received: false, fromCache: false, serverSynced: false },

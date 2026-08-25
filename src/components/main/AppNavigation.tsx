@@ -24,6 +24,32 @@ import { MoonIcon } from '../icons/MoonIcon';
 import { LogOutIcon } from '../icons/LogOutIcon';
 import { useLanguage, type Lang } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+// Prefetch lazy page imports on interaction
+export const pagePrefetchMap: Record<string, () => Promise<any>> = {
+    dashboard: () => import('../../pages/DashboardPage'),
+    transactions: () => import('../../pages/TransactionsPage'),
+    statistiques: () => import('../../pages/PortfolioPage'),
+    analytics: () => import('../../pages/AnalyticsPage'),
+    expenses: () => import('../../pages/PersonalExpensesPage'),
+    dzd: () => import('../../pages/ClientsPage'),
+    tresorerie: () => import('../../pages/TresoreriePage'),
+    services: () => import('../../pages/ServicesPage'),
+    investors: () => import('../../pages/InvestorsPage'),
+};
+export function prefetchPage(view: string) {
+    const loader = pagePrefetchMap[view];
+    if (loader) {
+        // Trigger the dynamic import without awaiting
+        loader().catch(() => {});
+    }
+}
+export function attachPrefetchHandlers(element: HTMLElement | null, view: string) {
+    if (!element) return;
+    const prefetch = () => prefetchPage(view);
+    element.addEventListener('mouseenter', prefetch, { once: true, passive: true });
+    element.addEventListener('focus', prefetch, { once: true, passive: true });
+    element.addEventListener('touchstart', prefetch, { once: true, passive: true });
+}
 type NavLabels = {
     dashboard: string;
     transactions: string;
@@ -65,11 +91,38 @@ function AppDesktopNavComponent({ view, onSelect, labels }: NavSharedProps) {
     const triggerClass = `inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold uppercase tracking-wider transition-colors ${(SECONDARY_VIEWS as readonly string[]).includes(view)
         ? 'bg-primary text-white shadow-card'
         : 'text-neutral-600 hover:bg-neutral-100'}`;
+    const dashboardRef = React.useRef<HTMLButtonElement>(null);
+    const transactionsRef = React.useRef<HTMLButtonElement>(null);
+    const dzdRef = React.useRef<HTMLButtonElement>(null);
+    React.useEffect(() => attachPrefetchHandlers(dashboardRef.current, 'dashboard'), []);
+    React.useEffect(() => attachPrefetchHandlers(transactionsRef.current, 'transactions'), []);
+    React.useEffect(() => attachPrefetchHandlers(dzdRef.current, 'dzd'), []);
+    const dropdownTriggerRef = React.useRef<HTMLButtonElement>(null);
+    React.useEffect(() => {
+        const el = dropdownTriggerRef.current;
+        if (!el) return;
+        const handleEnter = () => {
+            prefetchPage('statistiques');
+            prefetchPage('tresorerie');
+            prefetchPage('services');
+            prefetchPage('investors');
+            prefetchPage('analytics');
+            prefetchPage('expenses');
+        };
+        el.addEventListener('mouseenter', handleEnter, { once: true, passive: true });
+        el.addEventListener('focus', handleEnter, { once: true, passive: true });
+        el.addEventListener('touchstart', handleEnter, { once: true, passive: true });
+        return () => {
+            el.removeEventListener('mouseenter', handleEnter);
+            el.removeEventListener('focus', handleEnter);
+            el.removeEventListener('touchstart', handleEnter);
+        };
+    }, []);
     return (<div className="hidden items-center gap-1 rounded-xl border border-border p-1 sm:flex">
-      <MainNavLink activeView={view} onSelect={onSelect} targetView="dashboard" colorClass="bg-neutral-700" fillWidth={false} className="px-3 py-2">{labels.dashboard}</MainNavLink>
-      <MainNavLink activeView={view} onSelect={onSelect} targetView="transactions" colorClass="bg-primary" fillWidth={false} className="px-3 py-2">{labels.transactions}</MainNavLink>
-      <MainNavLink activeView={view} onSelect={onSelect} targetView="dzd" colorClass="bg-secondary" fillWidth={false} className="px-3 py-2">{labels.clients}</MainNavLink>
-      <Dropdown trigger={(<button type="button" className={triggerClass} aria-label={labels.more}>
+      <MainNavLink ref={dashboardRef} activeView={view} onSelect={onSelect} targetView="dashboard" colorClass="bg-neutral-700" fillWidth={false} className="px-3 py-2">{labels.dashboard}</MainNavLink>
+      <MainNavLink ref={transactionsRef} activeView={view} onSelect={onSelect} targetView="transactions" colorClass="bg-primary" fillWidth={false} className="px-3 py-2">{labels.transactions}</MainNavLink>
+      <MainNavLink ref={dzdRef} activeView={view} onSelect={onSelect} targetView="dzd" colorClass="bg-secondary" fillWidth={false} className="px-3 py-2">{labels.clients}</MainNavLink>
+      <Dropdown trigger={(<button type="button" ref={dropdownTriggerRef} className={triggerClass} aria-label={labels.more}>
             <MenuIcon className="h-4 w-4"/>
             <span>{labels.more}</span>
           </button>)} contentClassName="w-64 p-2">

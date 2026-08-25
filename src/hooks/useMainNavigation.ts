@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 const VIEW_ALIASES: Record<string, string> = {
     clients: 'dzd',
     client: 'dzd',
@@ -70,17 +70,13 @@ export function useMainNavigation() {
         const targetView = normalizeView(nextView);
         if (targetView === view)
             return;
-        startTransition(() => {
-            setView(targetView);
-        });
+        setView(targetView);
     };
     const setNormalizedView = (nextView: string) => {
         const targetView = normalizeView(nextView);
         if (targetView === view)
             return;
-        startTransition(() => {
-            setView(targetView);
-        });
+        setView(targetView);
     };
     return {
         investorIdFromUrl,

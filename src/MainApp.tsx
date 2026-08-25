@@ -140,36 +140,33 @@ export default function MainApp({ user }: {
             setInstallPrompt(null);
         });
     };
-    // --- 1. CORE DATA & SETTINGS ---
-    const { t } = useLanguage();
-    const readModelsMode = getReadModelsMode();
-    const [refreshKey, setRefreshKey] = useState(0);
-    const [alert, setAlert] = useState('');
-    const { investorIdFromUrl, isInvestorRoute, navigateToView, selectedClientId, setSelectedClientId, setView, view } = useMainNavigation();
-    const shouldUseDashboardReadModel = shouldUseDashboardSummaryForView({ readModelsMode, view });
-    const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
-    const [selectedAssetClientId, setSelectedAssetClientId] = useState<string | null>(null);
-    const shouldSubscribeManualAssets = view === 'services'
-        || view === 'dashboard'
-        || view === 'investors'
-        || view === 'tresorerie'
-        || selectedAssetId !== null
-        || selectedAssetClientId !== null;
-    const shouldSubscribeInvestors = view === 'investors' || view === 'dashboard' || view === 'tresorerie' || view === 'dzd' || view === 'transactions' || view === 'expenses' || isInvestorRoute;
-    const shouldSubscribeTreasuryCards = view === 'dashboard' || view === 'investors' || view === 'tresorerie' || view === 'transactions';
-    const shouldRequireManualAssets = view === 'services' || selectedAssetId !== null || selectedAssetClientId !== null;
-    const shouldRequireInvestors = view === 'investors' || view === 'expenses' || view === 'tresorerie' || isInvestorRoute;
-    const shouldRequireTreasuryCards = view === 'tresorerie';
-    // 1.1 App Data (Provides userDocRef)
-    const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, digitalServiceTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
-        subscribeCoreFinancial: !shouldUseDashboardReadModel,
-        subscribeManualAssets: !shouldUseDashboardReadModel && shouldSubscribeManualAssets,
-        subscribeInvestors: !shouldUseDashboardReadModel && shouldSubscribeInvestors,
-        subscribeTreasuryCards: !shouldUseDashboardReadModel && shouldSubscribeTreasuryCards,
-        requireManualAssets: shouldRequireManualAssets,
-        requireInvestors: shouldRequireInvestors,
-        requireTreasuryCards: shouldRequireTreasuryCards
-    });
+        // --- 1. CORE DATA & SETTINGS ---
+        const { t } = useLanguage();
+        const readModelsMode = getReadModelsMode();
+        const [refreshKey, setRefreshKey] = useState(0);
+        const [alert, setAlert] = useState('');
+        const { investorIdFromUrl, isInvestorRoute, navigateToView, selectedClientId, setSelectedClientId, setView, view } = useMainNavigation();
+        const shouldUseDashboardReadModel = shouldUseDashboardSummaryForView({ readModelsMode, view });
+        const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+        const [selectedAssetClientId, setSelectedAssetClientId] = useState<string | null>(null);
+        const shouldSubscribeManualAssets = view === 'services'
+            || view === 'dashboard'
+            || view === 'investors'
+            || view === 'tresorerie'
+            || selectedAssetId !== null
+            || selectedAssetClientId !== null;
+        const shouldSubscribeInvestors = view === 'investors' || view === 'dashboard' || view === 'tresorerie' || view === 'dzd' || view === 'transactions' || view === 'expenses' || isInvestorRoute;
+        const shouldSubscribeTreasuryCards = view === 'dashboard' || view === 'investors' || view === 'tresorerie' || view === 'transactions';
+        const shouldRequireManualAssets = view === 'services' || selectedAssetId !== null || selectedAssetClientId !== null;
+        const shouldRequireInvestors = view === 'investors' || view === 'expenses' || view === 'tresorerie' || isInvestorRoute;
+        const shouldRequireTreasuryCards = view === 'tresorerie';
+        // 1.1 App Data (Provides userDocRef) - pass view for per-view subscriptions
+        const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, digitalServiceTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
+            view,
+            requireManualAssets: shouldRequireManualAssets,
+            requireInvestors: shouldRequireInvestors,
+            requireTreasuryCards: shouldRequireTreasuryCards
+        });
     const dashboardSummaryRead = useDashboardSummaryReadModel(userDocRef, readModelsMode);
     // 1.2 Settings
     const { managerFeePercentage, managerFeeHistory, saveManagerFeePercentage, isSettingsLoaded } = useSettings(userDocRef);

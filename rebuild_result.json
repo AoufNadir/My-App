@@ -1,0 +1,50 @@
+{
+  "status": "reconciliation_failed",
+  "wrote": false,
+  "documentIds": [
+    "dashboard_summary",
+    "treasury_summary",
+    "portfolio_summary",
+    "clients_summary",
+    "investors_summary",
+    "services_summary",
+    "financial_summary"
+  ],
+  "generationId": "gen-2026-08-23T22-44-44-481Z",
+  "payloadHash": "914661225d7fed5f",
+  "ok": false,
+  "toleranceDzd": 0.01,
+  "mismatchCount": 2,
+  "mismatches": [
+    {
+      "field": "dashboard.financialAudit.actualOwnerCapital",
+      "canonicalOwner": "dashboard_summary",
+      "legacy": 2689029.12,
+      "shadow": 2565110.63,
+      "difference": 123918.49
+    },
+    {
+      "field": "financialAudit.actualOwnerCapital",
+      "canonicalOwner": "financial_summary",
+      "legacy": 2689029.12,
+      "shadow": 2565110.63,
+      "difference": 123918.49
+    }
+  ],
+  "reason": "Legacy and read model values differ beyond tolerance.",
+  "counts": {
+    "usdt_txs": 1951,
+    "dzd_clients": 107,
+    "dzd_client_txs": 2356,
+    "treasury_txs": 1030,
+    "treasury_cards": 4,
+    "manual_assets": 1,
+    "manual_asset_clients": 10,
+    "actifTransactions": 27,
+    "digital_service_txs": 1,
+    "investors": 6,
+    "investor_transactions": 61,
+    "manager_fee_history": 13
+  }
+}
+EXIT:2
