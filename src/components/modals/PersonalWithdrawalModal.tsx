@@ -93,6 +93,10 @@ export function PersonalWithdrawalModal({
     const exceedsCapital = mode === 'expense' && capitalDrawAmount > availableCapitalForExpense + 0.005;
     const exceedsBalance = parsedAmount > availableBalance + 0.005;
     const hasError = !managerExists || (parsedAmount > 0 && (exceedsCapital || exceedsBalance));
+
+    const handleExpenseMax = () => setAmount(availableBalance.toFixed(currency === 'DZD' ? 0 : 2));
+    const handleAdvanceMax = () => setAmount(availableBalance.toFixed(currency === 'DZD' ? 0 : 2));
+
     const sourceInsufficient = String(t('personalWithdrawal.sourceInsufficient')).replace('{source}', method);
     const errorTitle = !managerExists
         ? t('personalWithdrawal.managerMissing')
@@ -154,6 +158,7 @@ export function PersonalWithdrawalModal({
                     error={errorMessage}
                     currency={currency}
                     placeholder="0"
+                    onMax={mode === 'expense' ? handleExpenseMax : handleAdvanceMax}
                 />
 
                 {mode === 'expense' && capitalDrawAmount > 0.005 && !exceedsCapital && parsedAmount > 0 && (

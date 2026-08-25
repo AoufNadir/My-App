@@ -94,6 +94,8 @@ export function DigitalServiceSaleModal({
     const saleCurrency = getWalletCurrency(saleWallet);
     const purchaseAvailable = walletBalance(purchaseWallet, treasuryStats, portfolioStats);
 
+    const handlePurchaseMax = () => setPurchaseAmount(purchaseAvailable.toFixed(purchaseCurrency === 'DZD' ? 0 : 2));
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} className="max-w-lg bg-surface text-neutral-900">
             <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
@@ -146,18 +148,19 @@ export function DigitalServiceSaleModal({
                     />
                     <div className="mt-3">
                         <MoneyField
-                            label={t('digitalServices.purchaseAmount')}
-                            value={purchaseAmount}
-                            onChange={setPurchaseAmount}
-                            currency={purchaseCurrency}
-                            placeholder="0"
-                            hint={(
-                                <span className="inline-flex flex-wrap items-center gap-1">
-                                    {t('delivery.availableBalance')}:
-                                    <CurrencyAmount value={purchaseAvailable} currency={purchaseCurrency} semantic="plain" size="sm" decimals={purchaseCurrency === 'DZD' ? 0 : 2}/>
-                                </span>
-                            )}
-                        />
+                                                    label={t('digitalServices.purchaseAmount')}
+                                                    value={purchaseAmount}
+                                                    onChange={setPurchaseAmount}
+                                                    currency={purchaseCurrency}
+                                                    placeholder="0"
+                                                    onMax={handlePurchaseMax}
+                                                    hint={(
+                                                        <span className="inline-flex flex-wrap items-center gap-1">
+                                                            {t('delivery.availableBalance')}:
+                                                            <CurrencyAmount value={purchaseAvailable} currency={purchaseCurrency} semantic="plain" size="sm" decimals={purchaseCurrency === 'DZD' ? 0 : 2}/>
+                                                        </span>
+                                                    )}
+                                                />
                     </div>
                 </div>
 

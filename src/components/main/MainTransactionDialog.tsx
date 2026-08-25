@@ -69,7 +69,7 @@ function TagInput({ tags, setTags, t }: { tags: string[]; setTags: (t: string[])
 type MainTransactionDialogProps = Record<string, any>;
 type LastEditedSellField = 'eurReceived' | 'quantity' | 'total' | 'price';
 type SellCalculationBasis = Exclude<LastEditedSellField, 'price'>;
-export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, smartPricingByCurrency, smartQuoteRef }: MainTransactionDialogProps) {
+export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, treasuryStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, smartPricingByCurrency, smartQuoteRef }: MainTransactionDialogProps) {
     const [sellUsdtSourceSelected, setSellUsdtSourceSelected] = React.useState(false);
     const [lastEditedSellField, setLastEditedSellField] = React.useState<LastEditedSellField>('quantity');
     const sellCalculationBasisRef = React.useRef<SellCalculationBasis>('quantity');
@@ -196,15 +196,52 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
         }
     };
     const applySellBalanceMax = () => {
-        markSellFieldEdited('quantity');
-        setSellAmount(activeStats.available.toFixed(2));
-        const price = parseAndEvaluate(sellPrice);
-        if (price > 0) {
-            setIsTotalManual(false);
-            updateSellTotalFromQuantity(activeStats.available, price);
-        }
-    };
-    const chooseSellWithDzd = () => {
+            markSellFieldEdited('quantity');
+            setSellAmount(activeStats.available.toFixed(2));
+            const price = parseAndEvaluate(sellPrice);
+            if (price > 0) {
+                setIsTotalManual(false);
+                updateSellTotalFromQuantity(activeStats.available, price);
+            }
+        };
+        const applyBuyUsdtDzdQuantityMax = () => {
+            // MAX for Buy USDT/DZD quantity = DZD wallet balance / price
+            const price = parseAndEvaluate(buyUsdtPrice);
+            const total = parseAndEvaluate(buyUsdtTotal);
+            if (price > 0 && total > 0) {
+                setBuyUsdtAmount((total / price).toFixed(2));
+            } else if (price > 0) {
+                // Use treasury balance (caisse + baridi) as the max DZD available
+                const treasuryTotal = (treasuryStats?.caisse || 0) + (treasuryStats?.baridi || 0);
+                setBuyUsdtAmount((treasuryTotal / price).toFixed(2));
+            }
+        };
+        const applyBuyUsdtEurQuantityMax = () => {
+            // MAX for Buy USDT/EUR quantity = EUR available
+            setBuyEurForUsdtAmount(portfolioStats.eur.available.toFixed(2));
+        };
+        const applyBuyEurQuantityMax = () => {
+            // MAX for Buy EUR quantity = DZD wallet balance / price
+            const price = parseAndEvaluate(buyEurPrice);
+            const total = parseAndEvaluate(buyEurTotal);
+            if (price > 0 && total > 0) {
+                setBuyEurAmount((total / price).toFixed(2));
+            } else if (price > 0) {
+                const treasuryTotal = (treasuryStats?.caisse || 0) + (treasuryStats?.baridi || 0);
+                setBuyEurAmount((treasuryTotal / price).toFixed(2));
+            }
+        };
+        const applyBuyEurTotalMax = () => {
+            // MAX for Buy EUR total = DZD wallet balance
+            const treasuryTotal = (treasuryStats?.caisse || 0) + (treasuryStats?.baridi || 0);
+            setBuyEurTotal(Math.round(treasuryTotal).toString());
+            setIsTotalManual(true);
+            const price = parseAndEvaluate(buyEurPrice);
+            if (price > 0) {
+                setBuyEurAmount((treasuryTotal / price).toFixed(2));
+            }
+        };
+        const chooseSellWithDzd = () => {
         setSellSettlementCurrency('DZD');
         setIsTotalManual(false);
         setSellUsdtSourceSelected(true);
@@ -453,20 +490,20 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
 
                         {/* Buy USDT with DZD */}
                         {buyUsdtMode === 'with_dzd' && (<div className="space-y-3">
-                                <MoneyField label={t('transactions.quantity')} value={buyUsdtAmount} onChange={(val) => {
-                    setBuyUsdtAmount(val);
-                    const qty = parseAndEvaluate(val);
-                    const price = parseAndEvaluate(buyUsdtPrice);
-                    setIsTotalManual(false);
-                    if (qty > 0 && price > 0)
-                        setBuyUsdtTotal((qty * price).toFixed(0));
-                    else if (qty === 0 || val === '')
-                        setBuyUsdtTotal('');
-                }} onBlur={() => {
-                    const qty = parseAndEvaluate(buyUsdtAmount);
-                    if (!isNaN(qty) && qty > 0)
-                        setBuyUsdtAmount(qty.toFixed(2));
-                }} currency="USDT" error={formValidation.errors['buyUsdtAmount']}/>
+                                                        <MoneyField label={t('transactions.quantity')} value={buyUsdtAmount} onChange={(val) => {
+                                            setBuyUsdtAmount(val);
+                                            const qty = parseAndEvaluate(val);
+                                            const price = parseAndEvaluate(buyUsdtPrice);
+                                            setIsTotalManual(false);
+                                            if (qty > 0 && price > 0)
+                                                setBuyUsdtTotal((qty * price).toFixed(0));
+                                            else if (qty === 0 || val === '')
+                                                setBuyUsdtTotal('');
+                                        }} onBlur={() => {
+                                            const qty = parseAndEvaluate(buyUsdtAmount);
+                                            if (!isNaN(qty) && qty > 0)
+                                                setBuyUsdtAmount(qty.toFixed(2));
+                                        }} currency="USDT" onMax={applyBuyUsdtDzdQuantityMax} error={formValidation.errors['buyUsdtAmount']}/>
                                 <MoneyField label={t('transactions.buyPrice')} value={buyUsdtPrice} onChange={(val) => {
                     setBuyUsdtPrice(val);
                     const qty = parseAndEvaluate(buyUsdtAmount);
@@ -522,7 +559,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
 
                         {/* Buy USDT with EUR */}
                         {buyUsdtMode === 'with_eur' && (<div className="space-y-3">
-                                <MoneyField label={t('transactions.quantity')} value={buyEurForUsdtAmount} onChange={setBuyEurForUsdtAmount} currency="EUR" onMax={() => setBuyEurForUsdtAmount(portfolioStats.eur.available.toString())} error={formValidation.errors['buyEurForUsdtAmount']} hint={`${t('portfolio.currentBalanceEur')}: ${portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} EUR`}/>
+                                                        <MoneyField label={t('transactions.quantity')} value={buyEurForUsdtAmount} onChange={setBuyEurForUsdtAmount} currency="EUR" onMax={applyBuyUsdtEurQuantityMax} error={formValidation.errors['buyEurForUsdtAmount']} hint={`${t('portfolio.currentBalanceEur')}: ${portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} EUR`}/>
                                 <MoneyField label={t('portfolio.rateEurUsdt')} value={eurUsdtRate} onChange={setEurUsdtRate} error={formValidation.errors['eurUsdtRate']} placeholder="Ex: 0.92"/>
                                 <MoneyField label={t('portfolio.buyPriceEur')} value={eurDzdPrice} onChange={setEurDzdPrice} currency="DZD" error={formValidation.errors['eurDzdPrice']} hint={t('transactions.basedOnPamEur')} readOnly/>
                                 {(() => {
@@ -645,47 +682,47 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
 
                         {/* Buy EUR */}
                         {mode === 'buy_eur' && (<div className="space-y-3">
-                                <MoneyField label={t('transactions.quantity')} value={buyEurAmount} onChange={(val) => {
-                    setBuyEurAmount(val);
-                    const qty = parseAndEvaluate(val);
-                    const price = parseAndEvaluate(buyEurPrice);
-                    setIsTotalManual(false);
-                    if (qty > 0 && price > 0)
-                        setBuyEurTotal((qty * price).toFixed(0));
-                    else if (qty === 0 || val === '')
-                        setBuyEurTotal('');
-                }} currency="EUR" error={formValidation.errors['buyEurAmount']}/>
-                                <MoneyField label={t('portfolio.buyPriceEur')} value={buyEurPrice} onChange={(val) => {
-                    setBuyEurPrice(val);
-                    const qty = parseAndEvaluate(buyEurAmount);
-                    const price = parseAndEvaluate(val);
-                    setIsTotalManual(false);
-                    if (qty > 0 && price > 0)
-                        setBuyEurTotal((qty * price).toFixed(0));
-                    else if (price === 0 || val === '')
-                        setBuyEurTotal('');
-                }} currency="DZD" error={formValidation.errors['buyEurPrice']} hint={t('transactions.basedOnPamEur')}/>
-                                <MoneyField label={t('transactions.totalAmount')} value={buyEurTotal} onChange={(val) => {
-                    setBuyEurTotal(val);
-                    if (val) {
-                        setIsTotalManual(true);
-                        const total = parseAndEvaluate(val);
-                        const price = parseAndEvaluate(buyEurPrice);
-                        if (total > 0 && price > 0)
-                            setBuyEurAmount((total / price).toFixed(2));
-                    }
-                    else {
-                        setIsTotalManual(false);
-                        const qty = parseAndEvaluate(buyEurAmount);
-                        const price = parseAndEvaluate(buyEurPrice);
-                        if (qty > 0 && price > 0)
-                            setBuyEurTotal((qty * price).toFixed(0));
-                    }
-                }} onBlur={() => {
-                    const total = parseAndEvaluate(buyEurTotal);
-                    if (!isNaN(total) && total > 0)
-                        setBuyEurTotal(Math.round(total).toString());
-                }} currency="DZD" error={formValidation.errors['buyEurTotal']} hint={t('transactions.autoCalc')} placeholder={t('transactions.autoCalc')}/>
+                                                        <MoneyField label={t('transactions.quantity')} value={buyEurAmount} onChange={(val) => {
+                                            setBuyEurAmount(val);
+                                            const qty = parseAndEvaluate(val);
+                                            const price = parseAndEvaluate(buyEurPrice);
+                                            setIsTotalManual(false);
+                                            if (qty > 0 && price > 0)
+                                                setBuyEurTotal((qty * price).toFixed(0));
+                                            else if (qty === 0 || val === '')
+                                                setBuyEurTotal('');
+                                        }} currency="EUR" onMax={applyBuyEurQuantityMax} error={formValidation.errors['buyEurAmount']}/>
+                                                        <MoneyField label={t('portfolio.buyPriceEur')} value={buyEurPrice} onChange={(val) => {
+                                            setBuyEurPrice(val);
+                                            const qty = parseAndEvaluate(buyEurAmount);
+                                            const price = parseAndEvaluate(val);
+                                            setIsTotalManual(false);
+                                            if (qty > 0 && price > 0)
+                                                setBuyEurTotal((qty * price).toFixed(0));
+                                            else if (price === 0 || val === '')
+                                                setBuyEurTotal('');
+                                        }} currency="DZD" error={formValidation.errors['buyEurPrice']} hint={t('transactions.basedOnPamEur')}/>
+                                                        <MoneyField label={t('transactions.totalAmount')} value={buyEurTotal} onChange={(val) => {
+                                            setBuyEurTotal(val);
+                                            if (val) {
+                                                setIsTotalManual(true);
+                                                const total = parseAndEvaluate(val);
+                                                const price = parseAndEvaluate(buyEurPrice);
+                                                if (total > 0 && price > 0)
+                                                    setBuyEurAmount((total / price).toFixed(2));
+                                            }
+                                            else {
+                                                setIsTotalManual(false);
+                                                const qty = parseAndEvaluate(buyEurAmount);
+                                                const price = parseAndEvaluate(buyEurPrice);
+                                                if (qty > 0 && price > 0)
+                                                    setBuyEurTotal((qty * price).toFixed(0));
+                                            }
+                                        }} onBlur={() => {
+                                            const total = parseAndEvaluate(buyEurTotal);
+                                            if (!isNaN(total) && total > 0)
+                                                setBuyEurTotal(Math.round(total).toString());
+                                        }} currency="DZD" onMax={applyBuyEurTotalMax} error={formValidation.errors['buyEurTotal']} hint={t('transactions.autoCalc')} placeholder={t('transactions.autoCalc')}/>
                                 <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} errorMessage={formValidation.errors['linkedClientId']} hasError={!!formValidation.errors['linkedClientId']} errorMessageDzd={formValidation.errors['linkedClientDzdId']} hasErrorDzd={!!formValidation.errors['linkedClientDzdId']}/>
                             </div>)}
 

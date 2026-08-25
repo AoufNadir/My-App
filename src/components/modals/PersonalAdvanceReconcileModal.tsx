@@ -91,20 +91,21 @@ export function PersonalAdvanceReconcileModal({
                 </Card>
 
                 <MoneyField
-                    label={t('personalAdvance.returnedAmount') as string}
-                    value={actualAmount}
-                    onChange={setActualAmount}
-                    currency={advanceCurrency}
-                    placeholder="0"
-                    hint={(
-                        <span className="inline-flex flex-wrap items-center gap-1">
-                            {t('personalAdvance.advanceTakenHint')}:
-                            <CurrencyAmount value={advanceAmount} currency={advanceCurrency} semantic="plain" size="sm" decimals={advanceCurrency === 'DZD' ? 0 : 2}/>
-                        </span>
-                    )}
-                    error={errorMessage}
-                    autoFocus
-                />
+                                    label={t('personalAdvance.returnedAmount') as string}
+                                    value={actualAmount}
+                                    onChange={setActualAmount}
+                                    currency={advanceCurrency}
+                                    placeholder="0"
+                                    hint={(
+                                        <span className="inline-flex flex-wrap items-center gap-1">
+                                            {t('personalAdvance.advanceTakenHint')}:
+                                            <CurrencyAmount value={advanceAmount} currency={advanceCurrency} semantic="plain" size="sm" decimals={advanceCurrency === 'DZD' ? 0 : 2}/>
+                                        </span>
+                                    )}
+                                    error={errorMessage}
+                                    autoFocus
+                                    onMax={() => setActualAmount(String(advanceAmount))}
+                                />
 
                 <Textarea
                     label={t('personalAdvance.spentDescription') as string}

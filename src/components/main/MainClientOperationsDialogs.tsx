@@ -307,24 +307,22 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                         </div>)}
 
                     {normalizedClientTxType === 'Vente USDT' ? (<div className="space-y-4">
-                            <div>
-                                <Label>{t('portfolio.qtyUsdt')}</Label>
-                                <NumberInput value={clientTxUsdtAmount} onChange={e => setClientTxUsdtAmount(e.target.value)}/>
-                            </div>
-                            <div>
-                                <Label>{t('portfolio.sellingPriceDzd')}</Label>
-                                <NumberInput value={clientTxSellPrice} onChange={e => setClientTxSellPrice(e.target.value)}/>
-                            </div>
-                        </div>) : normalizedClientTxType === 'Achat EUR' ? (<div className="space-y-4">
-                            <div>
-                                <Label>{t('transactions.qtyEur')}</Label>
-                                <NumberInput value={clientTxEurAmount} onChange={e => setClientTxEurAmount(e.target.value)}/>
-                            </div>
-                            <div>
-                                <Label>{t('portfolio.buyPrice')}</Label>
-                                <NumberInput value={clientTxEurPrice} onChange={e => setClientTxEurPrice(e.target.value)}/>
-                            </div>
-                        </div>) : (<div>
+                                                                    <div>
+                                                                        <MoneyField label={t('portfolio.qtyUsdt')} value={clientTxUsdtAmount} onChange={setClientTxUsdtAmount} currency="USDT" onMax={() => setClientTxUsdtAmount(portfolioStats.usdt.available.toFixed(2))} placeholder="0.00"/>
+                                                                    </div>
+                                                                    <div>
+                                                                        <Label>{t('portfolio.sellingPriceDzd')}</Label>
+                                                                        <NumberInput value={clientTxSellPrice} onChange={e => setClientTxSellPrice(e.target.value)}/>
+                                                                    </div>
+                                                                </div>) : normalizedClientTxType === 'Achat EUR' ? (<div className="space-y-4">
+                                                                    <div>
+                                                                        <MoneyField label={t('transactions.qtyEur')} value={clientTxEurAmount} onChange={setClientTxEurAmount} currency="EUR" onMax={() => setClientTxEurAmount(portfolioStats.eur.available.toFixed(2))} placeholder="0.00"/>
+                                                                    </div>
+                                                                    <div>
+                                                                        <Label>{t('portfolio.buyPrice')}</Label>
+                                                                        <NumberInput value={clientTxEurPrice} onChange={e => setClientTxEurPrice(e.target.value)}/>
+                                                                    </div>
+                                                                </div>) : (<div>
                             <Label>{t('transactions.amountDzd')}</Label>
                             <div className="relative">
                                 <Input type="text" inputMode="decimal" value={clientTxAmount} onChange={e => setClientTxAmount(e.target.value)} className="pe-20" placeholder={t('transactions.signedAmountPlaceholder')}/>

@@ -140,21 +140,23 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                 titleStr = t('investorDialog.distributeProfitTitle');
             }
             const isInvalid = !validAmount || exceedsCap || exceedsPaymentSource;
-            const errorMsg = !validAmount
-                ? t('common.invalidAmount')
-                : exceedsCap
-                    ? template('investorDialog.amountAbove', { label: String(capLabel).toLowerCase() })
-                    : exceedsPaymentSource
-                        ? template('personalWithdrawal.sourceInsufficient', { source: paymentSource })
-                        : '';
-            return (<Modal isOpen={isInvestorTxModalOpen} onClose={() => setIsInvestorTxModalOpen(false)} className="max-w-md bg-surface">
+                        const errorMsg = !validAmount
+                            ? t('common.invalidAmount')
+                            : exceedsCap
+                                ? template('investorDialog.amountAbove', { label: String(capLabel).toLowerCase() })
+                                : exceedsPaymentSource
+                                    ? template('personalWithdrawal.sourceInsufficient', { source: paymentSource })
+                                    : '';
+                        const handleWithdrawProfitMax = () => setInvestorTxAmount(availableProfit.toFixed(2));
+                        const handleWithdrawCapitalMax = () => setInvestorTxAmount(capitalInvested.toFixed(2));
+                        return (<Modal isOpen={isInvestorTxModalOpen} onClose={() => setIsInvestorTxModalOpen(false)} className="max-w-md bg-surface">
                         <ModalHeader onClose={() => setIsInvestorTxModalOpen(false)} className={headerClass}>
                             <ModalTitle className="text-base sm:text-lg">{titleStr}</ModalTitle>
                         </ModalHeader>
                         <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
-                            <MoneyField label={t('transactions.amount') as string} value={investorTxAmount} onChange={setInvestorTxAmount} currency="DZD" placeholder="0.00" error={errorMsg && validAmount ? errorMsg : undefined}/>
+                                                    <MoneyField label={t('transactions.amount') as string} value={investorTxAmount} onChange={setInvestorTxAmount} currency="DZD" placeholder="0.00" onMax={investorTxType === 'withdraw_profit' ? handleWithdrawProfitMax : investorTxType === 'withdraw_capital' ? handleWithdrawCapitalMax : undefined} error={errorMsg && validAmount ? errorMsg : undefined}/>
 
-                            {investorTxType === 'withdraw_profit' && (<div>
+                                                    {investorTxType === 'withdraw_profit' && (<div>
                                     <Label>{t('investorDialog.paymentSource')}</Label>
                                     <Select value={paymentSource} onChange={(event) => setInvestorTxPaymentSource(event.target.value as 'Caisse' | 'BaridiMob')} className="mt-1">
                                         <option value="Caisse">Caisse</option>
@@ -268,24 +270,25 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
 
             {/* REINVEST PROFIT MODAL */}
             {isReinvestModalOpen && (() => {
-            const selectedInv = derivedInvestors.find(i => i.id === selectedInvestorId);
-            const availableProfit = selectedInv?.availableProfit || 0;
-            const capitalInvested = selectedInv?.capitalInvested || 0;
-            const reinvestAmt = parseAndEvaluate(reinvestInput);
-            const validAmount = Number.isFinite(reinvestAmt) && reinvestAmt > 0;
-            const exceedsAvailable = reinvestAmt > availableProfit;
-            const isInvalid = !validAmount || exceedsAvailable;
-            const errorMsg = !validAmount
-                ? t('common.invalidAmount')
-                : exceedsAvailable
-                    ? template('investorDialog.amountAbove', { label: String(t('investors.availableProfit')).toLowerCase() })
-                    : '';
-            return (<Modal isOpen={isReinvestModalOpen} onClose={() => setIsReinvestModalOpen(false)} className="max-w-md bg-surface">
+                        const selectedInv = derivedInvestors.find(i => i.id === selectedInvestorId);
+                        const availableProfit = selectedInv?.availableProfit || 0;
+                        const capitalInvested = selectedInv?.capitalInvested || 0;
+                        const reinvestAmt = parseAndEvaluate(reinvestInput);
+                        const validAmount = Number.isFinite(reinvestAmt) && reinvestAmt > 0;
+                        const exceedsAvailable = reinvestAmt > availableProfit;
+                        const isInvalid = !validAmount || exceedsAvailable;
+                        const errorMsg = !validAmount
+                            ? t('common.invalidAmount')
+                            : exceedsAvailable
+                                ? template('investorDialog.amountAbove', { label: String(t('investors.availableProfit')).toLowerCase() })
+                                : '';
+                        const handleReinvestMax = () => setReinvestInput(availableProfit.toFixed(2));
+                        return (<Modal isOpen={isReinvestModalOpen} onClose={() => setIsReinvestModalOpen(false)} className="max-w-md bg-surface">
                     <ModalHeader onClose={() => setIsReinvestModalOpen(false)} className={headerClass}>
                         <ModalTitle className="text-base sm:text-lg">{t('investorDialog.reinvestTitle')}</ModalTitle>
                     </ModalHeader>
                     <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
-                        <MoneyField label={t('investorDialog.amountToReinvest') as string} value={reinvestInput} onChange={setReinvestInput} currency="DZD" placeholder="0.00" hint={<>{t('investorDialog.available')}: <span dir="ltr">{formatMoney(availableProfit, 'DZD')}</span></>} error={validAmount && exceedsAvailable ? errorMsg : undefined}/>
+                                            <MoneyField label={t('investorDialog.amountToReinvest') as string} value={reinvestInput} onChange={setReinvestInput} currency="DZD" placeholder="0.00" onMax={handleReinvestMax} hint={<>{t('investorDialog.available')}: <span dir="ltr">{formatMoney(availableProfit, 'DZD')}</span></>} error={validAmount && exceedsAvailable ? errorMsg : undefined}/>
                         <div className="grid grid-cols-2 gap-2">
                             <button type="button" onClick={() => setReinvestInput(availableProfit.toFixed(2))} className="min-h-touch rounded-lg bg-primary/10 px-3 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary/15">
                                 {t('investorDialog.reinvestAll')}
