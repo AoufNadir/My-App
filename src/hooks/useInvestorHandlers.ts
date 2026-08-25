@@ -18,6 +18,7 @@ import {
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
 import { transitionClientBalanceDelta, invertReadModelDelta, combineReadModelDeltas, buildReadModelDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
+import { readPersonalExpenseLegacy } from '../readModels/legacyReadDelta';
 
 type PersonalExpenseInvestorLink = {
     id: string;
@@ -629,21 +630,32 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             });
             const readModelDelta = !editingPersonalExpenseTx
                 ? newPersonalExpenseDelta
-                : (() => {
-                    const oldWallet = (editingPersonalExpenseTx.expenseWallet || resolvePersonalExpenseWallet(editingPersonalExpenseTx) || 'Caisse');
-                    const oldAmountDzd = Number(editingPersonalExpenseTx.amountDzd || editingPersonalExpenseTx.amount || 0);
-                    const oldIsAdvance = editingPersonalExpenseTx.advanceState === 'pending';
-                    const oldProfitAmount = Number(editingPersonalExpenseTx.profitAmountDzd || 0);
-                    const oldCapitalAmount = Number(editingPersonalExpenseTx.capitalAmountDzd || 0);
-                    const oldAmountNum = (editingPersonalExpenseTx.originalAmount && Number(editingPersonalExpenseTx.originalAmount) > 0)
-                        ? Number(editingPersonalExpenseTx.originalAmount)
-                        : (editingPersonalExpenseTx.expenseCurrency && editingPersonalExpenseTx.conversionRateToDzd
-                            ? roundM(oldAmountDzd / Number(editingPersonalExpenseTx.conversionRateToDzd))
+                : await (async () => {
+                    // Read legacy treasury doc + linked investor rows for OLD profit/capital split
+                    const legacyResult = await readPersonalExpenseLegacy(editingPersonalExpenseTx.id, userDocRef);
+                    if (!legacyResult.main) {
+                        console.error('Legacy personal expense not found for edit:', editingPersonalExpenseTx.id);
+                        return newPersonalExpenseDelta;
+                    }
+                    const oldMain = legacyResult.main as any;
+                    const oldWallet = (oldMain.expenseWallet || resolvePersonalExpenseWallet(oldMain as any) || 'Caisse');
+                    const oldAmountDzd = Number(oldMain.amountDzd || oldMain.amount || 0);
+                    const oldIsAdvance = oldMain.advanceState === 'pending';
+                    // Profit/capital split from ACTUAL linked investor transactions,
+                    // never recomputed from current available profit/capital.
+                    const linkedProfitRow = legacyResult.linkedRows.find(r => r.collection === 'investor_transactions' && (r.data as any).type === 'personal_expense_profit');
+                    const linkedCapitalRow = legacyResult.linkedRows.find(r => r.collection === 'investor_transactions' && (r.data as any).type === 'personal_expense_capital');
+                    const oldProfitAmount = Number((linkedProfitRow?.data as any)?.amount ?? oldMain.profitAmountDzd ?? 0);
+                    const oldCapitalAmount = Number((linkedCapitalRow?.data as any)?.amount ?? oldMain.capitalAmountDzd ?? 0);
+                    const oldAmountNum = (oldMain.originalAmount && Number(oldMain.originalAmount) > 0)
+                        ? Number(oldMain.originalAmount)
+                        : (oldMain.expenseCurrency && oldMain.conversionRateToDzd
+                            ? roundM(oldAmountDzd / Number(oldMain.conversionRateToDzd))
                             : oldAmountDzd);
                     const oldPersonalExpenseDelta = buildPersonalExpenseReadModelDelta({
                         treasuryRefId: treasuryRef.id,
                         operationId: `legacy:edit:treasury_txs:${treasuryRef.id}:${timestamp}:old`,
-                        timestamp: (editingPersonalExpenseTx.timestamp as number) || timestamp,
+                        timestamp: Number(oldMain.timestamp || timestamp),
                         wallet: oldWallet as FinancialWallet,
                         amountNum: oldAmountNum,
                         amountDzd: oldAmountDzd,
@@ -963,8 +975,12 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             const oldWallet = (tx.expenseWallet || resolvePersonalExpenseWallet(tx) || 'Caisse') as FinancialWallet;
             const oldAmountDzd = Number(tx.amountDzd || tx.amount || 0);
             const oldIsAdvance = tx.advanceState === 'pending';
-            const oldProfitAmount = Number(tx.profitAmountDzd || 0);
-            const oldCapitalAmount = Number(tx.capitalAmountDzd || 0);
+            // Profit/capital split from ACTUAL linked investor transactions (read before delete)
+            const legacyExpenseResult = await readPersonalExpenseLegacy(tx.id, userDocRef);
+            const linkedProfitRow = legacyExpenseResult.linkedRows.find(r => r.collection === 'investor_transactions' && (r.data as any).type === 'personal_expense_profit');
+            const linkedCapitalRow = legacyExpenseResult.linkedRows.find(r => r.collection === 'investor_transactions' && (r.data as any).type === 'personal_expense_capital');
+            const oldProfitAmount = Number((linkedProfitRow?.data as any)?.amount ?? tx.profitAmountDzd ?? 0);
+            const oldCapitalAmount = Number((linkedCapitalRow?.data as any)?.amount ?? tx.capitalAmountDzd ?? 0);
             const oldAmountNum = (tx.originalAmount && Number(tx.originalAmount) > 0)
                 ? Number(tx.originalAmount)
                 : (tx.expenseCurrency && tx.conversionRateToDzd

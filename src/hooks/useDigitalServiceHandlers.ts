@@ -12,6 +12,7 @@ import { recordServiceShadow } from '../accounting/serviceShadowDiagnostics';
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
 import { transitionClientBalanceDelta, invertReadModelDelta, combineReadModelDeltas, buildReadModelDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
+import { readDigitalServiceTxLegacy } from '../readModels/legacyReadDelta';
 import {
     computeDigitalServicePreview,
     isAssetWallet,
@@ -548,28 +549,41 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
             });
             const readModelDelta = !editingDigitalServiceTx
                 ? newDigitalServiceDelta
-                : (() => {
-                    const oldPurchaseWallet = (editingDigitalServiceTx.purchaseWallet || 'Caisse') as FinancialWallet;
-                    const oldSaleWallet = (editingDigitalServiceTx.saleWallet || 'Caisse') as DigitalServiceSaleWallet;
-                    const oldPurchaseAmount = roundM(Number(editingDigitalServiceTx.purchaseAmount || 0));
-                    const oldSaleAmount = roundM(Number(editingDigitalServiceTx.saleAmount || 0));
-                    const oldPreview = computeDigitalServicePreview({
-                        purchaseWallet: oldPurchaseWallet,
-                        purchaseAmount: oldPurchaseAmount,
-                        saleWallet: oldSaleWallet,
-                        saleAmount: oldSaleAmount,
-                        rates,
-                    });
+                : await (async () => {
+                    // Read legacy main doc + linked rows; use STORED DZD values from
+                    // the main doc — never recompute historical conversions with current PAM.
+                    const legacyResult = await readDigitalServiceTxLegacy(editingDigitalServiceTx.id, userDocRef);
+                    if (!legacyResult.main) {
+                        console.error('Legacy digital service not found for edit:', editingDigitalServiceTx.id);
+                        return newDigitalServiceDelta;
+                    }
+                    const oldMain = legacyResult.main as any;
+                    const linkedClientRows = legacyResult.linkedRows.filter(r => r.collection === 'dzd_client_txs');
+                    const linkedClientRow = linkedClientRows[0]?.data as any;
+                    const oldPurchaseWallet = (oldMain.purchaseWallet || 'Caisse') as FinancialWallet;
+                    const oldSaleWallet = (oldMain.saleWallet || 'Caisse') as DigitalServiceSaleWallet;
+                    const oldPurchaseAmount = roundM(Number(oldMain.purchaseAmount || 0));
+                    const oldSaleAmount = roundM(Number(oldMain.saleAmount || 0));
+                    // Stored financial effect from the original document
+                    const oldPreview = {
+                        purchaseCurrency: (oldMain.purchaseCurrency || 'USDT') as 'USDT' | 'EUR',
+                        saleCurrency: (oldMain.saleCurrency || 'USDT') as 'USDT' | 'EUR',
+                        purchaseRateToDzd: Number(oldMain.purchaseRateToDzd || 0),
+                        saleRateToDzd: Number(oldMain.saleRateToDzd || 0),
+                        purchaseAmountDzd: roundM(Number(oldMain.purchaseAmountDzd || 0)),
+                        saleAmountDzd: roundM(Number(oldMain.saleAmountDzd || 0)),
+                        profitDzd: roundM(Number(oldMain.profitDzd || 0)),
+                    };
                     const oldDigitalServiceDelta = computeDigitalServiceReadModelDelta({
                         mainRefId: mainRef.id,
                         operationId: `legacy:edit:digital_service_txs:${mainRef.id}:${stamp.timestamp}:old`,
-                        stamp: { timestamp: editingDigitalServiceTx.timestamp || stamp.timestamp, date: editingDigitalServiceTx.date || stamp.date, time: editingDigitalServiceTx.time || stamp.time },
+                        stamp: { timestamp: Number(oldMain.timestamp || stamp.timestamp), date: oldMain.date || stamp.date, time: oldMain.time || stamp.time },
                         purchaseWallet: oldPurchaseWallet,
                         saleWallet: oldSaleWallet,
                         purchaseAmount: oldPurchaseAmount,
                         saleAmount: oldSaleAmount,
-                        preview: oldPreview,
-                        clientId: editingDigitalServiceTx.clientId || digitalServiceClientId,
+                        preview: oldPreview as any,
+                        clientId: oldMain.clientId || linkedClientRow?.clientId || digitalServiceClientId,
                     });
                     return combineReadModelDeltas(invertReadModelDelta(oldDigitalServiceDelta), newDigitalServiceDelta);
                 })();
@@ -594,13 +608,16 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
         if (isDigitalServiceSaving) return;
         setIsDigitalServiceSaving(true);
         try {
-            const oldPreview = computeDigitalServicePreview({
-                purchaseWallet: (tx.purchaseWallet || 'Caisse') as FinancialWallet,
-                purchaseAmount: roundM(Number(tx.purchaseAmount || 0)),
-                saleWallet: (tx.saleWallet || 'Caisse') as DigitalServiceSaleWallet,
-                saleAmount: roundM(Number(tx.saleAmount || 0)),
-                rates,
-            });
+            // Stored financial effect from the original document (no current-PAM recompute)
+            const oldPreview = {
+                purchaseCurrency: (tx.purchaseCurrency || 'USDT') as 'USDT' | 'EUR',
+                saleCurrency: (tx.saleCurrency || 'USDT') as 'USDT' | 'EUR',
+                purchaseRateToDzd: Number(tx.purchaseRateToDzd || 0),
+                saleRateToDzd: Number(tx.saleRateToDzd || 0),
+                purchaseAmountDzd: roundM(Number(tx.purchaseAmountDzd || 0)),
+                saleAmountDzd: roundM(Number(tx.saleAmountDzd || 0)),
+                profitDzd: roundM(Number(tx.profitDzd || 0)),
+            };
             const oldDigitalServiceDelta = computeDigitalServiceReadModelDelta({
                 mainRefId: tx.id,
                 operationId: `legacy:delete-build:digital_service_txs:${tx.id}`,

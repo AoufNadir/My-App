@@ -21,6 +21,7 @@ import { allocateProfitDeltaAtTimestamp, type ManagerFeeHistoryEntry } from './u
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
 import { combineClientPositionDeltas, derivePortfolioSellReadModelEconomics, invertReadModelDelta, combineReadModelDeltas, transitionClientBalanceDelta, type ClientPositionDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
+import { readUsdtTxLegacy, readTreasuryTxLegacy, readClientTxLegacy, readPersonalExpenseLegacy, type LegacyReadResult } from '../readModels/legacyReadDelta';
 interface HandlerProps {
     userDocRef: FirestoreDocumentReference;
     portfolioStats: PortfolioStats;
@@ -289,8 +290,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         creditDueDate?: number;
         shouldLinkSettlementToDzdClient: boolean;
         linkedClientDzdId: string;
+        excludeTxIds?: readonly string[];
     }): ReadModelDelta => {
-        const { committedSellTxId, operationId, timestamp, sellCurrency, quantity, sell, totalRevenue, profit, notes, isUsdtSettledInEur, saleValueEur, saleValueDzd, linkedClientId, clientPaymentStatus, creditDueDate, shouldLinkSettlementToDzdClient, linkedClientDzdId } = input;
+        const { committedSellTxId, operationId, timestamp, sellCurrency, quantity, sell, totalRevenue, profit, notes, isUsdtSettledInEur, saleValueEur, saleValueDzd, linkedClientId, clientPaymentStatus, creditDueDate, shouldLinkSettlementToDzdClient, linkedClientDzdId, excludeTxIds } = input;
         const portfolioDelta = {
             [sellCurrency]: {
                 quantityDelta: -quantity,
@@ -336,6 +338,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             fallbackProfitDzd: profit,
             fallbackCostBasisDzd: getPortfolioRemovalCost(sellCurrency, quantity),
             nowMs: timestamp,
+            excludeTxIds,
         });
         portfolioDelta[sellCurrency].costBasisDeltaDzd = -sellEconomics.soldCostDzd;
         portfolioDelta[sellCurrency].realizedProfitDeltaDzd = sellEconomics.realizedProfitDzd;
@@ -878,61 +881,69 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 }, { clientDeltas: { [linkedClientDzdId]: totalCost } });
             }
             const editMutationSeq = editingTx ? timestamp : 0;
-            const newBuyOperationId = `legacy:edit:usdt_txs:${mainTxId}:${editMutationSeq}:new`;
-            const newBuyDelta = computeBuyReadModelDelta({
-                mainTxId,
-                operationId: newBuyOperationId,
-                timestamp,
-                buyUsdtMode,
-                mode,
-                quantity,
-                totalCost,
-                eurSpentForConversion,
-                currency: (currency === 'EUR' ? 'EUR' : 'USDT') as 'USDT' | 'EUR',
-                clientPaymentStatus,
-                linkedClientId,
-                linkedClientDzdId,
-                shouldLinkCashToDzdClient,
-            });
-            const readModelDelta = !editingTx
-                ? newBuyDelta
-                : (() => {
-                    const oldQuantity = roundM(Number(editingTx.quantity || 0));
-                    const oldPrice = Number(editingTx.price || 0);
-                    const oldCurrency = (editingTx.currency === 'EUR' ? 'EUR' : 'USDT') as 'USDT' | 'EUR';
-                    const oldPurchaseFundingCurrency = editingTx.purchaseFundingCurrency === 'EUR' ? 'EUR' : 'DZD';
-                    const oldBuyUsdtMode: 'with_dzd' | 'with_eur' = mode === 'buy_eur' ? 'with_dzd' : (oldPurchaseFundingCurrency === 'EUR' ? 'with_eur' : 'with_dzd');
-                    const oldMode: 'buy_usdt' | 'buy_eur' = mode === 'buy_eur' ? 'buy_eur' : 'buy_usdt';
-                    const oldTotalCost = oldCurrency === 'USDT'
-                        ? Math.round(oldQuantity * oldPrice)
-                        : Math.round(oldQuantity * oldPrice);
-                    const oldEurSpent = oldPurchaseFundingCurrency === 'EUR' ? roundM(Number(editingTx.purchaseAmountEur || 0)) : 0;
-                    const oldClientPaymentStatus = (((editingTx.clientPaymentStatus || 'cash') as 'cash' | 'baridi' | 'credit'));
-                    const oldLinkedClientId = editingTx.linkedClientId || 'none';
-                    const oldLinkedClientDzdId = editingTx.linkedClientDzdId || 'none';
-                    const oldShouldLinkCashToDzdClient = oldClientPaymentStatus === 'cash' && oldLinkedClientDzdId !== 'none';
-                    const oldBuyDelta = computeBuyReadModelDelta({
-                        mainTxId,
-                        operationId: `legacy:edit:usdt_txs:${mainTxId}:${editMutationSeq}:old`,
-                        timestamp: editingTx.timestamp,
-                        buyUsdtMode: oldBuyUsdtMode,
-                        mode: oldMode,
-                        quantity: oldQuantity,
-                        totalCost: oldTotalCost,
-                        eurSpentForConversion: oldEurSpent,
-                        currency: oldCurrency,
-                        clientPaymentStatus: oldClientPaymentStatus,
-                        linkedClientId: oldLinkedClientId,
-                        linkedClientDzdId: oldLinkedClientDzdId,
-                        shouldLinkCashToDzdClient: oldShouldLinkCashToDzdClient,
-                    });
-                    return combineReadModelDeltas(invertReadModelDelta(oldBuyDelta), newBuyDelta);
-                })();
-            await commitLegacyWithReadModelDeltas({
-                userDocRef,
-                batch,
-                deltas: readModelDelta ? [readModelDelta] : [],
-            });
+                        const newBuyOperationId = `legacy:edit:usdt_txs:${mainTxId}:${editMutationSeq}:new`;
+                        const newBuyDelta = computeBuyReadModelDelta({
+                            mainTxId,
+                            operationId: newBuyOperationId,
+                            timestamp,
+                            buyUsdtMode,
+                            mode,
+                            quantity,
+                            totalCost,
+                            eurSpentForConversion,
+                            currency: (currency === 'EUR' ? 'EUR' : 'USDT') as 'USDT' | 'EUR',
+                            clientPaymentStatus,
+                            linkedClientId,
+                            linkedClientDzdId,
+                            shouldLinkCashToDzdClient,
+                        });
+                        const readModelDelta = !editingTx
+                            ? newBuyDelta
+                            : await (async () => {
+                                // Read legacy buy tx + linked rows for OLD delta
+                                const legacyResult = await readUsdtTxLegacy(mainTxId, userDocRef);
+                                if (!legacyResult.main) {
+                                    console.error('Legacy buy tx not found for edit:', mainTxId);
+                                    return newBuyDelta;
+                                }
+                                const oldMain = legacyResult.main as any;
+                                // Extract linked client metadata from actual linked rows
+                                const linkedClientRows = legacyResult.linkedRows.filter(r => r.collection === 'dzd_client_txs');
+                                const linkedClientRow = linkedClientRows[0]?.data as any;
+                                const oldLinkedClientId = (oldMain.linkedClientId || linkedClientRow?.clientId || 'none') as string;
+                                const oldLinkedClientDzdId = (oldMain.linkedClientDzdId || linkedClientRow?.linkedClientDzdId || 'none') as string;
+                                const oldClientPaymentStatus = (oldMain.clientPaymentStatus || linkedClientRow?.paymentMethod || 'cash') as 'cash' | 'baridi' | 'credit';
+                                const oldShouldLinkCashToDzdClient = (oldClientPaymentStatus === 'cash' || oldClientPaymentStatus === 'baridi') && oldLinkedClientDzdId !== 'none';
+                                const oldCurrency = (oldMain.currency === 'EUR' ? 'EUR' : 'USDT') as 'USDT' | 'EUR';
+                                const oldPurchaseFundingCurrency = oldMain.purchaseFundingCurrency === 'EUR' ? 'EUR' : 'DZD';
+                                const oldBuyUsdtMode: 'with_dzd' | 'with_eur' = mode === 'buy_eur' ? 'with_dzd' : (oldPurchaseFundingCurrency === 'EUR' ? 'with_eur' : 'with_dzd');
+                                const oldMode: 'buy_usdt' | 'buy_eur' = mode === 'buy_eur' ? 'buy_eur' : 'buy_usdt';
+                                const oldQuantity = roundM(Number(oldMain.quantity || 0));
+                                const oldPrice = Number(oldMain.price || 0);
+                                const oldTotalCost = Math.round(oldQuantity * oldPrice);
+                                const oldEurSpent = oldPurchaseFundingCurrency === 'EUR' ? roundM(Number(oldMain.purchaseAmountEur || oldMain.eurSpentForConversion || 0)) : 0;
+                                const oldBuyDelta = computeBuyReadModelDelta({
+                                    mainTxId,
+                                    operationId: `legacy:edit:usdt_txs:${mainTxId}:${editMutationSeq}:old`,
+                                    timestamp: Number(oldMain.timestamp || timestamp),
+                                    buyUsdtMode: oldBuyUsdtMode,
+                                    mode: oldMode,
+                                    quantity: oldQuantity,
+                                    totalCost: oldTotalCost,
+                                    eurSpentForConversion: oldEurSpent,
+                                    currency: oldCurrency,
+                                    clientPaymentStatus: oldClientPaymentStatus,
+                                    linkedClientId: oldLinkedClientId,
+                                    linkedClientDzdId: oldLinkedClientDzdId,
+                                    shouldLinkCashToDzdClient: oldShouldLinkCashToDzdClient,
+                                });
+                                return combineReadModelDeltas(invertReadModelDelta(oldBuyDelta), newBuyDelta);
+                            })();
+                        await commitLegacyWithReadModelDeltas({
+                            userDocRef,
+                            batch,
+                            deltas: readModelDelta ? [readModelDelta] : [],
+                        });
             closeForm();
             if (linkedClientId !== 'none') {
                 setTimeout(() => {
@@ -1261,67 +1272,86 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 }
             }
             const editMutationSeq = editingTx ? timestamp : 0;
-            const newSellOperationId = `legacy:edit:usdt_txs:${committedSellTxId}:${editMutationSeq}:new`;
-            const newSellDelta = computeSellReadModelDelta({
-                committedSellTxId,
-                operationId: newSellOperationId,
-                timestamp,
-                sellCurrency,
-                quantity,
-                sell,
-                totalRevenue,
-                profit,
-                notes,
-                isUsdtSettledInEur,
-                saleValueEur,
-                saleValueDzd,
-                linkedClientId,
-                clientPaymentStatus,
-                creditDueDate,
-                shouldLinkSettlementToDzdClient,
-                linkedClientDzdId,
-            });
-            const readModelDelta = !editingTx
-                ? newSellDelta
-                : (() => {
-                    const oldSellCurrency = (editingTx.currency === 'EUR' ? 'EUR' : 'USDT') as 'USDT' | 'EUR';
-                    const oldQuantity = roundM(Number(editingTx.quantity || 0));
-                    const oldSell = Number(editingTx.sell || editingTx.price || 0);
-                    const oldTotalRevenue = Math.round(Number(editingTx.total || 0));
-                    const oldProfit = Number(editingTx.profit || 0);
-                    const oldIsUsdtSettledInEur = editingTx.settlementCurrency === 'EUR';
-                    const oldSaleValueEur = roundM(Number(editingTx.saleValueEur || 0));
-                    const oldSaleValueDzd = Math.round(Number(editingTx.saleValueDzd || 0));
-                    const oldClientPaymentStatus = ((editingTx.clientPaymentStatus || 'cash') as 'cash' | 'baridi' | 'credit');
-                    const oldLinkedClientId = editingTx.linkedClientId || 'none';
-                    const oldLinkedClientDzdId = editingTx.linkedClientDzdId || 'none';
-                    const oldShouldLinkSettlementToDzdClient = !oldIsUsdtSettledInEur && (oldClientPaymentStatus === 'cash' || oldClientPaymentStatus === 'baridi') && oldLinkedClientDzdId !== 'none';
-                    const oldSellDelta = computeSellReadModelDelta({
-                        committedSellTxId,
-                        operationId: `legacy:edit:usdt_txs:${committedSellTxId}:${editMutationSeq}:old`,
-                        timestamp: editingTx.timestamp,
-                        sellCurrency: oldSellCurrency,
-                        quantity: oldQuantity,
-                        sell: oldSell,
-                        totalRevenue: oldTotalRevenue,
-                        profit: oldProfit,
-                        notes: editingTx,
-                        isUsdtSettledInEur: oldIsUsdtSettledInEur,
-                        saleValueEur: oldSaleValueEur,
-                        saleValueDzd: oldSaleValueDzd,
-                        linkedClientId: oldLinkedClientId,
-                        clientPaymentStatus: oldClientPaymentStatus,
-                        creditDueDate: editingTx.creditDueDate,
-                        shouldLinkSettlementToDzdClient: oldShouldLinkSettlementToDzdClient,
-                        linkedClientDzdId: oldLinkedClientDzdId,
-                    });
-                    return combineReadModelDeltas(invertReadModelDelta(oldSellDelta), newSellDelta);
-                })();
-            await commitLegacyWithReadModelDeltas({
-                userDocRef,
-                batch,
-                deltas: readModelDelta ? [readModelDelta] : [],
-            });
+                        const newSellOperationId = `legacy:edit:usdt_txs:${committedSellTxId}:${editMutationSeq}:new`;
+                        // PAM baseline rule: exclude the target tx so the old tx is never
+                        // projected twice (old + replacement) inside economics.
+                        const sellExcludeTxIds = [committedSellTxId];
+                        const newSellDelta = computeSellReadModelDelta({
+                            committedSellTxId,
+                            operationId: newSellOperationId,
+                            timestamp,
+                            sellCurrency,
+                            quantity,
+                            sell,
+                            totalRevenue,
+                            profit,
+                            notes,
+                            isUsdtSettledInEur,
+                            saleValueEur,
+                            saleValueDzd,
+                            linkedClientId,
+                            clientPaymentStatus,
+                            creditDueDate,
+                            shouldLinkSettlementToDzdClient,
+                            linkedClientDzdId,
+                            excludeTxIds: editingTx ? sellExcludeTxIds : undefined,
+                        });
+                        const readModelDelta = !editingTx
+                            ? newSellDelta
+                            : await (async () => {
+                                // Read legacy sell tx + linked rows for OLD delta
+                                const legacyResult = await readUsdtTxLegacy(committedSellTxId, userDocRef);
+                                if (!legacyResult.main) {
+                                    console.error('Legacy sell tx not found for edit:', committedSellTxId);
+                                    return newSellDelta; // fallback to new only
+                                }
+                                const oldMain = legacyResult.main as any;
+                                const oldIsUsdtSettledInEur = oldMain.settlementCurrency === 'EUR';
+
+                                // Extract linked client metadata from actual linked rows
+                                const linkedClientRows = legacyResult.linkedRows.filter(r => r.collection === 'dzd_client_txs');
+                                const linkedClientRow = linkedClientRows[0]?.data as any;
+                                const oldLinkedClientId = (oldMain.linkedClientId || linkedClientRow?.clientId || 'none') as string;
+                                const oldLinkedClientDzdId = (oldMain.linkedClientDzdId || linkedClientRow?.linkedClientDzdId || 'none') as string;
+                                const oldClientPaymentStatus = (oldMain.clientPaymentStatus || linkedClientRow?.paymentMethod || 'cash') as 'cash' | 'baridi' | 'credit';
+                                const oldShouldLinkSettlementToDzdClient = !oldIsUsdtSettledInEur && (oldClientPaymentStatus === 'cash' || oldClientPaymentStatus === 'baridi') && oldLinkedClientDzdId !== 'none';
+
+                                const oldSellCurrency = (oldMain.currency === 'EUR' ? 'EUR' : 'USDT') as 'USDT' | 'EUR';
+                                const oldQuantity = roundM(Number(oldMain.quantity || 0));
+                                const oldSell = Number(oldMain.sell || oldMain.price || 0);
+                                const oldTotalRevenue = Math.round(Number(oldMain.total || 0));
+                                const oldProfit = Number(oldMain.profit || 0);
+                                const oldSaleValueEur = roundM(Number(oldMain.saleValueEur || 0));
+                                const oldSaleValueDzd = Math.round(Number(oldMain.saleValueDzd || 0));
+
+                                const oldSellDelta = computeSellReadModelDelta({
+                                    committedSellTxId,
+                                    operationId: `legacy:edit:usdt_txs:${committedSellTxId}:${editMutationSeq}:old`,
+                                    timestamp: Number(oldMain.timestamp || timestamp),
+                                    sellCurrency: oldSellCurrency,
+                                    quantity: oldQuantity,
+                                    sell: oldSell,
+                                    totalRevenue: oldTotalRevenue,
+                                    profit: oldProfit,
+                                    notes: String(oldMain.notes ?? ''),
+                                    isUsdtSettledInEur: oldIsUsdtSettledInEur,
+                                    saleValueEur: oldSaleValueEur,
+                                    saleValueDzd: oldSaleValueDzd,
+                                    linkedClientId: oldLinkedClientId,
+                                    clientPaymentStatus: oldClientPaymentStatus,
+                                    creditDueDate: oldMain.creditDueDate ? Number(oldMain.creditDueDate) : undefined,
+                                    shouldLinkSettlementToDzdClient: oldShouldLinkSettlementToDzdClient,
+                                    linkedClientDzdId: oldLinkedClientDzdId,
+                                    excludeTxIds: sellExcludeTxIds,
+                                });
+
+                                return combineReadModelDeltas(invertReadModelDelta(oldSellDelta), newSellDelta);
+                            })();
+                        await commitLegacyWithReadModelDeltas({
+                            userDocRef,
+                            batch,
+                            deltas: readModelDelta ? [readModelDelta] : [],
+                        });
             closeForm();
             if (linkedClientId !== 'none') {
                 setTimeout(() => {

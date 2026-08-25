@@ -3,7 +3,7 @@ import { formatNumber } from './pages/shared/pageFormat';
 import { recordTreasuryLegacyDeletionShadow, recordTreasuryShadow } from './accounting/treasuryShadowDiagnostics';
 import { resolveLegacyMutationPolicy } from './readModels/readModelActivation';
 import { commitLegacyWithReadModelDeltas } from './readModels/productionSummaryWriter';
-import { invertReadModelDelta, buildReadModelDelta, type ReadModelDelta } from './readModels/readModelDeltas';
+import { invertReadModelDelta, buildReadModelDelta, READ_MODEL_APPLIED_OPS_PATH, type ReadModelDelta } from './readModels/readModelDeltas';
 import {
     createLegacyOperationIndexDoc,
     deterministicLinkedId,
@@ -215,6 +215,15 @@ export async function applyTransactionDelete(transactionId: string, transactionT
         }
         transactionId = resolvedTarget.transactionId;
         transactionType = resolvedTarget.transactionType;
+        // Idempotent delete retry: if the deterministic delete operation was
+        // already applied (marker written inside the same atomic transaction),
+        // return success WITHOUT building a new delta or sending an empty batch.
+        const resolvedCollection = COLLECTION_MAP[transactionType];
+        const deleteMarkerId = `legacy:delete:${resolvedCollection}:${transactionId}`;
+        const deleteMarkerSnap = await userDocRef.collection(READ_MODEL_APPLIED_OPS_PATH).doc(deleteMarkerId).get();
+        if (deleteMarkerSnap.exists) {
+            return { success: true };
+        }
         const batch = userDocRef.firestore.batch();
         const mainCollection = COLLECTION_MAP[transactionType];
         const mainSnapshot = await userDocRef.collection(mainCollection).doc(transactionId).get();

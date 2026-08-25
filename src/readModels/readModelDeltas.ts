@@ -138,8 +138,12 @@ export function derivePortfolioSellReadModelEconomics(input: {
     fallbackProfitDzd: number;
     fallbackCostBasisDzd: number;
     nowMs?: number;
+    excludeTxIds?: readonly string[];
 }): { realizedProfitDzd: number; soldCostDzd: number } {
-    const ledger = computePamLedger([...input.transactions, input.sellTx], {
+    const filteredTxns = input.excludeTxIds && input.excludeTxIds.length > 0
+        ? input.transactions.filter(tx => !input.excludeTxIds!.includes(tx.id))
+        : input.transactions;
+    const ledger = computePamLedger([...filteredTxns, input.sellTx], {
         nowMs: input.nowMs ?? input.sellTx.timestamp,
     });
     const row = ledger.profitByTxId[input.sellTx.id];
