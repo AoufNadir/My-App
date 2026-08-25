@@ -149,12 +149,14 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                                     : '';
                         const handleWithdrawProfitMax = () => setInvestorTxAmount(availableProfit.toFixed(2));
                         const handleWithdrawCapitalMax = () => setInvestorTxAmount(capitalInvested.toFixed(2));
+                        const investorTxMaxDisabled = !(investorTxType === 'withdraw_profit' || investorTxType === 'withdraw_capital')
+                            || (investorTxType === 'withdraw_profit' ? availableProfit : capitalInvested) <= 0;
                         return (<Modal isOpen={isInvestorTxModalOpen} onClose={() => setIsInvestorTxModalOpen(false)} className="max-w-md bg-surface">
                         <ModalHeader onClose={() => setIsInvestorTxModalOpen(false)} className={headerClass}>
                             <ModalTitle className="text-base sm:text-lg">{titleStr}</ModalTitle>
                         </ModalHeader>
                         <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
-                                                    <MoneyField label={t('transactions.amount') as string} value={investorTxAmount} onChange={setInvestorTxAmount} currency="DZD" placeholder="0.00" onMax={investorTxType === 'withdraw_profit' ? handleWithdrawProfitMax : investorTxType === 'withdraw_capital' ? handleWithdrawCapitalMax : undefined} error={errorMsg && validAmount ? errorMsg : undefined}/>
+                                                    <MoneyField label={t('transactions.amount') as string} value={investorTxAmount} onChange={setInvestorTxAmount} currency="DZD" placeholder="0.00" onMax={investorTxType === 'withdraw_profit' ? handleWithdrawProfitMax : investorTxType === 'withdraw_capital' ? handleWithdrawCapitalMax : undefined} maxDisabled={investorTxMaxDisabled} error={errorMsg && validAmount ? errorMsg : undefined}/>
 
                                                     {investorTxType === 'withdraw_profit' && (<div>
                                     <Label>{t('investorDialog.paymentSource')}</Label>
@@ -283,12 +285,13 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                                 ? template('investorDialog.amountAbove', { label: String(t('investors.availableProfit')).toLowerCase() })
                                 : '';
                         const handleReinvestMax = () => setReinvestInput(availableProfit.toFixed(2));
+                        const reinvestMaxDisabled = availableProfit <= 0;
                         return (<Modal isOpen={isReinvestModalOpen} onClose={() => setIsReinvestModalOpen(false)} className="max-w-md bg-surface">
                     <ModalHeader onClose={() => setIsReinvestModalOpen(false)} className={headerClass}>
                         <ModalTitle className="text-base sm:text-lg">{t('investorDialog.reinvestTitle')}</ModalTitle>
                     </ModalHeader>
                     <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
-                                            <MoneyField label={t('investorDialog.amountToReinvest') as string} value={reinvestInput} onChange={setReinvestInput} currency="DZD" placeholder="0.00" onMax={handleReinvestMax} hint={<>{t('investorDialog.available')}: <span dir="ltr">{formatMoney(availableProfit, 'DZD')}</span></>} error={validAmount && exceedsAvailable ? errorMsg : undefined}/>
+                                            <MoneyField label={t('investorDialog.amountToReinvest') as string} value={reinvestInput} onChange={setReinvestInput} currency="DZD" placeholder="0.00" onMax={handleReinvestMax} maxDisabled={reinvestMaxDisabled} hint={<>{t('investorDialog.available')}: <span dir="ltr">{formatMoney(availableProfit, 'DZD')}</span></>} error={validAmount && exceedsAvailable ? errorMsg : undefined}/>
                         <div className="grid grid-cols-2 gap-2">
                             <button type="button" onClick={() => setReinvestInput(availableProfit.toFixed(2))} className="min-h-touch rounded-lg bg-primary/10 px-3 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary/15">
                                 {t('investorDialog.reinvestAll')}

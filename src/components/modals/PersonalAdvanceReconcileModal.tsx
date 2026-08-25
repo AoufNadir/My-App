@@ -105,6 +105,7 @@ export function PersonalAdvanceReconcileModal({
                                     error={errorMessage}
                                     autoFocus
                                     onMax={() => setActualAmount(String(advanceAmount))}
+                                    maxDisabled={advanceAmount <= 0}
                                 />
 
                 <Textarea

@@ -95,6 +95,7 @@ export function DigitalServiceSaleModal({
     const purchaseAvailable = walletBalance(purchaseWallet, treasuryStats, portfolioStats);
 
     const handlePurchaseMax = () => setPurchaseAmount(purchaseAvailable.toFixed(purchaseCurrency === 'DZD' ? 0 : 2));
+    const purchaseMaxDisabled = purchaseAvailable <= 0;
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} className="max-w-lg bg-surface text-neutral-900">
@@ -154,6 +155,7 @@ export function DigitalServiceSaleModal({
                                                     currency={purchaseCurrency}
                                                     placeholder="0"
                                                     onMax={handlePurchaseMax}
+                                                    maxDisabled={purchaseMaxDisabled}
                                                     hint={(
                                                         <span className="inline-flex flex-wrap items-center gap-1">
                                                             {t('delivery.availableBalance')}:

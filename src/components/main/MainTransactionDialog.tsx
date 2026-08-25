@@ -204,43 +204,49 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                 updateSellTotalFromQuantity(activeStats.available, price);
             }
         };
+        // Funding source for Buy = linked client's payment status (matches handleBuy):
+        //   credit -> no direct treasury wallet (client-funded)
+        //   cash    -> Caisse
+        //   baridi  -> BaridiMob
+        const isFundingCredit = clientPaymentStatus === 'credit';
+        const fundingWalletBalance = isFundingCredit
+            ? 0
+            : (clientPaymentStatus === 'baridi'
+                ? (treasuryStats?.baridi || 0)
+                : (treasuryStats?.caisse || 0));
         const applyBuyUsdtDzdQuantityMax = () => {
-            // MAX for Buy USDT/DZD quantity = DZD wallet balance / price
+            // MAX for Buy USDT/DZD quantity = actual funding wallet balance / price
             const price = parseAndEvaluate(buyUsdtPrice);
-            const total = parseAndEvaluate(buyUsdtTotal);
-            if (price > 0 && total > 0) {
-                setBuyUsdtAmount((total / price).toFixed(2));
-            } else if (price > 0) {
-                // Use treasury balance (caisse + baridi) as the max DZD available
-                const treasuryTotal = (treasuryStats?.caisse || 0) + (treasuryStats?.baridi || 0);
-                setBuyUsdtAmount((treasuryTotal / price).toFixed(2));
+            if (price > 0 && !isFundingCredit && fundingWalletBalance > 0) {
+                setBuyUsdtAmount((fundingWalletBalance / price).toFixed(2));
             }
         };
+        const buyUsdtDzdQtyMaxDisabled = isFundingCredit || parseAndEvaluate(buyUsdtPrice) <= 0 || fundingWalletBalance <= 0;
         const applyBuyUsdtEurQuantityMax = () => {
             // MAX for Buy USDT/EUR quantity = EUR available
             setBuyEurForUsdtAmount(portfolioStats.eur.available.toFixed(2));
         };
+        const buyEurForUsdtQtyMaxDisabled = portfolioStats.eur.available <= 0;
         const applyBuyEurQuantityMax = () => {
-            // MAX for Buy EUR quantity = DZD wallet balance / price
+            // MAX for Buy EUR quantity = actual funding wallet balance / price
             const price = parseAndEvaluate(buyEurPrice);
-            const total = parseAndEvaluate(buyEurTotal);
-            if (price > 0 && total > 0) {
-                setBuyEurAmount((total / price).toFixed(2));
-            } else if (price > 0) {
-                const treasuryTotal = (treasuryStats?.caisse || 0) + (treasuryStats?.baridi || 0);
-                setBuyEurAmount((treasuryTotal / price).toFixed(2));
+            if (price > 0 && !isFundingCredit && fundingWalletBalance > 0) {
+                setBuyEurAmount((fundingWalletBalance / price).toFixed(2));
             }
         };
+        const buyEurQtyMaxDisabled = isFundingCredit || parseAndEvaluate(buyEurPrice) <= 0 || fundingWalletBalance <= 0;
         const applyBuyEurTotalMax = () => {
-            // MAX for Buy EUR total = DZD wallet balance
-            const treasuryTotal = (treasuryStats?.caisse || 0) + (treasuryStats?.baridi || 0);
-            setBuyEurTotal(Math.round(treasuryTotal).toString());
+            // MAX for Buy EUR total = actual funding wallet balance
+            if (isFundingCredit || fundingWalletBalance <= 0)
+                return;
+            setBuyEurTotal(Math.round(fundingWalletBalance).toString());
             setIsTotalManual(true);
             const price = parseAndEvaluate(buyEurPrice);
             if (price > 0) {
-                setBuyEurAmount((treasuryTotal / price).toFixed(2));
+                setBuyEurAmount((fundingWalletBalance / price).toFixed(2));
             }
         };
+        const buyEurTotalMaxDisabled = isFundingCredit || fundingWalletBalance <= 0;
         const chooseSellWithDzd = () => {
         setSellSettlementCurrency('DZD');
         setIsTotalManual(false);
@@ -503,7 +509,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                             const qty = parseAndEvaluate(buyUsdtAmount);
                                             if (!isNaN(qty) && qty > 0)
                                                 setBuyUsdtAmount(qty.toFixed(2));
-                                        }} currency="USDT" onMax={applyBuyUsdtDzdQuantityMax} error={formValidation.errors['buyUsdtAmount']}/>
+                                        }} currency="USDT" onMax={applyBuyUsdtDzdQuantityMax} maxDisabled={buyUsdtDzdQtyMaxDisabled} error={formValidation.errors['buyUsdtAmount']}/>
                                 <MoneyField label={t('transactions.buyPrice')} value={buyUsdtPrice} onChange={(val) => {
                     setBuyUsdtPrice(val);
                     const qty = parseAndEvaluate(buyUsdtAmount);
@@ -559,7 +565,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
 
                         {/* Buy USDT with EUR */}
                         {buyUsdtMode === 'with_eur' && (<div className="space-y-3">
-                                                        <MoneyField label={t('transactions.quantity')} value={buyEurForUsdtAmount} onChange={setBuyEurForUsdtAmount} currency="EUR" onMax={applyBuyUsdtEurQuantityMax} error={formValidation.errors['buyEurForUsdtAmount']} hint={`${t('portfolio.currentBalanceEur')}: ${portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} EUR`}/>
+                                                        <MoneyField label={t('transactions.quantity')} value={buyEurForUsdtAmount} onChange={setBuyEurForUsdtAmount} currency="EUR" onMax={applyBuyUsdtEurQuantityMax} maxDisabled={buyEurForUsdtQtyMaxDisabled} error={formValidation.errors['buyEurForUsdtAmount']} hint={`${t('portfolio.currentBalanceEur')}: ${portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} EUR`}/>
                                 <MoneyField label={t('portfolio.rateEurUsdt')} value={eurUsdtRate} onChange={setEurUsdtRate} error={formValidation.errors['eurUsdtRate']} placeholder="Ex: 0.92"/>
                                 <MoneyField label={t('portfolio.buyPriceEur')} value={eurDzdPrice} onChange={setEurDzdPrice} currency="DZD" error={formValidation.errors['eurDzdPrice']} hint={t('transactions.basedOnPamEur')} readOnly/>
                                 {(() => {
@@ -691,7 +697,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                                 setBuyEurTotal((qty * price).toFixed(0));
                                             else if (qty === 0 || val === '')
                                                 setBuyEurTotal('');
-                                        }} currency="EUR" onMax={applyBuyEurQuantityMax} error={formValidation.errors['buyEurAmount']}/>
+                                        }} currency="EUR" onMax={applyBuyEurQuantityMax} maxDisabled={buyEurQtyMaxDisabled} error={formValidation.errors['buyEurAmount']}/>
                                                         <MoneyField label={t('portfolio.buyPriceEur')} value={buyEurPrice} onChange={(val) => {
                                             setBuyEurPrice(val);
                                             const qty = parseAndEvaluate(buyEurAmount);
@@ -722,7 +728,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                             const total = parseAndEvaluate(buyEurTotal);
                                             if (!isNaN(total) && total > 0)
                                                 setBuyEurTotal(Math.round(total).toString());
-                                        }} currency="DZD" onMax={applyBuyEurTotalMax} error={formValidation.errors['buyEurTotal']} hint={t('transactions.autoCalc')} placeholder={t('transactions.autoCalc')}/>
+                                        }} currency="DZD" onMax={applyBuyEurTotalMax} maxDisabled={buyEurTotalMaxDisabled} error={formValidation.errors['buyEurTotal']} hint={t('transactions.autoCalc')} placeholder={t('transactions.autoCalc')}/>
                                 <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} errorMessage={formValidation.errors['linkedClientId']} hasError={!!formValidation.errors['linkedClientId']} errorMessageDzd={formValidation.errors['linkedClientDzdId']} hasErrorDzd={!!formValidation.errors['linkedClientDzdId']}/>
                             </div>)}
 

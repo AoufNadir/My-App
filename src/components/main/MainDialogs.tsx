@@ -172,7 +172,7 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
         <p className="mt-0.5 text-sm font-normal text-neutral-500">{subtitle}</p>
       </ModalHeader>
       <ModalContent className="px-4 py-4 sm:px-5 space-y-4">
-        <MoneyField label={amountLabel} value={amount} onChange={setAmount} currency="DZD" placeholder="0.00" onMax={onMax}/>
+        <MoneyField label={amountLabel} value={amount} onChange={setAmount} currency="DZD" placeholder="0.00" onMax={onMax} maxDisabled={(source === 'Caisse' ? caisseBalance : baridiBalance) <= 0}/>
 
         <div className="space-y-3">
           <div>
@@ -320,7 +320,7 @@ export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromCli
               {balanceLabel}: {formatMoney(toBalance, 'DZD')}
             </p>)}
         </div>
-        <MoneyField label={amountLabel} value={amount} onChange={setAmount} currency="DZD" onMax={fromClientId ? onMaxFrom : undefined} maxLabel="Max"/>
+        <MoneyField label={amountLabel} value={amount} onChange={setAmount} currency="DZD" onMax={fromClientId ? onMaxFrom : undefined} maxDisabled={!fromClientId || fromBalance <= 0} maxLabel="Max"/>
         {(() => {
             const amt = parseAndEvaluate(amount);
             if (!fromClientId || !toClientId || fromClientId === toClientId)
