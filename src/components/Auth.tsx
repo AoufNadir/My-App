@@ -37,21 +37,28 @@ export function Auth() {
     const isEmailValid = email.includes('@') && email.includes('.');
     const isFormValid = email && password && (isLogin || password === confirmPassword);
     const getFirebaseErrorMessage = (error: unknown): string => {
-        if (typeof error === 'object' && error !== null && 'code' in error) {
-            const code = (error as {
-                code: string;
-            }).code;
-            switch (code) {
-                case 'auth/invalid-email': return 'Email invalide.';
-                case 'auth/user-not-found': return 'Aucun compte trouvé avec cet email.';
-                case 'auth/wrong-password': return 'Mot de passe incorrect.';
-                case 'auth/email-already-in-use': return 'Cet email est déjà utilisé.';
-                case 'auth/weak-password': return 'Le mot de passe doit contenir au moins 6 caractères.';
-                default: return 'Une erreur est survenue. Veuillez réessayer.';
+            if (typeof error === 'object' && error !== null && 'code' in error) {
+                const code = (error as {
+                    code: string;
+                }).code;
+                switch (code) {
+                    case 'auth/invalid-email': return 'Email invalide.';
+                    case 'auth/user-not-found': return 'Aucun compte trouvé avec cet email.';
+                    case 'auth/wrong-password': return 'Mot de passe incorrect.';
+                    case 'auth/email-already-in-use': return 'Cet email est déjà utilisé.';
+                    case 'auth/weak-password': return 'Le mot de passe doit contenir au moins 6 caractères.';
+                    // Google Sign-In specific errors
+                    case 'auth/unauthorized-domain': return 'Ce domaine n\'est pas autorisé pour l\'authentification Google. Contactez l\'administrateur.';
+                    case 'auth/operation-not-allowed': return 'L\'authentification Google n\'est pas activée dans Firebase Console.';
+                    case 'auth/popup-blocked': return 'La fenêtre pop-up a été bloquée par le navigateur. Autorisez les pop-ups pour ce site.';
+                    case 'auth/popup-closed-by-user': return 'La fenêtre d\'authentification a été fermée. Réessayez.';
+                    case 'auth/cancelled-popup-request': return 'Une nouvelle demande d\'authentification a annulé la précédente.';
+                    case 'auth/account-exists-with-different-credential': return 'Un compte existe déjà avec cet email via une autre méthode. Connectez-vous d\'abord avec cette méthode.';
+                    default: return 'Une erreur est survenue. Veuillez réessayer.';
+                }
             }
-        }
-        return "Une erreur inconnue s'est produite.";
-    };
+            return "Une erreur inconnue s'est produite.";
+        };
     const handleAuthAction = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!isFormValid)
@@ -99,20 +106,21 @@ export function Auth() {
         }
     };
     const handleGoogleSignIn = async () => {
-        setIsLoading(true);
-        setError('');
-        setMessage('');
-        try {
-            const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
-        }
-        catch (err: unknown) {
-            setError(getFirebaseErrorMessage(err));
-        }
-        finally {
-            setIsLoading(false);
-        }
-    };
+            setIsLoading(true);
+            setError('');
+            setMessage('');
+            try {
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+            }
+            catch (err: unknown) {
+                console.error('Google Sign-In Error:', err);
+                setError(getFirebaseErrorMessage(err));
+            }
+            finally {
+                setIsLoading(false);
+            }
+        };
     const containerClass = "min-h-screen flex flex-col items-center justify-center p-6 bg-app-bg text-neutral-900";
     const cardClass = "w-full max-w-sm space-y-6";
     const inputClass = "bg-surface border border-border text-neutral-900 text-sm rounded-lg h-12 px-4 w-full placeholder-neutral-400 focus:ring-2 focus:ring-primary focus:border-primary transition-all";
