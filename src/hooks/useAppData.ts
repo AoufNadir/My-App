@@ -10,6 +10,7 @@ type UseAppDataOptions = {
     requireManualAssets?: boolean;
     requireInvestors?: boolean;
     requireTreasuryCards?: boolean;
+    resultLimit?: number;
 };
 type AppDataCollectionKey = 'transactions' | 'clients' | 'clientTransactions' | 'treasuryTransactions' | 'digitalServiceTransactions' | 'treasuryCards' | 'manualAssets' | 'manualAssetClients' | 'manualAssetTransactions' | 'investors' | 'investorTransactions';
 type CollectionLoadState = {
@@ -74,6 +75,7 @@ function getCollectionsForView(view: string): AppDataCollectionKey[] {
 }
 export function useAppData(user: AppUser, refreshKey: number, options: UseAppDataOptions & { view?: string } = {}) {
     const view = options.view ?? 'dashboard';
+    const resultLimit = options.resultLimit ?? 0;
     const userDocRef = useMemo(() => db.collection('users').doc(user.uid), [user.uid]);
     const subscribeCoreFinancial = options.subscribeCoreFinancial ?? (view !== 'dashboard');
     const subscribeManualAssets = options.subscribeManualAssets ?? false;
@@ -152,54 +154,54 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             return;
         }
         const unsubTxs = subscribeToCollection(
-            'transactions',
-            userDocRef.collection('usdt_txs').orderBy('timestamp', 'asc'),
-            (docs) => docs.map(doc => {
-                const data = doc.data();
-                const newDoc: any = { id: doc.id, ...data };
-                if (newDoc.usd !== undefined) {
-                    newDoc.quantity = newDoc.usd;
-                    delete newDoc.usd;
-                }
-                if (!newDoc.currency) {
-                    newDoc.currency = 'USDT';
-                }
-                return newDoc;
-            }),
-            (docs) => setTransactions(docs as Tx[])
-        );
-        const unsubClients = subscribeToCollection(
-            'clients',
-            userDocRef.collection('dzd_clients').orderBy('fullName', 'asc'),
-            (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
-            (docs) => setClientsDzd(docs as ClientDzd[])
-        );
-        const unsubClientTxs = subscribeToCollection(
-            'clientTransactions',
-            userDocRef.collection('dzd_client_txs').orderBy('timestamp', 'asc'),
-            (docs) => docs.map(doc => {
-                const data = doc.data();
-                const newDoc: any = { id: doc.id, ...data };
-                if (newDoc.linkedUsdtTxId) {
-                    newDoc.linkedTxId = newDoc.linkedUsdtTxId;
-                    delete newDoc.linkedUsdtTxId;
-                }
-                return newDoc;
-            }),
-            (docs) => setClientTransactionsDzd(docs as ClientTransactionDzd[])
-        );
-        const unsubTreasuryTxs = subscribeToCollection(
-            'treasuryTransactions',
-            userDocRef.collection('treasury_txs').orderBy('timestamp', 'asc'),
-            (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
-            (docs) => setTreasuryTransactions(docs as TreasuryTx[])
-        );
-        const unsubDigitalServices = subscribeToCollection(
-            'digitalServiceTransactions',
-            userDocRef.collection('digital_service_txs').orderBy('timestamp', 'asc'),
-            (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
-            (docs) => setDigitalServiceTransactions(docs as DigitalServiceTransaction[])
-        );
+                    'transactions',
+                    userDocRef.collection('usdt_txs').orderBy('timestamp', 'asc').limit(resultLimit || 0),
+                    (docs) => docs.map(doc => {
+                        const data = doc.data();
+                        const newDoc: any = { id: doc.id, ...data };
+                        if (newDoc.usd !== undefined) {
+                            newDoc.quantity = newDoc.usd;
+                            delete newDoc.usd;
+                        }
+                        if (!newDoc.currency) {
+                            newDoc.currency = 'USDT';
+                        }
+                        return newDoc;
+                    }),
+                    (docs) => setTransactions(docs as Tx[])
+                );
+                const unsubClients = subscribeToCollection(
+                    'clients',
+                    userDocRef.collection('dzd_clients').orderBy('fullName', 'asc'),
+                    (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                    (docs) => setClientsDzd(docs as ClientDzd[])
+                );
+                const unsubClientTxs = subscribeToCollection(
+                    'clientTransactions',
+                    userDocRef.collection('dzd_client_txs').orderBy('timestamp', 'asc').limit(resultLimit || 0),
+                    (docs) => docs.map(doc => {
+                        const data = doc.data();
+                        const newDoc: any = { id: doc.id, ...data };
+                        if (newDoc.linkedUsdtTxId) {
+                            newDoc.linkedTxId = newDoc.linkedUsdtTxId;
+                            delete newDoc.linkedUsdtTxId;
+                        }
+                        return newDoc;
+                    }),
+                    (docs) => setClientTransactionsDzd(docs as ClientTransactionDzd[])
+                );
+                const unsubTreasuryTxs = subscribeToCollection(
+                    'treasuryTransactions',
+                    userDocRef.collection('treasury_txs').orderBy('timestamp', 'asc').limit(resultLimit || 0),
+                    (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                    (docs) => setTreasuryTransactions(docs as TreasuryTx[])
+                );
+                const unsubDigitalServices = subscribeToCollection(
+                    'digitalServiceTransactions',
+                    userDocRef.collection('digital_service_txs').orderBy('timestamp', 'asc').limit(resultLimit || 0),
+                    (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                    (docs) => setDigitalServiceTransactions(docs as DigitalServiceTransaction[])
+                );
         return () => {
             unsubTxs();
             unsubClients();

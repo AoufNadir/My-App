@@ -162,11 +162,12 @@ export default function MainApp({ user }: {
         const shouldRequireTreasuryCards = view === 'tresorerie';
         // 1.1 App Data (Provides userDocRef) - pass view for per-view subscriptions
         const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, digitalServiceTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
-            view,
-            requireManualAssets: shouldRequireManualAssets,
-            requireInvestors: shouldRequireInvestors,
-            requireTreasuryCards: shouldRequireTreasuryCards
-        });
+                    view,
+                    requireManualAssets: shouldRequireManualAssets,
+                    requireInvestors: shouldRequireInvestors,
+                    requireTreasuryCards: shouldRequireTreasuryCards,
+                    resultLimit: view === 'transactions' || view === 'tresorerie' || view === 'expenses' || view === 'investors' ? 120 : 0,
+                });
     const dashboardSummaryRead = useDashboardSummaryReadModel(userDocRef, readModelsMode);
     // 1.2 Settings
     const { managerFeePercentage, managerFeeHistory, saveManagerFeePercentage, isSettingsLoaded } = useSettings(userDocRef);
