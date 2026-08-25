@@ -118,11 +118,9 @@ assert.equal(read.status, 'prepared');
 assert.equal(read.failureBlocksLegacy, true);
 
 const mainAppSource = readFileSync('src/MainApp.tsx', 'utf8');
-// Check that MainApp passes view to useAppData for per-view subscriptions
-const pattern1 = 'view,\r\n            requireManualAssets:';
-const pattern2 = 'view,\r\n                    requireManualAssets:';
-const hasViewRequireManualAssets = mainAppSource.includes(pattern1) || mainAppSource.includes(pattern2);
-assert.ok(hasViewRequireManualAssets, 'Dashboard read mode must pass view to useAppData for per-view subscriptions');
+// The active view and its real positive/undefined resultLimit drive the listener plan.
+assert.match(mainAppSource, /useAppData\(user,\s*refreshKey,\s*\{\s*view,\s*resultLimit,/s, 'MainApp must pass view and resultLimit to useAppData');
+assert.doesNotMatch(mainAppSource, /requireManualAssets|requireInvestors|requireTreasuryCards|subscribeManualAssets|subscribeInvestors|subscribeTreasuryCards/, 'MainApp must not maintain contradictory require/subscribe flags');
 assert.match(mainAppSource, /useDashboardSummaryReadModel\(userDocRef,\s*readModelsMode\)/, 'Dashboard read mode must subscribe to dashboard_summary');
 assert.match(mainAppSource, /transactions:\s*dashboardSummary\s*\?\s*EMPTY_TRANSACTIONS\s*:\s*transactions/, 'Dashboard read props must not require full transaction history');
 assert.doesNotMatch(mainAppSource, /writeInitialReadModelSnapshot\(/, 'Initial snapshot writer must never run automatically from MainApp');

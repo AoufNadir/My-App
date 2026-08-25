@@ -38,6 +38,7 @@ import { useWeeklyRecap } from './hooks/useWeeklyRecap';
 // Custom Hooks
 import { useAppData } from './hooks/useAppData';
 import { useDashboardSummaryReadModel } from './hooks/useDashboardSummaryReadModel';
+import { useInvestorDetailHistory } from './hooks/useInvestorDetailHistory';
 import { useSettings } from './hooks/useSettings';
 import { useSmartPricingPlan } from './hooks/useSmartPricingPlan';
 import { useTransactionHandlers, type PrefillSell } from './hooks/useTransactionHandlers';
@@ -50,6 +51,7 @@ import { deriveInvestorEconomics, getManagerProfitBreakdown, reconcileManagerPro
 import { useMainNavigation } from './hooks/useMainNavigation';
 import { useBackHandler } from './hooks/useBackHandler';
 import { useOverdueDebtClients } from './hooks/useOverdueDebtClients';
+import { isCollectionReadyForCompute } from './hooks/queryPlanReadiness';
 import { useReportExports } from './hooks/useReportExports';
 // Shared Utils
 import { now, parseAndEvaluate } from './utils';
@@ -85,7 +87,6 @@ const EMPTY_CLIENTS_DZD: ClientDzd[] = [];
 const EMPTY_CLIENT_TRANSACTIONS_DZD: ClientTransactionDzd[] = [];
 const EMPTY_TREASURY_TRANSACTIONS: TreasuryTx[] = [];
 const EMPTY_PROFIT_BY_TX_ID = new Map<string, number>();
-const CORE_DATA_KEYS = ['transactions', 'clients', 'clientTransactions', 'treasuryTransactions', 'digitalServiceTransactions'] as const;
 const OWNER_OPENING_CAPITAL = 2_000_000;
 // Historical accounting closure: 365 350 - 3 062 = 362 288 DZD.
 // This is a locked baseline, never an automatic reconciliation bucket.
@@ -148,25 +149,16 @@ export default function MainApp({ user }: {
         const { investorIdFromUrl, isInvestorRoute, navigateToView, selectedClientId, setSelectedClientId, setView, view } = useMainNavigation();
         const shouldUseDashboardReadModel = shouldUseDashboardSummaryForView({ readModelsMode, view });
         const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
-        const [selectedAssetClientId, setSelectedAssetClientId] = useState<string | null>(null);
-        const shouldSubscribeManualAssets = view === 'services'
-            || view === 'dashboard'
-            || view === 'investors'
-            || view === 'tresorerie'
-            || selectedAssetId !== null
-            || selectedAssetClientId !== null;
-        const shouldSubscribeInvestors = view === 'investors' || view === 'dashboard' || view === 'tresorerie' || view === 'dzd' || view === 'transactions' || view === 'expenses' || isInvestorRoute;
-        const shouldSubscribeTreasuryCards = view === 'dashboard' || view === 'investors' || view === 'tresorerie' || view === 'transactions';
-        const shouldRequireManualAssets = view === 'services' || selectedAssetId !== null || selectedAssetClientId !== null;
-        const shouldRequireInvestors = view === 'investors' || view === 'expenses' || view === 'tresorerie' || isInvestorRoute;
-        const shouldRequireTreasuryCards = view === 'tresorerie';
-        // 1.1 App Data (Provides userDocRef) - pass view for per-view subscriptions
-        const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, digitalServiceTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
+                const [selectedAssetClientId, setSelectedAssetClientId] = useState<string | null>(null);
+                // A positive bound is supplied only to screens with a genuine recent-history
+                // plan. Full-history screens omit it entirely rather than producing limit(0).
+                const resultLimit = view === 'transactions' || view === 'dzd' || view === 'tresorerie'
+                    ? 100
+                    : undefined;
+                // 1.1 App Data (Provides userDocRef) - the view/query plan owns subscriptions.
+                const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, digitalServiceTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
                     view,
-                    requireManualAssets: shouldRequireManualAssets,
-                    requireInvestors: shouldRequireInvestors,
-                    requireTreasuryCards: shouldRequireTreasuryCards,
-                    resultLimit: view === 'transactions' || view === 'tresorerie' || view === 'expenses' || view === 'investors' ? 120 : 0,
+                    resultLimit,
                 });
     const dashboardSummaryRead = useDashboardSummaryReadModel(userDocRef, readModelsMode);
     // 1.2 Settings
@@ -200,13 +192,13 @@ export default function MainApp({ user }: {
     // 1.3 Derived Data
     // Keep one canonical ledger result. Deferring it made financial cards render
     // an older snapshot for a frame before switching to the current values.
-    const coreCollectionStates = dataStatus.collectionState;
-    const hasCurrentCoreData = CORE_DATA_KEYS
-        .every((key) => coreCollectionStates[key]?.serverSynced)
-        || (typeof navigator !== 'undefined'
-            && navigator.onLine === false
-            && CORE_DATA_KEYS.every((key) => coreCollectionStates[key]?.received));
-    const ledgerTransactions = hasCurrentCoreData ? transactions : EMPTY_TRANSACTIONS;
+    const isOnline = typeof navigator === 'undefined' || navigator.onLine;
+        const hasCurrentTransactionData = isCollectionReadyForCompute(
+            dataStatus.collectionState,
+            'transactions',
+            isOnline,
+        );
+        const ledgerTransactions = hasCurrentTransactionData ? transactions : EMPTY_TRANSACTIONS;
     const pamLedger = useMemo(() => computePamLedger(ledgerTransactions), [ledgerTransactions]);
     const portfolioStats = pamLedger.portfolioStats;
     const deliveryExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense'), [treasuryTransactions]);
@@ -416,6 +408,11 @@ export default function MainApp({ user }: {
     isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen, personalWithdrawalAmount, setPersonalWithdrawalAmount, personalWithdrawalMethod, setPersonalWithdrawalMethod, personalWithdrawalDate, setPersonalWithdrawalDate, personalWithdrawalNote, setPersonalWithdrawalNote, personalWithdrawalMode, setPersonalWithdrawalMode, personalWithdrawalPreview, editingPersonalExpenseTx, personalExpenseToDelete, setPersonalExpenseToDelete, openEditPersonalExpense, openPersonalWithdrawalModal, closePersonalWithdrawalModal, handleSavePersonalWithdrawal, handleDeletePersonalExpense, managerAvailableProfit, managerCapitalInvested, managerExists,
     // Reconcile advance
     isReconcileAdvanceModalOpen, reconcileAdvanceTx, reconcileActualAmount, setReconcileActualAmount, reconcileSpentDescription, setReconcileSpentDescription, openReconcileAdvanceModal, closeReconcileAdvanceModal, handleReconcilePersonalAdvance } = useInvestorHandlers(userDocRef, derivedInvestors, treasuryStats, portfolioStats, setAlert);
+    const investorDetailHistory = useInvestorDetailHistory(
+        userDocRef,
+        view === 'investors' ? selectedInvestorId : null,
+        100,
+    );
     const { isAssetModalOpen, setIsAssetModalOpen, editingAsset, setEditingAsset, isAssetClientModalOpen, setIsAssetClientModalOpen, editingAssetClient, setEditingAssetClient, isCreateAssetModalOpen, setIsCreateAssetModalOpen, newAssetName, setNewAssetName, newAssetDescription, setNewAssetDescription, assetClientBalance, setAssetClientBalance, handleCreateAsset, handleDeleteAsset, openAssetClientModal, closeAssetClientModal, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, handleCreateAssetTransaction } = useAssetHandlers(userDocRef, manualAssets, manualAssetClients, assetClientBalances, setAlert);
     // --- 3. LOCAL UI STATE ---
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -2605,7 +2602,7 @@ export default function MainApp({ user }: {
         onOpenMonthPlan: () => setIsMonthPlanOpen(true),
         monthlyGoal: monthlyGoalState,
     };
-    const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openDigitalServiceModal, handleDeleteDigitalService, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys };
+    const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openDigitalServiceModal, handleDeleteDigitalService, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorDetailTransactions: investorDetailHistory.transactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys };
     const walletTransferDialogProps = useMemo(() => ({
         isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSource,

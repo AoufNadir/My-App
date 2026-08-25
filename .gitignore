@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 .vercel
 .env*
+.firebase/
+live_recon*.json
+read_models_backup_*.json
+rebuild*.json
+rebuild_err.txt

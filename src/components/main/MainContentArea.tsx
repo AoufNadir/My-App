@@ -106,14 +106,16 @@ const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainCont
         case 'dzd':
             return areClientsPagePropsEqual(prev.clientsPageProps, next.clientsPageProps);
         case 'tresorerie':
-            return (prev.transactions === next.transactions
-                && prev.treasuryStats === next.treasuryStats
-                && prev.totals === next.totals
-                && prev.portfolioStats === next.portfolioStats
-                && prev.investorLiability === next.investorLiability
-                && prev.capitalSnapshot === next.capitalSnapshot
-                && prev.treasuryCards === next.treasuryCards
-                && prev.servicesSummary === next.servicesSummary);
+                    return (prev.transactions === next.transactions
+                        && prev.treasuryStats === next.treasuryStats
+                        && prev.totals === next.totals
+                        && prev.portfolioStats === next.portfolioStats
+                        && prev.investorLiability === next.investorLiability
+                        && prev.investorBreakdown === next.investorBreakdown
+                        && prev.capitalSnapshot === next.capitalSnapshot
+                        && prev.treasuryTransactions === next.treasuryTransactions
+                        && prev.treasuryCards === next.treasuryCards
+                        && prev.servicesSummary === next.servicesSummary);
         case 'services':
             return (prev.selectedAssetClientId === next.selectedAssetClientId
                 && prev.manualAssetClients === next.manualAssetClients
@@ -128,7 +130,8 @@ const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainCont
                 && prev.derivedInvestors === next.derivedInvestors
                 && prev.clientsDzd === next.clientsDzd
                 && prev.investorTransactions === next.investorTransactions
-                && prev.personalExpenses === next.personalExpenses
+                                && prev.investorDetailTransactions === next.investorDetailTransactions
+                                && prev.personalExpenses === next.personalExpenses
                 && prev.investorEconomicsTotals === next.investorEconomicsTotals
                 && prev.managerFeePercentage === next.managerFeePercentage
                 && prev.managerProfitBreakdown === next.managerProfitBreakdown
@@ -140,7 +143,7 @@ const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainCont
             return true;
     }
 };
-function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDocRef, setAlert, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openDigitalServiceModal, handleDeleteDigitalService, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx, handleEditTreasuryTx, handleDeleteClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, managerProfitBreakdown, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys }: MainContentAreaProps) {
+function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDocRef, setAlert, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openDigitalServiceModal, handleDeleteDigitalService, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx, handleEditTreasuryTx, handleDeleteClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorDetailTransactions, investorEconomicsTotals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, managerProfitBreakdown, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys }: MainContentAreaProps) {
     const selectedInvestor = selectedInvestorId
         ? derivedInvestors.find((investor: any) => investor.id === selectedInvestorId) || null
         : null;
@@ -164,12 +167,12 @@ function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDoc
 
                     {view === 'tresorerie' && (<TresoreriePage {...{
             caisseBalance: treasuryStats.caisse,
-            baridiBalance: treasuryStats.baridi,
-            investorLiability,
-            investorBreakdown,
-            capitalSnapshot,
-            portfolioStats,
-            transactions,
+                                    baridiBalance: treasuryStats.baridi,
+                                    investorLiability,
+                                    investorBreakdown,
+                                    capitalSnapshot,
+                                    portfolioStats,
+                                    transactions,
             openTreasuryModal: () => openTreasuryCardModal(),
             treasuryCards,
             openTreasuryCardModal,
@@ -194,7 +197,7 @@ function MainContentAreaComponent({ alert, alertClass, t, dailyOverview, userDoc
                 handleUpdateAssetClient(clientId, data);
             }} onDeleteClient={handleDeleteAssetClient}/>) : (<ServicesPage manualAssets={manualAssets} manualAssetClients={manualAssetClients} manualAssetTransactions={manualAssetTransactions} assetClientBalances={assetClientBalances} onOpenManualAsset={(asset: ManualAsset) => setSelectedAssetId(asset.id)} onOpenCreateManualAsset={() => setIsCreateAssetModalOpen(true)} onDeleteManualAsset={(id: string) => handleDeleteAsset(id, manualAssetTransactions.filter(tx => tx.actifId === id).length)}/>))}
 
-                    {view === 'investors' && (selectedInvestorId && selectedInvestor ? (<InvestorDetailsPage investor={selectedInvestor} transactions={investorTransactions.filter(tx => tx.investorId === selectedInvestorId)} personalExpenses={personalExpenses} onBack={() => setSelectedInvestorId(null)} onAddCapital={() => { setInvestorTxType('deposit_capital'); setIsInvestorTxModalOpen(true); }} onWithdrawCapital={() => { setInvestorTxType('withdraw_capital'); setIsInvestorTxModalOpen(true); }} onWithdrawProfit={() => { setInvestorTxType('withdraw_profit'); setIsInvestorTxModalOpen(true); }} onReinvestProfit={() => {
+                    {view === 'investors' && (selectedInvestorId && selectedInvestor ? (<InvestorDetailsPage investor={selectedInvestor} transactions={investorDetailTransactions} personalExpenses={personalExpenses} onBack={() => setSelectedInvestorId(null)} onAddCapital={() => { setInvestorTxType('deposit_capital'); setIsInvestorTxModalOpen(true); }} onWithdrawCapital={() => { setInvestorTxType('withdraw_capital'); setIsInvestorTxModalOpen(true); }} onWithdrawProfit={() => { setInvestorTxType('withdraw_profit'); setIsInvestorTxModalOpen(true); }} onReinvestProfit={() => {
                 const inv = derivedInvestors.find(i => i.id === selectedInvestorId);
                 if (inv) {
                     setReinvestInput((inv.availableProfit || 0).toFixed(2));
