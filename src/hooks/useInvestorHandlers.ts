@@ -284,6 +284,22 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         }
         return Array.from(docs.entries()).map(([id, ref]) => ({ id, ref }));
     };
+    const findPersonalAdvanceReturnRows = async (tx: TreasuryTx) => {
+        const rows = new Map<string, any>();
+        if (tx.linkedReturnTxId) {
+            const snap = await userDocRef.collection('treasury_txs').doc(tx.linkedReturnTxId).get();
+            if (snap.exists)
+                rows.set(snap.id, { id: snap.id, ref: snap.ref, data: snap.data() });
+        }
+        if (tx.id) {
+            const snap = await userDocRef.collection('treasury_txs')
+                .where('linkedTreasuryTxId', '==', tx.id)
+                .where('origin', '==', 'personal_expense_return')
+                .get();
+            snap.docs.forEach((doc) => rows.set(doc.id, { id: doc.id, ref: doc.ref, data: doc.data() }));
+        }
+        return Array.from(rows.values());
+    };
     const resolvePersonalExpenseWallet = (tx?: TreasuryTx | null): FinancialWallet => {
         const wallet = tx?.expenseWallet || tx?.source || 'Caisse';
         return wallet === 'USDT' || wallet === 'EUR' || wallet === 'BaridiMob' ? wallet : 'Caisse';
@@ -946,6 +962,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         }
     };
     const handleDeletePersonalExpense = async () => {
+        const oldIsAdvanceValue = (row: any): boolean => row?.advanceState === 'pending' || row?.type === 'manager_personal_advance';
         if (!personalExpenseToDelete?.id)
             return;
         if (isSaving)
@@ -971,6 +988,32 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             for (const doc of returnDocs) {
                 await deleteLinkedPersonalExpensePortfolioDocs(batch, doc.id);
                 batch.delete(doc.ref);
+            }
+            // Advance with reconciliation: the delete must ALSO invert the
+            // reconciliation effect (pending advance restore + spent conversion).
+            // Read actual return rows before deletion; never leave orphans.
+            const returnRows = await findPersonalAdvanceReturnRows(tx);
+            const advanceReconcileInverseDeltas: ReadModelDelta[] = [];
+            if (oldIsAdvanceValue(tx) && returnRows.length > 0) {
+                const advanceAmountDzd = Number(tx.amountDzd || tx.amount || 0);
+                const returnedAmountDzd = returnRows.reduce((sum, row) => sum + Number(row.data?.amountDzd ?? row.data?.amount ?? 0), 0);
+                const spentAmountDzd = Math.max(0, roundM(advanceAmountDzd - returnedAmountDzd));
+                // Inverse of the reconcile delta (built at line ~900 in reconcile handler):
+                // wallets: -return; portfolio: -return qty/cost; pendingAdvances: -advance -> inverse +advance;
+                // managerPersonalExpenses: +spent -> inverse -spent; ownerCapital: -spent -> inverse +spent.
+                const invertReconcileDelta = buildReadModelDelta({
+                    operationId: `legacy:delete-build:treasury_txs:${tx.id}:reconcile-inverse`,
+                    effectiveAt: Number(tx.timestamp || Date.now()),
+                    payload: { type: 'manager_personal_advance_reconcile', treasuryTxId: tx.id, advanceAmountDzd, returnedAmountDzd, spentAmountDzd, deleteInverse: true },
+                    affectedSummaries: ['dashboard_summary', 'investors_summary', 'treasury_summary', 'portfolio_summary', 'financial_summary'],
+                    managerPendingAdvancesDelta: advanceAmountDzd,
+                    investors: {
+                        managerPersonalExpensesDelta: -spentAmountDzd,
+                        managerActualOwnerCapitalDelta: spentAmountDzd,
+                    },
+                    recentOperation: null,
+                });
+                advanceReconcileInverseDeltas.push(invertReconcileDelta);
             }
             const oldWallet = (tx.expenseWallet || resolvePersonalExpenseWallet(tx) || 'Caisse') as FinancialWallet;
             const oldAmountDzd = Number(tx.amountDzd || tx.amount || 0);
@@ -1005,7 +1048,9 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 effectiveAt: oldPersonalExpenseDelta.effectiveAt,
                 affectedSummaries: oldPersonalExpenseDelta.affectedSummaries,
             });
-            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [deleteDelta] });
+            // Advance reconcile inverse (if any) + advance/expense inverse — one atomic commit.
+            const deleteDeltas = [deleteDelta, ...advanceReconcileInverseDeltas];
+            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: deleteDeltas });
             setAlert('✅ Dépense supprimée.');
             setPersonalExpenseToDelete(null);
         }

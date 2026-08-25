@@ -22,10 +22,31 @@ export function recordPortfolioShadow(
         diagnostics.push(result);
         if (diagnostics.length > MAX_DIAGNOSTICS) diagnostics.shift();
         if (!result.matches) {
+            // Field-level instrumentation (test/preview requirement): print each
+            // mismatching field with legacy-expected vs V2-actual and the difference.
             console.warn('[portfolioV2 shadow mismatch]', {
                 kind: intent.kind,
                 operationId: intent.operationId,
                 mismatches: result.mismatches,
+                fields: result.mismatches.map((line) => {
+                    const match = line.match(/^(.*?): Legacy (-?[\d.]+) != V2 (-?[\d.]+)\.?$/);
+                    if (!match) return { field: line, legacyExpected: null, readModelActual: null, difference: null };
+                    const legacyExpected = Number(match[2]);
+                    const readModelActual = Number(match[3]);
+                    return {
+                        field: match[1].trim(),
+                        legacyExpected,
+                        readModelActual,
+                        difference: Math.round((readModelActual - legacyExpected) * 100) / 100,
+                    };
+                }),
+                context: {
+                    transactionId: intent.operationId.split(':').pop(),
+                    quantityDeltas: legacyFacts.quantityDeltas ?? null,
+                    costBasisDeltasDzd: legacyFacts.costBasisDeltasDzd ?? null,
+                    cashDeltasDzd: legacyFacts.cashDeltasDzd ?? null,
+                    realizedTradingProfitDzd: legacyFacts.realizedTradingProfitDzd ?? null,
+                },
             });
         }
         return result;
