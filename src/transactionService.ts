@@ -197,7 +197,7 @@ export async function findLinkedTransactions(transactionId: string, userDocRef: 
  * Delete a transaction and all its linked transactions
  * Uses Firestore batch for atomic operations
  */
-export async function applyTransactionDelete(transactionId: string, transactionType: TransactionType, userDocRef: FirestoreDocumentReference, buildOldDelta?: (mainData: any, linkedData: any[]) => ReadModelDelta | null | Promise<ReadModelDelta | null>): Promise<{
+export async function applyTransactionDelete(transactionId: string, transactionType: TransactionType, userDocRef: FirestoreDocumentReference, buildOldDelta?: (resolvedType: TransactionType, resolvedTxId: string, mainData: any, linkedData: any[]) => ReadModelDelta | null | Promise<ReadModelDelta | null>): Promise<{
     success: boolean;
     error?: string;
 }> {
@@ -356,7 +356,9 @@ export async function applyTransactionDelete(transactionId: string, transactionT
         let deleteDeltas: ReadModelDelta[] = [];
         if (buildOldDelta && mainData) {
             const linkedData = linkedTxs.map((lt) => lt.data);
-            const oldDelta = await buildOldDelta(mainData, linkedData);
+            // Pass the RESOLVED type/id so the builder switches on the root
+            // operation, not the original entry-point type.
+            const oldDelta = await buildOldDelta(transactionType, transactionId, mainData, linkedData);
             if (oldDelta) {
                 const inverted = invertReadModelDelta(oldDelta);
                 const { recentOperation: _omit, ...invertedFields } = inverted;
