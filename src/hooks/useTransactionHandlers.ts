@@ -20,7 +20,7 @@ import {
 import { allocateProfitDeltaAtTimestamp, type ManagerFeeHistoryEntry } from './useInvestorEconomics';
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
-import { combineClientPositionDeltas, derivePortfolioSellReadModelEconomics, transitionClientBalanceDelta, type ClientPositionDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
+import { combineClientPositionDeltas, derivePortfolioSellReadModelEconomics, invertReadModelDelta, combineReadModelDeltas, transitionClientBalanceDelta, type ClientPositionDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
 interface HandlerProps {
     userDocRef: FirestoreDocumentReference;
     portfolioStats: PortfolioStats;
@@ -203,6 +203,195 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             ownerProfitAllTimeDelta: ownerProfitDzd,
         };
     };
+
+    /**
+     * Build the read-model delta for a Buy (USDT with DZD/EUR, or EUR) creation.
+     * Pure projection of the legacy financial effect — mirrors the create-path
+     * writer selection exactly so the SAME function can compute both the OLD
+     * delta (from the pre-edit legacy doc) and the NEW delta (from the edited
+     * payload). The Edit delta is then:
+     *   combineReadModelDeltas(invertReadModelDelta(oldDelta), newDelta)
+     */
+    const computeBuyReadModelDelta = (input: {
+        mainTxId: string;
+        operationId: string;
+        timestamp: number;
+        buyUsdtMode: 'with_dzd' | 'with_eur';
+        mode: 'buy_usdt' | 'buy_eur';
+        quantity: number;
+        totalCost: number;
+        eurSpentForConversion: number;
+        currency: 'USDT' | 'EUR';
+        clientPaymentStatus: 'cash' | 'baridi' | 'credit';
+        linkedClientId: string;
+        linkedClientDzdId: string;
+        shouldLinkCashToDzdClient: boolean;
+    }): ReadModelDelta => {
+        const { mainTxId, operationId, timestamp, buyUsdtMode, quantity, totalCost, eurSpentForConversion, currency, clientPaymentStatus, linkedClientId, linkedClientDzdId, shouldLinkCashToDzdClient } = input;
+        if (buyUsdtMode === 'with_eur') {
+            return mustPrepareWriterReadModelDelta('portfolio.exchange', {
+                operationId,
+                effectiveAt: timestamp,
+                payload: { type: 'portfolio_exchange_eur_to_usdt', txId: mainTxId, quantity, eurSpentForConversion, totalCost },
+                affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'financial_summary'],
+                portfolio: {
+                    USDT: { quantityDelta: quantity, costBasisDeltaDzd: totalCost },
+                    EUR: { quantityDelta: -eurSpentForConversion, costBasisDeltaDzd: -getPortfolioRemovalCost('EUR', eurSpentForConversion) },
+                },
+                recentOperation: { operationId, source: 'legacy', type: 'Achat USDT / EUR', effectiveAt: timestamp },
+            });
+        }
+        if (clientPaymentStatus === 'credit' || shouldLinkCashToDzdClient) {
+            const clientId = shouldLinkCashToDzdClient ? linkedClientDzdId : linkedClientId;
+            const clientsDelta = clientBalanceTransition(clientId, totalCost, timestamp);
+            clientsDelta.activeClientsTodayDelta = activeClientTodayDelta(clientId, timestamp);
+            return mustPrepareWriterReadModelDelta('portfolio.buy-credit', {
+                operationId,
+                effectiveAt: timestamp,
+                payload: { type: 'portfolio_buy_credit', txId: mainTxId, clientId, quantity, currency, totalCost },
+                affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'clients_summary', 'financial_summary'],
+                portfolio: { [currency]: { quantityDelta: quantity, costBasisDeltaDzd: totalCost } },
+                clients: clientsDelta,
+                recentOperation: { operationId, source: 'legacy', type: `Achat ${currency}`, effectiveAt: timestamp },
+            });
+        }
+        const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+        return mustPrepareWriterReadModelDelta('portfolio.buy-cash', {
+            operationId,
+            effectiveAt: timestamp,
+            payload: { type: 'portfolio_buy_cash', txId: mainTxId, wallet, quantity, currency, totalCost },
+            affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'treasury_summary', 'financial_summary'],
+            wallets: { [wallet]: -totalCost },
+            portfolio: { [currency]: { quantityDelta: quantity, costBasisDeltaDzd: totalCost } },
+            recentOperation: { operationId, source: 'legacy', type: `Achat ${currency}`, effectiveAt: timestamp },
+        });
+    };
+
+    /**
+     * Build the read-model delta for a Sell (USDT DZD/EUR, or EUR) creation.
+     * Mirrors the create-path writer selection for both OLD and NEW projections.
+     */
+    const computeSellReadModelDelta = (input: {
+        committedSellTxId: string;
+        operationId: string;
+        timestamp: number;
+        sellCurrency: 'USDT' | 'EUR';
+        quantity: number;
+        sell: number;
+        totalRevenue: number;
+        profit: number;
+        notes: string;
+        isUsdtSettledInEur: boolean;
+        saleValueEur: number;
+        saleValueDzd: number;
+        linkedClientId: string;
+        clientPaymentStatus: 'cash' | 'baridi' | 'credit';
+        creditDueDate?: number;
+        shouldLinkSettlementToDzdClient: boolean;
+        linkedClientDzdId: string;
+    }): ReadModelDelta => {
+        const { committedSellTxId, operationId, timestamp, sellCurrency, quantity, sell, totalRevenue, profit, notes, isUsdtSettledInEur, saleValueEur, saleValueDzd, linkedClientId, clientPaymentStatus, creditDueDate, shouldLinkSettlementToDzdClient, linkedClientDzdId } = input;
+        const portfolioDelta = {
+            [sellCurrency]: {
+                quantityDelta: -quantity,
+                costBasisDeltaDzd: -getPortfolioRemovalCost(sellCurrency, quantity),
+                realizedProfitDeltaDzd: profit,
+                soldQuantityDelta: quantity,
+            },
+        };
+        if (isUsdtSettledInEur) {
+            return mustPrepareWriterReadModelDelta('portfolio.exchange', {
+                operationId: `${operationId}:usdt-to-eur`,
+                effectiveAt: timestamp,
+                payload: { type: 'portfolio_exchange_usdt_to_eur', quantity, saleValueEur, saleValueDzd },
+                affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'financial_summary'],
+                portfolio: {
+                    USDT: { quantityDelta: -quantity, costBasisDeltaDzd: -getPortfolioRemovalCost('USDT', quantity) },
+                    EUR: { quantityDelta: saleValueEur, costBasisDeltaDzd: totalRevenue },
+                },
+                recentOperation: { operationId: `${operationId}:usdt-to-eur`, source: 'legacy', type: 'Vente USDT / EUR', effectiveAt: timestamp },
+            });
+        }
+        const readModelSellTx: Tx = {
+            id: committedSellTxId,
+            timestamp,
+            type: 'sell',
+            quantity,
+            sell,
+            total: totalRevenue,
+            profit,
+            date: '',
+            time: '',
+            notes: notes.trim(),
+            currency: sellCurrency,
+            linkedClientId,
+            clientPaymentStatus,
+            settlementCurrency: 'DZD',
+            ...(clientPaymentStatus === 'credit' ? { creditDueDate: String(creditDueDate) } : {}),
+            ...(shouldLinkSettlementToDzdClient ? { linkedClientDzdId } : {}),
+        };
+        const sellEconomics = derivePortfolioSellReadModelEconomics({
+            transactions,
+            sellTx: readModelSellTx,
+            fallbackProfitDzd: profit,
+            fallbackCostBasisDzd: getPortfolioRemovalCost(sellCurrency, quantity),
+            nowMs: timestamp,
+        });
+        portfolioDelta[sellCurrency].costBasisDeltaDzd = -sellEconomics.soldCostDzd;
+        portfolioDelta[sellCurrency].realizedProfitDeltaDzd = sellEconomics.realizedProfitDzd;
+        const realizedProfit = sellEconomics.realizedProfitDzd;
+        const allocation = allocateProfitDeltaAtTimestamp({
+            investors,
+            investorTransactions,
+            treasuryTransactions,
+            personalExpenses,
+            managerFeePercentage,
+            managerFeeHistory,
+            projectProfitDzd: realizedProfit,
+            timestamp,
+        });
+        if (clientPaymentStatus === 'credit' || shouldLinkSettlementToDzdClient) {
+            const clientId = shouldLinkSettlementToDzdClient ? linkedClientDzdId : linkedClientId;
+            const clientsDelta = clientBalanceTransition(clientId, -totalRevenue, timestamp);
+            clientsDelta.activeClientsTodayDelta = activeClientTodayDelta(clientId, timestamp);
+            return mustPrepareWriterReadModelDelta('portfolio.sell-credit', {
+                operationId,
+                effectiveAt: timestamp,
+                payload: { type: 'portfolio_sell_credit', clientId, quantity, sellCurrency, totalRevenue, storedProfit: profit, realizedProfit, allocation },
+                affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'clients_summary', 'investors_summary', 'financial_summary'],
+                portfolio: portfolioDelta,
+                clients: clientsDelta,
+                investors: {
+                    externalInvestorProfitsDelta: allocation.externalInvestorProfitsDeltaDzd,
+                    investorLiabilityDelta: allocation.investorLiabilityDeltaDzd,
+                    managerTradingOwnerProfitDelta: allocation.managerProfitDeltaDzd,
+                    managerActualOwnerCapitalDelta: allocation.managerProfitDeltaDzd,
+                    globalNetProfitDelta: allocation.projectProfitDzd,
+                },
+                dashboardDaily: periodProfitDeltas(timestamp, realizedProfit, allocation.managerProfitDeltaDzd, sellCurrency, quantity),
+                recentOperation: { operationId, source: 'legacy', type: `Vente ${sellCurrency}`, effectiveAt: timestamp },
+            });
+        }
+        const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+        return mustPrepareWriterReadModelDelta('portfolio.sell-cash', {
+            operationId,
+            effectiveAt: timestamp,
+            payload: { type: 'portfolio_sell_cash', wallet, quantity, sellCurrency, totalRevenue, storedProfit: profit, realizedProfit, allocation },
+            affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'treasury_summary', 'investors_summary', 'financial_summary'],
+            wallets: { [wallet]: totalRevenue },
+            portfolio: portfolioDelta,
+            investors: {
+                externalInvestorProfitsDelta: allocation.externalInvestorProfitsDeltaDzd,
+                investorLiabilityDelta: allocation.investorLiabilityDeltaDzd,
+                managerTradingOwnerProfitDelta: allocation.managerProfitDeltaDzd,
+                managerActualOwnerCapitalDelta: allocation.managerProfitDeltaDzd,
+                globalNetProfitDelta: allocation.projectProfitDzd,
+            },
+            dashboardDaily: periodProfitDeltas(timestamp, realizedProfit, allocation.managerProfitDeltaDzd, sellCurrency, quantity),
+            recentOperation: { operationId, source: 'legacy', type: `Vente ${sellCurrency}`, effectiveAt: timestamp },
+        });
+    };
+
     const usdtFromEurCalc = useMemo(() => {
         const eurQty = parseAndEvaluate(buyEurForUsdtAmount);
         const eurPrice = parseAndEvaluate(eurDzdPrice);
@@ -688,47 +877,57 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     counterpartAccount: 'equity.client_balance_correction',
                 }, { clientDeltas: { [linkedClientDzdId]: totalCost } });
             }
+            const editMutationSeq = editingTx ? timestamp : 0;
+            const newBuyOperationId = `legacy:edit:usdt_txs:${mainTxId}:${editMutationSeq}:new`;
+            const newBuyDelta = computeBuyReadModelDelta({
+                mainTxId,
+                operationId: newBuyOperationId,
+                timestamp,
+                buyUsdtMode,
+                mode,
+                quantity,
+                totalCost,
+                eurSpentForConversion,
+                currency: (currency === 'EUR' ? 'EUR' : 'USDT') as 'USDT' | 'EUR',
+                clientPaymentStatus,
+                linkedClientId,
+                linkedClientDzdId,
+                shouldLinkCashToDzdClient,
+            });
             const readModelDelta = !editingTx
-                ? (() => {
-                    if (buyUsdtMode === 'with_eur') {
-                        return mustPrepareWriterReadModelDelta('portfolio.exchange', {
-                            operationId: `legacy:portfolio.exchange:${mainTxId}`,
-                            effectiveAt: timestamp,
-                            payload: { type: 'portfolio_exchange_eur_to_usdt', txId: mainTxId, quantity, eurSpentForConversion, totalCost },
-                            affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'financial_summary'],
-                            portfolio: {
-                                USDT: { quantityDelta: quantity, costBasisDeltaDzd: totalCost },
-                                EUR: { quantityDelta: -eurSpentForConversion, costBasisDeltaDzd: -getPortfolioRemovalCost('EUR', eurSpentForConversion) },
-                            },
-                            recentOperation: { operationId: `legacy:portfolio.exchange:${mainTxId}`, source: 'legacy', type: 'Achat USDT / EUR', effectiveAt: timestamp },
-                        });
-                    }
-                    if (clientPaymentStatus === 'credit' || shouldLinkCashToDzdClient) {
-                        const clientId = shouldLinkCashToDzdClient ? linkedClientDzdId : linkedClientId;
-                        const clientsDelta = clientBalanceTransition(clientId, totalCost, timestamp);
-                        clientsDelta.activeClientsTodayDelta = activeClientTodayDelta(clientId, timestamp);
-                        return mustPrepareWriterReadModelDelta('portfolio.buy-credit', {
-                            operationId: `legacy:portfolio.buy-credit:${mainTxId}`,
-                            effectiveAt: timestamp,
-                            payload: { type: 'portfolio_buy_credit', txId: mainTxId, clientId, quantity, currency, totalCost },
-                            affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'clients_summary', 'financial_summary'],
-                            portfolio: { [currency]: { quantityDelta: quantity, costBasisDeltaDzd: totalCost } },
-                            clients: clientsDelta,
-                            recentOperation: { operationId: `legacy:portfolio.buy-credit:${mainTxId}`, source: 'legacy', type: `Achat ${currency}`, effectiveAt: timestamp },
-                        });
-                    }
-                    const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
-                    return mustPrepareWriterReadModelDelta('portfolio.buy-cash', {
-                        operationId: `legacy:portfolio.buy-cash:${mainTxId}`,
-                        effectiveAt: timestamp,
-                        payload: { type: 'portfolio_buy_cash', txId: mainTxId, wallet, quantity, currency, totalCost },
-                        affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'treasury_summary', 'financial_summary'],
-                        wallets: { [wallet]: -totalCost },
-                        portfolio: { [currency]: { quantityDelta: quantity, costBasisDeltaDzd: totalCost } },
-                        recentOperation: { operationId: `legacy:portfolio.buy-cash:${mainTxId}`, source: 'legacy', type: `Achat ${currency}`, effectiveAt: timestamp },
+                ? newBuyDelta
+                : (() => {
+                    const oldQuantity = roundM(Number(editingTx.quantity || 0));
+                    const oldPrice = Number(editingTx.price || 0);
+                    const oldCurrency = (editingTx.currency === 'EUR' ? 'EUR' : 'USDT') as 'USDT' | 'EUR';
+                    const oldPurchaseFundingCurrency = editingTx.purchaseFundingCurrency === 'EUR' ? 'EUR' : 'DZD';
+                    const oldBuyUsdtMode: 'with_dzd' | 'with_eur' = mode === 'buy_eur' ? 'with_dzd' : (oldPurchaseFundingCurrency === 'EUR' ? 'with_eur' : 'with_dzd');
+                    const oldMode: 'buy_usdt' | 'buy_eur' = mode === 'buy_eur' ? 'buy_eur' : 'buy_usdt';
+                    const oldTotalCost = oldCurrency === 'USDT'
+                        ? Math.round(oldQuantity * oldPrice)
+                        : Math.round(oldQuantity * oldPrice);
+                    const oldEurSpent = oldPurchaseFundingCurrency === 'EUR' ? roundM(Number(editingTx.purchaseAmountEur || 0)) : 0;
+                    const oldClientPaymentStatus = (((editingTx.clientPaymentStatus || 'cash') as 'cash' | 'baridi' | 'credit'));
+                    const oldLinkedClientId = editingTx.linkedClientId || 'none';
+                    const oldLinkedClientDzdId = editingTx.linkedClientDzdId || 'none';
+                    const oldShouldLinkCashToDzdClient = oldClientPaymentStatus === 'cash' && oldLinkedClientDzdId !== 'none';
+                    const oldBuyDelta = computeBuyReadModelDelta({
+                        mainTxId,
+                        operationId: `legacy:edit:usdt_txs:${mainTxId}:${editMutationSeq}:old`,
+                        timestamp: editingTx.timestamp,
+                        buyUsdtMode: oldBuyUsdtMode,
+                        mode: oldMode,
+                        quantity: oldQuantity,
+                        totalCost: oldTotalCost,
+                        eurSpentForConversion: oldEurSpent,
+                        currency: oldCurrency,
+                        clientPaymentStatus: oldClientPaymentStatus,
+                        linkedClientId: oldLinkedClientId,
+                        linkedClientDzdId: oldLinkedClientDzdId,
+                        shouldLinkCashToDzdClient: oldShouldLinkCashToDzdClient,
                     });
-                })()
-                : null;
+                    return combineReadModelDeltas(invertReadModelDelta(oldBuyDelta), newBuyDelta);
+                })();
             await commitLegacyWithReadModelDeltas({
                 userDocRef,
                 batch,
@@ -1061,109 +1260,63 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     }, { clientDeltas: { [clientId]: -totalRevenue } });
                 }
             }
+            const editMutationSeq = editingTx ? timestamp : 0;
+            const newSellOperationId = `legacy:edit:usdt_txs:${committedSellTxId}:${editMutationSeq}:new`;
+            const newSellDelta = computeSellReadModelDelta({
+                committedSellTxId,
+                operationId: newSellOperationId,
+                timestamp,
+                sellCurrency,
+                quantity,
+                sell,
+                totalRevenue,
+                profit,
+                notes,
+                isUsdtSettledInEur,
+                saleValueEur,
+                saleValueDzd,
+                linkedClientId,
+                clientPaymentStatus,
+                creditDueDate,
+                shouldLinkSettlementToDzdClient,
+                linkedClientDzdId,
+            });
             const readModelDelta = !editingTx
-                ? (() => {
-                    const portfolioDelta = {
-                        [sellCurrency]: {
-                            quantityDelta: -quantity,
-                            costBasisDeltaDzd: -getPortfolioRemovalCost(sellCurrency, quantity),
-                            realizedProfitDeltaDzd: profit,
-                            soldQuantityDelta: quantity,
-                        },
-                    };
-                    if (isUsdtSettledInEur) {
-                        return mustPrepareWriterReadModelDelta('portfolio.exchange', {
-                            operationId: `legacy:portfolio.exchange:${committedSellTxId}:usdt-to-eur`,
-                            effectiveAt: timestamp,
-                            payload: { type: 'portfolio_exchange_usdt_to_eur', quantity, saleValueEur, saleValueDzd },
-                            affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'financial_summary'],
-                            portfolio: {
-                                USDT: { quantityDelta: -quantity, costBasisDeltaDzd: -getPortfolioRemovalCost('USDT', quantity) },
-                                EUR: { quantityDelta: saleValueEur, costBasisDeltaDzd: totalRevenue },
-                            },
-                            recentOperation: { operationId: `legacy:portfolio.exchange:${committedSellTxId}:usdt-to-eur`, source: 'legacy', type: 'Vente USDT / EUR', effectiveAt: timestamp },
-                        });
-                    }
-                    const readModelSellTx: Tx = {
-                        id: committedSellTxId,
-                        timestamp,
-                        type: 'sell',
-                        quantity,
-                        sell,
-                        total: totalRevenue,
-                        profit,
-                        date,
-                        time,
-                        notes: notes.trim(),
-                        currency: sellCurrency,
-                        linkedClientId,
-                        clientPaymentStatus,
-                        settlementCurrency: 'DZD',
-                        ...(clientPaymentStatus === 'credit' ? { creditDueDate } : {}),
-                        ...(shouldLinkSettlementToDzdClient ? { linkedClientDzdId } : {}),
-                    };
-                    const sellEconomics = derivePortfolioSellReadModelEconomics({
-                        transactions,
-                        sellTx: readModelSellTx,
-                        fallbackProfitDzd: profit,
-                        fallbackCostBasisDzd: getPortfolioRemovalCost(sellCurrency, quantity),
-                        nowMs: timestamp,
+                ? newSellDelta
+                : (() => {
+                    const oldSellCurrency = (editingTx.currency === 'EUR' ? 'EUR' : 'USDT') as 'USDT' | 'EUR';
+                    const oldQuantity = roundM(Number(editingTx.quantity || 0));
+                    const oldSell = Number(editingTx.sell || editingTx.price || 0);
+                    const oldTotalRevenue = Math.round(Number(editingTx.total || 0));
+                    const oldProfit = Number(editingTx.profit || 0);
+                    const oldIsUsdtSettledInEur = editingTx.settlementCurrency === 'EUR';
+                    const oldSaleValueEur = roundM(Number(editingTx.saleValueEur || 0));
+                    const oldSaleValueDzd = Math.round(Number(editingTx.saleValueDzd || 0));
+                    const oldClientPaymentStatus = ((editingTx.clientPaymentStatus || 'cash') as 'cash' | 'baridi' | 'credit');
+                    const oldLinkedClientId = editingTx.linkedClientId || 'none';
+                    const oldLinkedClientDzdId = editingTx.linkedClientDzdId || 'none';
+                    const oldShouldLinkSettlementToDzdClient = !oldIsUsdtSettledInEur && (oldClientPaymentStatus === 'cash' || oldClientPaymentStatus === 'baridi') && oldLinkedClientDzdId !== 'none';
+                    const oldSellDelta = computeSellReadModelDelta({
+                        committedSellTxId,
+                        operationId: `legacy:edit:usdt_txs:${committedSellTxId}:${editMutationSeq}:old`,
+                        timestamp: editingTx.timestamp,
+                        sellCurrency: oldSellCurrency,
+                        quantity: oldQuantity,
+                        sell: oldSell,
+                        totalRevenue: oldTotalRevenue,
+                        profit: oldProfit,
+                        notes: editingTx,
+                        isUsdtSettledInEur: oldIsUsdtSettledInEur,
+                        saleValueEur: oldSaleValueEur,
+                        saleValueDzd: oldSaleValueDzd,
+                        linkedClientId: oldLinkedClientId,
+                        clientPaymentStatus: oldClientPaymentStatus,
+                        creditDueDate: editingTx.creditDueDate,
+                        shouldLinkSettlementToDzdClient: oldShouldLinkSettlementToDzdClient,
+                        linkedClientDzdId: oldLinkedClientDzdId,
                     });
-                    portfolioDelta[sellCurrency].costBasisDeltaDzd = -sellEconomics.soldCostDzd;
-                    portfolioDelta[sellCurrency].realizedProfitDeltaDzd = sellEconomics.realizedProfitDzd;
-                    const realizedProfit = sellEconomics.realizedProfitDzd;
-                    const allocation = allocateProfitDeltaAtTimestamp({
-                        investors,
-                        investorTransactions,
-                        treasuryTransactions,
-                        personalExpenses,
-                        managerFeePercentage,
-                        managerFeeHistory,
-                        projectProfitDzd: realizedProfit,
-                        timestamp,
-                    });
-                    if (clientPaymentStatus === 'credit' || shouldLinkSettlementToDzdClient) {
-                        const clientId = shouldLinkSettlementToDzdClient ? linkedClientDzdId : linkedClientId;
-                        const clientsDelta = clientBalanceTransition(clientId, -totalRevenue, timestamp);
-                        clientsDelta.activeClientsTodayDelta = activeClientTodayDelta(clientId, timestamp);
-                        return mustPrepareWriterReadModelDelta('portfolio.sell-credit', {
-                            operationId: `legacy:portfolio.sell-credit:${committedSellTxId}`,
-                            effectiveAt: timestamp,
-                            payload: { type: 'portfolio_sell_credit', clientId, quantity, sellCurrency, totalRevenue, storedProfit: profit, realizedProfit, allocation },
-                            affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'clients_summary', 'investors_summary', 'financial_summary'],
-                            portfolio: portfolioDelta,
-                            clients: clientsDelta,
-                            investors: {
-                                externalInvestorProfitsDelta: allocation.externalInvestorProfitsDeltaDzd,
-                                investorLiabilityDelta: allocation.investorLiabilityDeltaDzd,
-                                managerTradingOwnerProfitDelta: allocation.managerProfitDeltaDzd,
-                                managerActualOwnerCapitalDelta: allocation.managerProfitDeltaDzd,
-                                globalNetProfitDelta: allocation.projectProfitDzd,
-                            },
-                            dashboardDaily: periodProfitDeltas(timestamp, realizedProfit, allocation.managerProfitDeltaDzd, sellCurrency, quantity),
-                            recentOperation: { operationId: `legacy:portfolio.sell-credit:${committedSellTxId}`, source: 'legacy', type: `Vente ${sellCurrency}`, effectiveAt: timestamp },
-                        });
-                    }
-                    const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
-                    return mustPrepareWriterReadModelDelta('portfolio.sell-cash', {
-                        operationId: `legacy:portfolio.sell-cash:${committedSellTxId}`,
-                        effectiveAt: timestamp,
-                        payload: { type: 'portfolio_sell_cash', wallet, quantity, sellCurrency, totalRevenue, storedProfit: profit, realizedProfit, allocation },
-                        affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'treasury_summary', 'investors_summary', 'financial_summary'],
-                        wallets: { [wallet]: totalRevenue },
-                        portfolio: portfolioDelta,
-                        investors: {
-                            externalInvestorProfitsDelta: allocation.externalInvestorProfitsDeltaDzd,
-                            investorLiabilityDelta: allocation.investorLiabilityDeltaDzd,
-                            managerTradingOwnerProfitDelta: allocation.managerProfitDeltaDzd,
-                            managerActualOwnerCapitalDelta: allocation.managerProfitDeltaDzd,
-                            globalNetProfitDelta: allocation.projectProfitDzd,
-                        },
-                        dashboardDaily: periodProfitDeltas(timestamp, realizedProfit, allocation.managerProfitDeltaDzd, sellCurrency, quantity),
-                        recentOperation: { operationId: `legacy:portfolio.sell-cash:${committedSellTxId}`, source: 'legacy', type: `Vente ${sellCurrency}`, effectiveAt: timestamp },
-                    });
-                })()
-                : null;
+                    return combineReadModelDeltas(invertReadModelDelta(oldSellDelta), newSellDelta);
+                })();
             await commitLegacyWithReadModelDeltas({
                 userDocRef,
                 batch,
@@ -1408,7 +1561,57 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     ...(isAddition && price <= 0 ? { warnings: ['Legacy manual addition has no DZD value and cannot become a balanced V2 posting.'] } : {}),
                 });
             }
-            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: editingTreasuryTx ? [] : readModelDeltas });
+            if (editingTreasuryTx) {
+                const editMutationSeq = stamp.timestamp;
+                const oldSource = (editingTreasuryTx.source || (editingTreasuryTx as any).asset || 'Caisse') as 'Caisse' | 'BaridiMob';
+                const oldAmount = Number(editingTreasuryTx.amount || 0);
+                const oldIsAdd = editingTreasuryTx.type === 'Ajout' || editingTreasuryTx.type === 'Adjustment (+)';
+                const oldClientTx = clientTransactionsDzd.find((tx) => tx.linkedTxId === editingTreasuryTx.id && tx.origin === 'adjustment');
+                const oldClientId = adjustmentClientId || (oldClientTx ? oldClientTx.clientId : '');
+                const oldTreasuryDelta = mustPrepareWriterReadModelDelta('treasury.adjustment', {
+                    operationId: `legacy:edit:treasury_txs:${editingTreasuryTx.id}:${editMutationSeq}:old`,
+                    effectiveAt: editingTreasuryTx.timestamp || stamp.timestamp,
+                    payload: { type: 'global_treasury_adjustment', txId: editingTreasuryTx.id, source: oldSource, amount: oldAmount, direction: oldIsAdd ? 'add' : 'subtract', editInverse: true },
+                    affectedSummaries: ['dashboard_summary', 'treasury_summary', 'financial_summary'],
+                    wallets: { [oldSource]: oldIsAdd ? oldAmount : -oldAmount },
+                    recentOperation: { operationId: `legacy:edit:treasury_txs:${editingTreasuryTx.id}:${editMutationSeq}:old`, source: 'legacy', type: 'Ajustement trésorerie', effectiveAt: editingTreasuryTx.timestamp || stamp.timestamp },
+                });
+                const newSource = adjustmentAsset === 'DZD-Caisse' ? 'Caisse' : 'BaridiMob';
+                const newIsAdd = adjustmentTab === 'add';
+                const newTreasuryDelta = mustPrepareWriterReadModelDelta('treasury.adjustment', {
+                    operationId: `legacy:edit:treasury_txs:${editingTreasuryTx.id}:${editMutationSeq}:new`,
+                    effectiveAt: stamp.timestamp,
+                    payload: { type: 'global_treasury_adjustment', txId: editingTreasuryTx.id, source: newSource, amount: amountNum, direction: newIsAdd ? 'add' : 'subtract' },
+                    affectedSummaries: ['dashboard_summary', 'treasury_summary', 'financial_summary'],
+                    wallets: { [newSource]: newIsAdd ? amountNum : -amountNum },
+                    recentOperation: { operationId: `legacy:edit:treasury_txs:${editingTreasuryTx.id}:${editMutationSeq}:new`, source: 'legacy', type: 'Ajustement trésorerie', effectiveAt: stamp.timestamp },
+                });
+                readModelDeltas.push(combineReadModelDeltas(invertReadModelDelta(oldTreasuryDelta), newTreasuryDelta));
+                if (oldClientId && (oldClientTx || adjustmentClientId)) {
+                    const oldClientAmount = oldIsAdd ? oldAmount : -oldAmount;
+                    const beforeBalanceOld = clientPositionFromLegacyRows(clientTransactionsDzd, oldClientId, editingTreasuryTx.timestamp || stamp.timestamp).balanceDzd;
+                    const oldClientDelta = mustPrepareWriterReadModelDelta('clients.initial-adjustment-remise', {
+                        operationId: `legacy:edit:clients:${editingTreasuryTx.id}:${editMutationSeq}:old`,
+                        effectiveAt: editingTreasuryTx.timestamp || stamp.timestamp,
+                        payload: { type: 'linked_treasury_client_adjustment', txId: editingTreasuryTx.id, clientId: oldClientId, amount: oldClientAmount, editInverse: true },
+                        affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                        clients: transitionClientBalanceDelta(beforeBalanceOld, beforeBalanceOld + oldClientAmount),
+                        recentOperation: { operationId: `legacy:edit:clients:${editingTreasuryTx.id}:${editMutationSeq}:old`, source: 'legacy', type: oldIsAdd ? 'Règlement Reçu' : 'Paiement Effectué', effectiveAt: editingTreasuryTx.timestamp || stamp.timestamp },
+                    });
+                    const newClientAmount = newIsAdd ? amountNum : -amountNum;
+                    const beforeBalanceNew = clientPositionFromLegacyRows(clientTransactionsDzd, oldClientId, stamp.timestamp).balanceDzd;
+                    const newClientDelta = mustPrepareWriterReadModelDelta('clients.initial-adjustment-remise', {
+                        operationId: `legacy:edit:clients:${editingTreasuryTx.id}:${editMutationSeq}:new`,
+                        effectiveAt: stamp.timestamp,
+                        payload: { type: 'linked_treasury_client_adjustment', txId: editingTreasuryTx.id, clientId: oldClientId, amount: newClientAmount },
+                        affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                        clients: transitionClientBalanceDelta(beforeBalanceNew, beforeBalanceNew + newClientAmount),
+                        recentOperation: { operationId: `legacy:edit:clients:${editingTreasuryTx.id}:${editMutationSeq}:new`, source: 'legacy', type: newIsAdd ? 'Règlement Reçu' : 'Paiement Effectué', effectiveAt: stamp.timestamp },
+                    });
+                    readModelDeltas.push(combineReadModelDeltas(invertReadModelDelta(oldClientDelta), newClientDelta));
+                }
+            }
+            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: readModelDeltas });
             setAlert('✅ Ajustement enregistré.');
             setIsAdjustmentModalOpen(false);
             if (adjustmentClientId) {
@@ -1841,7 +2044,29 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 paymentMethod: 'Crédit',
                 linkedTxId: editingTransferTx.id
             });
-            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [] });
+            const editMutationSeq = timestamp;
+            const oldAmt = Math.abs(Number(editingTransferTx.montant || 0));
+            const oldFromClientDelta = clientBalanceTransition(editingTransferTx.clientId, oldAmt, timestamp);
+            const oldToClientDelta = clientBalanceTransition(counterpart.clientId, -oldAmt, timestamp);
+            const oldTransferDelta = mustPrepareWriterReadModelDelta('clients.transfer', {
+                operationId: `legacy:edit:clients.transfer:${editingTransferTx.id}:${editMutationSeq}:old`,
+                effectiveAt: editingTransferTx.timestamp || timestamp,
+                payload: { type: 'client_transfer', fromClientId: editingTransferTx.clientId, toClientId: counterpart.clientId, amount: oldAmt, editInverse: true },
+                affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                clients: combineClientPositionDeltas([oldFromClientDelta, oldToClientDelta]),
+                recentOperation: { operationId: `legacy:edit:clients.transfer:${editingTransferTx.id}:${editMutationSeq}:old`, source: 'legacy', type: 'Transfert client', effectiveAt: editingTransferTx.timestamp || timestamp },
+            });
+            const newFromClientDelta = clientBalanceTransition(transferFromClientId, amt, timestamp);
+            const newToClientDelta = clientBalanceTransition(transferToClientId, -amt, timestamp);
+            const newTransferDelta = mustPrepareWriterReadModelDelta('clients.transfer', {
+                operationId: `legacy:edit:clients.transfer:${editingTransferTx.id}:${editMutationSeq}:new`,
+                effectiveAt: timestamp,
+                payload: { type: 'client_transfer', fromClientId: transferFromClientId, toClientId: transferToClientId, amount: amt },
+                affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                clients: combineClientPositionDeltas([newFromClientDelta, newToClientDelta]),
+                recentOperation: { operationId: `legacy:edit:clients.transfer:${editingTransferTx.id}:${editMutationSeq}:new`, source: 'legacy', type: 'Transfert client', effectiveAt: timestamp },
+            });
+            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [combineReadModelDeltas(invertReadModelDelta(oldTransferDelta), newTransferDelta)] });
             setAlert('✅ Transfert mis à jour.');
             closeTransferModal();
         }

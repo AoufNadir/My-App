@@ -525,3 +525,244 @@ export function applyReadModelDelta(snapshot: DashboardReadModelSet, delta: Read
     const dashboard = rebuildDashboardFromDomains(snapshot.dashboard, { treasury, portfolio, clients, investors, services, financial }, delta);
     return { ...snapshot, treasury, portfolio, clients, investors, services, financial, dashboard };
 }
+
+/**
+ * Produce a read-model delta that undoes `delta`.
+ *
+ * This is the inverse leg of the Edit Integrity rule:
+ *   Edit Delta = inverse(old financial effect) + apply(new financial effect)
+ *
+ * It ONLY negates numeric/measured fields. The `operationId` and `payloadHash`
+ * are intentionally NOT copied (callers must supply a fresh operationId for the
+ * inverse leg), and `affectedSummaries`/`recentOperation` are preserved so the
+ * inverse leg replays through the same writers. Several writers are *append-only*
+ * accumulators (recentOperations, transactionCount, sellCountToday,
+ * activeClientsToday) — those are deliberately left untouched by the inverse
+ * because they are corrected by the apply(new) leg (the new operation re-emits
+ * its own recent operation / counts). Negating them would double-correct.
+ *
+ * This helper does NOT touch any accounting formula, PAM logic, or investor
+ * economics — it is a pure structural negation of the numeric delta payload.
+ */
+export function invertReadModelDelta(delta: ReadModelDelta): Omit<ReadModelDelta, 'operationId' | 'payloadHash'> {
+    const inverseWallets: Partial<Record<ReadModelWallet, number>> = {};
+    if (delta.wallets) {
+        (Object.keys(delta.wallets) as ReadModelWallet[]).forEach((wallet) => {
+            const value = delta.wallets![wallet] || 0;
+            if (value !== 0) {
+                inverseWallets[wallet] = -value;
+            }
+        });
+    }
+
+    const inversePortfolio: Partial<Record<ReadModelCurrency, CurrencyInventoryDelta>> = {};
+    if (delta.portfolio) {
+        (Object.keys(delta.portfolio) as ReadModelCurrency[]).forEach((currency) => {
+            const currencyDelta = delta.portfolio![currency];
+            if (!currencyDelta) return;
+            const inverted: Partial<CurrencyInventoryDelta> = {};
+            if (currencyDelta.quantityDelta) inverted.quantityDelta = -currencyDelta.quantityDelta;
+            if (currencyDelta.costBasisDeltaDzd) inverted.costBasisDeltaDzd = -currencyDelta.costBasisDeltaDzd;
+            if (currencyDelta.realizedProfitDeltaDzd) inverted.realizedProfitDeltaDzd = -currencyDelta.realizedProfitDeltaDzd;
+            if (currencyDelta.soldQuantityDelta) inverted.soldQuantityDelta = -currencyDelta.soldQuantityDelta;
+            if (Object.keys(inverted).length > 0) {
+                inversePortfolio[currency] = inverted as CurrencyInventoryDelta;
+            }
+        });
+    }
+
+    const inverseClients: Partial<ClientPositionDelta> = {};
+    if (delta.clients) {
+        if (delta.clients.receivablesDelta) inverseClients.receivablesDelta = -delta.clients.receivablesDelta;
+        if (delta.clients.advancesDelta) inverseClients.advancesDelta = -delta.clients.advancesDelta;
+        if (delta.clients.clientCountDelta) inverseClients.clientCountDelta = -delta.clients.clientCountDelta;
+        if (delta.clients.activeClientsTodayDelta) inverseClients.activeClientsTodayDelta = -delta.clients.activeClientsTodayDelta;
+    }
+
+    const inverseInvestors: Partial<InvestorPositionDelta> = {};
+    if (delta.investors) {
+        if (delta.investors.investorCountDelta) inverseInvestors.investorCountDelta = -delta.investors.investorCountDelta;
+        if (delta.investors.externalInvestorCapitalDelta) inverseInvestors.externalInvestorCapitalDelta = -delta.investors.externalInvestorCapitalDelta;
+        if (delta.investors.externalInvestorProfitsDelta) inverseInvestors.externalInvestorProfitsDelta = -delta.investors.externalInvestorProfitsDelta;
+        if (delta.investors.investorLiabilityDelta) inverseInvestors.investorLiabilityDelta = -delta.investors.investorLiabilityDelta;
+        if (delta.investors.managerTradingOwnerProfitDelta) inverseInvestors.managerTradingOwnerProfitDelta = -delta.investors.managerTradingOwnerProfitDelta;
+        if (delta.investors.managerServiceProfitDelta) inverseInvestors.managerServiceProfitDelta = -delta.investors.managerServiceProfitDelta;
+        if (delta.investors.managerPersonalExpensesDelta) inverseInvestors.managerPersonalExpensesDelta = -delta.investors.managerPersonalExpensesDelta;
+        if (delta.investors.managerActualOwnerCapitalDelta) inverseInvestors.managerActualOwnerCapitalDelta = -delta.investors.managerActualOwnerCapitalDelta;
+        if (delta.investors.globalNetProfitDelta) inverseInvestors.globalNetProfitDelta = -delta.investors.globalNetProfitDelta;
+    }
+
+    const inverseServices: Partial<ServicePositionDelta> = {};
+    if (delta.services) {
+        if (delta.services.servicesCountDelta) inverseServices.servicesCountDelta = -delta.services.servicesCountDelta;
+        if (delta.services.clientsCountDelta) inverseServices.clientsCountDelta = -delta.services.clientsCountDelta;
+        if (delta.services.amountToReceiveDelta) inverseServices.amountToReceiveDelta = -delta.services.amountToReceiveDelta;
+        if (delta.services.clientAdvancesDelta) inverseServices.clientAdvancesDelta = -delta.services.clientAdvancesDelta;
+        if (delta.services.cashReceivedDelta) inverseServices.cashReceivedDelta = -delta.services.cashReceivedDelta;
+        if (delta.services.manualServiceRevenueDelta) inverseServices.manualServiceRevenueDelta = -delta.services.manualServiceRevenueDelta;
+        if (delta.services.digitalServiceProfitDelta) inverseServices.digitalServiceProfitDelta = -delta.services.digitalServiceProfitDelta;
+        if (delta.services.serviceRevenueDelta) inverseServices.serviceRevenueDelta = -delta.services.serviceRevenueDelta;
+        if (delta.services.netCapitalImpactDelta) inverseServices.netCapitalImpactDelta = -delta.services.netCapitalImpactDelta;
+    }
+
+    const inverseDashboardDaily: ReadModelDelta['dashboardDaily'] = {};
+    if (delta.dashboardDaily) {
+        const daily = delta.dashboardDaily;
+        if (daily.todayProfitDelta) inverseDashboardDaily.todayProfitDelta = -daily.todayProfitDelta;
+        if (daily.weekToDateProfitDelta) inverseDashboardDaily.weekToDateProfitDelta = -daily.weekToDateProfitDelta;
+        if (daily.monthToDateProfitDelta) inverseDashboardDaily.monthToDateProfitDelta = -daily.monthToDateProfitDelta;
+        if (daily.yearToDateProfitDelta) inverseDashboardDaily.yearToDateProfitDelta = -daily.yearToDateProfitDelta;
+        if (daily.allTimeProfitDelta) inverseDashboardDaily.allTimeProfitDelta = -daily.allTimeProfitDelta;
+        if (daily.todaySellCountDelta) inverseDashboardDaily.todaySellCountDelta = -daily.todaySellCountDelta;
+        if (daily.todayUsdtSoldDelta) inverseDashboardDaily.todayUsdtSoldDelta = -daily.todayUsdtSoldDelta;
+        if (daily.todayEurSoldDelta) inverseDashboardDaily.todayEurSoldDelta = -daily.todayEurSoldDelta;
+        if (daily.monthToDateUsdtSoldDelta) inverseDashboardDaily.monthToDateUsdtSoldDelta = -daily.monthToDateUsdtSoldDelta;
+        if (daily.monthToDateEurSoldDelta) inverseDashboardDaily.monthToDateEurSoldDelta = -daily.monthToDateEurSoldDelta;
+        if (daily.yearToDateUsdtSoldDelta) inverseDashboardDaily.yearToDateUsdtSoldDelta = -daily.yearToDateUsdtSoldDelta;
+        if (daily.yearToDateEurSoldDelta) inverseDashboardDaily.yearToDateEurSoldDelta = -daily.yearToDateEurSoldDelta;
+        if (daily.allTimeUsdtSoldDelta) inverseDashboardDaily.allTimeUsdtSoldDelta = -daily.allTimeUsdtSoldDelta;
+        if (daily.allTimeEurSoldDelta) inverseDashboardDaily.allTimeEurSoldDelta = -daily.allTimeEurSoldDelta;
+        if (daily.ownerProfitTodayDelta) inverseDashboardDaily.ownerProfitTodayDelta = -daily.ownerProfitTodayDelta;
+        if (daily.ownerProfitWeekDelta) inverseDashboardDaily.ownerProfitWeekDelta = -daily.ownerProfitWeekDelta;
+        if (daily.ownerProfitMonthDelta) inverseDashboardDaily.ownerProfitMonthDelta = -daily.ownerProfitMonthDelta;
+        if (daily.ownerProfitYearDelta) inverseDashboardDaily.ownerProfitYearDelta = -daily.ownerProfitYearDelta;
+        if (daily.ownerProfitAllTimeDelta) inverseDashboardDaily.ownerProfitAllTimeDelta = -daily.ownerProfitAllTimeDelta;
+    }
+
+    return {
+        effectiveAt: delta.effectiveAt,
+        affectedSummaries: delta.affectedSummaries,
+        wallets: Object.keys(inverseWallets).length > 0 ? inverseWallets : undefined,
+        treasuryCardsDelta: delta.treasuryCardsDelta ? -delta.treasuryCardsDelta : undefined,
+        managerPendingAdvancesDelta: delta.managerPendingAdvancesDelta ? -delta.managerPendingAdvancesDelta : undefined,
+        deliveryExpensesDelta: delta.deliveryExpensesDelta ? -delta.deliveryExpensesDelta : undefined,
+        portfolio: Object.keys(inversePortfolio).length > 0 ? inversePortfolio : undefined,
+        clients: Object.keys(inverseClients).length > 0 ? (inverseClients as ClientPositionDelta) : undefined,
+        investors: Object.keys(inverseInvestors).length > 0 ? (inverseInvestors as InvestorPositionDelta) : undefined,
+        services: Object.keys(inverseServices).length > 0 ? (inverseServices as ServicePositionDelta) : undefined,
+        dashboardDaily: Object.keys(inverseDashboardDaily).length > 0 ? inverseDashboardDaily : undefined,
+        // recentOperation is NOT inverted: the apply(new) leg re-emits the new
+        // recent operation, which supersedes the old one. Inverting/removing it
+        // here would conflict with the append semantics in applyReadModelDelta.
+        recentOperation: delta.recentOperation,
+    };
+}
+
+/**
+ * Combine two read-model deltas into a single delta representing their composed
+ * effect. Used to build an Edit delta as:
+ *   combineReadModelDeltas(invertReadModelDelta(oldDelta), newDelta)
+ *
+ * Numeric fields are summed; non-numeric structural fields (operationId,
+ * payloadHash, effectiveAt, affectedSummaries, recentOperation) are taken from
+ * `second` (the apply(new) leg defines the resulting operation identity).
+ *
+ * Pure helper — no accounting/PAM/investor-economics logic touched.
+ */
+export function combineReadModelDeltas(
+    first: Omit<ReadModelDelta, 'operationId' | 'payloadHash'>,
+    second: ReadModelDelta,
+): ReadModelDelta {
+    const sumWallets: Partial<Record<ReadModelWallet, number>> = {};
+    const addWallet = (wallet: ReadModelWallet, value = 0) => {
+        if (value === 0) return;
+        sumWallets[wallet] = money((sumWallets[wallet] || 0) + value);
+    };
+    (Object.keys(first.wallets || {}) as ReadModelWallet[]).forEach((wallet) => addWallet(wallet, first.wallets![wallet] || 0));
+    (Object.keys(second.wallets || {}) as ReadModelWallet[]).forEach((wallet) => addWallet(wallet, second.wallets![wallet] || 0));
+
+    const sumPortfolio: Partial<Record<ReadModelCurrency, CurrencyInventoryDelta>> = {};
+    const addCurrency = (currency: ReadModelCurrency, delta?: CurrencyInventoryDelta) => {
+        if (!delta) return;
+        const target: Partial<CurrencyInventoryDelta> = sumPortfolio[currency] || {};
+        if (delta.quantityDelta) target.quantityDelta = money((target.quantityDelta || 0) + delta.quantityDelta);
+        if (delta.costBasisDeltaDzd) target.costBasisDeltaDzd = money((target.costBasisDeltaDzd || 0) + delta.costBasisDeltaDzd);
+        if (delta.realizedProfitDeltaDzd) target.realizedProfitDeltaDzd = money((target.realizedProfitDeltaDzd || 0) + delta.realizedProfitDeltaDzd);
+        if (delta.soldQuantityDelta) target.soldQuantityDelta = money((target.soldQuantityDelta || 0) + delta.soldQuantityDelta);
+        sumPortfolio[currency] = target as CurrencyInventoryDelta;
+    };
+    (Object.keys(first.portfolio || {}) as ReadModelCurrency[]).forEach((currency) => addCurrency(currency, first.portfolio![currency]));
+    (Object.keys(second.portfolio || {}) as ReadModelCurrency[]).forEach((currency) => addCurrency(currency, second.portfolio![currency]));
+
+    const sumClients: Partial<ClientPositionDelta> = {};
+    if (first.clients || second.clients) {
+        sumClients.receivablesDelta = money((first.clients?.receivablesDelta || 0) + (second.clients?.receivablesDelta || 0));
+        sumClients.advancesDelta = money((first.clients?.advancesDelta || 0) + (second.clients?.advancesDelta || 0));
+        if (first.clients?.clientCountDelta || second.clients?.clientCountDelta) {
+            sumClients.clientCountDelta = addInteger(first.clients?.clientCountDelta || 0, second.clients?.clientCountDelta || 0);
+        }
+        if (first.clients?.activeClientsTodayDelta || second.clients?.activeClientsTodayDelta) {
+            sumClients.activeClientsTodayDelta = addInteger(first.clients?.activeClientsTodayDelta || 0, second.clients?.activeClientsTodayDelta || 0);
+        }
+    }
+
+    const sumInvestors: Partial<InvestorPositionDelta> = {};
+    if (first.investors || second.investors) {
+        if (first.investors?.investorCountDelta || second.investors?.investorCountDelta) {
+            sumInvestors.investorCountDelta = addInteger(first.investors?.investorCountDelta || 0, second.investors?.investorCountDelta || 0);
+        }
+        sumInvestors.externalInvestorCapitalDelta = money((first.investors?.externalInvestorCapitalDelta || 0) + (second.investors?.externalInvestorCapitalDelta || 0));
+        sumInvestors.externalInvestorProfitsDelta = money((first.investors?.externalInvestorProfitsDelta || 0) + (second.investors?.externalInvestorProfitsDelta || 0));
+        sumInvestors.investorLiabilityDelta = money((first.investors?.investorLiabilityDelta ?? ((first.investors?.externalInvestorCapitalDelta || 0) + (first.investors?.externalInvestorProfitsDelta || 0))) + (second.investors?.investorLiabilityDelta ?? ((second.investors?.externalInvestorCapitalDelta || 0) + (second.investors?.externalInvestorProfitsDelta || 0))));
+        sumInvestors.managerTradingOwnerProfitDelta = money((first.investors?.managerTradingOwnerProfitDelta || 0) + (second.investors?.managerTradingOwnerProfitDelta || 0));
+        sumInvestors.managerServiceProfitDelta = money((first.investors?.managerServiceProfitDelta || 0) + (second.investors?.managerServiceProfitDelta || 0));
+        sumInvestors.managerPersonalExpensesDelta = money((first.investors?.managerPersonalExpensesDelta || 0) + (second.investors?.managerPersonalExpensesDelta || 0));
+        sumInvestors.managerActualOwnerCapitalDelta = money((first.investors?.managerActualOwnerCapitalDelta || 0) + (second.investors?.managerActualOwnerCapitalDelta || 0));
+        sumInvestors.globalNetProfitDelta = money((first.investors?.globalNetProfitDelta || 0) + (second.investors?.globalNetProfitDelta || 0));
+    }
+
+    const sumServices: Partial<ServicePositionDelta> = {};
+    if (first.services || second.services) {
+        if (first.services?.servicesCountDelta || second.services?.servicesCountDelta) {
+            sumServices.servicesCountDelta = addInteger(first.services?.servicesCountDelta || 0, second.services?.servicesCountDelta || 0);
+        }
+        if (first.services?.clientsCountDelta || second.services?.clientsCountDelta) {
+            sumServices.clientsCountDelta = addInteger(first.services?.clientsCountDelta || 0, second.services?.clientsCountDelta || 0);
+        }
+        sumServices.amountToReceiveDelta = money((first.services?.amountToReceiveDelta || 0) + (second.services?.amountToReceiveDelta || 0));
+        sumServices.clientAdvancesDelta = money((first.services?.clientAdvancesDelta || 0) + (second.services?.clientAdvancesDelta || 0));
+        sumServices.cashReceivedDelta = money((first.services?.cashReceivedDelta || 0) + (second.services?.cashReceivedDelta || 0));
+        sumServices.manualServiceRevenueDelta = money((first.services?.manualServiceRevenueDelta || 0) + (second.services?.manualServiceRevenueDelta || 0));
+        sumServices.digitalServiceProfitDelta = money((first.services?.digitalServiceProfitDelta || 0) + (second.services?.digitalServiceProfitDelta || 0));
+        sumServices.serviceRevenueDelta = money((first.services?.serviceRevenueDelta || 0) + (second.services?.serviceRevenueDelta || 0));
+        sumServices.netCapitalImpactDelta = money((first.services?.netCapitalImpactDelta || 0) + (second.services?.netCapitalImpactDelta || 0));
+    }
+
+    const sumDashboardDaily: ReadModelDelta['dashboardDaily'] = {};
+    if (first.dashboardDaily || second.dashboardDaily) {
+        const dailyKeys: (keyof NonNullable<ReadModelDelta['dashboardDaily']>)[] = [
+            'todayProfitDelta', 'weekToDateProfitDelta', 'monthToDateProfitDelta', 'yearToDateProfitDelta', 'allTimeProfitDelta',
+            'todaySellCountDelta', 'todayUsdtSoldDelta', 'todayEurSoldDelta', 'monthToDateUsdtSoldDelta', 'monthToDateEurSoldDelta',
+            'yearToDateUsdtSoldDelta', 'yearToDateEurSoldDelta', 'allTimeUsdtSoldDelta', 'allTimeEurSoldDelta',
+            'ownerProfitTodayDelta', 'ownerProfitWeekDelta', 'ownerProfitMonthDelta', 'ownerProfitYearDelta', 'ownerProfitAllTimeDelta',
+        ];
+        dailyKeys.forEach((key) => {
+            const total = (first.dashboardDaily?.[key] || 0) + (second.dashboardDaily?.[key] || 0);
+            if (total !== 0) {
+                (sumDashboardDaily as Record<string, number>)[key] = money(total);
+            }
+        });
+    }
+
+    const affectedSummaries = uniqueReadModelNames([
+        ...(first.affectedSummaries || []),
+        ...(second.affectedSummaries || []),
+    ]);
+
+    return {
+        operationId: second.operationId,
+        effectiveAt: second.effectiveAt,
+        affectedSummaries,
+        payloadHash: second.payloadHash,
+        wallets: Object.keys(sumWallets).length > 0 ? sumWallets : undefined,
+        treasuryCardsDelta: money((first.treasuryCardsDelta || 0) + (second.treasuryCardsDelta || 0)) || undefined,
+        managerPendingAdvancesDelta: money((first.managerPendingAdvancesDelta || 0) + (second.managerPendingAdvancesDelta || 0)) || undefined,
+        deliveryExpensesDelta: money((first.deliveryExpensesDelta || 0) + (second.deliveryExpensesDelta || 0)) || undefined,
+        portfolio: Object.keys(sumPortfolio).length > 0 ? sumPortfolio : undefined,
+        clients: Object.keys(sumClients).length > 0 ? (sumClients as ClientPositionDelta) : undefined,
+        investors: Object.keys(sumInvestors).length > 0 ? (sumInvestors as InvestorPositionDelta) : undefined,
+        services: Object.keys(sumServices).length > 0 ? (sumServices as ServicePositionDelta) : undefined,
+        dashboardDaily: Object.keys(sumDashboardDaily).length > 0 ? sumDashboardDaily : undefined,
+        recentOperation: second.recentOperation ?? first.recentOperation ?? null,
+    };
+}

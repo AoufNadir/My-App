@@ -11,7 +11,7 @@ import { clientPositionFromLegacyRows } from '../accounting/clientShadowLegacyAd
 import { recordServiceShadow } from '../accounting/serviceShadowDiagnostics';
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
-import { transitionClientBalanceDelta } from '../readModels/readModelDeltas';
+import { transitionClientBalanceDelta, invertReadModelDelta, combineReadModelDeltas, type ReadModelDelta } from '../readModels/readModelDeltas';
 import {
     computeDigitalServicePreview,
     isAssetWallet,
@@ -96,6 +96,86 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
     const [digitalServiceSaleAmount, setDigitalServiceSaleAmount] = useState('');
     const [digitalServiceDate, setDigitalServiceDate] = useState(toIsoToday());
     const [digitalServiceNote, setDigitalServiceNote] = useState('');
+
+    const computeDigitalServiceReadModelDelta = (input: {
+        mainRefId: string;
+        operationId: string;
+        stamp: { timestamp: number; date: string; time: string };
+        purchaseWallet: FinancialWallet;
+        saleWallet: DigitalServiceSaleWallet;
+        purchaseAmount: number;
+        saleAmount: number;
+        preview: ReturnType<typeof computeDigitalServicePreview>;
+        clientId: string;
+    }): ReadModelDelta => {
+        const { mainRefId, operationId, stamp, purchaseWallet, saleWallet, purchaseAmount, saleAmount, preview, clientId } = input;
+        const wallets: Record<string, number> = {};
+        if (isCashWallet(purchaseWallet)) {
+            wallets[purchaseWallet] = roundM((wallets[purchaseWallet] || 0) - preview.purchaseAmountDzd);
+        }
+        if (isCashWallet(saleWallet)) {
+            wallets[saleWallet] = roundM((wallets[saleWallet] || 0) + preview.saleAmountDzd);
+        }
+        const portfolio: Record<string, { quantityDelta: number; costBasisDeltaDzd: number }> = {};
+        if (isAssetWallet(purchaseWallet)) {
+            portfolio[purchaseWallet] = { quantityDelta: -purchaseAmount, costBasisDeltaDzd: -preview.purchaseAmountDzd };
+        }
+        if (isAssetWallet(saleWallet)) {
+            const current = portfolio[saleWallet] || { quantityDelta: 0, costBasisDeltaDzd: 0 };
+            portfolio[saleWallet] = {
+                quantityDelta: roundM(current.quantityDelta + saleAmount),
+                costBasisDeltaDzd: roundM(current.costBasisDeltaDzd + preview.saleAmountDzd),
+            };
+        }
+        const clientsDelta = saleWallet === 'Credit'
+            ? (() => {
+                const before = clientPositionFromLegacyRows(clientTransactionsDzd, clientId, stamp.timestamp).balanceDzd;
+                const delta = transitionClientBalanceDelta(before, before - preview.saleAmountDzd);
+                const day = new Date(stamp.timestamp);
+                day.setHours(0, 0, 0, 0);
+                const dayStart = day.getTime();
+                const dayEnd = dayStart + 86_400_000 - 1;
+                delta.activeClientsTodayDelta = clientTransactionsDzd.some((tx) => tx.clientId === clientId && tx.timestamp >= dayStart && tx.timestamp <= dayEnd) ? 0 : 1;
+                return delta;
+            })()
+            : undefined;
+        return mustPrepareWriterReadModelDelta('services.digital', {
+            operationId,
+            effectiveAt: stamp.timestamp,
+            payload: {
+                type: 'digital_service_sale',
+                txId: mainRefId,
+                clientId,
+                purchaseWallet,
+                saleWallet,
+                purchaseAmount,
+                saleAmount,
+                purchaseAmountDzd: preview.purchaseAmountDzd,
+                saleAmountDzd: preview.saleAmountDzd,
+                profitDzd: preview.profitDzd,
+            },
+            affectedSummaries: ['dashboard_summary', 'services_summary', 'treasury_summary', 'portfolio_summary', 'clients_summary', 'investors_summary', 'financial_summary'],
+            wallets: Object.keys(wallets).length ? wallets as any : undefined,
+            portfolio: Object.keys(portfolio).length ? portfolio as any : undefined,
+            clients: clientsDelta,
+            services: {
+                digitalServiceProfitDelta: preview.profitDzd,
+                serviceRevenueDelta: preview.profitDzd,
+                netCapitalImpactDelta: 0,
+            },
+            investors: {
+                managerServiceProfitDelta: preview.profitDzd,
+                managerActualOwnerCapitalDelta: preview.profitDzd,
+            },
+            dashboardDaily: ownerProfitPeriodDeltas(stamp.timestamp, preview.profitDzd),
+            recentOperation: {
+                operationId,
+                source: 'legacy',
+                type: 'Service numérique',
+                effectiveAt: stamp.timestamp,
+            },
+        });
+    };
 
     const rates = useMemo(() => ({
         usdtPma: Number(portfolioStats.usdt.avgBuy || 0),
@@ -455,79 +535,44 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
                 supplierPayableDzd: 0,
                 ...(editingDigitalServiceTx ? { warnings: ['Legacy edit replaces linked rows; V2 immutable reversal is prepared only.'] } : {}),
             });
+            const newDigitalServiceDelta = computeDigitalServiceReadModelDelta({
+                mainRefId: mainRef.id,
+                operationId: `legacy:edit:digital_service_txs:${mainRef.id}:${stamp.timestamp}:new`,
+                stamp,
+                purchaseWallet: digitalServicePurchaseWallet,
+                saleWallet: digitalServiceSaleWallet,
+                purchaseAmount,
+                saleAmount,
+                preview,
+                clientId: digitalServiceClientId,
+            });
             const readModelDelta = !editingDigitalServiceTx
-                ? (() => {
-                    const wallets: Record<string, number> = {};
-                    if (isCashWallet(digitalServicePurchaseWallet)) {
-                        wallets[digitalServicePurchaseWallet] = roundM((wallets[digitalServicePurchaseWallet] || 0) - preview.purchaseAmountDzd);
-                    }
-                    if (isCashWallet(digitalServiceSaleWallet)) {
-                        wallets[digitalServiceSaleWallet] = roundM((wallets[digitalServiceSaleWallet] || 0) + preview.saleAmountDzd);
-                    }
-                    const portfolio: Record<string, { quantityDelta: number; costBasisDeltaDzd: number }> = {};
-                    if (isAssetWallet(digitalServicePurchaseWallet)) {
-                        portfolio[digitalServicePurchaseWallet] = {
-                            quantityDelta: -purchaseAmount,
-                            costBasisDeltaDzd: -preview.purchaseAmountDzd,
-                        };
-                    }
-                    if (isAssetWallet(digitalServiceSaleWallet)) {
-                        const current = portfolio[digitalServiceSaleWallet] || { quantityDelta: 0, costBasisDeltaDzd: 0 };
-                        portfolio[digitalServiceSaleWallet] = {
-                            quantityDelta: roundM(current.quantityDelta + saleAmount),
-                            costBasisDeltaDzd: roundM(current.costBasisDeltaDzd + preview.saleAmountDzd),
-                        };
-                    }
-                    const clientsDelta = digitalServiceSaleWallet === 'Credit'
-                        ? (() => {
-                            const before = clientPositionFromLegacyRows(clientTransactionsDzd, digitalServiceClientId, stamp.timestamp).balanceDzd;
-                            const delta = transitionClientBalanceDelta(before, before - preview.saleAmountDzd);
-                            const day = new Date(stamp.timestamp);
-                            day.setHours(0, 0, 0, 0);
-                            const dayStart = day.getTime();
-                            const dayEnd = dayStart + 86_400_000 - 1;
-                            delta.activeClientsTodayDelta = clientTransactionsDzd.some((tx) => tx.clientId === digitalServiceClientId && tx.timestamp >= dayStart && tx.timestamp <= dayEnd) ? 0 : 1;
-                            return delta;
-                        })()
-                        : undefined;
-                    return mustPrepareWriterReadModelDelta('services.digital', {
-                        operationId: `legacy:services.digital:${mainRef.id}`,
-                        effectiveAt: stamp.timestamp,
-                        payload: {
-                            type: 'digital_service_sale',
-                            txId: mainRef.id,
-                            clientId: digitalServiceClientId,
-                            purchaseWallet: digitalServicePurchaseWallet,
-                            saleWallet: digitalServiceSaleWallet,
-                            purchaseAmount,
-                            saleAmount,
-                            purchaseAmountDzd: preview.purchaseAmountDzd,
-                            saleAmountDzd: preview.saleAmountDzd,
-                            profitDzd: preview.profitDzd,
-                        },
-                        affectedSummaries: ['dashboard_summary', 'services_summary', 'treasury_summary', 'portfolio_summary', 'clients_summary', 'investors_summary', 'financial_summary'],
-                        wallets: Object.keys(wallets).length ? wallets as any : undefined,
-                        portfolio: Object.keys(portfolio).length ? portfolio as any : undefined,
-                        clients: clientsDelta,
-                        services: {
-                            digitalServiceProfitDelta: preview.profitDzd,
-                            serviceRevenueDelta: preview.profitDzd,
-                            netCapitalImpactDelta: 0,
-                        },
-                        investors: {
-                            managerServiceProfitDelta: preview.profitDzd,
-                            managerActualOwnerCapitalDelta: preview.profitDzd,
-                        },
-                        dashboardDaily: ownerProfitPeriodDeltas(stamp.timestamp, preview.profitDzd),
-                        recentOperation: {
-                            operationId: `legacy:services.digital:${mainRef.id}`,
-                            source: 'legacy',
-                            type: 'Service numérique',
-                            effectiveAt: stamp.timestamp,
-                        },
+                ? newDigitalServiceDelta
+                : (() => {
+                    const oldPurchaseWallet = (editingDigitalServiceTx.purchaseWallet || 'Caisse') as FinancialWallet;
+                    const oldSaleWallet = (editingDigitalServiceTx.saleWallet || 'Caisse') as DigitalServiceSaleWallet;
+                    const oldPurchaseAmount = roundM(Number(editingDigitalServiceTx.purchaseAmount || 0));
+                    const oldSaleAmount = roundM(Number(editingDigitalServiceTx.saleAmount || 0));
+                    const oldPreview = computeDigitalServicePreview({
+                        purchaseWallet: oldPurchaseWallet,
+                        purchaseAmount: oldPurchaseAmount,
+                        saleWallet: oldSaleWallet,
+                        saleAmount: oldSaleAmount,
+                        rates,
                     });
-                })()
-                : null;
+                    const oldDigitalServiceDelta = computeDigitalServiceReadModelDelta({
+                        mainRefId: mainRef.id,
+                        operationId: `legacy:edit:digital_service_txs:${mainRef.id}:${stamp.timestamp}:old`,
+                        stamp: { timestamp: editingDigitalServiceTx.timestamp || stamp.timestamp, date: editingDigitalServiceTx.date || stamp.date, time: editingDigitalServiceTx.time || stamp.time },
+                        purchaseWallet: oldPurchaseWallet,
+                        saleWallet: oldSaleWallet,
+                        purchaseAmount: oldPurchaseAmount,
+                        saleAmount: oldSaleAmount,
+                        preview: oldPreview,
+                        clientId: editingDigitalServiceTx.clientId || digitalServiceClientId,
+                    });
+                    return combineReadModelDeltas(invertReadModelDelta(oldDigitalServiceDelta), newDigitalServiceDelta);
+                })();
             await commitLegacyWithReadModelDeltas({
                 userDocRef,
                 batch,

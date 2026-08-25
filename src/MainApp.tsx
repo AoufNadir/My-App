@@ -44,7 +44,7 @@ import { useSmartPricingPlan } from './hooks/useSmartPricingPlan';
 import { useTransactionHandlers, type PrefillSell } from './hooks/useTransactionHandlers';
 import { useDigitalServiceHandlers } from './hooks/useDigitalServiceHandlers';
 import { useClientHandlers } from './hooks/useClientHandlers';
-import { useAssetHandlers } from './hooks/useAssetHandlers';
+import { useAssetHandlers, serviceBalanceDelta } from './hooks/useAssetHandlers';
 import { useGlobalSearch } from './hooks/useGlobalSearch';
 import { useInvestorHandlers } from './hooks/useInvestorHandlers';
 import { deriveInvestorEconomics, getManagerProfitBreakdown, reconcileManagerProfitBreakdown, type InvestorEconomicsResult } from './hooks/useInvestorEconomics';
@@ -56,13 +56,14 @@ import { useReportExports } from './hooks/useReportExports';
 // Shared Utils
 import { now, parseAndEvaluate } from './utils';
 import { computePamLedger } from './utils/pamLedger';
+import { roundM } from './utils/money';
 import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot } from './utils/capitalSnapshot';
 import { summarizePersonalExpenseTotals } from './utils/financialAudit';
 import { buildDashboardReadModelShadowFromLegacy, getReadModelsMode, reconcileDashboardReadModelsWithLegacy, type DashboardReadModelShadowDiagnostic } from './readModels/dashboardReadModels';
 import { shouldUseDashboardSummaryForView } from './readModels/readModelActivation';
 import { mustPrepareWriterReadModelDelta } from './readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from './readModels/productionSummaryWriter';
-import { transitionClientBalanceDelta, type ReadModelDelta } from './readModels/readModelDeltas';
+import { transitionClientBalanceDelta, invertReadModelDelta, combineReadModelDeltas, type ReadModelDelta } from './readModels/readModelDeltas';
 import { HISTORICAL_CLOSING_BASELINE_DZD } from './accounting/closure';
 import { formatNumber } from './pages/shared/pageFormat';
 const TransactionsPage = React.lazy(() => import('./pages/TransactionsPage').then((module) => ({ default: module.TransactionsPage })));
@@ -201,6 +202,7 @@ export default function MainApp({ user }: {
         const ledgerTransactions = hasCurrentTransactionData ? transactions : EMPTY_TRANSACTIONS;
     const pamLedger = useMemo(() => computePamLedger(ledgerTransactions), [ledgerTransactions]);
     const portfolioStats = pamLedger.portfolioStats;
+    const getPortfolioRemovalCost = (currency: 'USDT' | 'EUR', quantity: number) => roundM((currency === 'USDT' ? portfolioStats.usdt.avgBuy : portfolioStats.eur.avgBuy) * quantity);
     const deliveryExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense'), [treasuryTransactions]);
     const personalExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense'), [treasuryTransactions]);
     const investorEconomics = useMemo(() => {
@@ -1281,7 +1283,7 @@ export default function MainApp({ user }: {
                 userDocRef,
                 batch,
                 deltas: [mustPrepareWriterReadModelDelta('treasury.adjustment', {
-                    operationId: `legacy:treasury.adjustment:${txRef.id}:${editingTreasuryBalanceTx ? 'update' : 'create'}`,
+                    operationId: `legacy:treasury.adjustment:${txRef.id}:${editingTreasuryBalanceTx ? `update:${timestamp}` : 'create'}`,
                     effectiveAt: timestamp,
                     payload: { type: 'treasury_balance_edit', txId: txRef.id, oldEffect, newEffect: diff, effectDelta },
                     affectedSummaries: ['dashboard_summary', 'treasury_summary', 'financial_summary'],
@@ -1300,6 +1302,20 @@ export default function MainApp({ user }: {
         }
     };
     const handleSavePortfolioBalanceEdit = async () => {
+        const buildPortfolioBalanceDelta = (asset: 'USDT' | 'EUR', effect: number, ts: number, opId: string): ReadModelDelta => {
+            const avgBuy = asset === 'USDT' ? (portfolioStats.usdt.avgBuy || 0) : (portfolioStats.eur.avgBuy || 0);
+            const costBasis = effect > 0
+                ? Number((effect * avgBuy).toFixed(2))
+                : -getPortfolioRemovalCost(asset, Math.abs(effect));
+            return mustPrepareWriterReadModelDelta('portfolio.manual-adjustment', {
+                operationId: opId,
+                effectiveAt: ts,
+                payload: { type: 'global_portfolio_adjustment', editInverse: true, asset, amount: effect, direction: effect >= 0 ? 'add' : 'subtract' },
+                affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'financial_summary'],
+                portfolio: { [asset]: { quantityDelta: effect, costBasisDeltaDzd: costBasis } },
+                recentOperation: { operationId: opId, source: 'legacy', type: `Ajustement ${asset}`, effectiveAt: ts },
+            });
+        };
         const rawInput = portfolioBalanceEditValue.replace(',', '.').trim();
         const parsedInput = parseAndEvaluate(rawInput);
         if (isNaN(parsedInput)) {
@@ -1322,9 +1338,12 @@ export default function MainApp({ user }: {
             const diff = Number((newVal - baseVal).toFixed(2));
             if (Math.abs(diff) < 0.005) {
                 if (editingPortfolioBalanceTx) {
+                    const ts = Date.now();
+                    const oldEffect = getPortfolioBalanceEditEffect(editingPortfolioBalanceTx);
+                    const oldDelta = buildPortfolioBalanceDelta(portfolioBalanceEditAsset, oldEffect, ts, `legacy:edit:usdt_txs:${editingPortfolioBalanceTx.id}:${ts}:old`);
                     const batch = db.batch();
                     batch.delete(userDocRef.collection('usdt_txs').doc(editingPortfolioBalanceTx.id));
-                    await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [] });
+                    await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [invertReadModelDelta(oldDelta) as ReadModelDelta] });
                     setAlert(t('common.operationSuccess'));
                 }
                 closePortfolioBalanceEditModal();
@@ -1377,7 +1396,10 @@ export default function MainApp({ user }: {
                 }
                 const batch = db.batch();
                 batch.update(userDocRef.collection('usdt_txs').doc(editingPortfolioBalanceTx.id), txPayload);
-                await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [] });
+                const oldEffect = getPortfolioBalanceEditEffect(editingPortfolioBalanceTx);
+                const oldDelta = buildPortfolioBalanceDelta(portfolioBalanceEditAsset, oldEffect, editingPortfolioBalanceTx.timestamp || timestamp, `legacy:edit:usdt_txs:${editingPortfolioBalanceTx.id}:${timestamp}:old`);
+                const newDelta = buildPortfolioBalanceDelta(portfolioBalanceEditAsset, diff, timestamp, `legacy:edit:usdt_txs:${editingPortfolioBalanceTx.id}:${timestamp}:new`);
+                await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [combineReadModelDeltas(invertReadModelDelta(oldDelta), newDelta)] });
             }
             else {
                 const batch = db.batch();
@@ -1637,7 +1659,7 @@ export default function MainApp({ user }: {
                 userDocRef,
                 batch,
                 deltas: [mustPrepareWriterReadModelDelta('treasury.transfer', {
-                    operationId: `legacy:treasury.transfer:${txRef.id}:${editingWalletTransferTx ? 'update' : 'create'}`,
+                    operationId: `legacy:treasury.transfer:${txRef.id}:${editingWalletTransferTx ? `update:${ts}` : 'create'}`,
                     effectiveAt: ts,
                     payload: { type: 'treasury_transfer', txId: txRef.id, from: walletTransferSource, to: walletTransferDest, amount, previous: editingWalletTransferTx || null },
                     affectedSummaries: ['dashboard_summary', 'treasury_summary', 'financial_summary'],
@@ -1991,6 +2013,45 @@ export default function MainApp({ user }: {
         await handleDeleteTx(treasuryTxToDelete.id, 'treasury_tx');
         setTreasuryTxToDelete(null);
     };
+    const buildManualAssetReadModelDelta = (input: {
+        txId: string;
+        operationId: string;
+        timestamp: number;
+        actifId: string;
+        clientId: string;
+        clientBalance: number;
+        amount: number;
+        type: string;
+        paymentMethod: string;
+    }): ReadModelDelta => {
+        const { txId, operationId, timestamp, actifId, clientId, clientBalance, amount, type, paymentMethod } = input;
+        const isCashOrBaridi = paymentMethod === 'cash' || paymentMethod === 'baridi';
+        const isInflow = type === 'payment_received';
+        const isOutflow = type === 'payment_made';
+        const absoluteAmount = Math.abs(amount);
+        const wallet = paymentMethod === 'baridi' ? 'BaridiMob' : 'Caisse';
+        const beforeBalance = clientBalance;
+        const afterBalance = beforeBalance + amount;
+        const balanceDelta = serviceBalanceDelta(beforeBalance, afterBalance);
+        const walletDelta = (isInflow || isOutflow) && isCashOrBaridi
+            ? { Caisse: wallet === 'Caisse' ? (isInflow ? absoluteAmount : -absoluteAmount) : 0, BaridiMob: wallet === 'BaridiMob' ? (isInflow ? absoluteAmount : -absoluteAmount) : 0 }
+            : { Caisse: 0, BaridiMob: 0 };
+        const isServiceRevenue = type === 'service' || type === 'invoice';
+        return mustPrepareWriterReadModelDelta('services.manual-assets', {
+            operationId,
+            effectiveAt: timestamp,
+            payload: { type: 'manual_asset_transaction', txId, data: { actifId, clientId, amount, type, paymentMethod } },
+            affectedSummaries: ['dashboard_summary', 'services_summary', 'treasury_summary', 'financial_summary'],
+            wallets: walletDelta,
+            services: {
+                ...balanceDelta,
+                cashReceivedDelta: isInflow ? absoluteAmount : 0,
+                manualServiceRevenueDelta: isServiceRevenue ? absoluteAmount : 0,
+                serviceRevenueDelta: isServiceRevenue ? absoluteAmount : 0,
+            },
+            recentOperation: { operationId, source: 'legacy', type, effectiveAt: timestamp },
+        });
+    };
     const handleUpdateAssetTransaction = async (txId: string, data: Omit<ManualAssetTransaction, 'id'>) => {
         const amount = Number(data.amount);
         if (!Number.isFinite(amount) || amount === 0) {
@@ -2057,10 +2118,35 @@ export default function MainApp({ user }: {
                 txUpdatePayload.linkedTreasuryTxId = fieldValueDelete();
             }
             batch.update(txRef, txUpdatePayload);
+            const editMutationSeq = data.timestamp;
+            const oldClientBalance = assetClientBalances.get(`${existing.actifId}_${existing.clientId}`) || 0;
+            const oldAssetDelta = buildManualAssetReadModelDelta({
+                txId,
+                operationId: `legacy:edit:actifTransactions:${txId}:${editMutationSeq}:old`,
+                timestamp: (existing.timestamp as number) || editMutationSeq,
+                actifId: existing.actifId,
+                clientId: existing.clientId,
+                clientBalance: oldClientBalance,
+                amount: Number(existing.amount || 0),
+                type: existing.type,
+                paymentMethod: existing.paymentMethod,
+            });
+            const newClientBalance = assetClientBalances.get(`${data.actifId}_${data.clientId}`) || 0;
+            const newAssetDelta = buildManualAssetReadModelDelta({
+                txId,
+                operationId: `legacy:edit:actifTransactions:${txId}:${editMutationSeq}:new`,
+                timestamp: editMutationSeq,
+                actifId: data.actifId,
+                clientId: data.clientId,
+                clientBalance: newClientBalance,
+                amount,
+                type: data.type,
+                paymentMethod: data.paymentMethod,
+            });
             await commitLegacyWithReadModelDeltas({
                 userDocRef,
                 batch,
-                deltas: [],
+                deltas: [combineReadModelDeltas(invertReadModelDelta(oldAssetDelta), newAssetDelta)],
             });
             setAlert(t('common.operationSuccess'));
         }

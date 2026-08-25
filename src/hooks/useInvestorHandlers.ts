@@ -17,7 +17,7 @@ import {
 } from '../utils/digitalServiceAccounting';
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
-import type { ReadModelDelta } from '../readModels/readModelDeltas';
+import { transitionClientBalanceDelta, invertReadModelDelta, combineReadModelDeltas, type ReadModelDelta } from '../readModels/readModelDeltas';
 
 type PersonalExpenseInvestorLink = {
     id: string;
@@ -364,6 +364,47 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         setPersonalWithdrawalMode(tx.advanceState === 'pending' ? 'advance' : 'expense');
         setIsPersonalWithdrawalModalOpen(true);
     };
+    const buildPersonalExpenseReadModelDelta = (input: {
+        treasuryRefId: string;
+        operationId: string;
+        timestamp: number;
+        wallet: FinancialWallet;
+        amountNum: number;
+        amountDzd: number;
+        isAdvance: boolean;
+        profitAmount: number;
+        capitalAmount: number;
+    }): ReadModelDelta => {
+        const { treasuryRefId, operationId, timestamp, wallet, amountNum, amountDzd, isAdvance, profitAmount, capitalAmount } = input;
+        const rate = wallet === 'USDT' ? portfolioStats.usdt.avgBuy : portfolioStats.eur.avgBuy;
+        return mustPrepareWriterReadModelDelta('investors.personal-expenses', {
+            operationId,
+            effectiveAt: timestamp,
+            payload: {
+                type: isAdvance ? 'manager_personal_advance' : 'manager_personal_expense',
+                treasuryTxId: treasuryRefId,
+                wallet,
+                originalAmount: amountNum,
+                amountDzd,
+                profitAmount,
+                capitalAmount,
+            },
+            affectedSummaries: ['dashboard_summary', 'investors_summary', 'treasury_summary', 'portfolio_summary', 'financial_summary'],
+            wallets: walletDeltaFor(wallet, -amountDzd),
+            portfolio: portfolioDeltaFor(wallet, -amountNum, -roundM(Number(rate || 0) * amountNum)),
+            managerPendingAdvancesDelta: isAdvance ? amountDzd : 0,
+            investors: isAdvance ? {} : {
+                managerPersonalExpensesDelta: amountDzd,
+                managerActualOwnerCapitalDelta: -amountDzd,
+            },
+            recentOperation: {
+                operationId,
+                source: 'legacy',
+                type: isAdvance ? 'Avance personnelle' : 'Dépense personnelle',
+                effectiveAt: timestamp,
+            },
+        });
+    };
     const handleSavePersonalWithdrawal = async () => {
         const amountNum = roundM(parseAndEvaluate(personalWithdrawalAmount));
         if (isNaN(amountNum) || amountNum <= 0) {
@@ -575,39 +616,43 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     ...(editingPersonalExpenseTx ? { warnings: ['Legacy edit replaces prior rows; V2 immutable reversal is prepared only.'] } : {}),
                 });
             }
+            const newPersonalExpenseDelta = buildPersonalExpenseReadModelDelta({
+                treasuryRefId: treasuryRef.id,
+                operationId: `legacy:edit:treasury_txs:${treasuryRef.id}:${timestamp}:new`,
+                timestamp,
+                wallet: personalWithdrawalMethod,
+                amountNum,
+                amountDzd: preview.amountDzd,
+                isAdvance,
+                profitAmount: funding.profitAmount,
+                capitalAmount: funding.capitalAmount,
+            });
             const readModelDelta = !editingPersonalExpenseTx
-                ? mustPrepareWriterReadModelDelta('investors.personal-expenses', {
-                    operationId: `legacy:investors.personal-expenses:${treasuryRef.id}`,
-                    effectiveAt: timestamp,
-                    payload: {
-                        type: isAdvance ? 'manager_personal_advance' : 'manager_personal_expense',
-                        treasuryTxId: treasuryRef.id,
-                        wallet: personalWithdrawalMethod,
-                        originalAmount: amountNum,
-                        amountDzd: preview.amountDzd,
-                        profitAmount: funding.profitAmount,
-                        capitalAmount: funding.capitalAmount,
-                    },
-                    affectedSummaries: ['dashboard_summary', 'investors_summary', 'treasury_summary', 'portfolio_summary', 'financial_summary'],
-                    wallets: walletDeltaFor(personalWithdrawalMethod, -preview.amountDzd),
-                    portfolio: portfolioDeltaFor(
-                        personalWithdrawalMethod,
-                        -amountNum,
-                        -roundM(Number((personalWithdrawalMethod === 'USDT' ? portfolioStats.usdt.avgBuy : portfolioStats.eur.avgBuy) || 0) * amountNum),
-                    ),
-                    managerPendingAdvancesDelta: isAdvance ? preview.amountDzd : 0,
-                    investors: isAdvance ? {} : {
-                        managerPersonalExpensesDelta: preview.amountDzd,
-                        managerActualOwnerCapitalDelta: -preview.amountDzd,
-                    },
-                    recentOperation: {
-                        operationId: `legacy:investors.personal-expenses:${treasuryRef.id}`,
-                        source: 'legacy',
-                        type: isAdvance ? 'Avance personnelle' : 'Dépense personnelle',
-                        effectiveAt: timestamp,
-                    },
-                })
-                : null;
+                ? newPersonalExpenseDelta
+                : (() => {
+                    const oldWallet = (editingPersonalExpenseTx.expenseWallet || resolvePersonalExpenseWallet(editingPersonalExpenseTx) || 'Caisse');
+                    const oldAmountDzd = Number(editingPersonalExpenseTx.amountDzd || editingPersonalExpenseTx.amount || 0);
+                    const oldIsAdvance = editingPersonalExpenseTx.advanceState === 'pending';
+                    const oldProfitAmount = Number(editingPersonalExpenseTx.profitAmountDzd || 0);
+                    const oldCapitalAmount = Number(editingPersonalExpenseTx.capitalAmountDzd || 0);
+                    const oldAmountNum = (editingPersonalExpenseTx.originalAmount && Number(editingPersonalExpenseTx.originalAmount) > 0)
+                        ? Number(editingPersonalExpenseTx.originalAmount)
+                        : (editingPersonalExpenseTx.expenseCurrency && editingPersonalExpenseTx.conversionRateToDzd
+                            ? roundM(oldAmountDzd / Number(editingPersonalExpenseTx.conversionRateToDzd))
+                            : oldAmountDzd);
+                    const oldPersonalExpenseDelta = buildPersonalExpenseReadModelDelta({
+                        treasuryRefId: treasuryRef.id,
+                        operationId: `legacy:edit:treasury_txs:${treasuryRef.id}:${timestamp}:old`,
+                        timestamp: (editingPersonalExpenseTx.timestamp as number) || timestamp,
+                        wallet: oldWallet as FinancialWallet,
+                        amountNum: oldAmountNum,
+                        amountDzd: oldAmountDzd,
+                        isAdvance: oldIsAdvance,
+                        profitAmount: oldProfitAmount,
+                        capitalAmount: oldCapitalAmount,
+                    });
+                    return combineReadModelDeltas(invertReadModelDelta(oldPersonalExpenseDelta), newPersonalExpenseDelta);
+                })();
             await commitLegacyWithReadModelDeltas({
                 userDocRef,
                 batch,

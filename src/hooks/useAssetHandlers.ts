@@ -11,7 +11,7 @@ type AssetClientInput = {
     notes?: string;
     balance?: number;
 };
-function serviceBalanceDelta(beforeBalance: number, afterBalance: number) {
+export function serviceBalanceDelta(beforeBalance: number, afterBalance: number) {
     const beforeReceivable = beforeBalance < -0.005 ? Math.abs(beforeBalance) : 0;
     const beforeAdvance = beforeBalance > 0.005 ? beforeBalance : 0;
     const afterReceivable = afterBalance < -0.005 ? Math.abs(afterBalance) : 0;
