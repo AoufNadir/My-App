@@ -1,4 +1,4 @@
-const CACHE_NAME = 'prodigital-cache-v12';
+const CACHE_NAME = 'prodigital-cache-v13';
 
 // ─── Push Notifications ───────────────────────────────────────────────────────
 
@@ -75,6 +75,13 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
+  // Let the browser handle cross-origin requests directly.
+  // OAuth scripts/iframes are governed by the page CSP and should not be cached
+  // or failed by the app shell service worker.
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
   // Always go to network for Firebase/Google APIs.
   // These endpoints are dynamic and should not be served from app cache.
   if (
@@ -98,7 +105,10 @@ self.addEventListener('fetch', (event) => {
           });
           return response;
         })
-        .catch(() => caches.match(event.request))
+        .catch(async () => {
+          const cachedResponse = await caches.match(event.request);
+          return cachedResponse || new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+        })
     );
     return;
   }
@@ -127,7 +137,7 @@ self.addEventListener('fetch', (event) => {
         return networkResponse;
       }).catch(error => {
         console.log('[Service Worker] Fetch failed, and request is not in cache.', error);
-        // This is where you might return a custom offline fallback page if you had one.
+        return new Response('', { status: 504, statusText: 'Gateway Timeout' });
       });
     })
   );
