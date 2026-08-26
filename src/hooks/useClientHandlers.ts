@@ -9,6 +9,9 @@ import { clientPositionFromLegacyRows } from '../accounting/clientShadowLegacyAd
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
 import { combineClientPositionDeltas, transitionClientBalanceDelta, type ClientPositionDelta } from '../readModels/readModelDeltas';
+import { readClientTxLegacy } from '../readModels/legacyReadDelta';
+import { LEGACY_EDIT_SOURCE_NOT_FOUND } from '../transactionService';
+import { logTxLifecycle, logTxLifecycleError } from '../utils/txLifecycleDebug';
 type ClientDeleteMode = 'history' | 'balance_only' | 'client_only_cleanup' | 'blocked';
 const CLIENT_DELETE_EPSILON = 0.01;
 const CLIENT_TX_PAYMENT_RECEIVED = 'Règlement Reçu';
@@ -464,9 +467,27 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             const walletSource = effectiveClientPaymentStatus === 'cash' ? 'Caisse' : 'BaridiMob';
             const treasuryTxType = isPaymentReceived ? 'Ajout' : 'Retrait';
             let readModelDelta: ReturnType<typeof mustPrepareWriterReadModelDelta> | null = null;
+            let oldClientTxMain: any = null;
+            let oldLinkedTreasuryTx: any = null;
+            if (editingClientTx) {
+                const legacyResult = await readClientTxLegacy(editingClientTx.id, userDocRef);
+                logTxLifecycle('legacy-read', {
+                    action: 'edit',
+                    collection: 'dzd_client_txs',
+                    transactionId: editingClientTx.id,
+                    found: Boolean(legacyResult.main),
+                    linkedRows: legacyResult.linkedRows.length,
+                    error: legacyResult.error,
+                });
+                if (!legacyResult.main) {
+                    throw new Error(`${LEGACY_EDIT_SOURCE_NOT_FOUND}:dzd_client_txs:${editingClientTx.id}`);
+                }
+                oldClientTxMain = legacyResult.main as any;
+                oldLinkedTreasuryTx = legacyResult.linkedRows.find((row) => row.collection === 'treasury_txs')?.data || null;
+            }
             if (effectiveClientPaymentStatus !== 'credit' && !isPaymentReceived && receiverClientId === 'none') {
-                const linkedTreasuryTx = editingClientTx?.linkedTxId
-                    ? treasuryTransactions.find(tx => tx.id === editingClientTx.linkedTxId)
+                const linkedTreasuryTx = oldClientTxMain?.linkedTxId
+                    ? (oldLinkedTreasuryTx || treasuryTransactions.find(tx => tx.id === oldClientTxMain.linkedTxId))
                     : null;
                 const currentWalletBalance = walletSource === 'Caisse'
                     ? Number(treasuryStats?.caisse || 0)
@@ -489,8 +510,8 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 const clientTxPayload: any = {
                     montant, type: normalizedClientTxType, notes: clientTxNotes.trim(), paymentMethod, date, time, timestamp
                 };
-                if (editingClientTx.linkedTxId) {
-                    const treasuryRef = userDocRef.collection('treasury_txs').doc(editingClientTx.linkedTxId);
+                if (oldClientTxMain.linkedTxId) {
+                    const treasuryRef = userDocRef.collection('treasury_txs').doc(oldClientTxMain.linkedTxId);
                     if (effectiveClientPaymentStatus === 'credit') {
                         batch.delete(treasuryRef);
                         clientTxPayload.linkedTxId = fieldValueDelete();
@@ -511,13 +532,12 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     });
                 }
                 batch.update(clientTxRef, clientTxPayload);
-                const oldMontant = Number(editingClientTx.montant || 0);
-                const beforeClientBalance = (clientBalances.get(editingClientTx.clientId) || 0) - oldMontant;
+                const oldMontant = Number(oldClientTxMain.montant || 0);
+                const oldClientId = String(oldClientTxMain.clientId || editingClientTx.clientId);
+                const beforeClientBalance = (clientBalances.get(oldClientId) || 0) - oldMontant;
                 const clientsDelta = transitionClientBalanceDelta(beforeClientBalance, beforeClientBalance + montant);
                 const walletDeltas = { Caisse: 0, BaridiMob: 0 };
-                const linkedTreasuryTx = editingClientTx.linkedTxId
-                    ? treasuryTransactions.find(tx => tx.id === editingClientTx.linkedTxId)
-                    : null;
+                const linkedTreasuryTx = oldLinkedTreasuryTx;
                 if (linkedTreasuryTx?.source === 'Caisse' || linkedTreasuryTx?.source === 'BaridiMob') {
                     walletDeltas[linkedTreasuryTx.source] -= linkedTreasuryTx.type === 'Ajout' ? Number(linkedTreasuryTx.amount || 0) : -Number(linkedTreasuryTx.amount || 0);
                 }
@@ -525,7 +545,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     walletDeltas[walletSource] += isPaymentReceived ? amount : -amount;
                 }
                 readModelDelta = mustPrepareWriterReadModelDelta('clients.settlement', {
-                    operationId: `legacy:clients.settlement:${editingClientTx.id}:update`,
+                    operationId: `legacy:clients.settlement:${editingClientTx.id}:update:${timestamp}`,
                     effectiveAt: timestamp,
                     payload: { type: 'client_settlement_update', txId: editingClientTx.id, oldMontant, montant, walletDeltas },
                     affectedSummaries: ['dashboard_summary', 'clients_summary', 'treasury_summary', 'financial_summary'],
@@ -709,10 +729,23 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     });
                 }
             }
+            logTxLifecycle('commit-start', {
+                action: editingClientTx ? 'edit' : 'create',
+                collection: 'dzd_client_txs',
+                transactionId: editingClientTx?.id,
+                operationId: readModelDelta?.operationId,
+            });
             await commitLegacyWithReadModelDeltas({
                 userDocRef,
                 batch,
                 deltas: readModelDelta ? [readModelDelta] : [],
+            });
+            logTxLifecycle('commit-result', {
+                action: editingClientTx ? 'edit' : 'create',
+                collection: 'dzd_client_txs',
+                transactionId: editingClientTx?.id,
+                operationId: readModelDelta?.operationId,
+                result: 'success',
             });
             setIsClientTxModalOpen(false);
             setEditingClientTx(null);
@@ -720,6 +753,11 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             return true;
         }
         catch (e) {
+            logTxLifecycleError(e, {
+                action: editingClientTx ? 'edit' : 'create',
+                collection: 'dzd_client_txs',
+                transactionId: editingClientTx?.id,
+            });
             setAlert('❌ Erreur lors de l’enregistrement de la transaction.');
             return false;
         }
@@ -732,13 +770,61 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             return;
         setIsSaving(true);
         try {
-            const result = await applyTransactionDelete(clientTxToDelete.id, 'client_tx', userDocRef);
+            const buildOldDelta = (_resolvedType: string, resolvedTxId: string, mainData: any, linkedData: any[]) => {
+                const ts = Number(mainData.timestamp || Date.now());
+                const rows = [
+                    { ...mainData, id: resolvedTxId },
+                    ...linkedData.filter((row) => row?.clientId && (row?.type === 'Transfert Sortant' || row?.type === 'Transfert Entrant')),
+                ];
+                const transferRows = rows.filter((row) => row.type === 'Transfert Sortant' || row.type === 'Transfert Entrant');
+                if (transferRows.length > 0) {
+                    const clientsDelta = combineClientPositionDeltas(transferRows.map((row) => {
+                        const montant = Number(row.montant || 0);
+                        const current = clientBalances.get(row.clientId) || 0;
+                        return transitionClientBalanceDelta(current - montant, current);
+                    }));
+                    return mustPrepareWriterReadModelDelta('clients.transfer', {
+                        operationId: `legacy:delete-build:dzd_client_txs:${resolvedTxId}`,
+                        effectiveAt: ts,
+                        payload: { type: 'client_transfer_delete', txId: resolvedTxId, rows: transferRows.map((row) => ({ clientId: row.clientId, montant: row.montant })) },
+                        affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                        clients: clientsDelta,
+                        recentOperation: { operationId: `legacy:delete-build:dzd_client_txs:${resolvedTxId}`, source: 'legacy', type: 'Transfert client', effectiveAt: ts },
+                    });
+                }
+                const montant = Number(mainData.montant || 0);
+                const current = clientBalances.get(mainData.clientId) || 0;
+                const treasuryRow = linkedData.find((row) => row?.source === 'Caisse' || row?.source === 'BaridiMob');
+                const walletDeltas: Record<string, number> = {};
+                if (treasuryRow?.source === 'Caisse' || treasuryRow?.source === 'BaridiMob') {
+                    walletDeltas[treasuryRow.source] = (treasuryRow.type === 'Ajout' || treasuryRow.type === 'Adjustment (+)')
+                        ? Number(treasuryRow.amount || 0)
+                        : -Number(treasuryRow.amount || 0);
+                }
+                return mustPrepareWriterReadModelDelta('clients.settlement', {
+                    operationId: `legacy:delete-build:dzd_client_txs:${resolvedTxId}`,
+                    effectiveAt: ts,
+                    payload: { type: 'client_settlement_delete', clientId: mainData.clientId, txId: resolvedTxId, montant, walletDeltas },
+                    affectedSummaries: Object.keys(walletDeltas).length > 0
+                        ? ['dashboard_summary', 'clients_summary', 'treasury_summary', 'financial_summary']
+                        : ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                    clients: transitionClientBalanceDelta(current - montant, current),
+                    wallets: Object.keys(walletDeltas).length > 0 ? walletDeltas as any : undefined,
+                    recentOperation: { operationId: `legacy:delete-build:dzd_client_txs:${resolvedTxId}`, source: 'legacy', type: String(mainData.type || 'Client'), effectiveAt: ts },
+                });
+            };
+            const result = await applyTransactionDelete(clientTxToDelete.id, 'client_tx', userDocRef, buildOldDelta);
             if (result.success)
                 setAlert('✅ Transaction supprimée.');
             else
                 setAlert('❌ Erreur lors de la suppression.');
         }
         catch (e) {
+            logTxLifecycleError(e, {
+                action: 'delete',
+                collection: 'dzd_client_txs',
+                transactionId: clientTxToDelete.id,
+            });
             setAlert('❌ Erreur lors de la suppression.');
         }
         finally {

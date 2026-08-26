@@ -23,6 +23,8 @@ import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummary
 import { combineClientPositionDeltas, derivePortfolioSellReadModelEconomics, invertReadModelDelta, combineReadModelDeltas, transitionClientBalanceDelta, type ClientPositionDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
 import { readUsdtTxLegacy, readTreasuryTxLegacy, readClientTxLegacy, readPersonalExpenseLegacy, type LegacyReadResult } from '../readModels/legacyReadDelta';
 import { serviceBalanceDelta } from './useAssetHandlers';
+import { LEGACY_EDIT_SOURCE_NOT_FOUND } from '../transactionService';
+import { logTxLifecycle, logTxLifecycleError } from '../utils/txLifecycleDebug';
 interface HandlerProps {
     userDocRef: FirestoreDocumentReference;
     portfolioStats: PortfolioStats;
@@ -84,6 +86,12 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         credit: 'Crédit',
         baridi: 'BaridiMob',
         cash: 'Espèces'
+    };
+    const normalizePaymentStatusFromLegacy = (value: unknown): 'credit' | 'baridi' | 'cash' => {
+        const raw = String(value || '').toLowerCase();
+        if (raw.includes('baridi')) return 'baridi';
+        if (raw.includes('credit') || raw.includes('crédit') || raw.includes('crã')) return 'credit';
+        return 'cash';
     };
     const affectsClientBalance = (status: 'credit' | 'baridi' | 'cash') => status === 'credit';
     const getClientDisplayNameById = (clientId: string) => {
@@ -172,6 +180,13 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         const before = clientPositionFromLegacyRows(clientTransactionsDzd, clientId, timestamp).balanceDzd;
         return transitionClientBalanceDelta(before, before + amountDelta);
     };
+    const clientEffectFromPersistedRows = (clientId: string, amountDelta: number, timestamp: number): ClientPositionDelta => {
+        if (!clientId || clientId === 'none')
+            return { receivablesDelta: 0, advancesDelta: 0 };
+        const current = clientPositionFromLegacyRows(clientTransactionsDzd, clientId, Number.MAX_SAFE_INTEGER).balanceDzd;
+        const before = current - amountDelta;
+        return transitionClientBalanceDelta(before, before + amountDelta);
+    };
     const periodProfitDeltas = (timestamp: number, profitDzd: number, ownerProfitDzd: number, currency?: PortfolioCurrency, quantity = 0) => {
         const nowDate = new Date();
         const dayStart = new Date(nowDate);
@@ -231,8 +246,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         linkedClientId: string;
         linkedClientDzdId: string;
         shouldLinkCashToDzdClient: boolean;
+        clientBalanceBeforeOverride?: number;
     }): ReadModelDelta => {
-        const { mainTxId, operationId, timestamp, buyUsdtMode, quantity, totalCost, eurSpentForConversion, currency, clientPaymentStatus, linkedClientId, linkedClientDzdId, shouldLinkCashToDzdClient } = input;
+        const { mainTxId, operationId, timestamp, buyUsdtMode, quantity, totalCost, eurSpentForConversion, currency, clientPaymentStatus, linkedClientId, linkedClientDzdId, shouldLinkCashToDzdClient, clientBalanceBeforeOverride } = input;
         if (buyUsdtMode === 'with_eur') {
             return mustPrepareWriterReadModelDelta('portfolio.exchange', {
                 operationId,
@@ -248,7 +264,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         if (clientPaymentStatus === 'credit' || shouldLinkCashToDzdClient) {
             const clientId = shouldLinkCashToDzdClient ? linkedClientDzdId : linkedClientId;
-            const clientsDelta = clientBalanceTransition(clientId, totalCost, timestamp);
+            const clientsDelta = clientBalanceBeforeOverride !== undefined
+                ? transitionClientBalanceDelta(clientBalanceBeforeOverride, clientBalanceBeforeOverride + totalCost)
+                : clientBalanceTransition(clientId, totalCost, timestamp);
             clientsDelta.activeClientsTodayDelta = activeClientTodayDelta(clientId, timestamp);
             return mustPrepareWriterReadModelDelta('portfolio.buy-credit', {
                 operationId,
@@ -295,8 +313,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         shouldLinkSettlementToDzdClient: boolean;
         linkedClientDzdId: string;
         excludeTxIds?: readonly string[];
+        clientBalanceBeforeOverride?: number;
     }): ReadModelDelta => {
-        const { committedSellTxId, operationId, timestamp, sellCurrency, quantity, sell, totalRevenue, profit, notes, isUsdtSettledInEur, saleValueEur, saleValueDzd, linkedClientId, clientPaymentStatus, creditDueDate, shouldLinkSettlementToDzdClient, linkedClientDzdId, excludeTxIds } = input;
+        const { committedSellTxId, operationId, timestamp, sellCurrency, quantity, sell, totalRevenue, profit, notes, isUsdtSettledInEur, saleValueEur, saleValueDzd, linkedClientId, clientPaymentStatus, creditDueDate, shouldLinkSettlementToDzdClient, linkedClientDzdId, excludeTxIds, clientBalanceBeforeOverride } = input;
         const portfolioDelta = {
             [sellCurrency]: {
                 quantityDelta: -quantity,
@@ -359,7 +378,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         });
         if (clientPaymentStatus === 'credit' || shouldLinkSettlementToDzdClient) {
             const clientId = shouldLinkSettlementToDzdClient ? linkedClientDzdId : linkedClientId;
-            const clientsDelta = clientBalanceTransition(clientId, -totalRevenue, timestamp);
+            const clientsDelta = clientBalanceBeforeOverride !== undefined
+                ? transitionClientBalanceDelta(clientBalanceBeforeOverride, clientBalanceBeforeOverride - totalRevenue)
+                : clientBalanceTransition(clientId, -totalRevenue, timestamp);
             clientsDelta.activeClientsTodayDelta = activeClientTodayDelta(clientId, timestamp);
             return mustPrepareWriterReadModelDelta('portfolio.sell-credit', {
                 operationId,
@@ -906,9 +927,17 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                             : await (async () => {
                                 // Read legacy buy tx + linked rows for OLD delta
                                 const legacyResult = await readUsdtTxLegacy(mainTxId, userDocRef);
+                                logTxLifecycle('legacy-read', {
+                                    action: 'edit',
+                                    collection: 'usdt_txs',
+                                    transactionId: mainTxId,
+                                    type: 'buy',
+                                    found: Boolean(legacyResult.main),
+                                    linkedRows: legacyResult.linkedRows.length,
+                                    error: legacyResult.error,
+                                });
                                 if (!legacyResult.main) {
-                                    console.error('Legacy buy tx not found for edit:', mainTxId);
-                                    return newBuyDelta;
+                                    throw new Error(`${LEGACY_EDIT_SOURCE_NOT_FOUND}:usdt_txs:${mainTxId}`);
                                 }
                                 const oldMain = legacyResult.main as any;
                                 // Extract linked client metadata from actual linked rows
@@ -916,8 +945,15 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                                 const linkedClientRow = linkedClientRows[0]?.data as any;
                                 const oldLinkedClientId = (oldMain.linkedClientId || linkedClientRow?.clientId || 'none') as string;
                                 const oldLinkedClientDzdId = (oldMain.linkedClientDzdId || linkedClientRow?.linkedClientDzdId || 'none') as string;
-                                const oldClientPaymentStatus = (oldMain.clientPaymentStatus || linkedClientRow?.paymentMethod || 'cash') as 'cash' | 'baridi' | 'credit';
+                                const oldClientPaymentStatus = normalizePaymentStatusFromLegacy(oldMain.clientPaymentStatus || linkedClientRow?.paymentMethod);
                                 const oldShouldLinkCashToDzdClient = (oldClientPaymentStatus === 'cash' || oldClientPaymentStatus === 'baridi') && oldLinkedClientDzdId !== 'none';
+                                const oldClientIdForEffect = oldShouldLinkCashToDzdClient ? oldLinkedClientDzdId : oldLinkedClientId;
+                                const oldClientMontant = linkedClientRows
+                                    .filter((row) => (row.data as any)?.clientId === oldClientIdForEffect && (row.data as any)?.affectsBalance !== false)
+                                    .reduce((sum, row) => sum + Number((row.data as any)?.montant || 0), 0);
+                                const oldClientBalanceBefore = oldClientIdForEffect && oldClientIdForEffect !== 'none' && oldClientMontant !== 0
+                                    ? clientPositionFromLegacyRows(clientTransactionsDzd, oldClientIdForEffect, Number.MAX_SAFE_INTEGER).balanceDzd - oldClientMontant
+                                    : undefined;
                                 const oldCurrency = (oldMain.currency === 'EUR' ? 'EUR' : 'USDT') as 'USDT' | 'EUR';
                                 const oldPurchaseFundingCurrency = oldMain.purchaseFundingCurrency === 'EUR' ? 'EUR' : 'DZD';
                                 const oldBuyUsdtMode: 'with_dzd' | 'with_eur' = mode === 'buy_eur' ? 'with_dzd' : (oldPurchaseFundingCurrency === 'EUR' ? 'with_eur' : 'with_dzd');
@@ -940,13 +976,41 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                                     linkedClientId: oldLinkedClientId,
                                     linkedClientDzdId: oldLinkedClientDzdId,
                                     shouldLinkCashToDzdClient: oldShouldLinkCashToDzdClient,
+                                    clientBalanceBeforeOverride: oldClientBalanceBefore,
+                                });
+                                logTxLifecycle('old-delta', {
+                                    action: 'edit',
+                                    collection: 'usdt_txs',
+                                    transactionId: mainTxId,
+                                    operationId: oldBuyDelta.operationId,
+                                    affectedSummaries: oldBuyDelta.affectedSummaries,
+                                });
+                                logTxLifecycle('new-delta', {
+                                    action: 'edit',
+                                    collection: 'usdt_txs',
+                                    transactionId: mainTxId,
+                                    operationId: newBuyDelta.operationId,
+                                    affectedSummaries: newBuyDelta.affectedSummaries,
                                 });
                                 return combineReadModelDeltas(invertReadModelDelta(oldBuyDelta), newBuyDelta);
                             })();
+                        logTxLifecycle('commit-start', {
+                            action: editingTx ? 'edit' : 'create',
+                            collection: 'usdt_txs',
+                            transactionId: mainTxId,
+                            operationId: readModelDelta.operationId,
+                        });
                         await commitLegacyWithReadModelDeltas({
                             userDocRef,
                             batch,
                             deltas: readModelDelta ? [readModelDelta] : [],
+                        });
+                        logTxLifecycle('commit-result', {
+                            action: editingTx ? 'edit' : 'create',
+                            collection: 'usdt_txs',
+                            transactionId: mainTxId,
+                            operationId: readModelDelta.operationId,
+                            result: 'success',
                         });
             closeForm();
             if (linkedClientId !== 'none') {
@@ -957,6 +1021,12 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             }
         }
         catch (e) {
+            logTxLifecycleError(e, {
+                action: editingTx ? 'edit' : 'create',
+                collection: 'usdt_txs',
+                type: mode,
+                transactionId: editingTx?.id,
+            });
             console.error(e);
             setAlert('❌ Erreur lors de l’achat.');
         }
@@ -1305,9 +1375,17 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                             : await (async () => {
                                 // Read legacy sell tx + linked rows for OLD delta
                                 const legacyResult = await readUsdtTxLegacy(committedSellTxId, userDocRef);
+                                logTxLifecycle('legacy-read', {
+                                    action: 'edit',
+                                    collection: 'usdt_txs',
+                                    transactionId: committedSellTxId,
+                                    type: 'sell',
+                                    found: Boolean(legacyResult.main),
+                                    linkedRows: legacyResult.linkedRows.length,
+                                    error: legacyResult.error,
+                                });
                                 if (!legacyResult.main) {
-                                    console.error('Legacy sell tx not found for edit:', committedSellTxId);
-                                    return newSellDelta; // fallback to new only
+                                    throw new Error(`${LEGACY_EDIT_SOURCE_NOT_FOUND}:usdt_txs:${committedSellTxId}`);
                                 }
                                 const oldMain = legacyResult.main as any;
                                 const oldIsUsdtSettledInEur = oldMain.settlementCurrency === 'EUR';
@@ -1317,8 +1395,15 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                                 const linkedClientRow = linkedClientRows[0]?.data as any;
                                 const oldLinkedClientId = (oldMain.linkedClientId || linkedClientRow?.clientId || 'none') as string;
                                 const oldLinkedClientDzdId = (oldMain.linkedClientDzdId || linkedClientRow?.linkedClientDzdId || 'none') as string;
-                                const oldClientPaymentStatus = (oldMain.clientPaymentStatus || linkedClientRow?.paymentMethod || 'cash') as 'cash' | 'baridi' | 'credit';
+                                const oldClientPaymentStatus = normalizePaymentStatusFromLegacy(oldMain.clientPaymentStatus || linkedClientRow?.paymentMethod);
                                 const oldShouldLinkSettlementToDzdClient = !oldIsUsdtSettledInEur && (oldClientPaymentStatus === 'cash' || oldClientPaymentStatus === 'baridi') && oldLinkedClientDzdId !== 'none';
+                                const oldClientIdForEffect = oldShouldLinkSettlementToDzdClient ? oldLinkedClientDzdId : oldLinkedClientId;
+                                const oldClientMontant = linkedClientRows
+                                    .filter((row) => (row.data as any)?.clientId === oldClientIdForEffect && (row.data as any)?.affectsBalance !== false)
+                                    .reduce((sum, row) => sum + Number((row.data as any)?.montant || 0), 0);
+                                const oldClientBalanceBefore = oldClientIdForEffect && oldClientIdForEffect !== 'none' && oldClientMontant !== 0
+                                    ? clientPositionFromLegacyRows(clientTransactionsDzd, oldClientIdForEffect, Number.MAX_SAFE_INTEGER).balanceDzd - oldClientMontant
+                                    : undefined;
 
                                 const oldSellCurrency = (oldMain.currency === 'EUR' ? 'EUR' : 'USDT') as 'USDT' | 'EUR';
                                 const oldQuantity = roundM(Number(oldMain.quantity || 0));
@@ -1347,14 +1432,42 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                                     shouldLinkSettlementToDzdClient: oldShouldLinkSettlementToDzdClient,
                                     linkedClientDzdId: oldLinkedClientDzdId,
                                     excludeTxIds: sellExcludeTxIds,
+                                    clientBalanceBeforeOverride: oldClientBalanceBefore,
+                                });
+                                logTxLifecycle('old-delta', {
+                                    action: 'edit',
+                                    collection: 'usdt_txs',
+                                    transactionId: committedSellTxId,
+                                    operationId: oldSellDelta.operationId,
+                                    affectedSummaries: oldSellDelta.affectedSummaries,
+                                });
+                                logTxLifecycle('new-delta', {
+                                    action: 'edit',
+                                    collection: 'usdt_txs',
+                                    transactionId: committedSellTxId,
+                                    operationId: newSellDelta.operationId,
+                                    affectedSummaries: newSellDelta.affectedSummaries,
                                 });
 
                                 return combineReadModelDeltas(invertReadModelDelta(oldSellDelta), newSellDelta);
                             })();
+                        logTxLifecycle('commit-start', {
+                            action: editingTx ? 'edit' : 'create',
+                            collection: 'usdt_txs',
+                            transactionId: committedSellTxId,
+                            operationId: readModelDelta.operationId,
+                        });
                         await commitLegacyWithReadModelDeltas({
                             userDocRef,
                             batch,
                             deltas: readModelDelta ? [readModelDelta] : [],
+                        });
+                        logTxLifecycle('commit-result', {
+                            action: editingTx ? 'edit' : 'create',
+                            collection: 'usdt_txs',
+                            transactionId: committedSellTxId,
+                            operationId: readModelDelta.operationId,
+                            result: 'success',
                         });
             closeForm();
             if (linkedClientId !== 'none') {
@@ -1365,6 +1478,12 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             }
         }
         catch (e) {
+            logTxLifecycleError(e, {
+                action: editingTx ? 'edit' : 'create',
+                collection: 'usdt_txs',
+                type: mode,
+                transactionId: editingTx?.id,
+            });
             console.error(e);
             setAlert('❌ Erreur lors de la vente.');
         }
@@ -1684,10 +1803,13 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                             totalCost: roundM(Number(mainData.total || (Number(mainData.quantity || 0) * Number(mainData.price || 0)))),
                             eurSpentForConversion: roundM(Number(mainData.eurSpentForConversion || mainData.purchaseAmountEur || 0)),
                             currency: (mainData.currency === 'EUR' ? 'EUR' : 'USDT') as 'USDT' | 'EUR',
-                            clientPaymentStatus: (mainData.clientPaymentStatus || (mainData.paymentMethod === 'Caisse' ? 'cash' : (mainData.paymentMethod === 'BaridiMob' ? 'baridi' : 'credit'))) as 'cash' | 'baridi' | 'credit',
+                            clientPaymentStatus: normalizePaymentStatusFromLegacy(mainData.clientPaymentStatus || mainData.paymentMethod),
                             linkedClientId: mainData.linkedClientId || 'none',
                             linkedClientDzdId: mainData.linkedClientDzdId || 'none',
                             shouldLinkCashToDzdClient: !!(mainData.linkedClientDzdId && mainData.linkedClientDzdId !== 'none' && (mainData.clientPaymentStatus === 'cash' || mainData.clientPaymentStatus === 'baridi' || (!mainData.clientPaymentStatus && (mainData.paymentMethod === 'Caisse' || mainData.paymentMethod === 'BaridiMob')))),
+                            clientBalanceBeforeOverride: (mainData.clientPaymentStatus === 'credit' || (mainData.linkedClientDzdId && mainData.linkedClientDzdId !== 'none'))
+                                ? clientPositionFromLegacyRows(clientTransactionsDzd, (mainData.linkedClientDzdId && mainData.linkedClientDzdId !== 'none') ? mainData.linkedClientDzdId : mainData.linkedClientId, Number.MAX_SAFE_INTEGER).balanceDzd - roundM(Number(mainData.total || (Number(mainData.quantity || 0) * Number(mainData.price || 0))))
+                                : undefined,
                         });
                     }
                     if (mainData.type === 'sell') {
@@ -1711,11 +1833,14 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                             saleValueEur: roundM(Number(mainData.saleValueEur || (isUsdtSettledInEur ? totalRevenue : 0))),
                             saleValueDzd: roundM(Number(mainData.saleValueDzd || (!isUsdtSettledInEur ? totalRevenue : 0))),
                             linkedClientId: mainData.linkedClientId || 'none',
-                            clientPaymentStatus: (mainData.clientPaymentStatus || 'cash') as 'cash' | 'baridi' | 'credit',
+                            clientPaymentStatus: normalizePaymentStatusFromLegacy(mainData.clientPaymentStatus),
                             creditDueDate: mainData.creditDueDate ? Number(mainData.creditDueDate) : undefined,
                             shouldLinkSettlementToDzdClient: !!(mainData.linkedClientDzdId && mainData.linkedClientDzdId !== 'none' && !isUsdtSettledInEur && (mainData.clientPaymentStatus === 'cash' || mainData.clientPaymentStatus === 'baridi')),
                             linkedClientDzdId: mainData.linkedClientDzdId || 'none',
                             excludeTxIds: [resolvedTxId],
+                            clientBalanceBeforeOverride: (mainData.clientPaymentStatus === 'credit' || (mainData.linkedClientDzdId && mainData.linkedClientDzdId !== 'none'))
+                                ? clientPositionFromLegacyRows(clientTransactionsDzd, (mainData.linkedClientDzdId && mainData.linkedClientDzdId !== 'none') ? mainData.linkedClientDzdId : mainData.linkedClientId, Number.MAX_SAFE_INTEGER).balanceDzd + totalRevenue
+                                : undefined,
                         });
                     }
                     // Manual portfolio correction row (Ajout Manuel / Retrait Manuel)
@@ -1834,25 +1959,61 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 }
                 // ---- Standalone client settlement / remise ----
                 if (resolvedType === 'client_tx') {
+                    const clientRows = [
+                        { ...mainData, id: resolvedTxId },
+                        ...linkedData
+                            .filter((row) => row?.clientId && (row?.type === 'Transfert Sortant' || row?.type === 'Transfert Entrant'))
+                            .map((row) => ({ ...row, id: row.id || row.linkedTxId || 'linked' })),
+                    ];
+                    if (clientRows.some((row) => row.type === 'Transfert Sortant' || row.type === 'Transfert Entrant')) {
+                        const clientsDelta = combineClientPositionDeltas(clientRows
+                            .filter((row) => row.clientId && row.affectsBalance !== false)
+                            .map((row) => {
+                                const montant = Number(row.montant || 0);
+                                const current = clientPositionFromLegacyRows(clientTransactionsDzd, row.clientId, Number.MAX_SAFE_INTEGER).balanceDzd;
+                                return transitionClientBalanceDelta(current - montant, current);
+                            }));
+                        return mustPrepareWriterReadModelDelta('clients.transfer', {
+                            operationId: opId,
+                            effectiveAt: ts,
+                            payload: { type: 'client_transfer', txId: resolvedTxId, rows: clientRows.map((row) => ({ clientId: row.clientId, montant: row.montant })) },
+                            affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                            clients: clientsDelta,
+                            recentOperation: { operationId: opId, source: 'legacy', type: 'Transfert client', effectiveAt: ts },
+                        });
+                    }
                     if (mainData.type === 'Remise solde' || mainData.type === 'Ajustement solde') {
+                        const montant = Number(mainData.montant || 0);
+                        const current = clientPositionFromLegacyRows(clientTransactionsDzd, mainData.clientId, Number.MAX_SAFE_INTEGER).balanceDzd;
                         return mustPrepareWriterReadModelDelta('clients.initial-adjustment-remise', {
                             operationId: opId,
                             effectiveAt: ts,
                             payload: { type: 'client_zero_out_balance', clientId: mainData.clientId, txId: resolvedTxId, balance: Number(String(mainData.notes ?? '').match(/-?\d+(\.\d+)?/)?.[0] || 0), montant: Number(mainData.montant || 0) },
                             affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
-                            clients: clientBalanceTransition(mainData.clientId, -Number(mainData.montant || 0), ts),
+                            clients: transitionClientBalanceDelta(current - montant, current),
                             recentOperation: { operationId: opId, source: 'legacy', type: String(mainData.type), effectiveAt: ts },
                         });
                     }
-                    if (!mainData.linkedTxId) {
-                        const isOutflow = Number(mainData.montant || 0) < 0;
+                    if (mainData.clientId) {
+                        const montant = Number(mainData.montant || 0);
                         const amount = Math.abs(Number(mainData.montant || 0));
+                        const current = clientPositionFromLegacyRows(clientTransactionsDzd, mainData.clientId, Number.MAX_SAFE_INTEGER).balanceDzd;
+                        const treasuryRow = linkedData.find((row) => row?.source === 'Caisse' || row?.source === 'BaridiMob');
+                        const walletDeltas: Record<string, number> = {};
+                        if (treasuryRow?.source === 'Caisse' || treasuryRow?.source === 'BaridiMob') {
+                            walletDeltas[treasuryRow.source] = (treasuryRow.type === 'Ajout' || treasuryRow.type === 'Adjustment (+)')
+                                ? Number(treasuryRow.amount || 0)
+                                : -Number(treasuryRow.amount || 0);
+                        }
                         return mustPrepareWriterReadModelDelta('clients.settlement', {
                             operationId: opId,
                             effectiveAt: ts,
-                            payload: { type: isOutflow ? 'settlement_out' : 'settlement_in', clientId: mainData.clientId, txId: resolvedTxId, amount, paymentMethod: mainData.paymentMethod },
-                            affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
-                            clients: clientBalanceTransition(mainData.clientId, isOutflow ? amount : -amount, ts),
+                            payload: { type: montant < 0 ? 'settlement_out' : 'settlement_in', clientId: mainData.clientId, txId: resolvedTxId, amount, paymentMethod: mainData.paymentMethod },
+                            affectedSummaries: Object.keys(walletDeltas).length > 0
+                                ? ['dashboard_summary', 'clients_summary', 'treasury_summary', 'financial_summary']
+                                : ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                            clients: transitionClientBalanceDelta(current - montant, current),
+                            wallets: Object.keys(walletDeltas).length > 0 ? walletDeltas as any : undefined,
                             recentOperation: { operationId: opId, source: 'legacy', type: String(mainData.type), effectiveAt: ts },
                         });
                     }

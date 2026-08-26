@@ -196,23 +196,33 @@ export async function readClientTxLegacy(
 
         // Parent USDT/Treasury tx (linkedTxId on client points to parent)
         if (main.linkedTxId) {
-            const parentUsdtSnap = await userDocRef.collection('usdt_txs').doc(main.linkedTxId as string).get();
-            if (parentUsdtSnap.exists) {
+            const parentClientSnap = await userDocRef.collection('dzd_client_txs').doc(main.linkedTxId as string).get();
+            if (parentClientSnap.exists) {
+                linkedRows.push({
+                    id: parentClientSnap.id,
+                    collection: 'dzd_client_txs',
+                    transactionType: 'client_tx',
+                    data: parentClientSnap.data(),
+                });
+            } else {
+                const parentUsdtSnap = await userDocRef.collection('usdt_txs').doc(main.linkedTxId as string).get();
+                if (parentUsdtSnap.exists) {
                 linkedRows.push({
                     id: parentUsdtSnap.id,
                     collection: 'usdt_txs',
                     transactionType: 'usdt_tx',
                     data: parentUsdtSnap.data(),
                 });
-            } else {
-                const parentTreasurySnap = await userDocRef.collection('treasury_txs').doc(main.linkedTxId as string).get();
-                if (parentTreasurySnap.exists) {
-                    linkedRows.push({
-                        id: parentTreasurySnap.id,
-                        collection: 'treasury_txs',
-                        transactionType: 'treasury_tx',
-                        data: parentTreasurySnap.data(),
-                    });
+                } else {
+                    const parentTreasurySnap = await userDocRef.collection('treasury_txs').doc(main.linkedTxId as string).get();
+                    if (parentTreasurySnap.exists) {
+                        linkedRows.push({
+                            id: parentTreasurySnap.id,
+                            collection: 'treasury_txs',
+                            transactionType: 'treasury_tx',
+                            data: parentTreasurySnap.data(),
+                        });
+                    }
                 }
             }
         }
@@ -439,8 +449,6 @@ export async function readLegacyTxByCollection(
             return readClientTxLegacy(txId, userDocRef);
         case 'digital_service_txs':
             return readDigitalServiceTxLegacy(txId, userDocRef);
-        case 'treasury_txs': // personal_expense is treasury_tx with origin
-            return readPersonalExpenseLegacy(txId, userDocRef);
         case 'investor_transactions':
             return readInvestorTxLegacy(txId, userDocRef);
         case 'actifTransactions':

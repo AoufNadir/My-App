@@ -57,6 +57,7 @@ import { useReportExports } from './hooks/useReportExports';
 import { now, parseAndEvaluate } from './utils';
 import { computePamLedger } from './utils/pamLedger';
 import { roundM } from './utils/money';
+import { logTxLifecycle, logTxLifecycleError } from './utils/txLifecycleDebug';
 import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot } from './utils/capitalSnapshot';
 import { summarizePersonalExpenseTotals } from './utils/financialAudit';
 import { buildDashboardReadModelShadowFromLegacy, getReadModelsMode, reconcileDashboardReadModelsWithLegacy, type DashboardReadModelShadowDiagnostic } from './readModels/dashboardReadModels';
@@ -1478,7 +1479,7 @@ export default function MainApp({ user }: {
             setIsSaving(false);
         }
     };
-    const handleEditClientTx = (tx: ClientTransactionDzd) => { if (tx.linkedTxId) {
+    const handleEditClientTx = (tx: ClientTransactionDzd) => { logTxLifecycle('edit-click', { id: tx.id, collection: 'dzd_client_txs', type: tx.type, origin: tx.origin, linkedTxId: tx.linkedTxId, source: 'MainApp.handleEditClientTx' }); if (tx.linkedTxId) {
         const l = transactions.find(t => t.id === tx.linkedTxId);
         if (l)
             openForm(l.type === 'buy' ? (l.currency === 'USDT' ? 'buy_usdt' : 'buy_eur') : (l.currency === 'USDT' ? 'sell_usdt' : 'sell_eur'), l);
@@ -1487,7 +1488,7 @@ export default function MainApp({ user }: {
     }
     else
         openClientTxModal(tx); };
-    const handleDeleteClientTxClick = (tx: ClientTransactionDzd) => { if (tx.linkedTxId) {
+    const handleDeleteClientTxClick = (tx: ClientTransactionDzd) => { logTxLifecycle('delete-click', { id: tx.id, collection: 'dzd_client_txs', type: tx.type, origin: tx.origin, linkedTxId: tx.linkedTxId, source: 'MainApp.handleDeleteClientTxClick' }); if (tx.linkedTxId) {
         const l = transactions.find(t => t.id === tx.linkedTxId);
         if (l)
             setTxToDelete(l);
@@ -1506,6 +1507,7 @@ export default function MainApp({ user }: {
         return transactions.find(t => t.id === tx.linkedTxId) ?? null;
     };
     const handleEditLinkedClientTx = (tx: ClientTransactionDzd) => {
+        logTxLifecycle('edit-click', { id: tx.id, collection: 'dzd_client_txs', type: tx.type, origin: tx.origin, linkedTxId: tx.linkedTxId, source: 'MainApp.handleEditLinkedClientTx' });
         if (tx.type === 'Transfert Sortant' || tx.type === 'Transfert Entrant') {
             openTransferModal(tx);
             return;
@@ -1524,6 +1526,7 @@ export default function MainApp({ user }: {
         openAdjustmentModal(linkedTx.type === 'Retrait' ? 'subtract' : 'add', linkedTx);
     };
     const handleDeleteLinkedClientTxClick = (tx: ClientTransactionDzd) => {
+        logTxLifecycle('delete-click', { id: tx.id, collection: 'dzd_client_txs', type: tx.type, origin: tx.origin, linkedTxId: tx.linkedTxId, source: 'MainApp.handleDeleteLinkedClientTxClick' });
         if (tx.type === 'Transfert Sortant' || tx.type === 'Transfert Entrant') {
             setClientTxToDelete(tx);
             return;

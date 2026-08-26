@@ -13,6 +13,8 @@ import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDel
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
 import { transitionClientBalanceDelta, invertReadModelDelta, combineReadModelDeltas, buildReadModelDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
 import { readDigitalServiceTxLegacy } from '../readModels/legacyReadDelta';
+import { LEGACY_EDIT_SOURCE_NOT_FOUND } from '../transactionService';
+import { logTxLifecycle, logTxLifecycleError } from '../utils/txLifecycleDebug';
 import {
     computeDigitalServicePreview,
     isAssetWallet,
@@ -553,9 +555,16 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
                     // Read legacy main doc + linked rows; use STORED DZD values from
                     // the main doc — never recompute historical conversions with current PAM.
                     const legacyResult = await readDigitalServiceTxLegacy(editingDigitalServiceTx.id, userDocRef);
+                    logTxLifecycle('legacy-read', {
+                        action: 'edit',
+                        collection: 'digital_service_txs',
+                        transactionId: editingDigitalServiceTx.id,
+                        found: Boolean(legacyResult.main),
+                        linkedRows: legacyResult.linkedRows.length,
+                        error: legacyResult.error,
+                    });
                     if (!legacyResult.main) {
-                        console.error('Legacy digital service not found for edit:', editingDigitalServiceTx.id);
-                        return newDigitalServiceDelta;
+                        throw new Error(`${LEGACY_EDIT_SOURCE_NOT_FOUND}:digital_service_txs:${editingDigitalServiceTx.id}`);
                     }
                     const oldMain = legacyResult.main as any;
                     const linkedClientRows = legacyResult.linkedRows.filter(r => r.collection === 'dzd_client_txs');
@@ -585,17 +594,49 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
                         preview: oldPreview as any,
                         clientId: oldMain.clientId || linkedClientRow?.clientId || digitalServiceClientId,
                     });
+                    logTxLifecycle('old-delta', {
+                        action: 'edit',
+                        collection: 'digital_service_txs',
+                        transactionId: editingDigitalServiceTx.id,
+                        operationId: oldDigitalServiceDelta.operationId,
+                        affectedSummaries: oldDigitalServiceDelta.affectedSummaries,
+                    });
+                    logTxLifecycle('new-delta', {
+                        action: 'edit',
+                        collection: 'digital_service_txs',
+                        transactionId: editingDigitalServiceTx.id,
+                        operationId: newDigitalServiceDelta.operationId,
+                        affectedSummaries: newDigitalServiceDelta.affectedSummaries,
+                    });
                     return combineReadModelDeltas(invertReadModelDelta(oldDigitalServiceDelta), newDigitalServiceDelta);
                 })();
+            logTxLifecycle('commit-start', {
+                action: editingDigitalServiceTx ? 'edit' : 'create',
+                collection: 'digital_service_txs',
+                transactionId: mainRef.id,
+                operationId: readModelDelta.operationId,
+            });
             await commitLegacyWithReadModelDeltas({
                 userDocRef,
                 batch,
                 deltas: readModelDelta ? [readModelDelta] : [],
             });
+            logTxLifecycle('commit-result', {
+                action: editingDigitalServiceTx ? 'edit' : 'create',
+                collection: 'digital_service_txs',
+                transactionId: mainRef.id,
+                operationId: readModelDelta.operationId,
+                result: 'success',
+            });
             setAlert(editingDigitalServiceTx ? '✅ Vente de service numérique mise à jour.' : '✅ Vente de service numérique enregistrée.');
             closeDigitalServiceModal();
         }
         catch (e) {
+            logTxLifecycleError(e, {
+                action: editingDigitalServiceTx ? 'edit' : 'create',
+                collection: 'digital_service_txs',
+                transactionId: editingDigitalServiceTx?.id,
+            });
             console.error(e);
             setAlert('❌ Erreur lors de l’enregistrement du service numérique.');
         }

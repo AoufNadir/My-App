@@ -89,8 +89,9 @@ export function resolveDashboardReadSource(input: {
 
 export function resolveLegacyMutationPolicy(input: {
     readModelsMode?: ReadModelsMode | string;
+    coveredByReadModels?: boolean;
 }): LegacyMutationPolicy {
-    if (getReadModelsMode(input.readModelsMode) === 'read') {
+    if (getReadModelsMode(input.readModelsMode) === 'read' && !input.coveredByReadModels) {
         return {
             status: 'immutable_legacy',
             canMutate: false,

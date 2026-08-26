@@ -88,6 +88,11 @@ assert.deepEqual(resolveLegacyMutationPolicy({ readModelsMode: 'read' }), {
     reason: IMMUTABLE_LEGACY,
     legacyBackfillRequired: false,
 });
+assert.deepEqual(resolveLegacyMutationPolicy({ readModelsMode: 'read', coveredByReadModels: true }), {
+    status: 'mutable_legacy',
+    canMutate: true,
+    legacyBackfillRequired: false,
+});
 assert.equal(isImmutableLegacyMutationError(IMMUTABLE_LEGACY), true);
 assert.equal(isImmutableLegacyMutationError('OPERATION_INDEX_REQUIRED'), false);
 

@@ -76,8 +76,8 @@ function sourceSlice(file: string, marker: string, endMarker: string): string {
     assert.equal(LEGACY_BACKFILL_REQUIRED_FOR_READ_MODE, false, 'Legacy index backfill must not be required for read mode activation');
     assert.match(activationPolicy, /status:\s*'immutable_legacy'/, 'read mode must classify old Legacy operations as immutable');
     assert.match(activationPolicy, /reason:\s*IMMUTABLE_LEGACY/, 'immutable Legacy mutations need an explicit reason');
-    assert.match(transactionService, /resolveLegacyMutationPolicy\(\{\}\)/, 'legacy edit/delete must use activation policy');
-    assert.match(transactionService, /!legacyMutationPolicy\.canMutate/, 'read mode must block direct Legacy edit/delete');
+    assert.match(transactionService, /resolveLegacyMutationPolicy\(\{\s*coveredByReadModels:\s*Boolean\(buildOldDelta\)\s*\}\)/, 'covered legacy delete must declare Read Model coverage');
+    assert.match(transactionService, /!legacyMutationPolicy\.canMutate/, 'read mode must still block uncovered Legacy edit/delete');
     assert.match(transactionService, /deterministicLinkedId\(transactionId, 'treasury-buy-cash'\)/, 'retryable edits need deterministic treasury child ids');
     assert.match(transactionService, /deterministicLinkedId\(transactionId, 'client-sell'\)/, 'retryable edits need deterministic client child ids');
 }

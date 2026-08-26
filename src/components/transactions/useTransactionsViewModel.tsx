@@ -10,6 +10,7 @@ import { BriefcaseIcon } from '../icons/BriefcaseIcon';
 import { formatDzd, formatNumber } from '../../pages/shared/pageFormat';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel, getTreasuryOperationLabel } from '../../utils/transactionTerminology';
 import { DisplayRawTx, DisplayTx, SavedTransactionFilter, TransactionFilterMode } from './transactionsTypes';
+import { logTxLifecycle } from '../../utils/txLifecycleDebug';
 const SAVED_FILTERS_STORAGE_KEY = 'tx_saved_filters_v1';
 const ALL_FILTER_MODES: TransactionFilterMode[] = [
     'all',
@@ -502,6 +503,14 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
         setSavedFilters((prev) => prev.filter((item) => item.id !== savedFilterId));
     };
     const handleEditDisplayTx = (tx: DisplayTx) => {
+        logTxLifecycle('edit-click', {
+            id: tx.id,
+            originalId: tx.originalId,
+            collection: tx.sourceType === 'usdt_tx' ? 'usdt_txs' : tx.sourceType === 'client_tx' ? 'dzd_client_txs' : tx.sourceType === 'treasury_tx' ? 'treasury_txs' : 'digital_service_txs',
+            type: (tx.rawTx as any)?.type,
+            origin: (tx.rawTx as any)?.origin,
+            sourceType: tx.sourceType,
+        });
         if (tx.sourceType === 'usdt_tx') {
             const rawTx = tx.rawTx as Tx;
             if (handleEditPortfolioTx) {
@@ -531,6 +540,14 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
         }
     };
     const handleDeleteDisplayTx = (tx: DisplayTx) => {
+        logTxLifecycle('delete-click', {
+            id: tx.id,
+            originalId: tx.originalId,
+            collection: tx.sourceType === 'usdt_tx' ? 'usdt_txs' : tx.sourceType === 'client_tx' ? 'dzd_client_txs' : tx.sourceType === 'treasury_tx' ? 'treasury_txs' : 'digital_service_txs',
+            type: (tx.rawTx as any)?.type,
+            origin: (tx.rawTx as any)?.origin,
+            sourceType: tx.sourceType,
+        });
         if (tx.sourceType === 'usdt_tx') {
             setTxToDelete(tx.rawTx as Tx);
             return;

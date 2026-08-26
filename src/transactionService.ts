@@ -4,6 +4,7 @@ import { recordTreasuryLegacyDeletionShadow, recordTreasuryShadow } from './acco
 import { resolveLegacyMutationPolicy } from './readModels/readModelActivation';
 import { commitLegacyWithReadModelDeltas } from './readModels/productionSummaryWriter';
 import { invertReadModelDelta, buildReadModelDelta, READ_MODEL_APPLIED_OPS_PATH, type ReadModelDelta } from './readModels/readModelDeltas';
+import { logTxLifecycle, logTxLifecycleError } from './utils/txLifecycleDebug';
 import {
     createLegacyOperationIndexDoc,
     deterministicLinkedId,
@@ -12,13 +13,17 @@ import {
     LEGACY_OPERATION_INDEX_COLLECTION,
     legacyTypeForCollection,
     type IndexedFinancialRow,
+    type LegacyMutationTransactionType,
     type LegacyOperationIndexDoc,
 } from './readModels/operationIndex';
 type TransactionType = 'usdt_tx' | 'client_tx' | 'treasury_tx' | 'asset_tx';
+export const LEGACY_EDIT_SOURCE_NOT_FOUND = 'LEGACY_EDIT_SOURCE_NOT_FOUND';
+export const LEGACY_LINKED_ROWS_INCOMPLETE = 'LEGACY_LINKED_ROWS_INCOMPLETE';
+export const LEGACY_DELETE_DELTA_REQUIRED = 'LEGACY_DELETE_DELTA_REQUIRED';
 interface LinkedTransaction {
     id: string;
     collection: string;
-    type: TransactionType;
+    type: LegacyMutationTransactionType;
     data: any;
 }
 const COLLECTION_MAP: Record<TransactionType, string> = {
@@ -28,22 +33,38 @@ const COLLECTION_MAP: Record<TransactionType, string> = {
     asset_tx: 'actifTransactions'
 };
 
+function linkedKey(row: Pick<LinkedTransaction, 'collection' | 'id'>): string {
+    return `${row.collection}/${row.id}`;
+}
+
 function operationIndexRef(userDocRef: FirestoreDocumentReference, transactionType: TransactionType, transactionId: string) {
     return userDocRef
         .collection(LEGACY_OPERATION_INDEX_COLLECTION)
         .doc(legacyOperationIndexId(transactionType, transactionId));
 }
 
-function linkedTransactionsFromIndexedRows(rows: readonly IndexedFinancialRow[], transactionType: TransactionType, transactionId: string): LinkedTransaction[] {
+async function hydrateLinkedTransactionsFromIndexedRows(
+    rows: readonly IndexedFinancialRow[],
+    transactionType: TransactionType,
+    transactionId: string,
+    userDocRef: FirestoreDocumentReference,
+): Promise<LinkedTransaction[]> {
     const mainCollection = COLLECTION_MAP[transactionType];
-    return rows
-        .filter((row) => !(row.collection === mainCollection && row.id === transactionId))
-        .map((row) => ({
+    const linkedRows = rows.filter((row) => !(row.collection === mainCollection && row.id === transactionId));
+    const hydrated: LinkedTransaction[] = [];
+    for (const row of linkedRows) {
+        const snap = await userDocRef.collection(row.collection).doc(row.id).get();
+        if (!snap.exists) {
+            throw new Error(`${LEGACY_LINKED_ROWS_INCOMPLETE}:${row.collection}:${row.id}`);
+        }
+        hydrated.push({
             id: row.id,
             collection: row.collection,
             type: (row.transactionType || legacyTypeForCollection(row.collection) || transactionType) as TransactionType,
-            data: {},
-        }));
+            data: snap.data(),
+        });
+    }
+    return hydrated;
 }
 
 async function loadOperationIndexRows(transactionId: string, transactionType: TransactionType, userDocRef: FirestoreDocumentReference): Promise<IndexedFinancialRow[] | null> {
@@ -56,7 +77,12 @@ async function loadOperationIndexRows(transactionId: string, transactionType: Tr
 async function findLinkedTransactionsFromOperationIndex(transactionId: string, transactionType: TransactionType, userDocRef: FirestoreDocumentReference): Promise<LinkedTransaction[] | null> {
     const rows = await loadOperationIndexRows(transactionId, transactionType, userDocRef);
     if (!rows) return null;
-    return linkedTransactionsFromIndexedRows(rows, transactionType, transactionId);
+    return hydrateLinkedTransactionsFromIndexedRows(rows, transactionType, transactionId, userDocRef);
+}
+
+function addLinkedTransaction(rows: LinkedTransaction[], row: LinkedTransaction): void {
+    if (rows.some((existing) => linkedKey(existing) === linkedKey(row))) return;
+    rows.push(row);
 }
 
 function recordTreasuryDeletionShadow(userDocRef: FirestoreDocumentReference, operationId: string, rows: readonly any[]): void {
@@ -93,6 +119,10 @@ async function resolveDeletionTarget(transactionId: string, transactionType: Tra
         return { transactionId, transactionType };
     }
     if (transactionType === 'client_tx' && txData.linkedTxId) {
+        const linkedClientDoc = await userDocRef.collection('dzd_client_txs').doc(txData.linkedTxId).get();
+        if (linkedClientDoc.exists) {
+            return resolveDeletionTarget(txData.linkedTxId, 'client_tx', userDocRef, visited);
+        }
         if (txData.origin === 'adjustment') {
             return resolveDeletionTarget(txData.linkedTxId, 'treasury_tx', userDocRef, visited);
         }
@@ -109,7 +139,11 @@ async function resolveDeletionTarget(transactionId: string, transactionType: Tra
             || reverseTreasuryLinks.docs.some((doc) => (doc.data() as any)?.origin === 'client_tx')) {
             return { transactionId, transactionType };
         }
-        return resolveDeletionTarget(txData.linkedTxId, 'usdt_tx', userDocRef, visited);
+        const linkedUsdtDoc = await userDocRef.collection('usdt_txs').doc(txData.linkedTxId).get();
+        if (linkedUsdtDoc.exists) {
+            return resolveDeletionTarget(txData.linkedTxId, 'usdt_tx', userDocRef, visited);
+        }
+        return { transactionId, transactionType };
     }
     if (transactionType === 'treasury_tx') {
         if (txData.origin === 'manual_asset' && txData.linkedAssetTxId) {
@@ -197,12 +231,19 @@ export async function findLinkedTransactions(transactionId: string, userDocRef: 
  * Delete a transaction and all its linked transactions
  * Uses Firestore batch for atomic operations
  */
-export async function applyTransactionDelete(transactionId: string, transactionType: TransactionType, userDocRef: FirestoreDocumentReference, buildOldDelta?: (resolvedType: TransactionType, resolvedTxId: string, mainData: any, linkedData: any[]) => ReadModelDelta | null | Promise<ReadModelDelta | null>): Promise<{
+export async function applyTransactionDelete(transactionId: string, transactionType: TransactionType, userDocRef: FirestoreDocumentReference, buildOldDelta?: (resolvedType: TransactionType, resolvedTxId: string, mainData: any, linkedData: any[]) => ReadModelDelta | null | Promise<ReadModelDelta | null>, options?: { summaryWriteMode?: string }): Promise<{
     success: boolean;
     error?: string;
 }> {
+    let deleteMarkerId = '';
     try {
-        const legacyMutationPolicy = resolveLegacyMutationPolicy({});
+        logTxLifecycle('handler-start', {
+            action: 'delete',
+            transactionId,
+            transactionType,
+            collection: COLLECTION_MAP[transactionType],
+        });
+        const legacyMutationPolicy = resolveLegacyMutationPolicy({ coveredByReadModels: Boolean(buildOldDelta) });
         if (!legacyMutationPolicy.canMutate) {
             return { success: false, error: legacyMutationPolicy.reason };
         }
@@ -219,19 +260,45 @@ export async function applyTransactionDelete(transactionId: string, transactionT
         // already applied (marker written inside the same atomic transaction),
         // return success WITHOUT building a new delta or sending an empty batch.
         const resolvedCollection = COLLECTION_MAP[transactionType];
-        const deleteMarkerId = `legacy:delete:${resolvedCollection}:${transactionId}`;
+        deleteMarkerId = `legacy:delete:${resolvedCollection}:${transactionId}`;
         const deleteMarkerSnap = await userDocRef.collection(READ_MODEL_APPLIED_OPS_PATH).doc(deleteMarkerId).get();
         if (deleteMarkerSnap.exists) {
+            logTxLifecycle('commit-result', {
+                action: 'delete',
+                transactionId,
+                transactionType,
+                operationId: deleteMarkerId,
+                result: 'idempotent',
+            });
             return { success: true };
         }
         const batch = userDocRef.firestore.batch();
         const mainCollection = COLLECTION_MAP[transactionType];
         const mainSnapshot = await userDocRef.collection(mainCollection).doc(transactionId).get();
         const mainData = mainSnapshot.data() as any;
+        logTxLifecycle('legacy-read', {
+            action: 'delete',
+            transactionId,
+            transactionType,
+            collection: mainCollection,
+            found: Boolean(mainSnapshot.exists && mainData),
+        });
+        if (!mainSnapshot.exists || !mainData) {
+            throw new Error(`${LEGACY_EDIT_SOURCE_NOT_FOUND}:${mainCollection}:${transactionId}`);
+        }
         // Delete main transaction
         batch.delete(userDocRef.collection(mainCollection).doc(transactionId));
         // Find and delete all linked transactions
-        const linkedTxs = await findLinkedTransactions(transactionId, userDocRef);
+        const indexedLinkedTxs = await findLinkedTransactionsFromOperationIndex(transactionId, transactionType, userDocRef);
+        const linkedTxs = indexedLinkedTxs ? [...indexedLinkedTxs] : await findLinkedTransactions(transactionId, userDocRef);
+        logTxLifecycle('linked-rows', {
+            action: 'delete',
+            transactionId,
+            transactionType,
+            source: indexedLinkedTxs ? 'operation-index' : 'linked-query',
+            count: linkedTxs.length,
+            rows: linkedTxs.map((tx) => ({ id: tx.id, collection: tx.collection, type: tx.type, origin: tx.data?.origin })),
+        });
         recordTreasuryDeletionShadow(userDocRef, transactionId, [
             ...(transactionType === 'treasury_tx' && mainData ? [mainData] : []),
             ...linkedTxs.filter((tx) => tx.collection === 'treasury_txs').map((tx) => tx.data),
@@ -245,16 +312,21 @@ export async function applyTransactionDelete(transactionId: string, transactionT
                 userDocRef.collection('usdt_txs').where('linkedPersonalExpenseTxId', '==', txId).get(),
             ]);
             const seen = new Set<string>();
+            const deletedRows: LinkedTransaction[] = [];
             byLinkedTx.forEach((doc) => {
                 const data = doc.data() as any;
                 if (data.origin !== 'personal_expense' && data.origin !== 'personal_expense_return') return;
                 seen.add(doc.id);
                 batch.delete(doc.ref);
+                deletedRows.push({ id: doc.id, collection: 'usdt_txs', type: 'usdt_tx', data });
             });
             byPersonalId.forEach((doc) => {
                 if (seen.has(doc.id)) return;
+                const data = doc.data() as any;
                 batch.delete(doc.ref);
+                deletedRows.push({ id: doc.id, collection: 'usdt_txs', type: 'usdt_tx', data });
             });
+            return deletedRows;
         };
         // Backward compatibility:
         // Older "buy USDT with EUR" flows created an extra EUR withdrawal row
@@ -301,6 +373,15 @@ export async function applyTransactionDelete(transactionId: string, transactionT
             const assetTxData = assetTxDoc.data();
             if (assetTxData?.linkedTreasuryTxId) {
                 batch.delete(userDocRef.collection('treasury_txs').doc(assetTxData.linkedTreasuryTxId));
+                const linkedTreasurySnap = await userDocRef.collection('treasury_txs').doc(assetTxData.linkedTreasuryTxId).get();
+                if (linkedTreasurySnap.exists) {
+                    addLinkedTransaction(linkedTxs, {
+                        id: linkedTreasurySnap.id,
+                        collection: 'treasury_txs',
+                        type: 'treasury_tx',
+                        data: linkedTreasurySnap.data(),
+                    });
+                }
             }
         }
         // M5: personal_expense treasury_txs are linked to investor_transactions
@@ -312,7 +393,8 @@ export async function applyTransactionDelete(transactionId: string, transactionT
             const treasuryDoc = await userDocRef.collection('treasury_txs').doc(transactionId).get();
             const treasuryData = treasuryDoc.data() as any;
             if (treasuryData?.origin === 'personal_expense') {
-                await deletePersonalPortfolioChildren(transactionId);
+                const personalPortfolioRows = await deletePersonalPortfolioChildren(transactionId);
+                personalPortfolioRows.forEach((row) => addLinkedTransaction(linkedTxs, row));
                 const investorTxIds = new Set<string>();
                 if (treasuryData.linkedInvestorTxId) {
                     investorTxIds.add(treasuryData.linkedInvestorTxId);
@@ -324,17 +406,44 @@ export async function applyTransactionDelete(transactionId: string, transactionT
                     .collection('investor_transactions')
                     .where('linkedTreasuryTxId', '==', transactionId)
                     .get();
-                reverseInvestor.forEach((doc) => investorTxIds.add(doc.id));
-                investorTxIds.forEach((id) => {
-                    batch.delete(userDocRef.collection('investor_transactions').doc(id));
+                reverseInvestor.forEach((doc) => {
+                    investorTxIds.add(doc.id);
+                    addLinkedTransaction(linkedTxs, {
+                        id: doc.id,
+                        collection: 'investor_transactions',
+                        type: 'investor_tx',
+                        data: doc.data(),
+                    });
                 });
+                for (const id of investorTxIds) {
+                    if (!linkedTxs.some((tx) => tx.collection === 'investor_transactions' && tx.id === id)) {
+                        const snap = await userDocRef.collection('investor_transactions').doc(id).get();
+                        if (!snap.exists) {
+                            throw new Error(`${LEGACY_LINKED_ROWS_INCOMPLETE}:investor_transactions:${id}`);
+                        }
+                        addLinkedTransaction(linkedTxs, {
+                            id,
+                            collection: 'investor_transactions',
+                            type: 'investor_tx',
+                            data: snap.data(),
+                        });
+                    }
+                    batch.delete(userDocRef.collection('investor_transactions').doc(id));
+                }
                 const returnDocs = await userDocRef
                     .collection('treasury_txs')
                     .where('linkedTreasuryTxId', '==', transactionId)
                     .where('origin', '==', 'personal_expense_return')
                     .get();
                 for (const doc of returnDocs.docs) {
-                    await deletePersonalPortfolioChildren(doc.id);
+                    addLinkedTransaction(linkedTxs, {
+                        id: doc.id,
+                        collection: 'treasury_txs',
+                        type: 'treasury_tx',
+                        data: doc.data(),
+                    });
+                    const returnPortfolioRows = await deletePersonalPortfolioChildren(doc.id);
+                    returnPortfolioRows.forEach((row) => addLinkedTransaction(linkedTxs, row));
                     batch.delete(doc.ref);
                 }
             }
@@ -354,11 +463,22 @@ export async function applyTransactionDelete(transactionId: string, transactionT
             status: 'deleted',
         }));
         let deleteDeltas: ReadModelDelta[] = [];
+        if (!buildOldDelta) {
+            throw new Error(`${LEGACY_DELETE_DELTA_REQUIRED}:${mainCollection}:${transactionId}`);
+        }
         if (buildOldDelta && mainData) {
             const linkedData = linkedTxs.map((lt) => lt.data);
             // Pass the RESOLVED type/id so the builder switches on the root
             // operation, not the original entry-point type.
             const oldDelta = await buildOldDelta(transactionType, transactionId, mainData, linkedData);
+            logTxLifecycle('old-delta', {
+                action: 'delete',
+                transactionId,
+                transactionType,
+                operationId: oldDelta?.operationId,
+                affectedSummaries: oldDelta?.affectedSummaries,
+                built: Boolean(oldDelta),
+            });
             if (oldDelta) {
                 const inverted = invertReadModelDelta(oldDelta);
                 const { recentOperation: _omit, ...invertedFields } = inverted;
@@ -374,14 +494,34 @@ export async function applyTransactionDelete(transactionId: string, transactionT
                 deleteDeltas = [deleteDelta];
             }
         }
+        if (deleteDeltas.length === 0) {
+            throw new Error(`${LEGACY_DELETE_DELTA_REQUIRED}:${mainCollection}:${transactionId}`);
+        }
+        logTxLifecycle('commit-start', {
+            action: 'delete',
+            transactionId,
+            transactionType,
+            operationId: deleteMarkerId,
+            linkedCount: linkedTxs.length,
+            deltaCount: deleteDeltas.length,
+        });
         await commitLegacyWithReadModelDeltas({
             userDocRef,
             batch,
             deltas: deleteDeltas,
+            summaryWriteMode: options?.summaryWriteMode,
+        });
+        logTxLifecycle('commit-result', {
+            action: 'delete',
+            transactionId,
+            transactionType,
+            operationId: deleteMarkerId,
+            result: 'success',
         });
         return { success: true };
     }
     catch (e: any) {
+        logTxLifecycleError(e, { action: 'delete', transactionId, transactionType, operationId: deleteMarkerId });
         console.error('Error in applyTransactionDelete:', e);
         return {
             success: false,
