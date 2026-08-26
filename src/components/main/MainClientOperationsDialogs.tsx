@@ -102,7 +102,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
         .filter((client: any) => client.id !== clientTxTargetClientId)
         .map((client: any) => ({ value: client.id, label: getClientFullName(client) })), [clientsDzd, clientTxTargetClientId, getClientFullName]);
     const receiverClient = (clientsDzd || []).find((client: any) => client.id === clientTxReceiverClientId) || null;
-    const canUseReceiverClient = !editingClientTx && isClientSettlementTx;
+    const canUseReceiverClient = !editingClientTx && isClientPaymentReceived;
     const hasReceiverClient = canUseReceiverClient && clientTxReceiverClientId !== 'none' && Boolean(receiverClient);
     const receiverClientName = receiverClient ? getClientFullName(receiverClient) : '';
     const clientTxMaxAmount = Math.abs(Number(clientBalances?.get?.(clientTxTargetClientId) || 0));
@@ -133,14 +133,14 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     useEffect(() => {
         if (!isClientTxModalOpen || !setClientTxReceiverClientId)
             return;
-        if (!isClientSettlementTx && clientTxReceiverClientId !== 'none') {
+        if (!canUseReceiverClient && clientTxReceiverClientId !== 'none') {
             setClientTxReceiverClientId('none');
             return;
         }
         if (clientTxReceiverClientId !== 'none' && clientTxReceiverClientId === clientTxTargetClientId) {
             setClientTxReceiverClientId('none');
         }
-    }, [isClientTxModalOpen, isClientSettlementTx, clientTxReceiverClientId, clientTxTargetClientId, setClientTxReceiverClientId]);
+    }, [isClientTxModalOpen, canUseReceiverClient, clientTxReceiverClientId, clientTxTargetClientId, setClientTxReceiverClientId]);
     useEffect(() => {
         if (!isAdjustmentModalOpen || editingTreasuryTx)
             return;

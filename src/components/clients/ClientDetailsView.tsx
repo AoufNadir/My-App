@@ -43,6 +43,7 @@ type ClientDetailsViewProps = {
     handleEditClientTx: (tx: ClientTransactionDzd) => void;
     handleDeleteClientTxClick: (tx: ClientTransactionDzd) => void;
     openClientTxModal: (tx: ClientTransactionDzd | null, presetType?: string, selectedClientId?: string) => void;
+    openTransferModal: (tx?: ClientTransactionDzd | null, presetFromClientId?: string) => void;
     handleExportClientReport: (clientId: string, month: number, year: number) => void;
 };
 type ContactRowProps = {
@@ -147,7 +148,7 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone }: ContactRowPr
       </div>
     </div>);
 }
-export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, handleExportClientReport }: ClientDetailsViewProps) {
+export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openTransferModal, handleExportClientReport }: ClientDetailsViewProps) {
     const { t } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 60;
     const LOAD_MORE_TRANSACTIONS = 60;
@@ -463,9 +464,9 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
               <ArrowDownLeftIcon className="w-4 h-4"/>
               {t('transactions.paymentReceived')}
             </Button>
-            <Button onClick={() => openClientTxModal(null, 'Paiement Effectué', selectedClientId)} variant="tab" size="md" className="w-full font-bold">
-              <ArrowUpRightIcon className="w-4 h-4"/>
-              {t('transactions.paymentMade')}
+            <Button onClick={() => openTransferModal(null, selectedClientId)} variant="tab" size="md" className="w-full font-bold">
+              <UsersIcon className="w-4 h-4"/>
+              {t('transactions.clientTransfer')}
             </Button>
           </div>
           {hasDebt && (

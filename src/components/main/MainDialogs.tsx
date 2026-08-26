@@ -283,7 +283,7 @@ type ClientTransferDialogProps = {
     clients: ClientOption[];
     fromBalance: number;
     toBalance: number;
-    onMaxFrom: () => void;
+    onMaxFrom?: () => void;
     title: string;
     infoText: string;
     fromLabel: string;
@@ -293,9 +293,34 @@ type ClientTransferDialogProps = {
     filterClientsLabel: string;
     balanceLabel: string;
     dinarLabel: string;
+    sourceStatusLabel: string;
+    destinationStatusLabel: string;
+    owesProjectLabel: string;
+    clientAdvanceLabel: string;
+    settledLabel: string;
+    transferPreviewLabel: string;
     confirmLabel: string;
 };
-export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromClientId, toClientId, setToClientId, amount, setAmount, notes, setNotes, onSave, isSaving, clients, fromBalance, toBalance, onMaxFrom, title, infoText, fromLabel, toLabel, amountLabel, notesLabel, filterClientsLabel, balanceLabel, dinarLabel, confirmLabel }: ClientTransferDialogProps) {
+const getTransferBalanceStatus = (balance: number, labels: {
+    owesProjectLabel: string;
+    clientAdvanceLabel: string;
+    settledLabel: string;
+}) => balance < -0.005
+    ? labels.owesProjectLabel
+    : balance > 0.005
+        ? labels.clientAdvanceLabel
+        : labels.settledLabel;
+export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromClientId, toClientId, setToClientId, amount, setAmount, notes, setNotes, onSave, isSaving, clients, fromBalance, toBalance, title, infoText, fromLabel, toLabel, amountLabel, notesLabel, filterClientsLabel, balanceLabel, dinarLabel, sourceStatusLabel, destinationStatusLabel, owesProjectLabel, clientAdvanceLabel, settledLabel, transferPreviewLabel, confirmLabel }: ClientTransferDialogProps) {
+    const statusLabels = { owesProjectLabel, clientAdvanceLabel, settledLabel };
+    const renderBalancePreview = (label: string, before: number, after: number) => (<div className="rounded-xl border border-border bg-surface px-3 py-2">
+        <p className="text-sm font-semibold text-neutral-900">{label}</p>
+        <div className="mt-1 flex items-center justify-between gap-2 text-sm">
+          <span className="font-semibold text-neutral-700" dir="ltr">{formatMoney(before, 'DZD')}</span>
+          <span className="text-neutral-400">-&gt;</span>
+          <span className="font-bold text-primary" dir="ltr">{formatMoney(after, 'DZD')}</span>
+        </div>
+        <p className="mt-1 text-xs text-neutral-500">{getTransferBalanceStatus(after, statusLabels)}</p>
+      </div>);
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
       <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
         <ModalTitle className="text-base sm:text-lg">{title}</ModalTitle>
@@ -320,7 +345,7 @@ export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromCli
               {balanceLabel}: {formatMoney(toBalance, 'DZD')}
             </p>)}
         </div>
-        <MoneyField label={amountLabel} value={amount} onChange={setAmount} currency="DZD" onMax={fromClientId ? onMaxFrom : undefined} maxDisabled={!fromClientId || fromBalance <= 0} maxLabel="Max"/>
+        <MoneyField label={amountLabel} value={amount} onChange={setAmount} currency="DZD" hint={dinarLabel}/>
         {(() => {
             const amt = parseAndEvaluate(amount);
             if (!fromClientId || !toClientId || fromClientId === toClientId)
@@ -329,11 +354,13 @@ export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromCli
                 return null;
             const nextFrom = fromBalance + amt;
             const nextTo = toBalance - amt;
-            const rows: PreviewRow[] = [
-                { label: fromLabel, value: nextFrom, currency: 'DZD', semantic: 'profit' },
-                { label: toLabel, value: nextTo, currency: 'DZD', semantic: 'auto' }
-            ];
-            return (<TransactionPreviewCard title="Résumé après transfert" rows={rows}/>);
+            return (<div className="rounded-2xl border border-border bg-surface-muted p-3">
+              <p className="text-xs font-bold uppercase text-neutral-500">{transferPreviewLabel}</p>
+              <div className="mt-2 space-y-2">
+                {renderBalancePreview(sourceStatusLabel, fromBalance, nextFrom)}
+                {renderBalancePreview(destinationStatusLabel, toBalance, nextTo)}
+              </div>
+            </div>);
         })()}
       </ModalContent>
       <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">

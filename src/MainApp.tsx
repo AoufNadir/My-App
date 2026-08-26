@@ -2627,6 +2627,7 @@ export default function MainApp({ user }: {
         setSelectedClientId,
         openClientModal,
         setIsTransferModalOpen,
+        openTransferModal,
         clientSearchQuery,
         setClientSearchQuery,
         clientSortMode,
@@ -2658,7 +2659,7 @@ export default function MainApp({ user }: {
     }), [
         selectedClientId, clientSearchQuery, clientSortMode,
         clientsDzd, filteredClientsDzd, clientBalances, selectedClient, selectedClientTransactions, clientTransactionsDzd, transactions, pamLedger.profitByTxId, copiedValue,
-        openClientModal, handleTouchStart, handleTouchEnd, handleClientDeleteRequest, handleExportClientReport, openClientTxModal,
+        openClientModal, openTransferModal, handleTouchStart, handleTouchEnd, handleClientDeleteRequest, handleExportClientReport, openClientTxModal,
         handleCopy, handleEditLinkedClientTx, handleDeleteLinkedClientTxClick, overdueDebtClients, clientLoyaltyMap,
         earlyClientPrevMonthVolumeMap, earlyClientLastSellDateMap, handleZeroOutBalance
     ]);
@@ -2830,12 +2831,15 @@ export default function MainApp({ user }: {
         amount: transferAmount, setAmount: setTransferAmount, notes: transferNotes, setNotes: setTransferNotes, onSave: handleSaveTransfer,
         isSaving, clients: clientsDzd.map(c => ({ id: c.id, label: getClientFullName(c) })), fromBalance: transferFromBalance,
 
-        toBalance: transferToBalance, onMaxFrom: () => setTransferAmount(Math.abs(transferFromBalance).toString()),
-        title: editingTransferTx ? `${t('common.edit')} ${t('transactions.clientTransfer')}` : t('transactions.clientTransfer'), infoText: t('transactions.transferDebtCredit'), fromLabel: t('transactions.from'),
-        toLabel: t('transactions.to'), amountLabel: t('transactions.amount'), notesLabel: t('common.notes'),
-        filterClientsLabel: t('transactions.filterClients'), balanceLabel: t('common.balance'), dinarLabel: t('common.dinar'),
+        toBalance: transferToBalance,
+        title: editingTransferTx ? `${t('common.edit')} ${t('transactions.clientTransfer')}` : t('transactions.clientTransferTitle'), infoText: t('transactions.clientTransferInfo'), fromLabel: t('transactions.sourceClient'),
+        toLabel: t('transactions.destinationClient'), amountLabel: t('transactions.transferBalanceAmount'), notesLabel: t('common.notes'),
+        filterClientsLabel: t('transactions.filterClients'), balanceLabel: t('common.balance'), dinarLabel: t('transactions.transferNoMaxHint'),
+        sourceStatusLabel: t('transactions.sourceClient'), destinationStatusLabel: t('transactions.destinationClient'),
+        owesProjectLabel: t('transactions.owesProject'), clientAdvanceLabel: t('finance.clientAdvance'), settledLabel: t('finance.settled'),
+        transferPreviewLabel: t('transactions.transferBalancePreview'),
         confirmLabel: editingTransferTx ? t('common.save') : t('transactions.confirmTransfer')
-    }), [isTransferModalOpen, closeTransferModal, fieldBase, transferFromClientId, transferToClientId, transferAmount, transferNotes, handleSaveTransfer, isSaving, clientsDzd, getClientFullName, transferFromBalance, transferToBalance, setTransferAmount, editingTransferTx, t]);
+    }), [isTransferModalOpen, closeTransferModal, fieldBase, transferFromClientId, transferToClientId, transferAmount, transferNotes, handleSaveTransfer, isSaving, clientsDzd, getClientFullName, transferFromBalance, transferToBalance, editingTransferTx, t]);
     const treasuryBalanceEditDialogProps = useMemo(() => ({
         isOpen: isTreasuryBalanceEditModalOpen, onClose: closeTreasuryBalanceEditModal, fieldBase,
         asset: treasuryBalanceEditAsset, value: treasuryBalanceEditValue, notes: treasuryBalanceEditNotes, setNotes: setTreasuryBalanceEditNotes,

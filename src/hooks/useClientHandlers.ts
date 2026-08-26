@@ -8,7 +8,7 @@ import { recordClientShadow } from '../accounting/clientShadowDiagnostics';
 import { clientPositionFromLegacyRows } from '../accounting/clientShadowLegacyAdapter';
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
-import { combineClientPositionDeltas, transitionClientBalanceDelta, type ClientPositionDelta } from '../readModels/readModelDeltas';
+import { buildClientBalanceTransferDelta, combineClientPositionDeltas, transitionClientBalanceDelta, type ClientPositionDelta } from '../readModels/readModelDeltas';
 import { readClientTxLegacy } from '../readModels/legacyReadDelta';
 import { LEGACY_EDIT_SOURCE_NOT_FOUND } from '../transactionService';
 import { logTxLifecycle, logTxLifecycleError } from '../utils/txLifecycleDebug';
@@ -559,6 +559,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 if (receiverClientId !== 'none') {
                     const outgoingTransferRef = userDocRef.collection('dzd_client_txs').doc();
                     const incomingTransferRef = userDocRef.collection('dzd_client_txs').doc();
+                    const transferId = outgoingTransferRef.id;
                     const note = clientTxNotes.trim();
                     if (isPaymentReceived) {
                         batch.set(outgoingTransferRef, {
@@ -569,7 +570,11 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                             montant: amount,
                             type: 'Transfert Sortant',
                             notes: note,
-                            paymentMethod: 'Crédit'
+                            paymentMethod: 'Crédit',
+                            transferId,
+                            counterpartyClientId: receiverClientId,
+                            transferRole: 'source',
+                            transferAmountDzd: amount
                         });
                         batch.set(incomingTransferRef, {
                             clientId: receiverClientId,
@@ -580,19 +585,24 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                             type: 'Transfert Entrant',
                             notes: note,
                             paymentMethod: 'Crédit',
-                            linkedTxId: outgoingTransferRef.id
+                            linkedTxId: outgoingTransferRef.id,
+                            transferId,
+                            counterpartyClientId: targetClientId,
+                            transferRole: 'destination',
+                            transferAmountDzd: amount
                         });
                         setAlert('✅ Dette transférée au client qui a reçu.');
-                        const clientsDelta = combineClientPositionDeltas([
-                            balanceTransitionForClient(targetClientId, amount),
-                            balanceTransitionForClient(receiverClientId, -amount),
-                        ]);
+                        const clientsDelta = buildClientBalanceTransferDelta({
+                            sourceBeforeBalance: clientBalances.get(targetClientId) || 0,
+                            destinationBeforeBalance: clientBalances.get(receiverClientId) || 0,
+                            amountDzd: amount,
+                        }).clients;
                         clientsDelta.activeClientsTodayDelta = activeClientTodayDelta(targetClientId, timestamp)
                             + activeClientTodayDelta(receiverClientId, timestamp);
                         readModelDelta = mustPrepareWriterReadModelDelta('clients.transfer', {
                             operationId: `legacy:clients.transfer:${outgoingTransferRef.id}`,
                             effectiveAt: timestamp,
-                            payload: { type: 'client_receivable_transfer', fromClientId: targetClientId, toClientId: receiverClientId, amount },
+                            payload: { type: 'client_balance_transfer', transferId, fromClientId: targetClientId, toClientId: receiverClientId, amount },
                             affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
                             clients: clientsDelta,
                             recentOperation: { operationId: `legacy:clients.transfer:${outgoingTransferRef.id}`, source: 'legacy', type: 'Transfert client', effectiveAt: timestamp },
@@ -607,7 +617,11 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                             montant: amount,
                             type: 'Transfert Sortant',
                             notes: note,
-                            paymentMethod: 'Crédit'
+                            paymentMethod: 'Crédit',
+                            transferId,
+                            counterpartyClientId: targetClientId,
+                            transferRole: 'source',
+                            transferAmountDzd: amount
                         });
                         batch.set(incomingTransferRef, {
                             clientId: targetClientId,
@@ -618,19 +632,24 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                             type: 'Transfert Entrant',
                             notes: note,
                             paymentMethod: 'Crédit',
-                            linkedTxId: outgoingTransferRef.id
+                            linkedTxId: outgoingTransferRef.id,
+                            transferId,
+                            counterpartyClientId: receiverClientId,
+                            transferRole: 'destination',
+                            transferAmountDzd: amount
                         });
                         setAlert('✅ Droit transféré au client qui a reçu.');
-                        const clientsDelta = combineClientPositionDeltas([
-                            balanceTransitionForClient(receiverClientId, amount),
-                            balanceTransitionForClient(targetClientId, -amount),
-                        ]);
+                        const clientsDelta = buildClientBalanceTransferDelta({
+                            sourceBeforeBalance: clientBalances.get(receiverClientId) || 0,
+                            destinationBeforeBalance: clientBalances.get(targetClientId) || 0,
+                            amountDzd: amount,
+                        }).clients;
                         clientsDelta.activeClientsTodayDelta = activeClientTodayDelta(targetClientId, timestamp)
                             + activeClientTodayDelta(receiverClientId, timestamp);
                         readModelDelta = mustPrepareWriterReadModelDelta('clients.transfer', {
                             operationId: `legacy:clients.transfer:${outgoingTransferRef.id}`,
                             effectiveAt: timestamp,
-                            payload: { type: 'client_advance_transfer', fromClientId: receiverClientId, toClientId: targetClientId, amount },
+                            payload: { type: 'client_balance_transfer', transferId, fromClientId: receiverClientId, toClientId: targetClientId, amount },
                             affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
                             clients: clientsDelta,
                             recentOperation: { operationId: `legacy:clients.transfer:${outgoingTransferRef.id}`, source: 'legacy', type: 'Transfert client', effectiveAt: timestamp },

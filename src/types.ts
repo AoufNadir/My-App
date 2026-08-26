@@ -190,6 +190,10 @@ export interface ClientTransactionDzd {
     tags?: string[];
     linkedTxId?: string; // ID of the USDT/EUR transaction if applicable
     linkRole?: 'primary' | 'dzd_receiver';
+    transferId?: string;
+    counterpartyClientId?: string;
+    transferRole?: 'source' | 'destination';
+    transferAmountDzd?: number;
     paymentMethod?: 'Espèces' | 'BaridiMob' | 'Crédit' | 'USDT' | 'EUR';
     /** ISO yyyy-mm-dd due date for credit debt lots. */
     creditDueDate?: string;

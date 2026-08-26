@@ -179,6 +179,30 @@ export function combineClientPositionDeltas(deltas: readonly ClientPositionDelta
     };
 }
 
+export function buildClientBalanceTransferDelta(input: {
+    sourceBeforeBalance: number;
+    destinationBeforeBalance: number;
+    amountDzd: number;
+}): {
+    sourceAfterBalance: number;
+    destinationAfterBalance: number;
+    clients: ClientPositionDelta;
+} {
+    const amount = money(Math.abs(Number(input.amountDzd || 0)));
+    const sourceBefore = money(input.sourceBeforeBalance);
+    const destinationBefore = money(input.destinationBeforeBalance);
+    const sourceAfterBalance = money(sourceBefore + amount);
+    const destinationAfterBalance = money(destinationBefore - amount);
+    return {
+        sourceAfterBalance,
+        destinationAfterBalance,
+        clients: combineClientPositionDeltas([
+            transitionClientBalanceDelta(sourceBefore, sourceAfterBalance),
+            transitionClientBalanceDelta(destinationBefore, destinationAfterBalance),
+        ]),
+    };
+}
+
 function applyTreasuryDelta(summary: TreasuryReadModel, delta: ReadModelDelta): TreasuryReadModel {
     if (!isAffected(delta, 'treasury_summary'))
         return summary;

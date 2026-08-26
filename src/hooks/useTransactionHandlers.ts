@@ -20,7 +20,7 @@ import {
 import { allocateProfitDeltaAtTimestamp, type ManagerFeeHistoryEntry } from './useInvestorEconomics';
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
-import { combineClientPositionDeltas, derivePortfolioSellReadModelEconomics, invertReadModelDelta, combineReadModelDeltas, transitionClientBalanceDelta, type ClientPositionDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
+import { buildClientBalanceTransferDelta, combineClientPositionDeltas, derivePortfolioSellReadModelEconomics, invertReadModelDelta, combineReadModelDeltas, transitionClientBalanceDelta, type ClientPositionDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
 import { readUsdtTxLegacy, readTreasuryTxLegacy, readClientTxLegacy, readPersonalExpenseLegacy, type LegacyReadResult } from '../readModels/legacyReadDelta';
 import { serviceBalanceDelta } from './useAssetHandlers';
 import { LEGACY_EDIT_SOURCE_NOT_FOUND } from '../transactionService';
@@ -2283,6 +2283,29 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [transferNotes, setTransferNotes] = useState('');
     const [editingTransferTx, setEditingTransferTx] = useState<ClientTransactionDzd | null>(null);
     // Transfer Balance Logic
+    //
+    // SIGN CONVENTION (client balance, sum of `montant` over ClientTransactionDzd rows
+    // with `affectsBalance !== false`):
+    //   balance > 0  → the project owes the client (Avance / Solde en faveur du client)
+    //   balance < 0  → the client owes the project (Créance / Doit au projet)
+    //   balance == 0 → Solde réglé
+    //
+    // A "Transfert de solde entre clients" reallocates the *receivable / advance* of one
+    // client to another client, with NO Treasury / Portfolio / Profit / PAM impact.
+    //
+    //   sourceNewBalance      = sourceOldBalance      + amount
+    //   destinationNewBalance = destinationOldBalance - amount
+    //
+    // Notes:
+    //   - amount must be > 0; transfers that make source go from debt (negative) into
+    //     credit (positive) are allowed and pass through zero.
+    //   - the source row writes `montant: +amount` (`Transfert Sortant`).
+    //   - the destination row writes `montant: -amount` (`Transfert Entrant`).
+    //   - both rows share the same `transferId`, mirror each other, and are committed
+    //     atomically inside a Firestore batch together with the read model delta.
+    //   - the read model delta is computed by `buildClientBalanceTransferDelta` which
+    //     internally uses `transitionClientBalanceDelta` + `combineClientPositionDeltas`,
+    //     so receivables / advances cross-zero correctly.
     const getClientBalance = (clientId: string): number => {
         return clientTransactionsDzd
             .filter(tx => tx.clientId === clientId && tx.affectsBalance !== false)
@@ -2325,9 +2348,11 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setIsTransferModalOpen(false);
         resetTransferForm();
     };
-    const openTransferModal = (txToEdit: ClientTransactionDzd | null = null) => {
+    const openTransferModal = (txToEdit: ClientTransactionDzd | null = null, presetFromClientId = '') => {
         if (!txToEdit) {
             resetTransferForm();
+            if (presetFromClientId)
+                setTransferFromClientId(presetFromClientId);
             setIsTransferModalOpen(true);
             return;
         }
@@ -2360,17 +2385,31 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             const note = transferNotes.trim();
             const outgoingTransferRef = userDocRef.collection('dzd_client_txs').doc();
             const incomingTransferRef = userDocRef.collection('dzd_client_txs').doc();
-            // Source (De) advances money -> Credit (+amt)
+            const transferId = outgoingTransferRef.id;
+            // Sign convention (see header above):
+            //   source row  (Transfert Sortant)      : montant = +amt → raises source balance
+            //                                                (becomes less negative / more positive)
+            //   destination row (Transfert Entrant) : montant = -amt → lowers destination balance
+            //                                                (becomes more negative / less positive)
+            //   net effect on total client position = 0 (no debt is created or destroyed).
             batch.set(outgoingTransferRef, {
                 clientId: transferFromClientId, timestamp, date, time, montant: amt,
                 type: 'Transfert Sortant', notes: note,
-                paymentMethod: 'Crédit'
+                paymentMethod: 'Crédit',
+                transferId,
+                counterpartyClientId: transferToClientId,
+                transferRole: 'source',
+                transferAmountDzd: amt
             });
-            // Destination (À) receives benefit -> Debit (-amt)
             batch.set(incomingTransferRef, {
                 clientId: transferToClientId, timestamp: timestamp + 1, date, time, montant: -amt,
                 type: 'Transfert Entrant', notes: note,
-                paymentMethod: 'Crédit', linkedTxId: outgoingTransferRef.id
+                paymentMethod: 'Crédit',
+                linkedTxId: outgoingTransferRef.id,
+                transferId,
+                counterpartyClientId: transferFromClientId,
+                transferRole: 'destination',
+                transferAmountDzd: amt
             });
             recordClientShadow({
                 operationId: `shadow:client-advance-transfer:${transferFromClientId}:${transferToClientId}:${timestamp}`,
@@ -2382,17 +2421,18 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 amountDzd: amt,
                 fromPositionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, transferFromClientId, timestamp),
                 toPositionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, transferToClientId, timestamp),
-            }, { clientDeltas: { [transferFromClientId]: -amt, [transferToClientId]: amt }, clientAdvanceDzd: 0 });
+            }, { clientDeltas: { [transferFromClientId]: amt, [transferToClientId]: -amt }, clientAdvanceDzd: 0 });
             const fromBefore = clientPositionFromLegacyRows(clientTransactionsDzd, transferFromClientId, timestamp).balanceDzd;
             const toBefore = clientPositionFromLegacyRows(clientTransactionsDzd, transferToClientId, timestamp).balanceDzd;
-            const clientsDelta = combineClientPositionDeltas([
-                transitionClientBalanceDelta(fromBefore, fromBefore + amt),
-                transitionClientBalanceDelta(toBefore, toBefore - amt),
-            ]);
+            const clientsDelta = buildClientBalanceTransferDelta({
+                sourceBeforeBalance: fromBefore,
+                destinationBeforeBalance: toBefore,
+                amountDzd: amt,
+            }).clients;
             const readModelDelta = mustPrepareWriterReadModelDelta('clients.transfer', {
                 operationId: `legacy:clients.transfer:${outgoingTransferRef.id}`,
                 effectiveAt: timestamp,
-                payload: { type: 'client_transfer', fromClientId: transferFromClientId, toClientId: transferToClientId, amount: amt, outgoingId: outgoingTransferRef.id, incomingId: incomingTransferRef.id },
+                payload: { type: 'client_balance_transfer', transferId, fromClientId: transferFromClientId, toClientId: transferToClientId, amount: amt, outgoingId: outgoingTransferRef.id, incomingId: incomingTransferRef.id },
                 affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
                 clients: clientsDelta,
                 recentOperation: {
@@ -2448,7 +2488,11 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 montant: amt,
                 type: 'Transfert Sortant',
                 notes: note,
-                paymentMethod: 'Crédit'
+                paymentMethod: 'Crédit',
+                transferId: editingTransferTx.transferId || editingTransferTx.id,
+                counterpartyClientId: transferToClientId,
+                transferRole: 'source',
+                transferAmountDzd: amt
             });
             batch.update(userDocRef.collection('dzd_client_txs').doc(counterpart.id), {
                 clientId: transferToClientId,
@@ -2459,28 +2503,50 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 type: 'Transfert Entrant',
                 notes: note,
                 paymentMethod: 'Crédit',
-                linkedTxId: editingTransferTx.id
+                linkedTxId: editingTransferTx.id,
+                transferId: editingTransferTx.transferId || editingTransferTx.id,
+                counterpartyClientId: transferFromClientId,
+                transferRole: 'destination',
+                transferAmountDzd: amt
             });
             const editMutationSeq = timestamp;
             const oldAmt = Math.abs(Number(editingTransferTx.montant || 0));
-            const oldFromClientDelta = clientBalanceTransition(editingTransferTx.clientId, oldAmt, timestamp);
-            const oldToClientDelta = clientBalanceTransition(counterpart.clientId, -oldAmt, timestamp);
+            const oldSourceCurrent = clientPositionFromLegacyRows(clientTransactionsDzd, editingTransferTx.clientId, Number.MAX_SAFE_INTEGER).balanceDzd;
+            const oldDestinationCurrent = clientPositionFromLegacyRows(clientTransactionsDzd, counterpart.clientId, Number.MAX_SAFE_INTEGER).balanceDzd;
+            const oldTransferDeltaClients = buildClientBalanceTransferDelta({
+                sourceBeforeBalance: oldSourceCurrent - oldAmt,
+                destinationBeforeBalance: oldDestinationCurrent + oldAmt,
+                amountDzd: oldAmt,
+            }).clients;
             const oldTransferDelta = mustPrepareWriterReadModelDelta('clients.transfer', {
                 operationId: `legacy:edit:clients.transfer:${editingTransferTx.id}:${editMutationSeq}:old`,
                 effectiveAt: editingTransferTx.timestamp || timestamp,
-                payload: { type: 'client_transfer', fromClientId: editingTransferTx.clientId, toClientId: counterpart.clientId, amount: oldAmt, editInverse: true },
+                payload: { type: 'client_balance_transfer', fromClientId: editingTransferTx.clientId, toClientId: counterpart.clientId, amount: oldAmt, editInverse: true },
                 affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
-                clients: combineClientPositionDeltas([oldFromClientDelta, oldToClientDelta]),
+                clients: oldTransferDeltaClients,
                 recentOperation: { operationId: `legacy:edit:clients.transfer:${editingTransferTx.id}:${editMutationSeq}:old`, source: 'legacy', type: 'Transfert client', effectiveAt: editingTransferTx.timestamp || timestamp },
             });
-            const newFromClientDelta = clientBalanceTransition(transferFromClientId, amt, timestamp);
-            const newToClientDelta = clientBalanceTransition(transferToClientId, -amt, timestamp);
+            const oldEffectByClient = new Map<string, number>([
+                [editingTransferTx.clientId, oldAmt],
+                [counterpart.clientId, -oldAmt],
+            ]);
+            const balanceAfterOldInverse = (clientId: string) => {
+                const current = clientPositionFromLegacyRows(clientTransactionsDzd, clientId, Number.MAX_SAFE_INTEGER).balanceDzd;
+                return current - (oldEffectByClient.get(clientId) || 0);
+            };
+            const sourceAfterOldInverse = balanceAfterOldInverse(transferFromClientId);
+            const destinationAfterOldInverse = balanceAfterOldInverse(transferToClientId);
+            const newTransferDeltaClients = buildClientBalanceTransferDelta({
+                sourceBeforeBalance: sourceAfterOldInverse,
+                destinationBeforeBalance: destinationAfterOldInverse,
+                amountDzd: amt,
+            }).clients;
             const newTransferDelta = mustPrepareWriterReadModelDelta('clients.transfer', {
                 operationId: `legacy:edit:clients.transfer:${editingTransferTx.id}:${editMutationSeq}:new`,
                 effectiveAt: timestamp,
-                payload: { type: 'client_transfer', fromClientId: transferFromClientId, toClientId: transferToClientId, amount: amt },
+                payload: { type: 'client_balance_transfer', fromClientId: transferFromClientId, toClientId: transferToClientId, amount: amt },
                 affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
-                clients: combineClientPositionDeltas([newFromClientDelta, newToClientDelta]),
+                clients: newTransferDeltaClients,
                 recentOperation: { operationId: `legacy:edit:clients.transfer:${editingTransferTx.id}:${editMutationSeq}:new`, source: 'legacy', type: 'Transfert client', effectiveAt: timestamp },
             });
             await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [combineReadModelDeltas(invertReadModelDelta(oldTransferDelta), newTransferDelta)] });
