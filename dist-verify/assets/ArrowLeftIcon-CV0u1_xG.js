@@ -1,0 +1,1 @@
+import{j as o}from"./motion-tetL6wbw.js";const n=({className:r})=>o.jsxs("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round",className:r,children:[o.jsx("line",{x1:"19",y1:"12",x2:"5",y2:"12"}),o.jsx("polyline",{points:"12 19 5 12 12 5"})]});export{n as A};

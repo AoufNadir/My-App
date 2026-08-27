@@ -1,0 +1,184 @@
+/* ============================================================
+   DESIGN TOKENS - Fintech Mobile Refactor
+   Single source of truth for Tailwind v4 CSS-first tokens.
+
+   tailwind.config.ts may mirror these tokens with CSS variables
+   for tooling compatibility, but must not define independent values.
+   ============================================================ */
+@theme {
+  /* Brand */
+  --color-primary: #1E40AF;
+  --color-primary-light: #3B82F6;
+  --color-primary-dark: #1E3A8A;
+
+  --color-secondary: #0F766E;
+  --color-secondary-light: #14B8A6;
+  --color-secondary-dark: #0D5E57;
+
+  /* App surfaces */
+  --color-app-bg: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #F3F4F6;
+  --color-surface-raised: #FFFFFF;
+  --color-border: #E5E7EB;
+  --color-border-strong: #D1D5DB;
+  --color-overlay: rgb(17 24 39 / 0.62);
+  --color-fab-bg: #111827;
+  --color-fab-bg-hover: #1F2937;
+
+  /* Semantic states */
+  --color-success: #16A34A;
+  --color-success-light: #4ADE80;
+  --color-success-bg: #F0FDF4;
+
+  --color-danger: #DC2626;
+  --color-danger-light: #F87171;
+  --color-danger-bg: #FEF2F2;
+
+  --color-warning: #D97706;
+  --color-warning-light: #FCD34D;
+  --color-warning-bg: #FFFBEB;
+
+  --color-info: #2563EB;
+  --color-info-bg: #EFF6FF;
+
+  /* Neutral scale */
+  --color-neutral-50: #F9FAFB;
+  --color-neutral-100: #F3F4F6;
+  --color-neutral-200: #E5E7EB;
+  --color-neutral-300: #D1D5DB;
+  --color-neutral-400: #9CA3AF;
+  --color-neutral-500: #6B7280;
+  --color-neutral-600: #4B5563;
+  --color-neutral-700: #374151;
+  --color-neutral-800: #1F2937;
+  --color-neutral-900: #111827;
+
+  /* Financial semantics */
+  --color-financial-profit: #16A34A;
+  --color-financial-profit-bg: #F0FDF4;
+  --color-financial-loss: #DC2626;
+  --color-financial-loss-bg: #FEF2F2;
+  --color-financial-debt: #D97706;
+  --color-financial-debt-bg: #FFFBEB;
+  --color-financial-asset: #1E40AF;
+  --color-financial-asset-bg: #EFF6FF;
+  --color-financial-eur: #1E40AF;
+  --color-financial-usd: #16A34A;
+  --color-financial-dzd: #0F766E;
+
+  /* Action fills for white text */
+  --color-action-buy: #15803D;
+  --color-action-buy-hover: #166534;
+  --color-action-sell: #DC2626;
+  --color-action-sell-hover: #B91C1C;
+
+  /* Typography */
+  --font-arabic: 'Cairo', 'Tajawal', system-ui, sans-serif;
+  --font-latin: 'Inter', 'DM Sans', system-ui, sans-serif;
+
+  /* Spacing and touch targets */
+  --spacing-touch: 44px;
+  --spacing-touch-lg: 52px;
+  --spacing-button-sm: 40px;
+  --spacing-button-md: 44px;
+  --spacing-button-lg: 52px;
+  --spacing-icon-button: 44px;
+  --spacing-input: 48px;
+  --spacing-page-x: 16px;
+  --spacing-page-y: 20px;
+  --spacing-card: 16px;
+  --spacing-section: 24px;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-button: 12px;
+  --radius-card: 16px;
+
+  /* Mobile typography */
+  --text-mobile-page-title: 1.25rem;
+  --text-mobile-section-title: 1rem;
+  --text-mobile-body: 0.9375rem;
+  --text-mobile-small: 0.8125rem;
+  --text-mobile-kpi: 1.75rem;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px rgb(17 24 39 / 0.06), 0 1px 1px rgb(17 24 39 / 0.04);
+  --shadow-card-hover: 0 8px 24px rgb(17 24 39 / 0.10);
+  --shadow-dialog: 0 24px 60px rgb(17 24 39 / 0.22);
+}
+
+.dark {
+  /* Brand for dark mode */
+  --color-primary: #2563EB;
+  --color-primary-light: #60A5FA;
+  --color-primary-dark: #1D4ED8;
+
+  --color-secondary: #0F766E;
+  --color-secondary-light: #2DD4BF;
+  --color-secondary-dark: #0F766E;
+
+  /* App surfaces - high-contrast fintech dark theme */
+  --color-app-bg: #0A0F1D;
+  --color-surface: #111827;
+  --color-surface-muted: #182235;
+  --color-surface-raised: #1B2740;
+  --color-border: #2A3750;
+  --color-border-strong: #3B4A66;
+  --color-overlay: rgba(0, 0, 0, 0.75);
+  --color-fab-bg: #2563EB;
+  --color-fab-bg-hover: #60A5FA;
+
+  /* Semantic state backgrounds in dark mode */
+  --color-success: #15803D;
+  --color-success-light: #4ADE80;
+  --color-success-bg: rgba(34, 197, 94, 0.08);
+
+  --color-danger: #DC2626;
+  --color-danger-light: #F87171;
+  --color-danger-bg: rgba(239, 68, 68, 0.08);
+
+  --color-warning: #F59E0B;
+  --color-warning-light: #FCD34D;
+  --color-warning-bg: rgba(245, 158, 11, 0.08);
+
+  --color-info: #60A5FA;
+  --color-info-bg: rgba(96, 165, 250, 0.08);
+
+  /* Neutral scale - Inverted for dark mode text compatibility */
+  --color-neutral-50: #111827;
+  --color-neutral-100: #182235;
+  --color-neutral-200: #25334A;
+  --color-neutral-300: #3B4A66;
+  --color-neutral-400: #7F8EA8;
+  --color-neutral-500: #A8B3C7;
+  --color-neutral-600: #CBD5E1;
+  --color-neutral-700: #E2E8F0;
+  --color-neutral-800: #F8FAFC;
+  --color-neutral-900: #FFFFFF;
+
+  /* Financial semantics adjusted for dark mode */
+  --color-financial-profit: #22C55E;
+  --color-financial-profit-bg: #06210F;
+  --color-financial-loss: #F87171;
+  --color-financial-loss-bg: #351416;
+  --color-financial-debt: #F59E0B;
+  --color-financial-debt-bg: #2D2108;
+  --color-financial-asset: #60A5FA;
+  --color-financial-asset-bg: #102441;
+  --color-financial-eur: #60A5FA;
+  --color-financial-usd: #22C55E;
+  --color-financial-dzd: #2DD4BF;
+  --color-action-buy: #15803D;
+  --color-action-buy-hover: #166534;
+  --color-action-sell: #DC2626;
+  --color-action-sell-hover: #B91C1C;
+
+  /* Shadows adjusted for dark mode */
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+  --shadow-dialog: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+}

@@ -1,0 +1,129 @@
+import type { ClientTransactionDzd } from '../types';
+
+type PortfolioRawType = 'buy' | 'sell' | 'Ajout Manuel' | 'Retrait Manuel' | string;
+type TreasuryRawType = 'Ajout' | 'Retrait' | 'Adjustment (+)' | 'Adjustment (-)' | 'Transfer' | string;
+function canonicalize(raw: string): string {
+    return raw
+        .trim()
+        .toLowerCase()
+        // Handle mojibake fragments from legacy encoded strings.
+        .replace(/\u00e3[\u00a8\u00a9\u00aa]/g, 'e')
+        .replace(/\u00e3\u00a7/g, 'c')
+        .replace(/\u00e3[\u00a0\u00a2]/g, 'a')
+        .replace(/\u00e3[\u00b9\u00bb]/g, 'u')
+        .replace(/\u00e3\u00b4/g, 'o')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9+()\- ]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+type TranslateFn = (key: string) => string;
+const translate = (t: TranslateFn | undefined, key: string, fallback: string) => {
+    if (!t)
+        return fallback;
+    const value = t(key);
+    return value && value !== key ? value : fallback;
+};
+const applyTemplate = (template: string, values: Record<string, string>) => Object.entries(values)
+    .reduce((text, [key, value]) => text.replace(new RegExp(`\\{${key}\\}`, 'g'), value), template);
+export function isClientTransferType(type: string | undefined) {
+    const normalized = canonicalize(String(type || ''));
+    return normalized === 'transfert entrant' || normalized === 'transfert sortant';
+}
+export function isGeneratedClientNote(note: string | undefined) {
+    const normalized = canonicalize(String(note || ''));
+    return normalized.startsWith('transfert de ')
+        || normalized.startsWith('transfert vers ')
+        || normalized.startsWith('recu de ')
+        || normalized.startsWith('recu par ')
+        || normalized.startsWith('decaissement pour ');
+}
+export function getManualClientNote(note: string | undefined) {
+    const trimmed = (note || '').trim();
+    return trimmed && !isGeneratedClientNote(trimmed) ? trimmed : '';
+}
+export function getClientTransferDetails(tx: Pick<ClientTransactionDzd, 'type' | 'notes'>, counterpartName: string | undefined, t?: TranslateFn) {
+    const normalized = canonicalize(String(tx.type || ''));
+    if (!isClientTransferType(tx.type))
+        return getManualClientNote(tx.notes);
+    const peerName = (counterpartName || '').trim() || translate(t, 'ledger.unknownClient', 'Client inconnu');
+    const directionKey = normalized === 'transfert entrant' ? 'ledger.fromClient' : 'ledger.toClient';
+    const directionFallback = normalized === 'transfert entrant' ? 'De {client}' : 'Vers {client}';
+    const main = applyTemplate(translate(t, directionKey, directionFallback), { client: peerName });
+    const note = getManualClientNote(tx.notes);
+    return [main, note].filter(Boolean).join(' - ');
+}
+export function getPaymentMethodLabel(method: string | undefined, t?: TranslateFn) {
+    const normalized = canonicalize(String(method || ''));
+    if (normalized.includes('baridi'))
+        return translate(t, 'transactions.baridi', 'BaridiMob');
+    if (normalized.includes('credit'))
+        return translate(t, 'transactions.onCredit', 'Paiement différé');
+    if (normalized.includes('espe') || normalized.includes('cash') || normalized.includes('caisse'))
+        return translate(t, 'transactions.cash', 'Caisse');
+    return method || '';
+}
+
+/**
+ * Keeps legacy tag values stable in storage while presenting the unified
+ * financial wording everywhere in the interface and exported reports.
+ */
+export function getTransactionTagLabel(tag: string | undefined, t?: TranslateFn) {
+    const normalized = canonicalize(String(tag || ''));
+    if (normalized === 'credit')
+        return translate(t, 'transactions.credit', 'Paiement différé');
+    return tag || '';
+}
+// Without `t` (PDF exports) the legacy long French labels are kept; with `t`
+// (on-screen ledger) labels are short so they fit on one mobile line and
+// follow the active language.
+export function getPortfolioOperationLabel(type: PortfolioRawType, currency?: string, t?: TranslateFn): string {
+    const normalized = canonicalize(String(type || ''));
+    const safeCurrency = (currency || '').trim() || 'USDT';
+    if (normalized === 'buy')
+        return t ? `${t('ledger.buy')} ${safeCurrency}` : `Achat ${safeCurrency} (Portefeuille)`;
+    if (normalized === 'sell')
+        return t ? `${t('ledger.sell')} ${safeCurrency}` : `Vente ${safeCurrency} au Client`;
+    if (normalized === 'ajout manuel')
+        return t ? t('ledger.adjustPlus') : 'Ajustement + Portefeuille';
+    if (normalized === 'retrait manuel')
+        return t ? t('ledger.adjustMinus') : 'Ajustement - Portefeuille';
+    return String(type || (t ? t('ledger.portfolioOp') : 'Opération Portefeuille'));
+}
+export function getClientOperationLabel(type: string, t?: TranslateFn): string {
+    const normalized = canonicalize(String(type || ''));
+    if (normalized.includes('reglement') && normalized.includes('recu'))
+        return t ? t('ledger.receipt') : 'Encaissement du client';
+    if (normalized.includes('paiement') && normalized.includes('effect'))
+        return t ? t('ledger.payout') : 'Remboursement au client';
+    if (normalized === 'vente usdt')
+        return t ? `${t('ledger.sell')} USDT` : 'Vente USDT';
+    if (normalized === 'vente eur')
+        return t ? `${t('ledger.sell')} EUR` : 'Vente EUR';
+    if (normalized === 'achat eur')
+        return t ? `${t('ledger.buy')} EUR` : 'Achat EUR';
+    if (normalized === 'solde initial')
+        return t ? t('ledger.initialBalance') : 'Solde initial client';
+    if (normalized === 'transfert entrant')
+        return t ? t('ledger.transferIn') : 'Transfert entrant';
+    if (normalized === 'transfert sortant')
+        return t ? t('ledger.transferOut') : 'Transfert sortant';
+    if (normalized === 'ajustement solde')
+        return t ? t('ledger.balanceFix') : 'Correction solde client';
+    return String(type || (t ? t('ledger.clientOp') : 'Opération client'));
+}
+export function getTreasuryOperationLabel(type: TreasuryRawType, t?: TranslateFn): string {
+    const normalized = canonicalize(String(type || ''));
+    if (normalized === 'ajout')
+        return t ? t('ledger.treasuryIn') : 'Entrée trésorerie';
+    if (normalized === 'retrait')
+        return t ? t('ledger.treasuryOut') : 'Sortie trésorerie';
+    if (normalized === 'adjustment (+)' || normalized === 'adjustment +')
+        return t ? `${t('ledger.adjustPlus')}` : 'Ajustement + trésorerie';
+    if (normalized === 'adjustment (-)' || normalized === 'adjustment -')
+        return t ? `${t('ledger.adjustMinus')}` : 'Ajustement - trésorerie';
+    if (normalized === 'transfer')
+        return t ? t('ledger.internalTransfer') : 'Virement interne (Caisse <-> Baridi)';
+    return String(type || (t ? t('ledger.treasuryOp') : 'Opération trésorerie'));
+}

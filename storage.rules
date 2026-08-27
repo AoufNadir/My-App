@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// Pro Digital — Cloud Storage security rules.
+//
+// The client/agent order portal is retired, so proof uploads are disabled.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    match /po_proofs/{uid}/{orderId}/{fileName} {
+      allow read, write: if false;
+    }
+
+    // Default deny.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,120 @@
+rules_version = '2';
+
+// Pro Digital — Firestore security rules.
+//
+// The client/agent order portal is retired in the app. Keep po_* order-system
+// collections admin-only so stale client code or direct Firestore calls cannot
+// create financial records through that surface.
+//
+// Roles (admin / client / agent) are resolved from po_users/{uid} because the
+// app is client-only (no backend, so no custom claims). The single operator is
+// bootstrapped by hard-coded UID so they are admin even before any po_users doc
+// exists.
+//
+// ┌──────────────────────────────────────────────────────────────────────────┐
+// │ DEPLOY PREREQUISITE: replace OPERATOR_UID below with the operator's real   │
+// │ Firebase Auth uid before deploying. Until then no admin/po_* writes work.  │
+// │ Keep this value in sync with OPERATOR_UID in src/config/orderSystem.ts.    │
+// └──────────────────────────────────────────────────────────────────────────┘
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function operatorUid() {
+      return 'JIz5y9XWhuc1hsoL3uOFjQ338cb2';
+    }
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasProfile() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/po_users/$(request.auth.uid));
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/po_users/$(request.auth.uid)).data;
+    }
+
+    function isBootstrapAdmin() {
+      return signedIn() && request.auth.uid == operatorUid();
+    }
+
+    function isAdmin() {
+      return isBootstrapAdmin()
+        || (hasProfile() && profile().role == 'admin' && profile().status == 'approved');
+    }
+
+    function isApprovedClient() {
+      return hasProfile() && profile().role == 'client' && profile().status == 'approved';
+    }
+
+    function isAgent() {
+      return hasProfile() && profile().role == 'agent' && profile().status == 'approved';
+    }
+
+    // ── Operator's existing single-tenant data: strictly owner-only. ──
+    // Covers the users/{uid} document itself (settings, fcmToken,
+    // managerFeePercentage…) AND every nested subcollection. The bare
+    // /{document=**} wildcard alone does NOT match the parent document.
+    match /users/{ownerUid} {
+      allow read, write: if signedIn() && request.auth.uid == ownerUid;
+      match /{document=**} {
+        allow read, write: if signedIn() && request.auth.uid == ownerUid;
+      }
+    }
+
+    // ── Role / profile docs. ──
+    match /po_users/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+
+      // Bootstrap operator can seed their own admin profile.
+      allow create: if isBootstrapAdmin() && request.auth.uid == uid;
+
+      // Self-update: contact fields only — never role/status/links/debt.
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['displayName', 'phone', 'email']);
+
+      // Admin manages roles, status, links, debt policy.
+      allow update, delete: if isAdmin();
+    }
+
+    // ── Retired order portal: admin-only. ──
+    match /po_orders/{orderId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── Retired order catalog: admin-only. ──
+    match /po_currencies/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /po_pricing_tiers/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /po_payment_methods/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /po_cash_locations/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── Retired agent cash confirmations: admin-only. ──
+    match /po_agent_confirmations/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── Audit log: admin-only append, immutable. ──
+    match /po_audit_logs/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && request.resource.data.actorUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ── Default deny. ──
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>USDT Tracker</title>
+
+  <!-- PWA Manifest and Meta Tags -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#0B1120" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ProDigital" />
+  <link rel="apple-touch-icon" href="/pwa-icon.png" />
+  <link rel="icon" href="/pwa-icon.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Tajawal', sans-serif;
+      line-height: 1.5;
+      /* Improve font rendering and prevent background scroll on iOS when modals are open */
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+  </style>
+
+  <script type="module" crossorigin src="/assets/index-wu-Qj_1J.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/react-Bzgz95E1.js">
+  <link rel="modulepreload" crossorigin href="/assets/motion-tetL6wbw.js">
+  <link rel="modulepreload" crossorigin href="/assets/firebaseAuth-BecYTPPX.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-CY4Vl_R4.css">
+</head>
+
+<body>
+  <div id="root"></div>
+
+
+  <!-- Service Worker Registration Script -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js').then(registration => {
+          console.log('Service Worker registered: ', registration);
+        }).catch(registrationError => {
+          console.log('Service Worker registration failed: ', registrationError);
+        });
+      });
+    }
+  </script>
+</body>
+
+</html>

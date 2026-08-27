@@ -1,0 +1,248 @@
+{
+  "url": "https://proodigital-7ec70--test-a47n5lr6.web.app/",
+  "console": [
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:28.509Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:28.849Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:29.142Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:29.432Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:29.723Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:30.006Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:30.269Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:30.546Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:30.840Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:31.113Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:31.379Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:31.650Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:31.917Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:32.192Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:32.450Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:32.724Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:32.990Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:33.252Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered:  ServiceWorkerRegistration"
+    },
+    {
+      "type": "warning",
+      "text": "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    },
+    {
+      "type": "warning",
+      "text": "[2025-11-21T20:21:33.525Z]  @firebase/app-compat: \n      Warning: Firebase is already defined in the global scope. Please make sure\n      Firebase library is only loaded once.\n    "
+    }
+  ],
+  "errors": [],
+  "responses": [],
+  "failedRequests": [
+    {
+      "url": "https://fonts.gstatic.com/s/tajawal/v12/Iurf6YBj_oCad4k1l8KiHrFpiQ.woff2",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/tajawal/v12/Iurf6YBj_oCad4k1l4qkHrFpiQ.woff2",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/tajawal/v12/Iura6YBj_oCad4k1nzGBCw.woff2",
+      "failure": "net::ERR_ABORTED"
+    }
+  ],
+  "pageErrors": [],
+  "mainStatus": 200,
+  "screenshot": "deploy-screenshot.png"
+}
