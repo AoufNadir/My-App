@@ -1661,6 +1661,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [transferFromClientId, setTransferFromClientId] = useState('');
     const [transferToClientId, setTransferToClientId] = useState('');
     const [transferNotes, setTransferNotes] = useState('');
+    const [transferDate, setTransferDate] = useState('');
+    const [transferTime, setTransferTime] = useState('');
     const [editingTransferTx, setEditingTransferTx] = useState<ClientTransactionDzd | null>(null);
     // Transfer Balance Logic
     const getClientBalance = (clientId: string): number => {
@@ -1700,6 +1702,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setTransferFromClientId('');
         setTransferToClientId('');
         setTransferNotes('');
+        setTransferDate('');
+        setTransferTime('');
     };
     const closeTransferModal = () => {
         setIsTransferModalOpen(false);
@@ -1926,7 +1930,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         txToDelete, setTxToDelete, handleConfirmDeleteTx,
         isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount,
         transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId,
-        transferNotes, setTransferNotes, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer: handleSaveTransferWithEditing,
+        transferNotes, setTransferNotes, transferDate, setTransferDate, transferTime, setTransferTime,
+        editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer: handleSaveTransferWithEditing,
         transferFromBalance, transferToBalance,
         handleApplyLock24hToRecentBuys
     };

@@ -10,7 +10,7 @@ import {
 assert.equal(getClientOperationLabel('Transfert Entrant'), 'Transfert entrant');
 assert.equal(getClientOperationLabel('Transfert Sortant'), 'Transfert sortant');
 assert.equal(getClientOperationLabel('Règlement Reçu'), 'Encaissement du client');
-assert.equal(getClientOperationLabel('Paiement Effectué'), 'Remboursement au client');
+assert.equal(getClientOperationLabel('Paiement Effectué'), 'Paiement au client');
 
 assert.equal(getManualClientNote('Transfert de Omar'), '');
 assert.equal(getManualClientNote('Reçu de Omar'), '');

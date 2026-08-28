@@ -294,8 +294,15 @@ type ClientTransferDialogProps = {
     balanceLabel: string;
     dinarLabel: string;
     confirmLabel: string;
+    date?: string;
+    setDate?: (value: string) => void;
+    time?: string;
+    setTime?: (value: string) => void;
+    dateLabel?: string;
+    timeLabel?: string;
+    maxDisabled?: boolean;
 };
-export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromClientId, toClientId, setToClientId, amount, setAmount, notes, setNotes, onSave, isSaving, clients, fromBalance, toBalance, onMaxFrom, title, infoText, fromLabel, toLabel, amountLabel, notesLabel, filterClientsLabel, balanceLabel, dinarLabel, confirmLabel }: ClientTransferDialogProps) {
+export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromClientId, toClientId, setToClientId, amount, setAmount, notes, setNotes, onSave, isSaving, clients, fromBalance, toBalance, onMaxFrom, title, infoText, fromLabel, toLabel, amountLabel, notesLabel, filterClientsLabel, balanceLabel, dinarLabel, confirmLabel, date, setDate, time, setTime, dateLabel, timeLabel, maxDisabled = false }: ClientTransferDialogProps) {
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
       <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
         <ModalTitle className="text-base sm:text-lg">{title}</ModalTitle>
@@ -320,7 +327,23 @@ export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromCli
               {balanceLabel}: {formatMoney(toBalance, 'DZD')}
             </p>)}
         </div>
-        <MoneyField label={amountLabel} value={amount} onChange={setAmount} currency="DZD" onMax={fromClientId ? onMaxFrom : undefined} maxLabel="Max"/>
+        <MoneyField label={amountLabel} value={amount} onChange={setAmount} currency="DZD" onMax={fromClientId ? onMaxFrom : undefined} maxLabel="MAX" maxDisabled={maxDisabled}/>
+        {setDate && setTime && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>{dateLabel || 'Date'}</Label>
+              <div className="mt-1">
+                <DatePicker value={date ?? ''} onChange={setDate} ariaLabel={dateLabel || 'Date'}/>
+              </div>
+            </div>
+            <div>
+              <Label>{timeLabel || 'Heure'}</Label>
+              <div className="mt-1">
+                <Input value={time ?? ''} onChange={(e) => setTime(e.target.value)} placeholder="HH:mm" type="time"/>
+              </div>
+            </div>
+          </div>
+        )}
         {(() => {
             const amt = parseAndEvaluate(amount);
             if (!fromClientId || !toClientId || fromClientId === toClientId)

@@ -20,6 +20,9 @@ import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
 import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { UsersIcon } from '../icons/UsersIcon';
 import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
+import { CalendarIcon } from '../icons/CalendarIcon';
+import { TrendingUpIcon } from '../icons/TrendingUpIcon';
+import { TrendingDownIcon } from '../icons/TrendingDownIcon';
 import { formatDzd, formatNumber, getRelativeFrDateLabel } from '../../pages/shared/pageFormat';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { TransactionDisplayList } from '../transactions/TransactionDisplayList';
@@ -43,6 +46,7 @@ type ClientDetailsViewProps = {
     handleEditClientTx: (tx: ClientTransactionDzd) => void;
     handleDeleteClientTxClick: (tx: ClientTransactionDzd) => void;
     openClientTxModal: (tx: ClientTransactionDzd | null, presetType?: string, selectedClientId?: string) => void;
+    openClientToClientTransferModal: (sourceClient: ClientDzd) => void;
     handleExportClientReport: (clientId: string, month: number, year: number) => void;
 };
 type ContactRowProps = {
@@ -147,7 +151,7 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone }: ContactRowPr
       </div>
     </div>);
 }
-export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, handleExportClientReport }: ClientDetailsViewProps) {
+export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal, handleExportClientReport }: ClientDetailsViewProps) {
     const { t } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 60;
     const LOAD_MORE_TRANSACTIONS = 60;
@@ -453,6 +457,49 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             { label: t('reports.operations') as string, value: totalTransactionCount, currency: null, semantic: 'plain' }
         ]}/>
 
+      {clientStats.txCount > 0 && (
+        <Card>
+          <CardHeader className="p-4 pb-3">
+            <SectionHeading icon={<CalendarIcon className="w-4 h-4"/>}>{t('clients.activitySummary')}</SectionHeading>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                  <TrendingDownIcon className="w-3.5 h-3.5"/>
+                  {t('clients.totalReceived')}
+                </div>
+                <p dir="ltr" className="mt-1 text-lg font-bold text-emerald-700 tabular-nums">
+                  {formatDzd(clientStats.totalReceived)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-3">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-rose-700">
+                  <TrendingUpIcon className="w-3.5 h-3.5"/>
+                  {t('clients.totalPaid')}
+                </div>
+                <p dir="ltr" className="mt-1 text-lg font-bold text-rose-700 tabular-nums">
+                  {formatDzd(clientStats.totalPaid)}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+              <div className="rounded-lg bg-neutral-50 p-2.5">
+                <p className="text-[10px] font-semibold uppercase text-neutral-500">{t('clients.lastOperation')}</p>
+                <p dir="ltr" className="mt-0.5 font-semibold text-neutral-800 tabular-nums">{clientStats.lastDate || '—'}</p>
+                {clientStats.daysSinceLast != null && clientStats.daysSinceLast > 0 && (
+                  <p className="text-[10px] text-neutral-500">{(t('clients.daysSinceLastOp') as string).replace('{n}', String(clientStats.daysSinceLast))}</p>
+                )}
+              </div>
+              <div className="rounded-lg bg-neutral-50 p-2.5">
+                <p className="text-[10px] font-semibold uppercase text-neutral-500">{t('clients.firstOperation')}</p>
+                <p dir="ltr" className="mt-0.5 font-semibold text-neutral-800 tabular-nums">{clientStats.firstDate || '—'}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="p-4 pb-3">
           <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>{t('clients.actions')}</SectionHeading>
@@ -468,6 +515,15 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
               {t('transactions.paymentMade')}
             </Button>
           </div>
+          <button
+            type="button"
+            onClick={() => openClientToClientTransferModal(selectedClient)}
+            data-testid="client-transfer-button"
+            className="inline-flex min-h-button-md w-full min-w-0 items-center justify-center gap-2 rounded-button bg-neutral-100 px-4 py-2.5 text-sm font-bold leading-tight text-neutral-700 transition-colors hover:bg-neutral-200 active:scale-[0.98] active:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-app-bg"
+          >
+            <UsersIcon className="w-4 h-4"/>
+            <span>{t('clients.transferBetweenClients')}</span>
+          </button>
           {hasDebt && (
             <button
               type="button"

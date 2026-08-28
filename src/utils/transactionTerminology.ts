@@ -96,7 +96,7 @@ export function getClientOperationLabel(type: string, t?: TranslateFn): string {
     if (normalized.includes('reglement') && normalized.includes('recu'))
         return t ? t('ledger.receipt') : 'Encaissement du client';
     if (normalized.includes('paiement') && normalized.includes('effect'))
-        return t ? t('ledger.payout') : 'Remboursement au client';
+        return t ? t('ledger.payout') : 'Paiement au client';
     if (normalized === 'vente usdt')
         return t ? `${t('ledger.sell')} USDT` : 'Vente USDT';
     if (normalized === 'vente eur')

@@ -33,6 +33,16 @@ const normalizePersonName = (value: string | undefined) => ((value || '')
     .replace(/\s+/g, ' ')
     .trim());
 const getClientNameForMatching = (client: ClientDzd) => (client.fullName || [client.nom, client.prenom].filter(Boolean).join(' '));
+/** Parses a HH:mm time string into a millisecond offset within the day. */
+const parseTimeToMs = (time: string): number => {
+    const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(time.trim());
+    if (!match)
+        return 0;
+    const hh = Number(match[1]);
+    const mm = Number(match[2]);
+    const ss = match[3] ? Number(match[3]) : 0;
+    return ((hh * 60 + mm) * 60 + ss) * 1000;
+};
 export function useClientHandlers(userDocRef: FirestoreDocumentReference, clientsDzd: ClientDzd[], clientTransactionsDzd: ClientTransactionDzd[], clientBalances: Map<string, number>, treasuryTransactions: TreasuryTx[], treasuryStats: {
     caisse: number;
     baridi: number;
@@ -806,6 +816,156 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         }
     };
 
+    // Maximum transferable amount for a client.
+    //   source < 0  (client owes us)  -> |balance|
+    //   source > 0  (we owe client)  -> balance
+    //   source == 0                   -> 0
+    const getClientTransferableAmount = (fromClientId: string): number => {
+        const balance = clientBalances.get(fromClientId) || 0;
+        if (balance < 0)
+            return Math.abs(balance);
+        if (balance > 0)
+            return balance;
+        return 0;
+    };
+
+    // Client-to-client balance transfer (ledger-only). Source loses -amount, target gains +amount.
+    const handleClientToClientTransfer = async (params: {
+        fromClientId: string;
+        toClientId: string;
+        amount: number;
+        date?: string;
+        time?: string;
+        notes?: string;
+    }): Promise<boolean> => {
+        if (isSaving)
+            return false;
+        const { fromClientId, toClientId } = params;
+        const amount = Number(params.amount);
+        const note = (params.notes || '').trim();
+        if (!fromClientId || !toClientId) {
+            setAlert('⚠️ Client source ou destination manquant.');
+            return false;
+        }
+        if (fromClientId === toClientId) {
+            setAlert('⚠️ Le client source et le client destination doivent être différents.');
+            return false;
+        }
+        if (!Number.isFinite(amount) || amount <= 0) {
+            setAlert('⚠️ Le montant doit être strictement positif.');
+            return false;
+        }
+        const sourceBalance = clientBalances.get(fromClientId) || 0;
+        const transferable = sourceBalance < 0
+            ? Math.abs(sourceBalance)
+            : (sourceBalance > 0 ? sourceBalance : 0);
+        if (amount > transferable + 0.005) {
+            setAlert('⚠️ Le montant dépasse le solde transférable du client source.');
+            return false;
+        }
+        const stamp = now();
+        let date = stamp.date;
+        let time = stamp.time;
+        let timestamp = stamp.timestamp;
+        const providedDate = (params.date || '').trim();
+        const providedTime = (params.time || '').trim();
+        if (providedDate) {
+            const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(providedDate);
+            const frMatch = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(providedDate);
+            if (isoMatch) {
+                date = `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+                const dayStart = Date.UTC(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+                timestamp = providedTime ? dayStart + parseTimeToMs(providedTime) : dayStart;
+            }
+            else if (frMatch) {
+                date = providedDate;
+                const dayStart = Date.UTC(Number(frMatch[3]), Number(frMatch[2]) - 1, Number(frMatch[1]));
+                timestamp = providedTime ? dayStart + parseTimeToMs(providedTime) : dayStart;
+            }
+            if (providedTime)
+                time = providedTime;
+        }
+        setIsSaving(true);
+        try {
+            const fromPositionBefore = clientPositionFromLegacyRows(clientTransactionsDzd, fromClientId, timestamp);
+            const toPositionBefore = clientPositionFromLegacyRows(clientTransactionsDzd, toClientId, timestamp);
+            const isReceivableTransfer = sourceBalance < -0.005;
+            const outgoingTransferRef = userDocRef.collection('dzd_client_txs').doc();
+            const incomingTransferRef = userDocRef.collection('dzd_client_txs').doc();
+            const batch = db.batch();
+            batch.set(outgoingTransferRef, {
+                clientId: fromClientId, timestamp, date, time,
+                montant: -amount, type: 'Transfert Sortant', notes: note, paymentMethod: 'Crédit',
+            });
+            batch.set(incomingTransferRef, {
+                clientId: toClientId, timestamp: timestamp + 1, date, time,
+                montant: amount, type: 'Transfert Entrant', notes: note,
+                paymentMethod: 'Crédit', linkedTxId: outgoingTransferRef.id,
+            });
+            const fromBeforeBalance = fromPositionBefore.balanceDzd;
+            const toBeforeBalance = toPositionBefore.balanceDzd;
+            const clientsDelta = combineClientPositionDeltas([
+                transitionClientBalanceDelta(fromBeforeBalance, fromBeforeBalance - amount),
+                transitionClientBalanceDelta(toBeforeBalance, toBeforeBalance + amount),
+            ]);
+            clientsDelta.activeClientsTodayDelta =
+                activeClientTodayDelta(fromClientId, timestamp) +
+                activeClientTodayDelta(toClientId, timestamp);
+            const readModelDelta = mustPrepareWriterReadModelDelta('clients.transfer', {
+                operationId: `legacy:clients.transfer:${outgoingTransferRef.id}`,
+                effectiveAt: timestamp,
+                payload: {
+                    type: isReceivableTransfer ? 'client_receivable_transfer' : 'client_advance_transfer',
+                    fromClientId, toClientId, amount,
+                    outgoingId: outgoingTransferRef.id, incomingId: incomingTransferRef.id,
+                },
+                affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                clients: clientsDelta,
+                recentOperation: {
+                    operationId: `legacy:clients.transfer:${outgoingTransferRef.id}`,
+                    source: 'legacy', type: 'Transfert client', effectiveAt: timestamp,
+                },
+            });
+            if (isReceivableTransfer) {
+                recordClientShadow({
+                    operationId: `shadow:client-receivable-transfer:${fromClientId}:${toClientId}:${timestamp}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'client_receivable_transfer',
+                    fromClientId, toClientId, amountDzd: amount,
+                    fromPositionBefore, toPositionBefore,
+                }, {
+                    clientDeltas: { [fromClientId]: -amount, [toClientId]: amount },
+                    receivableDzd: 0,
+                });
+            }
+            else {
+                recordClientShadow({
+                    operationId: `shadow:client-advance-transfer:${fromClientId}:${toClientId}:${timestamp}`,
+                    actorUid: userDocRef.id,
+                    effectiveAt: timestamp,
+                    kind: 'client_advance_transfer',
+                    fromClientId, toClientId, amountDzd: amount,
+                    fromPositionBefore, toPositionBefore,
+                }, {
+                    clientDeltas: { [fromClientId]: -amount, [toClientId]: amount },
+                    clientAdvanceDzd: 0,
+                });
+            }
+            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [readModelDelta] });
+            setAlert('✅ Transfert entre clients réussi.');
+            return true;
+        }
+        catch (e) {
+            console.error(e);
+            setAlert('❌ Erreur lors du transfert entre clients.');
+            return false;
+        }
+        finally {
+            setIsSaving(false);
+        }
+    };
+
     return {
         isSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode,
         clientFullName, setClientFullName, clientPhone, setClientPhone,
@@ -818,6 +978,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         clientTxSource, setClientTxSource, clientPaymentStatus, setClientPaymentStatus,
         linkedClientId, setLinkedClientId, clientTxReceiverClientId, setClientTxReceiverClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx,
         clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice,
-        clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice
+        clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice,
+        handleClientToClientTransfer, getClientTransferableAmount
     };
 }
