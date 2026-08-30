@@ -19,13 +19,7 @@ type CapitalOverviewSecondaryItem = HeroKpiSecondary & {
 export function CapitalOverviewCard({ t, capitalSnapshot, investorBreakdown }: CapitalOverviewCardProps) {
     const secondaryItems: CapitalOverviewSecondaryItem[] = [
         { label: t('finance.projectNetAssets'), value: capitalSnapshot.totalCapital, currency: 'DZD', semantic: 'plain' },
-        { label: t('treasury.investorCapital'), value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, currency: 'DZD', semantic: 'loss', hideWhenZero: true },
-        { label: t('treasury.profitsNotWithdrawn'), value: investorBreakdown?.profits ?? 0, currency: 'DZD', semantic: 'loss', hideWhenZero: true },
-        { label: t('finance.liquidity'), value: capitalSnapshot.cashTotal, currency: 'DZD', semantic: 'plain' },
-        { label: t('finance.stock'), value: capitalSnapshot.stockValue, currency: 'DZD', semantic: 'plain', hideWhenZero: true },
-        { label: t('finance.treasuryCards'), value: capitalSnapshot.treasuryCardsTotal, currency: 'DZD', semantic: 'plain', hideWhenZero: true },
-        { label: t('finance.servicesNetPosition'), value: capitalSnapshot.servicesCapitalImpact, currency: 'DZD', semantic: 'auto', hideWhenZero: true },
-        { label: t('finance.netPosition'), value: capitalSnapshot.netClientPosition, currency: 'DZD', semantic: 'auto', hideWhenZero: true }
+        { label: t('finance.investorLiability'), value: investorBreakdown?.total ?? capitalSnapshot.investorLiability, currency: 'DZD', semantic: 'loss', hideWhenZero: true },
     ];
     const visibleSecondaryItems = secondaryItems.filter((item) => !item.hideWhenZero || Math.abs(item.value) > 0.005);
 

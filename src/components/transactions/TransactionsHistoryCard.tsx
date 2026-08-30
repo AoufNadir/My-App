@@ -12,6 +12,7 @@ import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { CreditCardIcon } from '../icons/CreditCardIcon';
 import { FilterIcon } from '../icons/FilterIcon';
+import { MenuIcon } from '../icons/MenuIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { UsersIcon } from '../icons/UsersIcon';
 import { TransactionDisplayList } from './TransactionDisplayList';
@@ -198,16 +199,6 @@ export function TransactionsHistoryCard({
   ];
   const getGroupModes = (group: FilterGroup) => [group.mode, ...group.sections.flatMap((section) => section.modes.map((item) => item.mode))];
   const activeFilterGroup = filterGroups.find((group) => getGroupModes(group).includes(filterMode)) || filterGroups[0];
-  const activeSection = activeFilterGroup.sections.find((section) => section.modes.some((item) => item.mode === filterMode));
-  const activeFilterItem = activeSection?.modes.find((item) => item.mode === filterMode);
-  const activeFilterLabel = (() => {
-    if (!activeFilterGroup || filterMode === activeFilterGroup.mode) return txFilterLabels[filterMode] || activeFilterGroup?.label || '';
-    const parts = [activeFilterGroup.label];
-    if (activeSection?.title) parts.push(activeSection.title);
-    const itemLabel = activeFilterItem?.label || txFilterLabels[filterMode];
-    if (itemLabel && itemLabel !== allLabel) parts.push(itemLabel);
-    return parts.filter(Boolean).join(' / ');
-  })();
 
   useEffect(() => {
     setVisibleTransactionCount(INITIAL_VISIBLE);
@@ -310,9 +301,9 @@ export function TransactionsHistoryCard({
               align="start"
               contentClassName="w-[calc(100vw-2rem)] max-w-2xl max-h-[72vh] overflow-y-auto p-2"
               trigger={(
-                <Button variant="outline" className="min-h-touch w-full min-w-0 justify-start gap-2 rounded-lg px-3 text-xs font-bold bg-neutral-100 hover:bg-neutral-200 text-neutral-800 transition-colors">
+                <Button variant="outline" className="min-h-touch w-full min-w-0 justify-start gap-2 rounded-lg border-border bg-neutral-100 px-3 text-xs font-bold text-neutral-800 transition-colors hover:bg-neutral-200">
                   <FilterIcon className="h-4 w-4 shrink-0" />
-                  <span className="min-w-0 truncate">{activeFilterLabel}</span>
+                  <span className="min-w-0 truncate">{t('transactions.filterAction')}</span>
                   <span className="ms-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] bg-surface text-neutral-600">
                     {txFilterCounts[filterMode] || 0}
                   </span>
@@ -420,7 +411,7 @@ export function TransactionsHistoryCard({
             <Button
               onClick={openDateFilterModal}
               className={[
-                'min-h-touch px-3 rounded-lg text-xs font-bold transition-colors',
+                'min-h-touch rounded-lg border border-border px-3 text-xs font-bold transition-colors',
                 dateRange.start
                   ? 'bg-primary/10 text-primary hover:bg-primary/20'
                   : 'bg-neutral-200 hover:bg-neutral-300 text-neutral-700',
@@ -428,19 +419,24 @@ export function TransactionsHistoryCard({
               aria-label={t('transactions.filterByDate')}
             >
               <CalendarIcon className="w-4 h-4 sm:me-1" />
-              <span className="hidden sm:inline">{t('transactions.dates')}</span>
+              <span className="hidden sm:inline">{t('transactions.dateFilter')}</span>
             </Button>
 
             <Dropdown
               trigger={(
-                <Button className="min-h-touch px-3 text-xs rounded-lg font-bold transition-colors bg-primary/10 hover:bg-primary/20 text-primary">
-                  <span>{t('transactions.savedFilters')}</span>
+                <Button
+                  className="min-h-touch rounded-lg border border-border bg-neutral-100 px-3 text-xs font-bold text-neutral-700 transition-colors hover:bg-neutral-200"
+                  title={t('transactions.more')}
+                  aria-label={t('transactions.more')}
+                >
+                  <MenuIcon className="h-4 w-4 sm:me-1" />
+                  <span className="hidden sm:inline">{t('transactions.more')}</span>
                 </Button>
               )}
             >
               <button
                 onClick={onSaveCurrentFilter}
-                className="mb-1 w-full min-h-touch text-start text-sm font-semibold px-3 py-2 rounded-md bg-primary hover:bg-primary-dark text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="mb-1 w-full min-h-touch rounded-lg bg-primary px-3 py-2 text-start text-sm font-semibold text-white hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 + {t('transactions.saveCurrentFilter')}
               </button>

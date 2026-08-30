@@ -154,63 +154,54 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
           </div>
         </button>)}
 
-      <HeroKpiCard accent="sky" icon={<UsersIcon className="w-5 h-5"/>} primaryLabel={t('clients.totalClients') as string} primaryValue={filteredClientsDzd.length} primaryCurrency={null} primarySemantic="plain" secondary={[
+      <HeroKpiCard accent="sky" icon={<UsersIcon className="w-5 h-5"/>} primaryLabel={t('clients.listOverview') as string} primaryValue={filteredClientsDzd.length} primaryCurrency={null} primarySemantic="plain" secondary={[
             { label: t('clients.sortDebts') as string, value: clientsWithDebt, currency: null, semantic: 'plain' },
             { label: t('clients.sortAdvances') as string, value: clientsWithAdvance, currency: null, semantic: 'plain' },
             { label: t('clients.lateShort') as string, value: overdueCount, display: overdueDisplay }
         ]}/>
 
-      <Card>
-        <CardHeader className="p-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <SectionHeading icon={<UsersIcon className="w-4 h-4"/>}>
-                {t('clients.clientsList')}
-              </SectionHeading>
-              <span className="text-sm text-neutral-500">{filteredClientsDzd.length}</span>
-            </div>
+      <div className="flex gap-2">
+        <Button onClick={() => openClientModal(null)} variant="primary" size="lg" className="flex-1 font-bold">
+          <UserIcon className="w-5 h-5"/>
+          <span>{t('transactions.newClient')}</span>
+        </Button>
+        <Button onClick={() => exportClientsPdf(filteredClientsDzd, clientBalances, getClientFullName)} variant="outline" size="icon" aria-label={t('clients.exportPdfList')} title={t('clients.exportPdfList')} className="shrink-0">
+          <DownloadCloudIcon className="w-5 h-5"/>
+        </Button>
+        {onImportClients && (<Button onClick={() => setImportOpen(true)} variant="outline" size="icon" aria-label={t('clients.importCsv')} title={t('clients.importCsv')} className="shrink-0">
+          <UploadCloudIcon className="w-5 h-5"/>
+        </Button>)}
+      </div>
 
-            <div className="flex w-full gap-2">
-              <Button onClick={() => openClientModal(null)} variant="outline" size="md" className="flex-1 font-bold">
-                <UserIcon className="w-5 h-5"/>
-                <span>{t('transactions.newClient')}</span>
-              </Button>
-              <Button onClick={() => exportClientsPdf(filteredClientsDzd, clientBalances, getClientFullName)} variant="outline" size="icon" aria-label={t('clients.exportPdfList')} title={t('clients.exportPdfList')} className="shrink-0">
-                <DownloadCloudIcon className="w-5 h-5"/>
-              </Button>
-              {onImportClients && (<Button onClick={() => setImportOpen(true)} variant="outline" size="icon" aria-label={t('clients.importCsv')} className="shrink-0 font-bold">
-                  <UploadCloudIcon className="w-5 h-5"/>
-                </Button>)}
-            </div>
-          </div>
+      <Card>
+        <CardHeader className="flex-row items-center justify-between gap-3 p-4 pb-3">
+          <SectionHeading icon={<UsersIcon className="w-4 h-4"/>}>
+            {t('clients.clientsList')}
+          </SectionHeading>
+          <span className="shrink-0 text-sm text-neutral-500">{filteredClientsDzd.length}</span>
         </CardHeader>
 
         <CardContent className="p-4 pt-0">
-          <div className="flex gap-2 mb-4">
-            <Input type="text" placeholder={t('transactions.searchClient')} value={clientSearchQuery} onChange={(e) => setClientSearchQuery(e.target.value)} className="flex-grow"/>
-          </div>
+          <Input type="text" placeholder={t('transactions.searchClient')} value={clientSearchQuery} onChange={(e) => setClientSearchQuery(e.target.value)} className="w-full"/>
+
           {/* Tier filter — dropdown */}
           {clientLoyaltyMap && tierCounts.size > 0 && (
             <Dropdown trigger={(
-              <button type="button" className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors w-full ${activeTierFilter ? LOYALTY_CONFIG[activeTierFilter as TierKey].chipCls : 'border-border bg-surface text-neutral-600 hover:border-neutral-300'}`}>
-                {activeTierFilter ? (
-                  <>
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${LOYALTY_CONFIG[activeTierFilter as TierKey].dot}`}/>
-                    {t(LOYALTY_CONFIG[activeTierFilter as TierKey].label)}
-                    <span className="font-bold text-[12px]">{tierCounts.get(activeTierFilter) || 0}</span>
-                    <span className="ml-auto text-xs opacity-50">×</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="w-2 h-2 rounded-full shrink-0 bg-neutral-300"/>
-                    {t('clients.allCategories')}
-                    <span className="ms-auto text-neutral-400 text-xs">{filteredClientsDzd.length}</span>
-                  </>
-                )}
+              <button type="button" className={`mt-3 flex min-h-touch w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${activeTierFilter ? LOYALTY_CONFIG[activeTierFilter as TierKey].chipCls : 'border-border bg-surface text-neutral-600 hover:border-neutral-300'}`}>
+                {activeTierFilter ? <>
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${LOYALTY_CONFIG[activeTierFilter as TierKey].dot}`}/>
+                  <span className="min-w-0 truncate">{t(LOYALTY_CONFIG[activeTierFilter as TierKey].label)}</span>
+                  <span className="text-[12px] font-bold">{tierCounts.get(activeTierFilter) || 0}</span>
+                  <span className="ms-auto text-xs opacity-50">×</span>
+                </> : <>
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-neutral-300"/>
+                  <span className="min-w-0 truncate">{t('clients.allCategories')}</span>
+                  <span className="ms-auto text-xs text-neutral-400">{filteredClientsDzd.length}</span>
+                </>}
               </button>
             )}>
               <DropdownItem onClick={() => setActiveTierFilter(null)} isActive={!activeTierFilter}>
-                <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-neutral-300"/>{t('clients.allWord')} <span className="ms-auto text-neutral-400 text-xs">{filteredClientsDzd.length}</span></span>
+                <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-neutral-300"/>{t('clients.allWord')} <span className="ms-auto text-xs text-neutral-400">{filteredClientsDzd.length}</span></span>
               </DropdownItem>
               {(['vip', 'regular', 'petit', 'new', 'inactive', 'fournisseur'] as TierKey[])
                 .filter(tierKey => (tierCounts.get(tierKey) || 0) > 0)
@@ -240,9 +231,10 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
             </div>
           )}
 
-          <Dropdown trigger={(<Button variant="tab" size="md" className="w-full font-semibold">
+          <Dropdown trigger={(<Button variant="outline" size="md" className="mt-3 w-full justify-start rounded-lg border-border bg-neutral-100 font-semibold text-neutral-800 hover:bg-neutral-200">
                 <FilterIcon className="w-4 h-4"/>
-                <span>{t(CLIENT_SORT_LABEL_KEYS[clientSortMode])}</span>
+                <span className="min-w-0 truncate">{t('clients.filterAction')}</span>
+                <span className="ms-auto text-xs text-neutral-500">{t(CLIENT_SORT_LABEL_KEYS[clientSortMode])}</span>
               </Button>)}>
             <DropdownItem onClick={() => setClientSortMode('all')} isActive={clientSortMode === 'all'}>{t('clients.sortAll')}</DropdownItem>
             <DropdownItem onClick={() => setClientSortMode('advances')} isActive={clientSortMode === 'advances'}>{t('clients.sortAdvances')} (+)</DropdownItem>

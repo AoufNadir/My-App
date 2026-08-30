@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, OverdueDebtClient } from '../types';
 import { ClientDetailsView } from '../components/clients/ClientDetailsView';
 import { ClientsListView } from '../components/clients/ClientsListView';
+import type { ClientReportRequest } from '../hooks/useReportExports';
+import { buildClientStatementTransactions } from '../utils/clientStatementTransactions';
 type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
 export type ClientsPageProps = {
     selectedClientId: string | null;
@@ -24,7 +26,7 @@ export type ClientsPageProps = {
     clientTransactionsDzd: ClientTransactionDzd[];
     transactions: Tx[];
     profitByTxId?: Record<string, { derivedProfit: number }>;
-    handleExportClientReport: (clientId: string, month: number, year: number) => void;
+    handleExportClientReport: (clientId: string, range: ClientReportRequest, year?: number) => void;
     openClientTxModal: (tx: ClientTransactionDzd | null, presetType?: string, selectedClientId?: string) => void;
     openClientToClientTransferModal: (sourceClient: ClientDzd) => void;
     copiedValue: string | null;
@@ -40,16 +42,19 @@ export type ClientsPageProps = {
 };
 export function ClientsPage(props: ClientsPageProps) {
     const { selectedClientId, setSelectedClientId, openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, clientsDzd, filteredClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, selectedClient, selectedClientTransactions, clientTransactionsDzd, transactions, profitByTxId, handleExportClientReport, openClientTxModal, openClientToClientTransferModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick, overdueDebtClients, clientLoyaltyMap, clientPrevMonthVolume, clientLastSellDate, handleZeroOutBalance, onImportClients } = props;
+    const statementTransactions = useMemo(() => selectedClientId
+        ? buildClientStatementTransactions({ clientId: selectedClientId, clientTransactions: clientTransactionsDzd })
+        : selectedClientTransactions || [], [clientTransactionsDzd, selectedClientId, selectedClientTransactions]);
     const groupedHistory = useMemo(() => {
         const groups: Record<string, ClientTransactionDzd[]> = {};
-        selectedClientTransactions?.forEach((tx) => {
+        statementTransactions.forEach((tx) => {
             if (!groups[tx.date]) {
                 groups[tx.date] = [];
             }
             groups[tx.date].push(tx);
         });
         return groups;
-    }, [selectedClientTransactions]);
+    }, [statementTransactions]);
     if (selectedClientId && selectedClient) {
         const selectedClientBalance = clientBalances.get(selectedClientId) || 0;
         return (<ClientDetailsView selectedClientId={selectedClientId} selectedClient={selectedClient} selectedClientBalance={selectedClientBalance} groupedHistory={groupedHistory} clientTransactionsDzd={clientTransactionsDzd} clientsDzd={clientsDzd} setSelectedClientId={setSelectedClientId} getClientFullName={getClientFullName} handleTouchStart={handleTouchStart} openClientModal={openClientModal} copiedValue={copiedValue} handleCopy={handleCopy} transactions={transactions} profitByTxId={profitByTxId} handleEditClientTx={handleEditClientTx} handleDeleteClientTxClick={handleDeleteClientTxClick} openClientTxModal={openClientTxModal} openClientToClientTransferModal={openClientToClientTransferModal} handleExportClientReport={handleExportClientReport}/>);

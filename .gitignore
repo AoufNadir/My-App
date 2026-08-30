@@ -42,5 +42,6 @@ tsc_output.txt
 .env.local
 .env.*.local
 .vercel
+.firebase
 .env*
 .kilo/

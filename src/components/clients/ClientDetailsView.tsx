@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Button } from '../ui/Button';
+import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
+import { DatePicker } from '../ui/DatePicker';
+import { Label } from '../ui/Label';
 import { SectionHeading } from '../ui/SectionHeading';
 import { HeroKpiCard } from '../ui/HeroKpiCard';
 import { EmptyState } from '../ui/EmptyState';
-import { Tabs } from '../ui/Tabs';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { ClientDzd, ClientTransactionDzd, Tx } from '../../types';
 import { ChevronLeftIcon } from '../icons/ChevronLeftIcon';
@@ -20,11 +22,9 @@ import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
 import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { UsersIcon } from '../icons/UsersIcon';
 import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
-import { CalendarIcon } from '../icons/CalendarIcon';
-import { TrendingUpIcon } from '../icons/TrendingUpIcon';
-import { TrendingDownIcon } from '../icons/TrendingDownIcon';
 import { formatDzd, formatNumber, getRelativeFrDateLabel } from '../../pages/shared/pageFormat';
 import { useLanguage } from '../../contexts/LanguageContext';
+import type { ClientReportDateRange, ClientReportRequest } from '../../hooks/useReportExports';
 import { TransactionDisplayList } from '../transactions/TransactionDisplayList';
 import type { DisplayTx } from '../transactions/transactionsTypes';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel } from '../../utils/transactionTerminology';
@@ -47,7 +47,7 @@ type ClientDetailsViewProps = {
     handleDeleteClientTxClick: (tx: ClientTransactionDzd) => void;
     openClientTxModal: (tx: ClientTransactionDzd | null, presetType?: string, selectedClientId?: string) => void;
     openClientToClientTransferModal: (sourceClient: ClientDzd) => void;
-    handleExportClientReport: (clientId: string, month: number, year: number) => void;
+    handleExportClientReport: (clientId: string, range: ClientReportRequest, year?: number) => void;
 };
 type ContactRowProps = {
     label: string;
@@ -156,13 +156,72 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
     const INITIAL_VISIBLE_TRANSACTIONS = 60;
     const LOAD_MORE_TRANSACTIONS = 60;
     const [visibleTransactionCount, setVisibleTransactionCount] = useState(INITIAL_VISIBLE_TRANSACTIONS);
-    const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
+    const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+    const [reportStartDate, setReportStartDate] = useState('');
+    const [reportEndDate, setReportEndDate] = useState('');
+    const [reportDateError, setReportDateError] = useState('');
     const dates = Object.keys(groupedHistory);
     const linkedTransactionsById = useMemo(() => new Map(transactions.map((tx) => [tx.id, tx])), [transactions]);
     const clientsById = useMemo(() => new Map(clientsDzd.map((client) => [client.id, client])), [clientsDzd]);
-    const exportCurrentMonthReport = () => {
+    const parseDateBoundary = (value: string, endOfDay: boolean): number | null => {
+        if (!value) return null;
+        const [year, month, day] = value.split('-').map(Number);
+        if (!year || !month || !day) return null;
+        const date = new Date(year, month - 1, day);
+        date.setHours(endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+        return date.getTime();
+    };
+    const toInputDate = (date: Date): string => {
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    };
+    const setCurrentMonthRange = () => {
         const now = new Date();
-        handleExportClientReport(selectedClientId, now.getMonth(), now.getFullYear());
+        setReportStartDate(toInputDate(new Date(now.getFullYear(), now.getMonth(), 1)));
+        setReportEndDate(toInputDate(now));
+        setReportDateError('');
+    };
+    const setCurrentYearRange = () => {
+        const now = new Date();
+        setReportStartDate(`${now.getFullYear()}-01-01`);
+        setReportEndDate(toInputDate(now));
+        setReportDateError('');
+    };
+    const setAllHistoryRange = () => {
+        const firstTimestamp = clientTransactionsDzd
+            .filter((tx) => tx.clientId === selectedClientId && Number.isFinite(Number(tx.timestamp)))
+            .reduce<number | null>((first, tx) => first === null ? tx.timestamp : Math.min(first, tx.timestamp), null);
+        if (firstTimestamp === null) {
+            setReportStartDate('');
+            setReportEndDate('');
+            setReportDateError('Aucune opération trouvée pour ce client.');
+            return;
+        }
+        setReportStartDate(toInputDate(new Date(firstTimestamp)));
+        setReportEndDate(toInputDate(new Date()));
+        setReportDateError('');
+    };
+    const openReportDialog = () => {
+        setCurrentMonthRange();
+        setReportDateError('');
+        setIsReportDialogOpen(true);
+    };
+    const handleCreateReport = () => {
+        const startTs = parseDateBoundary(reportStartDate, false);
+        const endTs = parseDateBoundary(reportEndDate, true);
+        if (startTs === null || endTs === null) {
+            setReportDateError('Veuillez sélectionner les deux dates.');
+            return;
+        }
+        if (startTs > endTs) {
+            setReportDateError('La date de début doit être avant la date de fin.');
+            return;
+        }
+        const range: ClientReportDateRange = { startTs, endTs };
+        handleExportClientReport(selectedClientId, range);
+        setIsReportDialogOpen(false);
     };
     useEffect(() => {
         setVisibleTransactionCount(INITIAL_VISIBLE_TRANSACTIONS);
@@ -302,75 +361,18 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
     }, [clientTransactionsDzd, clientsById, getClientFullName, linkedTransactionsById, t, visibleDateGroups]);
     const clientStats = useMemo(() => {
         const allTxs = Object.values(groupedHistory).flat();
-        let totalReceived = 0;
-        let totalPaid = 0;
         let lastTs = 0;
         let firstTs = Infinity;
-        const nowMs = Date.now();
-        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
-        let monthCount = 0;
         for (const tx of allTxs) {
-            const amount = Math.abs(Number(tx.montant || 0));
-            if (tx.type === 'Règlement Reçu') totalReceived += amount;
-            else if (tx.type === 'Paiement Effectué') totalPaid += amount;
             if (tx.timestamp > lastTs) lastTs = tx.timestamp;
             if (tx.timestamp < firstTs) firstTs = tx.timestamp;
-            if (tx.timestamp >= monthStart && tx.timestamp <= nowMs) monthCount++;
         }
         return {
-            totalReceived,
-            totalPaid,
             txCount: allTxs.length,
-            monthCount,
             lastDate: lastTs > 0 ? new Date(lastTs).toLocaleDateString('fr-FR') : null,
             firstDate: firstTs < Infinity ? new Date(firstTs).toLocaleDateString('fr-FR') : null,
-            daysSinceLast: lastTs > 0 ? Math.floor((nowMs - lastTs) / 86_400_000) : null,
         };
     }, [groupedHistory]);
-    // Debt aging: FIFO attribution — oldest unpaid debt first
-    const debtAging = useMemo(() => {
-        if (selectedClientBalance >= -0.01) return null; // no debt
-        const allTxs = Object.values(groupedHistory).flat()
-            .sort((a, b) => a.timestamp - b.timestamp); // oldest first
-        // Build debt queue using FIFO
-        const queue: Array<{ amount: number; timestamp: number }> = [];
-        for (const tx of allTxs) {
-            const m = Number(tx.montant || 0);
-            if (tx.affectsBalance === false) continue;
-            if (m < 0) {
-                queue.push({ amount: Math.abs(m), timestamp: tx.timestamp });
-            } else if (m > 0) {
-                let remaining = m;
-                while (remaining > 0.005 && queue.length > 0) {
-                    if (remaining >= queue[0].amount) {
-                        remaining -= queue[0].amount;
-                        queue.shift();
-                    } else {
-                        queue[0].amount -= remaining;
-                        remaining = 0;
-                    }
-                }
-            }
-        }
-        const now = Date.now();
-        // Group by age buckets
-        const buckets = { week: 0, month: 0, twoMonth: 0, old: 0 };
-        for (const item of queue) {
-            const days = (now - item.timestamp) / 86_400_000;
-            if (days <= 7) buckets.week += item.amount;
-            else if (days <= 30) buckets.month += item.amount;
-            else if (days <= 60) buckets.twoMonth += item.amount;
-            else buckets.old += item.amount;
-        }
-        const oldest = queue.length > 0 ? queue[0] : null;
-        const oldestDays = oldest ? Math.floor((now - oldest.timestamp) / 86_400_000) : 0;
-        // Use queue sum for total (consistent with buckets)
-        const queueTotal = Math.round(
-            (buckets.week + buckets.month + buckets.twoMonth + buckets.old) * 100
-        ) / 100;
-        return { buckets, oldest, oldestDays, total: queueTotal || Math.abs(selectedClientBalance) };
-    }, [groupedHistory, selectedClientBalance]);
-
     const balanceStatusLabel = selectedClientBalance > 0.01
         ? t('finance.advance')
         : selectedClientBalance < -0.01
@@ -419,7 +421,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
           <Button onClick={() => openClientModal(selectedClient)} variant="icon" size="icon" className="rounded-full hover:bg-neutral-100" aria-label={t('transactions.editClient')}>
             <PencilIcon className="w-5 h-5"/>
           </Button>
-          <Button onClick={exportCurrentMonthReport} variant="primary" size="sm" className="ms-1">
+          <Button onClick={openReportDialog} variant="primary" size="sm" className="ms-1">
             <FileSpreadsheetIcon className="w-4 h-4"/>
             PDF
           </Button>
@@ -457,62 +459,58 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             { label: t('reports.operations') as string, value: totalTransactionCount, currency: null, semantic: 'plain' }
         ]}/>
 
-      {clientStats.txCount > 0 && (
-        <Card>
-          <CardHeader className="p-4 pb-3">
-            <SectionHeading icon={<CalendarIcon className="w-4 h-4"/>}>{t('clients.activitySummary')}</SectionHeading>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
-                  <TrendingDownIcon className="w-3.5 h-3.5"/>
-                  {t('clients.totalReceived')}
-                </div>
-                <p dir="ltr" className="mt-1 text-lg font-bold text-emerald-700 tabular-nums">
-                  {formatDzd(clientStats.totalReceived)}
-                </p>
-              </div>
-              <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-3">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-rose-700">
-                  <TrendingUpIcon className="w-3.5 h-3.5"/>
-                  {t('clients.totalPaid')}
-                </div>
-                <p dir="ltr" className="mt-1 text-lg font-bold text-rose-700 tabular-nums">
-                  {formatDzd(clientStats.totalPaid)}
-                </p>
-              </div>
+      <Card>
+        <CardHeader className="p-4 pb-3">
+          <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>{t('clients.dossier')}</SectionHeading>
+        </CardHeader>
+        <CardContent className="p-0 divide-y divide-neutral-100">
+          {hasContactInfo && (
+            <>
+              <ContactRow label={t('transactions.phone') as string} value={selectedClient.phone || ''} copiedValue={copiedValue} onCopy={handleCopy} isPhone/>
+              <ContactRow label="RedotPay ID" value={selectedClient.redotpayId || ''} copiedValue={copiedValue} onCopy={handleCopy}/>
+              <ContactRow label="Binance Email" value={selectedClient.binanceEmail || ''} copiedValue={copiedValue} onCopy={handleCopy}/>
+            </>
+          )}
+          {selectedClient.notes && (
+            <div className="px-4 py-3">
+              <p className="text-xs font-semibold uppercase text-neutral-500">{t('clients.privateNotes')}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">{selectedClient.notes}</p>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-              <div className="rounded-lg bg-neutral-50 p-2.5">
-                <p className="text-[10px] font-semibold uppercase text-neutral-500">{t('clients.lastOperation')}</p>
-                <p dir="ltr" className="mt-0.5 font-semibold text-neutral-800 tabular-nums">{clientStats.lastDate || '—'}</p>
-                {clientStats.daysSinceLast != null && clientStats.daysSinceLast > 0 && (
-                  <p className="text-[10px] text-neutral-500">{(t('clients.daysSinceLastOp') as string).replace('{n}', String(clientStats.daysSinceLast))}</p>
-                )}
-              </div>
-              <div className="rounded-lg bg-neutral-50 p-2.5">
-                <p className="text-[10px] font-semibold uppercase text-neutral-500">{t('clients.firstOperation')}</p>
-                <p dir="ltr" className="mt-0.5 font-semibold text-neutral-800 tabular-nums">{clientStats.firstDate || '—'}</p>
-              </div>
+          )}
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <span className="text-sm text-neutral-500">{t('reports.operations')}</span>
+            <span className="text-sm font-semibold text-neutral-900 tabular-nums" dir="ltr">{clientStats.txCount}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <span className="text-sm text-neutral-500">{t('clients.lastOperation')}</span>
+            <span className="text-sm font-semibold text-neutral-900 tabular-nums" dir="ltr">{clientStats.lastDate || '—'}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <span className="text-sm text-neutral-500">{t('clients.firstOperation')}</span>
+            <span className="text-sm font-semibold text-neutral-900 tabular-nums" dir="ltr">{clientStats.firstDate || '—'}</span>
+          </div>
+          {selectedClient.creditLimit && selectedClient.creditLimit > 0 && (
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <span className="text-sm text-neutral-500">{t('clients.creditLimit')}</span>
+              <CurrencyAmount value={selectedClient.creditLimit} currency="DZD" semantic="plain" size="md" decimals={0}/>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="p-4 pb-3">
           <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>{t('clients.actions')}</SectionHeading>
         </CardHeader>
-        <CardContent className="p-4 pt-0 space-y-3">
+        <CardContent className="p-4 pt-0 space-y-2.5">
           <div className="grid grid-cols-2 gap-3">
             <Button onClick={() => openClientTxModal(null, 'Règlement Reçu', selectedClientId)} variant="primary" size="md" className="w-full font-bold">
               <ArrowDownLeftIcon className="w-4 h-4"/>
-              {t('transactions.paymentReceived')}
+              {t('clients.actionCollect')}
             </Button>
             <Button onClick={() => openClientTxModal(null, 'Paiement Effectué', selectedClientId)} variant="tab" size="md" className="w-full font-bold">
               <ArrowUpRightIcon className="w-4 h-4"/>
-              {t('transactions.paymentMade')}
+              {t('clients.actionPay')}
             </Button>
           </div>
           <button
@@ -522,7 +520,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             className="inline-flex min-h-button-md w-full min-w-0 items-center justify-center gap-2 rounded-button bg-neutral-100 px-4 py-2.5 text-sm font-bold leading-tight text-neutral-700 transition-colors hover:bg-neutral-200 active:scale-[0.98] active:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-app-bg"
           >
             <UsersIcon className="w-4 h-4"/>
-            <span>{t('clients.transferBetweenClients')}</span>
+            <span>{t('clients.actionTransfer')}</span>
           </button>
           {hasDebt && (
             <button
@@ -535,137 +533,17 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                 <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.122 1.532 5.852L.054 23.5l5.782-1.519A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.9a9.877 9.877 0 01-5.031-1.375l-.361-.214-3.737.981 1.001-3.648-.235-.374A9.855 9.855 0 012.1 12c0-5.467 4.433-9.9 9.9-9.9 5.467 0 9.9 4.433 9.9 9.9s-4.433 9.9-9.9 9.9z"/>
               </svg>
               <span>
-                {hasPhone ? t('clients.sendWhatsAppReminder') : t('clients.copyBalanceReminder')}
-                {' '}— {Math.round(Math.abs(selectedClientBalance)).toLocaleString('fr-FR')} DZD
+                {hasPhone ? t('clients.actionWhatsAppReminder') : t('clients.actionCopyReminder')}
               </span>
             </button>
           )}
         </CardContent>
       </Card>
 
-      <Tabs tabs={[
-            { id: 'overview', label: t('clients.overview') as string },
-            { id: 'history', label: t('clients.history') as string, badge: totalTransactionCount }
-        ]} activeTab={activeTab} onChange={(id) => setActiveTab(id as 'overview' | 'history')} variant="underline"/>
-
-      {activeTab === 'overview' && (<div className="space-y-4">
-          <Card>
-            <CardHeader className="p-4 pb-3">
-              <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>{t('clients.information')}</SectionHeading>
-            </CardHeader>
-            <CardContent className="p-0 divide-y divide-neutral-100">
-              {hasContactInfo ? (<>
-                  <ContactRow label={t('transactions.phone') as string} value={selectedClient.phone || ''} copiedValue={copiedValue} onCopy={handleCopy} isPhone/>
-                  <ContactRow label="RedotPay ID" value={selectedClient.redotpayId || ''} copiedValue={copiedValue} onCopy={handleCopy}/>
-                  <ContactRow label="Binance Email" value={selectedClient.binanceEmail || ''} copiedValue={copiedValue} onCopy={handleCopy}/>
-                </>) : (<EmptyState icon={<InfoIcon className="w-5 h-5"/>} title={t('emptyStates.contact.title')} subtitle={t('emptyStates.contact.subtitle')}/>)}
-            </CardContent>
-          </Card>
-
-          {selectedClient.notes && (
-            <Card>
-              <CardHeader className="p-4 pb-2">
-                <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>{t('clients.privateNotes')}</SectionHeading>
-              </CardHeader>
-              <CardContent className="px-4 pb-4 pt-1">
-                <p className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-700">{selectedClient.notes}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Debt Aging card — only when client has debt */}
-          {debtAging && (
-            <Card>
-              <CardHeader className="p-4 pb-3">
-                <div className="flex items-center justify-between gap-2">
-                  <SectionHeading icon={<AlertTriangleIcon className="w-4 h-4"/>}>
-                    {t('clients.debtAging')}
-                  </SectionHeading>
-                  <span className="text-[10px] font-bold text-neutral-400 uppercase">
-                    {debtAging.oldestDays} {t('clients.daysMaxWord')}
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent className="p-4 pt-0 space-y-2">
-                {/* Age buckets */}
-                {([
-                  { label: `0 – 7 ${t('clients.daysWord')}`, amount: debtAging.buckets.week, cls: 'bg-success-bg border-success/30 text-financial-profit' },
-                  { label: `8 – 30 ${t('clients.daysWord')}`, amount: debtAging.buckets.month, cls: 'bg-warning-bg border-warning/30 text-warning' },
-                  { label: `31 – 60 ${t('clients.daysWord')}`, amount: debtAging.buckets.twoMonth, cls: 'bg-danger-bg/50 border-danger/20 text-financial-loss' },
-                  { label: `+ 60 ${t('clients.daysWord')}`, amount: debtAging.buckets.old, cls: 'bg-danger-bg border-danger/30 text-financial-loss font-extrabold' },
-                ] as const).filter(b => b.amount > 0.005).map((b) => (
-                  <div key={b.label} className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${b.cls}`}>
-                    <span className="text-xs font-semibold">{b.label}</span>
-                    <span dir="ltr" className="text-sm font-bold tabular-nums">
-                      {Math.round(b.amount).toLocaleString('fr-FR')} DZD
-                    </span>
-                  </div>
-                ))}
-                {/* Total + urgency */}
-                <div className="flex items-center justify-between gap-3 border-t border-border pt-2 mt-1">
-                  <span className="text-xs font-bold text-neutral-500 uppercase">{t('clients.totalDebt')}</span>
-                  <span dir="ltr" className="text-base font-extrabold tabular-nums text-financial-loss">
-                    {Math.round(debtAging.total).toLocaleString('fr-FR')} DZD
-                  </span>
-                </div>
-                {debtAging.oldestDays > 30 && (
-                  <p className="text-[10px] text-danger font-semibold text-center mt-1">
-                    ⚠️ {t('clients.agingWarning')} {debtAging.oldestDays} {t('clients.daysWord')}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {clientStats.txCount > 0 && (
-            <Card>
-              <CardHeader className="p-4 pb-3">
-                <SectionHeading icon={<FileSpreadsheetIcon className="w-4 h-4"/>}>{t('clients.financialSummary')}</SectionHeading>
-              </CardHeader>
-              <CardContent className="p-0 divide-y divide-neutral-100">
-                <div className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-sm text-neutral-500">{t('reports.totalReceived')}</span>
-                  <CurrencyAmount value={clientStats.totalReceived} currency="DZD" semantic="profit" size="md" decimals={0}/>
-                </div>
-                <div className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-sm text-neutral-500">{t('reports.totalPaid')}</span>
-                  <CurrencyAmount value={clientStats.totalPaid} currency="DZD" semantic="loss" size="md" decimals={0}/>
-                </div>
-                <div className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-sm text-neutral-500">{t('dashboard.thisMonth')}</span>
-                  <span className="text-sm font-semibold text-neutral-800">
-                    <span className="tabular-nums">{clientStats.monthCount}</span> {t('common.opsShort')}
-                  </span>
-                </div>
-                {clientStats.firstDate && (
-                  <div className="flex items-center justify-between gap-3 px-4 py-3">
-                    <span className="text-sm text-neutral-500">{t('clients.clientSince')}</span>
-                    <span className="text-sm font-semibold text-neutral-800" dir="ltr">{clientStats.firstDate}</span>
-                  </div>
-                )}
-                {clientStats.daysSinceLast !== null && (
-                  <div className="flex items-center justify-between gap-3 px-4 py-3">
-                    <span className="text-sm text-neutral-500">{t('clients.lastOp')}</span>
-                    <span className={`text-sm font-semibold ${clientStats.daysSinceLast > 30 ? 'text-financial-loss' : 'text-neutral-800'}`}>
-                      {clientStats.daysSinceLast === 0 ? t('transactions.today') : `${clientStats.daysSinceLast}${t('common.dayShort')}`}
-                    </span>
-                  </div>
-                )}
-                {selectedClient.creditLimit && selectedClient.creditLimit > 0 && (
-                  <div className="flex items-center justify-between gap-3 px-4 py-3">
-                    <span className="text-sm text-neutral-500">{t('clients.creditLimit')}</span>
-                    <CurrencyAmount value={selectedClient.creditLimit} currency="DZD" semantic="plain" size="md" decimals={0}/>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>)}
-
-      {activeTab === 'history' && (<Card>
+      <Card>
           <CardHeader className="p-4 pb-3 flex flex-row items-center justify-between">
             <SectionHeading icon={<FileSpreadsheetIcon className="w-4 h-4"/>}>
-              {t('transactions.recentTransactions')}
+              {t('clients.history')}
             </SectionHeading>
             <span className="text-sm text-neutral-500">{totalTransactionCount} {t('transactions.operationsWord')}</span>
           </CardHeader>
@@ -691,6 +569,38 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
                   </div>)}
               </div>) : (<EmptyState icon={<FileSpreadsheetIcon className="w-5 h-5"/>} title={t('transactions.noTransactions') as string}/>)}
           </CardContent>
-        </Card>)}
+        </Card>
+      <Modal isOpen={isReportDialogOpen} onClose={() => setIsReportDialogOpen(false)} className="max-w-md bg-surface">
+        <ModalHeader onClose={() => setIsReportDialogOpen(false)} className="border-b border-border px-4 py-3 sm:px-5">
+          <ModalTitle className="text-base sm:text-lg">Créer rapport client</ModalTitle>
+        </ModalHeader>
+        <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
+          <div className="grid grid-cols-2 gap-3">
+            <Button onClick={setCurrentMonthRange} variant="outline" className="rounded-lg px-3 py-2 text-sm font-bold">
+              Mois courant
+            </Button>
+            <Button onClick={setCurrentYearRange} variant="outline" className="rounded-lg px-3 py-2 text-sm font-bold">
+              Année courante
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Label>Date début</Label>
+              <DatePicker value={reportStartDate} onChange={(value) => { setReportStartDate(value); setReportDateError(''); }} className="mt-1"/>
+            </div>
+            <div>
+              <Label>Date fin</Label>
+              <DatePicker value={reportEndDate} onChange={(value) => { setReportEndDate(value); setReportDateError(''); }} className="mt-1"/>
+            </div>
+          </div>
+          {reportDateError && <p className="text-sm font-semibold text-danger">{reportDateError}</p>}
+        </ModalContent>
+        <ModalFooter className="border-t border-border px-4 py-3 sm:px-5">
+          <Button onClick={setAllHistoryRange} variant="outline" className="w-full">
+            Tout l'historique
+          </Button>
+          <Button onClick={handleCreateReport} className="w-full bg-primary text-white hover:bg-primary-dark">Créer PDF</Button>
+        </ModalFooter>
+      </Modal>
     </div>);
 }

@@ -16,9 +16,9 @@ export type OwnerProfitPeriods = {
 
 function Metric({ label, value, semantic = 'auto' }: { label: string; value: number; semantic?: 'auto' | 'plain' }) {
     return (
-        <div className="min-w-0 rounded-xl bg-neutral-50 px-3 py-3">
-            <p className="truncate text-[11px] font-semibold text-neutral-500">{label}</p>
-            <div className="mt-1">
+        <div className="min-w-0 rounded-xl border border-border bg-surface-muted px-3 py-3">
+            <p className="mb-2 truncate text-[11px] font-semibold text-neutral-500">{label}</p>
+            <div>
                 <CurrencyAmount value={value} currency="DZD" semantic={semantic} size="lg" decimals={0} />
             </div>
         </div>
@@ -28,9 +28,9 @@ function Metric({ label, value, semantic = 'auto' }: { label: string; value: num
 function PercentageMetric({ label, value }: { label: string; value: number }) {
     const formatted = Number(value || 0).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
     return (
-        <div className="min-w-0 rounded-xl bg-neutral-50 px-3 py-3">
-            <p className="truncate text-[11px] font-semibold text-neutral-500">{label}</p>
-            <p dir="ltr" className="mt-1 text-base font-semibold tabular-nums">
+        <div className="min-w-0 rounded-xl border border-border bg-surface-muted px-3 py-3">
+            <p className="mb-2 truncate text-[11px] font-semibold text-neutral-500">{label}</p>
+            <p dir="ltr" className="text-base font-semibold tabular-nums">
                 {formatted}<span className="ms-1 text-[0.82em] font-normal opacity-65">%</span>
             </p>
         </div>
@@ -41,13 +41,13 @@ export function OwnerProfitPeriodSummary({ periods }: { periods: OwnerProfitPeri
     const { t } = useLanguage();
     return (
         <Card>
-            <CardHeader className="p-4 pb-2">
+            <CardHeader className="p-4 pb-3">
                 <SectionHeading icon={<BriefcaseIcon className="h-4 w-4" />}>
                     {t('dashboard.ownerProfitSummary') as string}
                 </SectionHeading>
                 <p className="mt-1 text-xs text-neutral-500">{t('dashboard.ownerProfitSummaryHint') as string}</p>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-3 p-4 pt-2 sm:grid-cols-4">
+            <CardContent className="grid grid-cols-2 gap-2 p-4 pt-0 sm:grid-cols-4">
                 <Metric label={t('dashboard.ownerProfitToday') as string} value={periods.today} />
                 <Metric label={t('dashboard.ownerProfitWeek') as string} value={periods.week} />
                 <Metric label={t('dashboard.ownerProfitMonth') as string} value={periods.month} />

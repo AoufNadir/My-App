@@ -79,7 +79,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
             .filter((tx: ClientTransactionDzd) => tx.clientId === summaryClient.id)
             .sort((a: ClientTransactionDzd, b: ClientTransactionDzd) => b.timestamp - a.timestamp);
     }, [summaryClient, clientTransactionsDzd]);
-    const visibleTxs: ClientTransactionDzd[] = useMemo(() => selectedClientTxs.slice(0, 3), [selectedClientTxs]);
+    const visibleTxs: ClientTransactionDzd[] = selectedClientTxs;
     const clientsById = useMemo(() => new Map((clientsDzd || []).map((client: ClientDzd) => [client.id, client])), [clientsDzd]);
     const currentBalance = summaryClient ? (clientBalances.get(summaryClient.id) || 0) : 0;
     const balanceColorClass = currentBalance < 0 ? 'text-financial-loss' : currentBalance > 0 ? 'text-financial-profit' : 'text-neutral-300';

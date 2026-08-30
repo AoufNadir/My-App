@@ -25,6 +25,11 @@ export type InvestorReportDateRange = {
     startTs?: number | null;
     endTs?: number | null;
 };
+export type ClientReportDateRange = {
+    startTs: number;
+    endTs: number;
+};
+export type ClientReportRequest = number | ClientReportDateRange;
 function getMonthLabels(t: Translator) {
     const value = t('common.months');
     if (!Array.isArray(value))
@@ -44,20 +49,34 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
     const [reportYear, setReportYear] = useState(new Date().getFullYear());
     const reportMonthNames = useMemo(() => getMonthLabels(t), [t]);
     const reportPamLedger = useMemo(() => providedPamLedger || computePamLedger(transactions), [providedPamLedger, transactions]);
-    const handleExportClientReport = async (clientId: string, month: number, year: number) => {
+    const handleExportClientReport = async (clientId: string, monthOrRange: ClientReportRequest, year?: number) => {
         if (!clientId) {
             setAlert('⚠️ Sélectionnez un client.');
             return;
         }
+        const range: ClientReportDateRange = typeof monthOrRange === 'number'
+            ? {
+                startTs: new Date(year || new Date().getFullYear(), monthOrRange, 1).getTime(),
+                endTs: new Date(year || new Date().getFullYear(), monthOrRange + 1, 0, 23, 59, 59, 999).getTime(),
+            }
+            : monthOrRange;
+        if (!Number.isFinite(range.startTs) || !Number.isFinite(range.endTs) || range.startTs > range.endTs) {
+            setAlert('⚠️ La date de début doit être avant la date de fin.');
+            return;
+        }
         const monthLabels = getMonthLabels(t);
-        const monthLabel = monthLabels[month] || `${month + 1}`;
+        const month = typeof monthOrRange === 'number' ? monthOrRange : new Date(range.startTs).getMonth();
+        const reportYear = typeof monthOrRange === 'number' ? (year || new Date().getFullYear()) : new Date(range.startTs).getFullYear();
+        const periodLabel = typeof monthOrRange === 'number'
+            ? `${monthLabels[month] || `${month + 1}`} ${reportYear}`
+            : `Du ${new Date(range.startTs).toLocaleDateString('fr-FR')} au ${new Date(range.endTs).toLocaleDateString('fr-FR')}`;
         const clientName = clientsDzd.find((client) => client.id === clientId);
         const { buildClientPdfReport, openPdfPrintWindow } = await loadPdfReports();
         const report = buildClientPdfReport({
             clientId,
-            month,
-            year,
-            monthLabel,
+            reportStartTs: range.startTs,
+            reportEndTs: range.endTs,
+            periodLabel,
             clients: clientsDzd,
             clientTransactions: clientTransactionsDzd,
             transactions,
@@ -65,7 +84,7 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
             getClientName: getClientFullName
         });
         if (!report) {
-            setAlert('⚠️ Client introuvable.');
+            setAlert(clientName ? '⚠️ Aucune opération trouvée pour cette période.' : '⚠️ Client introuvable.');
             return;
         }
         const opened = openPdfPrintWindow(report);
@@ -74,8 +93,8 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
             return;
         }
         setAlert(isMobileDevice()
-            ? `Relevé client ${clientName ? getClientFullName(clientName) : ''} - ${monthLabel} ${year} ouvert. Appuyez sur 'Enregistrer PDF' dans la page.`
-            : `Relevé client ${clientName ? getClientFullName(clientName) : ''} - ${monthLabel} ${year} prêt. Enregistrez en PDF depuis l'impression.`);
+            ? `Relevé client ${clientName ? getClientFullName(clientName) : ''} - ${periodLabel} ouvert. Appuyez sur 'Enregistrer PDF' dans la page.`
+            : `Relevé client ${clientName ? getClientFullName(clientName) : ''} - ${periodLabel} prêt. Enregistrez en PDF depuis l'impression.`);
     };
     const handleExportUsdtReport = async () => {
         const monthLabels = getMonthLabels(t);
@@ -119,9 +138,50 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
             setAlert('⚠️ Investisseur introuvable.');
             return;
         }
+        // Period profit is intentionally calculated with the selected range,
+        // while balances must represent the investor's complete state at the
+        // report end date. Rebuild the closing view from data up to endTs so a
+        // reinvestment funded by earlier profit is not mistaken for a loss in
+        // the selected period.
+        const closingEndTs = range.endTs ?? null;
+        const transactionsAtClose = closingEndTs == null
+            ? transactions
+            : transactions.filter((tx) => Number(tx.timestamp) <= closingEndTs);
+        const investorTransactionsAtClose = closingEndTs == null
+            ? investorTransactions
+            : investorTransactions.filter((tx) => Number(tx.timestamp) <= closingEndTs);
+        const deliveryExpensesAtClose = closingEndTs == null
+            ? deliveryExpenses
+            : (deliveryExpenses || []).filter((tx) => Number(tx.timestamp) <= closingEndTs);
+        const personalExpensesAtClose = closingEndTs == null
+            ? personalExpenses
+            : (personalExpenses || []).filter((tx) => Number(tx.timestamp) <= closingEndTs);
+        const closingEconomics = deriveInvestorEconomics({
+            investors: derivedInvestors,
+            investorTransactions: investorTransactionsAtClose,
+            transactions: transactionsAtClose,
+            managerFeePercentage,
+            managerFeeHistory,
+            pamLedger: computePamLedger(transactionsAtClose),
+            periodEndTs: closingEndTs,
+            deliveryExpenses: deliveryExpensesAtClose,
+            personalExpenses: personalExpensesAtClose
+        });
+        const closingInvestor = closingEconomics.derivedInvestors.find((item) => item.id === investorId);
+        if (!closingInvestor) {
+            setAlert('⚠️ Investisseur introuvable à la date de clôture.');
+            return;
+        }
+        const reportInvestor = {
+            ...investor,
+            capitalInvested: closingInvestor.capitalInvested,
+            availableProfit: closingInvestor.availableProfit,
+            displayAvailableProfit: closingInvestor.displayAvailableProfit,
+            sharePercentage: closingInvestor.sharePercentage,
+        };
         const { buildInvestorPdfReport, openPdfPrintWindow } = await loadPdfReports();
         const report = buildInvestorPdfReport({
-            investor,
+            investor: reportInvestor,
             investorTransactions: investorTransactions.filter((tx) => tx.investorId === investorId),
             personalExpenses,
             reportStartTs: range.startTs,

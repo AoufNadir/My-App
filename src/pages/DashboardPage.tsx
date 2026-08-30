@@ -1,22 +1,13 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { Button } from '../components/ui/Button';
+import { useMemo, type ReactNode } from 'react';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { SectionHeading } from '../components/ui/SectionHeading';
-import { CurrencyAmount, type AmountSemantic } from '../components/financial/CurrencyAmount';
+import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { CapitalOverviewCard } from '../components/financial/CapitalOverviewCard';
-import { AlertTriangleIcon } from '../components/icons/AlertTriangleIcon';
-import { BanknotesIcon } from '../components/icons/BanknotesIcon';
 import { ArrowRightLeftIcon } from '../components/icons/ArrowRightLeftIcon';
-import { ArrowUpRightIcon } from '../components/icons/ArrowUpRightIcon';
-import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
-import { CalendarIcon } from '../components/icons/CalendarIcon';
-import { LandmarkIcon } from '../components/icons/LandmarkIcon';
-import { PlusIcon } from '../components/icons/PlusIcon';
+import { ChevronRightIcon } from '../components/icons/ChevronRightIcon';
 import { SparklesIcon } from '../components/icons/SparklesIcon';
 import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
-import { UsersIcon } from '../components/icons/UsersIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
-import { ShareIcon } from '../components/icons/ShareIcon';
 import { TransactionDisplayList } from '../components/transactions/TransactionDisplayList';
 import { useTransactionsViewModel } from '../components/transactions/useTransactionsViewModel';
 import { Skeleton } from '../components/ui/Skeleton';
@@ -25,7 +16,7 @@ import type { ClientDzd, ClientTransactionDzd, OverdueDebtClient, TreasuryCard, 
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
 import type { PamLedgerResult } from '../utils/pamLedger';
 import type { ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
-import { FinancialAuditCard, OwnerProfitPeriodSummary, type FinancialAuditData } from '../components/financial/OwnerProfitSummary';
+import { OwnerProfitPeriodSummary, type FinancialAuditData } from '../components/financial/OwnerProfitSummary';
 import { useLanguage } from '../contexts/LanguageContext';
 const RECENT_TRANSACTION_LIMIT = 5;
 const EMPTY_RECENT_DATE_RANGE = { start: null, end: null };
@@ -107,6 +98,7 @@ type PriorityItem = {
     title: string;
     body: ReactNode;
     tone: Tone;
+    rank?: number;
     action?: () => void;
     actionLabel?: string;
 };
@@ -115,30 +107,35 @@ const PRIORITY_TONE_CLASSES: Record<Tone, {
     title: string;
     body: string;
     action: string;
+    badge: string;
 }> = {
     danger: {
-        item: 'border border-danger/20 border-s-4 border-s-danger/70 bg-danger-bg text-neutral-900 shadow-sm',
-        title: 'text-danger',
+        item: 'border border-border border-s-4 border-s-danger/70 bg-surface text-neutral-900 shadow-sm',
+        title: 'text-neutral-900',
         body: 'text-neutral-700',
         action: 'border border-danger/20 bg-surface text-danger',
+        badge: 'bg-danger/10 text-danger',
     },
     warning: {
-        item: 'border border-warning/25 bg-warning-bg text-neutral-900 shadow-sm',
-        title: 'text-warning',
+        item: 'border border-border border-s-4 border-s-warning/70 bg-surface text-neutral-900 shadow-sm',
+        title: 'text-neutral-900',
         body: 'text-neutral-700',
         action: 'border border-warning/25 bg-surface text-warning',
+        badge: 'bg-warning/10 text-warning',
     },
     success: {
-        item: 'border border-success/20 bg-success-bg text-neutral-900 shadow-sm',
-        title: 'text-success',
+        item: 'border border-border border-s-4 border-s-success/70 bg-surface text-neutral-900 shadow-sm',
+        title: 'text-neutral-900',
         body: 'text-neutral-700',
         action: 'border border-success/20 bg-surface text-success',
+        badge: 'bg-success/10 text-success',
     },
     info: {
-        item: 'border border-info/20 bg-info-bg text-neutral-900 shadow-sm',
-        title: 'text-info',
+        item: 'border border-border border-s-4 border-s-info/70 bg-surface text-neutral-900 shadow-sm',
+        title: 'text-neutral-900',
         body: 'text-neutral-700',
         action: 'border border-info/20 bg-surface text-info',
+        badge: 'bg-info/10 text-info',
     },
 };
 function toneClasses(tone: Tone): typeof PRIORITY_TONE_CLASSES[Tone] {
@@ -160,34 +157,22 @@ function renderDebtPriorityBody(template: string, amount: number, days: number, 
         })}
     </>);
 }
-function ActionStrip({ actions, }: {
-    actions: Array<{
-        label: string;
-        icon: ReactNode;
-        onClick: () => void;
-        primary?: boolean;
-    }>;
-}) {
-    return (<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {actions.map((action) => (<Button key={action.label} type="button" onClick={action.onClick} variant={action.primary ? 'primary' : 'outline'} size="md" className="min-h-[64px] w-full px-2.5 text-xs font-bold sm:min-h-[56px] sm:text-sm">
-          <span className="inline-flex h-full min-w-0 flex-col items-center justify-center gap-1.5 text-center sm:flex-row sm:gap-2">
-            {action.icon}
-            <span className="max-w-full truncate leading-tight">{action.label}</span>
-          </span>
-        </Button>))}
-    </div>);
-}
 function PriorityList({ title, items, onTitleClick, }: {
     title: string;
     items: PriorityItem[];
     onTitleClick?: () => void;
 }) {
-    const renderItemContent = (item: PriorityItem, tone: typeof PRIORITY_TONE_CLASSES[Tone]) => (<div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1.5">
-      <p className={`min-w-0 text-base font-bold leading-snug ${tone.title}`}>{item.title}</p>
-      {item.action && item.actionLabel && (<span className={`inline-flex min-h-8 shrink-0 items-center justify-center rounded-button px-2.5 text-xs font-bold ${tone.action}`}>
-          {item.actionLabel}
-        </span>)}
-      <p className={`col-span-2 text-sm leading-relaxed ${tone.body}`}>{item.body}</p>
+    const renderItemContent = (item: PriorityItem, tone: typeof PRIORITY_TONE_CLASSES[Tone]) => (<div className="flex min-w-0 items-start gap-3">
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold tabular-nums ${tone.badge}`}>
+        {item.rank ?? <SparklesIcon className="h-4 w-4"/>}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className={`min-w-0 truncate text-base font-bold leading-snug ${tone.title}`}>{item.title}</p>
+        <p className={`mt-1 text-sm leading-relaxed ${tone.body}`}>{item.body}</p>
+      </div>
+      {item.action && item.actionLabel && (<span className={`inline-flex min-h-8 shrink-0 items-center justify-center rounded-full px-3 text-xs font-bold ${tone.action}`}>
+        {item.actionLabel}
+      </span>)}
     </div>);
     return (<Card>
       <CardHeader className="p-4 pb-3">
@@ -198,181 +183,135 @@ function PriorityList({ title, items, onTitleClick, }: {
       <CardContent className="p-4 pt-0 space-y-2">
         {items.map((item) => {
             const tone = toneClasses(item.tone);
-            return item.action ? (<button key={item.id} type="button" onClick={item.action} className={`w-full rounded-card p-4 text-start transition-all hover:border-border-strong hover:shadow-card-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.99] ${tone.item}`}>
+            return item.action ? (<button key={item.id} type="button" onClick={item.action} className={`w-full rounded-xl p-3 text-start transition-all hover:border-border-strong hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.99] ${tone.item}`}>
               {renderItemContent(item, tone)}
-            </button>) : (<div key={item.id} className={`rounded-card p-4 ${tone.item}`}>
+            </button>) : (<div key={item.id} className={`rounded-xl p-3 ${tone.item}`}>
               {renderItemContent(item, tone)}
             </div>);
         })}
       </CardContent>
     </Card>);
 }
-const DAY_LABELS_SHORT = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-function TodaySummary({ title, items, last7DaysProfit, todaySellCount, onShare, shareCopied }: {
+function SmartPricingShortcut({ title, subtitle, onClick }: {
     title: string;
-    items: Array<{
-        label: string;
-        value: number;
-        semantic?: AmountSemantic;
-        icon: ReactNode;
-    }>;
-    last7DaysProfit?: number[];
-    todaySellCount?: number;
-    onShare?: () => void;
-    shareCopied?: boolean;
+    subtitle: string;
+    onClick: () => void;
+}) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex w-full items-center gap-3 rounded-card border border-primary/15 bg-surface px-4 py-3 text-start shadow-card transition-all hover:border-primary/25 hover:bg-primary/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.99]"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <SparklesIcon className="h-5 w-5"/>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-extrabold text-primary">{title}</span>
+          <span className="mt-0.5 block truncate text-xs font-medium text-neutral-500">{subtitle}</span>
+        </span>
+        <ChevronRightIcon className="h-5 w-5 shrink-0 text-primary/45"/>
+      </button>
+    );
+}
+type DashboardMetricCellProps = {
+    label: string;
+    value: number;
+    currency?: 'DZD' | 'USDT' | 'EUR';
+    semantic?: 'auto' | 'plain' | 'profit' | 'loss';
+};
+function renderDashboardMetricCell({ label, value, currency = 'DZD', semantic = 'auto' }: DashboardMetricCellProps) {
+    return (
+      <div className="min-w-0 rounded-xl border border-border bg-surface-muted px-3 py-3">
+        <p className="mb-2 truncate text-[11px] font-semibold text-neutral-500">{label}</p>
+        <CurrencyAmount value={value} currency={currency} semantic={semantic} size="lg" decimals={currency === 'DZD' ? 0 : 2}/>
+      </div>
+    );
+}
+function SalesProfitSummary({ title, periods }: {
+    title: string;
+    periods: {
+        today: number;
+        week: number;
+        month: number;
+        year: number;
+    };
 }) {
     const { t } = useLanguage();
-    const days = last7DaysProfit ?? [];
-    const maxAbs = Math.max(...days.map(Math.abs), 1);
-    // Day labels: compute from today going back 6 days
-    const todayDowIndex = new Date().getDay(); // 0=Sun..6=Sat
-    const dayLabels = Array.from({ length: 7 }, (_, i) => {
-        const dow = (todayDowIndex - 6 + i + 7) % 7;
-        return DAY_LABELS_SHORT[dow === 0 ? 6 : dow - 1]; // Mon=0..Sun=6
-    });
-    return (<Card>
-      <CardHeader className="p-4 pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <SectionHeading icon={<CalendarIcon className="w-4 h-4"/>}>{title}</SectionHeading>
-          <div className="flex items-center gap-2 shrink-0">
-            {typeof todaySellCount === 'number' && todaySellCount > 0 && (
-              <span className="text-xs font-semibold text-neutral-500">
-                <span className="tabular-nums text-primary font-bold">{todaySellCount}</span> {t('dashboard.opsShort')}
-              </span>
-            )}
-            {onShare && (
-              <button type="button" onClick={onShare} className="flex h-8 w-8 items-center justify-center rounded-button bg-neutral-100 text-neutral-500 transition-colors hover:bg-neutral-200 hover:text-neutral-800" aria-label={t('dashboard.shareSummary')} title={shareCopied ? t('common.copied') : t('dashboard.shareSummary')}>
-                {shareCopied
-                  ? <span className="text-[10px] font-bold text-financial-profit">✓</span>
-                  : <ShareIcon className="w-3.5 h-3.5"/>}
-              </button>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 pt-0 space-y-4">
-        <div className="grid grid-cols-2 gap-2">
-          {items.map((item) => (<div key={item.label} className="rounded-xl border border-border bg-surface-muted px-3 py-3">
-              <div className="flex items-center justify-between gap-1 mb-2">
-                <p className="text-[11px] font-semibold text-neutral-500 truncate">{item.label}</p>
-                <span className="text-neutral-300 shrink-0">{item.icon}</span>
+    const rows = [
+        { label: t('dashboard.profitToday') as string, value: periods.today },
+        { label: t('dashboard.thisWeek') as string, value: periods.week },
+        { label: t('dashboard.profitMonth') as string, value: periods.month },
+        { label: t('dashboard.profitYear') as string, value: periods.year },
+    ];
+    return (
+      <Card>
+        <CardHeader className="p-4 pb-3">
+          <SectionHeading icon={<TrendingUpIcon className="w-4 h-4"/>}>{title}</SectionHeading>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {rows.map((row) => (
+              <div key={row.label} className="contents">
+                {renderDashboardMetricCell({ label: row.label, value: row.value })}
               </div>
-              <CurrencyAmount value={item.value} currency="DZD" semantic={item.semantic ?? 'auto'} size="lg" decimals={0}/>
-            </div>))}
-        </div>
-
-        {days.length === 7 && days.some((v) => v !== 0) && (
-          <div>
-            <div className="flex items-end gap-1.5 h-16 mb-1">
-              {days.map((profit, i) => {
-                const isToday = i === 6;
-                const barH = profit === 0 ? 0 : Math.max(8, (Math.abs(profit) / maxAbs) * 58);
-                const barColor = profit > 0
-                  ? (isToday ? 'bg-financial-profit' : 'bg-financial-profit/40')
-                  : profit < 0 ? 'bg-financial-loss/50' : '';
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+}
+type QuickSituationMetricRow = {
+    type: 'metric';
+    label: string;
+    value: number;
+    currency?: 'DZD' | 'USDT' | 'EUR';
+    semantic?: 'auto' | 'plain' | 'profit' | 'loss';
+    emphasis?: boolean;
+};
+type QuickSituationSectionRow = {
+    type: 'section';
+    id: string;
+    label: string;
+};
+type QuickSituationRow = QuickSituationMetricRow | QuickSituationSectionRow;
+function QuickSituationCard({ title, rows }: {
+    title: string;
+    rows: QuickSituationRow[];
+}) {
+    return (
+      <Card>
+        <CardHeader className="p-4 pb-3">
+          <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>{title}</SectionHeading>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y divide-border">
+            {rows.map((row) => {
+              if (row.type === 'section') {
                 return (
-                  <div key={i} className="flex flex-1 flex-col items-center gap-1">
-                    <div className="flex w-full flex-1 items-end justify-center">
-                      {profit !== 0 ? (
-                        <div
-                          className={`w-2.5 rounded-t-md transition-all ${barColor}`}
-                          style={{ height: `${barH}px` }}
-                        />
-                      ) : (
-                        <div className="w-2.5 h-1 rounded-full bg-neutral-100"/>
-                      )}
-                    </div>
-                    <span className={`text-[9px] font-bold leading-none ${isToday ? 'text-primary' : 'text-neutral-400'}`}>
-                      {dayLabels[i]}
-                    </span>
+                  <div key={row.id} className="bg-surface-muted/55 px-4 py-2 text-[11px] font-bold uppercase tracking-normal text-neutral-500">
+                    {row.label}
                   </div>
                 );
-              })}
-            </div>
-            <p className="text-[9px] font-medium text-neutral-300 text-end">7 jours</p>
+              }
+              return (
+                <div key={row.label} className={`flex min-h-[58px] items-center justify-between gap-4 px-4 py-3 ${row.emphasis ? 'bg-surface-muted' : 'bg-surface'}`}>
+                  <span className="min-w-0 text-sm font-semibold text-neutral-600">{row.label}</span>
+                  <CurrencyAmount
+                    value={row.value}
+                    currency={row.currency ?? 'DZD'}
+                    semantic={row.semantic ?? 'plain'}
+                    size="lg"
+                    decimals={(row.currency ?? 'DZD') === 'DZD' ? 0 : 2}
+                    className="shrink-0"
+                  />
+                </div>
+              );
+            })}
           </div>
-        )}
-      </CardContent>
-    </Card>);
-}
-function MoneyMap({ title, rows, }: {
-    title: string;
-    rows: Array<{
-        label: string;
-        value: number;
-        semantic?: AmountSemantic;
-        icon: ReactNode;
-    }>;
-}) {
-    return (<Card>
-      <CardHeader className="p-4 pb-3">
-        <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>{title}</SectionHeading>
-      </CardHeader>
-      <CardContent className="p-0 divide-y divide-neutral-100">
-        {rows.map((row) => (<div key={row.label} className="flex items-center justify-between gap-3 px-4 py-3.5">
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600">
-                {row.icon}
-              </span>
-              <p className="text-sm font-medium text-neutral-500">{row.label}</p>
-            </div>
-            <CurrencyAmount value={row.value} currency="DZD" semantic={row.semantic ?? 'plain'} size="lg" decimals={0}/>
-          </div>))}
-      </CardContent>
-    </Card>);
-}
-function PortfolioStatusCard({ title, stockLabel, valueLabel, pamLabel, portfolioStats, stockValue, }: {
-    title: string;
-    stockLabel: string;
-    valueLabel: string;
-    pamLabel: string;
-    portfolioStats: any;
-    stockValue: number;
-}) {
-    const usdtQty = Number(portfolioStats?.usdt?.available || 0);
-    const eurQty = Number(portfolioStats?.eur?.available || 0);
-    const usdtPam = Number(portfolioStats?.usdt?.avgBuy || 0);
-    const eurPam = Number(portfolioStats?.eur?.avgBuy || 0);
-    const usdtValue = usdtQty * usdtPam;
-    const eurValue = eurQty * eurPam;
-    const assetRows = [
-        { label: 'USDT', qty: usdtQty, currency: 'USDT' as const, pam: usdtPam, value: usdtValue },
-        { label: 'EUR', qty: eurQty, currency: 'EUR' as const, pam: eurPam, value: eurValue }
-    ];
-    return (<Card>
-      <CardHeader className="p-4 pb-3 flex flex-row items-start justify-between gap-3">
-        <SectionHeading icon={<BriefcaseIcon className="w-4 h-4"/>}>{title}</SectionHeading>
-        <div className="text-end shrink-0">
-          <p className="text-xs font-medium text-neutral-500">{stockLabel}</p>
-          <CurrencyAmount value={stockValue} currency="DZD" size="md" decimals={0}/>
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 pt-0">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {assetRows.map((asset) => (<div key={asset.label} className="rounded-xl border border-border bg-surface-muted p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface text-neutral-600">
-                    <WalletIcon className="h-5 w-5"/>
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-neutral-800">{asset.label}</p>
-                    <CurrencyAmount value={asset.qty} currency={asset.currency} size="lg"/>
-                  </div>
-                </div>
-                <div className="text-end shrink-0">
-                  <p className="text-xs font-medium text-neutral-500">{pamLabel}</p>
-                  <CurrencyAmount value={asset.pam} currency="DZD" size="sm" decimals={2}/>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center justify-between rounded-lg bg-surface px-3 py-2 text-sm">
-                <span className="text-neutral-500">{valueLabel}</span>
-                <CurrencyAmount value={asset.value} currency="DZD" size="sm" decimals={0} className="font-semibold text-neutral-700"/>
-              </div>
-            </div>))}
-        </div>
-      </CardContent>
-    </Card>);
+        </CardContent>
+      </Card>
+    );
 }
 function DashboardLoadingState() {
     return (<div className="anim-page-in space-y-5" aria-busy="true" aria-label="Chargement des donnees financieres">
@@ -386,9 +325,6 @@ function DashboardLoadingState() {
           </div>))}
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {Array.from({ length: 4 }, (_, index) => <Skeleton key={index} height={64}/>) }
-      </div>
       <Skeleton height={180}/>
     </div>);
 }
@@ -400,20 +336,14 @@ export function DashboardPage(props: DashboardPageProps) {
 }
 function DashboardContent({
     dailyOverview,
-    managerProfitBreakdown,
-    financialAudit,
     portfolioStats,
     capitalSnapshot,
     investorBreakdown,
     overdueDebtClients,
-    globalNetProfit,
-    onNewTransaction,
-    onOpenClients,
     onOpenClient,
     onOpenClientDebts,
     onOpenTreasury,
     onOpenAnalytics,
-    onOpenPersonalWithdrawal,
     transactions,
     clientTransactionsDzd,
     clientsDzd,
@@ -430,13 +360,10 @@ function DashboardContent({
     handleDeleteClientTxClick,
     setTreasuryTxToDelete,
     onOpenTransactions,
-    onQuickSell,
-    quickSellPreview,
     onOpenMonthPlan,
     monthlyGoal = 0,
 }: DashboardPageProps) {
     const { t } = useLanguage();
-    const [shareCopied, setShareCopied] = useState(false);
     const {
         groupedTransactions: recentGroupedTransactions,
         formatDzdAmount: formatRecentDzdAmount,
@@ -483,37 +410,15 @@ function DashboardContent({
         [recentTransactionGroups]
     );
 
-    const handleShareDaySummary = () => {
-        const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
-        const sign = (n: number) => n >= 0 ? `+${fmt(n)}` : fmt(n);
-        const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-        const lines: string[] = [
-            `📊 ${t('dashboard.summaryWord')} ${today}`,
-            ``,
-            `💰 ${t('common.todayProfit')} : ${sign(dailyOverview.todayProfit)} DZD`,
-            dailyOverview.weekToDateProfit !== undefined ? `📅 ${t('dashboard.thisWeek')} : ${sign(dailyOverview.weekToDateProfit)} DZD` : '',
-            `📆 ${t('dashboard.thisMonth')} : ${sign(dailyOverview.monthToDateProfit)} DZD`,
-            ``,
-            `💵 Caisse : ${fmt(capitalSnapshot.caisseBalance)} DZD`,
-            `📱 BaridiMob : ${fmt(capitalSnapshot.baridiBalance)} DZD`,
-        ].filter(Boolean);
-        if (dailyOverview.todaySellCount) lines.push(``, `🔄 ${dailyOverview.todaySellCount} ${t('transactions.operationsWord')}`);
-        const text = lines.join('\n');
-        if (typeof navigator.share === 'function') {
-            navigator.share({ text }).catch(() => {});
-        } else {
-            navigator.clipboard.writeText(text).then(() => {
-                setShareCopied(true);
-                setTimeout(() => setShareCopied(false), 2000);
-            });
-        }
-    };
-    const stockValue = capitalSnapshot.stockValue;
     const cashTotal = capitalSnapshot.cashTotal;
     const totalDebt = capitalSnapshot.receivables;
     const totalAdvances = capitalSnapshot.clientAdvances;
-    const lowStock = Number(portfolioStats?.usdt?.available || 0) < 100
-        && Number(portfolioStats?.eur?.available || 0) < 100;
+    const investorProfitsDue = Number(investorBreakdown?.profits || 0);
+    const quickPayable = totalAdvances + investorProfitsDue;
+    const liquidityGap = cashTotal - quickPayable;
+    const usdtAvailable = Number(portfolioStats?.usdt?.available || 0);
+    const eurAvailable = Number(portfolioStats?.eur?.available || 0);
+    const lowStock = usdtAvailable < 100 && eurAvailable < 100;
     const getClientDebtAmount = (client: OverdueDebtClient) => {
         const balance = Number(client.balance || 0);
         if (balance < -0.005)
@@ -537,7 +442,8 @@ function DashboardContent({
         if (topDebtClients.length > 0) {
             return topDebtClients.map((client, index) => ({
                 id: `urgent-debt-${client.clientId}`,
-                title: `${index + 1}. ${client.fullName}`,
+                title: client.fullName,
+                rank: index + 1,
                 body: renderDebtPriorityBody(t('dashboard.debtPriorityCardBody') as string, getClientDebtAmount(client), client.daysOverdue, client.oldestUnpaidDate),
                 tone: 'danger' as Tone,
                 action: () => onOpenClient(client.clientId),
@@ -594,48 +500,26 @@ function DashboardContent({
         onOpenAnalytics,
         t
     ]);
-    const primaryActions = [
-        { label: t('dashboard.newOperation') as string, icon: <PlusIcon className="h-4 w-4"/>, onClick: onNewTransaction, primary: true },
-        { label: t('nav.clients') as string, icon: <UsersIcon className="h-4 w-4"/>, onClick: onOpenClients },
-        { label: t('nav.treasury') as string, icon: <ArrowRightLeftIcon className="h-4 w-4"/>, onClick: onOpenTreasury },
-        { label: t('nav.analytics') as string, icon: <TrendingUpIcon className="h-4 w-4"/>, onClick: onOpenAnalytics }
-    ];
     return (<div className="anim-page-in space-y-5">
       <CapitalOverviewCard t={t} capitalSnapshot={capitalSnapshot} investorBreakdown={investorBreakdown}/>
 
-      <ActionStrip actions={primaryActions}/>
+      <QuickSituationCard title={t('dashboard.quickSituation') as string} rows={[
+          { type: 'metric', label: t('common.caisseBalance') as string, value: capitalSnapshot.caisseBalance },
+          { type: 'metric', label: t('common.baridiBalance') as string, value: capitalSnapshot.baridiBalance },
+          { type: 'metric', label: t('finance.toReceive') as string, value: totalDebt, semantic: totalDebt > 0 ? 'profit' : 'plain' },
+          { type: 'metric', label: t('dashboard.toPay') as string, value: quickPayable, semantic: quickPayable > 0 ? 'loss' : 'plain' },
+          { type: 'metric', label: t('dashboard.liquidityGap') as string, value: liquidityGap, semantic: 'auto', emphasis: true },
+          { type: 'section', id: 'portfolio', label: t('nav.portfolio') as string },
+          { type: 'metric', label: t('dashboard.usdtAvailable') as string, value: usdtAvailable, currency: 'USDT' },
+          { type: 'metric', label: t('dashboard.eurAvailable') as string, value: eurAvailable, currency: 'EUR' },
+      ]}/>
 
-      {/* Quick Sell button — only when USDT stock available */}
-      {onQuickSell && quickSellPreview && (
-        <button type="button" onClick={onQuickSell}
-          className="flex w-full items-center justify-between gap-3 rounded-xl border border-danger/25 bg-danger-bg px-4 py-3 text-start transition-colors hover:bg-danger-bg/80 active:scale-[0.99]">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-financial-loss">⚡ {t('dashboard.quickSellUsdt')}</p>
-            <p className="text-xs text-neutral-500 mt-0.5" dir="ltr">
-              {quickSellPreview.qty.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} USDT
-              @ {quickSellPreview.price.toFixed(2)} DZD
-              → <span className="text-financial-profit font-semibold">
-                +{Math.round((quickSellPreview.price - quickSellPreview.pam) * quickSellPreview.qty).toLocaleString('fr-FR')} DZD
-              </span>
-            </p>
-          </div>
-          <svg className="w-4 h-4 shrink-0 text-financial-loss/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-      )}
-
-      {onOpenPersonalWithdrawal && (<Button onClick={onOpenPersonalWithdrawal} variant="outline" size="md" className="flex w-full items-center justify-center gap-2 border-primary/20 bg-primary/10 font-bold text-primary hover:bg-primary/20">
-          <BanknotesIcon className="h-4 w-4"/>
-          <span>{t('dashboard.personalExpenseToday')}</span>
-        </Button>)}
-
-      <TodaySummary title={t('dashboard.profitSummary') as string} last7DaysProfit={dailyOverview.last7DaysProfit} todaySellCount={dailyOverview.todaySellCount} onShare={handleShareDaySummary} shareCopied={shareCopied} items={[
-            { label: t('dashboard.profitToday') as string, value: dailyOverview.todayProfit, semantic: 'auto', icon: <BriefcaseIcon className="h-4 w-4"/> },
-            { label: t('dashboard.thisWeek') as string, value: dailyOverview.weekToDateProfit ?? 0, semantic: 'auto', icon: <TrendingUpIcon className="h-4 w-4"/> },
-            { label: t('dashboard.profitMonth') as string, value: dailyOverview.monthToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
-            { label: t('dashboard.profitYear') as string, value: dailyOverview.yearToDateProfit, semantic: 'auto', icon: <CalendarIcon className="h-4 w-4"/> },
-        ]}/>
+      <SalesProfitSummary title={t('dashboard.profitSummary') as string} periods={{
+          today: dailyOverview.todayProfit,
+          week: dailyOverview.weekToDateProfit ?? 0,
+          month: dailyOverview.monthToDateProfit,
+          year: dailyOverview.yearToDateProfit,
+      }}/>
 
       <OwnerProfitPeriodSummary periods={{
           today: dailyOverview.ownerProfitToday,
@@ -644,36 +528,25 @@ function DashboardContent({
           year: dailyOverview.ownerProfitYear,
       }}/>
 
-      <FinancialAuditCard breakdown={managerProfitBreakdown} audit={financialAudit}/>
-
       {/* Month plan — entry to the smart pricing hub (progress + prices live inside) */}
       {monthlyGoal > 0 && onOpenMonthPlan && (
-        <button type="button" onClick={onOpenMonthPlan}
-          className="flex w-full items-center justify-between rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-start transition-colors hover:bg-primary/10 active:scale-[0.99]">
-          <span className="text-sm font-bold text-primary">📋 {t('smartPricing.monthPlan')}</span>
-          <svg className="w-4 h-4 shrink-0 text-primary/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
+        <SmartPricingShortcut
+          title={t('smartPricing.monthPlan') as string}
+          subtitle={t('smartPricing.title') as string}
+          onClick={onOpenMonthPlan}
+        />
       )}
 
       {/* No goal yet → CTA to open the month plan and set one */}
       {monthlyGoal <= 0 && onOpenMonthPlan && (
-        <button type="button" onClick={onOpenMonthPlan}
-          className="flex w-full items-center justify-between rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 text-start transition-colors hover:bg-primary/10 active:scale-[0.99]">
-          <div>
-            <p className="text-sm font-bold text-primary">🎯 {t('smartPricing.title')}</p>
-            <p className="text-xs text-neutral-500 mt-0.5">{t('smartPricing.subtitle')}</p>
-          </div>
-          <svg className="w-4 h-4 shrink-0 text-primary/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
+        <SmartPricingShortcut
+          title={t('smartPricing.title') as string}
+          subtitle={t('smartPricing.subtitle') as string}
+          onClick={onOpenMonthPlan}
+        />
       )}
 
       <PriorityList title={t('dashboard.attentionNeeded') as string} items={priorities} onTitleClick={onOpenClientDebts}/>
-
-      <PortfolioStatusCard title={t('portfolio.currentStatus') as string} stockLabel={t('finance.stock') as string} valueLabel={t('transactions.value') as string} pamLabel={t('portfolio.currentPam') as string} portfolioStats={portfolioStats} stockValue={stockValue}/>
 
       {/* Same operation feed as Journal des Opérations, limited to the latest rows. */}
       {recentTransactionCount > 0 && (
@@ -703,14 +576,5 @@ function DashboardContent({
         </Card>
       )}
 
-      <MoneyMap title={t('dashboard.moneyMap') as string} rows={[
-            { label: t('common.caisseBalance') as string, value: capitalSnapshot.caisseBalance, icon: <WalletIcon className="h-4 w-4"/> },
-            { label: t('common.baridiBalance') as string, value: capitalSnapshot.baridiBalance, icon: <LandmarkIcon className="h-4 w-4"/> },
-            { label: t('finance.stock') as string, value: stockValue, icon: <BriefcaseIcon className="h-4 w-4"/> },
-            { label: t('finance.toReceive') as string, value: totalDebt, semantic: totalDebt > 0 ? 'profit' : 'plain', icon: <ArrowUpRightIcon className="h-4 w-4"/> },
-            { label: t('finance.clientAdvance') as string, value: totalAdvances, semantic: totalAdvances > 0 ? 'loss' : 'plain', icon: <AlertTriangleIcon className="h-4 w-4"/> },
-            { label: t('treasury.investorCapital') as string, value: investorBreakdown?.capital ?? capitalSnapshot.investorLiability, semantic: 'loss', icon: <UsersIcon className="h-4 w-4"/> },
-            { label: t('treasury.profitsNotWithdrawn') as string, value: investorBreakdown?.profits ?? 0, semantic: 'loss', icon: <UsersIcon className="h-4 w-4"/> }
-        ]}/>
     </div>);
 }

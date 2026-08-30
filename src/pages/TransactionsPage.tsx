@@ -165,12 +165,12 @@ export function TransactionsPage({
       <HeroKpiCard
         accent="sky"
         icon={<BriefcaseIcon className="w-5 h-5" />}
-        primaryLabel={t('transactions.history') as string}
+        primaryLabel={t('transactions.overview') as string}
         primaryValue={stats.total}
         primaryCurrency={null}
         primarySemantic="plain"
         secondary={[
-          { label: 'Portefeuille',               value: stats.crypto,   currency: null, semantic: 'plain' },
+          { label: t('nav.portfolio') as string,  value: stats.crypto,   currency: null, semantic: 'plain' },
           { label: t('nav.clients') as string,   value: stats.client,   currency: null, semantic: 'plain' },
           { label: t('nav.treasury') as string,  value: stats.treasury, currency: null, semantic: 'plain' },
           { label: t('digitalServices.short') as string, value: stats.digital, currency: null, semantic: 'plain' },
@@ -192,11 +192,11 @@ export function TransactionsPage({
           size="lg"
           onClick={() => exportTransactionsPdf(groupedTransactions, getClientFullName, clientsDzd, `${stats.total} opérations`)}
           className="shrink-0 font-semibold px-3"
-          title="Exporter PDF"
-          aria-label="Exporter PDF"
+          title={t('transactions.exportPdf') as string}
+          aria-label={t('transactions.exportPdf') as string}
         >
           <DownloadCloudIcon className="w-4 h-4" />
-          <span className="hidden sm:inline">PDF</span>
+          <span className="hidden sm:inline">{t('transactions.exportPdf')}</span>
         </Button>
       </div>
 

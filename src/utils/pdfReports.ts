@@ -1,6 +1,7 @@
 import type { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, Tx, TreasuryTx } from '../types';
 import type { PamLedgerResult } from './pamLedger';
 import { calculateManagerOwnerCapital, isPersonalExpenseCapitalWithdrawal } from './managerCapital';
+import { buildClientStatementTransactions } from './clientStatementTransactions';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel } from './transactionTerminology';
 type PortfolioSnapshot = {
     usdt: {
@@ -18,6 +19,9 @@ type ClientNameResolver = (client: ClientDzd) => string;
 type ReportPayload = {
     fileName: string;
     html: string;
+};
+type ClientReportPayload = ReportPayload & {
+    transactions: ClientTransactionDzd[];
 };
 type MonthlyClientRank = {
     clientId: string;
@@ -42,9 +46,9 @@ type MonthlyReportInput = {
 };
 type ClientReportInput = {
     clientId: string;
-    month: number;
-    year: number;
-    monthLabel: string;
+    reportStartTs: number;
+    reportEndTs: number;
+    periodLabel: string;
     clients: ClientDzd[];
     clientTransactions: ClientTransactionDzd[];
     transactions: Tx[];
@@ -163,6 +167,13 @@ function formatDateTime(timestamp: number): string {
         minute: '2-digit'
     });
 }
+function formatCompactDateTime(timestamp: number): { date: string; time: string } {
+    const date = new Date(timestamp);
+    return {
+        date: date.toLocaleDateString(FR_LOCALE, { day: '2-digit', month: '2-digit', year: 'numeric' }),
+        time: date.toLocaleTimeString(FR_LOCALE, { hour: '2-digit', minute: '2-digit' }),
+    };
+}
 function findClientTransferCounterpart(tx: ClientTransactionDzd, allClientTxs: ClientTransactionDzd[]) {
     if (tx.type !== 'Transfert Sortant' && tx.type !== 'Transfert Entrant')
         return null;
@@ -218,6 +229,8 @@ function reportShell(opts: {
     subtitle: string;
     bodyHtml: string;
     pageSize?: 'A4' | 'A4 landscape';
+    pageMargin?: string;
+    reportClass?: string;
 }): ReportPayload {
     const generatedAt = new Date().toLocaleString(FR_LOCALE, {
         day: '2-digit',
@@ -296,6 +309,14 @@ function reportShell(opts: {
       border-radius: var(--radius-lg);
       overflow: hidden;
       box-shadow: var(--shadow-card);
+    }
+
+    .report-shell-body .report.client-report {
+      overflow: visible;
+    }
+
+    .report-shell-body .report.investor-report {
+      overflow: visible;
     }
 
     .report-shell-body .header {
@@ -731,6 +752,401 @@ function reportShell(opts: {
       color: var(--muted-strong);
     }
 
+    /* Client statements prioritize the complete operation table over large cards. */
+    .report-shell-body .client-report .section {
+      margin-top: 14px;
+    }
+
+    .report-shell-body .client-report .client-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .report-shell-body .client-report .client-summary-cell {
+      min-width: 0;
+      min-height: 52px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface-muted);
+    }
+
+    .report-shell-body .client-report .client-summary-cell.positive {
+      border-color: color-mix(in srgb, var(--good) 26%, var(--line));
+      background: color-mix(in srgb, var(--good) 7%, var(--surface));
+    }
+
+    .report-shell-body .client-report .client-summary-cell.negative {
+      border-color: color-mix(in srgb, var(--bad) 24%, var(--line));
+      background: color-mix(in srgb, var(--bad) 6%, var(--surface));
+    }
+
+    .report-shell-body .client-report .client-summary-cell.neutral {
+      border-color: var(--line);
+      background: var(--surface-muted);
+    }
+
+    .report-shell-body .client-report .client-summary-cell.closing {
+      min-height: 56px;
+      border-width: 1.5px;
+    }
+
+    .report-shell-body .client-report .client-summary-label {
+      margin-bottom: 3px;
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .report-shell-body .client-report .client-summary-value {
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1.15;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .report-shell-body .client-report .client-summary-cell.positive .client-summary-value {
+      color: var(--good);
+    }
+
+    .report-shell-body .client-report .client-summary-cell.negative .client-summary-value {
+      color: var(--bad);
+    }
+
+    .report-shell-body .client-report .client-history-table {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+
+    .report-shell-body .client-report .client-operations-table {
+      width: 100%;
+      table-layout: fixed;
+    }
+
+    .report-shell-body .client-report .client-operations-table col.date { width: 14%; }
+    .report-shell-body .client-report .client-operations-table col.type { width: 20%; }
+    .report-shell-body .client-report .client-operations-table col.amount { width: 17%; }
+    .report-shell-body .client-report .client-operations-table col.details { width: 27%; }
+    .report-shell-body .client-report .client-operations-table col.note { width: 22%; }
+
+    .report-shell-body .client-report .client-operations-table .client-date {
+      white-space: nowrap;
+      line-height: 1.25;
+    }
+
+    .report-shell-body .client-report .client-operations-table .client-date span {
+      display: block;
+    }
+
+    .report-shell-body .client-report .client-operations-table .client-time {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .report-shell-body .client-report .client-operations-table .client-amount {
+      white-space: nowrap;
+    }
+
+    .report-shell-body .client-report .client-operations-table td {
+      overflow-wrap: anywhere;
+    }
+
+    .report-shell-body .client-report .client-total {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px 16px;
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-top: 1px solid var(--line);
+      color: var(--muted-strong);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .report-shell-body .client-report .client-total strong {
+      color: var(--ink);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .report-shell-body .client-report .client-operations-table thead {
+      display: table-header-group;
+    }
+
+    .report-shell-body .client-report .client-operations-table tr {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .report-shell-body .investor-report .section {
+      margin-top: 14px;
+    }
+
+    .report-shell-body .investor-report .investor-summary-grid,
+    .report-shell-body .investor-report .investor-performance-grid,
+    .report-shell-body .investor-report .investor-movement-grid,
+    .report-shell-body .investor-report .capital-evolution-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .report-shell-body .investor-report .investor-summary-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .report-shell-body .investor-report .investor-performance-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .report-shell-body .investor-report .investor-movement-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .report-shell-body .investor-report .capital-evolution-grid {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .report-shell-body .investor-report .investor-summary-cell,
+    .report-shell-body .investor-report .investor-performance-cell,
+    .report-shell-body .investor-report .investor-movement-cell,
+    .report-shell-body .investor-report .capital-evolution-cell {
+      min-width: 0;
+      min-height: 50px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface-muted);
+    }
+
+    .report-shell-body .investor-report .investor-summary-cell.positive,
+    .report-shell-body .investor-report .investor-performance-cell.positive,
+    .report-shell-body .investor-report .investor-movement-cell.positive,
+    .report-shell-body .investor-report .capital-evolution-cell.positive {
+      border-color: color-mix(in srgb, var(--good) 26%, var(--line));
+      background: color-mix(in srgb, var(--good) 7%, var(--surface));
+    }
+
+    .report-shell-body .investor-report .investor-summary-cell.negative,
+    .report-shell-body .investor-report .investor-performance-cell.negative,
+    .report-shell-body .investor-report .investor-movement-cell.negative,
+    .report-shell-body .investor-report .capital-evolution-cell.negative {
+      border-color: color-mix(in srgb, var(--bad) 24%, var(--line));
+      background: color-mix(in srgb, var(--bad) 6%, var(--surface));
+    }
+
+    .report-shell-body .investor-report .investor-summary-cell.closing {
+      min-height: 54px;
+      border-width: 1.5px;
+    }
+
+    .report-shell-body .investor-report .investor-summary-cell.neutral,
+    .report-shell-body .investor-report .investor-performance-cell.neutral,
+    .report-shell-body .investor-report .investor-movement-cell.neutral,
+    .report-shell-body .investor-report .capital-evolution-cell.neutral {
+      border-color: var(--line);
+      background: var(--surface-muted);
+    }
+
+    .report-shell-body .investor-report .investor-summary-label,
+    .report-shell-body .investor-report .investor-performance-label,
+    .report-shell-body .investor-report .investor-movement-label,
+    .report-shell-body .investor-report .capital-evolution-label {
+      margin-bottom: 3px;
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .report-shell-body .investor-report .investor-summary-value,
+    .report-shell-body .investor-report .investor-performance-value,
+    .report-shell-body .investor-report .investor-movement-value,
+    .report-shell-body .investor-report .capital-evolution-value {
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1.15;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .report-shell-body .investor-report .investor-summary-cell.positive .investor-summary-value,
+    .report-shell-body .investor-report .investor-performance-cell.positive .investor-performance-value,
+    .report-shell-body .investor-report .investor-movement-cell.positive .investor-movement-value,
+    .report-shell-body .investor-report .capital-evolution-cell.positive .capital-evolution-value {
+      color: var(--good);
+    }
+
+    .report-shell-body .investor-report .investor-summary-cell.negative .investor-summary-value,
+    .report-shell-body .investor-report .investor-performance-cell.negative .investor-performance-value,
+    .report-shell-body .investor-report .investor-movement-cell.negative .investor-movement-value,
+    .report-shell-body .investor-report .capital-evolution-cell.negative .capital-evolution-value {
+      color: var(--bad);
+    }
+
+    .report-shell-body .investor-report .capital-evolution-cell {
+      min-height: 46px;
+      padding: 7px 8px;
+    }
+
+    .report-shell-body .investor-report .capital-evolution-cell:not(:last-child)::after {
+      content: '→';
+      float: right;
+      margin-right: -14px;
+      color: var(--muted);
+      font-weight: 900;
+    }
+
+    .report-shell-body .investor-report .investor-history-table {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+
+    .report-shell-body .investor-report .investor-operations-table {
+      width: 100%;
+      table-layout: fixed;
+    }
+
+    .report-shell-body .investor-report .investor-operations-table col.date { width: 14%; }
+    .report-shell-body .investor-report .investor-operations-table col.type { width: 22%; }
+    .report-shell-body .investor-report .investor-operations-table col.amount { width: 17%; }
+    .report-shell-body .investor-report .investor-operations-table col.source { width: 20%; }
+    .report-shell-body .investor-report .investor-operations-table col.note { width: 27%; }
+
+    .report-shell-body .investor-report .investor-operations-table .investor-date {
+      white-space: nowrap;
+      line-height: 1.25;
+    }
+
+    .report-shell-body .investor-report .investor-operations-table .investor-date span {
+      display: block;
+    }
+
+    .report-shell-body .investor-report .investor-operations-table .investor-time {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .report-shell-body .investor-report .investor-operations-table .investor-amount {
+      white-space: nowrap;
+    }
+
+    .report-shell-body .investor-report .investor-operations-table td {
+      overflow-wrap: anywhere;
+    }
+
+    .report-shell-body .investor-report .investor-operations-table thead {
+      display: table-header-group;
+    }
+
+    .report-shell-body .investor-report .investor-operations-table tr {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .report-shell-body .investor-report .investor-total {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px 14px;
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-top: 1px solid var(--line);
+      color: var(--muted-strong);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .report-shell-body .investor-report .investor-total strong {
+      color: var(--ink);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .report-shell-body .investor-report .investor-total strong.good {
+      color: var(--good);
+    }
+
+    .report-shell-body .investor-report .investor-total strong.bad {
+      color: var(--bad);
+    }
+
+    .report-shell-body .investor-report .investor-quick-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+
+    .report-shell-body .investor-report .investor-quick-stat {
+      min-width: 0;
+      min-height: 50px;
+      padding: 8px 10px;
+      border-right: 1px solid var(--line);
+    }
+
+    .report-shell-body .investor-report .investor-quick-stat:last-child {
+      border-right: none;
+    }
+
+    .report-shell-body .investor-report .investor-quick-stat span {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .report-shell-body .investor-report .investor-quick-stat strong {
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .report-shell-body .investor-report .investor-quick-stat.positive strong {
+      color: var(--good);
+    }
+
+    .report-shell-body .investor-report .investor-quick-stat.negative strong {
+      color: var(--bad);
+    }
+
+    .report-shell-body .investor-report .investor-movement-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 16px;
+      margin-top: 8px;
+      padding: 7px 10px;
+      border-top: 1px solid var(--line);
+      color: var(--muted-strong);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .report-shell-body .investor-report .investor-movement-line span {
+      white-space: nowrap;
+    }
+
+    .report-shell-body .investor-report .investor-movement-line strong {
+      color: var(--muted-strong);
+    }
+
+    .report-shell-body .investor-report .investor-movement-line b {
+      font-variant-numeric: tabular-nums;
+    }
+
     .report-shell-body.report-preview-root {
       padding: 0;
     }
@@ -780,11 +1196,46 @@ function reportShell(opts: {
       .report-shell-body .footer {
         display: block;
       }
+      .report-shell-body .client-report .client-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .report-shell-body .client-report .client-summary-cell:last-child {
+        grid-column: 1 / -1;
+      }
+      .report-shell-body .client-report .client-total {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .report-shell-body .investor-report .investor-summary-grid,
+      .report-shell-body .investor-report .investor-movement-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .report-shell-body .investor-report .investor-performance-grid {
+        grid-template-columns: 1fr;
+      }
+      .report-shell-body .investor-report .capital-evolution-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .report-shell-body .investor-report .capital-evolution-cell:last-child {
+        grid-column: 1 / -1;
+      }
+      .report-shell-body .investor-report .investor-total {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .report-shell-body .investor-report .investor-quick-stats {
+        grid-template-columns: 1fr;
+      }
+      .report-shell-body .investor-report .investor-quick-stat {
+        border-right: none;
+        border-bottom: 1px solid var(--line);
+      }
+      .report-shell-body .investor-report .investor-quick-stat:last-child {
+        border-bottom: none;
+      }
     }
 
     @page {
       size: ${opts.pageSize || 'A4'};
-      margin: 10mm;
+      margin: ${opts.pageMargin || '10mm'};
     }
 
     @media print {
@@ -831,6 +1282,86 @@ function reportShell(opts: {
         overflow: visible !important;
         border-radius: var(--radius-sm);
       }
+      .report-shell-body .client-report .client-history-table {
+        border-radius: 0;
+      }
+      .report-shell-body .client-report .client-operations-table th,
+      .report-shell-body .client-report .client-operations-table td {
+        font-size: 9px;
+        padding: 4px 5px;
+      }
+      .report-shell-body .client-report .client-summary-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+      }
+      .report-shell-body .client-report .client-summary-cell:last-child {
+        grid-column: auto !important;
+      }
+      .report-shell-body .client-report .client-summary-cell {
+        min-height: 46px;
+        padding: 7px 8px;
+      }
+      .report-shell-body .client-report .client-summary-value {
+        font-size: 12px;
+      }
+      .report-shell-body .client-report .client-total {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .report-shell-body .investor-report .investor-summary-grid,
+      .report-shell-body .investor-report .investor-performance-grid,
+      .report-shell-body .investor-report .investor-movement-grid,
+      .report-shell-body .investor-report .capital-evolution-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .report-shell-body .investor-report .investor-performance-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .report-shell-body .investor-report .capital-evolution-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+      .report-shell-body .investor-report .capital-evolution-cell:last-child {
+        grid-column: auto;
+      }
+      .report-shell-body .investor-report .investor-total {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .report-shell-body .investor-report .investor-quick-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .report-shell-body .investor-report .investor-quick-stat {
+        min-height: 46px;
+        padding: 7px 8px;
+        border-right: 1px solid var(--line);
+        border-bottom: none;
+      }
+      .report-shell-body .investor-report .investor-quick-stat:last-child {
+        border-right: none;
+      }
+      .report-shell-body .investor-report .investor-quick-stat strong {
+        font-size: 12px;
+      }
+      .report-shell-body .investor-report .investor-history-table {
+        border-radius: 0;
+      }
+      .report-shell-body .investor-report .investor-operations-table th,
+      .report-shell-body .investor-report .investor-operations-table td {
+        font-size: 9px;
+        padding: 4px 5px;
+      }
+      .report-shell-body .investor-report .investor-summary-cell,
+      .report-shell-body .investor-report .investor-performance-cell,
+      .report-shell-body .investor-report .investor-movement-cell {
+        min-height: 46px;
+        padding: 7px 8px;
+      }
+      .report-shell-body .investor-report .investor-summary-value,
+      .report-shell-body .investor-report .investor-performance-value,
+      .report-shell-body .investor-report .investor-movement-value,
+      .report-shell-body .investor-report .capital-evolution-value {
+        font-size: 12px;
+      }
+      .report-shell-body .investor-report .investor-total {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
       .report-shell-body .table-wrap table {
         width: 100% !important;
         min-width: 0 !important;
@@ -876,7 +1407,7 @@ function reportShell(opts: {
   <div class="toolbar">
     <button type="button" onclick="window.print()">Imprimer / PDF</button>
   </div>
-  <article class="report">
+  <article class="report ${opts.reportClass || ''}">
     <header class="header">
       <div class="brand-row">
         <div class="brand-lockup">
@@ -1290,18 +1821,26 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
         pageSize: 'A4 landscape'
     });
 }
-export function buildClientPdfReport(input: ClientReportInput): ReportPayload | null {
+export function buildClientPdfReport(input: ClientReportInput): ClientReportPayload | null {
     const client = input.clients.find((item) => item.id === input.clientId);
     if (!client)
         return null;
-    const allRows = input.clientTransactions
-        .filter((tx) => tx.clientId === input.clientId)
-        .sort((a, b) => a.timestamp - b.timestamp);
-    const startTs = new Date(input.year, input.month, 1).getTime();
-    const endTs = new Date(input.year, input.month + 1, 0, 23, 59, 59, 999).getTime();
-    const periodRows = allRows
-        .filter((tx) => tx.timestamp >= startTs && tx.timestamp <= endTs)
-        .sort((a, b) => b.timestamp - a.timestamp);
+    const allRows = buildClientStatementTransactions({
+        clientId: input.clientId,
+        clientTransactions: input.clientTransactions,
+    });
+    const startTs = input.reportStartTs;
+    const endTs = input.reportEndTs;
+    if (!Number.isFinite(startTs) || !Number.isFinite(endTs) || startTs > endTs)
+        return null;
+    const periodRows = buildClientStatementTransactions({
+        clientId: input.clientId,
+        clientTransactions: input.clientTransactions,
+        startTs,
+        endTs,
+    });
+    if (periodRows.length === 0)
+        return null;
     const openingBalance = allRows
         .filter((tx) => tx.timestamp < startTs)
         .reduce((sum, tx) => sum + Number(tx.montant || 0), 0);
@@ -1317,14 +1856,16 @@ export function buildClientPdfReport(input: ClientReportInput): ReportPayload | 
     input.transactions.forEach((tx) => txById.set(tx.id, tx));
     const clientNameById = new Map<string, string>();
     input.clients.forEach((item) => clientNameById.set(item.id, input.getClientName(item)));
-    const clientStatus = closingBalance < -0.005
-        ? 'Montant à encaisser du client'
-        : closingBalance > 0.005
-            ? 'Solde en faveur du client'
-            : 'Solde équilibré';
     const historyHtml = periodRows.length
-        ? `<div class="table-wrap">
-        <table>
+        ? `<div class="client-history-table">
+        <table class="client-operations-table">
+          <colgroup>
+            <col class="date" />
+            <col class="type" />
+            <col class="amount" />
+            <col class="details" />
+            <col class="note" />
+          </colgroup>
           <thead>
             <tr>
               <th>Date</th>
@@ -1351,9 +1892,9 @@ export function buildClientPdfReport(input: ClientReportInput): ReportPayload | 
             const manualNote = getManualClientNote(row.notes);
             return `
                   <tr>
-                    <td>${escapeHtml(formatDateTime(row.timestamp))}</td>
+                    <td class="client-date"><span>${escapeHtml(formatCompactDateTime(row.timestamp).date)}</span><span class="client-time">${escapeHtml(formatCompactDateTime(row.timestamp).time)}</span></td>
                     <td>${escapeHtml(label)}</td>
-                    <td class="num ${amount >= 0 ? 'good' : 'bad'}">${amount >= 0 ? '+' : ''}${formatNumber(amount)} DZD</td>
+                    <td class="num client-amount ${amount >= 0 ? 'good' : 'bad'}">${amount >= 0 ? '+' : ''}${formatNumber(amount)} DZD</td>
                     <td>${escapeHtml(linkedDetails)}</td>
                     <td>${escapeHtml(manualNote || '-')}</td>
                   </tr>`;
@@ -1361,53 +1902,39 @@ export function buildClientPdfReport(input: ClientReportInput): ReportPayload | 
             .join('')}
           </tbody>
         </table>
+      </div>
+      <div class="client-total">
+        <span>Nombre total d'opérations: <strong>${periodRows.length}</strong></span>
+        <span>Total reçu: <strong class="good">+${formatNumber(periodCredits)} DZD</strong></span>
+        <span>Total payé: <strong class="bad">-${formatNumber(periodDebits)} DZD</strong></span>
+        <span>Solde clôture: <strong>${closingBalance >= 0 ? '+' : ''}${formatNumber(closingBalance)} DZD</strong></span>
       </div>`
         : '<div class="empty">Aucune opération client pour cette période.</div>';
     const clientName = input.getClientName(client);
-    const rawFileName = sanitizeFileName(`releve_client_${clientName}_${input.year}_${String(input.month + 1).padStart(2, '0')}`);
+    const rawFileName = sanitizeFileName(`releve_client_${clientName}_${dateStamp(startTs)}_${dateStamp(endTs)}`);
     const bodyHtml = `
-    <section class="section">
-      <h2 class="section-title">Relevé client</h2>
-      <div class="report-kicker">Période: <strong>${escapeHtml(input.monthLabel)} ${input.year}</strong></div>
-      <div class="pill-row">
-        <span class="pill">Client: ${escapeHtml(clientName)}</span>
-        ${client.phone ? `<span class="pill">Tel: ${escapeHtml(client.phone)}</span>` : ''}
-        ${client.redotpayId ? `<span class="pill">RedotPay: ${escapeHtml(client.redotpayId)}</span>` : ''}
-        ${client.binanceEmail ? `<span class="pill">Binance: ${escapeHtml(client.binanceEmail)}</span>` : ''}
-      </div>
-    </section>
-
-    <section class="section">
-      <h2 class="section-title">Synthèse du relevé</h2>
-      <div class="executive-grid">
-        <div class="executive-card">
-          <div class="label">Solde ouverture</div>
-          <div class="value ${openingBalance >= 0 ? 'good' : 'bad'}">${openingBalance >= 0 ? '+' : ''}${formatNumber(openingBalance)} DZD</div>
+    <section class="section client-report-summary">
+      <div class="client-summary-grid">
+        <div class="client-summary-cell ${openingBalance > 0.005 ? 'positive' : openingBalance < -0.005 ? 'negative' : 'neutral'}">
+          <div class="client-summary-label">Solde ouverture</div>
+          <div class="client-summary-value ${openingBalance > 0.005 ? 'good' : openingBalance < -0.005 ? 'bad' : ''}">${openingBalance > 0.005 ? '+' : ''}${formatNumber(openingBalance)} DZD</div>
         </div>
-        <div class="executive-card ${closingBalance < 0 ? 'loss' : 'profit'}">
-          <div class="label">Solde clôture</div>
-          <div class="value ${closingBalance >= 0 ? 'good' : 'bad'}">${closingBalance >= 0 ? '+' : ''}${formatNumber(closingBalance)} DZD</div>
+        <div class="client-summary-cell closing ${closingBalance > 0.005 ? 'positive' : closingBalance < -0.005 ? 'negative' : 'neutral'}">
+          <div class="client-summary-label">Solde clôture</div>
+          <div class="client-summary-value ${closingBalance > 0.005 ? 'good' : closingBalance < -0.005 ? 'bad' : ''}">${closingBalance > 0.005 ? '+' : ''}${formatNumber(closingBalance)} DZD</div>
         </div>
-        <div class="executive-card profit">
-          <div class="label">Total reçu</div>
-          <div class="value good">+${formatNumber(periodCredits)} DZD</div>
+        <div class="client-summary-cell positive">
+          <div class="client-summary-label">Total reçu</div>
+          <div class="client-summary-value good">+${formatNumber(periodCredits)} DZD</div>
         </div>
-        <div class="executive-card loss">
-          <div class="label">Total payé</div>
-          <div class="value bad">-${formatNumber(periodDebits)} DZD</div>
+        <div class="client-summary-cell negative">
+          <div class="client-summary-label">Total payé</div>
+          <div class="client-summary-value bad">-${formatNumber(periodDebits)} DZD</div>
         </div>
-        <div class="executive-card">
-          <div class="label">Operations</div>
-          <div class="value">${periodRows.length}</div>
+        <div class="client-summary-cell neutral">
+          <div class="client-summary-label">Opérations</div>
+          <div class="client-summary-value">${periodRows.length}</div>
         </div>
-        <div class="executive-card ${input.clientBalance < 0 ? 'loss' : 'profit'}">
-          <div class="label">Solde actuel</div>
-          <div class="value ${input.clientBalance >= 0 ? 'good' : 'bad'}">${input.clientBalance >= 0 ? '+' : ''}${formatNumber(input.clientBalance)} DZD</div>
-        </div>
-      </div>
-      <div class="pill-row top">
-        <span class="pill">Mouvement net: ${periodNet >= 0 ? '+' : ''}${formatNumber(periodNet)} DZD</span>
-        <span class="pill">${clientStatus}</span>
       </div>
     </section>
 
@@ -1416,12 +1943,15 @@ export function buildClientPdfReport(input: ClientReportInput): ReportPayload | 
       ${historyHtml}
     </section>
   `;
-    return reportShell({
+    const report = reportShell({
         fileName: `${rawFileName || 'releve_client'}.pdf`,
         title: 'Relevé client',
-        subtitle: `${clientName} - ${input.monthLabel} ${input.year}`,
-        bodyHtml
+        subtitle: `${clientName} - ${input.periodLabel}`,
+        bodyHtml,
+        reportClass: 'client-report',
+        pageMargin: '12mm 10mm'
     });
+    return { ...report, transactions: periodRows };
 }
 function investorTxTypeLabel(type: InvestorTransaction['type']): string {
     switch (type) {
@@ -1493,94 +2023,83 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
         const sign = value > 0 ? '+' : value < 0 ? '-' : '';
         return `${sign}${formatNumber(Math.abs(value), 2, 2)}%`;
     };
-    const profitMovementCards = isManager
-        ? `<div class="movement-card">
-          <div class="label">D&eacute;penses personnelles</div>
-          <div class="value bad">${formatNumber(managerCapital?.personalExpensesTotal || 0)} DZD</div>
-        </div>
-        <div class="movement-card">
-          <div class="label">B&eacute;n&eacute;fices conserv&eacute;s</div>
-          <div class="value good">${formatNumber(managerCapital?.retainedProfit || 0)} DZD</div>
-        </div>`
-        : `<div class="movement-card">
-          <div class="label">Retraits b&eacute;n&eacute;fices</div>
-          <div class="value bad">${formatNumber(withdrawnProfit)} DZD</div>
-        </div>
-        <div class="movement-card">
-          <div class="label">R&eacute;investi</div>
-          <div class="value good">${formatNumber(reinvestedProfit)} DZD</div>
-        </div>`;
+    const periodProfitOut = isManager ? (managerCapital?.personalExpensesTotal || 0) : withdrawnProfit;
+    const periodReinvestment = isManager ? (managerCapital?.retainedProfit || 0) : reinvestedProfit;
+    const movementValue = (value: number, positive = false) => `${positive && value > 0 ? '+' : value < 0 ? '-' : ''}${formatNumber(Math.abs(value))} DZD`;
+    const movementProfitLabel = isManager ? 'D&eacute;penses personnelles' : 'Retraits b&eacute;n&eacute;fices';
+    const movementReinvestmentLabel = isManager ? 'B&eacute;n&eacute;fices conserv&eacute;s' : 'R&eacute;investi';
     const movementsHtml = orderedTxs.length
-        ? `<div class="movement-grid">
-        <div class="movement-card">
-          <div class="label">Ajouts capital</div>
-          <div class="value good">${formatNumber(depositCapital)} DZD</div>
-        </div>
-        <div class="movement-card">
-          <div class="label">Retraits capital</div>
-          <div class="value bad">${formatNumber(withdrawCapital)} DZD</div>
-        </div>
-        ${profitMovementCards}
-        <div class="movement-card">
-          <div class="label">Nombre de mouvements</div>
-          <div class="value">${orderedTxs.length}</div>
-        </div>
-        <div class="movement-card">
-          <div class="label">Mouvement net capital</div>
-          <div class="value ${toneClass(netCapitalMovement)}">${signedMoney(netCapitalMovement)}</div>
-        </div>
+        ? `<div class="investor-movement-line">
+        <span><strong>Ajouts capital</strong> <b class="good">${movementValue(depositCapital, true)}</b></span>
+        <span><strong>${movementReinvestmentLabel}</strong> <b class="good">${movementValue(periodReinvestment, true)}</b></span>
+        <span><strong>${movementProfitLabel}</strong> <b class="bad">${movementValue(-periodProfitOut)}</b></span>
+        <span><strong>Mouvement net</strong> <b class="${netCapitalMovement > 0.005 ? 'good' : netCapitalMovement < -0.005 ? 'bad' : ''}">${signedMoney(netCapitalMovement)}</b></span>
       </div>`
         : '<div class="compact-empty">Aucun mouvement sur cette p&eacute;riode</div>';
     const investorName = input.investor.name || 'investisseur';
     const bodyHtml = `
     <section class="section">
-      <h2 class="section-title">Synthèse investisseur</h2>
+      <h2 class="section-title">Situation &agrave; la date de fin</h2>
       <div class="report-kicker">P&eacute;riode du rapport: <strong>${escapeHtml(periodLabel)}</strong></div>
-      <div class="executive-grid">
-        <div class="executive-card primary">
-          <div class="label">Capital investi actuel</div>
-          <div class="value">${formatNumber(investorCapital)} DZD</div>
+      <div class="investor-summary-grid">
+        <div class="investor-summary-cell neutral">
+          <div class="investor-summary-label">Capital actuel</div>
+          <div class="investor-summary-value">${formatNumber(investorCapital)} DZD</div>
         </div>
-        <div class="executive-card">
-          <div class="label">Part du fonds</div>
-          <div class="value">${formatNumber(investorSharePercent, 2, 2)}%</div>
+        <div class="investor-summary-cell ${investorAvailableProfit > 0.005 ? 'positive' : investorAvailableProfit < -0.005 ? 'negative' : 'neutral'}">
+          <div class="investor-summary-label">Profit disponible</div>
+          <div class="investor-summary-value">${signedMoney(investorAvailableProfit)}</div>
         </div>
-        <div class="executive-card ${investorTotalProfit < 0 ? 'loss' : 'profit'}">
-          <div class="label">Profit net attribu&eacute;</div>
-          <div class="value ${toneClass(investorTotalProfit)}">${signedMoney(investorTotalProfit)}</div>
+        <div class="investor-summary-cell neutral">
+          <div class="investor-summary-label">Valeur estim&eacute;e</div>
+          <div class="investor-summary-value">${formatNumber(estimatedValue)} DZD</div>
         </div>
-        <div class="executive-card ${investorAvailableProfit < 0 ? 'loss' : 'profit'}">
-          <div class="label">Profit disponible &agrave; retirer</div>
-          <div class="value ${toneClass(investorAvailableProfit)}">${signedMoney(investorAvailableProfit)}</div>
-        </div>
-        <div class="executive-card">
-          <div class="label">Valeur estim&eacute;e</div>
-          <div class="value">${formatNumber(estimatedValue)} DZD</div>
-        </div>
-        <div class="executive-card ${estimatedYield != null && estimatedYield < 0 ? 'loss' : 'profit'}">
-          <div class="label">Rendement estim&eacute;</div>
-          <div class="value ${estimatedYield == null ? '' : toneClass(estimatedYield)}">${estimatedYield == null ? '-' : signedPercent(estimatedYield)}</div>
+        <div class="investor-summary-cell neutral">
+          <div class="investor-summary-label">Part du fonds</div>
+          <div class="investor-summary-value">${formatNumber(investorSharePercent, 2, 2)}%</div>
         </div>
       </div>
       ${input.investor.notes ? `<div class="compact-note"><strong>Notes:</strong> ${escapeHtml(input.investor.notes)}</div>` : ''}
     </section>
 
     <section class="section">
-      <h2 class="section-title">Mouvements de la p&eacute;riode</h2>
+      <h2 class="section-title">Performance et mouvements</h2>
+      <div class="investor-quick-stats">
+        <div class="investor-quick-stat ${investorTotalProfit > 0.005 ? 'positive' : investorTotalProfit < -0.005 ? 'negative' : 'neutral'}">
+          <span>Profit net de la p&eacute;riode</span>
+          <strong>${signedMoney(investorTotalProfit)}</strong>
+        </div>
+        <div class="investor-quick-stat ${estimatedYield != null && estimatedYield > 0.005 ? 'positive' : estimatedYield != null && estimatedYield < -0.005 ? 'negative' : 'neutral'}">
+          <span>Rendement de la p&eacute;riode</span>
+          <strong>${estimatedYield == null ? '-' : signedPercent(estimatedYield)}</strong>
+        </div>
+        <div class="investor-quick-stat neutral">
+          <span>Nombre de mouvements</span>
+          <strong>${orderedTxs.length}</strong>
+        </div>
+      </div>
       ${movementsHtml}
     </section>
 
     <section class="section">
       <h2 class="section-title">D&eacute;tail des op&eacute;rations</h2>
       ${orderedTxs.length ? `
-      <table class="data-table" style="width:100%;border-collapse:collapse;font-size:11px;margin-top:8px;">
+      <div class="investor-history-table">
+      <table class="investor-operations-table">
+        <colgroup>
+          <col class="date" />
+          <col class="type" />
+          <col class="amount" />
+          <col class="source" />
+          <col class="note" />
+        </colgroup>
         <thead>
-          <tr style="background:#f3f4f6;text-align:left;">
-            <th style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">Date</th>
-            <th style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">Type</th>
-            <th style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">Montant</th>
-            <th style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">Source</th>
-            <th style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">Notes</th>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th class="num">Montant</th>
+            <th>Source</th>
+            <th>Notes</th>
           </tr>
         </thead>
         <tbody>
@@ -1591,32 +2110,33 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
                 : tx.type === 'reinvest_profit' ? (isManager ? 'Bénéfices conservés' : 'Réinvestissement')
                 : tx.type;
             const isPositive = tx.type === 'deposit_capital' || tx.type === 'reinvest_profit';
-            const color = isPositive ? '#16a34a' : '#dc2626';
+            const compactDate = formatCompactDateTime(tx.timestamp);
             const sign = isPositive ? '+' : '-';
-            return `<tr style="background:${i % 2 === 0 ? '#ffffff' : '#f9fafb'};">
-              <td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;white-space:nowrap;">${escapeHtml(tx.date || '')}</td>
-              <td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;">${escapeHtml(typeLabel)}</td>
-              <td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;text-align:right;color:${color};font-weight:600;">${sign}${formatNumber(tx.amount)} DZD</td>
-              <td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;">${escapeHtml((tx as any).paymentSource || '—')}</td>
-              <td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;color:#6b7280;font-size:10px;">${escapeHtml(tx.notes || '')}</td>
+            return `<tr>
+              <td class="investor-date"><span>${escapeHtml(compactDate.date)}</span><span class="investor-time">${escapeHtml(compactDate.time)}</span></td>
+              <td>${escapeHtml(typeLabel)}</td>
+              <td class="num investor-amount ${isPositive ? 'good' : 'bad'}">${sign}${formatNumber(tx.amount)} DZD</td>
+              <td>${escapeHtml((tx as any).paymentSource || '—')}</td>
+              <td>${escapeHtml(tx.notes || '—')}</td>
             </tr>`;
           }).join('')}
         </tbody>
-        <tfoot>
-          <tr style="background:#f3f4f6;font-weight:700;">
-            <td colspan="2" style="padding:6px 8px;">Total mouvements</td>
-            <td style="padding:6px 8px;text-align:right;">${orderedTxs.length} op.</td>
-            <td colspan="2"></td>
-          </tr>
-        </tfoot>
-      </table>` : '<div class="compact-empty">Aucune op&eacute;ration sur cette p&eacute;riode.</div>'}
+      </table>
+      </div>
+      <div class="investor-total">
+        <span>Capital final: <strong>${formatNumber(investorCapital)} DZD</strong></span>
+        <span>Profit disponible: <strong class="${toneClass(investorAvailableProfit)}">${signedMoney(investorAvailableProfit)}</strong></span>
+        <span>Mouvements: <strong>${orderedTxs.length}</strong></span>
+      </div>` : '<div class="compact-empty">Aucune op&eacute;ration sur cette p&eacute;riode.</div>'}
     </section>
   `;
     return reportShell({
         fileName: `${sanitizeFileName(`rapport_investisseur_${investorName}${periodSuffix ? `_${periodSuffix}` : ''}`) || 'rapport_investisseur'}.pdf`,
         title: 'Rapport Investisseur',
         subtitle: `${investorName} - ${periodLabel}`,
-        bodyHtml
+        bodyHtml,
+        reportClass: 'investor-report',
+        pageMargin: '12mm 10mm'
     });
 }
 export function buildPersonalExpensesPdfReport(input: PersonalExpensesReportInput): ReportPayload {
