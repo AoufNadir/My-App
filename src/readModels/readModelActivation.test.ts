@@ -83,9 +83,8 @@ assert.deepEqual(resolveLegacyMutationPolicy({ readModelsMode: 'shadow' }), {
     legacyBackfillRequired: false,
 });
 assert.deepEqual(resolveLegacyMutationPolicy({ readModelsMode: 'read' }), {
-    status: 'immutable_legacy',
-    canMutate: false,
-    reason: IMMUTABLE_LEGACY,
+    status: 'mutable_legacy',
+    canMutate: true,
     legacyBackfillRequired: false,
 });
 assert.equal(isImmutableLegacyMutationError(IMMUTABLE_LEGACY), true);

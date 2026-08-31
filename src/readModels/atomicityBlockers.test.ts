@@ -74,10 +74,10 @@ function sourceSlice(file: string, marker: string, endMarker: string): string {
     const transactionService = source('src/transactionService.ts');
     const activationPolicy = source('src/readModels/readModelActivation.ts');
     assert.equal(LEGACY_BACKFILL_REQUIRED_FOR_READ_MODE, false, 'Legacy index backfill must not be required for read mode activation');
-    assert.match(activationPolicy, /status:\s*'immutable_legacy'/, 'read mode must classify old Legacy operations as immutable');
-    assert.match(activationPolicy, /reason:\s*IMMUTABLE_LEGACY/, 'immutable Legacy mutations need an explicit reason');
+    assert.match(activationPolicy, /status:\s*'mutable_legacy'/, 'read mode must keep Legacy edit/delete available');
+    assert.doesNotMatch(activationPolicy, /reason:\s*IMMUTABLE_LEGACY/, 'read mode must not block Legacy edit/delete with immutable_legacy');
     assert.match(transactionService, /resolveLegacyMutationPolicy\(\{\}\)/, 'legacy edit/delete must use activation policy');
-    assert.match(transactionService, /!legacyMutationPolicy\.canMutate/, 'read mode must block direct Legacy edit/delete');
+    assert.match(transactionService, /!legacyMutationPolicy\.canMutate/, 'legacy edit/delete must still honor the mutation policy gate');
     assert.match(transactionService, /deterministicLinkedId\(transactionId, 'treasury-buy-cash'\)/, 'retryable edits need deterministic treasury child ids');
     assert.match(transactionService, /deterministicLinkedId\(transactionId, 'client-sell'\)/, 'retryable edits need deterministic client child ids');
 }

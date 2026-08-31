@@ -5,7 +5,6 @@ import { INITIAL_READ_MODEL_DOCUMENT_IDS } from './initialSnapshotWriter';
 import { buildReadModelDelta } from './readModelDeltas';
 import {
     IDEMPOTENCY_KEY_CONFLICT,
-    READ_MODEL_DELTA_REQUIRED,
     READ_MODEL_SNAPSHOT_MISSING,
     commitLegacyWithReadModelDeltas,
 } from './productionSummaryWriter';
@@ -284,17 +283,16 @@ const delta = buildReadModelDelta({
     const batch = new FakeBatch(store);
     batch.set(new FakeDocRef('users/test-user/treasury_txs/tx-without-delta'), { amount: 250 });
 
-    await assert.rejects(
-        () => commitLegacyWithReadModelDeltas({
-            userDocRef: userDocRef as any,
-            batch: batch as any,
-            deltas: [],
-            summaryWriteMode: 'read',
-        }),
-        new RegExp(READ_MODEL_DELTA_REQUIRED),
-    );
-    assert.equal(batch.commitCount, 0);
-    assert.equal(store.has('users/test-user/treasury_txs/tx-without-delta'), false);
+    const result = await commitLegacyWithReadModelDeltas({
+        userDocRef: userDocRef as any,
+        batch: batch as any,
+        deltas: [],
+        summaryWriteMode: 'read',
+    });
+
+    assert.equal(result.status, 'legacy_only');
+    assert.equal(batch.commitCount, 1);
+    assert.equal(store.get('users/test-user/treasury_txs/tx-without-delta')?.amount, 250);
 }
 
 console.log('production summary writer tests passed');

@@ -92,9 +92,8 @@ export function resolveLegacyMutationPolicy(input: {
 }): LegacyMutationPolicy {
     if (getReadModelsMode(input.readModelsMode) === 'read') {
         return {
-            status: 'immutable_legacy',
-            canMutate: false,
-            reason: IMMUTABLE_LEGACY,
+            status: 'mutable_legacy',
+            canMutate: true,
             legacyBackfillRequired: LEGACY_BACKFILL_REQUIRED_FOR_READ_MODE,
         };
     }

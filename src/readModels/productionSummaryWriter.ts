@@ -207,9 +207,6 @@ export async function applyReadModelDeltasWithinTransaction(input: {
 }): Promise<CommitLegacyWithReadModelDeltasResult> {
     const summaryWriteMode = getSummaryWriteMode(input.summaryWriteMode);
     const deltas = input.deltas?.filter(Boolean) || [];
-    if (summaryWriteMode === 'read' && deltas.length === 0) {
-        throw new Error(READ_MODEL_DELTA_REQUIRED);
-    }
     if (!isSummaryWriteEnabled(summaryWriteMode) || deltas.length === 0) {
         return {
             status: 'legacy_only',
@@ -306,9 +303,6 @@ export async function commitLegacyWithReadModelDeltas(
 ): Promise<CommitLegacyWithReadModelDeltasResult> {
     const summaryWriteMode = getSummaryWriteMode(input.summaryWriteMode);
     const deltas = input.deltas?.filter(Boolean) || [];
-    if (summaryWriteMode === 'read' && deltas.length === 0 && input.batch.operations.length > 0) {
-        throw new Error(READ_MODEL_DELTA_REQUIRED);
-    }
     if (!isSummaryWriteEnabled(summaryWriteMode) || deltas.length === 0) {
         await input.batch.commit();
         return {
