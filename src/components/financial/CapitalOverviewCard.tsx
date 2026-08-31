@@ -19,7 +19,7 @@ type CapitalOverviewSecondaryItem = HeroKpiSecondary & {
 export function CapitalOverviewCard({ t, capitalSnapshot, investorBreakdown }: CapitalOverviewCardProps) {
     const secondaryItems: CapitalOverviewSecondaryItem[] = [
         { label: t('finance.projectNetAssets'), value: capitalSnapshot.totalCapital, currency: 'DZD', semantic: 'plain' },
-        { label: t('finance.investorLiability'), value: investorBreakdown?.total ?? capitalSnapshot.investorLiability, currency: 'DZD', semantic: 'loss', hideWhenZero: true },
+        { label: t('finance.investorLiability'), value: capitalSnapshot.investorLiability, currency: 'DZD', semantic: 'loss', hideWhenZero: true },
     ];
     const visibleSecondaryItems = secondaryItems.filter((item) => !item.hideWhenZero || Math.abs(item.value) > 0.005);
 

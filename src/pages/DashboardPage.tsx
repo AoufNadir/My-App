@@ -418,7 +418,11 @@ function DashboardContent({
     const liquidityGap = cashTotal - quickPayable;
     const usdtAvailable = Number(portfolioStats?.usdt?.available || 0);
     const eurAvailable = Number(portfolioStats?.eur?.available || 0);
-    const lowStock = usdtAvailable < 100 && eurAvailable < 100;
+    const usdtLocked = Number(portfolioStats?.usdt?.locked || 0);
+    const eurLocked = Number(portfolioStats?.eur?.locked || 0);
+    const usdtInStock = usdtAvailable + usdtLocked;
+    const eurInStock = eurAvailable + eurLocked;
+    const lowStock = usdtInStock < 100 && eurInStock < 100;
     const getClientDebtAmount = (client: OverdueDebtClient) => {
         const balance = Number(client.balance || 0);
         if (balance < -0.005)
@@ -510,8 +514,8 @@ function DashboardContent({
           { type: 'metric', label: t('dashboard.toPay') as string, value: quickPayable, semantic: quickPayable > 0 ? 'loss' : 'plain' },
           { type: 'metric', label: t('dashboard.liquidityGap') as string, value: liquidityGap, semantic: 'auto', emphasis: true },
           { type: 'section', id: 'portfolio', label: t('nav.portfolio') as string },
-          { type: 'metric', label: t('dashboard.usdtAvailable') as string, value: usdtAvailable, currency: 'USDT' },
-          { type: 'metric', label: t('dashboard.eurAvailable') as string, value: eurAvailable, currency: 'EUR' },
+          { type: 'metric', label: t('dashboard.usdtInStock') as string, value: usdtInStock, currency: 'USDT' },
+          { type: 'metric', label: t('dashboard.eurInStock') as string, value: eurInStock, currency: 'EUR' },
       ]}/>
 
       <SalesProfitSummary title={t('dashboard.profitSummary') as string} periods={{
