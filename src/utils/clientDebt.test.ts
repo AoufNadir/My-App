@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import type { ClientTransactionDzd } from '../types';
 import { computeClientDebtState, projectCreditExposure } from './clientDebt';
+import { combineClientPositionDeltas, transitionClientBalanceDelta } from '../readModels/readModelDeltas';
 
 const DAY = 86_400_000;
 const due = Date.parse('2026-06-01T23:59:59');
@@ -56,5 +57,24 @@ assert.equal(nonCredit.settledLotCount, 0);
 assert.equal(nonCredit.debt, 0); // balance math unchanged
 
 assert.deepEqual(projectCreditExposure(200, 500), { projectedBalance: -300, projectedDebt: 300 });
+
+{
+    const amount = 500;
+    const sourceBefore = 0;
+    const targetBefore = 0;
+    const sourceAfter = sourceBefore + amount;
+    const targetAfter = targetBefore - amount;
+    const transferDelta = combineClientPositionDeltas([
+        transitionClientBalanceDelta(sourceBefore, sourceAfter),
+        transitionClientBalanceDelta(targetBefore, targetAfter),
+    ]);
+
+    assert.equal(sourceAfter, 500, 'Source client should receive an advance/credit after transferring money.');
+    assert.equal(targetAfter, -500, 'Target client should carry the matching debt.');
+    assert.equal(transferDelta.advancesDelta, 500);
+    assert.equal(transferDelta.receivablesDelta, 500);
+    assert.equal(transferDelta.receivablesDelta - transferDelta.advancesDelta, 0, 'Client-to-client transfer must have zero net project impact.');
+}
+
 console.log('clientDebt tests passed');
 

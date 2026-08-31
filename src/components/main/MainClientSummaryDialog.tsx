@@ -6,10 +6,10 @@ import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { ShareIcon } from '../icons/ShareIcon';
 import { RefreshCwIcon } from '../icons/RefreshCwIcon';
 import { UserIcon } from '../icons/UserIcon';
-import { DownloadCloudIcon } from '../icons/DownloadCloudIcon';
 import type { ClientDzd, ClientTransactionDzd } from '../../types';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote } from '../../utils/transactionTerminology';
 type MainClientSummaryDialogProps = Record<string, any>;
+const CLIENT_SUMMARY_VISIBLE_TX_LIMIT = 5;
 type ClientRow = {
     tx: ClientTransactionDzd;
     label: string;
@@ -67,7 +67,6 @@ function findClientTransferCounterpart(tx: ClientTransactionDzd, allClientTxs: C
 }
 export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, clientBalances, clientTransactionsDzd, clientsDzd, transactions, setAlert, getClientFullName, handleExportClientReport, reportMonth, reportYear }: MainClientSummaryDialogProps) {
     const [isSharing, setIsSharing] = useState(false);
-    const [isOpeningPdf, setIsOpeningPdf] = useState(false);
     const exportCardRef = useRef<HTMLDivElement | null>(null);
     const isMobileUserAgent = typeof navigator !== 'undefined'
         && /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || '');
@@ -79,7 +78,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
             .filter((tx: ClientTransactionDzd) => tx.clientId === summaryClient.id)
             .sort((a: ClientTransactionDzd, b: ClientTransactionDzd) => b.timestamp - a.timestamp);
     }, [summaryClient, clientTransactionsDzd]);
-    const visibleTxs: ClientTransactionDzd[] = selectedClientTxs;
+    const visibleTxs: ClientTransactionDzd[] = selectedClientTxs.slice(0, CLIENT_SUMMARY_VISIBLE_TX_LIMIT);
     const clientsById = useMemo(() => new Map((clientsDzd || []).map((client: ClientDzd) => [client.id, client])), [clientsDzd]);
     const currentBalance = summaryClient ? (clientBalances.get(summaryClient.id) || 0) : 0;
     const balanceColorClass = currentBalance < 0 ? 'text-financial-loss' : currentBalance > 0 ? 'text-financial-profit' : 'text-neutral-300';
@@ -203,10 +202,10 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                 }
             }
             if (!blob) {
-                setAlert('❌ Génération de l’image impossible. Utilisez PDF.');
+                setAlert('❌ Génération de l’image impossible. Veuillez réessayer.');
                 return;
             }
-            const shareText = `Relevé client de ${getClientFullName(summaryClient)} (3 dernières opérations)`;
+            const shareText = `Relevé client de ${getClientFullName(summaryClient)} (${CLIENT_SUMMARY_VISIBLE_TX_LIMIT} dernières opérations)`;
             const extension = blob.type.includes('jpeg') ? 'jpg' : 'png';
             const baseName = `releve_client_${summaryClient.id}_simple.${extension}`;
             let shared = false;
@@ -237,23 +236,6 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
         }
         finally {
             setIsSharing(false);
-        }
-    };
-    const handleOpenPdf = () => {
-        if (!summaryClient || isOpeningPdf)
-            return;
-        if (typeof handleExportClientReport !== 'function') {
-            setAlert("❌ Erreur d’export PDF.");
-            return;
-        }
-        setIsOpeningPdf(true);
-        try {
-            const targetMonth = typeof reportMonth === 'number' ? reportMonth : new Date().getMonth();
-            const targetYear = typeof reportYear === 'number' ? reportYear : new Date().getFullYear();
-            handleExportClientReport(summaryClient.id, targetMonth, targetYear);
-        }
-        finally {
-            setIsOpeningPdf(false);
         }
     };
     return (<Modal isOpen={summaryClient !== null} onClose={() => setSummaryClient(null)} className="bg-surface max-w-md">
@@ -297,7 +279,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
 
                 <div className="mt-5 overflow-hidden rounded-md border border-border bg-surface">
                   <div className="border-b border-border bg-surface-muted px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-primary">
-                    Dernières opérations (3)
+                    Dernières opérations ({CLIENT_SUMMARY_VISIBLE_TX_LIMIT})
                   </div>
                   {clientRows.length > 0 ? clientRows.map(({ tx, label, details }) => (<div key={tx.id} className="border-b border-border px-4 py-3 last:border-b-0">
                       <div className="flex justify-between gap-3">
@@ -349,7 +331,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                     <SectionHeading icon={<RefreshCwIcon className="w-4 h-4"/>}>
                       {t('transactions.recentTransactions')}
                     </SectionHeading>
-                    <span className="text-[11px] text-neutral-500">{visibleTxs.length} opération(s)</span>
+                    <span className="text-[11px] text-neutral-500">{selectedClientTxs.length} opération(s)</span>
                   </div>
 
                   <div className="rounded-xl overflow-hidden border border-border">
@@ -376,9 +358,6 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                   </Button>
                   <Button onClick={handleShareImage} disabled={isSharing} className="flex-1 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors bg-neutral-100 text-neutral-700 hover:bg-neutral-200">
                     <ShareIcon className="w-4 h-4"/> {isSharing ? 'Préparation...' : 'Image'}
-                  </Button>
-                  <Button onClick={handleOpenPdf} disabled={isOpeningPdf} className="flex-1 bg-primary hover:bg-primary-dark text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-colors">
-                    <DownloadCloudIcon className="w-4 h-4"/> {isOpeningPdf ? 'Préparation...' : 'PDF'}
                   </Button>
                 </div>
               </div>

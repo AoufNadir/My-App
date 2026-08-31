@@ -3,7 +3,6 @@ import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { Button } from '../ui/Button';
-import { Select } from '../ui/Select';
 import { MoneyField } from '../ui/MoneyField';
 import { DatePicker } from '../ui/DatePicker';
 import { TransactionPreviewCard, type PreviewRow } from '../ui/TransactionPreviewCard';
@@ -165,7 +164,50 @@ type WalletTransferDialogProps = {
     processingText: string;
     confirmText: string;
 };
+type InternalWallet = 'Caisse' | 'BaridiMob';
+const getOppositeWallet = (wallet: InternalWallet): InternalWallet => wallet === 'Caisse' ? 'BaridiMob' : 'Caisse';
+const walletBalance = (wallet: InternalWallet, caisseBalance: number, baridiBalance: number) => wallet === 'Caisse' ? caisseBalance : baridiBalance;
+type WalletChoiceCardProps = {
+    wallet: InternalWallet;
+    balance: number;
+    selected?: boolean;
+    readOnly?: boolean;
+    helperText?: string;
+    onClick?: () => void;
+};
+function WalletChoiceCard({ wallet, balance, selected = false, readOnly = false, helperText, onClick }: WalletChoiceCardProps) {
+    const content = (<>
+      <span className="text-sm font-bold text-neutral-900">{wallet}</span>
+      <span className="mt-1 text-xs font-medium text-neutral-500">{formatMoney(balance, 'DZD')}</span>
+      {helperText && <span className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">{helperText}</span>}
+    </>);
+    const classes = [
+        `flex ${readOnly ? 'min-h-[66px]' : 'min-h-[74px]'} w-full flex-col items-start justify-center rounded-xl border px-4 py-3 text-start transition-colors`,
+        readOnly
+            ? 'border-border bg-surface-muted text-neutral-700'
+            : selected
+                ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/15'
+                : 'border-border bg-surface-muted',
+        readOnly ? 'cursor-default' : 'hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface'
+    ].join(' ');
+    if (readOnly) {
+        return (<div className={classes}>{content}</div>);
+    }
+    return (<button type="button" onClick={onClick} aria-pressed={selected} className={classes}>
+      {content}
+    </button>);
+}
 export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, source, setSource, destination, setDestination, notes, setNotes, onMax, onSwap, onConfirm, isInvalid, isSaving, caisseBalance, baridiBalance, title, subtitle, amountLabel, fromLabel, toLabel, sourceLabel, destinationLabel, notesOptionalLabel, sameAccountErrorText, processingText, confirmText }: WalletTransferDialogProps) {
+    const destinationWallet = getOppositeWallet(source);
+    React.useEffect(() => {
+        if (isOpen && destination !== destinationWallet) {
+            setDestination(destinationWallet);
+        }
+    }, [isOpen, destination, destinationWallet, setDestination]);
+    const handleSourceChange = (nextSource: InternalWallet) => {
+        setSource(nextSource);
+        setDestination(getOppositeWallet(nextSource));
+    };
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
       <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
         <ModalTitle className="text-base sm:text-lg">{title}</ModalTitle>
@@ -177,10 +219,10 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
         <div className="space-y-3">
           <div>
             <Label>{fromLabel}</Label>
-            <Select value={source} onChange={e => setSource(e.target.value as 'Caisse' | 'BaridiMob')} className="mt-1">
-              <option value="Caisse">Caisse — {formatMoney(caisseBalance, 'DZD')}</option>
-              <option value="BaridiMob">BaridiMob — {formatMoney(baridiBalance, 'DZD')}</option>
-            </Select>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <WalletChoiceCard wallet="Caisse" balance={caisseBalance} selected={source === 'Caisse'} onClick={() => handleSourceChange('Caisse')}/>
+              <WalletChoiceCard wallet="BaridiMob" balance={baridiBalance} selected={source === 'BaridiMob'} onClick={() => handleSourceChange('BaridiMob')}/>
+            </div>
           </div>
 
           <div className="flex justify-center">
@@ -190,11 +232,13 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
           </div>
 
           <div>
-            <Label>{toLabel}</Label>
-            <Select value={destination} onChange={e => setDestination(e.target.value as 'Caisse' | 'BaridiMob')} className="mt-1">
-              <option value="BaridiMob">BaridiMob — {formatMoney(baridiBalance, 'DZD')}</option>
-              <option value="Caisse">Caisse — {formatMoney(caisseBalance, 'DZD')}</option>
-            </Select>
+            <div className="flex items-center justify-between gap-3">
+              <Label>{toLabel}</Label>
+              <span className="text-xs font-medium text-neutral-400">Automatique</span>
+            </div>
+            <div className="mt-2">
+              <WalletChoiceCard wallet={destinationWallet} balance={walletBalance(destinationWallet, caisseBalance, baridiBalance)} readOnly helperText="Destination"/>
+            </div>
             {source === destination && (<p className="mt-1 text-xs text-danger">{sameAccountErrorText}</p>)}
           </div>
         </div>
@@ -204,13 +248,13 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
             if (!Number.isFinite(amt) || amt <= 0 || source === destination)
                 return null;
             const sourceBalance = source === 'Caisse' ? caisseBalance : baridiBalance;
-            const destBalance = destination === 'Caisse' ? caisseBalance : baridiBalance;
+            const destBalance = destinationWallet === 'Caisse' ? caisseBalance : baridiBalance;
             const nextSource = sourceBalance - amt;
             const nextDest = destBalance + amt;
             const insufficient = nextSource < 0;
             const rows: PreviewRow[] = [
                 { label: source, value: nextSource, currency: 'DZD', semantic: insufficient ? 'loss' : 'auto' },
-                { label: destination, value: nextDest, currency: 'DZD', semantic: 'profit' }
+                { label: destinationWallet, value: nextDest, currency: 'DZD', semantic: 'profit' }
             ];
             return (<TransactionPreviewCard title="Résumé après transfert" rows={rows} error={insufficient ? 'Solde insuffisant' : undefined}/>);
         })()}

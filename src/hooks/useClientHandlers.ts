@@ -816,10 +816,8 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         }
     };
 
-    // Maximum transferable amount for a client.
-    //   source < 0  (client owes us)  -> |balance|
-    //   source > 0  (we owe client)  -> balance
-    //   source == 0                   -> 0
+    // Suggested MAX amount for a client transfer. It is only a shortcut to
+    // settle an existing debt/advance; manual entry can create a new advance.
     const getClientTransferableAmount = (fromClientId: string): number => {
         const balance = clientBalances.get(fromClientId) || 0;
         if (balance < 0)
@@ -829,7 +827,8 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         return 0;
     };
 
-    // Client-to-client balance transfer (ledger-only). Source loses -amount, target gains +amount.
+    // Client-to-client balance transfer (ledger-only).
+    // The source client receives credit/advance (+amount), and the target client carries the debt (-amount).
     const handleClientToClientTransfer = async (params: {
         fromClientId: string;
         toClientId: string;
@@ -856,13 +855,6 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             return false;
         }
         const sourceBalance = clientBalances.get(fromClientId) || 0;
-        const transferable = sourceBalance < 0
-            ? Math.abs(sourceBalance)
-            : (sourceBalance > 0 ? sourceBalance : 0);
-        if (amount > transferable + 0.005) {
-            setAlert('⚠️ Le montant dépasse le solde transférable du client source.');
-            return false;
-        }
         const stamp = now();
         let date = stamp.date;
         let time = stamp.time;
@@ -895,18 +887,18 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             const batch = db.batch();
             batch.set(outgoingTransferRef, {
                 clientId: fromClientId, timestamp, date, time,
-                montant: -amount, type: 'Transfert Sortant', notes: note, paymentMethod: 'Crédit',
+                montant: amount, type: 'Transfert Sortant', notes: note, paymentMethod: 'Crédit',
             });
             batch.set(incomingTransferRef, {
                 clientId: toClientId, timestamp: timestamp + 1, date, time,
-                montant: amount, type: 'Transfert Entrant', notes: note,
+                montant: -amount, type: 'Transfert Entrant', notes: note,
                 paymentMethod: 'Crédit', linkedTxId: outgoingTransferRef.id,
             });
             const fromBeforeBalance = fromPositionBefore.balanceDzd;
             const toBeforeBalance = toPositionBefore.balanceDzd;
             const clientsDelta = combineClientPositionDeltas([
-                transitionClientBalanceDelta(fromBeforeBalance, fromBeforeBalance - amount),
-                transitionClientBalanceDelta(toBeforeBalance, toBeforeBalance + amount),
+                transitionClientBalanceDelta(fromBeforeBalance, fromBeforeBalance + amount),
+                transitionClientBalanceDelta(toBeforeBalance, toBeforeBalance - amount),
             ]);
             clientsDelta.activeClientsTodayDelta =
                 activeClientTodayDelta(fromClientId, timestamp) +
@@ -935,7 +927,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     fromClientId, toClientId, amountDzd: amount,
                     fromPositionBefore, toPositionBefore,
                 }, {
-                    clientDeltas: { [fromClientId]: -amount, [toClientId]: amount },
+                    clientDeltas: { [fromClientId]: amount, [toClientId]: -amount },
                     receivableDzd: 0,
                 });
             }
@@ -948,7 +940,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     fromClientId, toClientId, amountDzd: amount,
                     fromPositionBefore, toPositionBefore,
                 }, {
-                    clientDeltas: { [fromClientId]: -amount, [toClientId]: amount },
+                    clientDeltas: { [fromClientId]: amount, [toClientId]: -amount },
                     clientAdvanceDzd: 0,
                 });
             }

@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../ui/Modal';
 import { Label } from '../ui/Label';
 import { Input } from '../ui/Input';
@@ -79,7 +79,59 @@ const adjustmentAssetOptions = [
     { value: 'USDT', label: 'USDT' },
     { value: 'EUR', label: 'EUR' }
 ] as const;
+type AdjustmentAssetOption = typeof adjustmentAssetOptions[number];
 const getAdjustmentAssetLabel = (asset: string) => adjustmentAssetOptions.find((option) => option.value === asset)?.label || asset;
+function AdjustmentAssetDropdown({ value, options, onChange }: {
+    value: string;
+    options: readonly AdjustmentAssetOption[];
+    onChange: (value: AdjustmentAssetOption['value']) => void;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const ref = useRef<HTMLDivElement | null>(null);
+    const selected = options.find((option) => option.value === value) || options[0];
+    useEffect(() => {
+        if (!isOpen)
+            return;
+        const handlePointerDown = (event: PointerEvent) => {
+            if (!ref.current?.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('pointerdown', handlePointerDown);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('pointerdown', handlePointerDown);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isOpen]);
+    return (<div ref={ref} className="relative">
+        <button type="button" onClick={() => setIsOpen((open) => !open)} className="flex min-h-input w-full items-center justify-between rounded-button border border-border bg-surface px-3 py-2 text-start text-sm font-medium text-neutral-900 transition-colors hover:border-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1" aria-haspopup="listbox" aria-expanded={isOpen}>
+            <span>{selected.label}</span>
+            <ArrowDownIcon className={`h-4 w-4 text-neutral-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}/>
+        </button>
+        {isOpen && (<div className="absolute z-40 mt-2 w-full overflow-hidden rounded-xl border border-border bg-surface shadow-dialog">
+            <div role="listbox" aria-label="Type d'Actif" className="py-1">
+                {options.map((option) => {
+            const isSelected = option.value === value;
+            return (<button key={option.value} type="button" role="option" aria-selected={isSelected} onClick={() => {
+                    onChange(option.value);
+                    setIsOpen(false);
+                }} className={`flex min-h-touch w-full items-center justify-between px-4 py-3 text-start text-sm font-semibold transition-colors ${isSelected
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-neutral-800 hover:bg-neutral-100'}`}>
+                        <span>{option.label}</span>
+                        {isSelected && <span className="h-2 w-2 rounded-full bg-primary"/>}
+                    </button>);
+        })}
+            </div>
+        </div>)}
+    </div>);
+}
 const formatDisplayMetric = (value: number, digits = 2) => new Intl.NumberFormat('fr-FR', {
     minimumFractionDigits: 0,
     maximumFractionDigits: digits
@@ -439,26 +491,23 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     <ModalTitle className="text-base sm:text-lg">{editingTreasuryTx ? t('transactions.editAdjustment') : t('transactions.treasuryAdjustment')}</ModalTitle>
                 </ModalHeader>
                 <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
-                    <div className="flex gap-1 rounded-xl p-1 bg-neutral-100">
+                    <div className="flex gap-1 rounded-xl border border-border bg-neutral-100 p-1">
                         <button type="button" onClick={() => setAdjustmentTab('add')} className={`min-h-touch flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${adjustmentTab === 'add'
             ? 'bg-success text-white shadow-sm'
-            : 'text-neutral-600 hover:text-neutral-800'}`}>
+            : 'text-neutral-600 hover:bg-surface hover:text-neutral-900'}`}>
                             {t('transactions.addTo')}
                         </button>
                         <button type="button" onClick={() => setAdjustmentTab('subtract')} className={`min-h-touch flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${adjustmentTab === 'subtract'
             ? 'bg-danger text-white shadow-sm'
-            : 'text-neutral-600 hover:text-neutral-800'}`}>
+            : 'text-neutral-600 hover:bg-surface hover:text-neutral-900'}`}>
                             {t('transactions.withdrawFrom')}
                         </button>
                     </div>
 
                     <div>
                         <Label>{t('transactions.assetType')}</Label>
-                        <div className="relative mt-1">
-                            <Select value={adjustmentAsset} onChange={e => handleAdjustmentAssetChange(e.target.value as any)} className="h-12 appearance-none pe-10">
-                                {adjustmentAssetOptions.map((option) => (<option key={option.value} value={option.value}>{option.label}</option>))}
-                            </Select>
-                            <ArrowDownIcon className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500"/>
+                        <div className="mt-1">
+                            <AdjustmentAssetDropdown value={adjustmentAsset} options={adjustmentAssetOptions} onChange={handleAdjustmentAssetChange}/>
                         </div>
                     </div>
 
