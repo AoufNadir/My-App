@@ -91,7 +91,7 @@ type Strings = {
     approveOk: string; blockOk: string; reactivateOk: string; error: string;
     confirm: string; deliver: string; reject: string;
     confirmOk: string; deliverOk: string; rejectOk: string;
-    alreadyCompleted: string; clientRequired: string;
+    alreadyCompleted: string; clientRequired: string; uncostedStock: string;
     catalogHeader: string;
     yourUidLabel: string; copy: string; copied: string;
     deliveryTo: string; addressCopied: string;
@@ -115,7 +115,7 @@ function buildStrings(lang: 'fr' | 'ar'): Strings {
             error: 'حدث خطأ. حاول مرة أخرى.',
             confirm: 'تأكيد الدفع', deliver: 'تسليم', reject: 'رفض',
             confirmOk: 'تم تأكيد الدفع.', deliverOk: 'تم تسليم الطلب وتسجيله.', rejectOk: 'تم رفض الطلب.',
-            alreadyCompleted: 'تم تسجيل هذا الطلب مسبقًا.', clientRequired: 'يجب ربط الطلب بعميل قبل تسجيل دين.',
+            alreadyCompleted: 'تم تسجيل هذا الطلب مسبقًا.', clientRequired: 'يجب ربط الطلب بعميل قبل تسجيل دين.', uncostedStock: 'المخزون بدون سعر شراء: سجّل «Retrait Manuel» له، ثم «Ajout Manuel» بسعره.',
             catalogHeader: 'الكتالوج',
             yourUidLabel: 'معرّف حسابك (UID) — انسخه وضعه في الملفين أعلاه:', copy: 'نسخ', copied: 'تم نسخ المعرّف.',
             deliveryTo: 'التسليم إلى', addressCopied: 'تم نسخ العنوان.',
@@ -136,7 +136,7 @@ function buildStrings(lang: 'fr' | 'ar'): Strings {
             error: 'Une erreur est survenue. Réessayez.',
             confirm: 'Confirmer paiement', deliver: 'Livrer', reject: 'Rejeter',
             confirmOk: 'Paiement confirmé.', deliverOk: 'Commande livrée et enregistrée.', rejectOk: 'Commande rejetée.',
-            alreadyCompleted: 'Cette commande est déjà enregistrée.', clientRequired: 'Liez la commande à un client avant d’enregistrer une dette.',
+            alreadyCompleted: 'Cette commande est déjà enregistrée.', clientRequired: 'Liez la commande à un client avant d’enregistrer une dette.', uncostedStock: "Stock sans prix d'achat : faites un Retrait Manuel de ce stock, puis un Ajout Manuel avec son prix.",
             catalogHeader: 'Catalogue',
             yourUidLabel: 'Votre identifiant opérateur (UID) — copiez-le dans les deux fichiers ci-dessus :', copy: 'Copier', copied: 'Identifiant copié.',
             deliveryTo: 'Livraison à', addressCopied: 'Adresse copiée.',
@@ -464,6 +464,7 @@ export function OrdersAdminPage({
         } catch (e: any) {
             if (e?.message === 'ALREADY_COMPLETED') setAlert(`⚠️ ${strings.alreadyCompleted}`);
             else if (e?.message === 'CLIENT_REQUIRED') setAlert(`⚠️ ${strings.clientRequired}`);
+            else if (e?.message === 'UNCOSTED_STOCK') setAlert(`⚠️ ${strings.uncostedStock}`);
             else setAlert(`❌ ${strings.error}`);
         }
     };

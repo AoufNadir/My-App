@@ -22,6 +22,7 @@ import { allocateProfitDeltaAtTimestamp, type ManagerFeeHistoryEntry } from './u
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
 import { isClientActive } from '../utils/clientRegistry';
+import { sellHasNoPurchaseCost, UNCOSTED_STOCK_MESSAGE } from '../utils/costedStock';
 import { combineClientPositionDeltas, derivePortfolioSellReadModelEconomics, transitionClientBalanceDelta, type ClientPositionDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
 interface HandlerProps {
     userDocRef: FirestoreDocumentReference;
@@ -285,9 +286,13 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 addError('sellTotal', 'Montant total invalide');
             if (isUsdtSettledInEur && readOnlyEurToDzdRate <= 0)
                 addError('sellEurToDzdRate', 'Taux EUR/DZD requis');
-            const avail = getPortfolioAssetStats(sellCurrency).available + (editingTx?.type === 'sell' ? editingTx.quantity : 0);
+            const sellStats = getPortfolioAssetStats(sellCurrency);
+            const editingSellQuantity = editingTx?.type === 'sell' ? editingTx.quantity : 0;
+            const avail = sellStats.available + editingSellQuantity;
             if (amt > avail)
                 addError('sellAmount', 'Solde insuffisant');
+            else if (sellHasNoPurchaseCost({ quantity: amt, costedQuantity: sellStats.purchasedQty, isEdit: editingTx?.type === 'sell' }))
+                addError('sellAmount', UNCOSTED_STOCK_MESSAGE);
             if (!linkedClientId || linkedClientId === '' || linkedClientId === 'none')
                 addError('linkedClientId', 'Veuillez sélectionner un client');
             if (canUseLinkedDzdClient && linkedClientDzdId && linkedClientDzdId !== 'none' && linkedClientDzdId === linkedClientId) {
