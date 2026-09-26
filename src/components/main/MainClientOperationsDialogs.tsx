@@ -429,8 +429,10 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                 if (Number.isFinite(amt) && amt !== 0) {
                     valid = true;
                     const isReceived = normalizedClientTxType === 'Règlement Reçu';
+                    // Edited balance rows (Solde Initial, Ajustement Solde) keep the sign typed in the form.
+                    const increasesClientBalance = isClientSettlementTx ? isReceived : amt > 0;
                     rows = [
-                        { label: t('transactions.clientBalanceImpact'), value: Math.abs(amt), currency: 'DZD', semantic: isReceived ? 'profit' : 'loss', emphasize: true }
+                        { label: t('transactions.clientBalanceImpact'), value: Math.abs(amt), currency: 'DZD', semantic: increasesClientBalance ? 'profit' : 'loss', emphasize: true }
                     ];
                     if (isClientSettlementTx && hasReceiverClient) {
                         rows.push({

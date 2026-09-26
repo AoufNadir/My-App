@@ -54,6 +54,7 @@ import { useReportExports } from './hooks/useReportExports';
 // Shared Utils
 import { now, parseAndEvaluate } from './utils';
 import { computePamLedger } from './utils/pamLedger';
+import { operationStamp } from './utils/editStamp';
 import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot } from './utils/capitalSnapshot';
 import { summarizePersonalExpenseTotals } from './utils/financialAudit';
 import { buildDashboardReadModelShadowFromLegacy, getReadModelsMode, reconcileDashboardReadModelsWithLegacy, type DashboardReadModelShadowDiagnostic } from './readModels/dashboardReadModels';
@@ -1339,7 +1340,7 @@ export default function MainApp({ user }: {
                 closePortfolioBalanceEditModal();
                 return;
             }
-            const { date, time, timestamp } = now();
+            const { date, time, timestamp } = operationStamp(editingPortfolioBalanceTx);
             const type = diff > 0 ? 'Ajout Manuel' : 'Retrait Manuel';
             const quantity = Math.abs(diff);
             const avgBuy = portfolioBalanceEditAsset === 'USDT'

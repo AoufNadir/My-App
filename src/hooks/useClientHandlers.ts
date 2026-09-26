@@ -9,18 +9,10 @@ import { clientPositionFromLegacyRows } from '../accounting/clientShadowLegacyAd
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
 import { combineClientPositionDeltas, transitionClientBalanceDelta, type ClientPositionDelta } from '../readModels/readModelDeltas';
+import { CLIENT_TX_PAYMENT_MADE, CLIENT_TX_PAYMENT_RECEIVED, clientTxEditAmountInput, normalizeClientTxType, paymentStatusForExistingClientTx, planClientTxSave } from '../utils/clientTxEdit';
+import { operationStamp } from '../utils/editStamp';
 type ClientDeleteMode = 'history' | 'balance_only' | 'client_only_cleanup' | 'blocked';
 const CLIENT_DELETE_EPSILON = 0.01;
-const CLIENT_TX_PAYMENT_RECEIVED = 'Règlement Reçu';
-const CLIENT_TX_PAYMENT_MADE = 'Paiement Effectué';
-const normalizeClientTxType = (value: string) => {
-    const normalized = normalizeLedgerLabel(value || '');
-    if (normalized === CLIENT_TX_PAYMENT_RECEIVED)
-        return CLIENT_TX_PAYMENT_RECEIVED;
-    if (normalized === CLIENT_TX_PAYMENT_MADE)
-        return CLIENT_TX_PAYMENT_MADE;
-    return normalized;
-};
 const normalizeForDeleteCheck = (value: string | undefined) => (normalizeLedgerLabel(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -401,17 +393,12 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     const openClientTxModal = (tx: ClientTransactionDzd | null = null, presetType?: string, selectedClientId?: string) => {
         setEditingClientTx(tx);
         if (tx) {
-            setClientTxAmount(Math.abs(tx.montant).toString());
+            setClientTxAmount(clientTxEditAmountInput(tx));
             setClientTxType(normalizeClientTxType(tx.type));
             setClientTxNotes(tx.notes || '');
             const existingPaymentMethod = tx.paymentMethod as string | undefined;
             setClientTxSource(existingPaymentMethod === 'BaridiMob' ? 'BaridiMob' : 'Caisse');
-            if (existingPaymentMethod === 'Crédit' || existingPaymentMethod === 'CrÃ©dit' || !existingPaymentMethod)
-                setClientPaymentStatus('cash');
-            else if (existingPaymentMethod === 'Espèces' || existingPaymentMethod === 'EspÃ¨ces')
-                setClientPaymentStatus('cash');
-            else if (existingPaymentMethod === 'BaridiMob')
-                setClientPaymentStatus('baridi');
+            setClientPaymentStatus(paymentStatusForExistingClientTx(existingPaymentMethod));
             setClientTxUsdtAmount('');
             setClientTxSellPrice('');
             setClientTxEurAmount('');
@@ -451,7 +438,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         }
         setIsSaving(true);
         try {
-            const { date, time, timestamp } = now();
+            const { date, time, timestamp } = operationStamp(editingClientTx);
             const batch = db.batch();
             const paymentMethodMap = { credit: 'Crédit', cash: 'Espèces', baridi: 'BaridiMob' };
             const normalizedClientTxType = normalizeClientTxType(clientTxType);
@@ -460,7 +447,12 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             const receiverClientId = !editingClientTx && isClientSettlementTx && clientTxReceiverClientId !== 'none'
                 ? clientTxReceiverClientId
                 : 'none';
-            const effectiveClientPaymentStatus = isClientSettlementTx && clientPaymentStatus === 'credit' ? 'cash' : clientPaymentStatus;
+            const { montant, paymentStatus: effectiveClientPaymentStatus, isBalanceRowEdit } = planClientTxSave({
+                type: normalizedClientTxType,
+                amount,
+                selectedStatus: clientPaymentStatus,
+                isEditing: !!editingClientTx,
+            });
             if ((normalizedClientTxType === CLIENT_TX_PAYMENT_RECEIVED || normalizedClientTxType === CLIENT_TX_PAYMENT_MADE) && amount <= 0) {
                 setAlert('⚠️ Entrez un montant positif.');
                 return;
@@ -469,7 +461,6 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 setAlert('⚠️ Le client qui reçoit doit être différent.');
                 return;
             }
-            const montant = isPaymentReceived ? amount : -amount;
             const paymentMethod = paymentMethodMap[effectiveClientPaymentStatus];
             const walletSource = effectiveClientPaymentStatus === 'cash' ? 'Caisse' : 'BaridiMob';
             const treasuryTxType = isPaymentReceived ? 'Ajout' : 'Retrait';
@@ -496,10 +487,10 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             }
             if (editingClientTx) {
                 const clientTxRef = userDocRef.collection('dzd_client_txs').doc(editingClientTx.id);
-                const clientTxPayload: any = {
-                    montant, type: normalizedClientTxType, notes: clientTxNotes.trim(), paymentMethod, date, time, timestamp
-                };
-                if (editingClientTx.linkedTxId) {
+                const clientTxPayload: any = isBalanceRowEdit
+                    ? { montant, type: normalizedClientTxType, notes: clientTxNotes.trim() }
+                    : { montant, type: normalizedClientTxType, notes: clientTxNotes.trim(), paymentMethod };
+                if (editingClientTx.linkedTxId && !isBalanceRowEdit) {
                     const treasuryRef = userDocRef.collection('treasury_txs').doc(editingClientTx.linkedTxId);
                     if (effectiveClientPaymentStatus === 'credit') {
                         batch.delete(treasuryRef);
@@ -508,7 +499,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     else {
                         batch.update(treasuryRef, {
                             amount, type: treasuryTxType, source: walletSource,
-                            notes: `Client: ${targetClientName} - ${clientTxNotes.trim()}`, date, time, timestamp, origin: 'client_tx'
+                            notes: `Client: ${targetClientName} - ${clientTxNotes.trim()}`, origin: 'client_tx'
                         });
                     }
                 }
@@ -525,7 +516,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 const beforeClientBalance = (clientBalances.get(editingClientTx.clientId) || 0) - oldMontant;
                 const clientsDelta = transitionClientBalanceDelta(beforeClientBalance, beforeClientBalance + montant);
                 const walletDeltas = { Caisse: 0, BaridiMob: 0 };
-                const linkedTreasuryTx = editingClientTx.linkedTxId
+                const linkedTreasuryTx = editingClientTx.linkedTxId && !isBalanceRowEdit
                     ? treasuryTransactions.find(tx => tx.id === editingClientTx.linkedTxId)
                     : null;
                 if (linkedTreasuryTx?.source === 'Caisse' || linkedTreasuryTx?.source === 'BaridiMob') {
