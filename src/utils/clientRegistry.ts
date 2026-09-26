@@ -69,6 +69,19 @@ export type ClientIdentityInput = {
 };
 
 /**
+ * Identity fields an edit actually changes. Unchanged fields are left out so a
+ * client that already shares a name with another one can still be edited.
+ */
+export function changedClientIdentity(before: ClientDzd, after: ClientIdentityInput): ClientIdentityInput {
+    return {
+        fullName: clientNameKey(after.fullName) !== clientNameKey(before.fullName) ? after.fullName : undefined,
+        phone: clientPhoneKey(after.phone) !== clientPhoneKey(before.phone) ? after.phone : undefined,
+        redotpayId: textKey(after.redotpayId) !== textKey(before.redotpayId) ? after.redotpayId : undefined,
+        binanceEmail: textKey(after.binanceEmail) !== textKey(before.binanceEmail) ? after.binanceEmail : undefined,
+    };
+}
+
+/**
  * Existing clients (active or archived) that share a name, phone, RedotPay ID
  * or Binance email with the candidate. Active matches are listed first.
  */

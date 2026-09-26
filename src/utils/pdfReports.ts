@@ -2010,9 +2010,12 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
         .reduce((sum, tx) => sum + tx.amount, 0);
     const investorTotalProfit = Number(input.investor.totalProfit || 0);
     const investorAvailableProfit = Number(input.investor.availableProfit || 0);
-    const investorCapital = managerCapital ? managerCapital.ownerCapital : Number(input.investor.capitalInvested || 0);
+    // Closing capital from the caller, built from the whole history up to the report end
+    // (managerCapital above only sees the period's rows).
+    const investorCapital = Number(input.investor.capitalInvested || 0);
     const investorSharePercent = Number(input.investor.sharePercentage || 0) * 100;
-    const estimatedValue = investorCapital + investorAvailableProfit;
+    // The manager's capital already holds his unwithdrawn profit; adding it again counted it twice.
+    const estimatedValue = isManager ? investorCapital : investorCapital + investorAvailableProfit;
     const estimatedYield = investorCapital > 0 ? (investorTotalProfit / investorCapital) * 100 : null;
     const netCapitalMovement = depositCapital + (isManager ? 0 : reinvestedProfit) - withdrawCapital;
     const toneClass = (value: number) => (value > 0 ? 'good' : value < 0 ? 'bad' : '');

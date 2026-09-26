@@ -99,4 +99,50 @@ assert.match(html, /class="investor-operations-table"/);
 assert.match(html, /thead\s*\{\s*display: table-header-group/);
 assert.match(html, /page-break-inside: avoid/);
 
+// The manager's report: his capital already holds his unwithdrawn profit, so the estimated
+// value is that capital (not capital + profit again), and a one-month report shows the same
+// closing capital as the app, not one rebuilt from that month's rows only.
+{
+    const JAN = new Date(2026, 0, 15).getTime();
+    const FEB = new Date(2026, 1, 15).getTime();
+    const managerSales = [
+        tx({ id: 'm-buy', type: 'buy', quantity: 2000, price: 200, total: 400000, timestamp: JAN - 1000 }),
+        tx({ id: 'm-sell-jan', type: 'sell', quantity: 1000, sell: 300, timestamp: JAN }),
+        tx({ id: 'm-sell-feb', type: 'sell', quantity: 500, sell: 300, timestamp: FEB }),
+    ];
+    const manager: Investor = { ...investor, id: 'manager', name: 'Gérant', isManager: true, capitalInvested: 1000000, initialCapital: 1000000 };
+    const economics = (range: { startTs?: number; endTs?: number }, transactions: Tx[]) => deriveInvestorEconomics({
+        investors: [manager],
+        investorTransactions: [],
+        transactions,
+        managerFeePercentage: '30',
+        pamLedger: computePamLedger(transactions),
+        periodStartTs: range.startTs,
+        periodEndTs: range.endTs,
+        personalExpenses: [],
+    }).derivedInvestors[0];
+    const managerReport = (range: { startTs?: number; endTs?: number }) => {
+        const period = economics(range, managerSales);
+        const closing = economics({ endTs: range.endTs }, managerSales.filter((item) => range.endTs == null || item.timestamp <= range.endTs));
+        const text = buildInvestorPdfReport({
+            investor: { ...period, capitalInvested: closing.capitalInvested, availableProfit: closing.availableProfit, sharePercentage: closing.sharePercentage },
+            investorTransactions: [],
+            personalExpenses: [],
+            reportStartTs: range.startTs,
+            reportEndTs: range.endTs,
+        }).html.replace(/\s+/g, ' ');
+        return { closing, text };
+    };
+    const summaryValue = (text: string, label: string) => text.match(new RegExp(`${label}</div> <div class="investor-summary-value">([^<]+)</div>`))?.[1];
+
+    const full = managerReport({});
+    assert.equal(full.closing.capitalInvested, 1150000);
+    assert.equal(summaryValue(full.text, 'Capital actuel'), '1 150 000,00 DZD');
+    assert.equal(summaryValue(full.text, 'Valeur estim&eacute;e'), '1 150 000,00 DZD');
+
+    const february = managerReport({ startTs: new Date(2026, 1, 1).getTime(), endTs: new Date(2026, 1, 28, 23, 59, 59, 999).getTime() });
+    assert.equal(summaryValue(february.text, 'Capital actuel'), '1 150 000,00 DZD');
+    assert.equal(summaryValue(february.text, 'Valeur estim&eacute;e'), '1 150 000,00 DZD');
+}
+
 console.log('investor PDF partial-period tests passed');

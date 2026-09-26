@@ -106,6 +106,7 @@ const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
 type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
 import { reorderClientName, nameMatchesQuery } from './utils/nameUtils';
 import { clientNameKey, clientPhoneKey, isClientActive, selectableClients } from './utils/clientRegistry';
+import { investorResetForDeletedRow } from './utils/managerCapital';
 import { buildPricingContext, quoteSale, type SmartSaleSnapshot } from './services/smartPricingEngine';
 
 /** True from the first render where `value` is true, and stays true afterwards. */
@@ -432,7 +433,7 @@ export default function MainApp({ user }: {
 
     const monthPlanClients = React.useMemo(
         () => clientsDzd
-            .filter((client) => earlyClientLoyaltyMap.get(client.id) !== 'fournisseur')
+            .filter((client) => isClientActive(client) && earlyClientLoyaltyMap.get(client.id) !== 'fournisseur')
             .map((client) => ({ id: client.id, name: getClientDisplayName(client) })),
         [clientsDzd, earlyClientLoyaltyMap],
     );
@@ -466,7 +467,7 @@ export default function MainApp({ user }: {
         treasuryStats,
         setAlert,
     });
-    const { isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, handleDeleteClient, handleZeroOutBalance, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, clientTxReceiverClientId, setClientTxReceiverClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, handleClientToClientTransfer, getClientTransferableAmount } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert);
+    const { isSaving: isClientSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, handleDeleteClient, handleZeroOutBalance, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, clientTxReceiverClientId, setClientTxReceiverClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, handleClientToClientTransfer, getClientTransferableAmount } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert);
     const { isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, setEditingInvestor, investorToDelete, setInvestorToDelete, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorName, setInvestorName, investorInitialCapital, setInvestorInitialCapital, investorInitialCapitalSource, setInvestorInitialCapitalSource, investorNotes, setInvestorNotes, isManager, setIsManager, investorTxType, setInvestorTxType, investorTxAmount, setInvestorTxAmount, investorTxNotes, setInvestorTxNotes, investorTxPaymentSource, setInvestorTxPaymentSource, investorTxToDelete, setInvestorTxToDelete, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, selectedInvestorId, setSelectedInvestorId, handleSaveInvestor, handleSaveInvestorTx, handleReinvestProfit, handleDeleteInvestor, openInvestorModal, closeInvestorModal,
     // Personal withdrawal (manager's daily personal expense)
     isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen, personalWithdrawalAmount, setPersonalWithdrawalAmount, personalWithdrawalMethod, setPersonalWithdrawalMethod, personalWithdrawalDate, setPersonalWithdrawalDate, personalWithdrawalNote, setPersonalWithdrawalNote, personalWithdrawalMode, setPersonalWithdrawalMode, personalWithdrawalPreview, editingPersonalExpenseTx, personalExpenseToDelete, setPersonalExpenseToDelete, openEditPersonalExpense, openPersonalWithdrawalModal, closePersonalWithdrawalModal, handleSavePersonalWithdrawal, handleDeletePersonalExpense, managerAvailableProfit, managerCapitalInvested, managerExists,
@@ -2274,6 +2275,11 @@ export default function MainApp({ user }: {
             if (investorTxToDelete.linkedTreasuryTxId) {
                 batch.delete(userDocRef.collection('treasury_txs').doc(investorTxToDelete.linkedTreasuryTxId));
             }
+            const owner = investors.find((investor) => investor.id === investorTxToDelete.investorId);
+            const profileReset = owner ? investorResetForDeletedRow(investorTxToDelete, owner, investorTransactions) : null;
+            if (owner && profileReset) {
+                batch.update(userDocRef.collection('investors').doc(owner.id), profileReset);
+            }
             await commitLegacyWithReadModelDeltas({
                 userDocRef,
                 batch,
@@ -3118,7 +3124,7 @@ export default function MainApp({ user }: {
         clientGroup, setClientGroup,
         clientIsFournisseur, setClientIsFournisseur,
         initialBalance, setInitialBalance,
-        handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, closeClientModal,
+        handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, closeClientModal, isClientSaving,
         clientToDelete, clientDeleteMode,
         handleClientDeleteRequest,
         handleDeleteClient,

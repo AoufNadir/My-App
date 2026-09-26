@@ -25,6 +25,22 @@ function isCashWalletMovement(tx: TreasuryTx): boolean {
         || raw.asset === 'DZD-Baridi';
 }
 
+/** Rows of the treasury PDF: cash movements only, newest first, like the balances. */
+export function treasuryPdfRows(treasuryTransactions: TreasuryTx[]) {
+    return treasuryTransactions
+        .filter((tx) => tx.type !== 'Transfer' && isCashWalletMovement(tx))
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .map((tx) => ({
+            date: tx.date,
+            time: tx.time,
+            type: tx.type,
+            source: tx.source ?? '',
+            amount: Number(tx.amount || 0),
+            notes: tx.notes ?? '',
+            origin: tx.origin,
+        }));
+}
+
 function formatCountdown(ms: number): string {
     if (ms <= 0) return '00h 00min';
     const totalMinutes = Math.floor(ms / 60000);
@@ -253,7 +269,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
     }, [treasuryTransactions]);
     const recentTxs = useMemo(() => {
         return [...treasuryTransactions]
-            .filter((tx) => tx.type !== 'Transfer' && !tx.origin?.startsWith('investor') && !tx.origin?.startsWith('personal'))
+            .filter((tx) => tx.type !== 'Transfer' && isCashWalletMovement(tx) && !tx.origin?.startsWith('investor') && !tx.origin?.startsWith('personal'))
             .sort((a, b) => b.timestamp - a.timestamp)
             .slice(0, 12);
     }, [treasuryTransactions]);
@@ -308,20 +324,8 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
                 title={t('treasury.exportPdf')}
                 onClick={async () => {
                   const { buildTreasuryPdf, openPdfPrintWindow } = await import('../utils/pdfReports');
-                  const allNonInternal = treasuryTransactions
-                    .filter((tx) => tx.type !== 'Transfer')
-                    .sort((a, b) => b.timestamp - a.timestamp);
-                  const rows = allNonInternal.map((tx) => ({
-                    date: tx.date,
-                    time: tx.time,
-                    type: tx.type,
-                    source: tx.source ?? '',
-                    amount: Number(tx.amount || 0),
-                    notes: tx.notes ?? '',
-                    origin: tx.origin,
-                  }));
                   const report = buildTreasuryPdf(
-                    rows,
+                    treasuryPdfRows(treasuryTransactions),
                     { caisse: caisseBalance, baridi: baridiBalance },
                     `${t('treasury.exportedOn')} ${new Date().toLocaleDateString('fr-FR')}`
                   );
