@@ -520,11 +520,14 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             : null;
         return { inv, totalProfit, availableProfit, capitalInvested, roi, managerCapital };
     });
-    const totalCurrentCapital = investorDrafts.reduce((sum, draft) => {
-        if (!draft.inv.isActive || draft.capitalInvested <= 0)
-            return sum;
-        return sum + draft.capitalInvested;
-    }, 0);
+    // "Part du capital" is the weight the next sale is split by, the same capital at that
+    // moment as the loop above. The manager's displayed capital also holds his retained
+    // profit, which the split does not count, so it cannot be the weight.
+    const shareTs = input.periodEndTs ?? Number.MAX_SAFE_INTEGER;
+    const shareWeightById = new Map(investorsBase
+        .filter((inv) => inv.entryTs <= shareTs)
+        .map((inv) => [inv.id, Math.max(0, capitalAtTs(inv, shareTs))] as const));
+    const totalShareWeight = [...shareWeightById.values()].reduce((sum, weight) => sum + weight, 0);
     // Preserve cent-precision in availableProfit for accounting. This map is only
     // for whole-DZD display values, so every investor-facing aggregate agrees.
     const displayAvailableProfitByInvestor = allocateRoundedDzd(
@@ -533,8 +536,8 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             .map((draft) => ({ id: draft.inv.id, value: draft.availableProfit }))
     );
     const derivedInvestors = investorDrafts.map((draft): DerivedInvestor => {
-        const currentShare = draft.inv.isActive && totalCurrentCapital > 0
-            ? Math.max(0, draft.capitalInvested) / totalCurrentCapital
+        const currentShare = totalShareWeight > 0
+            ? (shareWeightById.get(draft.inv.id) || 0) / totalShareWeight
             : 0;
         return {
             ...draft.inv,

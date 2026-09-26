@@ -15,6 +15,32 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { useLanguage } from '../contexts/LanguageContext';
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
 
+/** Mirrors the wallet resolution used for the Caisse/BaridiMob balances in useAppData. */
+function isCashWalletMovement(tx: TreasuryTx): boolean {
+    const raw = tx as TreasuryTx & { asset?: string };
+    const source = String(raw.source || '').toLowerCase();
+    return source.includes('caisse')
+        || source.includes('baridi')
+        || raw.asset === 'DZD-Caisse'
+        || raw.asset === 'DZD-Baridi';
+}
+
+/** Rows of the treasury PDF: cash movements only, newest first, like the balances. */
+export function treasuryPdfRows(treasuryTransactions: TreasuryTx[]) {
+    return treasuryTransactions
+        .filter((tx) => tx.type !== 'Transfer' && isCashWalletMovement(tx))
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .map((tx) => ({
+            date: tx.date,
+            time: tx.time,
+            type: tx.type,
+            source: tx.source ?? '',
+            amount: Number(tx.amount || 0),
+            notes: tx.notes ?? '',
+            origin: tx.origin,
+        }));
+}
+
 function formatCountdown(ms: number): string {
     if (ms <= 0) return '00h 00min';
     const totalMinutes = Math.floor(ms / 60000);
@@ -50,38 +76,17 @@ export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecen
     const [expanded, setExpanded] = useState(false);
     const nowMs = Date.now();
 
-    // Compute USDT stats directly from transactions (primary source)
-    let available = 0;
-    let locked = 0;
-    const lockedBatches: Array<{ txId: string; quantity: number; lockedUntil: number }> = [];
-
-    if (transactions && transactions.length > 0) {
-        const usdtTxs = transactions.filter((tx: any) =>
-            (tx.currency === 'USDT' || tx.currency === 'USD' || !tx.currency) &&
-            ['buy', 'sell', 'Ajout Manuel', 'Retrait Manuel'].includes(tx.type)
-        );
-        for (const tx of usdtTxs) {
-            const qty = Math.round(Math.abs(Number(tx.quantity || 0)) * 100) / 100;
-            if (qty <= 0) continue;
-            if (tx.type === 'buy' || tx.type === 'Ajout Manuel') {
-                const isStillLocked = tx.type === 'buy' && tx.lockedUntil && tx.lockedUntil > nowMs;
-                if (isStillLocked) {
-                    locked = Math.round((locked + qty) * 100) / 100;
-                    lockedBatches.push({ txId: tx.id, quantity: qty, lockedUntil: tx.lockedUntil });
-                } else {
-                    available = Math.round((available + qty) * 100) / 100;
-                }
-            } else {
-                available = Math.round((available - qty) * 100) / 100;
-            }
-        }
-        available = Math.max(0, available);
-        locked = Math.max(0, locked);
-    } else if (portfolioStats) {
-        available = portfolioStats.usdt.available;
-        locked = portfolioStats.usdt.locked;
-        portfolioStats.usdt.lockedBatches.forEach(b => lockedBatches.push(b));
-    }
+    // Same PAM ledger as the rest of the app, so this card can never disagree
+    // with the portfolio figures (it used to replay the transactions itself).
+    // The ledger is memoized, so a batch whose 24h lock ran out since it was
+    // computed is released here rather than waiting for the next transaction.
+    const ledgerBatches = portfolioStats?.usdt.lockedBatches || [];
+    const lockedBatches = ledgerBatches.filter((batch) => batch.lockedUntil > nowMs);
+    const releasedQty = ledgerBatches
+        .filter((batch) => batch.lockedUntil <= nowMs)
+        .reduce((sum, batch) => sum + Number(batch.quantity || 0), 0);
+    const available = Math.max(0, Math.round((Number(portfolioStats?.usdt.available || 0) + releasedQty) * 100) / 100);
+    const locked = Math.max(0, Math.round((Number(portfolioStats?.usdt.locked || 0) - releasedQty) * 100) / 100);
 
     const total = available + locked;
 
@@ -252,6 +257,9 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
             if (!tx.timestamp) continue;
             const slot = result.find((r) => tx.timestamp >= r.dayStart && tx.timestamp <= r.dayEnd);
             if (!slot) continue;
+            // Only movements of the Caisse/BaridiMob wallets are cash flow; personal
+            // expenses paid from the USDT/EUR wallets carry no cash source.
+            if (!isCashWalletMovement(tx)) continue;
             const amount = Number(tx.amount || 0);
             if (tx.type === 'Ajout' || tx.type === 'Adjustment (+)') slot.cashIn += amount;
             else if (tx.type === 'Retrait' || tx.type === 'Adjustment (-)') slot.cashOut += amount;
@@ -261,7 +269,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
     }, [treasuryTransactions]);
     const recentTxs = useMemo(() => {
         return [...treasuryTransactions]
-            .filter((tx) => tx.type !== 'Transfer' && !tx.origin?.startsWith('investor') && !tx.origin?.startsWith('personal'))
+            .filter((tx) => tx.type !== 'Transfer' && isCashWalletMovement(tx) && !tx.origin?.startsWith('investor') && !tx.origin?.startsWith('personal'))
             .sort((a, b) => b.timestamp - a.timestamp)
             .slice(0, 12);
     }, [treasuryTransactions]);
@@ -316,20 +324,8 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
                 title={t('treasury.exportPdf')}
                 onClick={async () => {
                   const { buildTreasuryPdf, openPdfPrintWindow } = await import('../utils/pdfReports');
-                  const allNonInternal = treasuryTransactions
-                    .filter((tx) => tx.type !== 'Transfer')
-                    .sort((a, b) => b.timestamp - a.timestamp);
-                  const rows = allNonInternal.map((tx) => ({
-                    date: tx.date,
-                    time: tx.time,
-                    type: tx.type,
-                    source: tx.source ?? '',
-                    amount: Number(tx.amount || 0),
-                    notes: tx.notes ?? '',
-                    origin: tx.origin,
-                  }));
                   const report = buildTreasuryPdf(
-                    rows,
+                    treasuryPdfRows(treasuryTransactions),
                     { caisse: caisseBalance, baridi: baridiBalance },
                     `${t('treasury.exportedOn')} ${new Date().toLocaleDateString('fr-FR')}`
                   );

@@ -597,4 +597,28 @@ test('a manager profit withdrawal reduces owner capital and the dashboard availa
     assertMoney(reconciled.ownerCapitalReconciliationDifference, 0);
 });
 
+test('the capital share shown is the share the next sale is split by', () => {
+    const investors = [
+        investor({ id: 'manager', isManager: true, initialCapital: 1000000 }),
+        investor({ id: 'a', initialCapital: 1000000 }),
+    ];
+    const sales = [
+        tx({ id: 'buy', type: 'buy', quantity: 20000, price: 200, total: 4000000, timestamp: 1000 }),
+        tx({ id: 'sell-1', type: 'sell', quantity: 10000, sell: 300, timestamp: 2000 }),
+    ];
+    const run = (transactions: Tx[]) => deriveInvestorEconomics({ investors, investorTransactions: [], transactions, managerFeePercentage: '30' });
+    const before = run(sales);
+    const find = (result: ReturnType<typeof run>, id: string) => result.derivedInvestors.find((inv) => inv.id === id)!;
+
+    // The manager keeps his fee and his share of the first sale as capital, but the split
+    // weighs capital without that retained profit: equal capital, equal share.
+    assert.ok(find(before, 'manager').capitalInvested > find(before, 'a').capitalInvested);
+    assertMoney(find(before, 'a').sharePercentage, 0.5);
+    assertMoney(find(before, 'manager').sharePercentage, 0.5);
+
+    const after = run([...sales, tx({ id: 'sell-2', type: 'sell', quantity: 1000, sell: 300, timestamp: 3000 })]);
+    const gain = find(after, 'a').totalProfit - find(before, 'a').totalProfit;
+    assertMoney(gain, 100000 * 0.7 * find(before, 'a').sharePercentage);
+});
+
 console.log('useInvestorEconomics manager fee history tests passed');

@@ -61,6 +61,7 @@ export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercent
             <DetailRow label={t('finance.netPosition') as string} value={capitalSnapshot.netClientPosition} semantic="auto"/>
             <DetailRow label={t('finance.treasuryCards') as string} value={capitalSnapshot.treasuryCardsTotal} semantic="plain" hideWhenZero/>
             <DetailRow label={t('finance.servicesNetPosition') as string} value={capitalSnapshot.servicesCapitalImpact} semantic="auto" hideWhenZero/>
+            <DetailRow label={t('personalExpenses.personalAdvance') as string} value={capitalSnapshot.managerPendingAdvances} semantic="plain" hideWhenZero/>
           </>)}
         <DetailSection>{t('investors.investorsAndProfits')}</DetailSection>
         <DetailRow label={t('investors.capitalInvested') as string} value={stats.totalCapital} semantic="plain"/>

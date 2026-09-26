@@ -106,8 +106,16 @@ const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
 type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
 import { reorderClientName, nameMatchesQuery } from './utils/nameUtils';
 import { clientNameKey, clientPhoneKey, isClientActive, selectableClients } from './utils/clientRegistry';
+import { investorResetForDeletedRow } from './utils/managerCapital';
 import { buildPricingContext, quoteSale, type SmartSaleSnapshot } from './services/smartPricingEngine';
 
+/** True from the first render where `value` is true, and stays true afterwards. */
+function useLatchedFlag(value: boolean): boolean {
+    const [latched, setLatched] = useState(value);
+    if (value && !latched)
+        setLatched(true);
+    return latched || value;
+}
 function getClientDisplayName(client: ClientDzd) {
     const raw = client.fullName || (client.prenom ? `${client.nom} ${client.prenom}` : client.nom) || '';
     return reorderClientName(raw);
@@ -145,6 +153,10 @@ export default function MainApp({ user }: {
     // --- 1. CORE DATA & SETTINGS ---
     const { t } = useLanguage();
     const readModelsMode = getReadModelsMode();
+    // The shadow comparisons below recompute the whole dashboard, the PAM ledger
+    // and the investor economics a second time purely for console diagnostics.
+    // Run them only when explicitly requested with VITE_READ_MODELS_MODE=shadow.
+    const shadowDiagnosticsEnabled = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_READ_MODELS_MODE === 'shadow';
     const [refreshKey, setRefreshKey] = useState(0);
     const [alert, setAlert] = useState('');
     const { investorIdFromUrl, isInvestorRoute, navigateToView, selectedClientId, setSelectedClientId, setView, view } = useMainNavigation();
@@ -159,15 +171,21 @@ export default function MainApp({ user }: {
         || selectedAssetClientId !== null;
     const shouldSubscribeInvestors = view === 'investors' || view === 'dashboard' || view === 'tresorerie' || view === 'dzd' || view === 'transactions' || view === 'expenses' || isInvestorRoute;
     const shouldSubscribeTreasuryCards = view === 'dashboard' || view === 'investors' || view === 'tresorerie' || view === 'transactions';
+    // Once a collection has been subscribed, keep its listener for the whole
+    // session. Dropping it on page change threw the data away, and coming back
+    // re-downloaded it and blocked the page until the server answered again.
+    const keepManualAssetsSubscribed = useLatchedFlag(shouldSubscribeManualAssets);
+    const keepInvestorsSubscribed = useLatchedFlag(shouldSubscribeInvestors);
+    const keepTreasuryCardsSubscribed = useLatchedFlag(shouldSubscribeTreasuryCards);
     const shouldRequireManualAssets = view === 'services' || selectedAssetId !== null || selectedAssetClientId !== null;
     const shouldRequireInvestors = view === 'investors' || view === 'expenses' || view === 'tresorerie' || isInvestorRoute;
     const shouldRequireTreasuryCards = view === 'tresorerie';
     // 1.1 App Data (Provides userDocRef)
     const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, digitalServiceTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
         subscribeCoreFinancial: !shouldUseDashboardReadModel,
-        subscribeManualAssets: !shouldUseDashboardReadModel && shouldSubscribeManualAssets,
-        subscribeInvestors: !shouldUseDashboardReadModel && shouldSubscribeInvestors,
-        subscribeTreasuryCards: !shouldUseDashboardReadModel && shouldSubscribeTreasuryCards,
+        subscribeManualAssets: !shouldUseDashboardReadModel && keepManualAssetsSubscribed,
+        subscribeInvestors: !shouldUseDashboardReadModel && keepInvestorsSubscribed,
+        subscribeTreasuryCards: !shouldUseDashboardReadModel && keepTreasuryCardsSubscribed,
         requireManualAssets: shouldRequireManualAssets,
         requireInvestors: shouldRequireInvestors,
         requireTreasuryCards: shouldRequireTreasuryCards
@@ -183,7 +201,7 @@ export default function MainApp({ user }: {
             || (isDataLoaded && typeof navigator !== 'undefined' && navigator.onLine === false));
     const isFinancialDataReady = canUseFinancialData && isSettingsLoaded;
     const clientShadowReadReconciliation = useMemo(() => {
-        if (!isFinancialDataReady || shouldUseDashboardReadModel) return null;
+        if (!shadowDiagnosticsEnabled || !isFinancialDataReady || shouldUseDashboardReadModel) return null;
         return reconcileLegacyClientsToShadow(clientTransactionsDzd, clientsDzd.map((client) => client.id));
     }, [isFinancialDataReady, shouldUseDashboardReadModel, clientTransactionsDzd, clientsDzd]);
     const clientShadowReconciliationFingerprint = useRef('');
@@ -211,7 +229,23 @@ export default function MainApp({ user }: {
             && navigator.onLine === false
             && CORE_DATA_KEYS.every((key) => coreCollectionStates[key]?.received));
     const ledgerTransactions = hasCurrentCoreData ? transactions : EMPTY_TRANSACTIONS;
-    const pamLedger = useMemo(() => computePamLedger(ledgerTransactions), [ledgerTransactions]);
+    // 24h-locked buys become available at `lockedUntil`. The ledger only reads
+    // the clock when it recomputes, so schedule a recompute at the next unlock;
+    // otherwise the stock stays "locked" until some unrelated transaction arrives.
+    const [lockReleaseTick, setLockReleaseTick] = useState(0);
+    const pamLedger = useMemo(() => computePamLedger(ledgerTransactions), [ledgerTransactions, lockReleaseTick]);
+    useEffect(() => {
+        const nowMs = Date.now();
+        const nextUnlock = [...pamLedger.portfolioStats.usdt.lockedBatches, ...pamLedger.portfolioStats.eur.lockedBatches]
+            .map((batch) => Number(batch.lockedUntil))
+            .filter((lockedUntil) => Number.isFinite(lockedUntil) && lockedUntil > nowMs)
+            .reduce((min, lockedUntil) => Math.min(min, lockedUntil), Number.POSITIVE_INFINITY);
+        if (!Number.isFinite(nextUnlock))
+            return;
+        // setTimeout overflows above ~24.8 days; re-arm in steps if needed.
+        const timer = window.setTimeout(() => setLockReleaseTick((tick) => tick + 1), Math.min(nextUnlock - nowMs + 1000, 2_000_000_000));
+        return () => window.clearTimeout(timer);
+    }, [pamLedger]);
     const portfolioStats = pamLedger.portfolioStats;
     const deliveryExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense'), [treasuryTransactions]);
     const personalExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense'), [treasuryTransactions]);
@@ -232,7 +266,7 @@ export default function MainApp({ user }: {
     }, [isFinancialDataReady, investors, investorTransactions, managerFeePercentage, managerFeeHistory, transactions, pamLedger, deliveryExpenses, treasuryTransactions, personalExpenses]);
     const derivedInvestors = investorEconomics.derivedInvestors;
     const investorShadowReadReconciliation = useMemo(() => {
-        if (!isFinancialDataReady || shouldUseDashboardReadModel) return null;
+        if (!shadowDiagnosticsEnabled || !isFinancialDataReady || shouldUseDashboardReadModel) return null;
         return reconcileLegacyInvestorsToShadow({
             investors,
             investorTransactions,
@@ -261,7 +295,7 @@ export default function MainApp({ user }: {
         else console.warn(label, investorShadowReadReconciliation);
     }, [investorShadowReadReconciliation]);
     const serviceShadowReadReconciliation = useMemo(() => {
-        if (!isFinancialDataReady || shouldUseDashboardReadModel) return null;
+        if (!shadowDiagnosticsEnabled || !isFinancialDataReady || shouldUseDashboardReadModel) return null;
         return reconcileLegacyServicesToShadow(digitalServiceTransactions);
     }, [isFinancialDataReady, shouldUseDashboardReadModel, digitalServiceTransactions]);
     const serviceShadowReconciliationFingerprint = useRef('');
@@ -930,7 +964,7 @@ export default function MainApp({ user }: {
         };
     }, [treasuryTransactions, deliveryExpenses, managerProfitBreakdown]);
     const readModelShadowDiagnostic = useMemo<DashboardReadModelShadowDiagnostic | null>(() => {
-        if (readModelsMode !== 'shadow' || !isFinancialDataReady)
+        if (!shadowDiagnosticsEnabled || readModelsMode !== 'shadow' || !isFinancialDataReady)
             return null;
         const readModels = buildDashboardReadModelShadowFromLegacy({
             transactions,
@@ -2221,6 +2255,11 @@ export default function MainApp({ user }: {
             batch.delete(userDocRef.collection('investor_transactions').doc(investorTxToDelete.id));
             if (investorTxToDelete.linkedTreasuryTxId) {
                 batch.delete(userDocRef.collection('treasury_txs').doc(investorTxToDelete.linkedTreasuryTxId));
+            }
+            const owner = investors.find((investor) => investor.id === investorTxToDelete.investorId);
+            const profileReset = owner ? investorResetForDeletedRow(investorTxToDelete, owner, investorTransactions) : null;
+            if (owner && profileReset) {
+                batch.update(userDocRef.collection('investors').doc(owner.id), profileReset);
             }
             await commitLegacyWithReadModelDeltas({
                 userDocRef,
