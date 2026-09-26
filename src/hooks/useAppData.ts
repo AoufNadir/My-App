@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../firebase';
 import type { AppUser } from '../firebaseAuth';
+import { fromCents, toCents } from '../utils/money';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from '../types';
 type UseAppDataOptions = {
     subscribeCoreFinancial?: boolean;
@@ -323,8 +324,10 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         clientTransactionsDzd.forEach(tx => {
             if (tx.affectsBalance === false)
                 return;
-            balances.set(tx.clientId, (balances.get(tx.clientId) || 0) + tx.montant);
+            // Accumulate in integer cents so long histories don't drift (e.g. 0.30000000000000004).
+            balances.set(tx.clientId, (balances.get(tx.clientId) || 0) + toCents(Number(tx.montant) || 0));
         });
+        balances.forEach((cents, clientId) => balances.set(clientId, fromCents(cents)));
         return balances;
     }, [clientsDzd, clientTransactionsDzd]);
     const assetClientBalances = useMemo(() => {
