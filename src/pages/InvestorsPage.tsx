@@ -15,6 +15,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import type { DerivedInvestor, InvestorEconomicsResult, ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
 import type { FirestoreDocumentReference } from '../firebase';
 import type { CapitalSnapshot, InvestorBreakdown } from '../utils/capitalSnapshot';
+import { calculateWithdrawableProfit, wholeDzdDown } from '../utils/profitDistribution';
 interface InvestorsPageProps {
     investors: DerivedInvestor[];
     capitalSnapshot?: CapitalSnapshot;
@@ -65,6 +66,9 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
     const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false);
     const [isDistributionOpen, setIsDistributionOpen] = useState(false);
     const distributableInvestors = useMemo(() => investors.filter((investor) => !investor.isManager), [investors]);
+    // What the payout plan can pay: active investors' positive balances. The page total above
+    // also counts archived investors and negative balances, which the plan never pays.
+    const withdrawableProfit = useMemo(() => calculateWithdrawableProfit(distributableInvestors), [distributableInvestors]);
     const handleSaveCommission = useCallback(async (nextValue: string) => {
         await saveManagerFeePercentage(nextValue);
         setAlert('✅ Taux actuel du gérant sauvegardé.');
@@ -86,7 +90,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
         ]}/>
 
       {/* Distribution reminder when available profits are significant */}
-      {stats.totalAvailable > 5000 && (<button
+      {withdrawableProfit > 5000 && (<button
           type="button"
           onClick={() => setIsDistributionOpen(true)}
           className="flex w-full items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-start transition-colors hover:bg-primary/10 active:scale-[0.99]">
@@ -94,7 +98,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-primary">{t('investors.distributeProfits')}</p>
             <p className="mt-0.5 text-xs text-primary/60">
-              {t('investors.profitsToPay')} : <CurrencyAmount value={displayedStats.totalAvailable} currency="DZD" semantic="plain" size="sm" decimals={0}/> - {t('investors.tapToViewPlan')}
+              {t('profitDistribution.availableToWithdraw')} : <CurrencyAmount value={wholeDzdDown(withdrawableProfit)} currency="DZD" semantic="plain" size="sm" decimals={0}/> - {t('investors.tapToViewPlan')}
             </p>
           </div>
           <svg className="w-5 h-5 shrink-0 text-primary/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -112,7 +116,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
         isOpen={isDistributionOpen}
         onClose={() => setIsDistributionOpen(false)}
         investors={distributableInvestors}
-        suggestedTotal={stats.totalAvailable}
+        suggestedTotal={withdrawableProfit}
         userDocRef={userDocRef}
         setAlert={setAlert}
         treasuryStats={treasuryStats}

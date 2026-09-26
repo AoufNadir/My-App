@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import type { ClientDzd } from '../types';
-import { clientNameKey, clientPhoneKey, findClientDuplicates, isClientActive, selectableClients } from './clientRegistry';
+import { changedClientIdentity, clientNameKey, clientPhoneKey, findClientDuplicates, isClientActive, selectableClients } from './clientRegistry';
 
 const active: ClientDzd = { id: 'a', fullName: 'Yacine Naceer', phone: '0550 12 34 56', redotpayId: 'RP-1', binanceEmail: 'yacine@mail.com' };
 const archived: ClientDzd = { id: 'b', fullName: 'yacine  naceer', archived: true, isActive: false };
@@ -61,6 +61,22 @@ const clients = [active, archived, legacy, other];
 {
     assert.deepEqual(findClientDuplicates({ fullName: 'Amine Saidi', phone: '0661000000' }, clients, 'd'), []);
     assert.deepEqual(findClientDuplicates({ fullName: 'Amine Saidi' }, clients, 'a').map((m) => m.client.id), ['d']);
+}
+
+// On edit only changed fields are checked: a client that already shares its name with a
+// deleted one can still be edited, but moving it onto another client's phone still warns.
+{
+    const restored: ClientDzd = { id: 'e', fullName: 'Yacine Naceer', phone: '0770111222' };
+    const pool = [...clients, restored];
+    const reformattedPhone = changedClientIdentity(restored, { fullName: 'yacine naceer', phone: '+213 770 11 12 22' });
+    assert.deepEqual(reformattedPhone, { fullName: undefined, phone: undefined, redotpayId: undefined, binanceEmail: undefined });
+    assert.deepEqual(findClientDuplicates(reformattedPhone, pool, 'e'), []);
+
+    const movedPhone = changedClientIdentity(restored, { fullName: 'Yacine Naceer', phone: '0661 00 00 00' });
+    assert.deepEqual(findClientDuplicates(movedPhone, pool, 'e').map((m) => [m.client.id, m.fields]), [['d', ['phone']]]);
+
+    const renamed = changedClientIdentity(other, { fullName: 'Naceer Yacine', phone: other.phone });
+    assert.deepEqual(findClientDuplicates(renamed, pool, 'd').map((m) => m.client.id), ['a', 'e', 'b']);
 }
 
 // Empty fields never match each other.

@@ -6,7 +6,7 @@ import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { Badge } from '../ui/Badge';
 import { db, FirestoreDocumentReference } from '../../firebase';
 import { now, parseAndEvaluate } from '../../utils';
-import { buildProfitDistributionPlan } from '../../utils/profitDistribution';
+import { buildProfitDistributionPlan, wholeDzdDown } from '../../utils/profitDistribution';
 import { recordTreasuryShadow } from '../../accounting/treasuryShadowDiagnostics';
 import type { Investor } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -32,6 +32,8 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
     const [isSaving, setIsSaving] = useState(false);
     const [confirmed, setConfirmed] = useState(false);
 
+    // Payouts are whole DZD, so the suggestion is rounded down: never above what is owed.
+    const payableSuggestedTotal = wholeDzdDown(suggestedTotal);
     const parsedTotalInput = parseAndEvaluate(totalInput);
     const totalAmount = totalInput.trim()
         ? (Number.isFinite(parsedTotalInput) ? parsedTotalInput : 0)
@@ -141,15 +143,15 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                         value={totalInput}
                         onChange={setTotalInput}
                         currency="DZD"
-                        placeholder={suggestedTotal > 0 ? String(Math.round(suggestedTotal)) : '0'}
+                        placeholder={String(payableSuggestedTotal)}
                         hint={suggestedTotal > 0
-                            ? `${t('profitDistribution.availableToWithdraw')} : ${suggestedTotal.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD`
+                            ? `${t('profitDistribution.availableToWithdraw')} : ${suggestedTotal.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} DZD`
                             : t('profitDistribution.enterAmount')}
                     />
                     {!totalInput && suggestedTotal > 0 && (
                         <button
                             type="button"
-                            onClick={() => setTotalInput(String(Math.round(suggestedTotal)))}
+                            onClick={() => setTotalInput(String(payableSuggestedTotal))}
                             className="mt-1 text-xs font-semibold text-primary hover:underline"
                         >
                             {t('profitDistribution.useAvailableProfit')}
@@ -192,7 +194,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                                             {inv.isManager && <Badge variant="warning" size="sm">{t('investors.manager')}</Badge>}
                                         </div>
                                         <p className={`text-[10px] ${exceedsAvailable ? 'text-danger font-semibold' : 'text-neutral-400'}`}>
-                                            {t('profitDistribution.available')} : {availableProfit.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD
+                                            {t('profitDistribution.available')} : {availableProfit.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} DZD
                                             {exceedsAvailable && ` · ${t('profitDistribution.exceeded')}`}
                                         </p>
                                     </div>

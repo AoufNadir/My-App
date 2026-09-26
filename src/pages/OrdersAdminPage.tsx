@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { CatalogManager } from '../components/orders/CatalogManager';
 import type { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, PoCashLocation, PoOrder, PoOrderStatus, PoRole, PoUser, PortfolioStats, TreasuryTx } from '../types';
 import type { ManagerFeeHistoryEntry } from '../hooks/useInvestorEconomics';
+import { selectableClients } from '../utils/clientRegistry';
 
 type OrdersAdminPageProps = {
     user: User;
@@ -345,6 +346,7 @@ export function OrdersAdminPage({
         clientsDzd.forEach((c) => map.set(c.id, c.fullName));
         return map;
     }, [clientsDzd]);
+    const linkableClients = useMemo(() => selectableClients(clientsDzd), [clientsDzd]);
 
     const pendingUsers = useMemo(() => data.users.filter((u) => u.status === 'pending'), [data.users]);
     const managedUsers = useMemo(() => data.users.filter((u) => u.status !== 'pending' && u.uid !== user.uid), [data.users, user.uid]);
@@ -502,7 +504,7 @@ export function OrdersAdminPage({
                             <PendingUserRow
                                 key={u.uid}
                                 target={u}
-                                clientsDzd={clientsDzd}
+                                clientsDzd={linkableClients}
                                 cashLocations={data.cashLocations}
                                 strings={strings}
                                 onApprove={handleApprove}

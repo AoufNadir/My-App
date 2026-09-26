@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 
-import { buildInvestorCapitalReconciliation, calculateManagerOwnerCapital } from './managerCapital';
+import { buildInvestorCapitalReconciliation, calculateManagerOwnerCapital, investorResetForDeletedRow } from './managerCapital';
+import { deriveInvestorEconomics } from '../hooks/useInvestorEconomics';
 import type { Investor, InvestorTransaction, TreasuryTx } from '../types';
 
 function investor(input: Partial<Investor> & Pick<Investor, 'id'>): Investor {
@@ -138,5 +139,25 @@ assertMoney(openingCapitalAudit.realCapitalAdditions, 1200);
 assertMoney(openingCapitalAudit.currentCapital, 2200, 'Opening capital is counted once, then only real top-ups are added');
 assertMoney(openingCapitalAudit.legacyCurrentCapital, 7200, 'Diagnostic preserves the old double-counted outcome');
 assertMoney(openingCapitalAudit.differenceFromLegacy, -5000);
+
+// Deleting an investor's "Capital Initial" row deletes its Caisse deposit too, so the
+// capital it stands for must go with it: otherwise the capital falls back to the profile's
+// initialCapital and the project owes money it no longer holds.
+{
+    const external = investor({ id: 'a', isManager: false, initialCapital: 500000, capitalInvested: 500000 });
+    const opening = investorTx({ id: 'dep', investorId: 'a', type: 'deposit_capital', amount: 500000, origin: 'initial_capital', notes: 'Capital Initial', paymentSource: 'Caisse', linkedTreasuryTxId: 'cash-in', timestamp: 1001 });
+    const topUp = investorTx({ id: 'top-up', investorId: 'a', type: 'deposit_capital', amount: 100000, timestamp: 5000 });
+    const capitalOf = (profile: Investor, rows: InvestorTransaction[]) => deriveInvestorEconomics({ investors: [profile], investorTransactions: rows, transactions: [], managerFeePercentage: '30' }).derivedInvestors[0].capitalInvested;
+
+    assertMoney(capitalOf(external, [opening, topUp]), 600000);
+    const reset = investorResetForDeletedRow(opening, external, [opening, topUp]);
+    assert.deepEqual(reset, { initialCapital: 0 });
+    assertMoney(capitalOf({ ...external, ...reset }, [topUp]), 100000, 'The deleted 500 000 leaves the capital with its cash');
+
+    // Other rows, and an opening row that still has a twin, leave the profile alone.
+    assert.equal(investorResetForDeletedRow(topUp, external, [opening, topUp]), null);
+    const twin = { ...opening, id: 'dep-2' };
+    assert.equal(investorResetForDeletedRow(opening, external, [opening, twin]), null);
+}
 
 console.log('managerCapital tests passed');
