@@ -254,7 +254,7 @@ function isFinancialPath(path: string): boolean {
     const segments = path.split('/');
     return segments[0] === 'users' && FINANCIAL_COLLECTIONS.has(segments[2] || '');
 }
-function financialWriteRefusal(paths: readonly string[]): FinancialWriteBlockedError | null {
+export function financialWriteRefusal(paths: readonly string[]): FinancialWriteBlockedError | null {
     const reason = financialWriteGate?.blockedReason() || null;
     if (!reason || !paths.some(isFinancialPath))
         return null;
@@ -303,6 +303,7 @@ export class FirestoreTransaction {
         return new FirestoreDocumentSnapshot(snapshot, this.compatDb);
     }
     set(ref: FirestoreDocumentReference, data: DocumentData, options?: SetOptions) {
+        throwIfFinancialWriteBlocked(ref);
         if (options) {
             this.nativeTransaction.set(ref.nativeRef, data, options);
             return;
@@ -310,11 +311,20 @@ export class FirestoreTransaction {
         this.nativeTransaction.set(ref.nativeRef, data);
     }
     update(ref: FirestoreDocumentReference, data: DocumentData) {
+        throwIfFinancialWriteBlocked(ref);
         this.nativeTransaction.update(ref.nativeRef, data);
     }
     delete(ref: FirestoreDocumentReference) {
+        throwIfFinancialWriteBlocked(ref);
         this.nativeTransaction.delete(ref.nativeRef);
     }
+}
+// Transaction writes (order completion, summary writer) go through the same gate:
+// throwing aborts the whole transaction before anything is committed.
+function throwIfFinancialWriteBlocked(ref: FirestoreDocumentReference) {
+    const refusal = financialWriteRefusal([ref.nativeRef.path]);
+    if (refusal)
+        throw refusal;
 }
 export class FirestoreDocumentReference {
     constructor(readonly nativeRef: NativeDocumentReference<DocumentData>, private readonly compatDb: FirestoreCompat) { }
