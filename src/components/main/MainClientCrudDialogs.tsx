@@ -15,7 +15,7 @@ const DUPLICATE_FIELD_LABELS: Record<ClientDuplicateField, string> = {
     binanceEmail: 'Même email Binance',
 };
 
-function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, initialBalance, setInitialBalance, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, closeClientModal, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient }: MainClientCrudDialogsProps) {
+function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, initialBalance, setInitialBalance, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, closeClientModal, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient, isSaving = false }: MainClientCrudDialogsProps) {
     const duplicateMatches: ClientDuplicateMatch[] = clientDuplicateMatches || [];
     const isBlockedClientDelete = clientDeleteMode === 'blocked';
     const isBalanceOnlyClientDelete = clientDeleteMode === 'balance_only';
@@ -133,7 +133,7 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                 <ModalFooter className={footerClass}>
                     <div className="flex gap-2 w-full">
                         <Button onClick={() => setIsClientModalOpen(false)} className={cancelBtn}>{t('common.cancel')}</Button>
-                        <Button onClick={handleSaveClient} className={primaryBtn}>{t('common.save')}</Button>
+                        <Button onClick={handleSaveClient} disabled={isSaving} className={primaryBtn}>{t('common.save')}</Button>
                     </div>
                 </ModalFooter>
             </Modal>
@@ -151,13 +151,13 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                             </div>
                             <p className="text-xs text-neutral-500">{[client.phone, client.redotpayId, client.binanceEmail].filter(Boolean).join(' · ')}</p>
                             <p className="mt-1 text-xs font-semibold text-warning">{fields.map((field) => DUPLICATE_FIELD_LABELS[field]).join(' · ')}</p>
-                            {archived && (<Button onClick={() => restoreArchivedClient(client.id)} className="mt-2 w-full rounded-lg bg-primary/10 py-2 text-xs font-bold text-primary hover:bg-primary/20">Restaurer ce client</Button>)}
+                            {archived && (<Button onClick={() => restoreArchivedClient(client.id)} disabled={isSaving} className="mt-2 w-full rounded-lg bg-primary/10 py-2 text-xs font-bold text-primary hover:bg-primary/20">Restaurer ce client</Button>)}
                         </div>))}
                 </ModalContent>
                 <ModalFooter className={footerClass}>
                     <div className="flex gap-2 w-full">
                         <Button onClick={closeClientModal} className={cancelBtn}>Utiliser l'existant</Button>
-                        <Button onClick={confirmSaveClientDespiteDuplicates} className={primaryBtn}>Enregistrer quand même</Button>
+                        <Button onClick={confirmSaveClientDespiteDuplicates} disabled={isSaving} className={primaryBtn}>Enregistrer quand même</Button>
                     </div>
                 </ModalFooter>
             </Modal>
@@ -180,7 +180,7 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
             </Modal>
         </>);
 }
-const areMainClientCrudDialogsPropsEqual = (prev: MainClientCrudDialogsProps, next: MainClientCrudDialogsProps) => {
+export const areMainClientCrudDialogsPropsEqual = (prev: MainClientCrudDialogsProps, next: MainClientCrudDialogsProps) => {
     const prevTxDeleteOpen = prev.txToDelete !== null;
     const nextTxDeleteOpen = next.txToDelete !== null;
     const prevClientTxDeleteOpen = prev.clientTxToDelete !== null;
@@ -190,7 +190,8 @@ const areMainClientCrudDialogsPropsEqual = (prev: MainClientCrudDialogsProps, ne
     if (prevTxDeleteOpen !== nextTxDeleteOpen
         || prevClientTxDeleteOpen !== nextClientTxDeleteOpen
         || prev.isClientModalOpen !== next.isClientModalOpen
-        || prevClientDeleteOpen !== nextClientDeleteOpen) {
+        || prevClientDeleteOpen !== nextClientDeleteOpen
+        || prev.isSaving !== next.isSaving) {
         return false;
     }
     if (nextTxDeleteOpen && prev.txToDelete !== next.txToDelete)
