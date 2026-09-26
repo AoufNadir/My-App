@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
 import { ClientDzd, ClientTransactionDzd, Investor, TreasuryTx } from '../types';
 import { now, parseAndEvaluate } from '../utils';
@@ -11,7 +11,7 @@ import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummary
 import { combineClientPositionDeltas, transitionClientBalanceDelta, type ClientPositionDelta } from '../readModels/readModelDeltas';
 import { CLIENT_TX_PAYMENT_MADE, CLIENT_TX_PAYMENT_RECEIVED, clientTxEditAmountInput, normalizeClientTxType, paymentStatusForExistingClientTx, planClientTxSave } from '../utils/clientTxEdit';
 import { operationStamp } from '../utils/editStamp';
-import { findClientDuplicates, isClientActive, type ClientDuplicateMatch } from '../utils/clientRegistry';
+import { changedClientIdentity, findClientDuplicates, isClientActive, type ClientDuplicateMatch } from '../utils/clientRegistry';
 type ClientDeleteMode = 'history' | 'balance_only' | 'client_only_cleanup' | 'blocked';
 const CLIENT_DELETE_EPSILON = 0.01;
 const normalizeForDeleteCheck = (value: string | undefined) => (normalizeLedgerLabel(value || '')
@@ -41,6 +41,8 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     baridi: number;
 }, investors: Investor[], setAlert: (msg: string) => void) {
     const [isSaving, setIsSaving] = useState(false);
+    // Set synchronously, so a second tap that still holds an older render's handler is ignored too.
+    const clientSaveInFlight = useRef(false);
     const activeClientTodayDelta = (clientId: string, timestamp: number) => {
         const day = new Date(timestamp);
         day.setHours(0, 0, 0, 0);
@@ -111,8 +113,9 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     };
     const cancelClientDuplicateWarning = () => setClientDuplicateMatches(null);
     const restoreArchivedClient = async (clientId: string) => {
-        if (isSaving)
+        if (isSaving || clientSaveInFlight.current)
             return false;
+        clientSaveInFlight.current = true;
         setIsSaving(true);
         try {
             await userDocRef.collection('dzd_clients').doc(clientId).update({
@@ -131,6 +134,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             return false;
         }
         finally {
+            clientSaveInFlight.current = false;
             setIsSaving(false);
         }
     };
@@ -143,21 +147,23 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setAlert('⚠️ Nom requis.');
             return;
         }
-        if (isSaving)
+        if (isSaving || clientSaveInFlight.current)
             return;
         if (!skipDuplicateCheck) {
-            const duplicates = findClientDuplicates({
+            const identity = {
                 fullName: clientFullName,
                 phone: clientPhone,
                 redotpayId: clientRedotpayId,
                 binanceEmail: clientBinanceEmail,
-            }, clientsDzd, editingClient?.id);
+            };
+            const duplicates = findClientDuplicates(editingClient ? changedClientIdentity(editingClient, identity) : identity, clientsDzd, editingClient?.id);
             if (duplicates.length > 0) {
                 setClientDuplicateMatches(duplicates);
                 return;
             }
         }
         setClientDuplicateMatches(null);
+        clientSaveInFlight.current = true;
         setIsSaving(true);
         try {
             const parsedLimit = parseFloat(clientCreditLimit) || 0;
@@ -284,6 +290,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             return false;
         }
         finally {
+            clientSaveInFlight.current = false;
             setIsSaving(false);
         }
     };
