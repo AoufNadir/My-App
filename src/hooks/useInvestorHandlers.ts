@@ -598,6 +598,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     managerPendingAdvancesDelta: isAdvance ? preview.amountDzd : 0,
                     investors: isAdvance ? {} : {
                         managerPersonalExpensesDelta: preview.amountDzd,
+                        managerPersonalExpensesFundedByCapitalDelta: funding.capitalAmount,
                         managerActualOwnerCapitalDelta: -preview.amountDzd,
                     },
                     recentOperation: {
@@ -859,6 +860,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 managerPendingAdvancesDelta: -advanceAmountDzd,
                 investors: {
                     managerPersonalExpensesDelta: actualSpentDzd,
+                    managerPersonalExpensesFundedByCapitalDelta: funding.capitalAmount,
                     managerActualOwnerCapitalDelta: -actualSpentDzd,
                 },
                 recentOperation: {
@@ -1323,6 +1325,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                         affectedSummaries: ['dashboard_summary', 'investors_summary', 'treasury_summary', 'financial_summary'],
                         wallets: { [investorTxPaymentSource]: -amount },
                         investors: isManagerTx ? {
+                            managerProfitWithdrawalsDelta: amount,
                             managerActualOwnerCapitalDelta: -amount,
                         } : {
                             externalInvestorProfitsDelta: -amount,

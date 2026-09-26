@@ -3,6 +3,7 @@ import { db, fieldValueDelete, type FirestoreDocumentReference } from '../fireba
 import { Tx, PortfolioStats, ClientDzd, TreasuryTx, ClientTransactionDzd, Investor, InvestorTransaction } from '../types';
 import { now, parseAndEvaluate } from '../utils';
 import { roundM } from '../utils/money';
+import { operationStamp } from '../utils/editStamp';
 import { formatNumber } from '../pages/shared/pageFormat';
 import { applyTransactionDelete } from '../transactionService';
 import { recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
@@ -483,7 +484,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 buyMetadata.eurToDzdRateAtPurchase = parseAndEvaluate(eurDzdPrice);
                 buyMetadata.eurPerUsdtAtPurchase = parseAndEvaluate(eurUsdtRate);
             }
-            const { date, time, timestamp } = now();
+            // Linked client/treasury/EUR rows are re-created on edit: keep them on the operation's own date.
+            const { date, time, timestamp } = operationStamp(editingTx);
             const shouldLinkCashToDzdClient = clientPaymentStatus === 'cash' && linkedClientDzdId !== 'none';
             const createLinkedEurConversionTx = () => {
                 if (mode !== 'buy_usdt' || buyUsdtMode !== 'with_eur' || eurSpentForConversion <= 0)
@@ -802,7 +804,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     ...(riskAcknowledged ? { acknowledgedAt: Date.now() } : {}),
                 },
             }) : null;
-            const { date, time, timestamp } = now();
+            // Linked client/treasury/EUR rows are re-created on edit: keep them on the operation's own date.
+            const { date, time, timestamp } = operationStamp(editingTx);
             const shouldLinkSettlementToDzdClient = !isUsdtSettledInEur && (clientPaymentStatus === 'cash' || clientPaymentStatus === 'baridi') && linkedClientDzdId !== 'none';
             const batch = db.batch();
             const settlementMetadata: any = isUsdtSettledInEur
@@ -1821,14 +1824,11 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 setAlert('⚠️ Impossible de retrouver le transfert lié.');
                 return;
             }
-            const { date, time, timestamp } = now();
+            // Both rows keep their original date and time, so the pair stays matched and in its period.
             const batch = db.batch();
             const note = transferNotes.trim();
             batch.update(userDocRef.collection('dzd_client_txs').doc(editingTransferTx.id), {
                 clientId: transferFromClientId,
-                timestamp,
-                date,
-                time,
                 montant: amt,
                 type: 'Transfert Sortant',
                 notes: note,
@@ -1836,9 +1836,6 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             });
             batch.update(userDocRef.collection('dzd_client_txs').doc(counterpart.id), {
                 clientId: transferToClientId,
-                timestamp: timestamp + 1,
-                date,
-                time,
                 montant: -amt,
                 type: 'Transfert Entrant',
                 notes: note,

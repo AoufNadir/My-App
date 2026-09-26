@@ -36,7 +36,10 @@ export type InvestorCapitalReconciliation = {
 export type ManagerOwnerCapitalBreakdown = {
     initialCapital: number;
     personalProfitTotal: number;
+    profitWithdrawals: number;
     personalExpensesTotal: number;
+    /** Part of the personal expenses already recorded as a withdrawal from capital. */
+    personalExpensesFundedByCapital: number;
     personalExpensesChargedToProfit: number;
     personalExpensesChargedToCapital: number;
     retainedProfit: number;
@@ -217,26 +220,66 @@ export function calculateCapitalMovements(investor: Investor, investorTransactio
     };
 }
 
+/** Personal expenses the manager already paid from capital (linked `withdraw_capital` rows). */
+export function calculatePersonalExpensesFundedByCapital(investorTransactions: InvestorTransaction[], personalExpenses: TreasuryTx[] = [], periodStartTs?: number | null, periodEndTs?: number | null): number {
+    return investorTransactions
+        .filter((tx) => isPersonalExpenseCapitalWithdrawal(tx, personalExpenses))
+        .filter((tx) => isInPeriod(toMs(tx.timestamp), periodStartTs, periodEndTs))
+        .reduce((sum, tx) => addM(sum, Number(tx.amount || 0)), 0);
+}
+
+/**
+ * Splits the manager's personal expenses between profit and capital. Profit withdrawals are
+ * paid from profit first (they are validated against available profit). The part of the
+ * expenses not already recorded as a capital withdrawal is then charged to the profit left,
+ * and anything above it reduces capital. Each expense is counted once.
+ */
+export function splitManagerPersonalExpenses(input: {
+    totalProfit: number;
+    profitWithdrawals?: number;
+    personalExpensesTotal: number;
+    personalExpensesFundedByCapital?: number;
+}) {
+    const totalProfit = Number(input.totalProfit || 0);
+    const profitWithdrawals = Math.max(0, Number(input.profitWithdrawals || 0));
+    const personalExpensesTotal = Math.max(0, Number(input.personalExpensesTotal || 0));
+    const fundedByCapital = Math.min(personalExpensesTotal, Math.max(0, Number(input.personalExpensesFundedByCapital || 0)));
+    const profitLeft = Math.max(0, subM(totalProfit, profitWithdrawals));
+    const personalExpensesChargedToProfit = Math.min(subM(personalExpensesTotal, fundedByCapital), profitLeft);
+    const personalExpensesChargedToCapital = subM(personalExpensesTotal, personalExpensesChargedToProfit);
+    const retainedProfit = subM(subM(totalProfit, profitWithdrawals), personalExpensesChargedToProfit);
+    return { personalExpensesChargedToProfit, personalExpensesChargedToCapital, retainedProfit };
+}
+
 export function calculateManagerOwnerCapital(input: {
     investor: Investor;
     investorTransactions: InvestorTransaction[];
     personalExpenses?: TreasuryTx[];
     periodStartTs?: number | null;
     periodEndTs?: number | null;
+    /** Profit the manager withdrew in cash (not personal expenses). */
+    profitWithdrawals?: number;
 }): ManagerOwnerCapitalBreakdown {
     const capitalReconciliation = buildInvestorCapitalReconciliation(input.investor, input.investorTransactions, input.personalExpenses || []);
     const initialCapital = capitalReconciliation.openingCapital;
     const personalProfitTotal = Number(input.investor.totalProfit || 0);
+    const profitWithdrawals = Math.max(0, Number(input.profitWithdrawals || 0));
     const personalExpensesTotal = calculateTotalPersonalExpenses(input.personalExpenses || [], input.periodStartTs, input.periodEndTs);
-    const personalExpensesChargedToProfit = Math.max(0, Math.min(personalExpensesTotal, Math.max(0, personalProfitTotal)));
-    const personalExpensesChargedToCapital = Math.max(0, subM(personalExpensesTotal, personalExpensesChargedToProfit));
-    const retainedProfit = subM(personalProfitTotal, personalExpensesChargedToProfit);
+    const personalExpensesFundedByCapital = Math.min(personalExpensesTotal, calculatePersonalExpensesFundedByCapital(input.investorTransactions, input.personalExpenses || [], input.periodStartTs, input.periodEndTs));
+    const { personalExpensesChargedToProfit, personalExpensesChargedToCapital, retainedProfit } = splitManagerPersonalExpenses({
+        totalProfit: personalProfitTotal,
+        profitWithdrawals,
+        personalExpensesTotal,
+        personalExpensesFundedByCapital,
+    });
     const { capitalAdditions, capitalWithdrawals } = calculateCapitalMovements(input.investor, input.investorTransactions, input.personalExpenses || []);
     const ownerCapital = subM(subM(addM(addM(initialCapital, retainedProfit), capitalAdditions), capitalWithdrawals), personalExpensesChargedToCapital);
     return {
         initialCapital,
         personalProfitTotal,
+        profitWithdrawals,
         personalExpensesTotal,
+        personalExpensesFundedByCapital,
         personalExpensesChargedToProfit,
         personalExpensesChargedToCapital,
         retainedProfit,

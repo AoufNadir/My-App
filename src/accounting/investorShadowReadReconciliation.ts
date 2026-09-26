@@ -1,7 +1,7 @@
 import type { Investor, InvestorTransaction, TreasuryTx, Tx } from '../types';
 import { getManagerFeeAt, type ManagerFeeHistoryEntry } from '../hooks/useInvestorEconomics';
 import { computePamLedger } from '../utils/pamLedger';
-import { buildInvestorCapitalReconciliation, calculateManagerOwnerCapital, calculateTotalPersonalExpenses, isPersonalExpenseCapitalWithdrawal, isSyntheticInitialCapitalDeposit } from '../utils/managerCapital';
+import { buildInvestorCapitalReconciliation, calculateManagerOwnerCapital, calculatePersonalExpensesFundedByCapital, calculateTotalPersonalExpenses, isSyntheticInitialCapitalDeposit } from '../utils/managerCapital';
 import { fromCents, toCents } from '../utils/money';
 import { buildInvestorShadowDraft, createInvestorProfitAllocationSnapshot } from './investorShadow';
 import type { ProfitAllocationSnapshot } from './types';
@@ -79,7 +79,7 @@ function historicalCapitalAt(investor: Investor, rows: InvestorTransaction[], pe
     return [...rows]
         .filter((row) => toMs(row.timestamp) <= effectiveAt)
         .filter((row) => !isSyntheticInitialCapitalDeposit(row, investor))
-        .filter((row) => !isPersonalExpenseCapitalWithdrawal(row, personalExpenses))
+        // A personal expense paid from capital leaves the business and reduces the profit-share weight.
         .reduce((capital, row) => {
             if (row.type === 'deposit_capital' || row.type === 'reinvest_profit') return money(capital + Number(row.amount || 0));
             if (row.type === 'withdraw_capital') return money(capital - Number(row.amount || 0));
@@ -259,13 +259,18 @@ export function reconcileLegacyInvestorsToShadow(input: {
             .filter((row) => row.type === 'withdraw_profit')
             .filter((row) => !investor.isManager || classifyProfitMovement(row, treasuryById) === 'profit_withdrawal')
             .reduce((sum, row) => money(sum + Number(row.amount || 0)), 0);
-        const shadowAvailableProfitDzd = money(shadowTotalProfitDzd - shadowProfitWithdrawalsDzd - shadowPersonalExpensesDzd - shadowReinvestedProfitDzd);
+        // The part of a personal expense paid from capital is not charged to profit.
+        const shadowPersonalExpensesFundedByCapitalDzd = investor.isManager
+            ? Math.min(shadowPersonalExpensesDzd, calculatePersonalExpensesFundedByCapital(investorRows, personalExpenses))
+            : 0;
+        const shadowAvailableProfitDzd = money(shadowTotalProfitDzd - shadowProfitWithdrawalsDzd - (shadowPersonalExpensesDzd - shadowPersonalExpensesFundedByCapitalDzd) - shadowReinvestedProfitDzd);
         const baseCapital = buildInvestorCapitalReconciliation(investor, investorRows, personalExpenses).currentCapital;
         const shadowCapitalDzd = investor.isManager
             ? calculateManagerOwnerCapital({
                 investor: { ...investor, totalProfit: shadowTotalProfitDzd },
                 investorTransactions: investorRows,
                 personalExpenses,
+                profitWithdrawals: shadowProfitWithdrawalsDzd,
             }).ownerCapital
             : baseCapital;
         const legacyReinvestedProfitDzd = Number(legacy?.reinvestedProfit || 0);

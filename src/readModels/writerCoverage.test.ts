@@ -9,6 +9,7 @@ import {
     combineClientPositionDeltas,
     derivePortfolioSellReadModelEconomics,
     transitionClientBalanceDelta,
+    type InvestorPositionDelta,
 } from './readModelDeltas';
 import { allocateProfitDeltaAtTimestamp } from '../hooks/useInvestorEconomics';
 import { distributeProportionally, roundM } from '../utils/money';
@@ -402,6 +403,37 @@ assert.equal(afterService.services.digitalServiceProfit, afterSale.services.digi
 assert.equal(afterService.clients.totalReceivables, afterSale.clients.totalReceivables + 1000);
 assert.equal(afterService.dashboard.services.amountToReceive, afterService.services.amountToReceive);
 assert.equal(afterService.dashboard.money.serviceReceivables, afterService.services.amountToReceive);
+
+// Manager profit withdrawals and capital-funded personal expenses (each counted once).
+const managerBeforePayout = afterService.investors.managerProfitBreakdown;
+assert.equal(managerBeforePayout.availableProfit, 1000);
+assert.equal(managerBeforePayout.historicalOwnerCapital, 101000);
+const managerDelta = (operationId: string, investors: InvestorPositionDelta) => buildReadModelDelta({
+    operationId,
+    effectiveAt: asOf,
+    payload: { operationId },
+    affectedSummaries: ['investors_summary'],
+    investors,
+});
+const afterManagerPayout = applyReadModelDelta(afterService, managerDelta('op:manager-payout', {
+    managerProfitWithdrawalsDelta: 200,
+}));
+assert.equal(afterManagerPayout.investors.managerProfitBreakdown.availableProfit, 800, 'a manager profit withdrawal reduces available profit');
+assert.equal(afterManagerPayout.investors.managerProfitBreakdown.historicalOwnerCapital, 100800, 'and the owner capital');
+// Personal expense of 1 500: 800 from the profit left, 700 from capital.
+const afterManagerExpense = applyReadModelDelta(afterManagerPayout, managerDelta('op:manager-expense', {
+    managerPersonalExpensesDelta: 1500,
+    managerPersonalExpensesFundedByCapitalDelta: 700,
+}));
+assert.equal(afterManagerExpense.investors.managerProfitBreakdown.availableProfit, 0);
+assert.equal(afterManagerExpense.investors.managerProfitBreakdown.personalExpensesChargedToCapital, 700);
+assert.equal(afterManagerExpense.investors.managerProfitBreakdown.historicalOwnerCapital, 99300);
+// New profit does not move the capital-funded part back onto profit.
+const afterManagerProfit = applyReadModelDelta(afterManagerExpense, managerDelta('op:manager-profit', {
+    managerTradingOwnerProfitDelta: 2000,
+}));
+assert.equal(afterManagerProfit.investors.managerProfitBreakdown.availableProfit, 2000);
+assert.equal(afterManagerProfit.investors.managerProfitBreakdown.historicalOwnerCapital, 101300);
 
 let bounded = base;
 for (let index = 0; index < 6; index += 1) {

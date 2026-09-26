@@ -1991,6 +1991,7 @@ export function buildInvestorPdfReport(input: InvestorReportInput): ReportPayloa
             personalExpenses: input.personalExpenses || [],
             periodStartTs: input.reportStartTs,
             periodEndTs: input.reportEndTs,
+            profitWithdrawals: Number((input.investor as { profitWithdrawals?: number }).profitWithdrawals || 0),
         })
         : null;
     const depositCapital = orderedTxs
