@@ -2,6 +2,7 @@ import { startTransition, useDeferredValue, useEffect, useMemo, useState } from 
 import type { ClientDzd, ClientTransactionDzd, Investor, TreasuryTx, Tx } from '../types';
 import { nameMatchesQuery } from '../utils/nameUtils';
 import { formatNumber } from '../pages/shared/pageFormat';
+import { isClientActive } from '../utils/clientRegistry';
 import type { TransactionFilterMode } from '../components/transactions/transactionsTypes';
 type DateRange = {
     start: Date | null;
@@ -98,6 +99,7 @@ export function useGlobalSearch({ clientTransactionsDzd, clientsDzd, getClientFu
         }
         const clientResults: GlobalSearchResult[] = clientsDzd
             .filter((client) => {
+            if (!isClientActive(client)) return false;
             const name = getClientFullName(client);
             if (nameMatchesQuery(name, query)) return true;
             const extras = [client.phone || '', client.redotpayId || '', client.binanceEmail || ''].join(' ').toLowerCase();

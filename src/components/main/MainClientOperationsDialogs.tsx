@@ -14,6 +14,7 @@ import { MoneyField } from '../ui/MoneyField';
 import { parseAndEvaluate } from '../../utils';
 import { formatMoney } from '../../pages/shared/pageFormat';
 import { normalizeLedgerLabel } from '../../utils/financialUx';
+import { selectableClients } from '../../utils/clientRegistry';
 type MainClientOperationsDialogsProps = Record<string, any>;
 const normalizeCardName = (value: string) => value
     .toLowerCase()
@@ -150,9 +151,9 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     const clientTxTargetClientId = clientTxLinkedClientId && clientTxLinkedClientId !== 'none'
         ? clientTxLinkedClientId
         : selectedClientId;
-    const receiverClientOptions = useMemo(() => (clientsDzd || [])
+    const receiverClientOptions = useMemo(() => selectableClients(clientsDzd || [], [clientTxReceiverClientId])
         .filter((client: any) => client.id !== clientTxTargetClientId)
-        .map((client: any) => ({ value: client.id, label: getClientFullName(client) })), [clientsDzd, clientTxTargetClientId, getClientFullName]);
+        .map((client: any) => ({ value: client.id, label: getClientFullName(client) })), [clientsDzd, clientTxTargetClientId, clientTxReceiverClientId, getClientFullName]);
     const receiverClient = (clientsDzd || []).find((client: any) => client.id === clientTxReceiverClientId) || null;
     const canUseReceiverClient = !editingClientTx && isClientSettlementTx;
     const hasReceiverClient = canUseReceiverClient && clientTxReceiverClientId !== 'none' && Boolean(receiverClient);
@@ -526,7 +527,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     {isDzdAdjustment && (<div>
                             <Label>{t('transactions.linkedClientOptional')} <span className="text-xs font-normal text-neutral-400">({t('common.optional')})</span></Label>
                             <div className="mt-1">
-                                <SearchableSelect value={adjustmentClientId} onChange={setAdjustmentClientId} options={(clientsDzd || []).map((client: any) => ({ value: client.id, label: getClientFullName(client) }))} searchPlaceholder={t('transactions.searchClient')} emptyOptionLabel={t('transactions.noClient')} emptyValue="" noResultsLabel={t('transactions.noClientFound')} clearable clearLabel={t('transactions.clearClient')}/>
+                                <SearchableSelect value={adjustmentClientId} onChange={setAdjustmentClientId} options={selectableClients(clientsDzd || [], [adjustmentClientId]).map((client: any) => ({ value: client.id, label: getClientFullName(client) }))} searchPlaceholder={t('transactions.searchClient')} emptyOptionLabel={t('transactions.noClient')} emptyValue="" noResultsLabel={t('transactions.noClientFound')} clearable clearLabel={t('transactions.clearClient')}/>
                             </div>
                         </div>)}
 

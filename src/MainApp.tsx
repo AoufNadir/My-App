@@ -105,6 +105,7 @@ const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
 };
 type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
 import { reorderClientName, nameMatchesQuery } from './utils/nameUtils';
+import { clientNameKey, clientPhoneKey, isClientActive, selectableClients } from './utils/clientRegistry';
 import { buildPricingContext, quoteSale, type SmartSaleSnapshot } from './services/smartPricingEngine';
 
 function getClientDisplayName(client: ClientDzd) {
@@ -413,7 +414,7 @@ export default function MainApp({ user }: {
         treasuryStats,
         setAlert,
     });
-    const { isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient, handleZeroOutBalance, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, clientTxReceiverClientId, setClientTxReceiverClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, handleClientToClientTransfer, getClientTransferableAmount } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert);
+    const { isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, handleDeleteClient, handleZeroOutBalance, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, clientTxReceiverClientId, setClientTxReceiverClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, handleClientToClientTransfer, getClientTransferableAmount } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert);
     const { isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, setEditingInvestor, investorToDelete, setInvestorToDelete, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorName, setInvestorName, investorInitialCapital, setInvestorInitialCapital, investorInitialCapitalSource, setInvestorInitialCapitalSource, investorNotes, setInvestorNotes, isManager, setIsManager, investorTxType, setInvestorTxType, investorTxAmount, setInvestorTxAmount, investorTxNotes, setInvestorTxNotes, investorTxPaymentSource, setInvestorTxPaymentSource, investorTxToDelete, setInvestorTxToDelete, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, selectedInvestorId, setSelectedInvestorId, handleSaveInvestor, handleSaveInvestorTx, handleReinvestProfit, handleDeleteInvestor, openInvestorModal, closeInvestorModal,
     // Personal withdrawal (manager's daily personal expense)
     isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen, personalWithdrawalAmount, setPersonalWithdrawalAmount, personalWithdrawalMethod, setPersonalWithdrawalMethod, personalWithdrawalDate, setPersonalWithdrawalDate, personalWithdrawalNote, setPersonalWithdrawalNote, personalWithdrawalMode, setPersonalWithdrawalMode, personalWithdrawalPreview, editingPersonalExpenseTx, personalExpenseToDelete, setPersonalExpenseToDelete, openEditPersonalExpense, openPersonalWithdrawalModal, closePersonalWithdrawalModal, handleSavePersonalWithdrawal, handleDeletePersonalExpense, managerAvailableProfit, managerCapitalInvested, managerExists,
@@ -535,7 +536,7 @@ export default function MainApp({ user }: {
     const filteredClientsDzd = useMemo(() => {
         if (!shouldComputeClientDerivations)
             return clientsDzd;
-        let list = clientsDzd.filter((client) => client.isActive !== false && client.archived !== true);
+        let list = clientsDzd.filter(isClientActive);
         const normalizedQuery = deferredClientSearchQuery.trim().toLowerCase();
         if (normalizedQuery) {
             list = list.filter(c =>
@@ -2393,8 +2394,8 @@ export default function MainApp({ user }: {
     const handleImportClients = async (rows: Record<string, string>[]): Promise<void> => {
         if (!rows || rows.length === 0)
             return;
-        const existingNames = new Set(clientsDzd.map(c => (c.fullName || c.nom || '').toLowerCase()));
-        const existingPhones = new Set(clientsDzd.map(c => (c.phone || '').replace(/\s+/g, '')));
+        const existingNames = new Set(clientsDzd.map(c => clientNameKey(c.fullName || c.nom)).filter(Boolean));
+        const existingPhones = new Set(clientsDzd.map(c => clientPhoneKey(c.phone)).filter(Boolean));
         let added = 0, skipped = 0;
         for (const row of rows) {
             const fullName = (row.fullName || '').trim();
@@ -2403,11 +2404,16 @@ export default function MainApp({ user }: {
                 continue;
             }
             const phone = (row.phone || '').trim();
-            const phoneKey = phone.replace(/\s+/g, '');
-            if (existingNames.has(fullName.toLowerCase()) || (phoneKey && existingPhones.has(phoneKey))) {
+            const nameKey = clientNameKey(fullName);
+            const phoneKey = clientPhoneKey(phone);
+            if (existingNames.has(nameKey) || (phoneKey && existingPhones.has(phoneKey))) {
                 skipped++;
                 continue;
             }
+            // Also guard against the same client appearing twice in one CSV file.
+            existingNames.add(nameKey);
+            if (phoneKey)
+                existingPhones.add(phoneKey);
             const data: any = {
                 fullName,
                 phone,
@@ -2671,7 +2677,7 @@ export default function MainApp({ user }: {
         fromClientId: transferFromClientId, setFromClientId: setTransferFromClientId, toClientId: transferToClientId, setToClientId: setTransferToClientId,
         amount: transferAmount, setAmount: setTransferAmount, notes: transferNotes, setNotes: setTransferNotes,
         onSave: editingTransferTx ? handleSaveTransfer : handleClientToClientTransferSave,
-        isSaving, clients: clientsDzd.map(c => ({ id: c.id, label: getClientFullName(c) })), fromBalance: transferFromBalance,
+        isSaving, clients: selectableClients(clientsDzd, [transferFromClientId, transferToClientId]).map(c => ({ id: c.id, label: getClientFullName(c) })), fromBalance: transferFromBalance,
         toBalance: transferToBalance,
         onMaxFrom: () => setTransferAmount(getClientTransferableAmount(transferFromClientId).toString()),
         maxDisabled: !transferFromClientId || getClientTransferableAmount(transferFromClientId) <= 0,
@@ -3056,7 +3062,7 @@ export default function MainApp({ user }: {
         clientGroup, setClientGroup,
         clientIsFournisseur, setClientIsFournisseur,
         initialBalance, setInitialBalance,
-        handleSaveClient,
+        handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, closeClientModal,
         clientToDelete, clientDeleteMode,
         handleClientDeleteRequest,
         handleDeleteClient,

@@ -21,6 +21,7 @@ import {
 import { allocateProfitDeltaAtTimestamp, type ManagerFeeHistoryEntry } from './useInvestorEconomics';
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
+import { isClientActive } from '../utils/clientRegistry';
 import { combineClientPositionDeltas, derivePortfolioSellReadModelEconomics, transitionClientBalanceDelta, type ClientPositionDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
 interface HandlerProps {
     userDocRef: FirestoreDocumentReference;
@@ -293,8 +294,15 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 addError('linkedClientDzdId', 'Le client DZD doit etre different du client principal');
             }
         }
+        if (!editingTx && mode) {
+            const isArchivedPick = (clientId: string) => !!clientId && clientId !== 'none' && !isClientActive(clientsDzd.find((client) => client.id === clientId));
+            if (isArchivedPick(linkedClientId))
+                addError('linkedClientId', 'Ce client a été supprimé');
+            if (isArchivedPick(linkedClientDzdId))
+                addError('linkedClientDzdId', 'Ce client a été supprimé');
+        }
         return { isValid, errors };
-    }, [mode, buyUsdtMode, buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, sellSettlementCurrency, sellEurToDzdRate, portfolioStats, editingTx, linkedClientId, linkedClientDzdId, clientPaymentStatus, creditDueDate, transactions]);
+    }, [clientsDzd, mode, buyUsdtMode, buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, sellSettlementCurrency, sellEurToDzdRate, portfolioStats, editingTx, linkedClientId, linkedClientDzdId, clientPaymentStatus, creditDueDate, transactions]);
     const openForm = (newMode: TransactionFormMode, txToEdit: Tx | null = null, prefill?: PrefillSell) => {
         setBuyUsdtAmount('');
         setBuyUsdtPrice('');

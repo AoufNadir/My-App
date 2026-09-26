@@ -19,6 +19,7 @@ import { DownloadCloudIcon } from '../icons/DownloadCloudIcon';
 import { CalendarIcon } from '../icons/CalendarIcon';
 import type { ClientDzd, ClientTransactionDzd, PortfolioStats, Tx } from '../../types';
 import { CalculatedStats, MonthlyClientRank, MonthlyClientRanking } from './analyticsTypes';
+import { selectableClients } from '../../utils/clientRegistry';
 
 type AnalyticsReportCardProps = {
     t: (...args: any[]) => any;
@@ -105,7 +106,7 @@ export function AnalyticsReportCard({
     const bestHeatmapDay = [...heatmapData.entries()].sort((l, r) => r[1] - l[1])[0] || null;
     const worstHeatmapDay = [...heatmapData.entries()].sort((l, r) => l[1] - r[1])[0] || null;
     const winningDaysCount = [...heatmapData.values()].filter((p) => p > 0).length;
-    const sortedClients = useMemo(() => [...clientsDzd].sort((a, b) => getClientFullName(a).localeCompare(getClientFullName(b), 'fr')), [clientsDzd, getClientFullName]);
+    const sortedClients = useMemo(() => selectableClients(clientsDzd, [localReportClient]).sort((a, b) => getClientFullName(a).localeCompare(getClientFullName(b), 'fr')), [clientsDzd, localReportClient, getClientFullName]);
     const tabItems: Tab[] = [
         { id: 'monthly', label: t('portfolio.tabSynthesis') },
         { id: 'clients', label: t('portfolio.tabClients'), badge: topProfitableRows.length },

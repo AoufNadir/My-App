@@ -5,10 +5,18 @@ import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { Button } from '../ui/Button';
 import { NumberInput } from '../ui/NumberInput';
+import type { ClientDuplicateField, ClientDuplicateMatch } from '../../utils/clientRegistry';
 type MainClientCrudDialogsProps = Record<string, any>;
 const CLIENT_GROUPS = ['Retail', 'Gros compte', 'OTC', 'Particulier', 'Entreprise', 'Autre'];
+const DUPLICATE_FIELD_LABELS: Record<ClientDuplicateField, string> = {
+    name: 'Même nom',
+    phone: 'Même téléphone',
+    redotpayId: 'Même RedotPay ID',
+    binanceEmail: 'Même email Binance',
+};
 
-function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, initialBalance, setInitialBalance, handleSaveClient, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient }: MainClientCrudDialogsProps) {
+function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, initialBalance, setInitialBalance, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, closeClientModal, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient }: MainClientCrudDialogsProps) {
+    const duplicateMatches: ClientDuplicateMatch[] = clientDuplicateMatches || [];
     const isBlockedClientDelete = clientDeleteMode === 'blocked';
     const isBalanceOnlyClientDelete = clientDeleteMode === 'balance_only';
     const isClientOnlyCleanupDelete = clientDeleteMode === 'client_only_cleanup';
@@ -25,14 +33,14 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
             ? "Ce client a seulement un solde manuel ou initial, sans opération de vente/achat liée. Vous pouvez le supprimer s'il s'agit d'un doublon d'investisseur."
             : isClientOnlyCleanupDelete
                 ? "Ce nom existe aussi dans Investisseurs. La suppression retirera seulement sa fiche et son historique de Clients quotidiens."
-                : "Ce client a un historique d'activité. Si vous confirmez, son historique sera supprimé et il disparaîtra des rapports.";
+                : "Ce client a un historique d'activité. Il disparaîtra de l'application (liste, recherche, nouvelles opérations). Ses anciennes opérations restent dans l'historique pour garder les comptes justes.";
     const clientDeleteWarning = isBlockedClientDelete
         ? "Le client ne peut pas être supprimé tant que son solde n'est pas à zéro."
         : isBalanceOnlyClientDelete
             ? "Son solde client sera retiré de la valeur nette du projet. L'investisseur reste dans Investisseurs."
             : isClientOnlyCleanupDelete
                 ? "Les comptes Investisseurs ne seront pas modifiés."
-                : "Cette action est irréversible et supprimera aussi les éléments liés au client.";
+                : "Le client ne pourra plus être choisi dans une nouvelle opération.";
     const headerClass = 'sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
     const footerClass = 'sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
     const cancelBtn = 'flex-1 py-3 rounded-xl font-bold transition-colors bg-neutral-100 text-neutral-700 hover:bg-neutral-200';
@@ -130,6 +138,30 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                 </ModalFooter>
             </Modal>
 
+            {/* Duplicate client warning */}
+            <Modal isOpen={isClientModalOpen && duplicateMatches.length > 0} onClose={cancelClientDuplicateWarning} className="max-w-sm bg-surface">
+                <ModalHeader onClose={cancelClientDuplicateWarning} className={headerClass}>
+                    <ModalTitle className="text-base sm:text-lg">Ce client existe peut-être déjà</ModalTitle>
+                </ModalHeader>
+                <ModalContent className="px-4 py-4 sm:px-5 space-y-2">
+                    {duplicateMatches.map(({ client, fields, archived }) => (<div key={client.id} className="rounded-xl border border-border bg-surface-muted px-3 py-2">
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="text-sm font-bold text-neutral-800">{client.fullName || client.nom}</p>
+                                {archived && (<span className="rounded-full bg-neutral-200 px-2 py-0.5 text-[11px] font-bold text-neutral-600">Supprimé</span>)}
+                            </div>
+                            <p className="text-xs text-neutral-500">{[client.phone, client.redotpayId, client.binanceEmail].filter(Boolean).join(' · ')}</p>
+                            <p className="mt-1 text-xs font-semibold text-warning">{fields.map((field) => DUPLICATE_FIELD_LABELS[field]).join(' · ')}</p>
+                            {archived && (<Button onClick={() => restoreArchivedClient(client.id)} className="mt-2 w-full rounded-lg bg-primary/10 py-2 text-xs font-bold text-primary hover:bg-primary/20">Restaurer ce client</Button>)}
+                        </div>))}
+                </ModalContent>
+                <ModalFooter className={footerClass}>
+                    <div className="flex gap-2 w-full">
+                        <Button onClick={closeClientModal} className={cancelBtn}>Utiliser l'existant</Button>
+                        <Button onClick={confirmSaveClientDespiteDuplicates} className={primaryBtn}>Enregistrer quand même</Button>
+                    </div>
+                </ModalFooter>
+            </Modal>
+
             {/* Delete client confirmation */}
             <Modal isOpen={clientToDelete !== null} onClose={() => setClientToDelete(null)} className="max-w-sm bg-surface">
                 <ModalHeader onClose={() => setClientToDelete(null)} className={headerClass}>
@@ -179,7 +211,8 @@ const areMainClientCrudDialogsPropsEqual = (prev: MainClientCrudDialogsProps, ne
             && prev.clientCreditLimit === next.clientCreditLimit
             && prev.clientGroup === next.clientGroup
             && prev.clientIsFournisseur === next.clientIsFournisseur
-            && prev.initialBalance === next.initialBalance);
+            && prev.initialBalance === next.initialBalance
+            && prev.clientDuplicateMatches === next.clientDuplicateMatches);
     }
     return true;
 };

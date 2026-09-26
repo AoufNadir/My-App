@@ -5,6 +5,7 @@ import { SearchableSelect } from '../ui/SearchableSelect';
 import { PlusIcon } from '../icons/PlusIcon';
 import type { ClientDzd } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { selectableClients } from '../../utils/clientRegistry';
 type PaymentStatus = 'credit' | 'baridi' | 'cash';
 type ClientLinkerProps = {
     linkedClientId: string;
@@ -35,7 +36,7 @@ function ClientLinkerComponent({ linkedClientId, setLinkedClientId, linkedClient
     const showLinkedDzdClient = !hideLinkedDzdClient && hasPrimaryClient && (clientPaymentStatus === 'cash' || (allowBaridiDzdLink && clientPaymentStatus === 'baridi'));
     const settlementTargetLabel = clientPaymentStatus === 'baridi' ? t('transactions.baridiSettlementTarget') as string : t('transactions.cashSettlementTarget') as string;
     const settlementWalletLabel = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
-    const clientOptions = clientsDzd.map((client) => ({
+    const clientOptions = selectableClients(clientsDzd, [linkedClientId, linkedClientDzdId]).map((client) => ({
         value: client.id,
         label: getClientName(client)
     }));
