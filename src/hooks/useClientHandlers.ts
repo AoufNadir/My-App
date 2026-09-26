@@ -909,12 +909,12 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             const frMatch = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(providedDate);
             if (isoMatch) {
                 date = `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
-                const dayStart = Date.UTC(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+                const dayStart = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3])).getTime();
                 timestamp = providedTime ? dayStart + parseTimeToMs(providedTime) : dayStart;
             }
             else if (frMatch) {
                 date = providedDate;
-                const dayStart = Date.UTC(Number(frMatch[3]), Number(frMatch[2]) - 1, Number(frMatch[1]));
+                const dayStart = new Date(Number(frMatch[3]), Number(frMatch[2]) - 1, Number(frMatch[1])).getTime();
                 timestamp = providedTime ? dayStart + parseTimeToMs(providedTime) : dayStart;
             }
             if (providedTime)
