@@ -3,7 +3,7 @@ import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAs
 import { useLanguage } from './contexts/LanguageContext';
 import { signOut } from 'firebase/auth';
 import { auth, type AppUser } from './firebaseAuth';
-import { db, fieldValueDelete } from './firebase';
+import { db, fieldValueDelete, setFinancialWriteGate } from './firebase';
 import { recordTreasuryLegacyDeletionShadow, recordTreasuryShadow } from './accounting/treasuryShadowDiagnostics';
 import { recordPortfolioShadow } from './accounting/portfolioShadowDiagnostics';
 import { inventoryFromLegacyPortfolioStats } from './accounting/portfolioShadowLegacyAdapter';
@@ -193,12 +193,32 @@ export default function MainApp({ user }: {
     // 1.2 Settings
     const { managerFeePercentage, managerFeeHistory, saveManagerFeePercentage, isSettingsLoaded } = useSettings(userDocRef);
     const pricingPlanSync = useSmartPricingPlan(userDocRef);
+    // Open instantly from the IndexedDB cache when it holds a previous session's
+    // data. An empty cache (first open on this device) still waits for the
+    // server, so the app never flashes zero balances.
+    const hasUsableLocalCache = isDataLoaded && transactions.length > 0;
     const canUseFinancialData = shouldUseDashboardReadModel
         ? (dashboardSummaryRead.hasServerSynced
             || (dashboardSummaryRead.isDashboardSummaryReady && typeof navigator !== 'undefined' && navigator.onLine === false))
         : (dataStatus.hasServerSynced
-            || (isDataLoaded && typeof navigator !== 'undefined' && navigator.onLine === false));
+            || (isDataLoaded && typeof navigator !== 'undefined' && navigator.onLine === false)
+            || hasUsableLocalCache);
     const isFinancialDataReady = canUseFinancialData && isSettingsLoaded;
+    // Figures come from the phone's cache until the server has answered once;
+    // financial writes stay locked during that window (see setFinancialWriteGate).
+    const isAwaitingServerSync = !shouldUseDashboardReadModel && isFinancialDataReady && !dataStatus.hasServerSynced
+        && !(typeof navigator !== 'undefined' && navigator.onLine === false);
+    const isAwaitingServerSyncRef = useRef(isAwaitingServerSync);
+    isAwaitingServerSyncRef.current = isAwaitingServerSync;
+    useEffect(() => {
+        setFinancialWriteGate({
+            blockedReason: () => (isAwaitingServerSyncRef.current
+                ? '⏳ Synchronisation en cours. Réessayez dans un instant.'
+                : null),
+            onBlocked: (reason) => setAlert(reason),
+        });
+        return () => setFinancialWriteGate(null);
+    }, []);
     const clientShadowReadReconciliation = useMemo(() => {
         if (!shadowDiagnosticsEnabled || !isFinancialDataReady || shouldUseDashboardReadModel) return null;
         return reconcileLegacyClientsToShadow(clientTransactionsDzd, clientsDzd.map((client) => client.id));
@@ -224,8 +244,7 @@ export default function MainApp({ user }: {
     const coreCollectionStates = dataStatus.collectionState;
     const hasCurrentCoreData = CORE_DATA_KEYS
         .every((key) => coreCollectionStates[key]?.serverSynced)
-        || (typeof navigator !== 'undefined'
-            && navigator.onLine === false
+        || ((hasUsableLocalCache || (typeof navigator !== 'undefined' && navigator.onLine === false))
             && CORE_DATA_KEYS.every((key) => coreCollectionStates[key]?.received));
     const ledgerTransactions = hasCurrentCoreData ? transactions : EMPTY_TRANSACTIONS;
     // 24h-locked buys become available at `lockedUntil`. The ledger only reads
@@ -2945,6 +2964,10 @@ export default function MainApp({ user }: {
                     />
                 )}
 
+                {isAwaitingServerSync && (<div role="status" className="mb-3 flex items-center gap-2 rounded-xl border border-warning/30 bg-warning-bg px-3 py-2 text-xs font-semibold text-warning">
+                        <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-warning"/>
+                        <span>Synchronisation en cours… Chiffres enregistrés sur l'appareil. L'enregistrement sera possible dans un instant.</span>
+                    </div>)}
                 <MainContentArea {...mainContentProps}/>
 
                 <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onFabPress={onFabPress} overdueCount={overdueDebtClients.length}/>
