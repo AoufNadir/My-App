@@ -8,6 +8,7 @@ import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
 import { PencilIcon } from '../components/icons/PencilIcon';
 import { PamSimulatorCard } from '../components/portfolio/PamSimulatorCard';
+import { EurFundedCostImpactCard } from '../components/portfolio/EurFundedCostImpactCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Tx, ClientDzd, ClientTransactionDzd } from '../types';
 import { USDTStockCard } from './TresoreriePage';
@@ -182,6 +183,8 @@ export function PortfolioPage(props: PortfolioPageProps) {
                     />
                 </CardContent>
             </Card>
+
+            <EurFundedCostImpactCard transactions={transactions} />
 
             <PamSimulatorCard
                 portfolioStats={portfolioStats}

@@ -8,6 +8,27 @@ export interface PamLedgerOptions {
     conversionWindowMs?: number;
     /** Clock used to evaluate buy.lockedUntil (24h restriction). Defaults to Date.now(). */
     nowMs?: number;
+    /**
+     * USDT bought with EUR from this time on costs what leaves the EUR stock: the EUR
+     * quantity times the EUR PAM of the ledger at that moment, not the total saved at
+     * entry. Defaults to EUR_FUNDED_COST_RULE_FROM_TS.
+     */
+    eurFundedCostFromTs?: number;
+}
+/** 0: every USDT purchase paid in EUR follows the EUR PAM of the ledger. */
+export const EUR_FUNDED_COST_RULE_FROM_TS = 0;
+export interface PamLedgerEurFundedBuy {
+    buyTxId: string;
+    withdrawalTxId: string;
+    timestamp: number;
+    eurQuantity: number;
+    /** EUR PAM of the ledger just before the EUR left the stock. */
+    eurAvgBuy: number;
+    /** Total saved on the buy at entry. */
+    storedTotal: number;
+    /** Cost the ledger gives the USDT: eurQuantity x eurAvgBuy when the rule applies. */
+    ledgerCost: number;
+    applied: boolean;
 }
 export interface PamLedgerFlags {
     storedMismatch: boolean;
@@ -84,6 +105,8 @@ export interface PamLedgerResult {
         }>;
     };
     warnings: PamLedgerWarning[];
+    /** USDT purchases paid with EUR through a linked EUR withdrawal. */
+    eurFundedBuys: PamLedgerEurFundedBuy[];
 }
 type WorkingStats = {
     purchasedQty: number;
@@ -193,6 +216,57 @@ function findEurConversionRelatedTxIds(transactions: InternalTx[], conversionWin
     }
     return relatedIds;
 }
+/**
+ * USDT buys paid with EUR (a linked EUR "Retrait Manuel" carries the buy id) and the EUR
+ * PAM at the moment that EUR left the stock. The EUR stock never depends on USDT rows, so
+ * a ledger of the EUR rows alone gives that PAM even when an old edit moved the EUR row
+ * after the buy.
+ */
+function findEurFundedBuys(transactions: InternalTx[], options: PamLedgerOptions, fromTs: number): Map<string, PamLedgerEurFundedBuy> {
+    const result = new Map<string, PamLedgerEurFundedBuy>();
+    const usdtBuysById = new Map<string, InternalTx>();
+    for (const tx of transactions) {
+        if (tx.type === 'buy' && normalizeCurrency(tx.currency) === 'USDT' && tx.id)
+            usdtBuysById.set(tx.id, tx);
+    }
+    const withdrawalsByBuyId = new Map<string, InternalTx[]>();
+    for (const tx of transactions) {
+        if (tx.type !== 'Retrait Manuel' || normalizeCurrency(tx.currency) !== 'EUR' || !tx.linkedTxId || !usdtBuysById.has(tx.linkedTxId))
+            continue;
+        withdrawalsByBuyId.set(tx.linkedTxId, [...(withdrawalsByBuyId.get(tx.linkedTxId) || []), tx]);
+    }
+    if (withdrawalsByBuyId.size === 0)
+        return result;
+    const eurRows = transactions.filter((tx) => normalizeCurrency(tx.currency) === 'EUR');
+    const eurLedger = computePamLedger(eurRows, { ...options, eurFundedCostFromTs: Number.POSITIVE_INFINITY });
+    const eurRowById = new Map(eurLedger.operationRows.map((row) => [row.txId, row]));
+    for (const [buyId, withdrawals] of withdrawalsByBuyId) {
+        // One EUR row per conversion; anything else keeps the saved total.
+        if (withdrawals.length !== 1)
+            continue;
+        const withdrawal = withdrawals[0];
+        const buy = usdtBuysById.get(buyId)!;
+        const eurRow = eurRowById.get(getTxId(withdrawal, withdrawal.__ledgerIndex));
+        if (!eurRow)
+            continue;
+        const { costBasis, purchasedQty } = eurRow.statsBefore;
+        const eurAvgBuy = purchasedQty > 0 ? costBasis / purchasedQty : 0;
+        const storedTotal = round2(asNumber(buy.total, 0));
+        const timestamp = asNumber(buy.timestamp, 0);
+        const applied = timestamp >= fromTs && eurAvgBuy > 0;
+        result.set(buyId, {
+            buyTxId: buyId,
+            withdrawalTxId: eurRow.txId,
+            timestamp,
+            eurQuantity: eurRow.quantity,
+            eurAvgBuy: round4(eurAvgBuy),
+            storedTotal,
+            ledgerCost: applied ? round2(eurRow.quantity * eurAvgBuy) : storedTotal,
+            applied,
+        });
+    }
+    return result;
+}
 function buildPortfolioStats(statsByCurrency: Record<PamCurrency, WorkingStats>, zeroEpsilon: number): PortfolioStats {
     const usdt = toLedgerStats(statsByCurrency.USDT, zeroEpsilon);
     const eur = toLedgerStats(statsByCurrency.EUR, zeroEpsilon);
@@ -208,6 +282,7 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
     const nowMs = options.nowMs ?? Date.now();
     const orderedTransactions = sortTransactions(transactions);
     const eurConversionRelatedIds = findEurConversionRelatedTxIds(orderedTransactions, conversionWindowMs);
+    const eurFundedBuys = findEurFundedBuys(orderedTransactions, { ...options, nowMs }, options.eurFundedCostFromTs ?? EUR_FUNDED_COST_RULE_FROM_TS);
     const statsByCurrency: Record<PamCurrency, WorkingStats> = {
         USDT: createWorkingStats(),
         EUR: createWorkingStats(),
@@ -325,11 +400,12 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
             costBasisChange = total;
         }
         else if (tx.type === 'buy') {
-            const total = round2(asNumber(tx.total, 0));
+            const eurFundedBuy = currency === 'USDT' ? eurFundedBuys.get(txId) : undefined;
+            const total = eurFundedBuy ? eurFundedBuy.ledgerCost : round2(asNumber(tx.total, 0));
             stats.purchasedQty = round2(stats.purchasedQty + quantity);
             stats.costBasis = round2(stats.costBasis + total);
             costBasisChange = total;
-            if (!isFinitePositive(tx.total)) {
+            if (!isFinitePositive(total)) {
                 rowWarnings.push(makeWarning(txId, currency, 'missing_buy_total', 'warning', 'Buy transaction does not add a positive cost basis.'));
             }
         }
@@ -423,5 +499,35 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
             byCurrency,
         },
         warnings,
+        eurFundedBuys: [...eurFundedBuys.values()],
+    };
+}
+export interface EurFundedCostImpact {
+    /** USDT purchases paid in EUR whose cost follows the EUR PAM. */
+    buyCount: number;
+    /** Purchases whose cost moved by 1 DZD or more. */
+    changedBuyCount: number;
+    /** Cost of those USDT minus the totals saved at entry. */
+    costChangeDzd: number;
+    /** Cumulative trading profit minus what the saved totals gave. */
+    profitChangeDzd: number;
+    usdtAvgBuyWithSavedTotals: number;
+    usdtAvgBuy: number;
+}
+/** What the EUR PAM rule changes compared with the totals saved at entry; null when nothing moves. */
+export function summarizeEurFundedCostImpact(transactions: Tx[], options: PamLedgerOptions = {}): EurFundedCostImpact | null {
+    const nowMs = options.nowMs ?? Date.now();
+    const ledger = computePamLedger(transactions, { ...options, nowMs });
+    const applied = ledger.eurFundedBuys.filter((buy) => buy.applied);
+    if (!applied.some((buy) => Math.abs(buy.ledgerCost - buy.storedTotal) >= 0.01))
+        return null;
+    const withSavedTotals = computePamLedger(transactions, { ...options, nowMs, eurFundedCostFromTs: Number.POSITIVE_INFINITY });
+    return {
+        buyCount: applied.length,
+        changedBuyCount: applied.filter((buy) => Math.abs(buy.ledgerCost - buy.storedTotal) >= 1).length,
+        costChangeDzd: round2(applied.reduce((sum, buy) => sum + buy.ledgerCost - buy.storedTotal, 0)),
+        profitChangeDzd: round2(ledger.totals.derivedProfit - withSavedTotals.totals.derivedProfit),
+        usdtAvgBuyWithSavedTotals: withSavedTotals.portfolioStats.usdt.avgBuy,
+        usdtAvgBuy: ledger.portfolioStats.usdt.avgBuy,
     };
 }
