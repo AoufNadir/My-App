@@ -211,7 +211,23 @@ export default function MainApp({ user }: {
             && navigator.onLine === false
             && CORE_DATA_KEYS.every((key) => coreCollectionStates[key]?.received));
     const ledgerTransactions = hasCurrentCoreData ? transactions : EMPTY_TRANSACTIONS;
-    const pamLedger = useMemo(() => computePamLedger(ledgerTransactions), [ledgerTransactions]);
+    // 24h-locked buys become available at `lockedUntil`. The ledger only reads
+    // the clock when it recomputes, so schedule a recompute at the next unlock;
+    // otherwise the stock stays "locked" until some unrelated transaction arrives.
+    const [lockReleaseTick, setLockReleaseTick] = useState(0);
+    const pamLedger = useMemo(() => computePamLedger(ledgerTransactions), [ledgerTransactions, lockReleaseTick]);
+    useEffect(() => {
+        const nowMs = Date.now();
+        const nextUnlock = [...pamLedger.portfolioStats.usdt.lockedBatches, ...pamLedger.portfolioStats.eur.lockedBatches]
+            .map((batch) => Number(batch.lockedUntil))
+            .filter((lockedUntil) => Number.isFinite(lockedUntil) && lockedUntil > nowMs)
+            .reduce((min, lockedUntil) => Math.min(min, lockedUntil), Number.POSITIVE_INFINITY);
+        if (!Number.isFinite(nextUnlock))
+            return;
+        // setTimeout overflows above ~24.8 days; re-arm in steps if needed.
+        const timer = window.setTimeout(() => setLockReleaseTick((tick) => tick + 1), Math.min(nextUnlock - nowMs + 1000, 2_000_000_000));
+        return () => window.clearTimeout(timer);
+    }, [pamLedger]);
     const portfolioStats = pamLedger.portfolioStats;
     const deliveryExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense'), [treasuryTransactions]);
     const personalExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense'), [treasuryTransactions]);
