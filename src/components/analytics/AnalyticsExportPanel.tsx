@@ -15,6 +15,7 @@ import { WalletIcon } from '../icons/WalletIcon';
 import type { ClientDzd, ClientTransactionDzd, PortfolioStats, Tx } from '../../types';
 import { formatNumber } from '../../pages/shared/pageFormat';
 import type { CalculatedStats, MonthlyClientRanking } from './analyticsTypes';
+import { selectableClients } from '../../utils/clientRegistry';
 
 type AnalyticsExportPanelProps = {
     t: (...args: any[]) => any;
@@ -66,7 +67,7 @@ export function AnalyticsExportPanel({
     const selectedMonthLabel = monthlyMonthOptions[usdtReportMonth] || `${usdtReportMonth + 1}`;
     const selectedClientMonthLabel = clientMonthOptions[reportMonth] || `${reportMonth + 1}`;
     const selectedClient = clientsDzd.find((client) => client.id === reportClient) || null;
-    const sortedClients = useMemo(() => [...clientsDzd].sort((a, b) => getClientFullName(a).localeCompare(getClientFullName(b), 'fr')), [clientsDzd, getClientFullName]);
+    const sortedClients = useMemo(() => selectableClients(clientsDzd, [reportClient]).sort((a, b) => getClientFullName(a).localeCompare(getClientFullName(b), 'fr')), [clientsDzd, reportClient, getClientFullName]);
     const monthlyTxCount = useMemo(() => {
         const startTs = new Date(usdtReportYear, usdtReportMonth, 1).getTime();
         const endTs = new Date(usdtReportYear, usdtReportMonth + 1, 0, 23, 59, 59, 999).getTime();

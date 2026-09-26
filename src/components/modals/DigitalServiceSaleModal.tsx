@@ -14,6 +14,7 @@ import { Tabs } from '../ui/Tabs';
 import { Textarea } from '../ui/Textarea';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { PlusIcon } from '../icons/PlusIcon';
+import { selectableClients } from '../../utils/clientRegistry';
 
 type DigitalServiceSaleModalProps = {
     isOpen: boolean;
@@ -86,10 +87,10 @@ export function DigitalServiceSaleModal({
 }: DigitalServiceSaleModalProps) {
     const { t } = useLanguage();
     const fieldBase = 'rounded-xl border-border bg-surface text-neutral-900';
-    const clientOptions = useMemo(() => clientsDzd.map((client) => ({
+    const clientOptions = useMemo(() => selectableClients(clientsDzd, [clientId]).map((client) => ({
         value: client.id,
         label: getClientName(client),
-    })), [clientsDzd]);
+    })), [clientsDzd, clientId]);
     const purchaseCurrency = getWalletCurrency(purchaseWallet);
     const saleCurrency = getWalletCurrency(saleWallet);
     const purchaseAvailable = walletBalance(purchaseWallet, treasuryStats, portfolioStats);

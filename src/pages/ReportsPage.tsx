@@ -18,6 +18,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import type { ClientDzd, ClientTransactionDzd, PortfolioStats, Tx } from '../types';
 import { computePamLedger } from '../utils/pamLedger';
 import { formatNumber } from './shared/pageFormat';
+import { selectableClients } from '../utils/clientRegistry';
 type ReportsPageProps = {
     usdtReportMonth: number;
     setUsdtReportMonth: (month: number) => void;
@@ -62,7 +63,7 @@ export function ReportsPage({ usdtReportMonth, setUsdtReportMonth, usdtReportYea
     const clientMonthOptions = reportMonths(reportYear);
     const selectedMonthLabel = monthlyMonthOptions[usdtReportMonth] || `${usdtReportMonth + 1}`;
     const selectedClientMonthLabel = clientMonthOptions[reportMonth] || `${reportMonth + 1}`;
-    const sortedClients = useMemo(() => [...clientsDzd].sort((a, b) => getClientFullName(a).localeCompare(getClientFullName(b), 'fr')), [clientsDzd, getClientFullName]);
+    const sortedClients = useMemo(() => selectableClients(clientsDzd, [reportClient]).sort((a, b) => getClientFullName(a).localeCompare(getClientFullName(b), 'fr')), [clientsDzd, reportClient, getClientFullName]);
     const selectedClient = clientsDzd.find((client) => client.id === reportClient) || null;
     const monthlyPreview = useMemo(() => {
         const startTs = new Date(usdtReportYear, usdtReportMonth, 1).getTime();
