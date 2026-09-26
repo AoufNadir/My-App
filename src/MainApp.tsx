@@ -106,6 +106,7 @@ const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
 type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
 import { reorderClientName, nameMatchesQuery } from './utils/nameUtils';
 import { clientNameKey, clientPhoneKey, isClientActive, selectableClients } from './utils/clientRegistry';
+import { investorResetForDeletedRow } from './utils/managerCapital';
 import { buildPricingContext, quoteSale, type SmartSaleSnapshot } from './services/smartPricingEngine';
 
 /** True from the first render where `value` is true, and stays true afterwards. */
@@ -2254,6 +2255,11 @@ export default function MainApp({ user }: {
             batch.delete(userDocRef.collection('investor_transactions').doc(investorTxToDelete.id));
             if (investorTxToDelete.linkedTreasuryTxId) {
                 batch.delete(userDocRef.collection('treasury_txs').doc(investorTxToDelete.linkedTreasuryTxId));
+            }
+            const owner = investors.find((investor) => investor.id === investorTxToDelete.investorId);
+            const profileReset = owner ? investorResetForDeletedRow(investorTxToDelete, owner, investorTransactions) : null;
+            if (owner && profileReset) {
+                batch.update(userDocRef.collection('investors').doc(owner.id), profileReset);
             }
             await commitLegacyWithReadModelDeltas({
                 userDocRef,

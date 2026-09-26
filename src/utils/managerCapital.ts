@@ -122,6 +122,20 @@ export function isSyntheticInitialCapitalDeposit(tx: InvestorTransaction, invest
     return isOpeningCapitalDeposit(tx, investor);
 }
 
+/**
+ * Deleting the opening-capital row must remove the capital it stands for. Otherwise the
+ * capital falls back to the profile's `initialCapital` while the row's cash is deleted.
+ * Returns the profile fields to reset, or null when the row is not the last opening row.
+ */
+export function investorResetForDeletedRow(tx: InvestorTransaction, investor: Investor, investorTransactions: InvestorTransaction[]): Pick<Investor, 'initialCapital'> | null {
+    if (!isOpeningCapitalDeposit(tx, investor))
+        return null;
+    const anotherOpeningRow = investorTransactions.some((other) => other.id !== tx.id
+        && other.investorId === investor.id
+        && isOpeningCapitalDeposit(other, investor));
+    return anotherOpeningRow ? null : { initialCapital: 0 };
+}
+
 export function isPersonalExpenseCapitalWithdrawal(tx: InvestorTransaction, personalExpenses: TreasuryTx[] = []): boolean {
     if (tx.type !== 'withdraw_capital')
         return false;
