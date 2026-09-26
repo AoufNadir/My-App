@@ -10,6 +10,7 @@ import { BriefcaseIcon } from '../icons/BriefcaseIcon';
 import { formatDzd, formatNumber } from '../../pages/shared/pageFormat';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel, getTreasuryOperationLabel } from '../../utils/transactionTerminology';
 import { DisplayRawTx, DisplayTx, SavedTransactionFilter, TransactionFilterMode } from './transactionsTypes';
+import { buildClientTransferIndex, findClientTransferCounterpart } from './clientTransferIndex';
 const SAVED_FILTERS_STORAGE_KEY = 'tx_saved_filters_v1';
 const ALL_FILTER_MODES: TransactionFilterMode[] = [
     'all',
@@ -86,27 +87,6 @@ function getTreasuryEffectDirection(tx: TreasuryTx) {
 function getTreasuryEffectWallet(tx: TreasuryTx) {
     const data = tx as TreasuryTx & { asset?: string };
     return data.source || data.destination || data.asset || '';
-}
-function findClientTransferCounterpart(tx: ClientTransactionDzd, clientTransactionsDzd: ClientTransactionDzd[]) {
-    if (tx.type !== 'Transfert Sortant' && tx.type !== 'Transfert Entrant')
-        return null;
-    if (tx.linkedTxId) {
-        const linked = clientTransactionsDzd.find((candidate) => candidate.id === tx.linkedTxId);
-        if (linked)
-            return linked;
-    }
-    const counterpartType = tx.type === 'Transfert Sortant' ? 'Transfert Entrant' : 'Transfert Sortant';
-    const counterpartAmount = -Number(tx.montant || 0);
-    return clientTransactionsDzd
-        .filter((candidate) => candidate.id !== tx.id
-        && candidate.clientId !== tx.clientId
-        && candidate.type === counterpartType
-        && candidate.date === tx.date
-        && candidate.time === tx.time
-        && Math.abs(Number(candidate.montant || 0) - counterpartAmount) <= 0.01
-        && Math.abs(Number(candidate.timestamp || 0) - Number(tx.timestamp || 0)) <= 2000)
-        .sort((left, right) => Math.abs(Number(left.timestamp || 0) - Number(tx.timestamp || 0))
-        - Math.abs(Number(right.timestamp || 0) - Number(tx.timestamp || 0)))[0] || null;
 }
 function isTreasuryTransfer(rawTx: DisplayRawTx) {
     const tx = rawTx as TreasuryTx;
@@ -598,11 +578,12 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 treasuryEffectsByLinkedTxId.set(treasuryTx.linkedTxId, treasuryTx);
             }
         }
+        const clientTransferIndex = buildClientTransferIndex(clientTransactionsDzd);
         const hiddenClientTransferIds = new Set<string>();
         for (const tx of clientTransactionRows) {
             if (tx.type !== 'Transfert Entrant')
                 continue;
-            const counterpart = findClientTransferCounterpart(tx, clientTransactionsDzd);
+            const counterpart = findClientTransferCounterpart(tx, clientTransferIndex);
             if (counterpart?.type === 'Transfert Sortant')
                 hiddenClientTransferIds.add(tx.id);
         }
@@ -700,7 +681,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
             const clientName = client ? getClientFullName(client) : 'Client Inconnu';
             const isPositive = tx.montant > 0;
             const isTransfer = tx.type === 'Transfert Entrant' || tx.type === 'Transfert Sortant';
-            const transferCounterpart = isTransfer ? findClientTransferCounterpart(tx, clientTransactionsDzd) : null;
+            const transferCounterpart = isTransfer ? findClientTransferCounterpart(tx, clientTransferIndex) : null;
             const counterpartClient = transferCounterpart ? clientsById.get(transferCounterpart.clientId) : undefined;
             const counterpartName = counterpartClient ? getClientFullName(counterpartClient) : '';
             const clientDetails = isTransfer
