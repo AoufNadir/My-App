@@ -1,5 +1,5 @@
 import React, { Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction } from './types';
+import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from './types';
 import { useLanguage } from './contexts/LanguageContext';
 import { signOut } from 'firebase/auth';
 import { auth, type AppUser } from './firebaseAuth';
@@ -39,6 +39,7 @@ import { useWeeklyRecap } from './hooks/useWeeklyRecap';
 import { useAppData } from './hooks/useAppData';
 import { useDashboardSummaryReadModel } from './hooks/useDashboardSummaryReadModel';
 import { useSettings } from './hooks/useSettings';
+import { usePeriodLock } from './hooks/usePeriodLock';
 import { useSmartPricingPlan } from './hooks/useSmartPricingPlan';
 import { useTransactionHandlers, type PrefillSell } from './hooks/useTransactionHandlers';
 import { useDigitalServiceHandlers } from './hooks/useDigitalServiceHandlers';
@@ -55,6 +56,7 @@ import { useReportExports } from './hooks/useReportExports';
 import { now, parseAndEvaluate } from './utils';
 import { computePamLedger } from './utils/pamLedger';
 import { collectDebtWriteOffs } from './utils/debtWriteOffs';
+import { findPeriodLockViolation, formatLockDate, isInLockedPeriod, savedTimestampFrom } from './utils/periodLock';
 import { operationStamp } from './utils/editStamp';
 import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot } from './utils/capitalSnapshot';
 import { summarizePersonalExpenseTotals } from './utils/financialAudit';
@@ -195,6 +197,40 @@ export default function MainApp({ user }: {
     const dashboardSummaryRead = useDashboardSummaryReadModel(userDocRef, readModelsMode);
     // 1.2 Settings
     const { managerFeePercentage, managerFeeHistory, saveManagerFeePercentage, isSettingsLoaded } = useSettings(userDocRef);
+    // Closed months (utils/periodLock): their operations can be neither edited nor deleted.
+    const periodLock = usePeriodLock(userDocRef);
+    const periodLockRef = useRef(periodLock);
+    periodLockRef.current = periodLock;
+    const tRef = useRef(t);
+    tRef.current = t;
+    const savedOperationsRef = useRef<Record<string, readonly { id: string; timestamp?: unknown }[]>>({});
+    savedOperationsRef.current = {
+        usdt_txs: transactions,
+        dzd_client_txs: clientTransactionsDzd,
+        treasury_txs: treasuryTransactions,
+        digital_service_txs: digitalServiceTransactions,
+        actifTransactions: manualAssetTransactions,
+        investor_transactions: investorTransactions,
+    };
+    const periodLockRefusal = (timestamp: number, lockedThrough: number) => String(tRef.current('periodLock.refused'))
+        .replace('{date}', formatLockDate(timestamp))
+        .replace('{lockedThrough}', formatLockDate(lockedThrough));
+    // Refuses right away to open an edit or delete of an operation in a closed month. The
+    // write gate below refuses the save anyway; this only spares filling a form for nothing.
+    const refuseIfClosedMonth = (timestamp: unknown): boolean => {
+        const { lockedThrough } = periodLockRef.current;
+        if (lockedThrough === null || !isInLockedPeriod(timestamp, lockedThrough))
+            return false;
+        setAlert(periodLockRefusal(Number(timestamp), lockedThrough));
+        return true;
+    };
+    const periodLockProps = useMemo(() => ({
+        lockedThrough: periodLock.lockedThrough,
+        reason: periodLock.reason,
+        updatedAt: periodLock.updatedAt,
+        isLoaded: periodLock.isLoaded,
+        saveLockedThrough: periodLock.saveLockedThrough,
+    }), [periodLock.lockedThrough, periodLock.reason, periodLock.updatedAt, periodLock.isLoaded, periodLock.saveLockedThrough]);
     const pricingPlanSync = useSmartPricingPlan(userDocRef);
     // Open instantly from the IndexedDB cache when it holds a previous session's
     // data. An empty cache (first open on this device) still waits for the
@@ -215,9 +251,19 @@ export default function MainApp({ user }: {
     isAwaitingServerSyncRef.current = isAwaitingServerSync;
     useEffect(() => {
         setFinancialWriteGate({
-            blockedReason: () => (isAwaitingServerSyncRef.current
+            // Also wait for the closed months, so a write cannot slip into one before they are known.
+            blockedReason: () => (isAwaitingServerSyncRef.current || !periodLockRef.current.isLoaded
                 ? '⏳ Synchronisation en cours. Réessayez dans un instant.'
                 : null),
+            refusedWritesReason: (writes) => {
+                const { lockedThrough } = periodLockRef.current;
+                const violation = findPeriodLockViolation({
+                    lockedThrough,
+                    writes,
+                    savedTimestamp: savedTimestampFrom(savedOperationsRef.current),
+                });
+                return violation && lockedThrough !== null ? periodLockRefusal(violation.timestamp, lockedThrough) : null;
+            },
             onBlocked: (reason) => setAlert(reason),
         });
         return () => setFinancialWriteGate(null);
@@ -1548,6 +1594,8 @@ export default function MainApp({ user }: {
         return transactions.find(t => t.id === tx.linkedTxId) ?? null;
     };
     const handleEditLinkedClientTx = (tx: ClientTransactionDzd) => {
+        if (refuseIfClosedMonth(tx.timestamp))
+            return;
         if (tx.type === 'Transfert Sortant' || tx.type === 'Transfert Entrant') {
             openTransferModal(tx);
             return;
@@ -1566,6 +1614,8 @@ export default function MainApp({ user }: {
         openAdjustmentModal(linkedTx.type === 'Retrait' ? 'subtract' : 'add', linkedTx);
     };
     const handleDeleteLinkedClientTxClick = (tx: ClientTransactionDzd) => {
+        if (refuseIfClosedMonth(tx.timestamp))
+            return;
         if (tx.type === 'Transfert Sortant' || tx.type === 'Transfert Entrant') {
             setClientTxToDelete(tx);
             return;
@@ -1582,6 +1632,8 @@ export default function MainApp({ user }: {
         setTreasuryTxToDelete(linkedTx);
     };
     const handleEditPortfolioTx = (tx: Tx) => {
+        if (refuseIfClosedMonth(tx.timestamp))
+            return;
         if (tx.linkedTxId) {
             const parentTx = transactions.find(t => t.id === tx.linkedTxId);
             if (parentTx) {
@@ -1598,6 +1650,8 @@ export default function MainApp({ user }: {
             : (tx.currency === 'USDT' ? 'sell_usdt' : 'sell_eur'), tx);
     };
     const handleEditTreasuryTx = (tx: TreasuryTx) => {
+        if (refuseIfClosedMonth(tx.timestamp))
+            return;
         if (tx.type === 'Transfer') {
             openWalletTransferModal(tx);
             return;
@@ -2309,6 +2363,13 @@ export default function MainApp({ user }: {
             setIsResetModalOpen(false);
             return;
         }
+        // The reset deletes collection by collection: checking here avoids a half-done reset
+        // that stops at the first closed operation.
+        if (periodLockRef.current.lockedThrough !== null) {
+            setAlert(t('periodLock.resetRefused') as string);
+            setIsResetModalOpen(false);
+            return;
+        }
         setIsSaving(true);
         try {
             const colls = ['usdt_txs', 'treasury_txs', 'dzd_clients', 'dzd_client_txs', 'treasury_cards', 'manual_assets', 'manual_asset_clients', 'actifTransactions', 'investors', 'investor_transactions'];
@@ -2725,7 +2786,13 @@ export default function MainApp({ user }: {
         onOpenMonthPlan: () => setIsMonthPlanOpen(true),
         monthlyGoal: monthlyGoalState,
     };
-    const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete, openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openDigitalServiceModal, handleDeleteDigitalService, openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete, PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal, openEditPersonalExpense, setPersonalExpenseToDelete, handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, openClientToClientTransferModal, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete, managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys };
+    // Deleting, or opening the edit form of, an operation of a closed month is refused at once.
+    const unlessClosedMonth = <T extends { timestamp?: unknown } | null>(open: (item: T) => unknown) => (item: T) => {
+        if (item && refuseIfClosedMonth(item.timestamp))
+            return;
+        return open(item);
+    };
+    const mainContentProps = { alert, alertClass, t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete: unlessClosedMonth<Tx | TreasuryTx | null>(setTxToDelete), openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openDigitalServiceModal: unlessClosedMonth<DigitalServiceTransaction | null>(openDigitalServiceModal), handleDeleteDigitalService: unlessClosedMonth<DigitalServiceTransaction>(handleDeleteDigitalService), openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete: unlessClosedMonth<TreasuryTx | null>(setTreasuryTxToDelete), PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal: unlessClosedMonth<TreasuryTx>(openReconcileAdvanceModal), openEditPersonalExpense: unlessClosedMonth<TreasuryTx>(openEditPersonalExpense), setPersonalExpenseToDelete: unlessClosedMonth<TreasuryTx | null>(setPersonalExpenseToDelete), handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, openClientToClientTransferModal, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete: unlessClosedMonth<InvestorTransaction | null>(setInvestorTxToDelete), managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys, periodLock: periodLockProps };
     const walletTransferDialogProps = useMemo(() => ({
         isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSourceAndSync,

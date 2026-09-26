@@ -7,6 +7,7 @@ import { InvestorsDetailsCard } from '../components/investors/InvestorsDetailsCa
 import { CommissionEditorModal } from '../components/investors/CommissionEditorModal';
 import { InvestorsListSection } from '../components/investors/InvestorsListSection';
 import { ProfitDistributionSheet } from '../components/investors/ProfitDistributionSheet';
+import { PeriodLockCard, type PeriodLockCardProps } from '../components/investors/PeriodLockCard';
 import { HeroKpiCard } from '../components/ui/HeroKpiCard';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
@@ -31,6 +32,7 @@ interface InvestorsPageProps {
     setAlert: (msg: string) => void;
     treasuryStats: { caisse: number; baridi: number };
     managerProfitBreakdown?: ManagerProfitBreakdown;
+    periodLock?: Omit<PeriodLockCardProps, 'setAlert' | 'nowMs'>;
 }
 type InvestorsStats = {
     totalCapital: number;
@@ -43,7 +45,7 @@ type InvestorsStats = {
     totalDebtWriteOffs: number;
     netDistributableProfit: number;
 };
-export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, saveManagerFeePercentage, userDocRef, setAlert, treasuryStats, managerProfitBreakdown }) => {
+export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, saveManagerFeePercentage, userDocRef, setAlert, treasuryStats, managerProfitBreakdown, periodLock }) => {
     const { t } = useLanguage();
     const stats: InvestorsStats = useMemo(() => {
         const nonManagerInvestors = investors.filter((inv) => inv.isActive && !inv.isManager);
@@ -110,6 +112,8 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
 
       <InvestorsDetailsCard stats={displayedStats} capitalSnapshot={capitalSnapshot} managerFeePercentage={managerFeePercentage} managerProfitBreakdown={managerProfitBreakdown} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference}/>
 
+      {periodLock && (<PeriodLockCard {...periodLock} setAlert={setAlert}/>)}
+
       <InvestorsListSection investors={investors} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor}/>
 
       <CommissionEditorModal isOpen={isCommissionModalOpen} onClose={() => setIsCommissionModalOpen(false)} value={managerFeePercentage} onSave={handleSaveCommission} managerFeeAmount={stats.managerFee}/>
@@ -122,6 +126,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
         userDocRef={userDocRef}
         setAlert={setAlert}
         treasuryStats={treasuryStats}
+        periodLockedThrough={periodLock?.lockedThrough ?? null}
       />
     </div>);
 };

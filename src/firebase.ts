@@ -191,7 +191,7 @@ class FirestoreCollectionReference {
         return new FirestoreDocumentReference(nativeRef, this.compatDb);
     }
     async add(data: DocumentData) {
-        const refusal = financialWriteRefusal([`${this.nativeCollectionPath}/_`]);
+        const refusal = financialWriteRefusal([{ path: `${this.nativeCollectionPath}/_`, kind: 'create', data }]);
         if (refusal)
             throw refusal;
         const nativeRef = await addDoc(this.nativeCollection(), data);
@@ -228,14 +228,22 @@ class FirestoreCollectionReference {
 // While the app shows figures from the local cache (before the first server
 // sync), a write could be validated against stale balances. MainApp installs a
 // gate that refuses writes to financial collections until the server answered.
+// The same gate refuses writes that would change a closed month (utils/periodLock).
 const FINANCIAL_COLLECTIONS = new Set([
     'usdt_txs', 'dzd_clients', 'dzd_client_txs', 'treasury_txs', 'treasury_cards',
     'digital_service_txs', 'manual_assets', 'manual_asset_clients', 'actifTransactions',
     'investors', 'investor_transactions',
 ]);
+export type FinancialWrite = {
+    path: string;
+    kind: 'create' | 'set' | 'update' | 'delete';
+    data?: DocumentData;
+};
 type FinancialWriteGate = {
     /** Returns a user-facing reason while writes must wait, otherwise null. */
     blockedReason: () => string | null;
+    /** Returns a user-facing reason when these particular writes must be refused, otherwise null. */
+    refusedWritesReason?: (writes: readonly FinancialWrite[]) => string | null;
     /** Called (after the caller's own error handling) with the reason of a refused write. */
     onBlocked?: (reason: string) => void;
 };
@@ -254,9 +262,16 @@ function isFinancialPath(path: string): boolean {
     const segments = path.split('/');
     return segments[0] === 'users' && FINANCIAL_COLLECTIONS.has(segments[2] || '');
 }
-export function financialWriteRefusal(paths: readonly string[]): FinancialWriteBlockedError | null {
-    const reason = financialWriteGate?.blockedReason() || null;
-    if (!reason || !paths.some(isFinancialPath))
+export function financialWriteRefusal(writes: readonly (string | FinancialWrite)[]): FinancialWriteBlockedError | null {
+    const financialWrites = writes
+        .map((write): FinancialWrite => (typeof write === 'string' ? { path: write, kind: 'set' } : write))
+        .filter((write) => isFinancialPath(write.path));
+    if (!financialWriteGate || financialWrites.length === 0)
+        return null;
+    const reason = financialWriteGate.blockedReason()
+        || financialWriteGate.refusedWritesReason?.(financialWrites)
+        || null;
+    if (!reason)
         return null;
     const onBlocked = financialWriteGate?.onBlocked;
     // Deferred so this message replaces the generic error the caller shows.
@@ -289,7 +304,11 @@ export class FirestoreWriteBatch {
         this.nativeBatch.delete(ref.nativeRef);
     }
     commit() {
-        const refusal = financialWriteRefusal(this.operations.map((operation) => operation.ref.nativeRef.path));
+        const refusal = financialWriteRefusal(this.operations.map((operation) => ({
+            path: operation.ref.nativeRef.path,
+            kind: operation.kind,
+            data: operation.kind === 'delete' ? undefined : operation.data,
+        })));
         if (refusal)
             return Promise.reject(refusal);
         return this.nativeBatch.commit();
@@ -303,7 +322,7 @@ export class FirestoreTransaction {
         return new FirestoreDocumentSnapshot(snapshot, this.compatDb);
     }
     set(ref: FirestoreDocumentReference, data: DocumentData, options?: SetOptions) {
-        throwIfFinancialWriteBlocked(ref);
+        throwIfFinancialWriteBlocked({ path: ref.nativeRef.path, kind: 'set', data });
         if (options) {
             this.nativeTransaction.set(ref.nativeRef, data, options);
             return;
@@ -311,18 +330,18 @@ export class FirestoreTransaction {
         this.nativeTransaction.set(ref.nativeRef, data);
     }
     update(ref: FirestoreDocumentReference, data: DocumentData) {
-        throwIfFinancialWriteBlocked(ref);
+        throwIfFinancialWriteBlocked({ path: ref.nativeRef.path, kind: 'update', data });
         this.nativeTransaction.update(ref.nativeRef, data);
     }
     delete(ref: FirestoreDocumentReference) {
-        throwIfFinancialWriteBlocked(ref);
+        throwIfFinancialWriteBlocked({ path: ref.nativeRef.path, kind: 'delete' });
         this.nativeTransaction.delete(ref.nativeRef);
     }
 }
 // Transaction writes (order completion, summary writer) go through the same gate:
 // throwing aborts the whole transaction before anything is committed.
-function throwIfFinancialWriteBlocked(ref: FirestoreDocumentReference) {
-    const refusal = financialWriteRefusal([ref.nativeRef.path]);
+function throwIfFinancialWriteBlocked(write: FinancialWrite) {
+    const refusal = financialWriteRefusal([write]);
     if (refusal)
         throw refusal;
 }
@@ -343,7 +362,7 @@ export class FirestoreDocumentReference {
         return new FirestoreDocumentSnapshot(snapshot, this.compatDb);
     }
     set(data: DocumentData, options?: SetOptions) {
-        const refusal = financialWriteRefusal([this.nativeRef.path]);
+        const refusal = financialWriteRefusal([{ path: this.nativeRef.path, kind: 'set', data }]);
         if (refusal)
             return Promise.reject(refusal);
         if (options) {
@@ -352,24 +371,22 @@ export class FirestoreDocumentReference {
         return setDoc(this.nativeRef, data);
     }
     update(data: DocumentData) {
-        const refusal = financialWriteRefusal([this.nativeRef.path]);
+        const refusal = financialWriteRefusal([{ path: this.nativeRef.path, kind: 'update', data }]);
         if (refusal)
             return Promise.reject(refusal);
         return updateDoc(this.nativeRef, data);
     }
     delete() {
-        const refusal = financialWriteRefusal([this.nativeRef.path]);
+        const refusal = financialWriteRefusal([{ path: this.nativeRef.path, kind: 'delete' }]);
         if (refusal)
             return Promise.reject(refusal);
         return deleteDoc(this.nativeRef);
     }
     onSnapshot(callback: (snapshot: FirestoreDocumentSnapshot) => void, options?: {
         includeMetadataChanges?: boolean;
-    }): Unsubscribe {
+    }, onError?: (error: Error) => void): Unsubscribe {
         const listenerId = firestoreReadDiagnostics.startListener('document', this.nativeRef.path);
-        const unsubscribe = options
-            ? onSnapshot(this.nativeRef, options, (snap) => callback(new FirestoreDocumentSnapshot(snap, this.compatDb)))
-            : onSnapshot(this.nativeRef, (snap) => callback(new FirestoreDocumentSnapshot(snap, this.compatDb)));
+        const unsubscribe = onSnapshot(this.nativeRef, options ?? {}, (snap) => callback(new FirestoreDocumentSnapshot(snap, this.compatDb)), onError);
         return () => {
             firestoreReadDiagnostics.stopListener(listenerId);
             unsubscribe();
