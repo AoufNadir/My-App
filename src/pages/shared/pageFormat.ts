@@ -3,16 +3,41 @@ type DecimalOptions = {
     min?: number;
     max?: number;
 };
+// `n.toLocaleString(FR_LOCALE, options)` builds a new Intl.NumberFormat on every call, which is
+// the expensive part. Keep one formatter per (min, max) pair instead: format() on it returns the
+// same string. The formatter is built before anything is stored, so a pair the constructor rejects
+// (e.g. max < min) throws the same RangeError as toLocaleString on every call and is never cached.
+const frNumberFormats = new Map<number, Map<number, Intl.NumberFormat>>();
+function getFrNumberFormat(min: number, max: number): Intl.NumberFormat {
+    let formatter = frNumberFormats.get(min)?.get(max);
+    if (!formatter) {
+        formatter = new Intl.NumberFormat(FR_LOCALE, {
+            minimumFractionDigits: min,
+            maximumFractionDigits: max
+        });
+        let byMax = frNumberFormats.get(min);
+        if (!byMax) {
+            byMax = new Map();
+            frNumberFormats.set(min, byMax);
+        }
+        byMax.set(max, formatter);
+    }
+    return formatter;
+}
 export function formatNumber(value: number, options?: DecimalOptions): string {
     const min = options?.min ?? 2;
     const max = options?.max ?? min;
     const epsilon = 0.5 * Math.pow(10, -max);
     const safeValue = Number.isFinite(value) ? value : 0;
     const normalizedValue = (Object.is(safeValue, -0) || Math.abs(safeValue) < epsilon) ? 0 : safeValue;
-    return normalizedValue.toLocaleString(FR_LOCALE, {
-        minimumFractionDigits: min,
-        maximumFractionDigits: max
-    });
+    if (typeof min !== 'number' || typeof max !== 'number') {
+        // Only reachable from untyped callers: keep the original uncached call.
+        return normalizedValue.toLocaleString(FR_LOCALE, {
+            minimumFractionDigits: min,
+            maximumFractionDigits: max
+        });
+    }
+    return getFrNumberFormat(min, max).format(normalizedValue);
 }
 export function formatDzd(value: number, options?: DecimalOptions): string {
     return `${formatNumber(value, options)} DZD`;
