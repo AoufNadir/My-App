@@ -15,6 +15,7 @@ type InvestorsStats = {
     managerFee: number;
     totalWithdrawn: number;
     totalDeliveryExpenses?: number;
+    totalDebtWriteOffs?: number;
     netDistributableProfit?: number;
 };
 type InvestorsDetailsCardProps = {
@@ -42,7 +43,7 @@ function DetailRow({ label, value, semantic = 'auto', hideWhenZero = false }: { 
 }
 export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercentage, managerProfitBreakdown, onOpenCommissionEditor, reconciliationDifference = 0 }: InvestorsDetailsCardProps) {
     const { t } = useLanguage();
-    const hasDeliveryExpenses = (stats.totalDeliveryExpenses ?? 0) > 0;
+    const hasProjectCosts = (stats.totalDeliveryExpenses ?? 0) > 0 || (stats.totalDebtWriteOffs ?? 0) > 0;
     const hasReconciliationIssue = Math.abs(reconciliationDifference) > 0.01;
     const displayPercentage = managerFeePercentage?.trim() ? managerFeePercentage : '0';
     const ownerCapital = Number(managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot?.netOwnedCapital ?? 0);
@@ -72,7 +73,7 @@ export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercent
           </>)}
         <DetailSection>{t('investors.result')}</DetailSection>
         <DetailRow label={t('investors.managerShare') as string} value={stats.managerFee} semantic="auto"/>
-        {!hasDeliveryExpenses && (<DetailRow label={t('investors.attributedProfit') as string} value={stats.totalProfitDistributed} semantic="auto"/>)}
+        {!hasProjectCosts && (<DetailRow label={t('investors.attributedProfit') as string} value={stats.totalProfitDistributed} semantic="auto"/>)}
 
         <button type="button" onClick={onOpenCommissionEditor} className="flex min-h-touch w-full items-center justify-between gap-3 px-4 py-3.5 text-start transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
           <span className="text-sm text-neutral-500">{t('investors.managerCommissionRate')}</span>
@@ -85,8 +86,9 @@ export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercent
           </span>
         </button>
 
-        {hasDeliveryExpenses && (<>
-            <DetailRow label={t('investors.deliveryExpenses') as string} value={stats.totalDeliveryExpenses || 0} semantic="loss"/>
+        {hasProjectCosts && (<>
+            <DetailRow label={t('investors.deliveryExpenses') as string} value={stats.totalDeliveryExpenses || 0} semantic="loss" hideWhenZero/>
+            <DetailRow label={t('investors.debtWriteOffs') as string} value={stats.totalDebtWriteOffs || 0} semantic="loss" hideWhenZero/>
             <DetailRow label={t('investors.netDistributableProfit') as string} value={stats.netDistributableProfit || 0} semantic="auto"/>
           </>)}
       </CardContent>

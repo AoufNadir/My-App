@@ -1,6 +1,7 @@
 import type { Investor, InvestorTransaction, TreasuryTx, Tx } from '../types';
 import { getManagerFeeAt, type ManagerFeeHistoryEntry } from '../hooks/useInvestorEconomics';
 import { computePamLedger } from '../utils/pamLedger';
+import type { DebtWriteOff } from '../utils/debtWriteOffs';
 import { buildInvestorCapitalReconciliation, calculateManagerOwnerCapital, calculatePersonalExpensesFundedByCapital, calculateTotalPersonalExpenses, isSyntheticInitialCapitalDeposit } from '../utils/managerCapital';
 import { fromCents, toCents } from '../utils/money';
 import { buildInvestorShadowDraft, createInvestorProfitAllocationSnapshot } from './investorShadow';
@@ -20,7 +21,7 @@ export type InvestorReadReconciliationMetric = {
 };
 
 export type InvestorAllocationSnapshotRow = {
-    source: 'sale' | 'delivery_expense';
+    source: 'sale' | 'delivery_expense' | 'debt_write_off';
     sourceId: string;
     effectiveAt: number;
     snapshot: ProfitAllocationSnapshot;
@@ -181,6 +182,7 @@ export function reconcileLegacyInvestorsToShadow(input: {
     investorTransactions: InvestorTransaction[];
     transactions: Tx[];
     deliveryExpenses: TreasuryTx[];
+    debtWriteOffs?: DebtWriteOff[];
     treasuryTransactions: TreasuryTx[];
     personalExpenses?: TreasuryTx[];
     managerFeeHistory: ManagerFeeHistoryEntry[];
@@ -231,6 +233,22 @@ export function reconcileLegacyInvestorsToShadow(input: {
                 sourceId: expense.id,
                 effectiveAt,
                 projectProfitDzd: -amount,
+                manager,
+                investors: activeInvestors,
+                transactionsByInvestor,
+                personalExpenses,
+                managerFeeHistory: input.managerFeeHistory,
+                snapshots,
+                profits,
+                errors,
+            }));
+        [...(input.debtWriteOffs || [])]
+            .sort((left, right) => left.timestamp - right.timestamp)
+            .forEach((writeOff) => appendSnapshot({
+                source: 'debt_write_off',
+                sourceId: writeOff.id,
+                effectiveAt: writeOff.timestamp,
+                projectProfitDzd: -writeOff.amountDzd,
                 manager,
                 investors: activeInvestors,
                 transactionsByInvestor,

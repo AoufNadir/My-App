@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, PortfolioStats, TreasuryTx, Tx } from '../types';
 import { computePamLedger, type PamLedgerResult } from '../utils/pamLedger';
 import { deriveInvestorEconomics, type ManagerFeeHistoryEntry } from './useInvestorEconomics';
+import type { DebtWriteOff } from '../utils/debtWriteOffs';
 type Translator = (key: string) => unknown;
 type UseReportExportsArgs = {
     clientBalances: Map<string, number>;
@@ -19,6 +20,7 @@ type UseReportExportsArgs = {
     t: Translator;
     transactions: Tx[];
     deliveryExpenses?: TreasuryTx[];
+    debtWriteOffs?: DebtWriteOff[];
     personalExpenses?: TreasuryTx[];
 };
 export type InvestorReportDateRange = {
@@ -41,7 +43,7 @@ function isMobileDevice() {
         return false;
     return /android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent || '');
 }
-export function useReportExports({ clientBalances, clientTransactionsDzd, clientsDzd, derivedInvestors, getClientFullName, investorTransactions, loadPdfReports, managerFeePercentage, managerFeeHistory, pamLedger: providedPamLedger, portfolioStats, setAlert, t, transactions, deliveryExpenses, personalExpenses }: UseReportExportsArgs) {
+export function useReportExports({ clientBalances, clientTransactionsDzd, clientsDzd, derivedInvestors, getClientFullName, investorTransactions, loadPdfReports, managerFeePercentage, managerFeeHistory, pamLedger: providedPamLedger, portfolioStats, setAlert, t, transactions, deliveryExpenses, debtWriteOffs, personalExpenses }: UseReportExportsArgs) {
     const [usdtReportMonth, setUsdtReportMonth] = useState(new Date().getMonth());
     const [usdtReportYear, setUsdtReportYear] = useState(new Date().getFullYear());
     const [reportClient, setReportClient] = useState('');
@@ -131,6 +133,7 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
             periodStartTs: range.startTs,
             periodEndTs: range.endTs,
             deliveryExpenses,
+            debtWriteOffs,
             personalExpenses
         });
         const investor = periodEconomics.derivedInvestors.find((item) => item.id === investorId);
@@ -153,6 +156,9 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
         const deliveryExpensesAtClose = closingEndTs == null
             ? deliveryExpenses
             : (deliveryExpenses || []).filter((tx) => Number(tx.timestamp) <= closingEndTs);
+        const debtWriteOffsAtClose = closingEndTs == null
+            ? debtWriteOffs
+            : (debtWriteOffs || []).filter((row) => row.timestamp <= closingEndTs);
         const personalExpensesAtClose = closingEndTs == null
             ? personalExpenses
             : (personalExpenses || []).filter((tx) => Number(tx.timestamp) <= closingEndTs);
@@ -165,6 +171,7 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
             pamLedger: computePamLedger(transactionsAtClose),
             periodEndTs: closingEndTs,
             deliveryExpenses: deliveryExpensesAtClose,
+            debtWriteOffs: debtWriteOffsAtClose,
             personalExpenses: personalExpensesAtClose
         });
         const closingInvestor = closingEconomics.derivedInvestors.find((item) => item.id === investorId);

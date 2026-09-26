@@ -40,6 +40,7 @@ type InvestorsStats = {
     totalWithdrawn: number;
     activeCount: number;
     totalDeliveryExpenses: number;
+    totalDebtWriteOffs: number;
     netDistributableProfit: number;
 };
 export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, saveManagerFeePercentage, userDocRef, setAlert, treasuryStats, managerProfitBreakdown }) => {
@@ -53,8 +54,9 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
         const managerFee = investorEconomicsTotals.managerShare;
         const activeCount = investors.filter((inv) => inv.isActive).length;
         const totalDeliveryExpenses = investorEconomicsTotals.totalDeliveryExpenses || 0;
+        const totalDebtWriteOffs = investorEconomicsTotals.totalDebtWriteOffs || 0;
         const netDistributableProfit = investorEconomicsTotals.netDistributableProfit || 0;
-        return { totalCapital, totalProfitDistributed, totalAvailable, managerFee, totalWithdrawn, activeCount, totalDeliveryExpenses, netDistributableProfit }; // netDistributableProfit used for distribution banner
+        return { totalCapital, totalProfitDistributed, totalAvailable, managerFee, totalWithdrawn, activeCount, totalDeliveryExpenses, totalDebtWriteOffs, netDistributableProfit }; // netDistributableProfit used for distribution banner
     }, [investors, investorBreakdown, investorEconomicsTotals]);
     const displayedTotalAvailable = useMemo(
         () => investors

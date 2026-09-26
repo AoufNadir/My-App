@@ -54,6 +54,7 @@ import { useReportExports } from './hooks/useReportExports';
 // Shared Utils
 import { now, parseAndEvaluate } from './utils';
 import { computePamLedger } from './utils/pamLedger';
+import { collectDebtWriteOffs } from './utils/debtWriteOffs';
 import { operationStamp } from './utils/editStamp';
 import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot } from './utils/capitalSnapshot';
 import { summarizePersonalExpenseTotals } from './utils/financialAudit';
@@ -100,6 +101,7 @@ const EMPTY_INVESTOR_ECONOMICS: InvestorEconomicsResult = {
         investorShare: 0,
         reconciliationDifference: 0,
         totalDeliveryExpenses: 0,
+        totalDebtWriteOffs: 0,
         netDistributableProfit: 0,
     },
 };
@@ -268,6 +270,7 @@ export default function MainApp({ user }: {
     const portfolioStats = pamLedger.portfolioStats;
     const deliveryExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense'), [treasuryTransactions]);
     const personalExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense'), [treasuryTransactions]);
+    const debtWriteOffs = useMemo(() => collectDebtWriteOffs(clientTransactionsDzd), [clientTransactionsDzd]);
     const investorEconomics = useMemo(() => {
         if (!isFinancialDataReady)
             return EMPTY_INVESTOR_ECONOMICS;
@@ -279,10 +282,11 @@ export default function MainApp({ user }: {
             managerFeeHistory,
             pamLedger,
             deliveryExpenses,
+            debtWriteOffs,
             treasuryTransactions,
             personalExpenses
         });
-    }, [isFinancialDataReady, investors, investorTransactions, managerFeePercentage, managerFeeHistory, transactions, pamLedger, deliveryExpenses, treasuryTransactions, personalExpenses]);
+    }, [isFinancialDataReady, investors, investorTransactions, managerFeePercentage, managerFeeHistory, transactions, pamLedger, deliveryExpenses, debtWriteOffs, treasuryTransactions, personalExpenses]);
     const derivedInvestors = investorEconomics.derivedInvestors;
     const investorShadowReadReconciliation = useMemo(() => {
         if (!shadowDiagnosticsEnabled || !isFinancialDataReady || shouldUseDashboardReadModel) return null;
@@ -291,13 +295,14 @@ export default function MainApp({ user }: {
             investorTransactions,
             transactions,
             deliveryExpenses,
+            debtWriteOffs,
             treasuryTransactions,
             personalExpenses,
             managerFeeHistory,
             legacyDerivedInvestors: derivedInvestors,
             legacyManagerShareDzd: investorEconomics.totals.managerShare,
         });
-    }, [isFinancialDataReady, shouldUseDashboardReadModel, investors, investorTransactions, transactions, deliveryExpenses, treasuryTransactions, personalExpenses, managerFeeHistory, derivedInvestors, investorEconomics.totals.managerShare]);
+    }, [isFinancialDataReady, shouldUseDashboardReadModel, investors, investorTransactions, transactions, deliveryExpenses, debtWriteOffs, treasuryTransactions, personalExpenses, managerFeeHistory, derivedInvestors, investorEconomics.totals.managerShare]);
     const investorShadowReconciliationFingerprint = useRef('');
     useEffect(() => {
         if (!investorShadowReadReconciliation) return;
@@ -467,7 +472,7 @@ export default function MainApp({ user }: {
         treasuryStats,
         setAlert,
     });
-    const { isSaving: isClientSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, handleDeleteClient, handleZeroOutBalance, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, clientTxReceiverClientId, setClientTxReceiverClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, handleClientToClientTransfer, getClientTransferableAmount } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert);
+    const { isSaving: isClientSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, handleDeleteClient, handleZeroOutBalance, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, clientTxReceiverClientId, setClientTxReceiverClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, handleClientToClientTransfer, getClientTransferableAmount } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert, { investorTransactions, managerFeePercentage, managerFeeHistory });
     const { isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, setEditingInvestor, investorToDelete, setInvestorToDelete, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorName, setInvestorName, investorInitialCapital, setInvestorInitialCapital, investorInitialCapitalSource, setInvestorInitialCapitalSource, investorNotes, setInvestorNotes, isManager, setIsManager, investorTxType, setInvestorTxType, investorTxAmount, setInvestorTxAmount, investorTxNotes, setInvestorTxNotes, investorTxPaymentSource, setInvestorTxPaymentSource, investorTxToDelete, setInvestorTxToDelete, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, selectedInvestorId, setSelectedInvestorId, handleSaveInvestor, handleSaveInvestorTx, handleReinvestProfit, handleDeleteInvestor, openInvestorModal, closeInvestorModal,
     // Personal withdrawal (manager's daily personal expense)
     isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen, personalWithdrawalAmount, setPersonalWithdrawalAmount, personalWithdrawalMethod, setPersonalWithdrawalMethod, personalWithdrawalDate, setPersonalWithdrawalDate, personalWithdrawalNote, setPersonalWithdrawalNote, personalWithdrawalMode, setPersonalWithdrawalMode, personalWithdrawalPreview, editingPersonalExpenseTx, personalExpenseToDelete, setPersonalExpenseToDelete, openEditPersonalExpense, openPersonalWithdrawalModal, closePersonalWithdrawalModal, handleSavePersonalWithdrawal, handleDeletePersonalExpense, managerAvailableProfit, managerCapitalInvested, managerExists,
@@ -556,6 +561,7 @@ export default function MainApp({ user }: {
         t,
         transactions,
         deliveryExpenses,
+        debtWriteOffs,
         personalExpenses
     });
     const findClientTransferCounterpartInState = (tx: ClientTransactionDzd | null) => {
@@ -765,6 +771,7 @@ export default function MainApp({ user }: {
             periodStartTs,
             periodEndTs: nowTs,
             deliveryExpenses,
+            debtWriteOffs,
             treasuryTransactions,
         }), managerFeePercentage).ownerTotalProfit;
         const serviceProfitForPeriod = (periodStartTs: number) => manualAssetTransactions.reduce((sum, tx) => {
@@ -867,7 +874,7 @@ export default function MainApp({ user }: {
             ownerProfitAllTime: baseManagerProfitBreakdown.ownerTotalProfit + serviceProfitAllTime + digitalServiceProfitAllTime,
             last7DaysProfit,
         };
-    }, [pamLedger, clientTransactionsDzd, treasuryStats, investors, investorTransactions, transactions, managerFeePercentage, managerFeeHistory, deliveryExpenses, treasuryTransactions, manualAssetTransactions, digitalServiceTransactions, baseManagerProfitBreakdown]);
+    }, [pamLedger, clientTransactionsDzd, treasuryStats, investors, investorTransactions, transactions, managerFeePercentage, managerFeeHistory, deliveryExpenses, debtWriteOffs, treasuryTransactions, manualAssetTransactions, digitalServiceTransactions, baseManagerProfitBreakdown]);
     const pricingMtdProfit = useMemo(() => {
         const d = new Date();
         const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).getTime();

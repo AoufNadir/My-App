@@ -198,6 +198,18 @@ export const WRITER_COVERAGE_MATRIX: readonly WriterCoverageRow[] = [
         tests: ['initial debt creates receivable', 'remise clears receivable or advance without cash'],
     },
     {
+        id: 'clients.receivable-write-off',
+        writer: 'Client debt written off with Solder, counted as a project loss',
+        files: ['src/hooks/useClientHandlers.ts'],
+        legacyWrites: ['dzd_client_txs Remise solde with countsAsLoss'],
+        domainSummaries: [DASHBOARD_SUMMARY, 'clients_summary', 'investors_summary', FINANCIAL_SUMMARY],
+        dashboardFields: ['money.clientReceivables', 'clients.topOverdueClients', 'investors.managerProfitBreakdown', 'money.investorProfits', 'money.investorLiability', 'money.totalCapital', 'money.netOwnedCapital', 'recentOperations'],
+        incrementalDelta: 'receivable decrease plus profit allocation loss burden using historical state at effectiveAt',
+        atomicMechanism: 'single_firestore_transaction',
+        idempotencyPath: READ_MODEL_APPLIED_OPS_PATH,
+        tests: ['debt write-off is charged to profit like a project expense'],
+    },
+    {
         id: 'investors.capital',
         writer: 'Investor initial capital, top-up and withdrawal',
         files: ['src/hooks/useInvestorHandlers.ts'],
