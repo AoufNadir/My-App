@@ -472,4 +472,129 @@ test('getManagerFeeAt returns legacy 30 before first saved fee change', () => {
     assert.equal(getManagerFeeAt(6000, history), 10);
 });
 
+function managerOnlySale(sellPrice: number): Tx[] {
+    return [
+        tx({ id: 'buy-pe', type: 'buy', quantity: 1000, price: 200, total: 200000, timestamp: 1000 }),
+        tx({ id: 'sell-pe', type: 'sell', quantity: 1000, sell: sellPrice, timestamp: 2000 }),
+    ];
+}
+
+function capitalFundedPersonalExpense(profitAmount: number, capitalAmount: number, timestamp = 3000) {
+    const treasury = personalExpense({
+        id: 'pe-split',
+        amount: profitAmount + capitalAmount,
+        amountDzd: profitAmount + capitalAmount,
+        timestamp,
+        trackingPhase: 'current',
+        profitAmountDzd: profitAmount,
+        capitalAmountDzd: capitalAmount,
+    } as Partial<TreasuryTx> & Pick<TreasuryTx, 'id' | 'timestamp' | 'amount'>);
+    const rows = [
+        ...(profitAmount > 0 ? [investorTx({ id: 'pe-profit', investorId: 'manager', type: 'withdraw_profit', origin: 'personal_expense', amount: profitAmount, linkedTreasuryTxId: 'pe-split', timestamp })] : []),
+        investorTx({ id: 'pe-capital', investorId: 'manager', type: 'withdraw_capital', origin: 'personal_expense', amount: capitalAmount, linkedTreasuryTxId: 'pe-split', timestamp }),
+    ];
+    return { treasury, rows };
+}
+
+test('a personal expense paid partly from capital is charged to profit only for its profit part', () => {
+    // Profit 60 000, personal expense 100 000: 60 000 from profit, 40 000 from capital.
+    const { treasury, rows } = capitalFundedPersonalExpense(60000, 40000);
+    const result = deriveInvestorEconomics({
+        investors: [investor({ id: 'manager', isManager: true, initialCapital: 1000000 })],
+        investorTransactions: rows,
+        transactions: managerOnlySale(260),
+        managerFeePercentage: '30',
+        managerFeeHistory: [],
+        treasuryTransactions: [treasury],
+        personalExpenses: [treasury],
+    });
+    const manager = result.derivedInvestors[0];
+
+    assertMoney(manager.totalProfit, 60000);
+    assertMoney(manager.totalPersonalExpenses, 100000, 'The full expense is still shown');
+    assertMoney(manager.availableProfit, 0, 'The 40 000 taken from capital is not subtracted from profit again');
+    assertMoney(manager.capitalInvested, 960000);
+    assertMoney(manager.managerCapital?.personalExpensesChargedToCapital || 0, 40000);
+    assert.equal(manager.accountingWarnings.some((warning) => warning.code === 'available_profit_negative'), false);
+});
+
+test('later profit does not move a recorded capital-funded expense back onto profit', () => {
+    const { treasury, rows } = capitalFundedPersonalExpense(60000, 40000);
+    const result = deriveInvestorEconomics({
+        investors: [investor({ id: 'manager', isManager: true, initialCapital: 1000000 })],
+        investorTransactions: rows,
+        transactions: [
+            ...managerOnlySale(260),
+            tx({ id: 'buy-later', type: 'buy', quantity: 1000, price: 200, total: 200000, timestamp: 4000 }),
+            tx({ id: 'sell-later', type: 'sell', quantity: 1000, sell: 340, timestamp: 5000 }),
+        ],
+        managerFeePercentage: '30',
+        managerFeeHistory: [],
+        treasuryTransactions: [treasury],
+        personalExpenses: [treasury],
+    });
+    const manager = result.derivedInvestors[0];
+
+    assertMoney(manager.totalProfit, 200000);
+    assertMoney(manager.availableProfit, 140000);
+    assertMoney(manager.managerCapital?.retainedProfit || 0, 140000, 'Owner capital and available profit agree');
+    assertMoney(manager.managerCapital?.personalExpensesChargedToCapital || 0, 40000);
+    assertMoney(manager.capitalInvested, 1100000);
+});
+
+test('capital the manager spent personally no longer weighs in the profit split', () => {
+    // Manager and investor start with 1 000 000 each. The manager then spends 400 000 of
+    // capital personally, before a 100 000 profit with no manager fee.
+    const { treasury, rows } = capitalFundedPersonalExpense(0, 400000);
+    const result = deriveInvestorEconomics({
+        investors: [
+            investor({ id: 'manager', isManager: true, initialCapital: 1000000 }),
+            investor({ id: 'investor', initialCapital: 1000000 }),
+        ],
+        investorTransactions: rows,
+        transactions: [
+            tx({ id: 'buy-w', type: 'buy', quantity: 1000, price: 200, total: 200000, timestamp: 1000 }),
+            tx({ id: 'sell-w', type: 'sell', quantity: 1000, sell: 300, timestamp: 5000 }),
+        ],
+        managerFeePercentage: '0',
+        treasuryTransactions: [treasury],
+        personalExpenses: [treasury],
+    });
+    const manager = result.derivedInvestors.find((item) => item.id === 'manager');
+    const external = result.derivedInvestors.find((item) => item.id === 'investor');
+
+    assertMoney(manager?.totalProfit || 0, 37500, '600 000 of 1 600 000');
+    assertMoney(external?.totalProfit || 0, 62500, '1 000 000 of 1 600 000');
+});
+
+test('a manager profit withdrawal reduces owner capital and the dashboard available profit', () => {
+    const withdrawal = { id: 'pw-treasury', type: 'Retrait', source: 'Caisse', amount: 20000, origin: 'investor_profit_withdrawal', timestamp: 3000, date: '01/01/2026', time: '10:00' } as TreasuryTx;
+    const result = deriveInvestorEconomics({
+        investors: [investor({ id: 'manager', isManager: true, initialCapital: 1000000 })],
+        investorTransactions: [
+            investorTx({ id: 'pw', investorId: 'manager', type: 'withdraw_profit', origin: 'profit_withdrawal', amount: 20000, linkedTreasuryTxId: 'pw-treasury', timestamp: 3000 }),
+        ],
+        transactions: managerOnlySale(260),
+        managerFeePercentage: '30',
+        managerFeeHistory: [],
+        treasuryTransactions: [withdrawal],
+        personalExpenses: [],
+    });
+    const manager = result.derivedInvestors[0];
+
+    assertMoney(manager.availableProfit, 40000);
+    assertMoney(manager.capitalInvested, 1040000, 'Withdrawn profit left the business');
+
+    const reconciled = reconcileManagerProfitBreakdown({
+        breakdown: getManagerProfitBreakdown(result, 30),
+        openingCapital: 1000000,
+        actualOwnerCapital: 1040000,
+        serviceProfit: 0,
+        preTrackingPersonalExpenses: 0,
+    });
+    assertMoney(reconciled.availableProfit, 40000);
+    assertMoney(reconciled.historicalOwnerCapital, 1040000);
+    assertMoney(reconciled.ownerCapitalReconciliationDifference, 0);
+});
+
 console.log('useInvestorEconomics manager fee history tests passed');

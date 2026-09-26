@@ -78,6 +78,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
             investor,
             investorTransactions: orderedTransactions,
             personalExpenses,
+            profitWithdrawals: investor.profitWithdrawals,
         });
     }, [isManager, investor, orderedTransactions, personalExpenses]);
     const canReinvest = currentAvailable > 0.01;

@@ -12,6 +12,7 @@ import type {
 import { stableReadModelPayloadHash } from './initialSnapshotWriter';
 import { roundM } from '../utils/money';
 import { computePamLedger } from '../utils/pamLedger';
+import { splitManagerPersonalExpenses } from '../utils/managerCapital';
 import type { Tx } from '../types';
 
 export type ReadModelCurrency = 'USDT' | 'EUR';
@@ -42,6 +43,10 @@ export type InvestorPositionDelta = {
     managerTradingOwnerProfitDelta?: number;
     managerServiceProfitDelta?: number;
     managerPersonalExpensesDelta?: number;
+    /** Part of managerPersonalExpensesDelta paid from the manager's capital. */
+    managerPersonalExpensesFundedByCapitalDelta?: number;
+    /** Profit the manager withdrew in cash (not personal expenses). */
+    managerProfitWithdrawalsDelta?: number;
     managerActualOwnerCapitalDelta?: number;
     globalNetProfitDelta?: number;
 };
@@ -281,9 +286,17 @@ function applyInvestorsDelta(summary: InvestorsReadModel, delta: ReadModelDelta)
     const ownerTotalProfit = money(tradingOwnerProfit + serviceProfit);
     const personalExpenses = add(previousManager.personalExpenses, investorDelta.managerPersonalExpensesDelta || 0);
     const totalPersonalExpenses = add(previousManager.totalPersonalExpenses, investorDelta.managerPersonalExpensesDelta || 0);
-    const personalExpensesChargedToProfit = money(Math.max(0, Math.min(totalPersonalExpenses, Math.max(0, ownerTotalProfit))));
-    const personalExpensesChargedToCapital = money(Math.max(0, totalPersonalExpenses - personalExpensesChargedToProfit));
-    const retainedProfit = money(ownerTotalProfit - personalExpensesChargedToProfit);
+    const personalExpensesFundedByCapital = add(previousManager.personalExpensesFundedByCapital || 0, investorDelta.managerPersonalExpensesFundedByCapitalDelta || 0);
+    const profitWithdrawals = add(previousManager.profitWithdrawals || 0, investorDelta.managerProfitWithdrawalsDelta || 0);
+    const split = splitManagerPersonalExpenses({
+        totalProfit: ownerTotalProfit,
+        profitWithdrawals,
+        personalExpensesTotal: totalPersonalExpenses,
+        personalExpensesFundedByCapital,
+    });
+    const personalExpensesChargedToProfit = money(split.personalExpensesChargedToProfit);
+    const personalExpensesChargedToCapital = money(split.personalExpensesChargedToCapital);
+    const retainedProfit = money(split.retainedProfit);
     const availableProfit = money(Math.max(0, retainedProfit));
     const actualOwnerCapital = add(previousManager.actualOwnerCapital, investorDelta.managerActualOwnerCapitalDelta || 0);
     const historicalOwnerCapital = money(
@@ -312,6 +325,8 @@ function applyInvestorsDelta(summary: InvestorsReadModel, delta: ReadModelDelta)
             ownerTotalProfit,
             personalExpenses,
             totalPersonalExpenses,
+            personalExpensesFundedByCapital,
+            profitWithdrawals,
             personalExpensesChargedToProfit,
             personalExpensesChargedToCapital,
             retainedProfit,
