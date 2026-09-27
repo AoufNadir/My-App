@@ -28,7 +28,7 @@ type InvestorsDetailsCardProps = {
 };
 function DetailSection({ children }: { children: React.ReactNode }) {
     return (
-      <div className="bg-neutral-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-neutral-400">
+      <div className="bg-neutral-50 px-4 py-2 text-[13px] font-bold text-neutral-500">
         {children}
       </div>
     );
@@ -80,7 +80,7 @@ export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercent
           <span className="flex items-center gap-2">
             <span dir="ltr" className="text-base font-semibold">
               <bdi>{displayPercentage}</bdi>
-              <span className="ms-1 text-[0.85em] opacity-70 font-normal">%</span>
+              <span className="ms-1 text-[length:max(0.85em,12px)] opacity-70 font-normal">%</span>
             </span>
             <ChevronRightIcon className="w-4 h-4 text-neutral-400"/>
           </span>

@@ -136,7 +136,7 @@ function MainUtilityDialogsComponent({
                     {/* Backup section */}
                     <div className="rounded-xl border border-border bg-surface-muted p-3 space-y-2">
                         <p className="text-xs font-bold uppercase text-neutral-500 tracking-wide">Sauvegarde des données</p>
-                        <p className="text-[11px] text-neutral-400 leading-relaxed">
+                        <p className="text-xs text-neutral-400 leading-relaxed">
                             Exporte toutes vos données (transactions, clients, investisseurs, trésorerie…) en fichier JSON.
                         </p>
                         <Button

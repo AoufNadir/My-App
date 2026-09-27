@@ -327,7 +327,7 @@ function MonthlyPanel({
             {/* Compact daily stats card — unique info not shown elsewhere */}
             <Card>
                 <CardContent className="p-4">
-                    <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-neutral-400">
+                    <p className="mb-3 text-xs font-bold uppercase tracking-wide text-neutral-400">
                         {t('portfolio.profitHeatmap')}
                     </p>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -367,19 +367,19 @@ function ClientsPanel({ t, topProfitableRows, monthlyClientRanking, columns }: O
             {/* Top 2 summary tiles — compact */}
             <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-xl border border-border bg-surface-muted p-3">
-                    <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.topTradedClient')}</p>
+                    <p className="text-xs font-bold uppercase text-neutral-400 mb-1">{t('portfolio.topTradedClient')}</p>
                     {monthlyClientRanking.topTradedClient ? (<>
                         <p className="text-sm font-bold text-neutral-800 truncate">{monthlyClientRanking.topTradedClient.clientName}</p>
                         <CurrencyAmount value={monthlyClientRanking.topTradedClient.sellVolumeUsdt} currency="USDT" semantic="plain" size="sm" decimals={0}/>
-                        <p className="text-[9px] text-neutral-400 mt-0.5">{monthlyClientRanking.topTradedClient.sellCount} ventes</p>
+                        <p className="text-xs text-neutral-400 mt-0.5">{monthlyClientRanking.topTradedClient.sellCount} ventes</p>
                     </>) : <p className="text-xs text-neutral-400">—</p>}
                 </div>
                 <div className="rounded-xl border border-border bg-surface-muted p-3">
-                    <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.topProfitableClient')}</p>
+                    <p className="text-xs font-bold uppercase text-neutral-400 mb-1">{t('portfolio.topProfitableClient')}</p>
                     {monthlyClientRanking.topProfitableClient ? (<>
                         <p className="text-sm font-bold text-neutral-800 truncate">{monthlyClientRanking.topProfitableClient.clientName}</p>
                         <CurrencyAmount value={monthlyClientRanking.topProfitableClient.realizedProfit} currency="DZD" semantic="auto" showSign size="sm" decimals={0}/>
-                        <p className="text-[9px] text-neutral-400 mt-0.5">{monthlyClientRanking.topProfitableClient.sellCount} ventes</p>
+                        <p className="text-xs text-neutral-400 mt-0.5">{monthlyClientRanking.topProfitableClient.sellCount} ventes</p>
                     </>) : <p className="text-xs text-neutral-400">—</p>}
                 </div>
             </div>

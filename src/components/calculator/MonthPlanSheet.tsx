@@ -255,15 +255,15 @@ export function MonthPlanSheet({
                     <div className="mb-2 flex items-center justify-between gap-2">
                         <div>
                             <p className="text-sm font-extrabold text-neutral-900">{t('smartPricing.title')}</p>
-                            <p className="text-[11px] text-neutral-500">{t('smartPricing.subtitle')}</p>
+                            <p className="text-xs text-neutral-500">{t('smartPricing.subtitle')}</p>
                         </div>
-                        <span className={`text-[10px] font-semibold ${syncClass}`}>{syncLabel}</span>
+                        <span className={`text-xs font-semibold ${syncClass}`}>{syncLabel}</span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-neutral-200"><div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }}/></div>
                     <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                        <div><span className="block text-[9px] text-neutral-400">{t('smartPricing.goal')}</span><b dir="ltr" className="text-xs">{fmt0(goal)}</b></div>
-                        <div><span className="block text-[9px] text-neutral-400">{t('smartPricing.achieved')}</span><b dir="ltr" className="text-xs text-financial-profit">{fmt0(context.goal.mtdProfit)}</b></div>
-                        <div><span className="block text-[9px] text-neutral-400">{t('smartPricing.remaining')}</span><b dir="ltr" className="text-xs">{fmt0(context.goal.remainingGoal)}</b></div>
+                        <div><span className="block text-xs text-neutral-400">{t('smartPricing.goal')}</span><b dir="ltr" className="text-xs">{fmt0(goal)}</b></div>
+                        <div><span className="block text-xs text-neutral-400">{t('smartPricing.achieved')}</span><b dir="ltr" className="text-xs text-financial-profit">{fmt0(context.goal.mtdProfit)}</b></div>
+                        <div><span className="block text-xs text-neutral-400">{t('smartPricing.remaining')}</span><b dir="ltr" className="text-xs">{fmt0(context.goal.remainingGoal)}</b></div>
                     </div>
                 </section>
 

@@ -309,7 +309,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     {isClientSettlementTx && (<div className="rounded-2xl border border-border bg-surface-muted p-3">
                             <div className="mb-2 flex items-center justify-between gap-3">
                                 <Label>{t('transactions.settlementMethod')}</Label>
-                                <span className="rounded-full bg-surface px-2 py-1 text-[10px] font-semibold uppercase text-neutral-500 shadow-sm">
+                                <span className="rounded-full bg-surface px-2 py-1 text-xs font-semibold uppercase text-neutral-500 shadow-sm">
                                     {isClientPaymentReceived ? t('transactions.add') : t('transactions.withdraw')}
                                 </span>
                             </div>

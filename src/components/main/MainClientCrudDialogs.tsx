@@ -107,7 +107,7 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                     <div className="flex items-center justify-between rounded-xl border border-border bg-surface-muted px-4 py-3">
                         <div>
                             <p className="text-sm font-semibold text-neutral-700">Ce contact est un fournisseur</p>
-                            <p className="text-[11px] text-neutral-400 mt-0.5">Aucune fiche de dette — exclu du classement client</p>
+                            <p className="text-xs text-neutral-400 mt-0.5">Aucune fiche de dette — exclu du classement client</p>
                         </div>
                         <button type="button"
                             onClick={() => setClientIsFournisseur(!clientIsFournisseur)}
@@ -123,7 +123,7 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                     <div>
                         <Label>{t('clients.creditLimit')} (DZD)</Label>
                         <NumberInput value={clientCreditLimit} onChange={e => setClientCreditLimit(e.target.value)} className="mt-1" placeholder="Ex: 50 000 (0 = illimité)"/>
-                        <p className="mt-1 text-[11px] text-neutral-400">{t('clients.creditLimitHint')}</p>
+                        <p className="mt-1 text-xs text-neutral-400">{t('clients.creditLimitHint')}</p>
                     </div>
                     {!editingClient && (<div>
                             <Label>{t('transactions.initialBalance')} ({t('common.dinar')})</Label>
@@ -147,7 +147,7 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                     {duplicateMatches.map(({ client, fields, archived }) => (<div key={client.id} className="rounded-xl border border-border bg-surface-muted px-3 py-2">
                             <div className="flex items-center justify-between gap-2">
                                 <p className="text-sm font-bold text-neutral-800">{client.fullName || client.nom}</p>
-                                {archived && (<span className="rounded-full bg-neutral-200 px-2 py-0.5 text-[11px] font-bold text-neutral-600">Supprimé</span>)}
+                                {archived && (<span className="rounded-full bg-neutral-200 px-2 py-0.5 text-xs font-bold text-neutral-600">Supprimé</span>)}
                             </div>
                             <p className="text-xs text-neutral-500">{[client.phone, client.redotpayId, client.binanceEmail].filter(Boolean).join(' · ')}</p>
                             <p className="mt-1 text-xs font-semibold text-warning">{fields.map((field) => DUPLICATE_FIELD_LABELS[field]).join(' · ')}</p>

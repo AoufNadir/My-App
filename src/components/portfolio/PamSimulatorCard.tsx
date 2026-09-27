@@ -339,7 +339,7 @@ export function PamSimulatorCard({ portfolioStats, smartTargetUsdt = 0, parseAnd
 function QuickMetric({ label, value }: { label: ReactNode; value: ReactNode }) {
     return (
         <div className="rounded-lg bg-surface px-3 py-2">
-            <p className="text-[11px] font-bold uppercase text-neutral-500">{label}</p>
+            <p className="text-xs font-bold uppercase text-neutral-500">{label}</p>
             <div className="mt-1 font-semibold">{value}</div>
         </div>
     );

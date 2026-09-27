@@ -34,7 +34,7 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, variant = 'under
               <span className="max-w-full truncate">{tab.label}</span>
               {tab.badge !== undefined && (<span className={[
                             'inline-flex items-center justify-center rounded-full px-1.5 py-0.5',
-                            'text-[10px] font-bold leading-none min-w-[18px]',
+                            'text-xs font-bold leading-none min-w-[18px]',
                             isActive ? 'bg-primary-dark text-white' : 'bg-neutral-300 text-neutral-700'
                         ].join(' ')}>
                   {tab.badge}
@@ -68,7 +68,7 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, variant = 'under
             {tab.label}
             {tab.badge !== undefined && (<span className={[
                         'inline-flex items-center justify-center rounded-full px-1.5 py-0.5',
-                        'text-[10px] font-bold leading-none min-w-[18px]',
+                        'text-xs font-bold leading-none min-w-[18px]',
                         isActive ? 'bg-primary/10 text-primary' : 'bg-neutral-100 text-neutral-500'
                     ].join(' ')}>
                 {tab.badge}

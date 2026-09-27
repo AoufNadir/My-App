@@ -55,14 +55,14 @@ const InvestorCard: React.FC<InvestorCardProps> = ({ name, sharePercent, capital
     {/* الصف الثاني — رأس المال + الربح */}
     <div className="grid grid-cols-2 gap-3 border-t border-neutral-100 pt-3">
       <div className="flex flex-col gap-0.5">
-        <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">
+        <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">
           رأس المال
         </span>
         <CurrencyAmount value={capital} currency={capitalCurrency} size="md"/>
       </div>
 
       {profit !== undefined && (<div className="flex flex-col gap-0.5 items-end">
-          <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">
+          <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">
             الربح / الخسارة
           </span>
           <ProfitLossDisplay value={profit} currency={profitCurrency ?? capitalCurrency} size="md" showSign/>

@@ -86,13 +86,13 @@ export function InvestorsListSection({ investors, capitalSnapshot, managerProfit
                           <CurrencyAmount value={displayedCapital} currency="DZD" size="lg" decimals={0}/>
                           {!isManager && (
                             <div className="mt-1 flex items-baseline justify-end gap-1.5">
-                              <span className={`text-[10px] font-semibold ${requiresRegularization ? 'text-financial-loss' : 'text-neutral-400'}`}>
+                              <span className={`text-xs font-semibold ${requiresRegularization ? 'text-financial-loss' : 'text-neutral-400'}`}>
                                 {requiresRegularization ? t('investors.balanceToRegularize') : t('investors.availableProfit')}
                               </span>
                               <CurrencyAmount value={requiresRegularization ? Math.abs(availableProfit) : availableProfit} currency="DZD" semantic={requiresRegularization ? 'loss' : 'auto'} size="md" showSign={!requiresRegularization} decimals={0}/>
                             </div>
                           )}
-                          {!isManager && investor.roi !== null && investor.roi !== undefined && (<div className={`mt-0.5 flex items-baseline justify-end gap-1 text-[10px] font-bold tabular-nums ${investor.roi > 0 ? 'text-financial-profit' : investor.roi < 0 ? 'text-financial-loss' : 'text-neutral-400'}`} dir="ltr">
+                          {!isManager && investor.roi !== null && investor.roi !== undefined && (<div className={`mt-0.5 flex items-baseline justify-end gap-1 text-xs font-bold tabular-nums ${investor.roi > 0 ? 'text-financial-profit' : investor.roi < 0 ? 'text-financial-loss' : 'text-neutral-400'}`} dir="ltr">
                             <span className="text-neutral-400">{t('investors.cumulativeReturn')}</span>
                             <span>{investor.roi > 0 ? '+' : ''}{investor.roi.toFixed(1)}%</span>
                           </div>)}

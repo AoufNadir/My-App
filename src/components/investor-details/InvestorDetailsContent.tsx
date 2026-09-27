@@ -118,7 +118,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
             value: 0,
             display: (<span className="text-lg font-semibold">
               <bdi>{sharePercentDisplay}</bdi>
-              <span className="ms-1 text-[0.85em] opacity-70 font-normal">%</span>
+              <span className="ms-1 text-[length:max(0.85em,12px)] opacity-70 font-normal">%</span>
             </span>),
         },
         {
@@ -126,7 +126,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
             value: 0,
             display: roiDisplay !== null ? (<span className={`text-lg font-semibold ${(investor as any).roi > 0 ? 'text-financial-profit' : (investor as any).roi < 0 ? 'text-financial-loss' : 'text-neutral-500'}`}>
               <bdi>{(investor as any).roi > 0 ? '+' : ''}{roiDisplay}</bdi>
-              <span className="ms-1 text-[0.85em] opacity-70 font-normal">%</span>
+              <span className="ms-1 text-[length:max(0.85em,12px)] opacity-70 font-normal">%</span>
             </span>) : <span className="text-lg text-neutral-400">-</span>,
         },
     ];
@@ -207,7 +207,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
               </div>
               {canReinvest
                 ? <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
-                : <span className="text-[10px] font-bold text-neutral-300 shrink-0">—</span>}
+                : <span className="text-xs font-bold text-neutral-300 shrink-0">—</span>}
             </button>)}
             </>)}
 
@@ -247,7 +247,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
                 <span className="text-sm text-neutral-500">{t('investors.fundShare')}</span>
                 <span className="text-base font-semibold">
                   <bdi>{sharePercentDisplay}</bdi>
-                  <span className="ms-1 text-[0.85em] opacity-70 font-normal">%</span>
+                  <span className="ms-1 text-[length:max(0.85em,12px)] opacity-70 font-normal">%</span>
                 </span>
               </div>)}
             </CardContent>

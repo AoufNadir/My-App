@@ -45,8 +45,8 @@ export const ProfitHistoryChart: React.FC<ProfitHistoryChartProps> = ({ data }) 
                                 </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_COLORS.border}/>
-                            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: CHART_COLORS.tick, fontSize: 10 }} minTickGap={30}/>
-                            <YAxis axisLine={false} tickLine={false} tick={{ fill: CHART_COLORS.tick, fontSize: 10 }}/>
+                            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: CHART_COLORS.tick, fontSize: 12 }} minTickGap={30}/>
+                            <YAxis axisLine={false} tickLine={false} tick={{ fill: CHART_COLORS.tick, fontSize: 12 }}/>
                             <Tooltip content={<CustomTooltip />}/>
                             <Area type="monotone" dataKey="profit" stroke={CHART_COLORS.profit} strokeWidth={2} fillOpacity={1} fill="url(#profitGradient)"/>
                         </AreaChart>

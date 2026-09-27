@@ -89,7 +89,7 @@ export function GlobalSearchDialog({ isOpen, onClose, query, setQuery, results, 
       <ModalContent className="p-4 space-y-3">
         <div className="relative">
           <Input value={query} onChange={(e) => { setQuery(e.target.value); }} placeholder={placeholder} autoFocus className="pe-16"/>
-          <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 rounded border border-border bg-surface-muted px-1.5 py-0.5 text-[10px] font-bold text-neutral-400 hidden sm:block">
+          <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 rounded border border-border bg-surface-muted px-1.5 py-0.5 text-xs font-bold text-neutral-400 hidden sm:block">
             Ctrl K
           </span>
         </div>
@@ -104,7 +104,7 @@ export function GlobalSearchDialog({ isOpen, onClose, query, setQuery, results, 
               <p className="text-xs text-neutral-400">pour "<span className="font-semibold">{query}</span>"</p>
             </div>) : (<div>
               {groups.map((group) => (<div key={group.label}>
-                  <div className="sticky top-0 z-10 bg-surface-muted px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-400 border-b border-border">
+                  <div className="sticky top-0 z-10 bg-surface-muted px-3 py-1.5 text-[13px] font-bold text-neutral-500 border-b border-border">
                     {group.label} ({group.items.length})
                   </div>
                   <div className="divide-y divide-border">
@@ -118,7 +118,7 @@ export function GlobalSearchDialog({ isOpen, onClose, query, setQuery, results, 
                               <p className="font-semibold truncate text-sm">{result.title}</p>
                               <p className="mt-0.5 truncate text-xs text-neutral-500">{result.subtitle || '—'}</p>
                             </div>
-                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${group.color}`}>
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold uppercase tracking-wide ${group.color}`}>
                               {group.label}
                             </span>
                           </div>
@@ -128,7 +128,7 @@ export function GlobalSearchDialog({ isOpen, onClose, query, setQuery, results, 
                 </div>))}
             </div>)}
         </div>
-        {results.length > 0 && (<p className="text-center text-[10px] text-neutral-400">
+        {results.length > 0 && (<p className="text-center text-xs text-neutral-400">
             ↑↓ naviguer · Entrée sélectionner · Échap fermer
           </p>)}
       </ModalContent>
@@ -179,7 +179,7 @@ function WalletChoiceCard({ wallet, balance, selected = false, readOnly = false,
     const content = (<>
       <span className="text-sm font-bold text-neutral-900">{wallet}</span>
       <span className="mt-1 text-xs font-medium text-neutral-500">{formatMoney(balance, 'DZD')}</span>
-      {helperText && <span className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">{helperText}</span>}
+      {helperText && <span className="mt-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">{helperText}</span>}
     </>);
     const classes = [
         `flex ${readOnly ? 'min-h-[66px]' : 'min-h-[74px]'} w-full flex-col items-start justify-center rounded-xl border px-4 py-3 text-start transition-colors`,

@@ -13,7 +13,7 @@ export function KpiCompactCard({ label, value, currency = 'DZD', semantic = 'pla
     return (<div className={`rounded-xl border border-border bg-surface p-3 shadow-card ${className}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-[11px] font-semibold uppercase text-neutral-500">{label}</p>
+          <p className="truncate text-xs font-semibold uppercase text-neutral-500">{label}</p>
           <div className="mt-1">
             <CurrencyAmount value={value} currency={currency ?? undefined} semantic={semantic} size="lg"/>
           </div>

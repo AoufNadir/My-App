@@ -10,7 +10,7 @@ export function MonthlyRecapBanner({ recap, onDismiss }: MonthlyRecapBannerProps
         <div className="absolute inset-0 -z-10 bg-primary/10"/>
         <div className="flex items-start justify-between gap-3">
             <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
                     Récap mensuel
                 </p>
                 <h3 className="mt-1 text-base font-semibold">{recap.monthLabel}</h3>

@@ -257,13 +257,13 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                     </div>
                   </div>
                   <div className="shrink-0 rounded-md border border-border bg-surface-muted px-4 py-3 text-end">
-                    <div className="text-[11px] font-black uppercase tracking-[0.12em] text-neutral-500">Export image</div>
+                    <div className="text-xs font-black uppercase tracking-[0.12em] text-neutral-500">Export image</div>
                     <div className="mt-1 text-sm font-bold text-neutral-700">{new Date().toLocaleString('fr-FR')}</div>
                   </div>
                 </div>
 
                 <div className="mt-6">
-                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-secondary">Compte client</div>
+                  <div className="text-xs font-black uppercase tracking-[0.14em] text-secondary">Compte client</div>
                   <div className="mt-1 text-[34px] font-black leading-tight text-neutral-900">{getClientFullName(summaryClient)}</div>
                   <div className="mt-1 text-sm font-semibold text-neutral-500">
                     {summaryClient.phone || 'Sans téléphone'}
@@ -331,7 +331,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                     <SectionHeading icon={<RefreshCwIcon className="w-4 h-4"/>}>
                       {t('transactions.recentTransactions')}
                     </SectionHeading>
-                    <span className="text-[11px] text-neutral-500">{selectedClientTxs.length} opération(s)</span>
+                    <span className="text-xs text-neutral-500">{selectedClientTxs.length} opération(s)</span>
                   </div>
 
                   <div className="rounded-xl overflow-hidden border border-border">

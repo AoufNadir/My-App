@@ -55,7 +55,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                                         </button>
                                     ))}
                                 </div>
-                                <p className="mt-1 text-[10px] text-neutral-400">
+                                <p className="mt-1 text-xs text-neutral-400">
                                     {investorInitialCapitalSource === 'none'
                                         ? t('investorDialog.openingBalanceHint')
                                         : template('investorDialog.cashAddedHint', { source: investorInitialCapitalSource })}

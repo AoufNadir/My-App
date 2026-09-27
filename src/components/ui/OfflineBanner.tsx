@@ -67,7 +67,7 @@ export const OfflineBanner = () => {
                         <WifiOffIcon/>
                         <div>
                             <p className="text-xs font-bold">Mode hors ligne</p>
-                            <p className="text-[10px] opacity-80">Les données affichées sont en cache local. Les modifications seront synchronisées au retour.</p>
+                            <p className="text-xs opacity-80">Les données affichées sont en cache local. Les modifications seront synchronisées au retour.</p>
                         </div>
                     </div>
                     <div className="shrink-0 flex flex-col items-center">
