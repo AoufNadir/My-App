@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const WifiOffIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4 shrink-0">
@@ -13,6 +14,7 @@ const WifiIcon = () => (
 );
 
 export const OfflineBanner = () => {
+    const { t } = useLanguage();
     const [online, setOnline] = useState<boolean>(
         typeof navigator === 'undefined' ? true : navigator.onLine
     );
@@ -46,34 +48,25 @@ export const OfflineBanner = () => {
         };
     }, []);
 
+    // One thin line over the top of the screen: it does not push the page down.
     // "Back online" toast
     if (showReconnected) {
         return (
             <div role="status" aria-live="polite"
-                className="anim-fade-slide-down fixed inset-x-0 top-0 z-[60] flex items-center justify-center gap-2 bg-financial-profit px-4 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] text-xs font-bold text-white shadow-md">
-                <WifiIcon/>
-                <span>Connexion rétablie — données synchronisées ✓</span>
+                className="anim-fade-slide-down fixed inset-x-0 top-0 z-[60] flex items-center justify-center gap-2 border-b border-success/30 bg-financial-profit-bg px-4 pb-1.5 pt-[calc(0.375rem+env(safe-area-inset-top))] text-xs font-bold text-neutral-900">
+                <span className="text-financial-profit"><WifiIcon/></span>
+                <span>{t('common.backOnline')}</span>
             </div>
         );
     }
 
-    // Offline banner
+    // Offline line
     if (!online) {
         return (
             <div role="status" aria-live="polite"
-                className="fixed inset-x-0 top-0 z-[60] shadow-md">
-                <div className="flex items-center justify-between gap-3 bg-warning px-4 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] text-white">
-                    <div className="flex items-center gap-2 min-w-0">
-                        <WifiOffIcon/>
-                        <div>
-                            <p className="text-xs font-bold">Mode hors ligne</p>
-                            <p className="text-xs opacity-80">Les données affichées sont en cache local. Les modifications seront synchronisées au retour.</p>
-                        </div>
-                    </div>
-                    <div className="shrink-0 flex flex-col items-center">
-                        <div className="h-2 w-2 rounded-full bg-white/40 animate-pulse"/>
-                    </div>
-                </div>
+                className="fixed inset-x-0 top-0 z-[60] flex items-center justify-center gap-2 border-b border-warning/40 bg-financial-debt-bg px-4 pb-1.5 pt-[calc(0.375rem+env(safe-area-inset-top))] text-xs font-bold text-neutral-900">
+                <span className="text-financial-debt"><WifiOffIcon/></span>
+                <span className="min-w-0 truncate">{t('common.offlineLine')}</span>
             </div>
         );
     }

@@ -15,6 +15,7 @@ const areDailyOverviewsEqual = (prev: any, next: any) => (prev?.caisse === next?
     && prev?.baridi === next?.baridi
     && prev?.activeClients === next?.activeClients
     && prev?.todayProfit === next?.todayProfit
+    && prev?.weekToDateProfit === next?.weekToDateProfit
     && prev?.monthToDateProfit === next?.monthToDateProfit
     && prev?.yearToDateProfit === next?.yearToDateProfit
     && prev?.allTimeProfit === next?.allTimeProfit
@@ -72,6 +73,12 @@ const areDashboardPagePropsEqual = (prev: any, next: any) => (prev?.portfolioSta
     && prev?.clientTransactionsDzd === next?.clientTransactionsDzd
     && prev?.clientsDzd === next?.clientsDzd
     && prev?.overdueDebtClients === next?.overdueDebtClients
+    && prev?.overdueDebtClientCount === next?.overdueDebtClientCount
+    && prev?.investorBreakdown === next?.investorBreakdown
+    && prev?.monthlyGoal === next?.monthlyGoal
+    && prev?.weeklyRecap === next?.weeklyRecap
+    && prev?.monthlyRecap === next?.monthlyRecap
+    && prev?.showNotificationPrompt === next?.showNotificationPrompt
     && prev?.investors === next?.investors
     && prev?.managerProfitBreakdown === next?.managerProfitBreakdown
     && prev?.treasuryTransactions === next?.treasuryTransactions
