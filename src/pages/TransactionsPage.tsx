@@ -149,15 +149,19 @@ export function TransactionsPage({
     providedProfitByTxId,
   });
 
+  // One pass over the listed operations (the list can hold thousands of them).
   const stats = useMemo(() => {
-    const allTxs: DisplayTx[] = Object.values(groupedTransactions).flat() as DisplayTx[];
-    return {
-      total:    allTxs.length,
-      crypto:   allTxs.filter((tx) => tx.category === 'crypto').length,
-      client:   allTxs.filter((tx) => tx.category === 'client').length,
-      treasury: allTxs.filter((tx) => tx.category === 'treasury').length,
-      digital:  allTxs.filter((tx) => tx.category === 'digital_service').length,
-    };
+    const counts = { total: 0, crypto: 0, client: 0, treasury: 0, digital: 0 };
+    for (const txs of Object.values(groupedTransactions) as DisplayTx[][]) {
+      for (const tx of txs) {
+        counts.total += 1;
+        if (tx.category === 'crypto') counts.crypto += 1;
+        else if (tx.category === 'client') counts.client += 1;
+        else if (tx.category === 'treasury') counts.treasury += 1;
+        else if (tx.category === 'digital_service') counts.digital += 1;
+      }
+    }
+    return counts;
   }, [groupedTransactions]);
 
   return (

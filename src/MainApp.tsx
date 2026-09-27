@@ -243,6 +243,20 @@ export default function MainApp({ user }: {
             || (isDataLoaded && typeof navigator !== 'undefined' && navigator.onLine === false)
             || hasUsableLocalCache);
     const isFinancialDataReady = canUseFinancialData && isSettingsLoaded;
+    // Load the Opérations page code while the app is idle, so the first tap on it does not wait
+    // for the download (after an update the phone has not fetched it yet). Offline, or if the
+    // download fails, nothing changes: opening the page imports it as before.
+    useEffect(() => {
+        if (!isFinancialDataReady || typeof window === 'undefined' || navigator.onLine === false)
+            return;
+        const preload = () => { import('./pages/TransactionsPage').catch(() => { }); };
+        if (typeof window.requestIdleCallback === 'function') {
+            const idleId = window.requestIdleCallback(preload, { timeout: 5000 });
+            return () => window.cancelIdleCallback(idleId);
+        }
+        const timeoutId = window.setTimeout(preload, 2000);
+        return () => window.clearTimeout(timeoutId);
+    }, [isFinancialDataReady]);
     // Figures come from the phone's cache until the server has answered once;
     // financial writes stay locked during that window (see setFinancialWriteGate).
     const isAwaitingServerSync = !shouldUseDashboardReadModel && isFinancialDataReady && !dataStatus.hasServerSynced
