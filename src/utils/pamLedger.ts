@@ -15,8 +15,12 @@ export interface PamLedgerOptions {
      */
     eurFundedCostFromTs?: number;
 }
-/** 0: every USDT purchase paid in EUR follows the EUR PAM of the ledger. */
-export const EUR_FUNDED_COST_RULE_FROM_TS = 0;
+/**
+ * 27/09/2026 00:00 in Algiers (UTC+1). The owner chose to apply the rule from the day the
+ * version is deployed: USDT bought with EUR before keep their saved total, so profits already
+ * distributed do not change. Move it to the deploy day if the deploy happens later.
+ */
+export const EUR_FUNDED_COST_RULE_FROM_TS = Date.UTC(2026, 8, 26, 23);
 export interface PamLedgerEurFundedBuy {
     buyTxId: string;
     withdrawalTxId: string;

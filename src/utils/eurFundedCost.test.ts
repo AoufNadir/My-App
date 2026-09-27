@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 
-import { computePamLedger, summarizeEurFundedCostImpact } from './pamLedger';
+import { computePamLedger, EUR_FUNDED_COST_RULE_FROM_TS, summarizeEurFundedCostImpact } from './pamLedger';
 import type { Tx } from '../types';
 
 const tx = (fields: Record<string, unknown>) => ({ date: '01/09/2026', time: '10:00', ...fields }) as unknown as Tx;
 const T = (day: number) => new Date(2026, 8, day, 10).getTime();
+// The purchases below are dated in September 2026, before the rule's start date: most cases
+// apply the rule to the whole history to test how it values them.
+const ALL_HISTORY = { eurFundedCostFromTs: 0 };
 
 // 1 000 EUR bought, then turned into 1 000 USDT (1 EUR = 1 USDT). The form saved the USDT at
 // the EUR PAM of that moment, 250 DZD: 250 000 DZD. Then 500 USDT are sold at 260 DZD.
@@ -20,11 +23,11 @@ const usdtAdded = (ledger: ReturnType<typeof computePamLedger>) => ledger.operat
 // Nothing changed since the entry: the ledger gives the saved total, and the card stays hidden.
 {
     const rows = [eurBuy(250_000), ...conversion, sell];
-    const ledger = computePamLedger(rows);
+    const ledger = computePamLedger(rows, ALL_HISTORY);
     assert.equal(usdtAdded(ledger), 250_000);
     assert.equal(ledger.profitByTxId.sell.derivedProfit, 5_000);
     assert.deepEqual(ledger.eurFundedBuys.map((buy) => [buy.buyTxId, buy.withdrawalTxId, buy.ledgerCost, buy.applied]), [['usdt-buy', 'eur-out', 250_000, true]]);
-    assert.equal(summarizeEurFundedCostImpact(rows), null);
+    assert.equal(summarizeEurFundedCostImpact(rows, ALL_HISTORY), null);
 }
 
 // The old EUR purchase is corrected to 252 000 DZD, so the EUR PAM that day is 252. The EUR
@@ -32,7 +35,7 @@ const usdtAdded = (ledger: ReturnType<typeof computePamLedger>) => ledger.operat
 // which left a phantom profit.
 {
     const rows = [eurBuy(252_000), ...conversion, sell];
-    const ledger = computePamLedger(rows);
+    const ledger = computePamLedger(rows, ALL_HISTORY);
     assert.equal(eurRemoved(ledger), 252_000);
     assert.equal(usdtAdded(ledger), 252_000);
     assert.equal(ledger.profitByTxId.sell.derivedProfit, 4_000);
@@ -43,7 +46,7 @@ const usdtAdded = (ledger: ReturnType<typeof computePamLedger>) => ledger.operat
     assert.equal(usdtAdded(withSavedTotals), 250_000);
     assert.equal(withSavedTotals.profitByTxId.sell.derivedProfit, 5_000);
 
-    assert.deepEqual(summarizeEurFundedCostImpact(rows), {
+    assert.deepEqual(summarizeEurFundedCostImpact(rows, ALL_HISTORY), {
         buyCount: 1,
         changedBuyCount: 1,
         costChangeDzd: 2_000,
@@ -69,7 +72,7 @@ const usdtAdded = (ledger: ReturnType<typeof computePamLedger>) => ledger.operat
         tx({ id: 'eur-buy-2', type: 'buy', currency: 'EUR', quantity: 1_000, total: 260_000, timestamp: T(5) }),
         tx({ id: 'eur-out', type: 'Retrait Manuel', currency: 'EUR', quantity: 1_000, linkedTxId: 'usdt-buy', timestamp: T(6) }),
     ];
-    const ledger = computePamLedger(rows);
+    const ledger = computePamLedger(rows, ALL_HISTORY);
     assert.equal(eurRemoved(ledger), 256_000);
     assert.equal(usdtAdded(ledger), 256_000);
 }
@@ -77,16 +80,38 @@ const usdtAdded = (ledger: ReturnType<typeof computePamLedger>) => ledger.operat
 // No usable EUR PAM, an EUR row without link (older data) or two EUR rows for one purchase:
 // the saved total is kept.
 {
-    const noEurCost = computePamLedger([tx({ id: 'eur-add', type: 'Ajout Manuel', currency: 'EUR', quantity: 1_000, timestamp: T(1) }), ...conversion]);
+    const noEurCost = computePamLedger([tx({ id: 'eur-add', type: 'Ajout Manuel', currency: 'EUR', quantity: 1_000, timestamp: T(1) }), ...conversion], ALL_HISTORY);
     assert.equal(usdtAdded(noEurCost), 250_000);
     assert.equal(noEurCost.eurFundedBuys[0].applied, false);
 
-    const unlinked = computePamLedger([eurBuy(252_000), { ...conversion[0], linkedTxId: undefined } as Tx, conversion[1]]);
+    const unlinked = computePamLedger([eurBuy(252_000), { ...conversion[0], linkedTxId: undefined } as Tx, conversion[1]], ALL_HISTORY);
     assert.equal(usdtAdded(unlinked), 250_000);
     assert.deepEqual(unlinked.eurFundedBuys, []);
 
-    const twoRows = computePamLedger([eurBuy(252_000), conversion[0], { ...conversion[0], id: 'eur-out-2', quantity: 10 } as Tx, conversion[1]]);
+    const twoRows = computePamLedger([eurBuy(252_000), conversion[0], { ...conversion[0], id: 'eur-out-2', quantity: 10 } as Tx, conversion[1]], ALL_HISTORY);
     assert.equal(usdtAdded(twoRows), 250_000);
+}
+
+// The owner's choice: the rule starts on the deploy day (27/09/2026). The same corrected
+// history keeps its saved total and its profit, so nothing already distributed moves, and
+// the Stock page card stays hidden. A purchase from that day on follows the EUR PAM.
+{
+    assert.equal(EUR_FUNDED_COST_RULE_FROM_TS, new Date('2026-09-27T00:00:00+01:00').getTime());
+    const rows = [eurBuy(252_000), ...conversion, sell];
+    const ledger = computePamLedger(rows);
+    assert.equal(usdtAdded(ledger), 250_000);
+    assert.equal(ledger.profitByTxId.sell.derivedProfit, 5_000);
+    assert.equal(ledger.eurFundedBuys[0].applied, false);
+    assert.equal(summarizeEurFundedCostImpact(rows), null);
+
+    const later = (fields: Record<string, unknown>) => tx({ ...fields, timestamp: EUR_FUNDED_COST_RULE_FROM_TS + Number(fields.timestamp) });
+    const afterStart = computePamLedger([
+        later({ id: 'eur-buy', type: 'buy', currency: 'EUR', quantity: 1_000, total: 252_000, timestamp: 1_000 }),
+        later({ id: 'eur-out', type: 'Retrait Manuel', currency: 'EUR', quantity: 1_000, linkedTxId: 'usdt-buy', timestamp: 2_000 }),
+        later({ id: 'usdt-buy', type: 'buy', currency: 'USDT', quantity: 1_000, price: 250, total: 250_000, purchaseFundingCurrency: 'EUR', timestamp: 2_001 }),
+    ]);
+    assert.equal(usdtAdded(afterStart), 252_000);
+    assert.equal(afterStart.eurFundedBuys[0].applied, true);
 }
 
 console.log('eurFundedCost tests passed');
