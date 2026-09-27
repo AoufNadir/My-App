@@ -28,10 +28,11 @@ type NewTransactionMenuDialogProps = {
 type PortfolioActionProps = {
   currency: 'USDT' | 'EUR';
   direction: 'buy' | 'sell';
+  verb: string;
   onClick: () => void;
 };
 
-function PortfolioActionButton({ currency, direction, onClick }: PortfolioActionProps) {
+function PortfolioActionButton({ currency, direction, verb, onClick }: PortfolioActionProps) {
   const isBuy = direction === 'buy';
   const Icon = isBuy ? ArrowDownLeftIcon : ArrowUpRightIcon;
   return (
@@ -47,7 +48,7 @@ function PortfolioActionButton({ currency, direction, onClick }: PortfolioAction
         <Icon className="h-4 w-4" />
       </div>
       <div className="text-start leading-tight">
-        <p className="text-sm font-semibold text-white">{isBuy ? 'Acheter' : 'Vendre'}</p>
+        <p className="text-sm font-semibold text-white">{verb}</p>
         <p className="mt-1 text-lg font-bold tracking-normal">{currency}</p>
       </div>
     </Button>
@@ -105,28 +106,32 @@ export function NewTransactionMenuDialog({
       <ModalContent className="space-y-5 p-4 pt-0">
         <section>
           <SectionHeading icon={<BriefcaseIcon className="w-4 h-4" />} className="mb-3">
-            Portefeuille
+            {t('nav.portfolio')}
           </SectionHeading>
 
           <div className="grid grid-cols-2 gap-3">
             <PortfolioActionButton
               currency="USDT"
               direction="buy"
+              verb={t('transactions.buyVerb')}
               onClick={() => runAfterClose(() => openForm('buy_usdt'))}
             />
             <PortfolioActionButton
               currency="USDT"
               direction="sell"
+              verb={t('transactions.sellVerb')}
               onClick={() => runAfterClose(() => openForm('sell_usdt'))}
             />
             <PortfolioActionButton
               currency="EUR"
               direction="buy"
+              verb={t('transactions.buyVerb')}
               onClick={() => runAfterClose(() => openForm('buy_eur'))}
             />
             <PortfolioActionButton
               currency="EUR"
               direction="sell"
+              verb={t('transactions.sellVerb')}
               onClick={() => runAfterClose(() => openForm('sell_eur'))}
             />
           </div>
@@ -140,14 +145,14 @@ export function NewTransactionMenuDialog({
           <div className="space-y-2">
             {openPersonalWithdrawalModal && (
               <FinancialActionRow
-                title="Mon prélèvement"
+                title={t('transactions.myWithdrawal')}
                 subtitle={t('personalExpenses.personalExpense') as string}
                 icon={<BanknotesIcon className="h-5 w-5" />}
                 onClick={() => runAfterClose(openPersonalWithdrawalModal)}
               />
             )}
             <FinancialActionRow
-              title="Virement interne"
+              title={t('transactions.internalTransferShort')}
               subtitle={t('transactions.caisseAndBaridi')}
               icon={<RefreshCwIcon className="h-5 w-5" />}
               onClick={() => runAfterClose(openWalletTransferModal)}

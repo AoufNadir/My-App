@@ -311,6 +311,7 @@ export function PersonalExpensesPage({
         <div className="anim-page-in space-y-5">
             <PageHeader
                 title={t('nav.expenses') as string}
+                hideTitleOnPhone
                 subtitle={t('personalExpenses.subtitle') as string}
                 actions={onExportReport && (
                     <Button

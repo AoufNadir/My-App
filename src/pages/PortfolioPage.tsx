@@ -128,6 +128,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
         <div className="anim-page-in space-y-4">
             <PageHeader
                 title={t('finance.stock') as string}
+                hideTitleOnPhone
                 subtitle={t('portfolio.currentStatus') as string}
             />
 

@@ -64,6 +64,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
         <div className="anim-page-in space-y-4">
             <PageHeader
                 title={t('nav.analytics') as string}
+                hideTitleOnPhone
                 subtitle={`${selectedMonthLabel} ${props.usdtReportYear}`}
             />
 
