@@ -92,6 +92,9 @@ export function OwnerProfitBreakdownCard({ breakdown }: { breakdown: ManagerProf
             <p className="px-4 pb-4 text-[11px] text-neutral-400">
                 {t('investors.projectNetProfit') as string}: <CurrencyAmount value={breakdown.projectNetProfit} currency="DZD" semantic="plain" size="sm" decimals={0} />
                 {' · '}{t('investors.deliveryExpenses') as string}: <CurrencyAmount value={breakdown.totalDeliveryExpenses} currency="DZD" semantic="plain" size="sm" decimals={0} />
+                {(breakdown.totalDebtWriteOffs ?? 0) > 0 && (<>
+                    {' · '}{t('investors.debtWriteOffs') as string}: <CurrencyAmount value={breakdown.totalDebtWriteOffs ?? 0} currency="DZD" semantic="plain" size="sm" decimals={0} />
+                </>)}
             </p>
         </Card>
     );

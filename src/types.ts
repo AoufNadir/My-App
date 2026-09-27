@@ -184,7 +184,7 @@ export interface ClientTransactionDzd {
     date: string;
     time: string;
     montant: number; // Positive = Credit (Advance), Negative = Debt
-    type: 'Règlement Reçu' | 'Paiement Effectué' | 'Vente USDT' | 'Vente EUR' | 'Achat EUR' | 'Vente service numérique' | 'Solde Initial' | 'Transfert Entrant' | 'Transfert Sortant' | 'Ajustement Solde';
+    type: 'Règlement Reçu' | 'Paiement Effectué' | 'Vente USDT' | 'Vente EUR' | 'Achat EUR' | 'Vente service numérique' | 'Solde Initial' | 'Transfert Entrant' | 'Transfert Sortant' | 'Ajustement Solde' | 'Remise solde';
     notes?: string;
     /** Free-form labels for filtering (shared with Tx tags). */
     tags?: string[];
@@ -194,6 +194,8 @@ export interface ClientTransactionDzd {
     /** ISO yyyy-mm-dd due date for credit debt lots. */
     creditDueDate?: string;
     affectsBalance?: boolean; // false = history-only row that should not alter client balance
+    /** Remise solde clearing a client's debt: the amount is a loss charged to the project profit. */
+    countsAsLoss?: boolean;
     origin?: 'adjustment' | 'digital_service_sale';
     linkedDigitalServiceTxId?: string;
 }

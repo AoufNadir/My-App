@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
-import { ClientDzd, ClientTransactionDzd, Investor, TreasuryTx } from '../types';
+import { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, TreasuryTx } from '../types';
 import { now, parseAndEvaluate } from '../utils';
 import { normalizeLedgerLabel } from '../utils/financialUx';
 import { recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
@@ -12,6 +12,9 @@ import { combineClientPositionDeltas, transitionClientBalanceDelta, type ClientP
 import { CLIENT_TX_PAYMENT_MADE, CLIENT_TX_PAYMENT_RECEIVED, clientTxEditAmountInput, normalizeClientTxType, paymentStatusForExistingClientTx, planClientTxSave } from '../utils/clientTxEdit';
 import { operationStamp } from '../utils/editStamp';
 import { changedClientIdentity, findClientDuplicates, isClientActive, type ClientDuplicateMatch } from '../utils/clientRegistry';
+import type { ManagerFeeHistoryEntry } from './useInvestorEconomics';
+import { DEBT_WRITE_OFF_TYPE } from '../utils/debtWriteOffs';
+import { prepareDebtWriteOffReadModelDelta } from '../readModels/debtWriteOffDelta';
 type ClientDeleteMode = 'history' | 'balance_only' | 'client_only_cleanup' | 'blocked';
 const CLIENT_DELETE_EPSILON = 0.01;
 const normalizeForDeleteCheck = (value: string | undefined) => (normalizeLedgerLabel(value || '')
@@ -39,7 +42,11 @@ const parseTimeToMs = (time: string): number => {
 export function useClientHandlers(userDocRef: FirestoreDocumentReference, clientsDzd: ClientDzd[], clientTransactionsDzd: ClientTransactionDzd[], clientBalances: Map<string, number>, treasuryTransactions: TreasuryTx[], treasuryStats: {
     caisse: number;
     baridi: number;
-}, investors: Investor[], setAlert: (msg: string) => void) {
+}, investors: Investor[], setAlert: (msg: string) => void, profitSplit: {
+    investorTransactions: InvestorTransaction[];
+    managerFeePercentage: string;
+    managerFeeHistory?: ManagerFeeHistoryEntry[];
+}) {
     const [isSaving, setIsSaving] = useState(false);
     // Set synchronously, so a second tap that still holds an older render's handler is ignored too.
     const clientSaveInFlight = useRef(false);
@@ -799,13 +806,16 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientTxToDelete(null);
         }
     };
-    // Zero out a small residual balance — creates an audit entry without touching treasury
+    // Zero out a client balance — creates an audit entry without touching treasury
     const handleZeroOutBalance = async (clientId: string, balance: number) => {
         if (Math.abs(balance) < 0.001) return;
         const { date, time, timestamp } = now();
         // balance < 0 → client owes us → create a credit (remise de dette)
         // balance > 0 → we owe client → create a debit (remise d'avance)
         const montant = -balance; // opposite sign zeroes the balance
+        // A debt cleared without payment is money the project will never receive: it is
+        // saved as a loss and charged to the profit like a project expense.
+        const isDebtWriteOff = balance < 0;
         try {
             const positionBefore = clientPositionFromLegacyRows(clientTransactionsDzd, clientId, timestamp);
             recordClientShadow(balance < 0 ? {
@@ -834,26 +844,42 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             batch.set(txRef, {
                 clientId,
                 timestamp, date, time,
-                type: 'Remise solde',
+                type: DEBT_WRITE_OFF_TYPE,
                 montant,
-                notes: `Effacement solde résiduel (${balance > 0 ? '+' : ''}${balance.toFixed(2)} DZD)`,
+                notes: isDebtWriteOff
+                    ? `Dette effacée, comptée comme perte (${balance.toFixed(2)} DZD)`
+                    : `Effacement solde résiduel (+${balance.toFixed(2)} DZD)`,
                 paymentMethod: 'Remise',
+                ...(isDebtWriteOff ? { countsAsLoss: true } : {}),
             });
-            const readModelDelta = mustPrepareWriterReadModelDelta('clients.initial-adjustment-remise', {
-                operationId: `legacy:clients.initial-adjustment-remise:${txRef.id}`,
-                effectiveAt: timestamp,
-                payload: { type: 'client_zero_out_balance', clientId, txId: txRef.id, balance, montant },
-                affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
-                clients: transitionClientBalanceDelta(balance, 0),
-                recentOperation: {
+            const readModelDelta = isDebtWriteOff
+                ? prepareDebtWriteOffReadModelDelta({
+                    investors,
+                    investorTransactions: profitSplit.investorTransactions,
+                    treasuryTransactions,
+                    managerFeePercentage: profitSplit.managerFeePercentage,
+                    managerFeeHistory: profitSplit.managerFeeHistory,
+                    clientId,
+                    txId: txRef.id,
+                    balance,
+                    montant,
+                    timestamp,
+                })
+                : mustPrepareWriterReadModelDelta('clients.initial-adjustment-remise', {
                     operationId: `legacy:clients.initial-adjustment-remise:${txRef.id}`,
-                    source: 'legacy',
-                    type: 'Remise solde',
                     effectiveAt: timestamp,
-                },
-            });
+                    payload: { type: 'client_zero_out_balance', clientId, txId: txRef.id, balance, montant },
+                    affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
+                    clients: transitionClientBalanceDelta(balance, 0),
+                    recentOperation: {
+                        operationId: `legacy:clients.initial-adjustment-remise:${txRef.id}`,
+                        source: 'legacy',
+                        type: DEBT_WRITE_OFF_TYPE,
+                        effectiveAt: timestamp,
+                    },
+                });
             await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [readModelDelta] });
-            setAlert('✅ Solde effacé.');
+            setAlert(isDebtWriteOff ? '✅ Dette effacée, comptée comme perte.' : '✅ Solde effacé.');
         } catch {
             setAlert('❌ Erreur lors de l\'effacement.');
         }

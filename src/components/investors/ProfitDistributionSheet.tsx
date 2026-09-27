@@ -7,6 +7,7 @@ import { Badge } from '../ui/Badge';
 import { db, FirestoreDocumentReference } from '../../firebase';
 import { now, parseAndEvaluate } from '../../utils';
 import { buildProfitDistributionPlan, wholeDzdDown } from '../../utils/profitDistribution';
+import { formatLockDate, lockAfterDistribution, periodLockFields, periodLockHistoryEntry } from '../../utils/periodLock';
 import { recordTreasuryShadow } from '../../accounting/treasuryShadowDiagnostics';
 import type { Investor } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -23,9 +24,11 @@ type Props = {
     userDocRef: FirestoreDocumentReference;
     setAlert: (msg: string) => void;
     treasuryStats: { caisse: number; baridi: number };
+    /** Closed months (utils/periodLock): a distribution closes every month before its own. */
+    periodLockedThrough?: number | null;
 };
 
-export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedTotal, userDocRef, setAlert, treasuryStats }: Props) {
+export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedTotal, userDocRef, setAlert, treasuryStats, periodLockedThrough = null }: Props) {
     const { t } = useLanguage();
     const [totalInput, setTotalInput] = useState('');
     const [paymentSource, setPaymentSource] = useState<'Caisse' | 'BaridiMob'>('Caisse');
@@ -49,6 +52,8 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
     const sourceBalance = paymentSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
     const exceedsCash = totalDistributed > sourceBalance + 0.005;
     const canConfirm = distribution.length > 0 && totalDistributed > 0 && !hasExceedingRow && !exceedsCash;
+    // The months this distribution will close, shown before confirming.
+    const lockAfterConfirm = confirmed ? lockAfterDistribution(periodLockedThrough, Date.now()) : null;
 
     const handleConfirm = async () => {
         if (!canConfirm) return;
@@ -92,6 +97,12 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                     amountDzd: amount,
                     investorId: inv.id,
                 }, [{ type: 'Retrait', source: paymentSource, amount }]);
+            }
+            // The months before this one are closed in the same write: their profits are now paid.
+            const lockedThrough = lockAfterDistribution(periodLockedThrough, timestamp);
+            if (lockedThrough !== null) {
+                batch.set(userDocRef, periodLockFields(lockedThrough, 'profit_distribution', timestamp), { merge: true });
+                batch.set(userDocRef.collection('period_lock_history').doc(), periodLockHistoryEntry(periodLockedThrough, lockedThrough, 'profit_distribution', timestamp));
             }
             const readModelDelta = mustPrepareWriterReadModelDelta('investors.profit-payout', {
                 operationId: `legacy:investors.profit-payout:distribution:${timestamp}`,
@@ -241,6 +252,9 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                         <div className="space-y-2">
                             <div className="rounded-xl border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning font-medium text-center">
                                 ⚠️ Cette action va créer {distribution.length} retrait{distribution.length > 1 ? 's' : ''} de profit + {distribution.length} mouvement{distribution.length > 1 ? 's' : ''} de trésorerie depuis {paymentSource}.
+                                {lockAfterConfirm !== null && (
+                                    <p className="mt-2">{String(t('periodLock.distributionWillLock')).replace('{date}', formatLockDate(lockAfterConfirm))}</p>
+                                )}
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <Button type="button" variant="outline" onClick={() => setConfirmed(false)} className="w-full">

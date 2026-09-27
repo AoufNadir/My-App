@@ -16,6 +16,7 @@ import { getSummaryWriteMode, isSummaryWriteEnabled } from '../readModels/readMo
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { transitionClientBalanceDelta } from '../readModels/readModelDeltas';
 import { applyReadModelDeltasWithinTransaction } from '../readModels/productionSummaryWriter';
+import { sellHasNoPurchaseCost } from '../utils/costedStock';
 
 /** Drop undefined keys — Firestore rejects undefined field values. */
 function clean(obj: Record<string, any>): Record<string, any> {
@@ -196,6 +197,9 @@ export function usePoOrderHandlers(actorUid: string, accountingContext: PoOrderA
             }
 
             const quantity = roundM(order.quantity);
+            if (sellHasNoPurchaseCost({ quantity, costedQuantity: ctx.inventoryBefore.costedQuantity })) {
+                throw new Error('UNCOSTED_STOCK');
+            }
             const totalRevenue = Math.round(order.totalDzd);
             const sell = order.unitPriceDzd;
             const profit = Number((order.totalDzd - ctx.avgBuy * quantity).toFixed(2));

@@ -370,6 +370,11 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
               <p className="text-[12px] text-neutral-400">
                 {t('clients.clearResidualBody')}
               </p>
+              {solderTarget.balance < 0 && (
+                <p className="text-[12px] font-semibold text-financial-loss">
+                  {t('clients.clearDebtLossBody')}
+                </p>
+              )}
             </div>
             {/* Actions */}
             <div className="grid grid-cols-2 gap-3 pt-1">

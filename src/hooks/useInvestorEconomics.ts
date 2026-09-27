@@ -3,6 +3,7 @@ import type { Investor, InvestorTransaction, TreasuryTx, Tx } from '../types';
 import { addM, allocateRoundedDzd, distributeProportionally, roundM, subM, sumM } from '../utils/money';
 import { buildInvestorCapitalReconciliation, calculateManagerOwnerCapital, calculatePersonalExpensesFundedByCapital, calculateTotalPersonalExpenses, isSyntheticInitialCapitalDeposit, splitManagerPersonalExpenses, type InvestorCapitalReconciliation, type ManagerOwnerCapitalBreakdown } from '../utils/managerCapital';
 import { computePamLedger, type PamLedgerResult, type PamLedgerSellProfitRow } from '../utils/pamLedger';
+import type { DebtWriteOff } from '../utils/debtWriteOffs';
 export const LEGACY_MANAGER_FEE_PERCENTAGE = 30;
 export type InvestorAccountingWarningCode = 'available_profit_negative' | 'withdrawals_exceed_derived_profit' | 'uncosted_quantity_sold' | 'negative_derived_profit';
 export type InvestorAccountingWarningSeverity = 'info' | 'warning' | 'high';
@@ -43,6 +44,8 @@ export interface InvestorEconomicsResult {
         investorShare: number;
         reconciliationDifference: number;
         totalDeliveryExpenses: number;
+        /** Client debts written off with Solder, charged like project expenses. */
+        totalDebtWriteOffs: number;
         netDistributableProfit: number;
     };
 }
@@ -61,6 +64,7 @@ export interface ManagerProfitBreakdown {
     ownerTotalProfit: number;
     externalInvestorsProfit: number;
     totalDeliveryExpenses: number;
+    totalDebtWriteOffs?: number;
     profitWithdrawals: number;
     personalExpenses: number;
     currentPersonalExpenses: number;
@@ -129,6 +133,8 @@ type InvestorEconomicsInput = {
     periodStartTs?: number | null;
     periodEndTs?: number | null;
     deliveryExpenses?: TreasuryTx[];
+    /** Client debts written off (see utils/debtWriteOffs). */
+    debtWriteOffs?: readonly Pick<DebtWriteOff, 'amountDzd' | 'timestamp'>[];
     treasuryTransactions?: TreasuryTx[];
     personalExpenses?: TreasuryTx[];
 };
@@ -443,19 +449,8 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
     // Project expenses: shared operating cost. Subtract from gross profit BEFORE
     // manager fee, so manager bears their proportional share via the fee ratio,
     // and investors absorb the remainder allocated by capital-at-time-of-expense.
-    let totalDeliveryExpenses = 0;
-    const sortedDeliveryExpenses = (input.deliveryExpenses || [])
-        .map((tx) => ({ tx, amount: Number(tx.amountDzd ?? tx.amount ?? 0) }))
-        .filter((row) => Number.isFinite(row.amount) && row.amount > 0)
-        .map((row) => ({ ...row, ts: toMs(row.tx.timestamp) }))
-        .filter((row) => isInPeriod(row.ts, input.periodStartTs, input.periodEndTs))
-        .sort((a, b) => a.ts - b.ts);
-    for (const { amount: rawAmount, ts: expenseTs } of sortedDeliveryExpenses) {
-        const amount = roundM(rawAmount);
-        if (amount <= 0)
-            continue;
+    const chargeProjectCost = (amount: number, expenseTs: number) => {
         const managerFeeRatio = getManagerFeeRatioAt(expenseTs);
-        totalDeliveryExpenses = addM(totalDeliveryExpenses, amount);
         const eligible = investorsBase
             .filter((inv) => inv.entryTs <= expenseTs)
             .map((inv) => ({ id: inv.id, cap: Math.max(0, capitalAtTs(inv, expenseTs)) }))
@@ -467,7 +462,7 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             // a shared project cost floating unallocated.
             managerShare = subM(managerShare, amount);
             creditManager(-amount);
-            continue;
+            return;
         }
         const investorBurden = roundM(amount * (1 - managerFeeRatio));
         const managerBurden = subM(amount, investorBurden);
@@ -481,6 +476,32 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
         eligible.forEach((item, index) => {
             distributedProfitByInvestor.set(item.id, subM(distributedProfitByInvestor.get(item.id) || 0, burdenShares[index]));
         });
+    };
+    let totalDeliveryExpenses = 0;
+    const sortedDeliveryExpenses = (input.deliveryExpenses || [])
+        .map((tx) => ({ tx, amount: Number(tx.amountDzd ?? tx.amount ?? 0) }))
+        .filter((row) => Number.isFinite(row.amount) && row.amount > 0)
+        .map((row) => ({ ...row, ts: toMs(row.tx.timestamp) }))
+        .filter((row) => isInPeriod(row.ts, input.periodStartTs, input.periodEndTs))
+        .sort((a, b) => a.ts - b.ts);
+    for (const { amount: rawAmount, ts: expenseTs } of sortedDeliveryExpenses) {
+        const amount = roundM(rawAmount);
+        if (amount <= 0)
+            continue;
+        totalDeliveryExpenses = addM(totalDeliveryExpenses, amount);
+        chargeProjectCost(amount, expenseTs);
+    }
+    // A client debt written off is money the project will not receive: a loss shared
+    // exactly like a project expense, at the time of the write-off.
+    let totalDebtWriteOffs = 0;
+    const sortedDebtWriteOffs = (input.debtWriteOffs || [])
+        .map((row) => ({ amount: roundM(Number(row.amountDzd)), ts: toMs(row.timestamp) }))
+        .filter((row) => Number.isFinite(row.amount) && row.amount > 0)
+        .filter((row) => isInPeriod(row.ts, input.periodStartTs, input.periodEndTs))
+        .sort((a, b) => a.ts - b.ts);
+    for (const { amount, ts } of sortedDebtWriteOffs) {
+        totalDebtWriteOffs = addM(totalDebtWriteOffs, amount);
+        chargeProjectCost(amount, ts);
     }
     const investorDrafts = investorsBase.map((inv) => {
         const totalProfit = distributedProfitByInvestor.get(inv.id) || 0;
@@ -557,7 +578,7 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             accountingWarnings: warningsByInvestor.get(draft.inv.id) || [],
         };
     });
-    const netDistributableProfit = subM(totalDerivedProfit, totalDeliveryExpenses);
+    const netDistributableProfit = subM(subM(totalDerivedProfit, totalDeliveryExpenses), totalDebtWriteOffs);
     return {
         derivedInvestors,
         warnings,
@@ -567,6 +588,7 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             investorShare,
             reconciliationDifference: subM(netDistributableProfit, addM(managerShare, investorShare)),
             totalDeliveryExpenses,
+            totalDebtWriteOffs,
             netDistributableProfit,
         },
     };
@@ -598,6 +620,7 @@ export function getManagerProfitBreakdown(result: InvestorEconomicsResult, manag
         ownerTotalProfit: tradingOwnerProfit,
         externalInvestorsProfit,
         totalDeliveryExpenses: roundM(result.totals.totalDeliveryExpenses),
+        totalDebtWriteOffs: roundM(result.totals.totalDebtWriteOffs || 0),
         profitWithdrawals: roundM(manager?.profitWithdrawals || 0),
         personalExpenses: roundM(manager?.personalExpenses || 0),
         currentPersonalExpenses: roundM(manager?.currentPersonalExpenses || 0),

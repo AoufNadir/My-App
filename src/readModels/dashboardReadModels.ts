@@ -15,6 +15,7 @@ import type {
 } from '../types';
 import { deriveInvestorEconomics, getManagerProfitBreakdown, reconcileManagerProfitBreakdown, type ManagerFeeHistoryEntry } from '../hooks/useInvestorEconomics';
 import { computePamLedger, type PamLedgerResult } from '../utils/pamLedger';
+import { collectDebtWriteOffs, type DebtWriteOff } from '../utils/debtWriteOffs';
 import { computeClientDebtState } from '../utils/clientDebt';
 import {
     calculateInvestorBreakdown,
@@ -815,6 +816,7 @@ export function buildInvestorsReadModel(input: {
     transactions: Tx[];
     treasuryTransactions: TreasuryTx[];
     deliveryExpenses: TreasuryTx[];
+    debtWriteOffs?: DebtWriteOff[];
     personalExpenses: TreasuryTx[];
     managerFeePercentage: string | number;
     managerFeeHistory: ManagerFeeHistoryEntry[];
@@ -832,6 +834,7 @@ export function buildInvestorsReadModel(input: {
         managerFeeHistory: input.managerFeeHistory,
         pamLedger: input.pamLedger,
         deliveryExpenses: input.deliveryExpenses,
+        debtWriteOffs: input.debtWriteOffs,
         treasuryTransactions: input.treasuryTransactions,
         personalExpenses: input.personalExpenses,
     });
@@ -948,6 +951,7 @@ function buildDailyOverview(input: {
     managerFeeHistory: ManagerFeeHistoryEntry[];
     pamLedger: PamLedgerResult;
     deliveryExpenses: TreasuryTx[];
+    debtWriteOffs?: DebtWriteOff[];
     treasuryTransactions: TreasuryTx[];
     manualAssetTransactions: ManualAssetTransaction[];
     digitalServiceTransactions: DigitalServiceTransaction[];
@@ -964,6 +968,7 @@ function buildDailyOverview(input: {
             periodStartTs,
             periodEndTs: input.meta.asOf.timestamp,
             deliveryExpenses: input.deliveryExpenses,
+            debtWriteOffs: input.debtWriteOffs,
             treasuryTransactions: input.treasuryTransactions,
         });
         return getManagerProfitBreakdown(economics, input.managerFeePercentage).ownerTotalProfit;
@@ -1048,6 +1053,7 @@ export function buildDashboardReadModelShadowFromLegacy(input: BuildDashboardRea
         assetClientBalances,
     });
     const deliveryExpenses = input.treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense');
+    const debtWriteOffs = collectDebtWriteOffs(input.clientTransactionsDzd);
     const personalExpenses = input.treasuryTransactions.filter((tx) => tx.origin === 'personal_expense');
     const preliminaryInvestors = buildInvestorsReadModel({
         meta,
@@ -1057,6 +1063,7 @@ export function buildDashboardReadModelShadowFromLegacy(input: BuildDashboardRea
         transactions: input.transactions,
         treasuryTransactions: input.treasuryTransactions,
         deliveryExpenses,
+        debtWriteOffs,
         personalExpenses,
         managerFeePercentage: input.managerFeePercentage,
         managerFeeHistory: input.managerFeeHistory,
@@ -1085,6 +1092,7 @@ export function buildDashboardReadModelShadowFromLegacy(input: BuildDashboardRea
         transactions: input.transactions,
         treasuryTransactions: input.treasuryTransactions,
         deliveryExpenses,
+        debtWriteOffs,
         personalExpenses,
         managerFeePercentage: input.managerFeePercentage,
         managerFeeHistory: input.managerFeeHistory,
@@ -1106,6 +1114,7 @@ export function buildDashboardReadModelShadowFromLegacy(input: BuildDashboardRea
         managerFeeHistory: input.managerFeeHistory,
         pamLedger,
         deliveryExpenses,
+        debtWriteOffs,
         treasuryTransactions: input.treasuryTransactions,
         manualAssetTransactions: input.manualAssetTransactions,
         digitalServiceTransactions: input.digitalServiceTransactions,
@@ -1117,6 +1126,7 @@ export function buildDashboardReadModelShadowFromLegacy(input: BuildDashboardRea
             managerFeeHistory: input.managerFeeHistory,
             pamLedger,
             deliveryExpenses,
+            debtWriteOffs,
             treasuryTransactions: input.treasuryTransactions,
             personalExpenses,
         }), input.managerFeePercentage).ownerTotalProfit,
