@@ -7,13 +7,6 @@ import { UsersIcon } from '../icons/UsersIcon';
 import type { ManagerProfitBreakdown } from '../../hooks/useInvestorEconomics';
 import { useLanguage } from '../../contexts/LanguageContext';
 
-export type OwnerProfitPeriods = {
-    today: number;
-    week: number;
-    month: number;
-    year: number;
-};
-
 function Metric({ label, value, semantic = 'auto' }: { label: string; value: number; semantic?: 'auto' | 'plain' }) {
     return (
         <div className="min-w-0 rounded-xl border border-border bg-surface-muted px-3 py-3">
@@ -34,26 +27,6 @@ function PercentageMetric({ label, value }: { label: string; value: number }) {
                 {formatted}<span className="ms-1 text-[length:max(0.82em,12px)] font-normal opacity-65">%</span>
             </p>
         </div>
-    );
-}
-
-export function OwnerProfitPeriodSummary({ periods }: { periods: OwnerProfitPeriods }) {
-    const { t } = useLanguage();
-    return (
-        <Card>
-            <CardHeader className="p-4 pb-3">
-                <SectionHeading icon={<BriefcaseIcon className="h-4 w-4" />}>
-                    {t('dashboard.ownerProfitSummary') as string}
-                </SectionHeading>
-                <p className="mt-1 text-xs text-neutral-500">{t('dashboard.ownerProfitSummaryHint') as string}</p>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-2 p-4 pt-0 sm:grid-cols-4">
-                <Metric label={t('dashboard.ownerProfitToday') as string} value={periods.today} />
-                <Metric label={t('dashboard.ownerProfitWeek') as string} value={periods.week} />
-                <Metric label={t('dashboard.ownerProfitMonth') as string} value={periods.month} />
-                <Metric label={t('dashboard.ownerProfitYear') as string} value={periods.year} />
-            </CardContent>
-        </Card>
     );
 }
 

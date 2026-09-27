@@ -1,10 +1,13 @@
-import { useMemo, type ReactNode } from 'react';
-import { Card, CardContent, CardHeader } from '../components/ui/Card';
-import { SectionHeading } from '../components/ui/SectionHeading';
-import { CurrencyAmount } from '../components/financial/CurrencyAmount';
-import { CapitalOverviewCard } from '../components/financial/CapitalOverviewCard';
-import { ArrowRightLeftIcon } from '../components/icons/ArrowRightLeftIcon';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
+import { CurrencyAmount, type AmountSemantic } from '../components/financial/CurrencyAmount';
+import { AlertCard, AlertStack, HeroCard, ListRow, SectionCard, StatTile, StatTileGrid, type AlertStackItem } from '../components/cards';
+import { SegmentedControl } from '../components/ui/SegmentedControl';
+import { Button } from '../components/ui/Button';
+import { BellIcon } from '../components/icons/BellIcon';
 import { ChevronRightIcon } from '../components/icons/ChevronRightIcon';
+import { DollarSignIcon } from '../components/icons/DollarSignIcon';
+import { EuroIcon } from '../components/icons/EuroIcon';
+import { LandmarkIcon } from '../components/icons/LandmarkIcon';
 import { SparklesIcon } from '../components/icons/SparklesIcon';
 import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
@@ -16,7 +19,9 @@ import type { ClientDzd, ClientTransactionDzd, OverdueDebtClient, TreasuryCard, 
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
 import type { PamLedgerResult } from '../utils/pamLedger';
 import type { ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
-import { OwnerProfitPeriodSummary, type FinancialAuditData } from '../components/financial/OwnerProfitSummary';
+import type { FinancialAuditData } from '../components/financial/OwnerProfitSummary';
+import type { WeeklyRecap } from '../hooks/useWeeklyRecap';
+import type { MonthlyRecap } from '../hooks/useMonthlyRecap';
 import { useLanguage } from '../contexts/LanguageContext';
 const RECENT_TRANSACTION_LIMIT = 5;
 const EMPTY_RECENT_DATE_RANGE = { start: null, end: null };
@@ -62,6 +67,8 @@ type DashboardPageProps = {
     };
     globalNetProfit: number;
     overdueDebtClients: OverdueDebtClient[];
+    /** Number of overdue clients when `overdueDebtClients` is a shortened list (dashboard read model). */
+    overdueDebtClientCount?: number;
     isDataReady: boolean;
     onNewTransaction: () => void;
     onOpenClients: () => void;
@@ -91,239 +98,138 @@ type DashboardPageProps = {
     onOpenMonthPlan?: () => void;
     monthlyGoal?: number;
     /** Avg monthly USDT volume (90d ÷ 3) — drives the required-margin chip. */
+    // Recaps and the notification request are shown on this page only, among its alerts.
+    weeklyRecap?: WeeklyRecap | null;
+    onDismissWeeklyRecap?: () => void;
+    monthlyRecap?: MonthlyRecap | null;
+    onDismissMonthlyRecap?: () => void;
+    showNotificationPrompt?: boolean;
+    onEnableNotifications?: () => Promise<unknown>;
+    onDismissNotificationPrompt?: () => void;
 };
-type Tone = 'success' | 'warning' | 'danger' | 'info';
-type PriorityItem = {
-    id: string;
-    title: string;
-    body: ReactNode;
-    tone: Tone;
-    rank?: number;
-    action?: () => void;
-    actionLabel?: string;
+type ProfitPeriod = 'today' | 'week' | 'month' | 'year';
+const PROFIT_PERIODS: ProfitPeriod[] = ['today', 'week', 'month', 'year'];
+const PROFIT_PERIOD_LABEL_KEYS: Record<ProfitPeriod, { option: string; title: string }> = {
+    today: { option: 'dashboard.periodDay', title: 'dashboard.ownerProfitToday' },
+    week: { option: 'dashboard.periodWeek', title: 'dashboard.ownerProfitWeek' },
+    month: { option: 'dashboard.periodMonth', title: 'dashboard.ownerProfitMonth' },
+    year: { option: 'dashboard.periodYear', title: 'dashboard.ownerProfitYear' },
 };
-const PRIORITY_TONE_CLASSES: Record<Tone, {
-    item: string;
-    title: string;
-    body: string;
-    action: string;
-    badge: string;
-}> = {
-    danger: {
-        item: 'border border-border border-s-4 border-s-danger/70 bg-surface text-neutral-900 shadow-sm',
-        title: 'text-neutral-900',
-        body: 'text-neutral-700',
-        action: 'border border-danger/20 bg-surface text-danger',
-        badge: 'bg-danger/10 text-danger',
-    },
-    warning: {
-        item: 'border border-border border-s-4 border-s-warning/70 bg-surface text-neutral-900 shadow-sm',
-        title: 'text-neutral-900',
-        body: 'text-neutral-700',
-        action: 'border border-warning/25 bg-surface text-warning',
-        badge: 'bg-warning/10 text-warning',
-    },
-    success: {
-        item: 'border border-border border-s-4 border-s-success/70 bg-surface text-neutral-900 shadow-sm',
-        title: 'text-neutral-900',
-        body: 'text-neutral-700',
-        action: 'border border-success/20 bg-surface text-success',
-        badge: 'bg-success/10 text-success',
-    },
-    info: {
-        item: 'border border-border border-s-4 border-s-info/70 bg-surface text-neutral-900 shadow-sm',
-        title: 'text-neutral-900',
-        body: 'text-neutral-700',
-        action: 'border border-info/20 bg-surface text-info',
-        badge: 'bg-info/10 text-info',
-    },
-};
-function toneClasses(tone: Tone): typeof PRIORITY_TONE_CLASSES[Tone] {
-    return PRIORITY_TONE_CLASSES[tone];
+const PROFIT_PERIOD_STORAGE_KEY = 'app_dashboard_profit_period';
+function readStoredProfitPeriod(): ProfitPeriod {
+    try {
+        const stored = window.localStorage.getItem(PROFIT_PERIOD_STORAGE_KEY);
+        return PROFIT_PERIODS.find((period) => period === stored) ?? 'month';
+    }
+    catch {
+        return 'month';
+    }
 }
-function renderDebtPriorityBody(template: string, amount: number, days: number, date: string) {
-    return (<>
-      {template.split(/(\{amount\}|\{days\}|\{date\})/g).map((part, index) => {
-            if (part === '{amount}') {
-                return <CurrencyAmount key={index} value={amount} currency="DZD" decimals={2} size="sm" className="font-semibold text-danger"/>;
-            }
-            if (part === '{days}') {
-                return <span key={index} dir="ltr" className="tabular-nums">{days}</span>;
-            }
-            if (part === '{date}') {
-                return <span key={index} dir="ltr" className="tabular-nums">{date}</span>;
-            }
-            return part;
-        })}
-    </>);
+function storeProfitPeriod(period: ProfitPeriod) {
+    try {
+        window.localStorage.setItem(PROFIT_PERIOD_STORAGE_KEY, period);
+    }
+    catch {
+        // Storage unavailable (private browsing): the choice lasts for this visit only.
+    }
 }
-function PriorityList({ title, items, onTitleClick, }: {
-    title: string;
-    items: PriorityItem[];
-    onTitleClick?: () => void;
-}) {
-    const renderItemContent = (item: PriorityItem, tone: typeof PRIORITY_TONE_CLASSES[Tone]) => (<div className="flex min-w-0 items-start gap-3">
-      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold tabular-nums ${tone.badge}`}>
-        {item.rank ?? <SparklesIcon className="h-4 w-4"/>}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className={`min-w-0 truncate text-base font-bold leading-snug ${tone.title}`}>{item.title}</p>
-        <p className={`mt-1 text-sm leading-relaxed ${tone.body}`}>{item.body}</p>
-      </div>
-      {item.action && item.actionLabel && (<span className={`inline-flex min-h-8 shrink-0 items-center justify-center rounded-full px-3 text-xs font-bold ${tone.action}`}>
-        {item.actionLabel}
-      </span>)}
-    </div>);
-    return (<Card>
-      <CardHeader className="p-4 pb-3">
-        {onTitleClick ? (<button type="button" onClick={onTitleClick} className="w-full min-h-touch text-start rounded-md transition-opacity hover:opacity-85 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-            <SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>{title}</SectionHeading>
-          </button>) : (<SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>{title}</SectionHeading>)}
-      </CardHeader>
-      <CardContent className="p-4 pt-0 space-y-2">
-        {items.map((item) => {
-            const tone = toneClasses(item.tone);
-            return item.action ? (<button key={item.id} type="button" onClick={item.action} className={`w-full rounded-xl p-3 text-start transition-all hover:border-border-strong hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.99] ${tone.item}`}>
-              {renderItemContent(item, tone)}
-            </button>) : (<div key={item.id} className={`rounded-xl p-3 ${tone.item}`}>
-              {renderItemContent(item, tone)}
-            </div>);
-        })}
-      </CardContent>
-    </Card>);
+/** Replaces `{name}` placeholders of a translated sentence with rendered values. */
+function fillTemplate(template: string, values: Record<string, ReactNode>) {
+    return template.split(/(\{[a-zA-Z]+\})/g).map((part, index) => {
+        const key = part.startsWith('{') && part.endsWith('}') ? part.slice(1, -1) : '';
+        return <Fragment key={index}>{key in values ? values[key] : part}</Fragment>;
+    });
 }
-function SmartPricingShortcut({ title, subtitle, onClick }: {
-    title: string;
-    subtitle: string;
-    onClick: () => void;
-}) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        className="flex w-full items-center gap-3 rounded-card border border-primary/15 bg-surface px-4 py-3 text-start shadow-card transition-all hover:border-primary/25 hover:bg-primary/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.99]"
-      >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <SparklesIcon className="h-5 w-5"/>
+function CountText({ value }: { value: number }) {
+    return <bdi dir="ltr" className="tabular-nums">{value}</bdi>;
+}
+function WeeklyRecapAlert({ recap, onDismiss }: { recap: WeeklyRecap; onDismiss?: () => void }) {
+    const { t } = useLanguage();
+    return (<AlertCard tone="info" icon={<TrendingUpIcon className="h-5 w-5"/>} title={t('dashboard.weeklyRecapTitle') as string} onDismiss={onDismiss} dismissLabel={t('common.close') as string} detail={<>
+        <span className="block">
+          <CurrencyAmount value={recap.profit} currency="DZD" semantic={recap.profit < 0 ? 'loss' : 'plain'} size="sm" showSign className="font-bold"/>
+          {' · '}{fillTemplate(t('dashboard.recapSales') as string, { count: <CountText value={recap.sellCount}/> })}
+          {recap.usdtSold > 0 && (<>{' · '}<CurrencyAmount value={recap.usdtSold} currency="USDT" size="sm" decimals={0}/></>)}
+          {recap.eurSold > 0 && (<>{' · '}<CurrencyAmount value={recap.eurSold} currency="EUR" size="sm" decimals={0}/></>)}
+          {' · '}{fillTemplate(t('dashboard.recapActiveDays') as string, { count: <CountText value={recap.activeDays}/> })}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-extrabold text-primary">{title}</span>
-          <span className="mt-0.5 block truncate text-xs font-medium text-neutral-500">{subtitle}</span>
-        </span>
-        <ChevronRightIcon className="h-5 w-5 shrink-0 text-primary/45"/>
-      </button>
-    );
+        {recap.topClientName && (<span className="block">
+            {fillTemplate(t('dashboard.recapTopClient') as string, { name: <bdi>{recap.topClientName}</bdi> })}
+            {recap.topClientProfit > 0 && (<>{' '}<CurrencyAmount value={recap.topClientProfit} currency="DZD" size="sm" decimals={0} showSign/></>)}
+          </span>)}
+      </>}/>);
 }
-type DashboardMetricCellProps = {
-    label: string;
-    value: number;
-    currency?: 'DZD' | 'USDT' | 'EUR';
-    semantic?: 'auto' | 'plain' | 'profit' | 'loss';
-};
-function renderDashboardMetricCell({ label, value, currency = 'DZD', semantic = 'auto' }: DashboardMetricCellProps) {
-    return (
-      <div className="min-w-0 rounded-xl border border-border bg-surface-muted px-3 py-3">
-        <p className="mb-2 truncate text-xs font-semibold text-neutral-500">{label}</p>
-        <CurrencyAmount value={value} currency={currency} semantic={semantic} size="lg" decimals={currency === 'DZD' ? 0 : 2}/>
-      </div>
-    );
+function MonthlyRecapAlert({ recap, onDismiss }: { recap: MonthlyRecap; onDismiss?: () => void }) {
+    const { t } = useLanguage();
+    return (<AlertCard tone="info" icon={<TrendingUpIcon className="h-5 w-5"/>} title={t('dashboard.monthlyRecapTitle') as string} onDismiss={onDismiss} dismissLabel={t('common.close') as string} detail={<>
+        <CurrencyAmount value={recap.profit} currency="DZD" semantic={recap.profit < 0 ? 'loss' : 'plain'} size="sm" showSign className="font-bold"/>
+        {' · '}{fillTemplate(t('dashboard.recapSales') as string, { count: <CountText value={recap.sellCount}/> })}
+        {' · '}<CurrencyAmount value={recap.usdtSold} currency="USDT" size="sm" minDecimals={0} maxDecimals={2}/>
+      </>}/>);
 }
-function SalesProfitSummary({ title, periods }: {
-    title: string;
-    periods: {
-        today: number;
-        week: number;
-        month: number;
-        year: number;
+function NotificationPromptAlert({ onEnable, onLater }: { onEnable: () => Promise<unknown>; onLater: () => void }) {
+    const { t } = useLanguage();
+    const [isEnabling, setIsEnabling] = useState(false);
+    const handleEnable = async () => {
+        setIsEnabling(true);
+        try {
+            await onEnable();
+        }
+        finally {
+            setIsEnabling(false);
+        }
     };
+    return (<AlertCard tone="info" icon={<BellIcon className="h-5 w-5"/>} title={t('dashboard.notificationsTitle') as string} detail={t('dashboard.notificationsBody') as string} footer={<>
+        <Button type="button" size="sm" onClick={handleEnable} disabled={isEnabling} className="font-bold">
+          {isEnabling ? t('dashboard.notificationsEnabling') : t('dashboard.notificationsEnable')}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onLater}>
+          {t('dashboard.notificationsLater')}
+        </Button>
+      </>}/>);
+}
+function SituationValue({ label, value, semantic }: { label: string; value: number; semantic: AmountSemantic }) {
+    return (<span className="flex min-w-0 flex-col gap-0.5">
+      <span className="text-xs font-semibold text-neutral-500">{label}</span>
+      <span><CurrencyAmount value={value} currency="DZD" semantic={semantic} size="lg" decimals={0}/></span>
+    </span>);
+}
+/** What clients owe, what is owed, and the gap with cash — opens the treasury. */
+function QuickSituationCard({ toReceive, toPay, liquidityGap, onOpen }: {
+    toReceive: number;
+    toPay: number;
+    liquidityGap: number;
+    onOpen?: () => void;
 }) {
     const { t } = useLanguage();
-    const rows = [
-        { label: t('dashboard.profitToday') as string, value: periods.today },
-        { label: t('dashboard.thisWeek') as string, value: periods.week },
-        { label: t('dashboard.profitMonth') as string, value: periods.month },
-        { label: t('dashboard.profitYear') as string, value: periods.year },
-    ];
-    return (
-      <Card>
-        <CardHeader className="p-4 pb-3">
-          <SectionHeading icon={<TrendingUpIcon className="w-4 h-4"/>}>{title}</SectionHeading>
-        </CardHeader>
-        <CardContent className="p-4 pt-0">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {rows.map((row) => (
-              <div key={row.label} className="contents">
-                {renderDashboardMetricCell({ label: row.label, value: row.value })}
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-}
-type QuickSituationMetricRow = {
-    type: 'metric';
-    label: string;
-    value: number;
-    currency?: 'DZD' | 'USDT' | 'EUR';
-    semantic?: 'auto' | 'plain' | 'profit' | 'loss';
-    emphasis?: boolean;
-};
-type QuickSituationSectionRow = {
-    type: 'section';
-    id: string;
-    label: string;
-};
-type QuickSituationRow = QuickSituationMetricRow | QuickSituationSectionRow;
-function QuickSituationCard({ title, rows }: {
-    title: string;
-    rows: QuickSituationRow[];
-}) {
-    return (
-      <Card>
-        <CardHeader className="p-4 pb-3">
-          <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>{title}</SectionHeading>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="divide-y divide-border">
-            {rows.map((row) => {
-              if (row.type === 'section') {
-                return (
-                  <div key={row.id} className="bg-surface-muted/55 px-4 py-2 text-[13px] font-bold text-neutral-500">
-                    {row.label}
-                  </div>
-                );
-              }
-              return (
-                <div key={row.label} className={`flex min-h-[58px] items-center justify-between gap-4 px-4 py-3 ${row.emphasis ? 'bg-surface-muted' : 'bg-surface'}`}>
-                  <span className="min-w-0 text-sm font-semibold text-neutral-600">{row.label}</span>
-                  <CurrencyAmount
-                    value={row.value}
-                    currency={row.currency ?? 'DZD'}
-                    semantic={row.semantic ?? 'plain'}
-                    size="lg"
-                    decimals={(row.currency ?? 'DZD') === 'DZD' ? 0 : 2}
-                    className="shrink-0"
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-    );
+    const content = (<>
+      <span className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-2.5">
+        <SituationValue label={t('finance.toReceive') as string} value={toReceive} semantic={toReceive > 0 ? 'profit' : 'plain'}/>
+        <SituationValue label={t('dashboard.toPay') as string} value={toPay} semantic={toPay > 0 ? 'loss' : 'plain'}/>
+        <span className="col-span-2 flex items-center justify-between gap-3 border-t border-border pt-2.5">
+          <span className="min-w-0 text-xs font-semibold text-neutral-500">{t('dashboard.liquidityGap')}</span>
+          <CurrencyAmount value={liquidityGap} currency="DZD" semantic="auto" size="lg" decimals={0} className="shrink-0"/>
+        </span>
+      </span>
+      {onOpen && <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 self-center text-neutral-400 rtl:-scale-x-100"/>}
+    </>);
+    const cardClass = 'flex w-full items-start gap-3 rounded-card border border-border bg-surface px-4 py-3 text-start';
+    return onOpen
+        ? (<button type="button" onClick={onOpen} className={`${cardClass} transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}>
+          {content}
+        </button>)
+        : <div className={cardClass}>{content}</div>;
 }
 function DashboardLoadingState() {
-    return (<div className="anim-page-in space-y-5" aria-busy="true" aria-label="Chargement des donnees financieres">
-      <div className="rounded-card border border-border bg-surface p-5">
-        <Skeleton width="34%" height={14}/>
-        <Skeleton width="58%" height={38} className="mt-4"/>
-        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {Array.from({ length: 4 }, (_, index) => (<div key={index}>
-            <Skeleton width="64%" height={11}/>
-            <Skeleton width="88%" height={24} className="mt-2"/>
-          </div>))}
-        </div>
+    const { t } = useLanguage();
+    return (<div className="anim-page-in flex flex-col gap-3" aria-busy="true" aria-label={t('dashboard.loadingAria') as string}>
+      <div className="rounded-card border border-border bg-surface p-4">
+        <Skeleton height={36}/>
+        <Skeleton width="46%" height={13} className="mt-4"/>
+        <Skeleton width="58%" height={34} className="mt-2"/>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (<Skeleton key={index} height={66}/>))}
       </div>
       <Skeleton height={180}/>
     </div>);
@@ -340,10 +246,9 @@ function DashboardContent({
     capitalSnapshot,
     investorBreakdown,
     overdueDebtClients,
-    onOpenClient,
+    overdueDebtClientCount,
     onOpenClientDebts,
     onOpenTreasury,
-    onOpenAnalytics,
     transactions,
     clientTransactionsDzd,
     clientsDzd,
@@ -362,8 +267,20 @@ function DashboardContent({
     onOpenTransactions,
     onOpenMonthPlan,
     monthlyGoal = 0,
+    weeklyRecap,
+    onDismissWeeklyRecap,
+    monthlyRecap,
+    onDismissMonthlyRecap,
+    showNotificationPrompt = false,
+    onEnableNotifications,
+    onDismissNotificationPrompt,
 }: DashboardPageProps) {
     const { t } = useLanguage();
+    const [profitPeriod, setProfitPeriod] = useState<ProfitPeriod>(readStoredProfitPeriod);
+    const selectProfitPeriod = (period: ProfitPeriod) => {
+        setProfitPeriod(period);
+        storeProfitPeriod(period);
+    };
     const {
         groupedTransactions: recentGroupedTransactions,
         formatDzdAmount: formatRecentDzdAmount,
@@ -429,156 +346,97 @@ function DashboardContent({
             return Math.abs(balance);
         return Math.abs(Number(client.overdueAmount || 0));
     };
-    const priorities = useMemo<PriorityItem[]>(() => {
-        const rows: PriorityItem[] = [];
-        const topDebtClients = overdueDebtClients
-            .slice()
-            .sort((a, b) => {
-            const byAmount = getClientDebtAmount(b) - getClientDebtAmount(a);
-            if (Math.abs(byAmount) > 0.005)
-                return byAmount;
-            const byOldest = Number(a.oldestUnpaidTimestamp || 0) - Number(b.oldestUnpaidTimestamp || 0);
-            if (Math.abs(byOldest) > 1)
-                return byOldest;
-            return a.fullName.localeCompare(b.fullName);
-        })
-            .slice(0, 3);
-        if (topDebtClients.length > 0) {
-            return topDebtClients.map((client, index) => ({
-                id: `urgent-debt-${client.clientId}`,
-                title: client.fullName,
-                rank: index + 1,
-                body: renderDebtPriorityBody(t('dashboard.debtPriorityCardBody') as string, getClientDebtAmount(client), client.daysOverdue, client.oldestUnpaidDate),
-                tone: 'danger' as Tone,
-                action: () => onOpenClient(client.clientId),
-                actionLabel: t('dashboard.viewClient') as string,
-            }));
-        }
-        if (cashTotal < totalAdvances && totalAdvances > 0) {
-            rows.push({
-                id: 'uncovered-advances',
-                title: t('dashboard.uncoveredAdvances') as string,
-                body: t('dashboard.uncoveredAdvancesBody') as string,
-                tone: 'warning',
-                action: onOpenTreasury,
-                actionLabel: t('dashboard.openTreasury') as string,
-            });
-        }
-        if (lowStock) {
-            rows.push({
-                id: 'low-stock',
-                title: t('dashboard.lowStock') as string,
-                body: t('dashboard.lowStockBody') as string,
-                tone: 'warning',
-            });
-        }
-        if (dailyOverview.activeClients === 0 && dailyOverview.todayProfit === 0) {
-            rows.push({
-                id: 'calm-day',
-                title: t('dashboard.calmDay') as string,
-                body: t('dashboard.calmDayBody') as string,
-                tone: 'info',
-                action: onOpenAnalytics,
-                actionLabel: t('nav.analytics') as string,
-            });
-        }
-        if (rows.length === 0) {
-            rows.push({
-                id: 'stable',
-                title: t('dashboard.stable') as string,
-                body: t('dashboard.stableBody') as string,
-                tone: 'success',
-            });
-        }
-        return rows.slice(0, 3);
-    }, [
-        overdueDebtClients,
-        cashTotal,
-        totalAdvances,
-        lowStock,
-        dailyOverview.activeClients,
-        dailyOverview.todayProfit,
-        onOpenClient,
-        onOpenClientDebts,
-        onOpenTreasury,
-        onOpenAnalytics,
-        t
-    ]);
-    return (<div className="anim-page-in space-y-5">
-      <CapitalOverviewCard t={t} capitalSnapshot={capitalSnapshot} investorBreakdown={investorBreakdown}/>
+    const salesProfitByPeriod: Record<ProfitPeriod, number> = {
+        today: dailyOverview.todayProfit,
+        week: dailyOverview.weekToDateProfit ?? 0,
+        month: dailyOverview.monthToDateProfit,
+        year: dailyOverview.yearToDateProfit,
+    };
+    const ownerProfitByPeriod: Record<ProfitPeriod, number> = {
+        today: dailyOverview.ownerProfitToday,
+        week: dailyOverview.ownerProfitWeek,
+        month: dailyOverview.ownerProfitMonth,
+        year: dailyOverview.ownerProfitYear,
+    };
+    const salesProfit = salesProfitByPeriod[profitPeriod];
 
-      <QuickSituationCard title={t('dashboard.quickSituation') as string} rows={[
-          { type: 'metric', label: t('common.caisseBalance') as string, value: capitalSnapshot.caisseBalance },
-          { type: 'metric', label: t('common.baridiBalance') as string, value: capitalSnapshot.baridiBalance },
-          { type: 'metric', label: t('finance.toReceive') as string, value: totalDebt, semantic: totalDebt > 0 ? 'profit' : 'plain' },
-          { type: 'metric', label: t('dashboard.toPay') as string, value: quickPayable, semantic: quickPayable > 0 ? 'loss' : 'plain' },
-          { type: 'metric', label: t('dashboard.liquidityGap') as string, value: liquidityGap, semantic: 'auto', emphasis: true },
-          { type: 'section', id: 'portfolio', label: t('nav.portfolio') as string },
-          { type: 'metric', label: t('dashboard.usdtInStock') as string, value: usdtInStock, currency: 'USDT' },
-          { type: 'metric', label: t('dashboard.eurInStock') as string, value: eurInStock, currency: 'EUR' },
-      ]}/>
+    // Most urgent first; the stack shows two and folds the rest.
+    const alerts: AlertStackItem[] = [];
+    // The read model sends only the first overdue clients: their count comes separately,
+    // and their total is shown only when every overdue client is in the list.
+    const overdueCount = Math.max(overdueDebtClientCount ?? 0, overdueDebtClients.length);
+    if (overdueCount > 0) {
+        const overdueDebtTotal = overdueDebtClients.reduce((sum, client) => sum + getClientDebtAmount(client), 0);
+        const hasEveryOverdueClient = overdueDebtClients.length >= overdueCount;
+        alerts.push({
+            id: 'overdue-debts',
+            element: (<AlertCard tone="danger" title={overdueCount === 1
+                    ? t('dashboard.overdueClientsOne') as string
+                    : fillTemplate(t('dashboard.overdueClientsMany') as string, { count: <CountText value={overdueCount}/> })} detail={hasEveryOverdueClient
+                    ? fillTemplate(t('dashboard.overdueClientsDebt') as string, { amount: <CurrencyAmount value={overdueDebtTotal} currency="DZD" decimals={2} size="sm" className="font-bold"/> })
+                    : undefined} onAction={onOpenClientDebts} actionLabel={t('dashboard.viewAction') as string}/>),
+        });
+    }
+    if (cashTotal < totalAdvances && totalAdvances > 0) {
+        alerts.push({
+            id: 'uncovered-advances',
+            element: (<AlertCard tone="warning" title={t('dashboard.uncoveredAdvances') as string} detail={t('dashboard.uncoveredAdvancesBody') as string} onAction={onOpenTreasury} actionLabel={t('dashboard.viewAction') as string}/>),
+        });
+    }
+    if (weeklyRecap) {
+        alerts.push({ id: 'weekly-recap', element: <WeeklyRecapAlert recap={weeklyRecap} onDismiss={onDismissWeeklyRecap}/> });
+    }
+    if (monthlyRecap) {
+        alerts.push({ id: 'monthly-recap', element: <MonthlyRecapAlert recap={monthlyRecap} onDismiss={onDismissMonthlyRecap}/> });
+    }
+    if (lowStock) {
+        alerts.push({
+            id: 'low-stock',
+            element: <AlertCard tone="warning" title={t('dashboard.lowStock') as string} detail={t('dashboard.lowStockBody') as string}/>,
+        });
+    }
+    if (showNotificationPrompt && onEnableNotifications && onDismissNotificationPrompt) {
+        alerts.push({ id: 'notifications', element: <NotificationPromptAlert onEnable={onEnableNotifications} onLater={onDismissNotificationPrompt}/> });
+    }
 
-      <SalesProfitSummary title={t('dashboard.profitSummary') as string} periods={{
-          today: dailyOverview.todayProfit,
-          week: dailyOverview.weekToDateProfit ?? 0,
-          month: dailyOverview.monthToDateProfit,
-          year: dailyOverview.yearToDateProfit,
-      }}/>
+    return (<div className="anim-page-in flex flex-col gap-3">
+      <AlertStack items={alerts} moreLabel={(count) => String(t('dashboard.moreAlerts')).replace('{count}', String(count))} lessLabel={t('dashboard.fewerAlerts') as string}/>
 
-      <OwnerProfitPeriodSummary periods={{
-          today: dailyOverview.ownerProfitToday,
-          week: dailyOverview.ownerProfitWeek,
-          month: dailyOverview.ownerProfitMonth,
-          year: dailyOverview.ownerProfitYear,
-      }}/>
+      <HeroCard top={<SegmentedControl options={PROFIT_PERIODS.map((period) => ({ id: period, label: t(PROFIT_PERIOD_LABEL_KEYS[period].option) as string }))} value={profitPeriod} onChange={selectProfitPeriod} ariaLabel={t('dashboard.periodPicker') as string}/>} label={`${t('dashboard.profitSummary')} · ${t(PROFIT_PERIOD_LABEL_KEYS[profitPeriod].title)}`} value={salesProfit} semantic={salesProfit < 0 ? 'loss' : 'plain'} secondary={{
+            label: t('dashboard.ownerProfitSummary') as string,
+            hint: t('dashboard.ownerProfitSummaryHint') as string,
+            value: ownerProfitByPeriod[profitPeriod],
+            semantic: 'auto',
+        }}/>
 
-      {/* Month plan — entry to the smart pricing hub (progress + prices live inside) */}
-      {monthlyGoal > 0 && onOpenMonthPlan && (
-        <SmartPricingShortcut
-          title={t('smartPricing.monthPlan') as string}
-          subtitle={t('smartPricing.title') as string}
-          onClick={onOpenMonthPlan}
-        />
-      )}
+      <StatTileGrid>
+        <StatTile label={t('common.caisseBalance') as string} value={capitalSnapshot.caisseBalance} icon={<WalletIcon className="h-3.5 w-3.5"/>} tone="dzd"/>
+        <StatTile label={t('common.baridiBalance') as string} value={capitalSnapshot.baridiBalance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd"/>
+        <StatTile label={t('dashboard.usdtInStock') as string} value={usdtInStock} currency="USDT" decimals={2} icon={<DollarSignIcon className="h-3.5 w-3.5"/>} tone="usdt"/>
+        <StatTile label={t('dashboard.eurInStock') as string} value={eurInStock} currency="EUR" decimals={2} icon={<EuroIcon className="h-3.5 w-3.5"/>} tone="eur"/>
+      </StatTileGrid>
 
-      {/* No goal yet → CTA to open the month plan and set one */}
-      {monthlyGoal <= 0 && onOpenMonthPlan && (
-        <SmartPricingShortcut
-          title={t('smartPricing.title') as string}
-          subtitle={t('smartPricing.subtitle') as string}
-          onClick={onOpenMonthPlan}
-        />
-      )}
-
-      <PriorityList title={t('dashboard.attentionNeeded') as string} items={priorities} onTitleClick={onOpenClientDebts}/>
+      <QuickSituationCard toReceive={totalDebt} toPay={quickPayable} liquidityGap={liquidityGap} onOpen={onOpenTreasury}/>
 
       {/* Same operation feed as Journal des Opérations, limited to the latest rows. */}
       {recentTransactionCount > 0 && (
-        <Card>
-          <CardHeader className="p-4 pb-3">
-            <div className="flex items-center justify-between gap-2">
-              <SectionHeading icon={<ArrowRightLeftIcon className="w-4 h-4"/>}>{t('dashboard.lastOperations')}</SectionHeading>
-              {onOpenTransactions && (
-                <button type="button" onClick={onOpenTransactions} className="text-xs font-semibold text-primary hover:underline">
-                  {t('dashboard.seeAll')}
-                </button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <TransactionDisplayList
-              dateGroups={recentTransactionGroups}
-              t={t}
-              getRelativeDateLabel={getRelativeDateLabel}
-              onEditDisplayTx={handleOpenRecentDisplayTx}
-              onDeleteDisplayTx={handleDeleteRecentDisplayTx}
-              onOpenDisplayTx={handleOpenRecentDisplayTx}
-              formatDzdAmount={formatRecentDzdAmount}
-              profitByTxId={recentProfitByTxId}
-            />
-          </CardContent>
-        </Card>
+        <SectionCard title={t('dashboard.lastOperations')} actionLabel={t('dashboard.seeAll') as string} onAction={onOpenTransactions} flush>
+          <TransactionDisplayList
+            dateGroups={recentTransactionGroups}
+            t={t}
+            getRelativeDateLabel={getRelativeDateLabel}
+            onEditDisplayTx={handleOpenRecentDisplayTx}
+            onDeleteDisplayTx={handleDeleteRecentDisplayTx}
+            onOpenDisplayTx={handleOpenRecentDisplayTx}
+            formatDzdAmount={formatRecentDzdAmount}
+            profitByTxId={recentProfitByTxId}
+          />
+        </SectionCard>
       )}
 
+      {/* Month plan — entry to the smart pricing hub; without a goal it invites to set one. */}
+      {onOpenMonthPlan && (
+        <ListRow standalone icon={<SparklesIcon className="h-5 w-5"/>} tone="primary" title={t(monthlyGoal > 0 ? 'smartPricing.monthPlan' : 'smartPricing.title') as string} subtitle={t(monthlyGoal > 0 ? 'smartPricing.title' : 'smartPricing.subtitle') as string} onClick={onOpenMonthPlan}/>
+      )}
     </div>);
 }

@@ -13,8 +13,8 @@ type CapitalOverviewSecondaryItem = HeroKpiSecondary & {
 };
 
 /**
- * The shared financial overview used at the top of Dashboard and Trésorerie.
- * Keeping the calculation and ordering here prevents the two pages from drifting.
+ * The financial overview at the top of Trésorerie (also on the dashboard until V2-3).
+ * The calculation and ordering live here so any page that shows it shows the same figures.
  */
 export function CapitalOverviewCard({ t, capitalSnapshot, investorBreakdown }: CapitalOverviewCardProps) {
     const secondaryItems: CapitalOverviewSecondaryItem[] = [

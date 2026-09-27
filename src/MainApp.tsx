@@ -30,9 +30,6 @@ import { MainHeaderBar } from './components/main/MainHeaderBar';
 import { MainContentArea } from './components/main/MainContentArea';
 import type { TransactionFilterMode } from './components/transactions/transactionsTypes';
 import { OfflineBanner } from './components/ui/OfflineBanner';
-import { MonthlyRecapBanner } from './components/ui/MonthlyRecapBanner';
-import { WeeklyRecapBanner } from './components/ui/WeeklyRecapBanner';
-import { NotificationPermissionBanner } from './components/ui/NotificationPermissionBanner';
 import { useMonthlyRecap } from './hooks/useMonthlyRecap';
 import { useNotifications } from './hooks/useNotifications';
 import { useWeeklyRecap } from './hooks/useWeeklyRecap';
@@ -2708,6 +2705,55 @@ export default function MainApp({ user }: {
         setSelectedClientId(clientId);
         setView('dzd');
     };
+    // Monthly recap: shown from the first visit of a new month until dismissed (kept in localStorage).
+    const { recap: monthlyRecap, dismiss: dismissMonthlyRecap } = useMonthlyRecap(transactions, pamLedger);
+
+    // Notifications
+    const [showNotifBanner, setShowNotifBanner] = React.useState(false);
+    const notifications = useNotifications(userDocRef);
+
+    // Offer notifications once (after 30s) if not yet asked and supported
+    React.useEffect(() => {
+        if (!notifications.isSupported || notifications.permAsked || notifications.permission !== 'default') return;
+        const timer = setTimeout(() => setShowNotifBanner(true), 30_000);
+        return () => clearTimeout(timer);
+    }, [notifications.isSupported, notifications.permAsked, notifications.permission]);
+
+    // Auto-trigger overdue + distribution notifications
+    React.useEffect(() => {
+        if (notifications.permission !== 'granted') return;
+        // Overdue
+        if (overdueDebtClients.length > 0) {
+            notifications.notifyOverdueClients(
+                overdueDebtClients.length,
+                overdueDebtClients.map(c => c.fullName)
+            );
+        }
+        // Investor profit
+        const totalAvailable = derivedInvestors
+            .filter(i => i.isActive && !i.isManager)
+            .reduce((s, i) => s + Number(i.availableProfit || 0), 0);
+        if (totalAvailable > 10_000) {
+            notifications.notifyInvestorProfit(totalAvailable);
+        }
+    }, [notifications.permission, overdueDebtClients, derivedInvestors]);
+    const { recap: weeklyRecap, dismiss: dismissWeeklyRecap } = useWeeklyRecap({
+        transactions,
+        clientTransactionsDzd,
+        clientsDzd,
+        getClientFullName,
+        providedPamLedger: pamLedger,
+    });
+    // Recaps and the notification request appear among the dashboard alerts.
+    const enableNotifications = async () => {
+        const result = await notifications.requestPermission();
+        setShowNotifBanner(false);
+        return result;
+    };
+    const dismissNotificationPrompt = () => {
+        setShowNotifBanner(false);
+        localStorage.setItem('app_notification_perm_asked', '1');
+    };
     const dashboardSummary = shouldUseDashboardReadModel ? dashboardSummaryRead.dashboardSummary : null;
     const dashboardDailyOverview = dashboardSummary?.dailyOverview ?? dailyOverview;
     const dashboardManagerProfitBreakdown = dashboardSummary?.investors.managerProfitBreakdown ?? managerProfitBreakdown;
@@ -2756,6 +2802,7 @@ export default function MainApp({ user }: {
         servicesSummary: dashboardServicesSummary,
         globalNetProfit,
         overdueDebtClients: effectiveDashboardDebtClients,
+        overdueDebtClientCount: dashboardSummary?.clients.topOverdueClients.itemCount ?? dashboardDebtClients.length,
         isDataReady: isFinancialDataReady,
         onNewTransaction: () => openForm('buy_usdt'),
         onOpenClients: () => { setSelectedClientId(null); setView('dzd'); },
@@ -2788,6 +2835,13 @@ export default function MainApp({ user }: {
         } : null,
         onOpenMonthPlan: () => setIsMonthPlanOpen(true),
         monthlyGoal: monthlyGoalState,
+        weeklyRecap,
+        onDismissWeeklyRecap: dismissWeeklyRecap,
+        monthlyRecap,
+        onDismissMonthlyRecap: dismissMonthlyRecap,
+        showNotificationPrompt: showNotifBanner && notifications.permission === 'default',
+        onEnableNotifications: enableNotifications,
+        onDismissNotificationPrompt: dismissNotificationPrompt,
     };
     // Deleting, or opening the edit form of, an operation of a closed month is refused at once.
     const unlessClosedMonth = <T extends { timestamp?: unknown } | null>(open: (item: T) => unknown) => (item: T) => {
@@ -2926,45 +2980,6 @@ export default function MainApp({ user }: {
             return true;
         } return false; }
     ]);
-    // visit of a new month. Banner self-dismisses (persisted in localStorage).
-    const { recap: monthlyRecap, dismiss: dismissMonthlyRecap } = useMonthlyRecap(transactions, pamLedger);
-
-    // Notifications
-    const [showNotifBanner, setShowNotifBanner] = React.useState(false);
-    const notifications = useNotifications(userDocRef);
-
-    // Show permission banner once (after 30s) if not yet asked and supported
-    React.useEffect(() => {
-        if (!notifications.isSupported || notifications.permAsked || notifications.permission !== 'default') return;
-        const timer = setTimeout(() => setShowNotifBanner(true), 30_000);
-        return () => clearTimeout(timer);
-    }, [notifications.isSupported, notifications.permAsked, notifications.permission]);
-
-    // Auto-trigger overdue + distribution notifications
-    React.useEffect(() => {
-        if (notifications.permission !== 'granted') return;
-        // Overdue
-        if (overdueDebtClients.length > 0) {
-            notifications.notifyOverdueClients(
-                overdueDebtClients.length,
-                overdueDebtClients.map(c => c.fullName)
-            );
-        }
-        // Investor profit
-        const totalAvailable = derivedInvestors
-            .filter(i => i.isActive && !i.isManager)
-            .reduce((s, i) => s + Number(i.availableProfit || 0), 0);
-        if (totalAvailable > 10_000) {
-            notifications.notifyInvestorProfit(totalAvailable);
-        }
-    }, [notifications.permission, overdueDebtClients, derivedInvestors]);
-    const { recap: weeklyRecap, dismiss: dismissWeeklyRecap } = useWeeklyRecap({
-        transactions,
-        clientTransactionsDzd,
-        clientsDzd,
-        getClientFullName,
-        providedPamLedger: pamLedger,
-    });
 
     // Pricing context for the smart sell assistant
     const handleExportBackup = React.useCallback(() => {
@@ -3011,29 +3026,13 @@ export default function MainApp({ user }: {
             <div className="mx-auto max-w-4xl px-page-x pb-24 sm:px-4">
                     <MainHeaderBar {...{ view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), handleOpenGlobalSearch, onOpenSettings: openSettingsModal, onSignOut: handleSignOut, labels: navLabels }}/>
 
-                <WeeklyRecapBanner recap={weeklyRecap} onDismiss={dismissWeeklyRecap}/>
-                <MonthlyRecapBanner recap={monthlyRecap} onDismiss={dismissMonthlyRecap}/>
-                {showNotifBanner && notifications.permission === 'default' && (
-                    <NotificationPermissionBanner
-                        onRequest={async () => {
-                            const result = await notifications.requestPermission();
-                            setShowNotifBanner(false);
-                            return result;
-                        }}
-                        onDismiss={() => {
-                            setShowNotifBanner(false);
-                            localStorage.setItem('app_notification_perm_asked', '1');
-                        }}
-                    />
-                )}
-
-                {isAwaitingServerSync && (<div role="status" className="mb-3 flex items-center gap-2 rounded-xl border border-warning/30 bg-warning-bg px-3 py-2 text-xs font-semibold text-warning">
+                {isAwaitingServerSync && (<div role="status" className="-mt-1 mb-2 flex items-center gap-2 text-xs font-semibold text-neutral-600">
                         <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-warning"/>
-                        <span>Synchronisation en cours… Chiffres enregistrés sur l'appareil. L'enregistrement sera possible dans un instant.</span>
+                        <span>{t('common.syncLine')}</span>
                     </div>)}
                 <MainContentArea {...mainContentProps}/>
 
-                <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onNewOperation={isFinancialDataReady ? openNewOperationMenu : undefined} onOpenSettings={openSettingsModal} onSignOut={handleSignOut} overdueCount={overdueDebtClients.length}/>
+                <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onNewOperation={isFinancialDataReady ? openNewOperationMenu : undefined} onOpenSettings={openSettingsModal} onSignOut={handleSignOut} overdueCount={dashboardPageProps.overdueDebtClientCount}/>
 
                 <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal}/>
 
