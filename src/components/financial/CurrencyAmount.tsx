@@ -56,7 +56,7 @@ const CurrencyAmount: React.FC<CurrencyAmountProps> = ({ value, currency, semant
       {/* dir="ltr" على المبلغ دائماً — حتى في الصفحات RTL */}
       <bdi dir="ltr">
         {sign}{formatted}
-        {currency && (<span className="ms-1 text-[0.82em] opacity-65 font-normal">
+        {currency && (<span className="ms-1 text-[length:max(0.82em,12px)] opacity-65 font-normal">
             {currency}
           </span>)}
       </bdi>

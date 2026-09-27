@@ -220,11 +220,11 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
 
           {/* Group filter chips */}
           {availableGroups.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {availableGroups.map(g => (
                 <button key={g} type="button"
                     onClick={() => setActiveGroupFilter(activeGroupFilter === g ? null : g)}
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold border transition-colors ${activeGroupFilter === g ? 'bg-primary text-white border-primary' : 'border-border text-neutral-500 hover:border-primary/50 hover:text-primary'}`}>
+                    className={`relative min-h-9 rounded-full px-3 text-xs font-bold border transition-colors before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] ${activeGroupFilter === g ? 'bg-primary text-white border-primary' : 'border-border text-neutral-500 hover:border-primary/50 hover:text-primary'}`}>
                     {g} {activeGroupFilter === g && '×'}
                 </button>
               ))}
@@ -270,7 +270,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className="truncate text-[15px] font-semibold text-neutral-900 leading-snug">{fullName}</p>
                           {overdue && (
-                            <span className="shrink-0 inline-flex items-center gap-0.5 text-financial-loss text-[11px] font-bold">
+                            <span className="shrink-0 inline-flex items-center gap-0.5 text-financial-loss text-xs font-bold">
                               <AlertTriangleIcon className="w-3 h-3"/>
                               {overdue.daysOverdue}{t('common.dayShort')}
                             </span>
@@ -287,7 +287,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                         {/* Row 2: tier badge + meta — bigger & cleaner */}
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           {tierCfg && (
-                            <span className={`flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-bold border ${tierCfg.badgeCls}`}>
+                            <span className={`flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-bold border ${tierCfg.badgeCls}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${tierCfg.dot}`}/>
                               {t(tierCfg.label)}
                             </span>
@@ -298,10 +298,10 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                             </span>
                           )}
                           {!isFournisseur && lastSell > 0 && (
-                            <span className="text-[11px] text-neutral-400">{fmtRelDate(lastSell)}</span>
+                            <span className="text-xs text-neutral-400">{fmtRelDate(lastSell)}</span>
                           )}
                           {client.group && (
-                            <span className="rounded-lg px-2 py-0.5 text-[11px] font-medium bg-neutral-100 text-neutral-500 border border-neutral-200">
+                            <span className="rounded-lg px-2 py-0.5 text-xs font-medium bg-neutral-100 text-neutral-500 border border-neutral-200">
                               {client.group}
                             </span>
                           )}
@@ -314,7 +314,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                           <CurrencyAmount value={Math.abs(balance)} currency="DZD" size="md"
                             className={balance < 0 ? 'text-financial-loss' : 'text-financial-profit'}/>
                         )}
-                        <span className={`text-[11px] font-semibold ${balance < 0 ? 'text-financial-loss' : balance > 0 ? 'text-financial-profit' : 'text-neutral-400'}`}>
+                        <span className={`text-xs font-semibold ${balance < 0 ? 'text-financial-loss' : balance > 0 ? 'text-financial-profit' : 'text-neutral-400'}`}>
                           {balance < 0 ? t('finance.debt') : balance > 0 ? t('finance.advance') : ''}
                         </span>
                         {handleZeroOutBalance && balance !== 0 && (
@@ -323,7 +323,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                               e.stopPropagation();
                               setSolderTarget({ clientId: client.id, name: fullName, balance });
                             }}
-                            className="mt-1 text-[10px] font-semibold text-neutral-500 hover:text-primary border border-neutral-200 hover:border-primary/30 rounded-lg px-2 py-0.5 transition-colors bg-surface">
+                            className="relative mt-1 min-h-9 rounded-[10px] border border-border-strong bg-surface px-3 text-[13px] font-semibold text-neutral-700 transition-colors before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] hover:border-primary/40 hover:text-primary">
                             {t('clients.solder')}
                           </button>
                         )}

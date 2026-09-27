@@ -304,7 +304,7 @@ export function TransactionsHistoryCard({
                 <Button variant="outline" className="min-h-touch w-full min-w-0 justify-start gap-2 rounded-lg border-border bg-neutral-100 px-3 text-xs font-bold text-neutral-800 transition-colors hover:bg-neutral-200">
                   <FilterIcon className="h-4 w-4 shrink-0" />
                   <span className="min-w-0 truncate">{t('transactions.filterAction')}</span>
-                  <span className="ms-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] bg-surface text-neutral-600">
+                  <span className="ms-auto shrink-0 rounded-full px-1.5 py-0.5 text-xs bg-surface text-neutral-600">
                     {txFilterCounts[filterMode] || 0}
                   </span>
                 </Button>
@@ -312,7 +312,7 @@ export function TransactionsHistoryCard({
             >
               <div className="space-y-3">
                 <div>
-                  <div className="mb-1 px-1 text-[10px] font-black uppercase text-neutral-400">
+                  <div className="mb-1 px-1 text-[13px] font-bold text-neutral-500">
                     {t('transactions.filterGroupGeneral')}
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -339,7 +339,7 @@ export function TransactionsHistoryCard({
                                 {label || txFilterLabels[mode]}
                               </span>
                               <span className={[
-                                'mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                                'mt-1 inline-flex rounded-full px-1.5 py-0.5 text-xs font-bold',
                                 isActiveGroup ? 'bg-surface/20' : 'bg-surface text-neutral-500',
                               ].join(' ')}>
                                 {txFilterCounts[mode] || 0}
@@ -354,14 +354,14 @@ export function TransactionsHistoryCard({
 
                 {activeFilterGroup.sections.length > 0 && (
                   <div className="border-t border-border pt-3">
-                    <div className="mb-1 px-1 text-[10px] font-black uppercase text-neutral-400">
+                    <div className="mb-1 px-1 text-[13px] font-bold text-neutral-500">
                       {activeFilterGroup.label}
                     </div>
                     <div className="space-y-2">
                       {activeFilterGroup.sections.map((section, sectionIndex) => (
                         <div key={`${activeFilterGroup.mode}_${section.title || sectionIndex}`}>
                           {section.title && (
-                            <div className="mb-1 px-1 text-[11px] font-bold text-neutral-500">
+                            <div className="mb-1 px-1 text-[13px] font-bold text-neutral-500">
                               {section.title}
                             </div>
                           )}
@@ -385,11 +385,11 @@ export function TransactionsHistoryCard({
                                       {icon}
                                     </span>
                                     <span className="min-w-0 flex-1">
-                                      <span className="block truncate text-[11px] font-bold leading-snug">
+                                      <span className="block truncate text-xs font-bold leading-snug">
                                         {label || txFilterLabels[mode]}
                                       </span>
                                       <span className={[
-                                        'mt-0.5 inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                                        'mt-0.5 inline-flex rounded-full px-1.5 py-0.5 text-xs font-bold',
                                         isActive ? 'bg-surface/20' : 'bg-surface text-neutral-500',
                                       ].join(' ')}>
                                         {txFilterCounts[mode] || 0}
@@ -491,13 +491,13 @@ export function TransactionsHistoryCard({
 
         {/* Tag filter chips */}
         {allTags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {allTags.map((tag) => (
               <button
                 key={tag}
                 type="button"
                 onClick={() => setActiveTag((prev) => prev === tag ? null : tag)}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                className={`relative min-h-9 rounded-full px-3 text-xs font-semibold transition-colors before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] ${
                   activeTag === tag
                     ? 'bg-primary text-white'
                     : 'bg-primary/10 text-primary hover:bg-primary/20'
@@ -537,11 +537,11 @@ export function TransactionsHistoryCard({
                 {filteredSummary.count} {t('transactions.operationsWord')}
               </span>
               <div className="flex items-center gap-1">
-                <span className="text-[10px] text-neutral-400">{t('transactions.totalApprox')}</span>
+                <span className="text-xs text-neutral-400">{t('transactions.totalApprox')}</span>
                 <span dir="ltr" className="text-sm font-bold text-neutral-800 tabular-nums">
                   {filteredSummary.totalDzd.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
                 </span>
-                <span className="text-[10px] text-neutral-400">DZD</span>
+                <span className="text-xs text-neutral-400">DZD</span>
               </div>
             </div>
           )}

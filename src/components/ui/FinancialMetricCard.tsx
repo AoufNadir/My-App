@@ -33,7 +33,7 @@ export function FinancialMetricCard({ label, value, currency = 'DZD', semantic =
         }} className={`group relative min-h-touch rounded-xl border p-3 shadow-card ring-1 transition-all border-border bg-surface text-neutral-900 ${toneClass.ring} ${onClick ? 'cursor-pointer hover:-translate-y-0.5' : ''} ${className}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-[11px] font-bold uppercase text-neutral-500">{label}</p>
+          <p className="truncate text-xs font-bold uppercase text-neutral-500">{label}</p>
           <div className="mt-1">
             {valueDisplay ?? <CurrencyAmount value={value} currency={currency ?? undefined} semantic={semantic} size="lg"/>}
           </div>

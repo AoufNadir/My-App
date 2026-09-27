@@ -81,7 +81,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                             </span>
                         </div>
                         {prevMonthStats.sellCount > 0 && (
-                            <span className="text-[10px] font-semibold text-neutral-400">
+                            <span className="text-xs font-semibold text-neutral-400">
                                 vs {MONTH_LABELS_FR[prevMonthIdx]}
                             </span>
                         )}
@@ -127,27 +127,27 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                         <div className="grid grid-cols-3 gap-3">
                             {/* Win rate */}
                             <div>
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.winRate')}</p>
+                                <p className="text-xs font-bold uppercase text-neutral-400 mb-1">{t('portfolio.winRate')}</p>
                                 <span className={`text-lg font-extrabold tabular-nums ${(calculatedStats.winRate ?? 0) >= 80 ? 'text-financial-profit' : (calculatedStats.winRate ?? 0) >= 50 ? 'text-warning' : 'text-financial-loss'}`}>
                                     {calculatedStats.winRate !== null ? `${Math.round(calculatedStats.winRate)}%` : '—'}
                                 </span>
-                                {(() => { const c = pctChange(calculatedStats.winRate, prevMonthStats.winRate); return c ? <p className={`text-[10px] font-bold ${c.cls}`}>{c.label}</p> : null; })()}
+                                {(() => { const c = pctChange(calculatedStats.winRate, prevMonthStats.winRate); return c ? <p className={`text-xs font-bold ${c.cls}`}>{c.label}</p> : null; })()}
                             </div>
                             {/* Avg profit per sell */}
                             <div>
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.avgProfitPerSale')}</p>
+                                <p className="text-xs font-bold uppercase text-neutral-400 mb-1">{t('portfolio.avgProfitPerSale')}</p>
                                 {calculatedStats.avgProfitPerSell !== null
                                     ? <CurrencyAmount value={calculatedStats.avgProfitPerSell} currency="DZD" semantic="auto" size="md" decimals={0}/>
                                     : <span className="text-neutral-400">—</span>}
-                                {(() => { const c = pctChange(calculatedStats.avgProfitPerSell, prevMonthStats.avgProfitPerSell); return c ? <p className={`text-[10px] font-bold ${c.cls}`}>{c.label}</p> : null; })()}
+                                {(() => { const c = pctChange(calculatedStats.avgProfitPerSell, prevMonthStats.avgProfitPerSell); return c ? <p className={`text-xs font-bold ${c.cls}`}>{c.label}</p> : null; })()}
                             </div>
                             {/* Best sell of the month */}
                             <div>
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.bestSale')}</p>
+                                <p className="text-xs font-bold uppercase text-neutral-400 mb-1">{t('portfolio.bestSale')}</p>
                                 {calculatedStats.bestSellProfit > 0
                                     ? <CurrencyAmount value={calculatedStats.bestSellProfit} currency="DZD" semantic="profit" size="md" decimals={0}/>
                                     : <span className="text-neutral-400">—</span>}
-                                <p className="text-[9px] text-neutral-300 mt-0.5">ce mois</p>
+                                <p className="text-xs text-neutral-300 mt-0.5">ce mois</p>
                             </div>
                         </div>
                     </>)}
@@ -172,7 +172,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                     {FULL_MONTHS_FR[props.usdtReportMonth]} {props.usdtReportYear}
                                 </SectionHeading>
                                 <div className="text-end shrink-0">
-                                    <p className="text-[10px] font-bold uppercase text-neutral-400">{totalDaysWithActivity} {t('portfolio.activeDays')}</p>
+                                    <p className="text-xs font-bold uppercase text-neutral-400">{totalDaysWithActivity} {t('portfolio.activeDays')}</p>
                                     <CurrencyAmount value={monthProfit} currency="DZD" semantic="auto" size="sm" decimals={0} showSign/>
                                 </div>
                             </div>
@@ -180,7 +180,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                         <CardContent className="px-4 pb-4 pt-0">
                             <div className="grid grid-cols-7 gap-1 mb-1">
                                 {DAY_LABELS.map((d, i) => (
-                                    <div key={i} className="text-center text-[10px] font-bold text-neutral-400 py-0.5">{d}</div>
+                                    <div key={i} className="text-center text-xs font-bold text-neutral-400 py-0.5">{d}</div>
                                 ))}
                             </div>
                             <div className="grid grid-cols-7 gap-1">
@@ -188,13 +188,13 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                     <div
                                         key={i}
                                         title={cell.day && cell.profit !== 0 ? `${cell.day}: ${cell.profit >= 0 ? '+' : ''}${Math.round(cell.profit).toLocaleString('fr-FR')} DZD` : undefined}
-                                        className={`aspect-square rounded-md flex flex-col items-center justify-center text-[11px] font-bold transition-colors ${cell.day ? profitCellClass(cell.profit, maxProfit) : 'bg-transparent'}`}
+                                        className={`aspect-square rounded-md flex flex-col items-center justify-center text-xs font-bold transition-colors ${cell.day ? profitCellClass(cell.profit, maxProfit) : 'bg-transparent'}`}
                                     >
                                         {cell.day && (
                                             <>
                                                 <span>{cell.day}</span>
                                                 {cell.profit !== 0 && (
-                                                    <span className="text-[8px] font-semibold opacity-80 leading-none">
+                                                    <span className="text-xs font-semibold opacity-80 leading-none">
                                                         {cell.profit > 0 ? '+' : ''}
                                                         {Math.abs(cell.profit) >= 1000
                                                             ? `${(Math.abs(cell.profit) / 1000).toFixed(0)}k`
@@ -207,13 +207,13 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                 ))}
                             </div>
                             <div className="mt-3 flex items-center justify-end gap-2">
-                                <span className="text-[10px] text-neutral-400">Moins</span>
+                                <span className="text-xs text-neutral-400">Moins</span>
                                 {['bg-neutral-100', 'bg-financial-profit/20', 'bg-financial-profit/45', 'bg-financial-profit/70', 'bg-financial-profit'].map((cls, i) => (
                                     <div key={i} className={`h-3 w-3 rounded-sm ${cls}`}/>
                                 ))}
-                                <span className="text-[10px] text-neutral-400">Plus</span>
+                                <span className="text-xs text-neutral-400">Plus</span>
                                 <div className="h-3 w-3 rounded-sm bg-financial-loss/25 ms-1"/>
-                                <span className="text-[10px] text-neutral-400">Perte</span>
+                                <span className="text-xs text-neutral-400">Perte</span>
                             </div>
                         </CardContent>
                     </Card>
@@ -231,7 +231,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                 {t('portfolio.salesPriceUsdt')}
                             </SectionHeading>
                             {priceHistory.prev && (
-                                <span className="text-[10px] font-semibold text-neutral-400">
+                                <span className="text-xs font-semibold text-neutral-400">
                                     vs {MONTH_LABELS_FR[props.usdtReportMonth === 0 ? 11 : props.usdtReportMonth - 1]}
                                 </span>
                             )}
@@ -241,51 +241,51 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                         {/* KPIs row */}
                         <div className="grid grid-cols-3 gap-2">
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.avgSalesPrice')}</p>
+                                <p className="text-xs font-bold uppercase text-neutral-400 mb-1">{t('portfolio.avgSalesPrice')}</p>
                                 <p dir="ltr" className="text-lg font-extrabold tabular-nums text-neutral-800">
                                     {priceHistory.current.avgSell.toFixed(2)}
                                 </p>
-                                <p className="text-[9px] text-neutral-400">DZD/USDT</p>
+                                <p className="text-xs text-neutral-400">DZD/USDT</p>
                                 {priceHistory.prev && (() => {
                                     const c = pctChange(priceHistory.current!.avgSell, priceHistory.prev!.avgSell);
-                                    return c ? <p className={`text-[10px] font-bold mt-0.5 ${c.cls}`}>{c.label}</p> : null;
+                                    return c ? <p className={`text-xs font-bold mt-0.5 ${c.cls}`}>{c.label}</p> : null;
                                 })()}
                             </div>
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.avgMargin')}</p>
+                                <p className="text-xs font-bold uppercase text-neutral-400 mb-1">{t('portfolio.avgMargin')}</p>
                                 <p dir="ltr" className={`text-lg font-extrabold tabular-nums ${priceHistory.current.avgMargin >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
                                     {priceHistory.current.avgMargin >= 0 ? '+' : ''}{priceHistory.current.avgMargin.toFixed(2)}
                                 </p>
-                                <p className="text-[9px] text-neutral-400">DZD/USDT</p>
+                                <p className="text-xs text-neutral-400">DZD/USDT</p>
                                 {priceHistory.prev && (() => {
                                     const c = pctChange(priceHistory.current!.avgMargin, priceHistory.prev!.avgMargin);
-                                    return c ? <p className={`text-[10px] font-bold mt-0.5 ${c.cls}`}>{c.label}</p> : null;
+                                    return c ? <p className={`text-xs font-bold mt-0.5 ${c.cls}`}>{c.label}</p> : null;
                                 })()}
                             </div>
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">Marge %</p>
+                                <p className="text-xs font-bold uppercase text-neutral-400 mb-1">Marge %</p>
                                 <p className={`text-lg font-extrabold tabular-nums ${priceHistory.current.avgMargin >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
                                     {priceHistory.current.avgSell > 0
                                         ? `${priceHistory.current.avgMargin >= 0 ? '+' : ''}${((priceHistory.current.avgMargin / priceHistory.current.avgSell) * 100).toFixed(2)}%`
                                         : '—'}
                                 </p>
-                                <p className="text-[9px] text-neutral-400">{t('portfolio.marginOnPrice')}</p>
+                                <p className="text-xs text-neutral-400">{t('portfolio.marginOnPrice')}</p>
                             </div>
                         </div>
 
                         {/* 6-month mini bar chart */}
                         {priceHistory.trend.some(t => t.data !== null) && (
                             <div>
-                                <p className="mb-2 text-[10px] font-bold uppercase text-neutral-400">{t('portfolio.marginTrend')}</p>
+                                <p className="mb-2 text-xs font-bold uppercase text-neutral-400">{t('portfolio.marginTrend')}</p>
                                 <div className="space-y-1">
                                     {priceHistory.trend.map((item, i) => {
                                         if (!item.data) return (
                                             <div key={i} className="flex items-center gap-2">
-                                                <span className={`w-8 text-[10px] font-semibold shrink-0 ${item.monthIdx === props.usdtReportMonth && item.year === props.usdtReportYear ? 'text-primary' : 'text-neutral-300'}`}>
+                                                <span className={`w-8 text-xs font-semibold shrink-0 ${item.monthIdx === props.usdtReportMonth && item.year === props.usdtReportYear ? 'text-primary' : 'text-neutral-300'}`}>
                                                     {MONTH_LABELS_FR[item.monthIdx]}
                                                 </span>
                                                 <div className="flex-1 rounded-full bg-neutral-100 h-2"/>
-                                                <div className="w-20 text-end shrink-0 text-[10px] text-neutral-300">—</div>
+                                                <div className="w-20 text-end shrink-0 text-xs text-neutral-300">—</div>
                                             </div>
                                         );
                                         const maxMargin = Math.max(...priceHistory.trend.filter(t => t.data).map(t => Math.abs(t.data!.avgMargin)), 1);
@@ -293,7 +293,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                         const barPct = Math.max(4, (Math.abs(item.data.avgMargin) / maxMargin) * 100);
                                         return (
                                             <div key={i} className={`flex items-center gap-2 rounded-lg px-1 py-0.5 ${isActive ? 'bg-primary/5 ring-1 ring-primary/20' : ''}`}>
-                                                <span className={`w-8 text-[10px] font-semibold shrink-0 ${isActive ? 'text-primary' : 'text-neutral-400'}`}>
+                                                <span className={`w-8 text-xs font-semibold shrink-0 ${isActive ? 'text-primary' : 'text-neutral-400'}`}>
                                                     {MONTH_LABELS_FR[item.monthIdx]}
                                                 </span>
                                                 <div className="flex-1 rounded-full bg-neutral-100 h-2">
@@ -303,7 +303,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                                     />
                                                 </div>
                                                 <div className="w-20 text-end shrink-0">
-                                                    <span dir="ltr" className={`text-[11px] font-semibold tabular-nums ${item.data.avgMargin >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
+                                                    <span dir="ltr" className={`text-xs font-semibold tabular-nums ${item.data.avgMargin >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
                                                         {item.data.avgMargin >= 0 ? '+' : ''}{item.data.avgMargin.toFixed(2)} DZD
                                                     </span>
                                                 </div>
@@ -311,7 +311,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                         );
                                     })}
                                 </div>
-                                <p className="mt-2 text-[9px] text-neutral-400 text-end">{t('portfolio.marginFormula')}</p>
+                                <p className="mt-2 text-xs text-neutral-400 text-end">{t('portfolio.marginFormula')}</p>
                             </div>
                         )}
                     </CardContent>
@@ -330,33 +330,33 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                 <CardContent className="p-4 pt-0 space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                         <div className="rounded-xl border border-border bg-surface-muted p-3">
-                            <p className="text-[11px] font-bold uppercase text-neutral-500">{t('portfolio.salesProfitYtd')}</p>
+                            <p className="text-xs font-bold uppercase text-neutral-500">{t('portfolio.salesProfitYtd')}</p>
                             <div className="mt-1">
                                 <CurrencyAmount value={annualStats.ytdProfit} currency="DZD" semantic="auto" size="lg" decimals={0}/>
                             </div>
-                            <p className="mt-1 text-[10px] text-neutral-400">Jan → {MONTH_LABELS_FR[props.usdtReportMonth]}</p>
+                            <p className="mt-1 text-xs text-neutral-400">Jan → {MONTH_LABELS_FR[props.usdtReportMonth]}</p>
                         </div>
                         <div className="rounded-xl border border-border bg-surface-muted p-3">
-                            <p className="text-[11px] font-bold uppercase text-neutral-500">{t('portfolio.bestMonth')} {props.usdtReportYear}</p>
+                            <p className="text-xs font-bold uppercase text-neutral-500">{t('portfolio.bestMonth')} {props.usdtReportYear}</p>
                             <div className="mt-1">
                                 {annualStats.bestMonth >= 0
                                     ? <CurrencyAmount value={annualStats.bestMonthProfit} currency="DZD" semantic="profit" size="lg" decimals={0}/>
                                     : <span className="text-neutral-400 text-sm">—</span>}
                             </div>
-                            <p className="mt-1 text-[10px] text-neutral-400">
+                            <p className="mt-1 text-xs text-neutral-400">
                                 {annualStats.bestMonth >= 0 ? MONTH_LABELS_FR[annualStats.bestMonth] : '—'}
                             </p>
                         </div>
                     </div>
                     <div>
-                        <p className="mb-2 text-[11px] font-bold uppercase text-neutral-400">{t('portfolio.monthlySalesProfit')}</p>
+                        <p className="mb-2 text-xs font-bold uppercase text-neutral-400">{t('portfolio.monthlySalesProfit')}</p>
                         <div className="space-y-1.5">
                             {annualStats.byMonth.map((profit, m) => {
                                 const isActive = m === props.usdtReportMonth;
                                 const maxProfit = Math.max(...annualStats.byMonth.filter((v) => v > 0), 1);
                                 const barPct = profit > 0 ? Math.max(4, (profit / maxProfit) * 100) : 0;
                                 return (<div key={m} className={`flex items-center gap-2 rounded-lg px-2 py-1 transition-colors ${isActive ? 'bg-primary/5 ring-1 ring-primary/20' : ''}`}>
-                                    <span className={`w-8 text-[10px] font-semibold shrink-0 ${isActive ? 'text-primary' : 'text-neutral-400'}`}>
+                                    <span className={`w-8 text-xs font-semibold shrink-0 ${isActive ? 'text-primary' : 'text-neutral-400'}`}>
                                         {MONTH_LABELS_FR[m]}
                                     </span>
                                     <div className="flex-1 rounded-full bg-neutral-100 h-2">
@@ -365,7 +365,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                     <div className="w-24 text-end shrink-0">
                                         {profit !== 0
                                             ? <CurrencyAmount value={profit} currency="DZD" semantic="auto" size="sm" decimals={0} showSign/>
-                                            : <span className="text-[10px] text-neutral-300">—</span>}
+                                            : <span className="text-xs text-neutral-300">—</span>}
                                     </div>
                                 </div>);
                             })}
@@ -388,26 +388,26 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                         {/* All-time KPIs — 4 compact stats */}
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.totalSalesProfit')}</p>
+                                <p className="text-xs font-bold uppercase text-neutral-400 mb-1">{t('portfolio.totalSalesProfit')}</p>
                                 <CurrencyAmount value={allTimeStats.totalProfit} currency="DZD" semantic="auto" size="md" decimals={0}/>
                             </div>
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.winRate')}</p>
+                                <p className="text-xs font-bold uppercase text-neutral-400 mb-1">{t('portfolio.winRate')}</p>
                                 <span className={`text-base font-extrabold tabular-nums ${(allTimeStats.winRate ?? 0) >= 80 ? 'text-financial-profit' : (allTimeStats.winRate ?? 0) >= 50 ? 'text-warning' : 'text-financial-loss'}`}>
                                     {allTimeStats.winRate !== null ? `${Math.round(allTimeStats.winRate)}%` : '—'}
                                 </span>
-                                <p className="text-[9px] text-neutral-400 mt-0.5">{allTimeStats.totalSells} ventes</p>
+                                <p className="text-xs text-neutral-400 mt-0.5">{allTimeStats.totalSells} ventes</p>
                             </div>
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.bestSale')}</p>
+                                <p className="text-xs font-bold uppercase text-neutral-400 mb-1">{t('portfolio.bestSale')}</p>
                                 <CurrencyAmount value={allTimeStats.bestSellProfit} currency="DZD" semantic="profit" size="md" decimals={0}/>
-                                <p className="text-[9px] text-neutral-400 mt-0.5">record absolu</p>
+                                <p className="text-xs text-neutral-400 mt-0.5">record absolu</p>
                             </div>
                             <div className="rounded-xl border border-border bg-surface-muted p-3">
-                                <p className="text-[10px] font-bold uppercase text-neutral-400 mb-1">{t('portfolio.bestMonth')}</p>
+                                <p className="text-xs font-bold uppercase text-neutral-400 mb-1">{t('portfolio.bestMonth')}</p>
                                 {allTimeStats.bestMonthKey
                                     ? <><CurrencyAmount value={allTimeStats.bestMonthProfit} currency="DZD" semantic="profit" size="md" decimals={0}/>
-                                       <p className="text-[9px] text-neutral-400 mt-0.5">{allTimeStats.bestMonthKey}</p></>
+                                       <p className="text-xs text-neutral-400 mt-0.5">{allTimeStats.bestMonthKey}</p></>
                                     : <span className="text-neutral-400">—</span>}
                             </div>
                         </div>
@@ -415,7 +415,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                         {/* Volume row */}
                         {(allTimeStats.usdtTotal > 0 || allTimeStats.eurTotal > 0) && (
                             <div className="flex items-center gap-3 text-xs text-neutral-500 border-t border-border pt-3">
-                                <span className="text-[10px] font-bold uppercase text-neutral-400">Volume total :</span>
+                                <span className="text-xs font-bold uppercase text-neutral-400">Volume total :</span>
                                 {allTimeStats.usdtTotal > 0 && (
                                     <span dir="ltr" className="font-semibold text-neutral-700">
                                         {allTimeStats.usdtTotal.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} USDT
@@ -432,7 +432,7 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                         {/* Top clients — two columns side by side */}
                         {(allTimeClientRanking.byProfit.length > 0 || allTimeClientRanking.byVolume.length > 0) && (
                             <div className="border-t border-border pt-3">
-                                <p className="mb-3 text-[10px] font-bold uppercase text-neutral-400 flex items-center gap-1">
+                                <p className="mb-3 text-xs font-bold uppercase text-neutral-400 flex items-center gap-1">
                                     <UsersIcon className="w-3 h-3"/> Top clients
                                 </p>
                                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -441,11 +441,11 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                         const maxP = Math.max(...allTimeClientRanking.byProfit.map((r) => r.realizedProfit), 1);
                                         return (
                                             <div>
-                                                <p className="mb-2 text-[10px] font-semibold text-neutral-400">{t('portfolio.realizedProfit')}</p>
+                                                <p className="mb-2 text-xs font-semibold text-neutral-400">{t('portfolio.realizedProfit')}</p>
                                                 <div className="space-y-1.5">
                                                     {allTimeClientRanking.byProfit.map((row, i) => (
                                                         <div key={row.clientId} className="flex items-center gap-2">
-                                                            <span className="w-3.5 text-[10px] font-bold text-neutral-300 shrink-0">{i + 1}</span>
+                                                            <span className="w-3.5 text-xs font-bold text-neutral-300 shrink-0">{i + 1}</span>
                                                             <span className="w-20 text-xs font-semibold truncate shrink-0 text-neutral-700">{row.clientName}</span>
                                                             <div className="flex-1 rounded-full bg-neutral-100 h-1.5">
                                                                 <div className="h-1.5 rounded-full bg-financial-profit/60" style={{ width: `${(Math.abs(row.realizedProfit) / maxP) * 100}%` }}/>
@@ -462,16 +462,16 @@ export function AnalyticsPage(props: AnalyticsPageProps) {
                                         const maxVol = Math.max(...allTimeClientRanking.byVolume.map((r) => r.sellVolumeUsdt), 1);
                                         return (
                                             <div>
-                                                <p className="mb-2 text-[10px] font-semibold text-neutral-400">Par volume vendu</p>
+                                                <p className="mb-2 text-xs font-semibold text-neutral-400">Par volume vendu</p>
                                                 <div className="space-y-1.5">
                                                     {allTimeClientRanking.byVolume.map((row, i) => (
                                                         <div key={row.clientId} className="flex items-center gap-2">
-                                                            <span className="w-3.5 text-[10px] font-bold text-neutral-300 shrink-0">{i + 1}</span>
+                                                            <span className="w-3.5 text-xs font-bold text-neutral-300 shrink-0">{i + 1}</span>
                                                             <span className="w-20 text-xs font-semibold truncate shrink-0 text-neutral-700">{row.clientName}</span>
                                                             <div className="flex-1 rounded-full bg-neutral-100 h-1.5">
                                                                 <div className="h-1.5 rounded-full bg-primary/50" style={{ width: `${(row.sellVolumeUsdt / maxVol) * 100}%` }}/>
                                                             </div>
-                                                            <span dir="ltr" className="text-[11px] font-semibold text-neutral-600 shrink-0 w-14 text-end tabular-nums">
+                                                            <span dir="ltr" className="text-xs font-semibold text-neutral-600 shrink-0 w-14 text-end tabular-nums">
                                                                 {row.sellVolumeUsdt.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} U
                                                             </span>
                                                         </div>

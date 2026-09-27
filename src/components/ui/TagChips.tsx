@@ -6,7 +6,7 @@ export interface TagChipsProps {
     onTagClick?: (tag: string) => void;
 }
 const SIZE: Record<NonNullable<TagChipsProps['size']>, string> = {
-    xs: 'text-[10px] px-1.5 py-0.5',
+    xs: 'text-xs px-1.5 py-0.5',
     sm: 'text-xs px-2 py-0.5',
 };
 export const TagChips: React.FC<TagChipsProps> = ({ tags, size = 'xs', className = '', onTagClick }) => {

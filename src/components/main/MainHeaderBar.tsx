@@ -25,7 +25,7 @@ function MainHeaderBarComponent({ view, setView, globalSearchTitle, setIsMobileM
         <Dropdown contentClassName="w-36" trigger={(<button type="button" className={buttonClassName} aria-label="Changer la langue" title="Changer la langue">
             {languageLabels[lang]}
         </button>)}>
-            {(['fr', 'ar'] as Lang[]).map((item) => (<DropdownItem key={item} onClick={() => setLang(item)} isActive={lang === item} icon={<span className={`flex h-6 w-8 items-center justify-center rounded-md text-[11px] font-black ${lang === item ? 'bg-primary text-white' : 'bg-neutral-100 text-neutral-700'}`}>{languageLabels[item]}</span>}>
+            {(['fr', 'ar'] as Lang[]).map((item) => (<DropdownItem key={item} onClick={() => setLang(item)} isActive={lang === item} icon={<span className={`flex h-6 w-8 items-center justify-center rounded-md text-xs font-black ${lang === item ? 'bg-primary text-white' : 'bg-neutral-100 text-neutral-700'}`}>{languageLabels[item]}</span>}>
                 {languageNames[item]}
             </DropdownItem>))}
         </Dropdown>

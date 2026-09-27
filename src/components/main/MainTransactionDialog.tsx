@@ -49,7 +49,7 @@ function TagInput({ tags, setTags, t }: { tags: string[]; setTags: (t: string[])
             )}
             <div className="flex flex-wrap gap-1.5">
                 {QUICK_TAGS.filter(({ value }) => !tags.includes(value)).map(({ value, labelKey }) => (
-                    <button key={value} type="button" onClick={() => addTag(value)} className="rounded-full border border-dashed border-neutral-300 px-2.5 py-1 text-[11px] font-medium text-neutral-500 hover:border-primary hover:text-primary transition-colors">
+                    <button key={value} type="button" onClick={() => addTag(value)} className="rounded-full border border-dashed border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-500 hover:border-primary hover:text-primary transition-colors">
                         + {t(labelKey)}
                     </button>
                 ))}

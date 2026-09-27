@@ -139,12 +139,12 @@ export function SmartPricePanel({
         <section aria-label={t('smartPricing.title')} className="space-y-3 rounded-2xl border border-primary/20 bg-primary/[0.03] p-3.5">
             <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-xs font-extrabold text-neutral-800">{t('smartPricing.title')}</span>
-                <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${MARKET_CLS[quote.market.effective]}`}>{marketLabel}</span>
-                <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${SEGMENT_CLS[quote.client.pricedAs]}`}>
+                <span className={`rounded-full px-2 py-1 text-xs font-bold ${MARKET_CLS[quote.market.effective]}`}>{marketLabel}</span>
+                <span className={`rounded-full px-2 py-1 text-xs font-bold ${SEGMENT_CLS[quote.client.pricedAs]}`}>
                     {segmentLabel}{quote.client.score !== null ? ` · ${quote.client.score}` : ''}
                 </span>
                 {(quote.market.confidence === 'low' || smartPricing.history.confidence === 'low') && (
-                    <span className="rounded-full bg-warning-bg px-2 py-1 text-[10px] font-bold text-warning">{t('smartPricing.lowConfidence')}</span>
+                    <span className="rounded-full bg-warning-bg px-2 py-1 text-xs font-bold text-warning">{t('smartPricing.lowConfidence')}</span>
                 )}
             </div>
 
@@ -166,14 +166,14 @@ export function SmartPricePanel({
                                 ? 'border-primary bg-primary text-white'
                                 : 'border-border bg-surface text-neutral-700 hover:bg-neutral-50'}`}
                         >
-                            <span className={`block text-[10px] font-semibold ${selected ? 'text-white/80' : 'text-neutral-400'}`}>{item.label}</span>
+                            <span className={`block text-xs font-semibold ${selected ? 'text-white/80' : 'text-neutral-400'}`}>{item.label}</span>
                             <span dir="ltr" className="block text-base font-black tabular-nums">{fmtPrice(item.price)}</span>
                         </button>
                     );
                 })}
             </div>
 
-            <div aria-live="polite" className="space-y-1 text-[11px] text-neutral-500">
+            <div aria-live="polite" className="space-y-1 text-xs text-neutral-500">
                 <p dir="ltr">
                     {t('smartPricing.pam')}: <b>{fmt2(quote.pam)}</b>
                     <span className="mx-1.5 text-neutral-300">·</span>
@@ -197,7 +197,7 @@ export function SmartPricePanel({
                         {showDetails ? t('smartPricing.hideDetails') : t('smartPricing.why')}
                     </button>
                     {showDetails && (
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 rounded-xl bg-surface-muted p-3 text-[11px] text-neutral-600">
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 rounded-xl bg-surface-muted p-3 text-xs text-neutral-600">
                             <span>{t('smartPricing.marketOverride')}</span><b>{marketLabel}</b>
                             <span>{t('smartPricing.clientOverride')}</span><b>{segmentLabel}</b>
                             <span>{t('smartPricing.quantity')}</span><b dir="ltr">{fmt0(quantity)} {currency}</b>

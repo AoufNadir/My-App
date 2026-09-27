@@ -6,6 +6,7 @@ import { Fab } from '../ui/Fab';
 import { MainNavLink } from './MainNavLink';
 import { MobileNavLink } from './MobileNavLink';
 import { BriefcaseIcon } from '../icons/BriefcaseIcon';
+import { ArrowRightLeftIcon } from '../icons/ArrowRightLeftIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { ArrowUpIcon } from '../icons/ArrowUpIcon';
 import { UsersIcon } from '../icons/UsersIcon';
@@ -61,7 +62,7 @@ type BottomNavProps = NavSharedProps & {
     overdueCount?: number;
 };
 function AppDesktopNavComponent({ view, onSelect, labels }: NavSharedProps) {
-    const sectionLabelClass = 'px-3 pb-1 pt-2 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400';
+    const sectionLabelClass = 'px-3 pb-1 pt-2 text-[13px] font-bold text-neutral-500';
     const triggerClass = `inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold uppercase tracking-wider transition-colors ${(SECONDARY_VIEWS as readonly string[]).includes(view)
         ? 'bg-primary text-white shadow-card'
         : 'text-neutral-600 hover:bg-neutral-100'}`;
@@ -143,8 +144,8 @@ const SECONDARY_VIEWS = ['statistiques', 'analytics', 'tresorerie', 'services', 
 function AppBottomNavComponent({ view, onSelect, labels, onFabPress, fabHidden, onOpenSettings, overdueCount = 0 }: BottomNavProps) {
     const [moreOpen, setMoreOpen] = useState(false);
     const isSecondaryActive = (SECONDARY_VIEWS as readonly string[]).includes(view);
-    const sectionLabelClass = 'px-5 pb-1 pt-3 text-[10px] font-black uppercase tracking-[0.18em] text-neutral-400';
-    const tabBtn = (active: boolean) => `flex min-h-button-sm min-w-0 flex-col items-center justify-center gap-0.5 rounded-button px-1 py-1.5 text-[10px] font-semibold leading-none transition-colors ${active
+    const sectionLabelClass = 'px-5 pb-1 pt-3 text-[13px] font-bold text-neutral-500';
+    const tabBtn = (active: boolean) => `flex min-h-[60px] min-w-0 flex-col items-center justify-center gap-1 rounded-button px-1 text-xs font-semibold leading-4 transition-colors ${active
         ? 'bg-neutral-100 text-neutral-900'
         : 'text-neutral-500 hover:text-neutral-800'}`;
     const moreSheetItem = (target: string, icon: React.ReactNode, label: string, color: string) => (<button key={target} type="button" onClick={() => { setMoreOpen(false); onSelect(target); }} className={`flex min-h-button-md w-full items-center gap-3 px-5 py-3 text-start text-sm font-medium ${view === target
@@ -158,30 +159,30 @@ function AppBottomNavComponent({ view, onSelect, labels, onFabPress, fabHidden, 
       <span>{label}</span>
     </button>);
     return (<>
-      {onFabPress && !fabHidden && (<Fab position="inline" icon={<PlusIcon className="h-5 w-5"/>} onClick={onFabPress} wrapperClassName="sm:hidden fixed end-[calc(100vw-100dvw+1rem)] z-[46] bottom-[calc(4.5rem+env(safe-area-inset-bottom))]" className="h-11 w-11 !bg-fab-bg hover:!bg-fab-bg-hover text-white shadow-card-hover" ariaLabel="Action rapide"/>)}
+      {onFabPress && !fabHidden && (<Fab position="inline" icon={<PlusIcon className="h-5 w-5"/>} onClick={onFabPress} wrapperClassName="sm:hidden fixed end-[calc(100vw-100dvw+1rem)] z-[46] bottom-[calc(5.25rem+env(safe-area-inset-bottom))]" className="h-11 w-11 !bg-fab-bg hover:!bg-fab-bg-hover text-white shadow-card-hover" ariaLabel="Action rapide"/>)}
 
       <nav aria-label="Navigation principale" className="fixed bottom-0 start-0 z-[45] w-[100dvw] border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
         <div className="grid grid-cols-4 gap-1 px-3 py-1.5">
           <button type="button" onClick={() => onSelect('dashboard')} className={tabBtn(view === 'dashboard')} aria-label={labels.dashboard}>
-            <LayoutDashboardIcon className="h-[18px] w-[18px]"/>
+            <LayoutDashboardIcon className="h-[22px] w-[22px]"/>
             <span className="max-w-full truncate">{labels.dashboard}</span>
           </button>
           <button type="button" onClick={() => onSelect('transactions')} className={tabBtn(view === 'transactions')} aria-label={labels.transactions}>
-            <BriefcaseIcon className="h-[18px] w-[18px]"/>
+            <ArrowRightLeftIcon className="h-[22px] w-[22px]"/>
             <span className="max-w-full truncate">{labels.transactions}</span>
           </button>
 
           <button type="button" onClick={() => onSelect('dzd')} className={tabBtn(view === 'dzd')} aria-label={labels.clients}>
             <span className="relative inline-flex">
-              <UsersIcon className="h-[18px] w-[18px]"/>
-              {overdueCount > 0 && (<span className="absolute -end-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[9px] font-bold text-white">
+              <UsersIcon className="h-[22px] w-[22px]"/>
+              {overdueCount > 0 && (<span className="absolute -end-2.5 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-surface bg-danger px-1 text-xs font-bold leading-none text-white">
                   {overdueCount > 9 ? '9+' : overdueCount}
                 </span>)}
             </span>
             <span className="max-w-full truncate">{labels.clients}</span>
           </button>
           <button type="button" onClick={() => setMoreOpen(true)} className={tabBtn(isSecondaryActive)} aria-label={labels.more}>
-            <MenuIcon className="h-[18px] w-[18px]"/>
+            <MenuIcon className="h-[22px] w-[22px]"/>
             <span className="max-w-full truncate">{labels.more}</span>
           </button>
         </div>

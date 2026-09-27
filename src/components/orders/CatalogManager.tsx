@@ -72,7 +72,7 @@ function ActiveToggle({ active, onToggle, s }: { active: boolean; onToggle: () =
             type="button"
             disabled={busy}
             onClick={async () => { setBusy(true); try { await onToggle(); } finally { setBusy(false); } }}
-            className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
+            className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${
                 active ? 'bg-success-bg text-success' : 'bg-neutral-100 text-neutral-500'
             }`}
         >
@@ -137,7 +137,7 @@ const CurrencyCard: React.FC<CurrencyCardProps> = ({ currency, tiers, s, handler
             <div className="flex items-center justify-between gap-2">
                 <div>
                     <span className="font-semibold text-neutral-900">{currency.label}</span>
-                    <span className="ms-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">{currency.code}</span>
+                    <span className="ms-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{currency.code}</span>
                 </div>
                 <ActiveToggle
                     active={currency.active}

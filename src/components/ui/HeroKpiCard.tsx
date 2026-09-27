@@ -65,7 +65,7 @@ export const HeroKpiCard: React.FC<HeroKpiCardProps> = ({ primaryLabel, primaryV
 
       <header className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase font-semibold text-neutral-500">
+          <p className="text-[13px] font-semibold text-neutral-500">
             {primaryLabel}
           </p>
           <div className="mt-2 flex items-baseline gap-2 flex-wrap">
@@ -80,7 +80,7 @@ export const HeroKpiCard: React.FC<HeroKpiCardProps> = ({ primaryLabel, primaryV
 
       {secondary && secondary.length > 0 && (<dl className={`mt-4 grid gap-3 ${secondaryGridClass}`}>
           {secondary.map((item, idx) => (<div key={`${item.label}-${idx}`} className="min-w-0">
-              <dt className="text-[11px] truncate text-neutral-500">{item.label}</dt>
+              <dt className="text-xs truncate text-neutral-500">{item.label}</dt>
               <dd className="mt-1 flex items-baseline gap-1.5 flex-wrap">
                 {item.display ? (item.display) : (<CurrencyAmount value={item.value} currency={item.currency} semantic={item.semantic ?? 'plain'} size="lg" decimals={0}/>)}
                 {typeof item.trendPct === 'number' && Number.isFinite(item.trendPct) && (<TrendBadge pct={item.trendPct}/>)}

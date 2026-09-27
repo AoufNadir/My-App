@@ -15,6 +15,7 @@ import { changedClientIdentity, findClientDuplicates, isClientActive, type Clien
 import type { ManagerFeeHistoryEntry } from './useInvestorEconomics';
 import { DEBT_WRITE_OFF_TYPE } from '../utils/debtWriteOffs';
 import { prepareDebtWriteOffReadModelDelta } from '../readModels/debtWriteOffDelta';
+import { useLanguage } from '../contexts/LanguageContext';
 type ClientDeleteMode = 'history' | 'balance_only' | 'client_only_cleanup' | 'blocked';
 const CLIENT_DELETE_EPSILON = 0.01;
 const normalizeForDeleteCheck = (value: string | undefined) => (normalizeLedgerLabel(value || '')
@@ -46,7 +47,8 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     investorTransactions: InvestorTransaction[];
     managerFeePercentage: string;
     managerFeeHistory?: ManagerFeeHistoryEntry[];
-}) {
+}, notifyUndo?: (message: string, undo: () => void) => void) {
+    const { t } = useLanguage();
     const [isSaving, setIsSaving] = useState(false);
     // Set synchronously, so a second tap that still holds an older render's handler is ignored too.
     const clientSaveInFlight = useRef(false);
@@ -119,25 +121,26 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         setClientDeleteMode(null);
     };
     const cancelClientDuplicateWarning = () => setClientDuplicateMatches(null);
+    const unarchiveClient = (clientId: string) => userDocRef.collection('dzd_clients').doc(clientId).update({
+        isActive: true,
+        archived: false,
+        archivedAt: fieldValueDelete(),
+        archivedReason: fieldValueDelete(),
+    });
     const restoreArchivedClient = async (clientId: string) => {
         if (isSaving || clientSaveInFlight.current)
             return false;
         clientSaveInFlight.current = true;
         setIsSaving(true);
         try {
-            await userDocRef.collection('dzd_clients').doc(clientId).update({
-                isActive: true,
-                archived: false,
-                archivedAt: fieldValueDelete(),
-                archivedReason: fieldValueDelete(),
-            });
+            await unarchiveClient(clientId);
             closeClientModal();
-            setAlert('✅ Client restauré.');
+            setAlert(t('clients.restored'));
             return true;
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de la restauration du client.');
+            setAlert(t('clients.restoreError'));
             return false;
         }
         finally {
@@ -363,6 +366,23 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             archivedReason: 'user_delete',
         });
     };
+    // Archiving only hides the client (its history stays), so it can be undone from the message.
+    const undoClientArchive = async (clientId: string) => {
+        try {
+            await unarchiveClient(clientId);
+            setAlert(t('clients.restored'));
+        }
+        catch (e) {
+            console.error(e);
+            setAlert(t('clients.restoreError'));
+        }
+    };
+    const announceClientArchived = (clientId: string, message: string) => {
+        if (notifyUndo)
+            notifyUndo(message, () => { void undoClientArchive(clientId); });
+        else
+            setAlert(message);
+    };
     const requestClientDelete = async (client: ClientDzd | null) => {
         if (!client || isSaving)
             return false;
@@ -381,7 +401,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setIsSaving(true);
             try {
                 await archiveClient(client.id);
-                setAlert('✅ Client archivé.');
+                announceClientArchived(client.id, t('clients.archived'));
                 closeClientDeleteDialog();
                 return true;
             }
@@ -406,7 +426,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             const clientHistory = clientTransactionsDzd.filter((tx) => tx.clientId === clientToDelete.id);
             if (clientDeleteMode === 'client_only_cleanup') {
                 await archiveClient(clientToDelete.id);
-                setAlert('✅ Client archivé (historique financier conservé).');
+                announceClientArchived(clientToDelete.id, t('clients.archivedKeepHistory'));
                 closeClientDeleteDialog();
                 return true;
             }
@@ -416,7 +436,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 return false;
             }
             await archiveClient(clientToDelete.id);
-            setAlert('✅ Client archivé (historique financier conservé).');
+            announceClientArchived(clientToDelete.id, t('clients.archivedKeepHistory'));
             closeClientDeleteDialog();
             return true;
         }

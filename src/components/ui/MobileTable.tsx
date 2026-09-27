@@ -103,7 +103,7 @@ function MobileTableInner<T = Record<string, unknown>>({ columns, data, keyExtra
               {/* بقية الأعمدة — label + value */}
               <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                 {rest.map((col) => (<div key={col.key} className="flex flex-col gap-0.5">
-                    <span className="text-[10px] font-medium uppercase text-neutral-400">
+                    <span className="text-xs font-medium uppercase text-neutral-400">
                       {col.label}
                     </span>
                     <span className={[

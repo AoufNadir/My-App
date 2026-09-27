@@ -181,7 +181,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                                 className={`rounded-xl border px-3 py-3 text-sm font-semibold transition-colors ${paymentSource === src ? 'border-primary bg-primary/10 text-primary' : 'border-border text-neutral-500'}`}
                             >
                                 <span className="block">{src}</span>
-                                <span className="block text-[10px] font-normal text-neutral-400 mt-0.5">
+                                <span className="block text-xs font-normal text-neutral-400 mt-0.5">
                                     {(src === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD
                                 </span>
                             </button>
@@ -191,7 +191,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
 
                 {totalAmount > 0 && distribution.length > 0 && (
                     <div className="rounded-xl border border-border overflow-hidden">
-                        <div className="grid grid-cols-[1fr_auto_auto] gap-3 bg-surface-muted px-4 py-2 text-[10px] font-bold uppercase text-neutral-400 tracking-wide">
+                        <div className="grid grid-cols-[1fr_auto_auto] gap-3 bg-surface-muted px-4 py-2 text-xs font-bold uppercase text-neutral-400 tracking-wide">
                             <span>{t('profitDistribution.investor')}</span>
                             <span className="text-end">{t('profitDistribution.share')}</span>
                             <span className="text-end w-28">{t('profitDistribution.amount')}</span>
@@ -204,7 +204,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                                             <p className="truncate text-sm font-semibold">{inv.name}</p>
                                             {inv.isManager && <Badge variant="warning" size="sm">{t('investors.manager')}</Badge>}
                                         </div>
-                                        <p className={`text-[10px] ${exceedsAvailable ? 'text-danger font-semibold' : 'text-neutral-400'}`}>
+                                        <p className={`text-xs ${exceedsAvailable ? 'text-danger font-semibold' : 'text-neutral-400'}`}>
                                             {t('profitDistribution.available')} : {availableProfit.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} DZD
                                             {exceedsAvailable && ` · ${t('profitDistribution.exceeded')}`}
                                         </p>

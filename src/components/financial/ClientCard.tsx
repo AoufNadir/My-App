@@ -60,14 +60,14 @@ const ClientCard: React.FC<ClientCardProps> = ({ name, phone, balanceAmount, bal
                         ? 'text-neutral-400'
                         : ''}/>)}
         {balanceAmount !== undefined && (<span className={[
-                'text-[10px] font-medium',
+                'text-xs font-medium',
                 hasDebt ? 'text-financial-debt' : '',
                 hasCredit ? 'text-financial-profit' : '',
                 zeroBalance ? 'text-neutral-400' : ''
             ].filter(Boolean).join(' ')}>
             {hasDebt ? 'دين' : hasCredit ? 'رصيد' : 'متعادل'}
           </span>)}
-        {transactionCount !== undefined && (<span className="text-[10px] text-neutral-400">
+        {transactionCount !== undefined && (<span className="text-xs text-neutral-400">
             {transactionCount} عملية
           </span>)}
       </div>

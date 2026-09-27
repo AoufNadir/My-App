@@ -223,7 +223,7 @@ type DashboardMetricCellProps = {
 function renderDashboardMetricCell({ label, value, currency = 'DZD', semantic = 'auto' }: DashboardMetricCellProps) {
     return (
       <div className="min-w-0 rounded-xl border border-border bg-surface-muted px-3 py-3">
-        <p className="mb-2 truncate text-[11px] font-semibold text-neutral-500">{label}</p>
+        <p className="mb-2 truncate text-xs font-semibold text-neutral-500">{label}</p>
         <CurrencyAmount value={value} currency={currency} semantic={semantic} size="lg" decimals={currency === 'DZD' ? 0 : 2}/>
       </div>
     );
@@ -289,7 +289,7 @@ function QuickSituationCard({ title, rows }: {
             {rows.map((row) => {
               if (row.type === 'section') {
                 return (
-                  <div key={row.id} className="bg-surface-muted/55 px-4 py-2 text-[11px] font-bold uppercase tracking-normal text-neutral-500">
+                  <div key={row.id} className="bg-surface-muted/55 px-4 py-2 text-[13px] font-bold text-neutral-500">
                     {row.label}
                   </div>
                 );

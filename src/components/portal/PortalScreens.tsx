@@ -30,10 +30,10 @@ function PortalShell({ title, message, tone, uid }: { title: string; message: st
                 </div>
                 {uid && (
                     <div className="space-y-1">
-                        <p className="text-[11px] font-medium text-neutral-400">
+                        <p className="text-xs font-medium text-neutral-400">
                             {lang === 'ar' ? 'معرّف هذا الحساب (UID):' : 'Identifiant de ce compte (UID) :'}
                         </p>
-                        <code className="block select-all overflow-x-auto rounded-lg border border-border bg-surface px-3 py-2 text-[11px] text-neutral-600">
+                        <code className="block select-all overflow-x-auto rounded-lg border border-border bg-surface px-3 py-2 text-xs text-neutral-600">
                             {uid}
                         </code>
                     </div>

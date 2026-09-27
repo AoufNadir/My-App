@@ -70,7 +70,7 @@ export function TagInput({ value, onChange, placeholder = 'Ajouter un tag…', c
             {availableSuggestions.length > 0 && (<div className="mt-2 flex flex-wrap gap-1.5">
                     {availableSuggestions.slice(0, 8).map(s => {
                 const tag = normalize(s);
-                return (<button key={tag} type="button" onClick={() => addTag(tag)} className="rounded-full border border-border px-2 py-0.5 text-[11px] text-neutral-600 transition-colors hover:bg-neutral-100">
+                return (<button key={tag} type="button" onClick={() => addTag(tag)} className="rounded-full border border-border px-2 py-0.5 text-xs text-neutral-600 transition-colors hover:bg-neutral-100">
                                 + #{tag}
                             </button>);
             })}

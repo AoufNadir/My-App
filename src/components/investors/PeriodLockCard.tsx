@@ -102,7 +102,7 @@ export function PeriodLockCard({ lockedThrough, reason, updatedAt, isLoaded, sav
           </p>
           <p className="mt-1 text-xs text-neutral-500">{t('periodLock.explanation')}</p>
           <p className="mt-1 text-xs text-neutral-500">{t('periodLock.autoHint')}</p>
-          {updatedAt !== null && reasonLabel && (<p className="mt-1 text-[11px] text-neutral-400">
+          {updatedAt !== null && reasonLabel && (<p className="mt-1 text-xs text-neutral-400">
               {String(t('periodLock.lastChange')).replace('{date}', formatLockDate(updatedAt)).replace('{reason}', reasonLabel)}
             </p>)}
         </div>

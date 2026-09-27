@@ -14,7 +14,7 @@ export function WeeklyRecapBanner({ recap, onDismiss }: WeeklyRecapBannerProps) 
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                     {/* Header */}
-                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary/70">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary/70">
                         📋 Récap semaine
                     </p>
                     <h3 className="mt-0.5 text-sm font-bold text-neutral-700">{recap.weekLabel}</h3>
@@ -39,7 +39,7 @@ export function WeeklyRecapBanner({ recap, onDismiss }: WeeklyRecapBannerProps) 
                     {/* Top client */}
                     {recap.topClientName && (
                         <div className="mt-2 flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-1.5">
-                            <span className="text-[10px] font-bold uppercase text-primary/60">🏆 Top client</span>
+                            <span className="text-xs font-bold uppercase text-primary/60">🏆 Top client</span>
                             <span className="text-sm font-bold text-neutral-800 truncate">{recap.topClientName}</span>
                             {recap.topClientProfit > 0 && (
                                 <CurrencyAmount value={recap.topClientProfit} currency="DZD" semantic="profit" size="sm" decimals={0} showSign/>

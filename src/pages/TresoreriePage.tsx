@@ -122,25 +122,25 @@ export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecen
                 {/* Main KPIs */}
                 <div className="grid grid-cols-3 gap-2">
                     <div className="rounded-xl border border-neutral-100 bg-neutral-50/80 p-3 text-center">
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase text-neutral-500">{t('treasury.total')}</p>
+                        <p className="mb-0.5 text-xs font-semibold uppercase text-neutral-500">{t('treasury.total')}</p>
                         <p className="text-base font-extrabold text-neutral-900 tabular-nums" dir="ltr">
                             {total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
-                        <p className="text-[10px] font-medium text-neutral-400">USDT</p>
+                        <p className="text-xs font-medium text-neutral-400">USDT</p>
                     </div>
                     <div className="rounded-xl border border-success/15 bg-financial-profit-bg p-3 text-center">
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase text-financial-profit">{t('treasury.available')}</p>
+                        <p className="mb-0.5 text-xs font-semibold uppercase text-financial-profit">{t('treasury.available')}</p>
                         <p className="text-base font-extrabold text-financial-profit tabular-nums" dir="ltr">
                             {available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
-                        <p className="text-[10px] font-medium text-financial-profit/60">USDT</p>
+                        <p className="text-xs font-medium text-financial-profit/60">USDT</p>
                     </div>
                     <div className={`rounded-xl border p-3 text-center ${locked > 0 ? 'border-primary/15 bg-primary/5' : 'border-neutral-100 bg-neutral-50/80'}`}>
-                        <p className={`mb-0.5 text-[10px] font-semibold uppercase ${locked > 0 ? 'text-primary' : 'text-neutral-400'}`}>{t('treasury.locked')}</p>
+                        <p className={`mb-0.5 text-xs font-semibold uppercase ${locked > 0 ? 'text-primary' : 'text-neutral-400'}`}>{t('treasury.locked')}</p>
                         <p className={`text-base font-extrabold tabular-nums ${locked > 0 ? 'text-primary' : 'text-neutral-400'}`} dir="ltr">
                             {locked.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
-                        <p className={`text-[10px] font-medium ${locked > 0 ? 'text-primary/60' : 'text-neutral-400'}`}>USDT</p>
+                        <p className={`text-xs font-medium ${locked > 0 ? 'text-primary/60' : 'text-neutral-400'}`}>USDT</p>
                     </div>
                 </div>
 
@@ -192,7 +192,7 @@ export function USDTStockCard({ transactions, portfolioStats, hasUnmigratedRecen
                                                     <p className="text-sm font-semibold text-neutral-700 tabular-nums" dir="ltr">
                                                         {batch.quantity.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT
                                                     </p>
-                                                    <p className="text-[11px] text-neutral-500 mt-0.5">
+                                                    <p className="text-xs text-neutral-500 mt-0.5">
                                                         {t('treasury.purchaseAt')} <span className="tabular-nums font-medium">{purchaseTime}</span>
                                                         <span className="mx-1">·</span>
                                                         {t('treasury.unlockAt')} <span className="tabular-nums font-medium">{unlockLabel}</span>
@@ -299,7 +299,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
                       {inH > 0 && <div className={`w-[40%] max-w-[10px] rounded-sm ${day.isToday ? 'bg-financial-profit' : 'bg-financial-profit/60'}`} style={{ height: `${inH}px` }}/>}
                       {outH > 0 && <div className={`w-[40%] max-w-[10px] rounded-sm ${day.isToday ? 'bg-financial-loss' : 'bg-financial-loss/60'}`} style={{ height: `${outH}px` }}/>}
                     </div>
-                    <span className={`text-[9px] font-semibold ${day.isToday ? 'text-primary' : 'text-neutral-400'}`}>{day.label}</span>
+                    <span className={`text-xs font-semibold ${day.isToday ? 'text-primary' : 'text-neutral-400'}`}>{day.label}</span>
                   </div>
                 );
               })}

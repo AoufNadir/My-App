@@ -107,24 +107,24 @@ export function TransactionDisplayList({
                       <p className={`min-w-0 truncate text-[13px] leading-snug ${contextText ? 'font-medium text-neutral-700' : 'text-neutral-500'}`}>
                         {detailText}
                       </p>
-                      <p dir="ltr" className="min-w-0 max-w-[7.5rem] justify-self-end truncate text-end text-[11px] leading-snug text-neutral-500">
+                      <p dir="ltr" className="min-w-0 max-w-[7.5rem] justify-self-end truncate text-end text-xs leading-snug text-neutral-500">
                         {rightMiddleLabel}
                       </p>
 
-                      <p className="min-w-0 truncate text-[11px] leading-snug text-neutral-500">
+                      <p className="min-w-0 truncate text-xs leading-snug text-neutral-500">
                         {tx.time}
                       </p>
                       <div className="min-w-0 max-w-[7.5rem] justify-self-end text-end">
                         {tx.rightBottomLabel ? (
-                          <p dir="ltr" className={`truncate text-[11px] font-bold leading-snug tabular-nums ${tx.rightBottomClassName || 'text-neutral-500'}`}>
+                          <p dir="ltr" className={`truncate text-xs font-bold leading-snug tabular-nums ${tx.rightBottomClassName || 'text-neutral-500'}`}>
                             {tx.rightBottomLabel}
                           </p>
                         ) : showProfit ? (
-                          <p dir="ltr" className={`truncate text-[11px] font-bold leading-snug tabular-nums ${derivedProfit! >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
+                          <p dir="ltr" className={`truncate text-xs font-bold leading-snug tabular-nums ${derivedProfit! >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
                             {profitLabel}
                           </p>
                         ) : tx.sourceType === 'usdt_tx' && cryptoTx.purchaseFundingCurrency === 'EUR' && Number(cryptoTx.purchaseAmountEur) > 0 ? (
-                          <p dir="ltr" className="truncate text-[11px] leading-snug text-neutral-500">
+                          <p dir="ltr" className="truncate text-xs leading-snug text-neutral-500">
                             ← {Number(cryptoTx.purchaseAmountEur).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR
                           </p>
                         ) : null}
@@ -134,7 +134,7 @@ export function TransactionDisplayList({
                     {tags.length > 0 && (
                       <div className="mt-1.5 flex min-w-0 flex-wrap gap-1 ps-12">
                         {tags.map((tag: string) => (
-                          <span key={tag} className="max-w-full truncate rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary">
+                          <span key={tag} className="max-w-full truncate rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-semibold leading-none text-primary">
                             {getTransactionTagLabel(tag, t)}
                           </span>
                         ))}

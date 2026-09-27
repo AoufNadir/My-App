@@ -191,7 +191,7 @@ function PriceBoard({
                     <div key={cur.id} className="rounded-xl border border-border bg-surface p-4 shadow-card">
                         <div className="mb-3 flex items-center justify-between">
                             <span className="text-base font-bold text-primary">{cur.label}</span>
-                            <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+                            <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
                                 {cur.code}
                             </span>
                         </div>
@@ -200,7 +200,7 @@ function PriceBoard({
                         ) : (
                             <table className="w-full text-sm">
                                 <thead>
-                                    <tr className="border-b border-border text-[11px] text-neutral-400 uppercase">
+                                    <tr className="border-b border-border text-xs text-neutral-400 uppercase">
                                         <th className="pb-1 text-start font-medium">{s.range}</th>
                                         <th className="pb-1 text-end font-medium">{s.unitPrice}</th>
                                     </tr>
@@ -219,7 +219,7 @@ function PriceBoard({
                                 </tbody>
                             </table>
                         )}
-                        <p className="mt-2 text-[11px] text-neutral-400">
+                        <p className="mt-2 text-xs text-neutral-400">
                             {s.available}: {cur.minOrder} – {cur.maxOrder} {cur.code}
                         </p>
                     </div>
@@ -344,7 +344,7 @@ function OrderForm({ uid, currencies, tiers, paymentMethods, debtEnabled, s, onS
                         placeholder={s.qtyHint(selectedCur.minOrder, selectedCur.maxOrder, selectedCur.code)}
                         className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     />
-                    <p className="text-[11px] text-neutral-400">
+                    <p className="text-xs text-neutral-400">
                         {s.qtyHint(selectedCur.minOrder, selectedCur.maxOrder, selectedCur.code)}
                     </p>
                 </div>
@@ -365,7 +365,7 @@ function OrderForm({ uid, currencies, tiers, paymentMethods, debtEnabled, s, onS
                                 <span>{s.totalLabel}</span>
                                 <span>{fmtDzd(totalDzd)}</span>
                             </div>
-                            <div className="text-[11px] text-neutral-500 text-center pt-1">
+                            <div className="text-xs text-neutral-500 text-center pt-1">
                                 {fmtQty(qty, selectedCur.code)} × {unitPrice.toLocaleString('fr-DZ')} DZD
                             </div>
                         </div>
@@ -399,7 +399,7 @@ function OrderForm({ uid, currencies, tiers, paymentMethods, debtEnabled, s, onS
                         placeholder={isCrypto ? s.deliveryAddressPlaceholderWallet : s.deliveryAddressPlaceholderBank}
                         className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     />
-                    <p className="text-[11px] text-neutral-400">
+                    <p className="text-xs text-neutral-400">
                         {isCrypto ? s.deliveryAddressWalletHint : s.deliveryAddressBankHint}
                     </p>
                 </div>
@@ -513,9 +513,9 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, currencies, s }) => {
             <div className="flex items-start justify-between gap-2">
                 <div className="space-y-0.5">
                     <p className="text-[12px] font-mono text-neutral-400">{order.orderCode}</p>
-                    <p className="text-[11px] text-neutral-400">{dateStr}</p>
+                    <p className="text-xs text-neutral-400">{dateStr}</p>
                 </div>
-                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${STATUS_COLOR[order.status] ?? 'bg-neutral-100 text-neutral-600'}`}>
+                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_COLOR[order.status] ?? 'bg-neutral-100 text-neutral-600'}`}>
                     {s.statusLabels[order.status] ?? order.status}
                 </span>
             </div>
@@ -541,13 +541,13 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, currencies, s }) => {
             </div>
 
             {order.deliveryAddress && (
-                <p className="truncate text-[11px] text-neutral-400 border-t border-border pt-2">
+                <p className="truncate text-xs text-neutral-400 border-t border-border pt-2">
                     {s.deliveryTo}{order.deliveryNetwork ? ` (${order.deliveryNetwork})` : ''}: {order.deliveryAddress}
                 </p>
             )}
 
             {order.status === 'NEW' && (
-                <p className="text-[11px] text-neutral-400">
+                <p className="text-xs text-neutral-400">
                     {s.awaitingPayment}
                 </p>
             )}

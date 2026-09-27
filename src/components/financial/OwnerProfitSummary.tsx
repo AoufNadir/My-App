@@ -17,7 +17,7 @@ export type OwnerProfitPeriods = {
 function Metric({ label, value, semantic = 'auto' }: { label: string; value: number; semantic?: 'auto' | 'plain' }) {
     return (
         <div className="min-w-0 rounded-xl border border-border bg-surface-muted px-3 py-3">
-            <p className="mb-2 truncate text-[11px] font-semibold text-neutral-500">{label}</p>
+            <p className="mb-2 truncate text-xs font-semibold text-neutral-500">{label}</p>
             <div>
                 <CurrencyAmount value={value} currency="DZD" semantic={semantic} size="lg" decimals={0} />
             </div>
@@ -29,9 +29,9 @@ function PercentageMetric({ label, value }: { label: string; value: number }) {
     const formatted = Number(value || 0).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
     return (
         <div className="min-w-0 rounded-xl border border-border bg-surface-muted px-3 py-3">
-            <p className="mb-2 truncate text-[11px] font-semibold text-neutral-500">{label}</p>
+            <p className="mb-2 truncate text-xs font-semibold text-neutral-500">{label}</p>
             <p dir="ltr" className="text-base font-semibold tabular-nums">
-                {formatted}<span className="ms-1 text-[0.82em] font-normal opacity-65">%</span>
+                {formatted}<span className="ms-1 text-[length:max(0.82em,12px)] font-normal opacity-65">%</span>
             </p>
         </div>
     );
@@ -89,7 +89,7 @@ export function OwnerProfitBreakdownCard({ breakdown }: { breakdown: ManagerProf
                     {' '}{t('investors.ownerCapitalReconciliationHint') as string}
                 </p>
             )}
-            <p className="px-4 pb-4 text-[11px] text-neutral-400">
+            <p className="px-4 pb-4 text-xs text-neutral-400">
                 {t('investors.projectNetProfit') as string}: <CurrencyAmount value={breakdown.projectNetProfit} currency="DZD" semantic="plain" size="sm" decimals={0} />
                 {' · '}{t('investors.deliveryExpenses') as string}: <CurrencyAmount value={breakdown.totalDeliveryExpenses} currency="DZD" semantic="plain" size="sm" decimals={0} />
                 {(breakdown.totalDebtWriteOffs ?? 0) > 0 && (<>
