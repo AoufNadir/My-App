@@ -1,10 +1,7 @@
-import React, { memo, useState } from 'react';
-import { Button } from '../ui/Button';
+import React, { memo, useCallback, useState } from 'react';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Dropdown, DropdownItem } from '../ui/Dropdown';
-import { Fab } from '../ui/Fab';
 import { MainNavLink } from './MainNavLink';
-import { MobileNavLink } from './MobileNavLink';
 import { BriefcaseIcon } from '../icons/BriefcaseIcon';
 import { ArrowRightLeftIcon } from '../icons/ArrowRightLeftIcon';
 import { WalletIcon } from '../icons/WalletIcon';
@@ -14,16 +11,15 @@ import { UserIcon } from '../icons/UserIcon';
 import { LandmarkIcon } from '../icons/LandmarkIcon';
 import { MenuIcon } from '../icons/MenuIcon';
 import { PlusIcon } from '../icons/PlusIcon';
-import { XIcon } from '../icons/XIcon';
-import { LayoutDashboardIcon } from '../icons/LayoutDashboardIcon';
+import { HomeIcon } from '../icons/HomeIcon';
+import { LayoutGridIcon } from '../icons/LayoutGridIcon';
 import { SettingsIcon } from '../icons/SettingsIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
-import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
 import { GlobeIcon } from '../icons/GlobeIcon';
 import { SunIcon } from '../icons/SunIcon';
 import { MoonIcon } from '../icons/MoonIcon';
 import { LogOutIcon } from '../icons/LogOutIcon';
-import { useLanguage, type Lang } from '../../contexts/LanguageContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 type NavLabels = {
     dashboard: string;
@@ -41,24 +37,19 @@ type NavLabels = {
     followUp: string;
     documents: string;
     expenses: string;
+    logout: string;
+    newOperation: string;
 };
 type NavSharedProps = {
     view: string;
     onSelect: (view: string) => void;
     labels: NavLabels;
 };
-type MobileMenuNavProps = NavSharedProps & {
-    isOpen: boolean;
-    onClose: () => void;
-    onOpenSettings?: () => void;
-    handleOpenGlobalSearch?: () => void;
-    onSignOut?: () => void;
-};
 type BottomNavProps = NavSharedProps & {
-    /** Optional contextual quick action rendered as a small floating button above the bar. */
-    onFabPress?: () => void;
-    fabHidden?: boolean;
+    /** Opens the new-operation menu. Left out while the data loads, which disables (+). */
+    onNewOperation?: () => void;
     onOpenSettings?: () => void;
+    onSignOut?: () => void;
     overdueCount?: number;
 };
 function AppDesktopNavComponent({ view, onSelect, labels }: NavSharedProps) {
@@ -85,120 +76,107 @@ function AppDesktopNavComponent({ view, onSelect, labels }: NavSharedProps) {
       </Dropdown>
     </div>);
 }
-function AppMobileMenuNavComponent({ view, onSelect, labels, isOpen, onClose, onOpenSettings, handleOpenGlobalSearch, onSignOut }: MobileMenuNavProps) {
+const SECONDARY_VIEWS = ['statistiques', 'analytics', 'tresorerie', 'services', 'investors', 'expenses'] as const;
+const MORE_SHEET_GROUPS = [
+    { key: 'money', items: [
+        { view: 'statistiques', label: 'portfolio', icon: WalletIcon, tone: 'bg-financial-asset-bg text-financial-asset' },
+        { view: 'tresorerie', label: 'treasury', icon: LandmarkIcon, tone: 'bg-financial-profit-bg text-financial-profit' },
+        { view: 'services', label: 'services', icon: BriefcaseIcon, tone: 'bg-secondary/10 text-secondary dark:bg-secondary-light/10 dark:text-secondary-light' },
+    ] },
+    { key: 'followUp', items: [
+        { view: 'investors', label: 'investors', icon: UserIcon, tone: 'bg-secondary/10 text-secondary dark:bg-secondary-light/10 dark:text-secondary-light' },
+        { view: 'analytics', label: 'analytics', icon: ArrowUpIcon, tone: 'bg-financial-debt-bg text-financial-debt' },
+        { view: 'expenses', label: 'expenses', icon: BanknotesIcon, tone: 'bg-financial-loss-bg text-financial-loss' },
+    ] },
+] as const;
+/**
+ * Phone navigation: four destinations around a central (+) that opens the new-operation menu.
+ * "Plus" gathers the other pages with the theme, language, settings and logout that used to
+ * live in the ☰ menu at the top.
+ */
+function AppBottomNavComponent({ view, onSelect, labels, onNewOperation, onOpenSettings, onSignOut, overdueCount = 0 }: BottomNavProps) {
     const { lang, setLang, t } = useLanguage();
     const { theme, toggleTheme } = useTheme();
-    if (!isOpen)
-        return null;
-    const nextLang = lang === 'fr' ? 'ar' : 'fr';
-    const nextLangName = lang === 'fr' ? 'العربية' : 'Français';
-    const actionClass = 'flex min-h-button-md w-full items-center gap-4 rounded-button px-3 py-2.5 text-start text-base font-semibold text-neutral-700 transition-colors hover:bg-neutral-100';
-    return (<div className="anim-fade-slide-down fixed inset-0 z-50 max-w-full overflow-y-auto bg-surface/95 p-4 pb-16 backdrop-blur-xl sm:hidden">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="truncate whitespace-nowrap text-lg font-extrabold text-neutral-900">Pro Digital</h2>
-            <Button onClick={onClose} variant="icon" size="icon" className="rounded-full" aria-label="Fermer">
-              <XIcon className="w-6 h-6"/>
-            </Button>
-          </div>
-          <div className="space-y-1">
-            <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="dashboard" icon={<LayoutDashboardIcon className="w-6 h-6"/>} colorClass="text-neutral-400">{labels.dashboard}</MobileNavLink>
-            <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="transactions" icon={<BriefcaseIcon className="w-6 h-6"/>} colorClass="text-primary">{labels.transactions}</MobileNavLink>
-            <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="statistiques" icon={<WalletIcon className="w-6 h-6"/>} colorClass="text-financial-asset">{labels.portfolio}</MobileNavLink>
-            <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="analytics" icon={<ArrowUpIcon className="w-6 h-6"/>} colorClass="text-warning">{labels.analytics}</MobileNavLink>
-            <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="expenses" icon={<BanknotesIcon className="w-6 h-6"/>} colorClass="text-danger">{labels.expenses}</MobileNavLink>
-            <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="dzd" icon={<UsersIcon className="w-6 h-6"/>} colorClass="text-secondary">{labels.clients}</MobileNavLink>
-            <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="tresorerie" icon={<LandmarkIcon className="w-6 h-6"/>} colorClass="text-success">{labels.treasury}</MobileNavLink>
-            <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="services" icon={<BriefcaseIcon className="w-6 h-6"/>} colorClass="text-secondary">{labels.services}</MobileNavLink>
-            <MobileNavLink activeView={view} onSelect={onSelect} onClose={onClose} targetView="investors" icon={<UserIcon className="w-6 h-6"/>} colorClass="text-secondary">{labels.investors}</MobileNavLink>
-
-            <hr className="border-border my-2" />
-
-            {handleOpenGlobalSearch && (<button type="button" onClick={() => { handleOpenGlobalSearch(); onClose(); }} className={actionClass}>
-                <MagnifyingGlassIcon className="w-6 h-6"/>
-                <span>{t('common.search') || 'Recherche'}</span>
-              </button>)}
-
-            <button type="button" onClick={() => { toggleTheme(); onClose(); }} className={actionClass}>
-                {theme === 'light' ? <MoonIcon className="w-6 h-6"/> : <SunIcon className="w-6 h-6 text-warning"/>}
-                <span>{theme === 'light' ? t('common.themeDark') || 'Mode sombre' : t('common.themeLight') || 'Mode clair'}</span>
-            </button>
-
-            <button type="button" onClick={() => { setLang(nextLang); onClose(); }} className={actionClass}>
-                <GlobeIcon className="w-6 h-6"/>
-                <span>{nextLangName}</span>
-            </button>
-
-            {onOpenSettings && (<button type="button" onClick={() => { onOpenSettings(); onClose(); }} className={actionClass}>
-                <SettingsIcon className="w-6 h-6"/>
-                {labels.settings}
-              </button>)}
-
-            {onSignOut && (<button type="button" onClick={() => { onSignOut(); onClose(); }} className={`${actionClass} text-danger hover:bg-danger-bg`}>
-                <LogOutIcon className="w-6 h-6"/>
-                <span>{t('common.logout') || 'Déconnexion'}</span>
-              </button>)}
-          </div>
-    </div>);
-}
-const SECONDARY_VIEWS = ['statistiques', 'analytics', 'tresorerie', 'services', 'investors', 'expenses'] as const;
-function AppBottomNavComponent({ view, onSelect, labels, onFabPress, fabHidden, onOpenSettings, overdueCount = 0 }: BottomNavProps) {
     const [moreOpen, setMoreOpen] = useState(false);
-    const isSecondaryActive = (SECONDARY_VIEWS as readonly string[]).includes(view);
-    const sectionLabelClass = 'px-5 pb-1 pt-3 text-[13px] font-bold text-neutral-500';
-    const tabBtn = (active: boolean) => `flex min-h-[60px] min-w-0 flex-col items-center justify-center gap-1 rounded-button px-1 text-xs font-semibold leading-4 transition-colors ${active
-        ? 'bg-neutral-100 text-neutral-900'
-        : 'text-neutral-500 hover:text-neutral-800'}`;
-    const moreSheetItem = (target: string, icon: React.ReactNode, label: string, color: string) => (<button key={target} type="button" onClick={() => { setMoreOpen(false); onSelect(target); }} className={`flex min-h-button-md w-full items-center gap-3 px-5 py-3 text-start text-sm font-medium ${view === target
-            ? 'bg-neutral-100 text-neutral-900'
-            : 'text-neutral-700 hover:bg-neutral-50'}`}>
-      <span className={color}>{icon}</span>
-      <span>{label}</span>
-    </button>);
-    const moreSheetAction = (icon: React.ReactNode, label: string, color: string, onClick?: () => void) => (<button type="button" onClick={() => { setMoreOpen(false); onClick?.(); }} className="flex min-h-button-md w-full items-center gap-3 px-5 py-3 text-start text-sm font-medium text-neutral-700 hover:bg-neutral-50">
-      <span className={color}>{icon}</span>
-      <span>{label}</span>
-    </button>);
+    // Stable, so the sheet keeps its focus while the theme or language changes under it.
+    const closeMore = useCallback(() => setMoreOpen(false), []);
+    const isMoreActive = (SECONDARY_VIEWS as readonly string[]).includes(view);
+    const nextLang = lang === 'fr' ? 'ar' : 'fr';
+    const tabClass = (active: boolean) => `flex h-[60px] min-w-0 flex-col items-center justify-center gap-1 text-xs leading-4 transition-colors ${active
+        ? 'font-bold text-financial-asset'
+        : 'font-semibold text-neutral-500 hover:text-neutral-800'}`;
+    const tabIconClass = (active: boolean) => `relative flex h-[30px] w-14 items-center justify-center rounded-full transition-colors ${active ? 'bg-financial-asset-bg' : ''}`;
+    const sheetToggleClass = 'flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-button border border-border bg-surface-muted px-3 text-sm font-semibold text-neutral-800 transition-colors hover:bg-neutral-200 active:scale-[0.98]';
+    const sheetRowClass = 'flex min-h-[52px] w-full items-center gap-3 rounded-button px-1 text-start text-[15px] font-semibold transition-colors hover:bg-neutral-50';
+    const openFromSheet = (action: () => void) => {
+        setMoreOpen(false);
+        action();
+    };
     return (<>
-      {onFabPress && !fabHidden && (<Fab position="inline" icon={<PlusIcon className="h-5 w-5"/>} onClick={onFabPress} wrapperClassName="sm:hidden fixed end-[calc(100vw-100dvw+1rem)] z-[46] bottom-[calc(5.25rem+env(safe-area-inset-bottom))]" className="h-11 w-11 !bg-fab-bg hover:!bg-fab-bg-hover text-white shadow-card-hover" ariaLabel="Action rapide"/>)}
-
-      <nav aria-label="Navigation principale" className="fixed bottom-0 start-0 z-[45] w-[100dvw] border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
-        <div className="grid grid-cols-4 gap-1 px-3 py-1.5">
-          <button type="button" onClick={() => onSelect('dashboard')} className={tabBtn(view === 'dashboard')} aria-label={labels.dashboard}>
-            <LayoutDashboardIcon className="h-[22px] w-[22px]"/>
+      <nav aria-label="Navigation principale" className="fixed bottom-0 start-0 z-[45] w-[100dvw] border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] sm:hidden">
+        <div className="grid h-[72px] grid-cols-5 items-center px-1">
+          <button type="button" onClick={() => onSelect('dashboard')} aria-current={view === 'dashboard' ? 'page' : undefined} className={tabClass(view === 'dashboard')}>
+            <span className={tabIconClass(view === 'dashboard')}><HomeIcon className="h-[22px] w-[22px]"/></span>
             <span className="max-w-full truncate">{labels.dashboard}</span>
           </button>
-          <button type="button" onClick={() => onSelect('transactions')} className={tabBtn(view === 'transactions')} aria-label={labels.transactions}>
-            <ArrowRightLeftIcon className="h-[22px] w-[22px]"/>
+          <button type="button" onClick={() => onSelect('transactions')} aria-current={view === 'transactions' ? 'page' : undefined} className={tabClass(view === 'transactions')}>
+            <span className={tabIconClass(view === 'transactions')}><ArrowRightLeftIcon className="h-[22px] w-[22px]"/></span>
             <span className="max-w-full truncate">{labels.transactions}</span>
           </button>
-
-          <button type="button" onClick={() => onSelect('dzd')} className={tabBtn(view === 'dzd')} aria-label={labels.clients}>
-            <span className="relative inline-flex">
+          <div className="flex justify-center">
+            <button type="button" onClick={onNewOperation} disabled={!onNewOperation} aria-label={labels.newOperation} title={labels.newOperation} className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl bg-fab-bg text-white shadow-card-hover transition-transform hover:bg-fab-bg-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface">
+              <PlusIcon className="h-6 w-6"/>
+            </button>
+          </div>
+          <button type="button" onClick={() => onSelect('dzd')} aria-current={view === 'dzd' ? 'page' : undefined} className={tabClass(view === 'dzd')}>
+            <span className={tabIconClass(view === 'dzd')}>
               <UsersIcon className="h-[22px] w-[22px]"/>
-              {overdueCount > 0 && (<span className="absolute -end-2.5 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-surface bg-danger px-1 text-xs font-bold leading-none text-white">
+              {overdueCount > 0 && (<span className="absolute -top-[5px] end-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-surface bg-danger px-1 text-xs font-bold leading-none text-white">
                   {overdueCount > 9 ? '9+' : overdueCount}
                 </span>)}
             </span>
             <span className="max-w-full truncate">{labels.clients}</span>
           </button>
-          <button type="button" onClick={() => setMoreOpen(true)} className={tabBtn(isSecondaryActive)} aria-label={labels.more}>
-            <MenuIcon className="h-[22px] w-[22px]"/>
+          <button type="button" onClick={() => setMoreOpen(true)} aria-haspopup="dialog" aria-expanded={moreOpen} className={tabClass(isMoreActive)}>
+            <span className={tabIconClass(isMoreActive)}><LayoutGridIcon className="h-[22px] w-[22px]"/></span>
             <span className="max-w-full truncate">{labels.more}</span>
           </button>
         </div>
       </nav>
 
-      <BottomSheet isOpen={moreOpen} onClose={() => setMoreOpen(false)} title={labels.more}>
-        <div className="py-2">
-          <div className={sectionLabelClass}>{labels.money}</div>
-          {moreSheetItem('statistiques', <WalletIcon className="h-5 w-5"/>, labels.portfolio, 'text-financial-asset')}
-          {moreSheetItem('tresorerie', <LandmarkIcon className="h-5 w-5"/>, labels.treasury, 'text-success')}
-          {moreSheetItem('services', <BriefcaseIcon className="h-5 w-5"/>, labels.services, 'text-secondary')}
-          <div className={sectionLabelClass}>{labels.followUp}</div>
-          {moreSheetItem('investors', <UserIcon className="h-5 w-5"/>, labels.investors, 'text-secondary')}
-          {moreSheetItem('analytics', <ArrowUpIcon className="h-5 w-5"/>, labels.analytics, 'text-warning')}
-          {moreSheetItem('expenses', <BanknotesIcon className="h-5 w-5"/>, labels.expenses, 'text-danger')}
-          {onOpenSettings && moreSheetAction(<SettingsIcon className="h-5 w-5"/>, labels.settings, 'text-neutral-500', onOpenSettings)}
+      <BottomSheet isOpen={moreOpen} onClose={closeMore} title={labels.more}>
+        <div className="flex flex-col gap-3 px-5 pb-4 pt-3">
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={toggleTheme} className={sheetToggleClass}>
+              {theme === 'light' ? <MoonIcon className="h-5 w-5 shrink-0"/> : <SunIcon className="h-5 w-5 shrink-0 text-warning"/>}
+              <span className="truncate">{theme === 'light' ? t('common.themeDark') : t('common.themeLight')}</span>
+            </button>
+            <button type="button" onClick={() => setLang(nextLang)} lang={nextLang} className={`${sheetToggleClass} ${nextLang === 'ar' ? 'font-arabic text-[15px] font-bold' : 'font-latin'}`}>
+              <GlobeIcon className="h-5 w-5 shrink-0"/>
+              <span className="truncate">{nextLang === 'ar' ? 'العربية' : 'Français'}</span>
+            </button>
+          </div>
+
+          {MORE_SHEET_GROUPS.map((group) => (<React.Fragment key={group.key}>
+              <p className="mt-1 text-[13px] font-bold text-neutral-500">{labels[group.key]}</p>
+              <div className="grid grid-cols-3 gap-2">
+                {group.items.map(({ view: target, label, icon: Icon, tone }) => (<button key={target} type="button" onClick={() => openFromSheet(() => onSelect(target))} aria-current={view === target ? 'page' : undefined} className={`flex min-h-[88px] min-w-0 flex-col items-center justify-center gap-2 rounded-card border bg-surface px-1.5 py-2.5 text-center text-[13px] font-semibold leading-tight text-neutral-900 transition-colors hover:bg-neutral-50 active:scale-[0.98] ${view === target ? 'border-financial-asset' : 'border-border'}`}>
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${tone}`}><Icon className="h-[22px] w-[22px]"/></span>
+                    <span className="max-w-full">{labels[label]}</span>
+                  </button>))}
+              </div>
+            </React.Fragment>))}
+
+          {(onOpenSettings || onSignOut) && (<div className="mt-1 flex flex-col border-t border-neutral-100 pt-1">
+              {onOpenSettings && (<button type="button" onClick={() => openFromSheet(onOpenSettings)} className={`${sheetRowClass} text-neutral-700`}>
+                  <SettingsIcon className="h-[22px] w-[22px] shrink-0"/>
+                  <span>{labels.settings}</span>
+                </button>)}
+              {onSignOut && (<button type="button" onClick={() => openFromSheet(onSignOut)} className={`${sheetRowClass} text-danger dark:text-danger-light`}>
+                  <LogOutIcon className="h-[22px] w-[22px] shrink-0 rtl:-scale-x-100"/>
+                  <span>{labels.logout}</span>
+                </button>)}
+            </div>)}
         </div>
       </BottomSheet>
     </>);
@@ -206,15 +184,12 @@ function AppBottomNavComponent({ view, onSelect, labels, onFabPress, fabHidden, 
 const areNavSharedPropsEqual = (prev: NavSharedProps, next: NavSharedProps) => (prev.view === next.view
     && true
     && prev.labels === next.labels);
+// onSelect is left out on purpose: it is rebuilt on every render and only reads `view`,
+// which is compared already.
 const areBottomNavPropsEqual = (prev: BottomNavProps, next: BottomNavProps) => (areNavSharedPropsEqual(prev, next)
-    && prev.onFabPress === next.onFabPress
-    && prev.fabHidden === next.fabHidden
-    && prev.onOpenSettings === next.onOpenSettings);
-const areMobileMenuNavPropsEqual = (prev: MobileMenuNavProps, next: MobileMenuNavProps) => (areNavSharedPropsEqual(prev, next)
-    && prev.isOpen === next.isOpen
+    && prev.onNewOperation === next.onNewOperation
     && prev.onOpenSettings === next.onOpenSettings
-    && prev.handleOpenGlobalSearch === next.handleOpenGlobalSearch
-    && prev.onSignOut === next.onSignOut);
+    && prev.onSignOut === next.onSignOut
+    && prev.overdueCount === next.overdueCount);
 export const AppDesktopNav = memo(AppDesktopNavComponent, areNavSharedPropsEqual);
-export const AppMobileMenuNav = memo(AppMobileMenuNavComponent, areMobileMenuNavPropsEqual);
 export const AppBottomNav = memo(AppBottomNavComponent, areBottomNavPropsEqual);

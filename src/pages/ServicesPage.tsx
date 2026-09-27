@@ -66,7 +66,7 @@ export function ServicesPage({ manualAssets, manualAssetClients, manualAssetTran
         clientsCount: acc.clientsCount + row.clientsCount
     }), { amountToReceive: 0, clientAdvances: 0, cashReceived: 0, netCapitalImpact: 0, clientsCount: 0 }), [serviceRows]);
     return (<div className="anim-page-in space-y-4">
-      <PageHeader title={t('services.title') as string} subtitle={`${serviceRows.length} service${serviceRows.length > 1 ? 's' : ''}`} className="-mx-4 sm:mx-0 sm:rounded-card" actions={(<Button onClick={onOpenCreateManualAsset} variant="primary" size="md" className="font-semibold">
+      <PageHeader title={t('services.title') as string} hideTitleOnPhone subtitle={`${serviceRows.length} service${serviceRows.length > 1 ? 's' : ''}`} className="-mx-4 sm:mx-0 sm:rounded-card" actions={(<Button onClick={onOpenCreateManualAsset} variant="primary" size="md" className="font-semibold">
             <PlusIcon className="w-4 h-4"/>
             <span className="hidden sm:inline">{t('services.newService')}</span>
           </Button>)}/>

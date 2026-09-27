@@ -24,7 +24,8 @@ import { CheckIcon } from './components/icons/CheckIcon';
 import { CameraIcon } from './components/icons/CameraIcon';
 import { ArrowRightLeftIcon } from './components/icons/ArrowRightLeftIcon';
 import { RotateCcwIcon } from './components/icons/RotateCcwIcon';
-import { AppMobileMenuNav, AppBottomNav } from './components/main/AppNavigation';
+import { AppBottomNav } from './components/main/AppNavigation';
+import { NewTransactionMenuDialog } from './components/transactions/NewTransactionMenuDialog';
 import { MainHeaderBar } from './components/main/MainHeaderBar';
 import { MainContentArea } from './components/main/MainContentArea';
 import type { TransactionFilterMode } from './components/transactions/transactionsTypes';
@@ -548,9 +549,14 @@ export default function MainApp({ user }: {
     isReconcileAdvanceModalOpen, reconcileAdvanceTx, reconcileActualAmount, setReconcileActualAmount, reconcileSpentDescription, setReconcileSpentDescription, openReconcileAdvanceModal, closeReconcileAdvanceModal, handleReconcilePersonalAdvance } = useInvestorHandlers(userDocRef, derivedInvestors, treasuryStats, portfolioStats, setAlert);
     const { isAssetModalOpen, setIsAssetModalOpen, editingAsset, setEditingAsset, isAssetClientModalOpen, setIsAssetClientModalOpen, editingAssetClient, setEditingAssetClient, isCreateAssetModalOpen, setIsCreateAssetModalOpen, newAssetName, setNewAssetName, newAssetDescription, setNewAssetDescription, assetClientBalance, setAssetClientBalance, handleCreateAsset, handleDeleteAsset, openAssetClientModal, closeAssetClientModal, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, handleCreateAssetTransaction } = useAssetHandlers(userDocRef, manualAssets, manualAssetClients, assetClientBalances, setAlert);
     // --- 3. LOCAL UI STATE ---
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isNewOperationMenuOpen, setIsNewOperationMenuOpen] = useState(false);
     const [isMonthPlanOpen, setIsMonthPlanOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+    // Stable, so the memoized header and bottom bar don't re-render with every page update.
+    const openNewOperationMenu = useCallback(() => setIsNewOperationMenuOpen(true), []);
+    const closeNewOperationMenu = useCallback(() => setIsNewOperationMenuOpen(false), []);
+    const openSettingsModal = useCallback(() => setIsSettingsModalOpen(true), []);
+    const handleSignOut = useCallback(() => { void signOut(auth); }, []);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isTreasuryCardModalOpen, setIsTreasuryCardModalOpen] = useState(false);
     const [isTreasuryBalanceEditModalOpen, setIsTreasuryBalanceEditModalOpen] = useState(false);
@@ -2677,12 +2683,14 @@ export default function MainApp({ user }: {
         treasury: t('nav.treasury') as string,
         services: t('nav.services') as string || 'Services',
         investors: t('nav.investors') as string || 'Investisseurs',
-        more: t('nav.more') as string || 'Menu',
+        more: t('nav.more') as string || 'Plus',
         settings: t('common.settings') as string || 'Parametres',
         money: t('nav.money') as string || 'Argent',
         followUp: t('nav.followUp') as string || 'Suivi',
         documents: t('nav.documents') as string || 'Documents',
-        expenses: t('nav.expenses') as string || 'Mes dépenses'
+        expenses: t('nav.expenses') as string || 'Mes dépenses',
+        logout: t('common.logout') as string || 'Déconnexion',
+        newOperation: t('transactions.newTransaction') as string || 'Nouvelle opération'
     }), [t]);
     const openServicesView = () => {
         setSelectedAssetId(null);
@@ -2787,7 +2795,7 @@ export default function MainApp({ user }: {
             return;
         return open(item);
     };
-    const mainContentProps = { t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete: unlessClosedMonth<Tx | TreasuryTx | null>(setTxToDelete), openDateFilterModal, dateRange, setDateRange, openWalletTransferModal, openTransferModal, openDeliveryExpenseModal, openDigitalServiceModal: unlessClosedMonth<DigitalServiceTransaction | null>(openDigitalServiceModal), handleDeleteDigitalService: unlessClosedMonth<DigitalServiceTransaction>(handleDeleteDigitalService), openPersonalWithdrawalModal, treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete: unlessClosedMonth<TreasuryTx | null>(setTreasuryTxToDelete), PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal: unlessClosedMonth<TreasuryTx>(openReconcileAdvanceModal), openEditPersonalExpense: unlessClosedMonth<TreasuryTx>(openEditPersonalExpense), setPersonalExpenseToDelete: unlessClosedMonth<TreasuryTx | null>(setPersonalExpenseToDelete), handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, openClientToClientTransferModal, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete: unlessClosedMonth<InvestorTransaction | null>(setInvestorTxToDelete), managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys, periodLock: periodLockProps };
+    const mainContentProps = { t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete: unlessClosedMonth<Tx | TreasuryTx | null>(setTxToDelete), openDateFilterModal, dateRange, setDateRange, openNewOperationMenu, openDeliveryExpenseModal, openDigitalServiceModal: unlessClosedMonth<DigitalServiceTransaction | null>(openDigitalServiceModal), handleDeleteDigitalService: unlessClosedMonth<DigitalServiceTransaction>(handleDeleteDigitalService), treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete: unlessClosedMonth<TreasuryTx | null>(setTreasuryTxToDelete), PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal: unlessClosedMonth<TreasuryTx>(openReconcileAdvanceModal), openEditPersonalExpense: unlessClosedMonth<TreasuryTx>(openEditPersonalExpense), setPersonalExpenseToDelete: unlessClosedMonth<TreasuryTx | null>(setPersonalExpenseToDelete), handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, openClientToClientTransferModal, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete: unlessClosedMonth<InvestorTransaction | null>(setInvestorTxToDelete), managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys, periodLock: periodLockProps };
     const walletTransferDialogProps = useMemo(() => ({
         isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSourceAndSync,
@@ -2998,30 +3006,10 @@ export default function MainApp({ user }: {
             setAlert('❌ Erreur lors de la sauvegarde.');
         }
     }, [transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, derivedInvestors, investorTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, pricingPlanSync.policy, pricingPlanSync.plan, pricingPlanSync.overrides]);
-    // Per-view quick action wired to the bottom-bar center FAB. Returning
-    // undefined hides the FAB on read-mostly views.
-    const onFabPress = useMemo(() => {
-        if (!isFinancialDataReady)
-            return undefined;
-        if (view === 'dashboard')
-            return () => openForm('buy_usdt');
-        if (view === 'transactions')
-            return () => openForm('buy_usdt');
-        if (view === 'dzd')
-            return () => openClientModal(null);
-        if (view === 'services' && !selectedAssetId && !selectedAssetClientId)
-            return () => setIsCreateAssetModalOpen(true);
-        if (view === 'investors')
-            return () => openInvestorModal(null);
-        if (view === 'tresorerie')
-            return () => openAdjustmentModal('add');
-        return undefined;
-    }, [isFinancialDataReady, view, selectedAssetId, selectedAssetClientId, openForm, openClientModal, openAdjustmentModal, openInvestorModal]);
     return (<div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
             <OfflineBanner />
             <div className="mx-auto max-w-4xl px-page-x pb-24 sm:px-4">
-                    <MainHeaderBar {...{ view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), setIsMobileMenuOpen, handleOpenGlobalSearch, onOpenSettings: () => setIsSettingsModalOpen(true), onSignOut: () => signOut(auth), labels: navLabels }}/>
-                <AppMobileMenuNav view={view} onSelect={navigateToView} isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} labels={navLabels} onOpenSettings={() => setIsSettingsModalOpen(true)} handleOpenGlobalSearch={handleOpenGlobalSearch} onSignOut={() => signOut(auth)}/>
+                    <MainHeaderBar {...{ view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), handleOpenGlobalSearch, onOpenSettings: openSettingsModal, onSignOut: handleSignOut, labels: navLabels }}/>
 
                 <WeeklyRecapBanner recap={weeklyRecap} onDismiss={dismissWeeklyRecap}/>
                 <MonthlyRecapBanner recap={monthlyRecap} onDismiss={dismissMonthlyRecap}/>
@@ -3045,7 +3033,9 @@ export default function MainApp({ user }: {
                     </div>)}
                 <MainContentArea {...mainContentProps}/>
 
-                <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onFabPress={onFabPress} overdueCount={overdueDebtClients.length}/>
+                <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onNewOperation={isFinancialDataReady ? openNewOperationMenu : undefined} onOpenSettings={openSettingsModal} onSignOut={handleSignOut} overdueCount={overdueDebtClients.length}/>
+
+                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal}/>
 
                 {alert && (<AppToast message={alert} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? t('common.undo') : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined}/>)}
 

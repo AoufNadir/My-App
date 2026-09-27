@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '../components/ui/Button';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, DigitalServiceTransaction } from '../types';
 import { PlusIcon } from '../components/icons/PlusIcon';
@@ -7,7 +8,7 @@ import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
 import { HeroKpiCard } from '../components/ui/HeroKpiCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import { TransactionsHistoryCard } from '../components/transactions/TransactionsHistoryCard';
-import { NewTransactionMenuDialog } from '../components/transactions/NewTransactionMenuDialog';
+import { useHeaderActionsSlot } from '../components/main/headerActionsSlot';
 import { TransactionFilterMode, DisplayTx } from '../components/transactions/transactionsTypes';
 import { useTransactionsViewModel } from '../components/transactions/useTransactionsViewModel';
 import type { PamLedgerResult } from '../utils/pamLedger';
@@ -64,11 +65,8 @@ type TransactionsPageProps = {
   openDateFilterModal: () => void;
   dateRange: { start: Date | null; end: Date | null };
   setDateRange: (range: { start: Date | null; end: Date | null }) => void;
-  openWalletTransferModal: () => void;
-  openTransferModal: () => void;
-  openDeliveryExpenseModal: () => void;
-  openDigitalServiceModal?: (tx?: DigitalServiceTransaction | null) => void;
-  openPersonalWithdrawalModal?: () => void;
+  /** Opens the new-operation menu (the same one as the phone's (+)); left out while the data loads. */
+  onOpenNewOperation?: () => void;
   treasuryTransactions: TreasuryTx[];
   handleEditPortfolioTx?: (tx: Tx) => void;
   handleEditClientTx?: (tx: ClientTransactionDzd) => void;
@@ -95,11 +93,7 @@ export function TransactionsPage({
   openDateFilterModal,
   dateRange,
   setDateRange,
-  openWalletTransferModal,
-  openTransferModal,
-  openDeliveryExpenseModal,
-  openDigitalServiceModal,
-  openPersonalWithdrawalModal,
+  onOpenNewOperation,
   treasuryTransactions,
   handleEditPortfolioTx,
   handleEditClientTx,
@@ -110,7 +104,7 @@ export function TransactionsPage({
   setTreasuryTxToDelete,
 }: TransactionsPageProps) {
   const { t } = useLanguage();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const headerActionsSlot = useHeaderActionsSlot();
 
   const {
     savedFilters,
@@ -164,6 +158,8 @@ export function TransactionsPage({
     return counts;
   }, [groupedTransactions]);
 
+  const exportPdf = () => exportTransactionsPdf(groupedTransactions, getClientFullName, clientsDzd, `${stats.total} opérations`);
+
   return (
     <div className="anim-page-in space-y-5">
       <HeroKpiCard
@@ -181,11 +177,13 @@ export function TransactionsPage({
         ]}
       />
 
-      <div className="flex gap-2">
+      {/* Phones get (+) in the bottom bar and the PDF button in the header. */}
+      <div className="hidden gap-2 sm:flex">
         <Button
           variant="primary"
           size="lg"
-          onClick={() => setIsMenuOpen(true)}
+          onClick={onOpenNewOperation}
+          disabled={!onOpenNewOperation}
           className="flex-1 font-bold"
         >
           <PlusIcon className="w-4 h-4" />
@@ -194,15 +192,27 @@ export function TransactionsPage({
         <Button
           variant="outline"
           size="lg"
-          onClick={() => exportTransactionsPdf(groupedTransactions, getClientFullName, clientsDzd, `${stats.total} opérations`)}
+          onClick={exportPdf}
           className="shrink-0 font-semibold px-3"
           title={t('transactions.exportPdf') as string}
           aria-label={t('transactions.exportPdf') as string}
         >
           <DownloadCloudIcon className="w-4 h-4" />
-          <span className="hidden sm:inline">{t('transactions.exportPdf')}</span>
+          <span>{t('transactions.exportPdf')}</span>
         </Button>
       </div>
+      {headerActionsSlot && createPortal(
+        <button
+          type="button"
+          onClick={exportPdf}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-700 transition-colors hover:bg-neutral-100 active:scale-95"
+          title={t('transactions.exportPdf') as string}
+          aria-label={t('transactions.exportPdf') as string}
+        >
+          <DownloadCloudIcon className="h-[22px] w-[22px]" />
+        </button>,
+        headerActionsSlot,
+      )}
 
       <TransactionsHistoryCard
         t={t as (key: string) => string}
@@ -224,18 +234,6 @@ export function TransactionsPage({
         profitByTxId={profitByTxId}
       />
 
-      <NewTransactionMenuDialog
-        isOpen={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
-        t={t as (key: string) => string}
-        openForm={(newMode) => openForm(newMode)}
-        openWalletTransferModal={openWalletTransferModal}
-        openTransferModal={openTransferModal}
-        openAdjustmentModal={(type) => openAdjustmentModal(type)}
-        openDeliveryExpenseModal={openDeliveryExpenseModal}
-        openDigitalServiceModal={openDigitalServiceModal ? () => openDigitalServiceModal(null) : undefined}
-        openPersonalWithdrawalModal={openPersonalWithdrawalModal}
-      />
     </div>
   );
 }

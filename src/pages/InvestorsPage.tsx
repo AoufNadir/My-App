@@ -79,7 +79,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
         setIsCommissionModalOpen(false);
     }, [saveManagerFeePercentage, setAlert]);
     return (<div className="anim-page-in space-y-6">
-      <PageHeader title={t('investors.title') as string} subtitle={`${stats.activeCount} ${t('investors.activeSuffix')}`} className="-mx-4 sm:mx-0 sm:rounded-card" actions={(<Button onClick={onAddInvestor} variant="primary" size="md" className="font-semibold">
+      <PageHeader title={t('investors.title') as string} hideTitleOnPhone subtitle={`${stats.activeCount} ${t('investors.activeSuffix')}`} className="-mx-4 sm:mx-0 sm:rounded-card" actions={(<Button onClick={onAddInvestor} variant="primary" size="md" className="font-semibold">
             <PlusIcon className="h-4 w-4"/>
             <span className="hidden sm:inline">{t('investors.add')}</span>
           </Button>)}/>

@@ -1024,7 +1024,7 @@ for (const resultLimit of [5, 60]) {
         transactions={fresh.transactions} digitalServiceTransactions={fresh.digitalServiceTransactions} profitByTxId={{}}
         getRelativeDateLabel={(date) => date} clientTransactionsDzd={fresh.clientTransactionsDzd} clientsDzd={fresh.clientsDzd}
         getClientFullName={getClientFullName} setTxToDelete={noop} openDateFilterModal={noop} dateRange={DATE_RANGES[0]} setDateRange={noop}
-        openWalletTransferModal={noop} openTransferModal={noop} openDeliveryExpenseModal={noop} treasuryTransactions={fresh.treasuryTransactions}/>);
+        onOpenNewOperation={noop} treasuryTransactions={fresh.treasuryTransactions}/>);
     const groupedTransactions = referenceViewModel({ ...fresh, t: translate.fr, filterMode: 'all', dateRange: DATE_RANGES[0], getClientFullName }).groupedTransactions;
     // The counts as TransactionsPage computed them before (copied verbatim).
     const allTxs: DisplayTx[] = Object.values(groupedTransactions).flat() as DisplayTx[];
