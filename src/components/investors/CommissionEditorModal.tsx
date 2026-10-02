@@ -42,7 +42,7 @@ export function CommissionEditorModal({ isOpen, onClose, value, onSave, managerF
     };
     const fieldBase = 'min-h-touch rounded-lg border border-border-strong bg-surface px-3 py-2 text-end text-lg font-bold text-neutral-900';
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface">
-        <ModalHeader onClose={onClose} className="border-b border-border px-4 py-3 sm:px-5">
+        <ModalHeader onClose={onClose}>
           <ModalTitle className="text-base sm:text-lg">Taux actuel du gérant</ModalTitle>
           <ModalDescription className="text-neutral-500">
             Le taux saisi s'applique seulement aux operations apres l'enregistrement.
@@ -76,15 +76,13 @@ export function CommissionEditorModal({ isOpen, onClose, value, onSave, managerF
           </div>
         </ModalContent>
 
-        <ModalFooter className="border-t border-border px-4 py-3 sm:px-5">
-          <div className="grid w-full grid-cols-2 gap-3">
-            <Button onClick={onClose} variant="outline" disabled={isSaving} className="w-full rounded-xl py-3 font-bold">
-              Annuler
-            </Button>
-            <Button onClick={handleSave} loading={isSaving} className="w-full rounded-xl bg-primary py-3 font-bold text-white shadow-sm transition-colors hover:bg-primary-dark">
-              Enregistrer
-            </Button>
-          </div>
+        <ModalFooter>
+          <Button onClick={onClose} variant="outline" disabled={isSaving}>
+            Annuler
+          </Button>
+          <Button onClick={handleSave} loading={isSaving}>
+            Enregistrer
+          </Button>
         </ModalFooter>
     </Modal>);
 }

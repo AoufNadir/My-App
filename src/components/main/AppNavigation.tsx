@@ -58,7 +58,7 @@ function AppDesktopNavComponent({ view, onSelect, labels }: NavSharedProps) {
         ? 'bg-primary text-white shadow-card'
         : 'text-neutral-600 hover:bg-neutral-100'}`;
     return (<div className="hidden items-center gap-1 rounded-xl border border-border p-1 sm:flex">
-      <MainNavLink activeView={view} onSelect={onSelect} targetView="dashboard" colorClass="bg-neutral-700" fillWidth={false} className="px-3 py-2">{labels.dashboard}</MainNavLink>
+      <MainNavLink activeView={view} onSelect={onSelect} targetView="dashboard" colorClass="bg-neutral-700 dark:bg-neutral-200" fillWidth={false} className="px-3 py-2">{labels.dashboard}</MainNavLink>
       <MainNavLink activeView={view} onSelect={onSelect} targetView="transactions" colorClass="bg-primary" fillWidth={false} className="px-3 py-2">{labels.transactions}</MainNavLink>
       <MainNavLink activeView={view} onSelect={onSelect} targetView="dzd" colorClass="bg-secondary" fillWidth={false} className="px-3 py-2">{labels.clients}</MainNavLink>
       <Dropdown trigger={(<button type="button" className={triggerClass} aria-label={labels.more}>

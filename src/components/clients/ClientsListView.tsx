@@ -6,6 +6,7 @@ import { Dropdown, DropdownItem } from '../ui/Dropdown';
 import { SectionHeading } from '../ui/SectionHeading';
 import { HeroKpiCard } from '../ui/HeroKpiCard';
 import { EmptyState } from '../ui/EmptyState';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { FilterIcon } from '../icons/FilterIcon';
 import { UserIcon } from '../icons/UserIcon';
@@ -347,52 +348,17 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
 
       <OverdueDebtsModal isOpen={isOverdueModalOpen} onClose={() => setIsOverdueModalOpen(false)} overdueDebtors={overdueDebtClients} onOpenClient={setSelectedClientId}/>
 
-      {/* Solder confirmation modal */}
-      {solderTarget && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setSolderTarget(null)}>
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"/>
-          <div className="relative w-full max-w-sm rounded-2xl bg-surface shadow-2xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
-            {/* Icon */}
-            <div className="flex justify-center">
-              <div className="w-14 h-14 rounded-full bg-neutral-100 flex items-center justify-center">
-                <svg className="w-7 h-7 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/>
-                </svg>
-              </div>
-            </div>
-            {/* Content */}
-            <div className="text-center space-y-1.5">
-              <p className="text-base font-bold text-neutral-900">{t('clients.clearResidualTitle')}</p>
-              <p className="text-sm text-neutral-500">{solderTarget.name}</p>
-              <p className={`text-2xl font-extrabold tabular-nums ${solderTarget.balance < 0 ? 'text-financial-loss' : 'text-financial-profit'}`}>
-                {Math.abs(solderTarget.balance).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
-              </p>
-              <p className="text-[12px] text-neutral-400">
-                {t('clients.clearResidualBody')}
-              </p>
-              {solderTarget.balance < 0 && (
-                <p className="text-[12px] font-semibold text-financial-loss">
-                  {t('clients.clearDebtLossBody')}
-                </p>
-              )}
-            </div>
-            {/* Actions */}
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <button type="button" onClick={() => setSolderTarget(null)}
-                className="rounded-xl border border-border py-3 text-sm font-semibold text-neutral-600 hover:bg-neutral-50 transition-colors">
-                {t('common.cancel')}
-              </button>
-              <button type="button"
-                onClick={() => {
-                  if (handleZeroOutBalance) handleZeroOutBalance(solderTarget.clientId, solderTarget.balance);
-                  setSolderTarget(null);
-                }}
-                className="rounded-xl bg-primary py-3 text-sm font-bold text-white hover:bg-primary/90 transition-colors shadow-sm">
-                {t('common.confirm')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Solder confirmation */}
+      <ConfirmDialog isOpen={solderTarget !== null} onClose={() => setSolderTarget(null)} onConfirm={() => {
+            if (solderTarget && handleZeroOutBalance)
+                handleZeroOutBalance(solderTarget.clientId, solderTarget.balance);
+            setSolderTarget(null);
+        }} variant="primary" title={t('clients.clearResidualTitle')} description={solderTarget ? (<>
+            <span className="block text-neutral-500">{solderTarget.name}</span>
+            <span dir="ltr" className={`my-1 block text-2xl font-extrabold tabular-nums ${solderTarget.balance < 0 ? 'text-financial-loss' : 'text-financial-profit'}`}>
+              {Math.abs(solderTarget.balance).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DZD
+            </span>
+            <span className="block text-xs text-neutral-500">{t('clients.clearResidualBody')}</span>
+          </>) : null} note={solderTarget && solderTarget.balance < 0 ? t('clients.clearDebtLossBody') : undefined} confirmLabel={t('common.confirm')} cancelLabel={t('common.cancel')}/>
     </div>);
 }

@@ -127,7 +127,7 @@ function MainUtilityDialogsComponent({
     return (
         <>
             <Modal isOpen={isSettingsModalOpen} onClose={closeSettings} className="max-w-sm bg-surface text-neutral-900">
-                <ModalHeader onClose={closeSettings} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
+                <ModalHeader onClose={closeSettings}>
                     <ModalTitle className="text-base sm:text-lg">{t('settings.salesSettings')}</ModalTitle>
                 </ModalHeader>
                 <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
@@ -153,7 +153,7 @@ function MainUtilityDialogsComponent({
                         </Button>
                     </div>
                 </ModalContent>
-                <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
+                <ModalFooter>
                     <Button type="button" variant="outline" className="w-full" onClick={closeSettings}>{t('common.cancel')}</Button>
                 </ModalFooter>
             </Modal>
@@ -170,7 +170,7 @@ function MainUtilityDialogsComponent({
             />
 
             <Modal isOpen={isCreateAssetModalOpen} onClose={closeCreateAsset} className="max-w-md bg-surface text-neutral-900">
-                <ModalHeader onClose={closeCreateAsset} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
+                <ModalHeader onClose={closeCreateAsset}>
                     <ModalTitle className="text-base sm:text-lg">{t('transactions.newManualAsset')}</ModalTitle>
                 </ModalHeader>
                 <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
@@ -186,20 +186,18 @@ function MainUtilityDialogsComponent({
                         onChange={(event) => setNewAssetDescription(event.target.value)}
                     />
                 </ModalContent>
-                <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
-                    <div className="flex w-full gap-2">
-                        <Button type="button" variant="outline" className="flex-1" onClick={closeCreateAsset}>
-                            {t('common.cancel')}
-                        </Button>
-                        <Button type="button" className="flex-1" onClick={handleCreateAsset}>
-                            {t('transactions.create')}
-                        </Button>
-                    </div>
+                <ModalFooter>
+                    <Button type="button" variant="outline" onClick={closeCreateAsset}>
+                        {t('common.cancel')}
+                    </Button>
+                    <Button type="button" onClick={handleCreateAsset}>
+                        {t('transactions.create')}
+                    </Button>
                 </ModalFooter>
             </Modal>
 
             <Modal isOpen={isTreasuryCardModalOpen} onClose={closeTreasuryCard} className="max-w-md bg-surface text-neutral-900">
-                <ModalHeader onClose={closeTreasuryCard} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
+                <ModalHeader onClose={closeTreasuryCard}>
                     <ModalTitle className="text-base sm:text-lg">
                         {editingTreasuryCard ? t('transactions.editCard') : t('transactions.addCard')}
                     </ModalTitle>
@@ -226,15 +224,13 @@ function MainUtilityDialogsComponent({
                         placeholder="Détails de l'investissement, remarques, infos importantes..."
                     />
                 </ModalContent>
-                <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
-                    <div className="flex w-full gap-2">
-                        <Button type="button" variant="outline" className="flex-1" onClick={closeTreasuryCard}>
-                            {t('common.cancel')}
-                        </Button>
-                        <Button type="button" className="flex-1" onClick={handleSaveTreasuryCard} loading={isSaving}>
-                            {isSaving ? t('common.saving') : (editingTreasuryCard ? t('transactions.update') : t('transactions.add'))}
-                        </Button>
-                    </div>
+                <ModalFooter>
+                    <Button type="button" variant="outline" onClick={closeTreasuryCard}>
+                        {t('common.cancel')}
+                    </Button>
+                    <Button type="button" onClick={handleSaveTreasuryCard} loading={isSaving}>
+                        {isSaving ? t('common.saving') : (editingTreasuryCard ? t('transactions.update') : t('transactions.add'))}
+                    </Button>
                 </ModalFooter>
             </Modal>
 

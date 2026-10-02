@@ -17,16 +17,25 @@ export type TabsProps = {
 };
 const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, variant = 'underline', className = '', }) => {
     if (variant === 'pills') {
-        return (<div role="tablist" className={['grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap', className].filter(Boolean).join(' ')}>
+        // Drawn like the Accueil period switch: one grey track, the chosen tab in white.
+        const shortLabels = tabs.every((tab) => tab.label.length <= 10);
+        const columns = tabs.length <= 2
+            ? 'grid-cols-2'
+            : tabs.length === 3
+                ? 'grid-cols-3'
+                : tabs.length === 4
+                    ? (shortLabels ? 'grid-cols-4' : 'grid-cols-2 sm:grid-cols-4')
+                    : 'grid-cols-3 sm:grid-cols-5';
+        return (<div role="tablist" className={['grid w-full gap-0.5 rounded-button bg-surface-muted p-0.5', columns, className].filter(Boolean).join(' ')}>
         {tabs.map((tab) => {
                 const isActive = tab.id === activeTab;
                 return (<button key={tab.id} role="tab" type="button" aria-selected={isActive} disabled={tab.disabled} onClick={() => onChange(tab.id)} className={[
-                        'inline-flex min-h-button-md w-full min-w-0 items-center justify-center gap-1.5 rounded-button px-3 py-2 text-center text-[12px] font-semibold leading-tight transition-colors sm:w-auto sm:px-4 sm:text-sm',
+                        'inline-flex min-h-10 w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] px-2 py-1.5 text-center text-[13px] font-bold leading-tight transition-colors',
                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                         'disabled:opacity-40 disabled:pointer-events-none',
                         isActive
-                            ? 'bg-primary text-white shadow-sm'
-                            : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                            ? 'bg-surface text-neutral-900 shadow-sm'
+                            : 'text-neutral-600 hover:text-neutral-900'
                     ]
                         .filter(Boolean)
                         .join(' ')}>
@@ -35,7 +44,7 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, variant = 'under
               {tab.badge !== undefined && (<span className={[
                             'inline-flex items-center justify-center rounded-full px-1.5 py-0.5',
                             'text-xs font-bold leading-none min-w-[18px]',
-                            isActive ? 'bg-primary-dark text-white' : 'bg-neutral-300 text-neutral-700'
+                            isActive ? 'bg-primary/10 text-primary' : 'bg-neutral-200 text-neutral-700'
                         ].join(' ')}>
                   {tab.badge}
                 </span>)}

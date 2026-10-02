@@ -4,8 +4,9 @@ export type CardProps = React.HTMLAttributes<HTMLDivElement> & {
     variant?: CardVariant;
 };
 const VARIANT_CLASSES: Record<CardVariant, string> = {
-    default: 'bg-surface border border-border shadow-card',
-    hoverable: 'bg-surface border border-border shadow-card hover:shadow-card-hover hover:border-border-strong transition-all cursor-pointer active:scale-[0.99]',
+    // Flat like the Accueil cards: a thin border, no shadow.
+    default: 'bg-surface border border-border',
+    hoverable: 'bg-surface border border-border hover:border-border-strong transition-colors cursor-pointer active:scale-[0.99]',
     flat: 'bg-surface-muted border border-neutral-100',
 };
 // لا padding ثابت — المسافات يتحكم بها المستخدِم عبر className أو عبر children

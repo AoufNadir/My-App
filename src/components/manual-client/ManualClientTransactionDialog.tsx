@@ -51,7 +51,7 @@ export function ManualClientTransactionDialog({ isTxModalOpen, editingTx, txType
         ? activeClass
         : 'text-neutral-600 hover:text-neutral-800'}`;
     return (<Modal isOpen={isTxModalOpen} onClose={onClose} className="max-w-md bg-surface">
-      <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
+      <ModalHeader onClose={onClose}>
         <ModalTitle className="text-base sm:text-lg">{editingTx ? t('transactions.editOperation') : t('transactions.newOperation')}</ModalTitle>
       </ModalHeader>
       <ModalContent className="px-4 py-4 sm:px-5 space-y-4">
@@ -97,15 +97,13 @@ export function ManualClientTransactionDialog({ isTxModalOpen, editingTx, txType
           </div>
         </div>
       </ModalContent>
-      <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
-        <div className="flex gap-2 w-full">
-          <Button onClick={onClose} className="flex-1 rounded-xl bg-neutral-100 py-3 font-bold text-neutral-700 transition-colors hover:bg-neutral-200">
-            {t('common.cancel')}
-          </Button>
-          <Button onClick={onSave} className="flex-1 rounded-xl bg-primary py-3 font-bold text-white shadow-sm transition-colors hover:bg-primary-dark">
-            {t('common.confirm')}
-          </Button>
-        </div>
+      <ModalFooter>
+        <Button onClick={onClose} variant="outline">
+          {t('common.cancel')}
+        </Button>
+        <Button onClick={onSave}>
+          {t('common.confirm')}
+        </Button>
       </ModalFooter>
     </Modal>);
 }

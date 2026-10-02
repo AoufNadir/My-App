@@ -78,6 +78,9 @@ html[dir="rtl"] body {
 .anim-sheet-in { animation: anim-sheet-in 280ms cubic-bezier(0.16, 1, 0.3, 1); }
 .anim-dropdown-in { animation: anim-dropdown-in 120ms ease-out; transform-origin: top right; }
 .anim-dropdown-in-start { transform-origin: top left; }
+/* Arabic: menus are mirrored, so they grow from the other corner. */
+[dir="rtl"] .anim-dropdown-in { transform-origin: top left; }
+[dir="rtl"] .anim-dropdown-in-start { transform-origin: top right; }
 .anim-fade-slide-down { animation: anim-fade-slide-down 220ms ease-out; }
 .anim-page-in { animation: anim-page-in 220ms ease-out; }
 .anim-toast-in { animation: anim-toast-in 200ms cubic-bezier(0.16, 1, 0.3, 1); }
@@ -92,4 +95,12 @@ html[dir="rtl"] body {
   .anim-toast-in {
     animation: none;
   }
+}
+
+/* Dark mode: the brand blue, red and green are too dark for small text on a
+   dark card, so text (not backgrounds) uses their light shade. */
+@layer utilities {
+  .dark .text-primary { color: var(--color-primary-light); }
+  .dark .text-danger { color: var(--color-danger-light); }
+  .dark .text-success { color: var(--color-success-light); }
 }

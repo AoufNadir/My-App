@@ -1,6 +1,8 @@
 import React from 'react';
 import { PencilIcon } from '../icons/PencilIcon';
 import { CurrencyAmount, type CurrencyCode, type AmountSemantic } from '../financial/CurrencyAmount';
+import { CARD_TONE_CLASS, type CardTone } from '../cards/tones';
+import { useLanguage } from '../../contexts/LanguageContext';
 type FinancialMetricCardProps = {
     label: string;
     value: number;
@@ -16,36 +18,38 @@ type FinancialMetricCardProps = {
     className?: string;
     key?: React.Key | null;
 };
-const toneClasses = {
-    neutral: { icon: 'text-neutral-500', bg: 'bg-neutral-100', ring: 'ring-neutral-200' },
-    stock:   { icon: 'text-financial-asset', bg: 'bg-financial-asset-bg', ring: 'ring-primary/15' },
-    cash:    { icon: 'text-financial-profit', bg: 'bg-financial-profit-bg', ring: 'ring-success/15' },
-    debt:    { icon: 'text-financial-loss', bg: 'bg-financial-loss-bg', ring: 'ring-danger/15' },
-    profit:  { icon: 'text-financial-profit', bg: 'bg-financial-profit-bg', ring: 'ring-success/15' },
-    investor:{ icon: 'text-secondary', bg: 'bg-secondary/10', ring: 'ring-secondary/15' },
-    report:  { icon: 'text-warning', bg: 'bg-warning-bg', ring: 'ring-warning/15' }
+/** Icon disc colour, same family as the Accueil tiles. */
+const TONE: Record<NonNullable<FinancialMetricCardProps['tone']>, CardTone> = {
+    neutral: 'neutral',
+    stock: 'asset',
+    cash: 'profit',
+    debt: 'loss',
+    profit: 'profit',
+    investor: 'dzd',
+    report: 'debt',
 };
+/** A figure tile drawn like the Accueil tiles (flat, label then amount). Same props and amounts as before. */
 export function FinancialMetricCard({ label, value, currency = 'DZD', semantic = 'plain', icon, hint, meta, valueDisplay, tone = 'neutral', onEdit, onClick, className = '' }: FinancialMetricCardProps) {
-    const toneClass = toneClasses[tone];
+    const { t } = useLanguage();
     return (<div role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={(event) => {
             if (!onClick) return;
             if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick(); }
-        }} className={`group relative min-h-touch rounded-xl border p-3 shadow-card ring-1 transition-all border-border bg-surface text-neutral-900 ${toneClass.ring} ${onClick ? 'cursor-pointer hover:-translate-y-0.5' : ''} ${className}`}>
-      <div className="flex items-start justify-between gap-3">
+        }} className={`relative min-w-0 rounded-card border border-border bg-surface px-3 py-2.5 text-neutral-900 transition-colors ${onClick ? 'cursor-pointer hover:border-border-strong' : ''} ${className}`}>
+      <div className="flex min-h-touch items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-xs font-bold uppercase text-neutral-500">{label}</p>
-          <div className="mt-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            {icon && (<span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${CARD_TONE_CLASS[TONE[tone]]}`}>{icon}</span>)}
+            <p className="min-w-0 truncate text-xs font-semibold text-neutral-500">{label}</p>
+          </div>
+          <div className="mt-1.5">
             {valueDisplay ?? <CurrencyAmount value={value} currency={currency ?? undefined} semantic={semantic} size="lg"/>}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {onEdit && (<button type="button" onClick={(event) => { event.stopPropagation(); onEdit(); }} className="flex h-touch w-touch items-center justify-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors hover:bg-neutral-200" aria-label={`Modifier ${label}`}>
-              <PencilIcon className="h-4 w-4"/>
-            </button>)}
-          {icon && (<div className={`flex h-9 w-9 items-center justify-center rounded-lg ${toneClass.bg} ${toneClass.icon}`}>{icon}</div>)}
-        </div>
+        {onEdit && (<button type="button" onClick={(event) => { event.stopPropagation(); onEdit(); }} className="-me-1.5 -mt-1 flex h-touch w-touch shrink-0 items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-surface-muted hover:text-neutral-900" aria-label={`${t('common.edit')} ${label}`}>
+            <PencilIcon className="h-4 w-4"/>
+          </button>)}
       </div>
-      {hint && <p className="mt-2 text-xs text-neutral-500">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-neutral-500">{hint}</p>}
       {meta && <div className="mt-3">{meta}</div>}
     </div>);
 }

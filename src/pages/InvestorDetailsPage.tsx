@@ -97,7 +97,7 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ invest
       <InvestorDetailsContent investor={investor} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} orderedTransactions={orderedTransactions} activeTab={activeTab} setActiveTab={setActiveTab} onAddCapital={onAddCapital} onWithdrawCapital={onWithdrawCapital} onWithdrawProfit={onWithdrawProfit} onReinvestProfit={onReinvestProfit} onDeleteTransaction={onDeleteTransaction} personalExpenses={personalExpenses}/>
 
       <Modal isOpen={isReportDialogOpen} onClose={() => setIsReportDialogOpen(false)} className="max-w-md bg-surface">
-        <ModalHeader onClose={() => setIsReportDialogOpen(false)} className="border-b border-border px-4 py-3 sm:px-5">
+        <ModalHeader onClose={() => setIsReportDialogOpen(false)}>
           <ModalTitle className="text-base sm:text-lg">Créer rapport investisseur</ModalTitle>
         </ModalHeader>
         <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
@@ -121,11 +121,11 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ invest
           </div>
           {reportDateError && <p className="text-sm font-semibold text-danger">{reportDateError}</p>}
         </ModalContent>
-        <ModalFooter className="border-t border-border px-4 py-3 sm:px-5">
-          <Button onClick={clearReportRange} variant="outline" className="w-full">
+        <ModalFooter>
+          <Button onClick={clearReportRange} variant="outline">
             Tout l'historique
           </Button>
-          <Button onClick={handleCreateReport} className="w-full bg-primary text-white hover:bg-primary-dark">
+          <Button onClick={handleCreateReport}>
             Créer PDF
           </Button>
         </ModalFooter>

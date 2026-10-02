@@ -82,7 +82,7 @@ export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercent
               <bdi>{displayPercentage}</bdi>
               <span className="ms-1 text-[length:max(0.85em,12px)] opacity-70 font-normal">%</span>
             </span>
-            <ChevronRightIcon className="w-4 h-4 text-neutral-400"/>
+            <ChevronRightIcon className="w-4 h-4 text-neutral-400 rtl:-scale-x-100"/>
           </span>
         </button>
 

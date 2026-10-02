@@ -290,11 +290,9 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
         : exceedsAvailableBalance
             ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: selectedAssetLabel })
             : '';
-    const modalHeaderClass = 'sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
-    const modalFooterClass = 'sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
     return (<>
             <Modal isOpen={isClientTxModalOpen} onClose={() => setIsClientTxModalOpen(false)} className="max-w-lg bg-surface">
-                <ModalHeader onClose={() => setIsClientTxModalOpen(false)} className={modalHeaderClass}>
+                <ModalHeader onClose={() => setIsClientTxModalOpen(false)}>
                     <ModalTitle className="text-base sm:text-lg">{editingClientTx ? t('transactions.editOperation') : t('transactions.newOperation')}</ModalTitle>
                 </ModalHeader>
                 <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
@@ -462,7 +460,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
             return (<TransactionPreviewCard title={t('transactions.confirmAndSave')} rows={rows.filter(r => r.label !== 'Type')} error={error}/>);
         })()}
                 </ModalContent>
-                <ModalFooter className={modalFooterClass}>
+                <ModalFooter>
                     {(() => {
             const isVenteUsdt = normalizedClientTxType === 'Vente USDT';
             const isAchatEur = normalizedClientTxType === 'Achat EUR';
@@ -482,15 +480,18 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                 ? (qtyVal <= 0 || priceVal <= 0 || exceedsUsdt)
                 : (!Number.isFinite(amtVal) || amtVal === 0 || (isClientSettlementTx && amtVal <= 0) || clientSettlementWalletInsufficient);
             const isDisabled = isSaving || isInvalid;
-            return (<Button onClick={() => handleSaveClientTx(selectedClientId)} disabled={isDisabled} className={`w-full rounded-xl py-3 font-bold text-white ${isDisabled ? 'bg-neutral-400 cursor-not-allowed' : 'bg-success hover:opacity-95'}`}>
-                                {isSaving ? t('common.processing') : exceedsUsdt ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: 'USDT' }) : t('common.save')}
-                            </Button>);
+            return (<>
+                                <Button variant="outline" onClick={() => setIsClientTxModalOpen(false)}>{t('common.cancel')}</Button>
+                                <Button onClick={() => handleSaveClientTx(selectedClientId)} disabled={isDisabled}>
+                                    {isSaving ? t('common.processing') : exceedsUsdt ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: 'USDT' }) : t('common.save')}
+                                </Button>
+                            </>);
         })()}
                 </ModalFooter>
             </Modal>
 
             <Modal isOpen={isAdjustmentModalOpen} onClose={() => setIsAdjustmentModalOpen(false)} className="max-w-md bg-surface">
-                <ModalHeader onClose={() => setIsAdjustmentModalOpen(false)} className={modalHeaderClass}>
+                <ModalHeader onClose={() => setIsAdjustmentModalOpen(false)}>
                     <ModalTitle className="text-base sm:text-lg">{editingTreasuryTx ? t('transactions.editAdjustment') : t('transactions.treasuryAdjustment')}</ModalTitle>
                 </ModalHeader>
                 <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
@@ -556,17 +557,13 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
             return (<TransactionPreviewCard title={t('transactions.confirmAndSave')} rows={rows} error={exceedsAvailableBalance ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: selectedAssetLabel }) : undefined}/>);
         })()}
                 </ModalContent>
-                <ModalFooter className={modalFooterClass}>
-                    <div className="flex gap-2 w-full">
-                        <Button onClick={() => setIsAdjustmentModalOpen(false)} className="flex-1 py-3 rounded-xl font-bold transition-colors bg-neutral-100 text-neutral-700 hover:bg-neutral-200">
-                            {t('common.cancel')}
-                        </Button>
-                        <Button onClick={handleGlobalAdjustment} disabled={isConfirmDisabled} className={`flex-1 py-3 rounded-xl font-bold text-white shadow-sm transition-colors ${isConfirmDisabled
-            ? 'cursor-not-allowed bg-neutral-400 opacity-70'
-            : 'bg-primary hover:bg-primary-dark'}`} title={!isConfirmDisabled ? undefined : confirmHelperText}>
-                            {isSaving ? t('common.processing') : t('common.confirm')}
-                        </Button>
-                    </div>
+                <ModalFooter>
+                    <Button variant="outline" onClick={() => setIsAdjustmentModalOpen(false)}>
+                        {t('common.cancel')}
+                    </Button>
+                    <Button onClick={handleGlobalAdjustment} disabled={isConfirmDisabled} title={!isConfirmDisabled ? undefined : confirmHelperText}>
+                        {isSaving ? t('common.processing') : t('common.confirm')}
+                    </Button>
                 </ModalFooter>
             </Modal>
         </>);

@@ -1,5 +1,6 @@
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../ui/Modal';
 import { Button } from '../ui/Button';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Label } from '../ui/Label';
 import { Input } from '../ui/Input';
 import { NumberInput } from '../ui/NumberInput';
@@ -10,16 +11,11 @@ import { parseAndEvaluate } from '../../utils';
 import { formatMoney } from '../../pages/shared/pageFormat';
 type MainInvestorDialogsProps = Record<string, any>;
 export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, handleSaveInvestor, investorName, setInvestorName, fieldBase, investorInitialCapital, setInvestorInitialCapital, investorInitialCapitalSource, setInvestorInitialCapitalSource, investorNotes, setInvestorNotes, isManager, setIsManager, derivedInvestors, selectedInvestorId, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorTxType, investorTxAmount, setInvestorTxAmount, investorTxPaymentSource, setInvestorTxPaymentSource, treasuryStats, investorTxNotes, setInvestorTxNotes, handleInvestorTransaction, t, investorToDelete, setInvestorToDelete, handleDeleteInvestor, investorTxToDelete, setInvestorTxToDelete, handleDeleteInvestorTx, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, handleReinvestProfit, setAlert }: MainInvestorDialogsProps) {
-    const headerClass = 'sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
-    const footerClass = 'sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
-    const cancelBtn = 'flex-1 rounded-xl bg-neutral-100 py-3 font-bold text-neutral-700 transition-colors hover:bg-neutral-200';
-    const primaryBtn = 'flex-1 rounded-xl bg-primary py-3 font-bold text-white shadow-sm transition-colors hover:bg-primary-dark';
-    const dangerBtn = 'flex-1 rounded-xl bg-danger py-3 font-bold text-white shadow-sm transition-colors hover:bg-danger-light';
     const template = (key: string, values: Record<string, string>) => Object.entries(values).reduce((text, [name, value]) => text.replace(new RegExp(`\\{${name}\\}`, 'g'), value), String(t(key)));
     return (<>
             {/* INVESTOR CREATION / EDIT MODAL */}
             <Modal isOpen={isInvestorModalOpen} onClose={() => setIsInvestorModalOpen(false)} className="max-w-md bg-surface">
-                <ModalHeader onClose={() => setIsInvestorModalOpen(false)} className={headerClass}>
+                <ModalHeader onClose={() => setIsInvestorModalOpen(false)}>
                     <ModalTitle className="text-base sm:text-lg">{editingInvestor ? t('investorDialog.editInvestor') : t('investorDialog.newInvestor')}</ModalTitle>
                 </ModalHeader>
                 <form onSubmit={(e) => {
@@ -76,15 +72,13 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                             </span>
                         </label>
                     </ModalContent>
-                    <ModalFooter className={footerClass}>
-                        <div className="flex gap-2 w-full">
-                            <Button type="button" onClick={() => setIsInvestorModalOpen(false)} className={cancelBtn}>
-                                {t('common.cancel')}
-                            </Button>
-                            <Button type="submit" className={primaryBtn}>
-                                {editingInvestor ? t('investorDialog.update') : t('investorDialog.create')}
-                            </Button>
-                        </div>
+                    <ModalFooter>
+                        <Button type="button" onClick={() => setIsInvestorModalOpen(false)} variant="outline">
+                            {t('common.cancel')}
+                        </Button>
+                        <Button type="submit">
+                            {editingInvestor ? t('investorDialog.update') : t('investorDialog.create')}
+                        </Button>
                     </ModalFooter>
                 </form>
             </Modal>
@@ -148,7 +142,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                         ? template('personalWithdrawal.sourceInsufficient', { source: paymentSource })
                         : '';
             return (<Modal isOpen={isInvestorTxModalOpen} onClose={() => setIsInvestorTxModalOpen(false)} className="max-w-md bg-surface">
-                        <ModalHeader onClose={() => setIsInvestorTxModalOpen(false)} className={headerClass}>
+                        <ModalHeader onClose={() => setIsInvestorTxModalOpen(false)}>
                             <ModalTitle className="text-base sm:text-lg">{titleStr}</ModalTitle>
                         </ModalHeader>
                         <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
@@ -220,51 +214,22 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                     return (<TransactionPreviewCard title={t('investorDialog.summary')} rows={rows} error={(exceedsCap || exceedsPaymentSource) ? errorMsg : undefined}/>);
                 })()}
                         </ModalContent>
-                        <ModalFooter className={footerClass}>
-                            <div className="flex gap-2 w-full">
-                                <Button onClick={() => setIsInvestorTxModalOpen(false)} className={cancelBtn}>
-                                    {t('common.cancel')}
-                                </Button>
-                                <Button onClick={handleInvestorTransaction} disabled={isInvalid} className={`flex-1 rounded-xl py-3 font-bold text-white shadow-sm transition-colors ${isInvalid ? 'cursor-not-allowed bg-neutral-400 opacity-70' : 'bg-primary hover:bg-primary-dark'}`} title={isInvalid ? errorMsg : undefined}>
-                                    {t('common.confirm')}
-                                </Button>
-                            </div>
+                        <ModalFooter>
+                            <Button onClick={() => setIsInvestorTxModalOpen(false)} variant="outline">
+                                {t('common.cancel')}
+                            </Button>
+                            <Button onClick={handleInvestorTransaction} disabled={isInvalid} title={isInvalid ? errorMsg : undefined}>
+                                {t('common.confirm')}
+                            </Button>
                         </ModalFooter>
                     </Modal>);
         })()}
 
             {/* INVESTOR DELETE CONFIRMATION */}
-            <Modal isOpen={investorToDelete !== null} onClose={() => setInvestorToDelete(null)} className="max-w-sm bg-surface">
-                <ModalHeader onClose={() => setInvestorToDelete(null)} className={headerClass}>
-                    <ModalTitle className="text-base sm:text-lg">{t('common.confirmDelete')}</ModalTitle>
-                </ModalHeader>
-                <ModalContent className="px-4 py-4 sm:px-5">
-                    <p className="text-sm text-neutral-700">{t('investorDialog.deleteInvestorConfirm')}</p>
-                    <p className="text-xs text-danger font-medium mt-2">{t('transactions.irreversibleAction')}</p>
-                </ModalContent>
-                <ModalFooter className={footerClass}>
-                    <div className="flex gap-2 w-full">
-                        <Button onClick={() => setInvestorToDelete(null)} className={cancelBtn}>{t('common.cancel')}</Button>
-                        <Button onClick={() => handleDeleteInvestor(investorToDelete?.id)} className={dangerBtn}>{t('common.delete')}</Button>
-                    </div>
-                </ModalFooter>
-            </Modal>
+            <ConfirmDialog isOpen={investorToDelete !== null} onClose={() => setInvestorToDelete(null)} onConfirm={() => handleDeleteInvestor(investorToDelete?.id)} title={t('common.confirmDelete')} description={t('investorDialog.deleteInvestorConfirm')} note={t('transactions.irreversibleAction')} confirmLabel={t('common.delete')} cancelLabel={t('common.cancel')}/>
 
             {/* INVESTOR TRANSACTION DELETE CONFIRMATION */}
-            <Modal isOpen={investorTxToDelete !== null} onClose={() => setInvestorTxToDelete(null)} className="max-w-sm bg-surface">
-                <ModalHeader onClose={() => setInvestorTxToDelete(null)} className={headerClass}>
-                    <ModalTitle className="text-base sm:text-lg">{t('common.confirmDelete')}</ModalTitle>
-                </ModalHeader>
-                <ModalContent className="px-4 py-4 sm:px-5">
-                    <p className="text-sm text-neutral-700">{t('investorDialog.deleteTransactionConfirm')}</p>
-                </ModalContent>
-                <ModalFooter className={footerClass}>
-                    <div className="flex gap-2 w-full">
-                        <Button onClick={() => setInvestorTxToDelete(null)} className={cancelBtn}>{t('common.cancel')}</Button>
-                        <Button onClick={handleDeleteInvestorTx} className={dangerBtn}>{t('common.delete')}</Button>
-                    </div>
-                </ModalFooter>
-            </Modal>
+            <ConfirmDialog isOpen={investorTxToDelete !== null} onClose={() => setInvestorTxToDelete(null)} onConfirm={handleDeleteInvestorTx} title={t('common.confirmDelete')} description={t('investorDialog.deleteTransactionConfirm')} confirmLabel={t('common.delete')} cancelLabel={t('common.cancel')}/>
 
             {/* REINVEST PROFIT MODAL */}
             {isReinvestModalOpen && (() => {
@@ -281,7 +246,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                     ? template('investorDialog.amountAbove', { label: String(t('investors.availableProfit')).toLowerCase() })
                     : '';
             return (<Modal isOpen={isReinvestModalOpen} onClose={() => setIsReinvestModalOpen(false)} className="max-w-md bg-surface">
-                    <ModalHeader onClose={() => setIsReinvestModalOpen(false)} className={headerClass}>
+                    <ModalHeader onClose={() => setIsReinvestModalOpen(false)}>
                         <ModalTitle className="text-base sm:text-lg">{t('investorDialog.reinvestTitle')}</ModalTitle>
                     </ModalHeader>
                     <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
@@ -302,20 +267,18 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                         { label: t('investorDialog.newCapital'), value: capitalInvested + reinvestAmt, currency: 'DZD', emphasize: true }
                     ]} error={exceedsAvailable ? errorMsg : undefined}/>)}
                     </ModalContent>
-                    <ModalFooter className={footerClass}>
-                        <div className="flex gap-2 w-full">
-                            <Button onClick={() => setIsReinvestModalOpen(false)} className={cancelBtn}>{t('common.cancel')}</Button>
-                            <Button onClick={() => {
-                    if (isInvalid) {
-                        setAlert(`⚠️ ${errorMsg}`);
-                        return;
-                    }
-                    handleReinvestProfit(selectedInvestorId!, reinvestAmt);
-                    setIsReinvestModalOpen(false);
-                }} disabled={isInvalid} className={`flex-1 rounded-xl py-3 font-bold text-white shadow-sm transition-colors ${isInvalid ? 'cursor-not-allowed bg-neutral-400 opacity-70' : 'bg-primary hover:bg-primary-dark'}`} title={isInvalid ? errorMsg : undefined}>
-                                {t('common.confirm')}
-                            </Button>
-                        </div>
+                    <ModalFooter>
+                        <Button onClick={() => setIsReinvestModalOpen(false)} variant="outline">{t('common.cancel')}</Button>
+                        <Button onClick={() => {
+                  if (isInvalid) {
+                      setAlert(`⚠️ ${errorMsg}`);
+                      return;
+                  }
+                  handleReinvestProfit(selectedInvestorId!, reinvestAmt);
+                  setIsReinvestModalOpen(false);
+              }} disabled={isInvalid} title={isInvalid ? errorMsg : undefined}>
+                            {t('common.confirm')}
+                        </Button>
                     </ModalFooter>
                 </Modal>);
         })()}

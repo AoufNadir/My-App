@@ -48,6 +48,7 @@ import { useInvestorHandlers } from './hooks/useInvestorHandlers';
 import { deriveInvestorEconomics, getManagerProfitBreakdown, reconcileManagerProfitBreakdown, type InvestorEconomicsResult } from './hooks/useInvestorEconomics';
 import { useMainNavigation } from './hooks/useMainNavigation';
 import { useBackHandler } from './hooks/useBackHandler';
+import { closeTopOverlay } from './components/ui/overlayStack';
 import { useOverdueDebtClients } from './hooks/useOverdueDebtClients';
 import { useReportExports } from './hooks/useReportExports';
 // Shared Utils
@@ -2955,6 +2956,8 @@ export default function MainApp({ user }: {
     // Wire Android/browser system back button. Highest-priority handler first;
     // falls through to changing the active tab toward `transactions` (root).
     useBackHandler([
+        // An open window closes first, the one on top only.
+        closeTopOverlay,
         () => { if (personalExpenseToDelete) {
             setPersonalExpenseToDelete(null);
             return true;

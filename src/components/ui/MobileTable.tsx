@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
 import { SkeletonList } from './SkeletonList';
@@ -28,7 +29,8 @@ export type MobileTableProps<T = Record<string, unknown>> = {
     onRowClick?: (row: T) => void;
     className?: string;
 };
-function MobileTableInner<T = Record<string, unknown>>({ columns, data, keyExtractor, loading = false, error = false, errorTitle, errorMessage, onRetry, emptyTitle = 'لا توجد بيانات', emptySubtitle, onRowClick, className = '', }: MobileTableProps<T>) {
+function MobileTableInner<T = Record<string, unknown>>({ columns, data, keyExtractor, loading = false, error = false, errorTitle, errorMessage, onRetry, emptyTitle, emptySubtitle, onRowClick, className = '', }: MobileTableProps<T>) {
+    const { t } = useLanguage();
     if (loading) {
         return <SkeletonList rows={4}/>;
     }
@@ -36,7 +38,7 @@ function MobileTableInner<T = Record<string, unknown>>({ columns, data, keyExtra
         return <ErrorState title={errorTitle} message={errorMessage} onRetry={onRetry}/>;
     }
     if (data.length === 0) {
-        return <EmptyState title={emptyTitle} subtitle={emptySubtitle}/>;
+        return <EmptyState title={emptyTitle ?? t('reports.noData')} subtitle={emptySubtitle}/>;
     }
     const getCell = (col: MobileTableColumn<T>, row: T): React.ReactNode => {
         if (col.render)
