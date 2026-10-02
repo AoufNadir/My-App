@@ -1,22 +1,26 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
 import { Dropdown } from '../ui/Dropdown';
-import { SectionHeading } from '../ui/SectionHeading';
 import { EmptyState } from '../ui/EmptyState';
+import { FilterChips, type FilterChip } from '../ui/FilterChips';
+import { SearchField } from '../ui/SearchField';
+import { SectionCard } from '../cards';
 import { CalendarIcon } from '../icons/CalendarIcon';
 import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
 import { ArrowRightLeftIcon } from '../icons/ArrowRightLeftIcon';
 import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { CreditCardIcon } from '../icons/CreditCardIcon';
 import { FilterIcon } from '../icons/FilterIcon';
-import { MenuIcon } from '../icons/MenuIcon';
+import { MoreHorizontalIcon } from '../icons/MoreHorizontalIcon';
+import { PlusIcon } from '../icons/PlusIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { UsersIcon } from '../icons/UsersIcon';
 import { TransactionDisplayList } from './TransactionDisplayList';
 import { getTransactionTagLabel } from '../../utils/transactionTerminology';
+import { formatDayLabel } from '../../utils/dateInput';
+import { formatNumber } from '../../pages/shared/pageFormat';
 import {
   DisplayTx,
   SavedTransactionFilter,
@@ -41,7 +45,21 @@ type TransactionsHistoryCardProps = {
   onDeleteDisplayTx: (tx: DisplayTx) => void;
   formatDzdAmount: (value: number) => string;
   profitByTxId?: Record<string, { derivedProfit: number }>;
+  /** Opens the new-operation menu from an empty list; left out while the data loads. */
+  onOpenNewOperation?: () => void;
 };
+
+const formatCount = (value: number) => formatNumber(value, { min: 0, max: 0 });
+// Older saved filters that belong to no chip: they light up their family.
+const LEGACY_FILTER_GROUP: Partial<Record<TransactionFilterMode, TransactionFilterMode>> = {
+  adjustments: 'stock',
+  client_payments: 'clients',
+};
+const refineChipClass = (active: boolean) => [
+  'inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors',
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
+  active ? 'border-primary bg-primary/10 text-neutral-900' : 'border-border bg-surface text-neutral-700 hover:border-border-strong',
+].join(' ');
 
 export function TransactionsHistoryCard({
   t,
@@ -61,6 +79,7 @@ export function TransactionsHistoryCard({
   onDeleteDisplayTx,
   formatDzdAmount,
   profitByTxId,
+  onOpenNewOperation,
 }: TransactionsHistoryCardProps) {
   const INITIAL_VISIBLE = 60;
   const LOAD_MORE_COUNT = 60;
@@ -71,7 +90,7 @@ export function TransactionsHistoryCard({
 
   type FilterItem = { mode: TransactionFilterMode; label?: string; icon: React.ReactNode; tone: string };
   type FilterSection = { title?: string; modes: FilterItem[] };
-  type FilterGroup = FilterItem & { sections: FilterSection[] };
+  type FilterGroup = { mode: TransactionFilterMode; label: string; sections: FilterSection[] };
   const allLabel = t('transactions.filterDetailAll');
   const cashLabel = t('transactions.filterDetailCash');
   const baridiLabel = t('transactions.filterDetailBaridi');
@@ -80,15 +99,11 @@ export function TransactionsHistoryCard({
     {
       mode: 'all',
       label: txFilterLabels.all,
-      icon: <CalendarIcon className="h-4 w-4" />,
-      tone: 'text-primary bg-primary/10',
       sections: [],
     },
     {
       mode: 'buy',
       label: txFilterLabels.buy,
-      icon: <ArrowDownLeftIcon className="h-4 w-4" />,
-      tone: 'text-financial-profit bg-success-bg',
       sections: [{
         modes: [
           { mode: 'buy', label: allLabel, icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
@@ -101,8 +116,6 @@ export function TransactionsHistoryCard({
     {
       mode: 'sell',
       label: txFilterLabels.sell,
-      icon: <ArrowUpRightIcon className="h-4 w-4" />,
-      tone: 'text-financial-loss bg-danger-bg',
       sections: [{
         modes: [
           { mode: 'sell', label: allLabel, icon: <ArrowUpRightIcon className="h-4 w-4" />, tone: 'text-financial-loss bg-danger-bg' },
@@ -115,8 +128,6 @@ export function TransactionsHistoryCard({
     {
       mode: 'stock',
       label: txFilterLabels.stock,
-      icon: <WalletIcon className="h-4 w-4" />,
-      tone: 'text-neutral-600 bg-neutral-100',
       sections: [{
         modes: [
           { mode: 'stock', label: allLabel, icon: <WalletIcon className="h-4 w-4" />, tone: 'text-neutral-600 bg-neutral-100' },
@@ -128,8 +139,6 @@ export function TransactionsHistoryCard({
     {
       mode: 'clients',
       label: txFilterLabels.clients,
-      icon: <UsersIcon className="h-4 w-4" />,
-      tone: 'text-primary bg-primary/10',
       sections: [
         {
           modes: [
@@ -165,8 +174,6 @@ export function TransactionsHistoryCard({
     {
       mode: 'treasury',
       label: txFilterLabels.treasury,
-      icon: <WalletIcon className="h-4 w-4" />,
-      tone: 'text-primary bg-primary/10',
       sections: [
         {
           modes: [
@@ -196,9 +203,34 @@ export function TransactionsHistoryCard({
         },
       ],
     },
+    {
+      mode: 'digital_services',
+      label: txFilterLabels.digital_services,
+      sections: [],
+    },
   ];
   const getGroupModes = (group: FilterGroup) => [group.mode, ...group.sections.flatMap((section) => section.modes.map((item) => item.mode))];
-  const activeFilterGroup = filterGroups.find((group) => getGroupModes(group).includes(filterMode)) || filterGroups[0];
+  const activeFilterGroup = filterGroups.find((group) => getGroupModes(group).includes(filterMode))
+    || filterGroups.find((group) => group.mode === LEGACY_FILTER_GROUP[filterMode])
+    || filterGroups[0];
+  // The chip of a family shows that family; tapped again, it goes back to its whole family, then to everything.
+  const selectFilterGroup = (id: string) => {
+    const mode = id as TransactionFilterMode;
+    if (mode !== activeFilterGroup.mode) setFilterMode(mode);
+    else setFilterMode(filterMode !== mode ? mode : 'all');
+  };
+  const groupChips: FilterChip[] = filterGroups.map((group) => ({
+    id: group.mode,
+    label: group.label,
+    count: formatCount(txFilterCounts[group.mode] || 0),
+  }));
+  const hasDateRange = Boolean(dateRange.start && dateRange.end);
+  const dateLabel = hasDateRange
+    ? [formatDayLabel(dateRange.start!), formatDayLabel(dateRange.end!)]
+      .filter((day, index, days) => days.indexOf(day) === index)
+      .join(' – ')
+    : t('transactions.allDates');
+  const isDetailActive = filterMode !== activeFilterGroup.mode;
 
   useEffect(() => {
     setVisibleTransactionCount(INITIAL_VISIBLE);
@@ -288,280 +320,195 @@ export function TransactionsHistoryCard({
     };
   }, [filteredDateGroups, visibleTransactionCount]);
 
+  const tagChips: FilterChip[] = allTags.map((tag) => ({ id: tag, label: getTransactionTagLabel(tag, t) }));
+  const hasSearch = searchQuery.trim().length > 0;
+
   return (
-    <Card>
-      <CardHeader className="p-4 space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <SectionHeading icon={<CalendarIcon className="w-4 h-4" />}>
-            {t('transactions.history')}
-          </SectionHeading>
-
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2 sm:flex sm:items-center sm:justify-end">
-            <Dropdown
-              align="start"
-              contentClassName="w-[calc(100vw-2rem)] max-w-2xl max-h-[72vh] overflow-y-auto p-2"
-              trigger={(
-                <Button variant="outline" className="min-h-touch w-full min-w-0 justify-start gap-2 rounded-lg border-border bg-neutral-100 px-3 text-xs font-bold text-neutral-800 transition-colors hover:bg-neutral-200">
-                  <FilterIcon className="h-4 w-4 shrink-0" />
-                  <span className="min-w-0 truncate">{t('transactions.filterAction')}</span>
-                  <span className="ms-auto shrink-0 rounded-full px-1.5 py-0.5 text-xs bg-surface text-neutral-600">
-                    {txFilterCounts[filterMode] || 0}
-                  </span>
-                </Button>
-              )}
-            >
-              <div className="space-y-3">
-                <div>
-                  <div className="mb-1 px-1 text-[13px] font-bold text-neutral-500">
-                    {t('transactions.filterGroupGeneral')}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {filterGroups.map(({ mode, label, icon, tone }) => {
-                      const isActiveGroup = activeFilterGroup.mode === mode;
-                      return (
-                        <button
-                          key={mode}
-                          type="button"
-                          onClick={() => setFilterMode(mode)}
-                          className={[
-                            'min-h-12 rounded-lg border p-2 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-                            isActiveGroup
-                              ? 'border-primary bg-primary/10 text-primary'
-                              : 'border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100',
-                          ].join(' ')}
-                        >
-                          <span className="flex items-center gap-2">
-                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}>
-                              {icon}
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-[12px] font-bold leading-snug">
-                                {label || txFilterLabels[mode]}
-                              </span>
-                              <span className={[
-                                'mt-1 inline-flex rounded-full px-1.5 py-0.5 text-xs font-bold',
-                                isActiveGroup ? 'bg-surface/20' : 'bg-surface text-neutral-500',
-                              ].join(' ')}>
-                                {txFilterCounts[mode] || 0}
-                              </span>
-                            </span>
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {activeFilterGroup.sections.length > 0 && (
-                  <div className="border-t border-border pt-3">
-                    <div className="mb-1 px-1 text-[13px] font-bold text-neutral-500">
-                      {activeFilterGroup.label}
-                    </div>
-                    <div className="space-y-2">
-                      {activeFilterGroup.sections.map((section, sectionIndex) => (
-                        <div key={`${activeFilterGroup.mode}_${section.title || sectionIndex}`}>
-                          {section.title && (
-                            <div className="mb-1 px-1 text-[13px] font-bold text-neutral-500">
-                              {section.title}
-                            </div>
-                          )}
-                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                            {section.modes.map(({ mode, label, icon, tone }) => {
-                              const isActive = filterMode === mode;
-                              return (
-                                <button
-                                  key={mode}
-                                  type="button"
-                                  onClick={() => setFilterMode(mode)}
-                                  className={[
-                                    'min-h-10 rounded-lg border px-2 py-1.5 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-                                    isActive
-                                      ? 'border-primary bg-primary/10 text-primary'
-                                      : 'border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100',
-                                  ].join(' ')}
-                                >
-                                  <span className="flex items-center gap-2">
-                                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${tone}`}>
-                                      {icon}
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                      <span className="block truncate text-xs font-bold leading-snug">
-                                        {label || txFilterLabels[mode]}
-                                      </span>
-                                      <span className={[
-                                        'mt-0.5 inline-flex rounded-full px-1.5 py-0.5 text-xs font-bold',
-                                        isActive ? 'bg-surface/20' : 'bg-surface text-neutral-500',
-                                      ].join(' ')}>
-                                        {txFilterCounts[mode] || 0}
-                                      </span>
-                                    </span>
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </Dropdown>
-
-            <Button
-              onClick={openDateFilterModal}
-              className={[
-                'min-h-touch rounded-lg border border-border px-3 text-xs font-bold transition-colors',
-                dateRange.start
-                  ? 'bg-primary/10 text-primary hover:bg-primary/20'
-                  : 'bg-neutral-200 hover:bg-neutral-300 text-neutral-700',
-              ].join(' ')}
-              aria-label={t('transactions.filterByDate')}
-            >
-              <CalendarIcon className="w-4 h-4 sm:me-1" />
-              <span className="hidden sm:inline">{t('transactions.dateFilter')}</span>
-            </Button>
-
-            <Dropdown
-              trigger={(
-                <Button
-                  className="min-h-touch rounded-lg border border-border bg-neutral-100 px-3 text-xs font-bold text-neutral-700 transition-colors hover:bg-neutral-200"
-                  title={t('transactions.more')}
-                  aria-label={t('transactions.more')}
-                >
-                  <MenuIcon className="h-4 w-4 sm:me-1" />
-                  <span className="hidden sm:inline">{t('transactions.more')}</span>
-                </Button>
-              )}
-            >
-              <button
-                onClick={onSaveCurrentFilter}
-                className="mb-1 w-full min-h-touch rounded-lg bg-primary px-3 py-2 text-start text-sm font-semibold text-white hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                + {t('transactions.saveCurrentFilter')}
-              </button>
-              {savedFilters.length === 0 ? (
-                <div className="px-3 py-2 text-sm text-neutral-500">
-                  {t('transactions.noSavedFilters')}
-                </div>
-              ) : (
-                savedFilters.map((savedFilter) => (
-                  <div key={savedFilter.id} className="flex items-center justify-between gap-2 px-2 py-1">
-                    <button
-                      onClick={() => onApplySavedFilter(savedFilter)}
-                      className="min-h-touch text-start text-sm flex-1 px-2 py-2 rounded-md hover:bg-neutral-100 text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                    >
-                      {savedFilter.name}
-                    </button>
-                    <button
-                      onClick={() => onDeleteSavedFilter(savedFilter.id)}
-                      className="min-h-touch px-2 py-1 rounded text-xs font-semibold text-danger hover:bg-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
-                    >
-                      {t('common.delete')}
-                    </button>
-                  </div>
-                ))
-              )}
-            </Dropdown>
-          </div>
-        </div>
-
-        {/* Inline text search */}
-        <div className="relative">
-          <Input
-            type="search"
-            placeholder={t('transactions.searchLedgerPlaceholder')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pe-8 text-sm"
-          />
-          {searchQuery && (
+    <>
+      <div className="flex items-center gap-2">
+        <SearchField
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder={t('transactions.searchLedgerPlaceholder')}
+          clearLabel={t('transactions.clearSearch')}
+        />
+        <Dropdown
+          contentClassName="w-64"
+          trigger={(
             <button
               type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute end-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600"
-              aria-label={t('transactions.clearSearch')}
+              aria-haspopup="menu"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-button border border-border bg-surface text-neutral-700 transition-colors hover:border-border-strong hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              title={t('transactions.savedFilters')}
+              aria-label={t('transactions.savedFilters')}
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
+              <MoreHorizontalIcon aria-hidden="true" className="h-5 w-5" />
             </button>
           )}
-        </div>
+        >
+          <button
+            type="button"
+            onClick={onSaveCurrentFilter}
+            className="mb-1 w-full min-h-touch rounded-button bg-primary px-3 py-2 text-start text-sm font-semibold text-white hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            + {t('transactions.saveCurrentFilter')}
+          </button>
+          {savedFilters.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-neutral-500">
+              {t('transactions.noSavedFilters')}
+            </div>
+          ) : (
+            savedFilters.map((savedFilter) => (
+              <div key={savedFilter.id} className="flex items-center justify-between gap-1">
+                <button
+                  type="button"
+                  onClick={() => onApplySavedFilter(savedFilter)}
+                  className="min-h-touch min-w-0 flex-1 truncate rounded-button px-3 py-2 text-start text-sm text-neutral-700 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  {savedFilter.name}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDeleteSavedFilter(savedFilter.id)}
+                  className="min-h-touch shrink-0 rounded-button px-2 py-1 text-xs font-semibold text-danger hover:bg-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
+                >
+                  {t('common.delete')}
+                </button>
+              </div>
+            ))
+          )}
+        </Dropdown>
+      </div>
 
-        {/* Tag filter chips */}
-        {allTags.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {allTags.map((tag) => (
+      <FilterChips chips={groupChips} activeIds={[activeFilterGroup.mode]} onToggle={selectFilterGroup} label={t('transactions.filterAction')} />
+
+      {/* Period, and the detail of the family picked above */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={openDateFilterModal}
+          aria-haspopup="dialog"
+          title={t('transactions.filterByDate')}
+          className={refineChipClass(hasDateRange)}
+        >
+          <CalendarIcon aria-hidden="true" className="h-4 w-4 shrink-0 text-neutral-500" />
+          <span dir={hasDateRange ? 'ltr' : undefined} className="min-w-0 truncate tabular-nums">{dateLabel}</span>
+          <ChevronRightIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0 rotate-90 text-neutral-400" />
+        </button>
+
+        {activeFilterGroup.sections.length > 0 && (
+          <Dropdown
+            align="start"
+            contentClassName="w-72 max-h-[60vh] overflow-y-auto"
+            trigger={(
               <button
-                key={tag}
                 type="button"
-                onClick={() => setActiveTag((prev) => prev === tag ? null : tag)}
-                className={`relative min-h-9 rounded-full px-3 text-xs font-semibold transition-colors before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] ${
-                  activeTag === tag
-                    ? 'bg-primary text-white'
-                    : 'bg-primary/10 text-primary hover:bg-primary/20'
-                }`}
+                aria-haspopup="menu"
+                aria-label={`${t('transactions.filterDetailLabel')} : ${isDetailActive ? txFilterLabels[filterMode] : allLabel}`}
+                className={refineChipClass(isDetailActive)}
               >
-                {getTransactionTagLabel(tag, t)}
+                <FilterIcon aria-hidden="true" className="h-4 w-4 shrink-0 text-neutral-500" />
+                <span className="min-w-0 max-w-[13rem] truncate">{isDetailActive ? txFilterLabels[filterMode] : allLabel}</span>
+                <span dir="ltr" className="shrink-0 text-xs font-bold tabular-nums text-neutral-500">{formatCount(txFilterCounts[filterMode] || 0)}</span>
+                <ChevronRightIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0 rotate-90 text-neutral-400" />
               </button>
+            )}
+          >
+            {activeFilterGroup.sections.map((section, sectionIndex) => (
+              <div key={`${activeFilterGroup.mode}_${section.title || sectionIndex}`} className={sectionIndex > 0 ? 'mt-1 border-t border-border pt-1' : ''}>
+                {section.title && (
+                  <div className="px-2.5 pb-1 pt-1.5 text-xs font-bold text-neutral-500">
+                    {section.title}
+                  </div>
+                )}
+                {section.modes.map(({ mode, label, icon, tone }) => {
+                  const isActive = filterMode === mode;
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      aria-pressed={isActive}
+                      onClick={() => setFilterMode(mode)}
+                      className={[
+                        'flex min-h-11 w-full items-center gap-2.5 rounded-button px-2.5 text-start text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                        isActive ? 'bg-primary/10 font-semibold text-neutral-900' : 'text-neutral-700 hover:bg-neutral-100',
+                      ].join(' ')}
+                    >
+                      <span aria-hidden="true" className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${tone}`}>
+                        {icon}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{label || txFilterLabels[mode]}</span>
+                      <span dir="ltr" className="shrink-0 text-xs font-bold tabular-nums text-neutral-500">
+                        {formatCount(txFilterCounts[mode] || 0)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             ))}
+          </Dropdown>
+        )}
+      </div>
+
+      {tagChips.length > 0 && (
+        <FilterChips chips={tagChips} activeIds={activeTag ? [activeTag] : []} onToggle={(tag) => setActiveTag((prev) => prev === tag ? null : tag)} label={t('transactions.tags')} />
+      )}
+
+      <SectionCard
+        flush
+        title={<>{t('transactions.history')} <span className="font-semibold text-neutral-500">· <bdi>{formatCount(totalTransactionCount)}</bdi></span></>}
+      >
+        {/* Sum of what is listed, once a filter, a search or a tag narrows the list */}
+        {filteredSummary && filteredSummary.count > 0 && (
+          <div className="mx-4 mb-2 flex items-center justify-between gap-3 rounded-button bg-surface-muted px-3 py-2">
+            <span className="text-xs font-semibold text-neutral-500">{t('transactions.totalApprox')}</span>
+            <span dir="ltr" className="text-sm font-bold tabular-nums text-neutral-900">
+              {filteredSummary.totalDzd.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} <span className="text-xs font-semibold text-neutral-500">DZD</span>
+            </span>
           </div>
         )}
-      </CardHeader>
 
-      <CardContent className="p-0">
-        <div className="pb-2">
-          {visibleDateGroups.length > 0 ? (
-            <TransactionDisplayList
-              dateGroups={visibleDateGroups}
-              t={t}
-              getRelativeDateLabel={getRelativeDateLabel}
-              onEditDisplayTx={onEditDisplayTx}
-              onDeleteDisplayTx={onDeleteDisplayTx}
-              onOpenDisplayTx={onEditDisplayTx}
-              formatDzdAmount={formatDzdAmount}
-              profitByTxId={profitByTxId}
-            />
-          ) : (
-            <EmptyState
-              title={searchQuery.trim() ? t('emptyStates.results.title') : t('transactions.noTransactions')}
-              subtitle={searchQuery.trim() ? `${t('transactions.noSearchMatch')} "${searchQuery.trim()}"` : undefined}
-            />
-          )}
-
-          {/* Filtered summary bar */}
-          {filteredSummary && filteredSummary.count > 0 && (
-            <div className="mx-4 mt-2 mb-1 flex items-center justify-between rounded-xl bg-surface-muted px-4 py-2.5 border border-border">
-              <span className="text-xs font-semibold text-neutral-500">
-                {filteredSummary.count} {t('transactions.operationsWord')}
-              </span>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-neutral-400">{t('transactions.totalApprox')}</span>
-                <span dir="ltr" className="text-sm font-bold text-neutral-800 tabular-nums">
-                  {filteredSummary.totalDzd.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
-                </span>
-                <span className="text-xs text-neutral-400">DZD</span>
-              </div>
-            </div>
-          )}
-
-          {hiddenTransactionCount > 0 && (
-            <div className="px-4 pt-2">
-              <Button
-                onClick={() => setVisibleTransactionCount((prev) => prev + LOAD_MORE_COUNT)}
-                variant="outline"
-                className="w-full rounded-xl px-4 py-3 font-semibold bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
-              >
-                {t('transactions.showMore')} ({Math.min(hiddenTransactionCount, LOAD_MORE_COUNT)})
+        {visibleDateGroups.length > 0 ? (
+          <TransactionDisplayList
+            dateGroups={visibleDateGroups}
+            t={t}
+            getRelativeDateLabel={getRelativeDateLabel}
+            onEditDisplayTx={onEditDisplayTx}
+            onDeleteDisplayTx={onDeleteDisplayTx}
+            onOpenDisplayTx={onEditDisplayTx}
+            formatDzdAmount={formatDzdAmount}
+            profitByTxId={profitByTxId}
+          />
+        ) : (
+          <EmptyState
+            icon={<CalendarIcon className="h-5 w-5" />}
+            title={hasSearch ? t('emptyStates.results.title') : t('transactions.noTransactions')}
+            subtitle={hasSearch ? `${t('transactions.noSearchMatch')} "${searchQuery.trim()}"` : undefined}
+            action={!hasSearch && onOpenNewOperation ? (
+              <Button onClick={onOpenNewOperation} variant="primary" size="md" className="font-bold">
+                <PlusIcon className="h-4 w-4" />
+                <span>{t('transactions.newTransaction')}</span>
               </Button>
-              <p className="mt-2 text-center text-xs text-neutral-500">
-                {totalTransactionCount - hiddenTransactionCount} / {totalTransactionCount}
-              </p>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+            ) : undefined}
+          />
+        )}
+
+        {hiddenTransactionCount > 0 && (
+          <div className="border-t border-border px-4 pb-4 pt-3">
+            <Button
+              onClick={() => setVisibleTransactionCount((prev) => prev + LOAD_MORE_COUNT)}
+              variant="outline"
+              className="w-full font-semibold"
+            >
+              {t('transactions.showMore')} ({Math.min(hiddenTransactionCount, LOAD_MORE_COUNT)})
+            </Button>
+            <p dir="ltr" className="mt-2 text-center text-xs text-neutral-500">
+              {totalTransactionCount - hiddenTransactionCount} / {totalTransactionCount}
+            </p>
+          </div>
+        )}
+        {hiddenTransactionCount === 0 && visibleDateGroups.length > 0 && <div className="h-2" aria-hidden="true" />}
+      </SectionCard>
+    </>
   );
 }

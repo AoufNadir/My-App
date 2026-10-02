@@ -87,6 +87,7 @@ const ALL_FILTER_MODES: TransactionFilterMode[] = [
     'treasury_out_cash',
     'treasury_out_baridi',
     'treasury_transfers',
+    'digital_services',
     'buy',
     'sell',
     'adjustments',
@@ -325,6 +326,8 @@ function matchesTransactionFilter(mode: TransactionFilterMode, tx: DisplayTx) {
             return tx.category === 'client';
         case 'treasury':
             return tx.category === 'treasury';
+        case 'digital_services':
+            return tx.category === 'digital_service';
         default:
             return false;
     }
@@ -418,6 +421,9 @@ function getMatchingTransactionFilterModes(tx: DisplayTx): TransactionFilterMode
             modes.add('treasury_transfers');
     }
 
+    if (tx.category === 'digital_service')
+        modes.add('digital_services');
+
     return Array.from(modes);
 }
 type UseTransactionsViewModelParams = {
@@ -508,7 +514,8 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
         treasury_out: t('transactions.filterTreasuryOut'),
         treasury_transfers: t('transactions.filterTreasuryTransfers'),
         clients: t('transactions.filterClients'),
-        treasury: t('transactions.filterTreasury')
+        treasury: t('transactions.filterTreasury'),
+        digital_services: t('transactions.filterServices')
     }), [t]);
     const handleSaveCurrentFilter = () => {
         const hasDate = Boolean(dateRange.start && dateRange.end);

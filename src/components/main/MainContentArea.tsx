@@ -53,6 +53,7 @@ const areClientsPagePropsEqual = (prev: any, next: any) => (prev?.selectedClient
     && prev?.clientSortMode === next?.clientSortMode
     && prev?.clientsDzd === next?.clientsDzd
     && prev?.filteredClientsDzd === next?.filteredClientsDzd
+    && prev?.searchedClientsDzd === next?.searchedClientsDzd
     && prev?.clientBalances === next?.clientBalances
     && prev?.selectedClient === next?.selectedClient
     && prev?.selectedClientTransactions === next?.selectedClientTransactions

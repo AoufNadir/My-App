@@ -47,10 +47,10 @@ const buttonTag = (html: string, label: string) => {
 {
     const matches: ClientDuplicateMatch[] = [{ client: { id: 'b', fullName: 'yacine naceer', archived: true, isActive: false }, fields: ['name'], archived: true }];
     const saving = renderToStaticMarkup(<MainClientCrudDialogs {...baseProps} clientDuplicateMatches={matches} isSaving/>);
-    assert.match(buttonTag(saving, 'Enregistrer quand même'), DISABLED_ATTR);
-    assert.match(buttonTag(saving, 'Restaurer ce client'), DISABLED_ATTR);
+    assert.match(buttonTag(saving, 'clients.duplicateSaveAnyway'), DISABLED_ATTR);
+    assert.match(buttonTag(saving, 'clients.duplicateRestore'), DISABLED_ATTR);
     const idle = renderToStaticMarkup(<MainClientCrudDialogs {...baseProps} clientDuplicateMatches={matches}/>);
-    assert.doesNotMatch(buttonTag(idle, 'Enregistrer quand même'), DISABLED_ATTR);
+    assert.doesNotMatch(buttonTag(idle, 'clients.duplicateSaveAnyway'), DISABLED_ATTR);
 }
 
 console.log('MainClientCrudDialogs tests passed');

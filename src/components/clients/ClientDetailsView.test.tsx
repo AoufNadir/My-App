@@ -76,13 +76,20 @@ assert.doesNotMatch(html, /Activité du client/);
 assert.doesNotMatch(html, /Vieillissement de la dette/);
 assert.doesNotMatch(html, /Aperçu/);
 
-const dossierIndex = html.indexOf('Dossier client');
+// V2-5 order: balance and quick actions first, then the tabs, history before the client file.
+const transferIndex = html.indexOf('data-testid="client-transfer-button"');
+const historyTabIndex = html.indexOf('>Historique<');
+const dossierTabIndex = html.indexOf('>Dossier client<');
+const historyPanel = /<div role="tabpanel" aria-label="Historique"( hidden="")?/.exec(html);
+const dossierPanel = /<div role="tabpanel" aria-label="Dossier client"( hidden="")?/.exec(html);
 const lastOperationIndex = html.indexOf('Dernière opération');
-const actionsIndex = html.indexOf('Actions');
-const historyIndex = html.indexOf('Historique');
 
-assert.ok(dossierIndex >= 0 && dossierIndex < actionsIndex, 'Dossier client should appear before Actions');
-assert.ok(lastOperationIndex > dossierIndex && lastOperationIndex < actionsIndex, 'Dernière opération should be inside Dossier client');
-assert.ok(actionsIndex >= 0 && actionsIndex < historyIndex, 'Historique should appear directly after Actions');
+assert.ok(transferIndex >= 0 && transferIndex < historyTabIndex, 'quick actions come before the tabs');
+assert.ok(historyTabIndex < dossierTabIndex, 'Historique is the first tab');
+assert.ok(historyPanel && !historyPanel[1], 'the history shows first');
+assert.ok(dossierPanel && dossierPanel[1], 'the client file waits behind its tab');
+assert.ok(lastOperationIndex > dossierPanel!.index, 'Dernière opération is inside the client file');
+assert.ok(html.indexOf('Encaisser') < transferIndex && html.indexOf('Payer') < transferIndex, 'collect and pay next to transfer');
+assert.match(html, /Rappel WhatsApp/, 'a client in debt gets the reminder button');
 
 console.log('ClientDetailsView UI tests passed');

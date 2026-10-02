@@ -29,6 +29,7 @@ import { NewTransactionMenuDialog } from './components/transactions/NewTransacti
 import { MainHeaderBar } from './components/main/MainHeaderBar';
 import { MainContentArea } from './components/main/MainContentArea';
 import type { TransactionFilterMode } from './components/transactions/transactionsTypes';
+import { fromDateInputValue, toDateInputValue } from './utils/dateInput';
 import { OfflineBanner } from './components/ui/OfflineBanner';
 import { useMonthlyRecap } from './hooks/useMonthlyRecap';
 import { useNotifications } from './hooks/useNotifications';
@@ -664,7 +665,8 @@ export default function MainApp({ user }: {
     const transferToBalance = useMemo(() => (transferToClientId ? getEditableClientTransferBalance(transferToClientId) : 0), [clientBalances, clientTransactionsDzd, editingTransferTx, transferToClientId]);
     const shouldComputeClientDerivations = view === 'dzd' || selectedClientId !== null;
     const deferredClientSearchQuery = React.useDeferredValue(clientSearchQuery);
-    const filteredClientsDzd = useMemo(() => {
+    // Active clients matching the search; the Clients page counts its filter chips on this list.
+    const searchedClientsDzd = useMemo(() => {
         if (!shouldComputeClientDerivations)
             return clientsDzd;
         let list = clientsDzd.filter(isClientActive);
@@ -675,6 +677,13 @@ export default function MainApp({ user }: {
                 (c.phone && c.phone.includes(normalizedQuery))
             );
         }
+        return list;
+    }, [shouldComputeClientDerivations, clientsDzd, deferredClientSearchQuery]);
+    const filteredClientsDzd = useMemo(() => {
+        if (!shouldComputeClientDerivations)
+            return clientsDzd;
+        // A copy: the list is sorted in place below.
+        let list = searchedClientsDzd.slice();
         const ZERO_EPSILON = 0.005;
         let oldestDebtByClientId: Map<string, {
             oldestTimestamp: number;
@@ -776,7 +785,7 @@ export default function MainApp({ user }: {
             });
         }
         return list;
-    }, [shouldComputeClientDerivations, clientsDzd, deferredClientSearchQuery, clientSortMode, clientBalances, clientTransactionsDzd]);
+    }, [shouldComputeClientDerivations, clientsDzd, searchedClientsDzd, clientSortMode, clientBalances, clientTransactionsDzd]);
     const selectedClient = useMemo(() => shouldComputeClientDerivations ? (clientsDzd.find(c => c.id === selectedClientId) || null) : null, [shouldComputeClientDerivations, clientsDzd, selectedClientId]);
     const selectedClientTransactions = useMemo(() => shouldComputeClientDerivations
         ? clientTransactionsDzd.filter(tx => tx.clientId === selectedClientId).sort((a, b) => b.timestamp - a.timestamp)
@@ -1231,11 +1240,11 @@ export default function MainApp({ user }: {
         touchTimer.current = null;
     } };
     const handleCopy = (val: string) => { navigator.clipboard.writeText(val); setCopiedValue(val); setTimeout(() => setCopiedValue(null), 2000); };
-    const openDateFilterModal = () => { setTempStartDate(dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''); setTempEndDate(dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''); setIsDateFilterModalOpen(true); };
+    const openDateFilterModal = () => { setTempStartDate(dateRange.start ? toDateInputValue(dateRange.start) : ''); setTempEndDate(dateRange.end ? toDateInputValue(dateRange.end) : ''); setIsDateFilterModalOpen(true); };
     const handleApplyDateFilter = () => { if (tempStartDate && tempEndDate) {
-        const s = new Date(tempStartDate);
+        const s = fromDateInputValue(tempStartDate);
         s.setHours(0, 0, 0, 0);
-        const e = new Date(tempEndDate);
+        const e = fromDateInputValue(tempEndDate);
         e.setHours(23, 59, 59, 999);
         setDateRange({ start: s, end: e });
         setIsDateFilterModalOpen(false);
@@ -2606,6 +2615,7 @@ export default function MainApp({ user }: {
         setClientSortMode,
         clientsDzd,
         filteredClientsDzd,
+        searchedClientsDzd,
         clientBalances,
         getClientFullName,
         handleTouchStart,
@@ -2630,7 +2640,7 @@ export default function MainApp({ user }: {
         onImportClients: handleImportClients,
     }), [
         selectedClientId, clientSearchQuery, clientSortMode,
-        clientsDzd, filteredClientsDzd, clientBalances, selectedClient, selectedClientTransactions, clientTransactionsDzd, transactions, pamLedger.profitByTxId, copiedValue,
+        clientsDzd, filteredClientsDzd, searchedClientsDzd, clientBalances, selectedClient, selectedClientTransactions, clientTransactionsDzd, transactions, pamLedger.profitByTxId, copiedValue,
         openClientModal, handleTouchStart, handleTouchEnd, handleClientDeleteRequest, handleExportClientReport, openClientTxModal,
         handleCopy, handleEditLinkedClientTx, handleDeleteLinkedClientTxClick, overdueDebtClients, clientLoyaltyMap,
         earlyClientPrevMonthVolumeMap, earlyClientLastSellDateMap, handleZeroOutBalance
