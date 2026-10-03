@@ -19,6 +19,8 @@ export interface HeroKpiCardProps {
     className?: string;
     icon?: React.ReactNode;
     accent?: 'indigo' | 'teal' | 'sky' | 'emerald' | 'purple' | 'amber';
+    /** Under the figures, e.g. how the main figure is calculated */
+    footer?: React.ReactNode;
 }
 /** Colour of the icon disc, same family as the Accueil cards. */
 const ACCENT_TONE: Record<NonNullable<HeroKpiCardProps['accent']>, CardTone> = {
@@ -45,7 +47,7 @@ const TrendBadge: React.FC<{
  * Main figure of a page, drawn like the Accueil hero: flat card, label, big amount,
  * then the secondary figures under a thin line. Same props and same amounts as before.
  */
-export const HeroKpiCard: React.FC<HeroKpiCardProps> = ({ primaryLabel, primaryValue, primaryCurrency, primarySemantic, trendPct, secondary, className = '', icon, accent = 'indigo', }) => {
+export const HeroKpiCard: React.FC<HeroKpiCardProps> = ({ primaryLabel, primaryValue, primaryCurrency, primarySemantic, trendPct, secondary, className = '', icon, accent = 'indigo', footer, }) => {
     const secondaryGridClass = secondary && secondary.length >= 4
         ? 'grid-cols-2 sm:grid-cols-4'
         : secondary && secondary.length >= 3
@@ -74,12 +76,13 @@ export const HeroKpiCard: React.FC<HeroKpiCardProps> = ({ primaryLabel, primaryV
 
       {secondary && secondary.length > 0 && (<dl className={`grid gap-3 border-t border-border pt-3 ${secondaryGridClass}`}>
           {secondary.map((item, idx) => (<div key={`${item.label}-${idx}`} className="min-w-0">
-              <dt className="text-xs font-semibold truncate text-neutral-500">{item.label}</dt>
+              <dt className="line-clamp-2 break-words text-xs font-semibold leading-snug text-neutral-500">{item.label}</dt>
               <dd className="mt-1 flex items-baseline gap-1.5 flex-wrap">
                 {item.display ? (item.display) : (<CurrencyAmount value={item.value} currency={item.currency} semantic={item.semantic ?? 'plain'} size="lg" decimals={0}/>)}
                 {typeof item.trendPct === 'number' && Number.isFinite(item.trendPct) && (<TrendBadge pct={item.trendPct}/>)}
               </dd>
             </div>))}
         </dl>)}
+      {footer}
     </section>);
 };

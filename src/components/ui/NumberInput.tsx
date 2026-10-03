@@ -23,7 +23,7 @@ export const NumberInput = ({ value, onChange, className, ...props }: {
         return null;
     }, [deferredValue]);
     return (<div className="relative">
-            <Input inputMode="decimal" enterKeyHint="done" autoComplete="off" value={value} onChange={onChange} {...props} className={className}/>
+            <Input inputMode="decimal" enterKeyHint="done" autoComplete="off" dir="ltr" value={value} onChange={onChange} {...props} className={[className, 'rtl:text-right'].filter(Boolean).join(' ')}/>
             {result && (<div className="absolute end-2 bottom-[-18px] text-xs">
                     {result.error && <span className="text-danger">{t(result.error)}</span>}
                     {result.value !== undefined && !result.error && (<span className="text-neutral-400">= {result.value.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>)}

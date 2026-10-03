@@ -438,28 +438,28 @@ type TreasuryBalanceEditDialogProps = {
     notes: string;
     setNotes: (value: string) => void;
     onSave: () => void;
-    titlePrefix: string;
+    /** The whole title in the page language, e.g. "Modifier Solde Caisse". */
+    title: string;
     descriptionText: string;
     newBalanceLabel: string;
-    dinarLabel: string;
     notesOptionalLabel: string;
     reasonPlaceholder: string;
     saveLabel: string;
+    cancelLabel: string;
 };
-export function TreasuryBalanceEditDialog({ isOpen, onClose, asset, value, onValueChange, onValueBlur, notes, setNotes, onSave, titlePrefix, descriptionText, newBalanceLabel, dinarLabel, notesOptionalLabel, reasonPlaceholder, saveLabel }: TreasuryBalanceEditDialogProps) {
+export function TreasuryBalanceEditDialog({ isOpen, onClose, value, onValueChange, onValueBlur, notes, setNotes, onSave, title, descriptionText, newBalanceLabel, notesOptionalLabel, reasonPlaceholder, saveLabel, cancelLabel }: TreasuryBalanceEditDialogProps) {
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-sm bg-surface text-neutral-900">
       <ModalHeader onClose={onClose}>
-        <ModalTitle>{titlePrefix} {asset}</ModalTitle>
+        <ModalTitle className="text-base sm:text-lg">{title}</ModalTitle>
+        <p className="mt-0.5 text-sm font-normal text-neutral-500">{descriptionText}</p>
       </ModalHeader>
-      <ModalContent className="px-6 pb-6 space-y-4">
-        <div className="mb-2 rounded-lg bg-primary/10 p-3 text-sm text-primary">
-          {descriptionText}
-        </div>
-        <MoneyField label={`${newBalanceLabel} (${dinarLabel})`} value={value} onChange={onValueChange} onBlur={onValueBlur} currency="DZD"/>
+      <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
+        <MoneyField label={newBalanceLabel} value={value} onChange={onValueChange} onBlur={onValueBlur} currency="DZD"/>
         <Input label={notesOptionalLabel} value={notes} onChange={e => setNotes(e.target.value)} placeholder={reasonPlaceholder}/>
       </ModalContent>
       <ModalFooter>
-        <Button onClick={onSave} className="w-full">{saveLabel}</Button>
+        <Button type="button" variant="outline" onClick={onClose}>{cancelLabel}</Button>
+        <Button type="button" onClick={onSave}>{saveLabel}</Button>
       </ModalFooter>
     </Modal>);
 }
@@ -481,8 +481,9 @@ type PortfolioBalanceEditDialogProps = {
     reasonPlaceholder: string;
     saveLabel: string;
     savingLabel: string;
+    cancelLabel: string;
 };
-export function PortfolioBalanceEditDialog({ isOpen, onClose, asset, value, onValueChange, onValueBlur, notes, setNotes, onSave, isSaving, titlePrefix, descriptionText, newBalanceLabel, notesOptionalLabel, reasonPlaceholder, saveLabel, savingLabel }: PortfolioBalanceEditDialogProps) {
+export function PortfolioBalanceEditDialog({ isOpen, onClose, asset, value, onValueChange, onValueBlur, notes, setNotes, onSave, isSaving, titlePrefix, descriptionText, newBalanceLabel, notesOptionalLabel, reasonPlaceholder, saveLabel, savingLabel, cancelLabel }: PortfolioBalanceEditDialogProps) {
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-sm bg-surface text-neutral-900">
       <ModalHeader onClose={onClose}>
         <ModalTitle className="text-base sm:text-lg">{titlePrefix} {asset}</ModalTitle>
@@ -493,7 +494,7 @@ export function PortfolioBalanceEditDialog({ isOpen, onClose, asset, value, onVa
         <Input label={notesOptionalLabel} value={notes} onChange={e => setNotes(e.target.value)} placeholder={reasonPlaceholder}/>
       </ModalContent>
       <ModalFooter>
-        <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+        <Button type="button" variant="outline" onClick={onClose}>{cancelLabel}</Button>
         <Button type="button" onClick={onSave} loading={isSaving}>{isSaving ? savingLabel : saveLabel}</Button>
       </ModalFooter>
     </Modal>);

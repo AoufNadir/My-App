@@ -2497,7 +2497,8 @@ export default function MainApp({ user }: {
         usdtReportYear,
         setUsdtReportYear,
         reportMonths: (year: number) => year === new Date().getFullYear() ? reportMonthNames.slice(0, new Date().getMonth() + 1) : reportMonthNames,
-        reportYears: Array.from({ length: 3 }, (_, i) => 2024 + i),
+        // 2024 up to the current year, so a new year can be picked as soon as it starts.
+        reportYears: Array.from({ length: Math.max(2026, new Date().getFullYear()) - 2023 }, (_, i) => 2024 + i),
         monthlyStats: { totalUsdtSoldMonth: 0, totalEurBoughtMonth: 0, realizedProfitMonth: 0, monthlyProfitMargin: 0 },
         transactions,
         selectedHeatmapDay,
@@ -2891,9 +2892,9 @@ export default function MainApp({ user }: {
     const treasuryBalanceEditDialogProps = useMemo(() => ({
         isOpen: isTreasuryBalanceEditModalOpen, onClose: closeTreasuryBalanceEditModal, fieldBase,
         asset: treasuryBalanceEditAsset, value: treasuryBalanceEditValue, notes: treasuryBalanceEditNotes, setNotes: setTreasuryBalanceEditNotes,
-        onSave: handleSaveTreasuryBalanceEdit, titlePrefix: t('transactions.editBalance'), descriptionText: t('transactions.editBalanceDesc'),
-        newBalanceLabel: t('transactions.newBalance'), dinarLabel: t('common.dinar'), notesOptionalLabel: t('common.notesOptional'),
-        reasonPlaceholder: t('transactions.reason'), saveLabel: t('common.save'),
+        onSave: handleSaveTreasuryBalanceEdit, title: `${t('common.edit')} ${t(treasuryBalanceEditAsset === 'Caisse' ? 'common.caisseBalance' : 'common.baridiBalance')}`, descriptionText: t('transactions.editBalanceDesc'),
+        newBalanceLabel: t('transactions.newBalance'), notesOptionalLabel: t('common.notesOptional'),
+        reasonPlaceholder: t('transactions.reason'), saveLabel: t('common.save'), cancelLabel: t('common.cancel'),
         onValueChange: (value: string) => {
             const normalized = value.replace(',', '.').trim();
             if (normalized === '') {
@@ -2913,9 +2914,9 @@ export default function MainApp({ user }: {
     const portfolioBalanceEditDialogProps = useMemo(() => ({
         isOpen: isPortfolioBalanceEditModalOpen, onClose: closePortfolioBalanceEditModal, fieldBase,
         asset: portfolioBalanceEditAsset, value: portfolioBalanceEditValue, notes: portfolioBalanceEditNotes, setNotes: setPortfolioBalanceEditNotes,
-        onSave: handleSavePortfolioBalanceEdit, isSaving, titlePrefix: t('transactions.editBalance'), descriptionText: `${t('transactions.editBalanceDesc')} Utilisez +montant pour ajouter ou -montant pour retirer.`,
-        newBalanceLabel: `${t('transactions.newBalance')} / Ajustement`, notesOptionalLabel: t('common.notesOptional'), reasonPlaceholder: t('transactions.reason'),
-        saveLabel: t('common.save'), savingLabel: t('common.saving'),
+        onSave: handleSavePortfolioBalanceEdit, isSaving, titlePrefix: t('transactions.editBalance'), descriptionText: `${t('transactions.editBalanceDesc')} ${t('transactions.editBalanceSignHint')}`,
+        newBalanceLabel: `${t('transactions.newBalance')} / ${t('transactions.adjustmentWord')}`, notesOptionalLabel: t('common.notesOptional'), reasonPlaceholder: t('transactions.reason'),
+        saveLabel: t('common.save'), savingLabel: t('common.saving'), cancelLabel: t('common.cancel'),
         onValueChange: (value: string) => {
             const normalized = value.replace(',', '.').trim();
             if (normalized === '') {

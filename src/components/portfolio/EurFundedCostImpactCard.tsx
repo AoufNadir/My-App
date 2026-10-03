@@ -1,8 +1,6 @@
-import { useMemo } from 'react';
-import { Card, CardContent, CardHeader } from '../ui/Card';
+import { useMemo, type ReactNode } from 'react';
+import { SectionCard } from '../cards';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
-import { SectionHeading } from '../ui/SectionHeading';
-import { WalletIcon } from '../icons/WalletIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { summarizeEurFundedCostImpact } from '../../utils/pamLedger';
 import type { Tx } from '../../types';
@@ -16,26 +14,21 @@ export function EurFundedCostImpactCard({ transactions }: { transactions: Tx[] }
     const impact = useMemo(() => summarizeEurFundedCostImpact(transactions), [transactions]);
     if (!impact || (Math.abs(impact.costChangeDzd) < 1 && Math.abs(impact.profitChangeDzd) < 1))
         return null;
-    return (
-        <Card>
-            <CardHeader className="p-4 pb-2">
-                <SectionHeading icon={<WalletIcon className="h-4 w-4" />}>
-                    {t('portfolio.eurFundedCostTitle') as string}
-                </SectionHeading>
-                <p className="mt-1 text-xs text-neutral-500">
-                    {String(t('portfolio.eurFundedCostHint')).replace('{count}', String(impact.changedBuyCount))}
-                </p>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-3 p-4 pt-2 text-sm">
-                <span className="text-neutral-500">{t('portfolio.eurFundedCostChange') as string}</span>
-                <CurrencyAmount value={impact.costChangeDzd} currency="DZD" semantic="plain" size="sm" decimals={0} />
-                <span className="text-neutral-500">{t('portfolio.eurFundedProfitChange') as string}</span>
-                <CurrencyAmount value={impact.profitChangeDzd} currency="DZD" semantic="auto" size="sm" decimals={0} />
-                <span className="text-neutral-500">{t('portfolio.eurFundedPamBefore') as string}</span>
-                <CurrencyAmount value={impact.usdtAvgBuyWithSavedTotals} currency="DZD" semantic="plain" size="sm" decimals={2} />
-                <span className="text-neutral-500">{t('portfolio.currentPam') as string}</span>
-                <CurrencyAmount value={impact.usdtAvgBuy} currency="DZD" semantic="plain" size="sm" decimals={2} />
-            </CardContent>
-        </Card>
-    );
+    const rows: Array<{ label: string; value: ReactNode }> = [
+        { label: t('portfolio.eurFundedCostChange'), value: <CurrencyAmount value={impact.costChangeDzd} currency="DZD" semantic="plain" size="sm" decimals={0}/> },
+        { label: t('portfolio.eurFundedProfitChange'), value: <CurrencyAmount value={impact.profitChangeDzd} currency="DZD" semantic="auto" size="sm" decimals={0}/> },
+        { label: t('portfolio.eurFundedPamBefore'), value: <CurrencyAmount value={impact.usdtAvgBuyWithSavedTotals} currency="DZD" semantic="plain" size="sm" decimals={2}/> },
+        { label: t('portfolio.currentPam'), value: <CurrencyAmount value={impact.usdtAvgBuy} currency="DZD" semantic="plain" size="sm" decimals={2}/> },
+    ];
+    return (<SectionCard title={t('portfolio.eurFundedCostTitle')}>
+      <p className="text-xs text-neutral-500">
+        {String(t('portfolio.eurFundedCostHint')).replace('{count}', String(impact.changedBuyCount))}
+      </p>
+      <dl className="mt-2 divide-y divide-border">
+        {rows.map((row) => (<div key={row.label} className="flex items-baseline justify-between gap-3 py-2">
+            <dt className="min-w-0 text-[13px] text-neutral-600">{row.label}</dt>
+            <dd className="shrink-0">{row.value}</dd>
+          </div>))}
+      </dl>
+    </SectionCard>);
 }

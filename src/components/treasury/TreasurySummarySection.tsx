@@ -1,10 +1,10 @@
-import React from 'react';
-import { Card, CardContent, CardHeader } from '../ui/Card';
-import { SectionHeading } from '../ui/SectionHeading';
+import { ListRow, SectionCard, StatTile } from '../cards';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
-import { Button } from '../ui/Button';
 import { WalletIcon } from '../icons/WalletIcon';
-import { PencilIcon } from '../icons/PencilIcon';
+import { LandmarkIcon } from '../icons/LandmarkIcon';
+import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
+import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
+import { LayoutGridIcon } from '../icons/LayoutGridIcon';
 import { PlusIcon } from '../icons/PlusIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 type TreasurySummarySectionProps = {
@@ -12,51 +12,34 @@ type TreasurySummarySectionProps = {
     baridiBalance: number;
     dettesAbs: number;
     totalAvances: number;
-    investorLiability?: number;
     servicesCapitalImpact?: number;
     openTreasuryBalanceEditModal: (asset: 'Caisse' | 'BaridiMob') => void;
     openDeliveryExpenseModal?: () => void;
     deliveryExpenseLabel?: string;
+    onOpenServices?: () => void;
 };
-type AccountRowProps = {
-    label: string;
-    value: number;
-    onEdit?: () => void;
-    semantic?: 'profit' | 'loss' | 'auto' | 'plain';
-};
-function AccountRow({ label, value, onEdit, semantic = 'plain' }: AccountRowProps) {
-    return (<div className="flex items-center justify-between gap-3 px-4 py-3.5">
-      <span className="text-sm text-neutral-500">{label}</span>
-      <div className="flex items-center gap-2 shrink-0">
-        <CurrencyAmount value={value} currency="DZD" semantic={semantic} size="lg" decimals={0}/>
-        {onEdit && (<Button onClick={onEdit} aria-label={`Modifier ${label}`} variant="ghost" className="p-2 text-neutral-600">
-            <PencilIcon className="w-4 h-4"/>
-          </Button>)}
-      </div>
-    </div>);
-}
-export function TreasurySummarySection({ caisseBalance, baridiBalance, dettesAbs, totalAvances, investorLiability = 0, servicesCapitalImpact = 0, openTreasuryBalanceEditModal, openDeliveryExpenseModal, deliveryExpenseLabel }: TreasurySummarySectionProps) {
+/**
+ * The two cash balances as tiles (a tap corrects them), then what clients and service clients
+ * owe or hold, each shown when it is not zero. The investors' share is in the card above.
+ */
+export function TreasurySummarySection({ caisseBalance, baridiBalance, dettesAbs, totalAvances, servicesCapitalImpact = 0, openTreasuryBalanceEditModal, openDeliveryExpenseModal, deliveryExpenseLabel, onOpenServices }: TreasurySummarySectionProps) {
     const { t } = useLanguage();
     const shouldShowAmount = (value: number) => Math.abs(Number(value) || 0) > 0.005;
-    return (<Card>
-      <CardHeader className="p-4 pb-3">
-        <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>
-          {t('treasury.accountsMovements')}
-        </SectionHeading>
-      </CardHeader>
-      <CardContent className="p-0 divide-y divide-border">
-        <AccountRow label={t('common.caisseBalance') as string} value={caisseBalance} onEdit={() => openTreasuryBalanceEditModal('Caisse')}/>
-        <AccountRow label={t('common.baridiBalance') as string} value={baridiBalance} onEdit={() => openTreasuryBalanceEditModal('BaridiMob')}/>
-        {shouldShowAmount(dettesAbs) && (<AccountRow label={t('finance.toReceive') as string} value={dettesAbs} semantic="profit"/>)}
-        {shouldShowAmount(totalAvances) && (<AccountRow label={t('finance.clientAdvance') as string} value={totalAvances} semantic="loss"/>)}
-        {shouldShowAmount(servicesCapitalImpact) && (<AccountRow label={t('finance.servicesNetPosition') as string} value={servicesCapitalImpact} semantic="auto"/>)}
-        {shouldShowAmount(investorLiability) && (<AccountRow label={t('finance.investorLiability') as string} value={investorLiability} semantic="loss"/>)}
-        {openDeliveryExpenseModal && (<div className="p-4">
-            <Button onClick={openDeliveryExpenseModal} variant="outline" className="flex w-full items-center justify-center gap-2 py-3 text-sm font-bold">
-              <PlusIcon className="w-4 h-4"/>
-              {deliveryExpenseLabel || 'Frais du projet'}
-            </Button>
-          </div>)}
-      </CardContent>
-    </Card>);
+    const showReceivables = shouldShowAmount(dettesAbs);
+    const showAdvances = shouldShowAmount(totalAvances);
+    const showServices = shouldShowAmount(servicesCapitalImpact);
+    return (<>
+      <div className="grid grid-cols-2 gap-2">
+        <StatTile label={t('common.caisseBalance') as string} value={caisseBalance} icon={<WalletIcon className="h-3.5 w-3.5"/>} tone="dzd" onEdit={() => openTreasuryBalanceEditModal('Caisse')} editLabel={t('common.edit') as string}/>
+        <StatTile label={t('common.baridiBalance') as string} value={baridiBalance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd" onEdit={() => openTreasuryBalanceEditModal('BaridiMob')} editLabel={t('common.edit') as string}/>
+      </div>
+
+      {(showReceivables || showAdvances || showServices) && (<SectionCard title={t('treasury.clientPositions')} flush>
+          {showReceivables && (<ListRow icon={<ArrowDownLeftIcon className="h-5 w-5"/>} tone="profit" title={t('finance.toReceive') as string} subtitle={t('finance.receivablesHint') as string} wrapSubtitle trailing={<CurrencyAmount value={dettesAbs} currency="DZD" semantic="profit" size="md" decimals={0}/>}/>)}
+          {showAdvances && (<ListRow icon={<ArrowUpRightIcon className="h-5 w-5"/>} tone="loss" title={t('finance.clientAdvance') as string} subtitle={t('finance.advancesHint') as string} wrapSubtitle trailing={<CurrencyAmount value={totalAvances} currency="DZD" semantic="loss" size="md" decimals={0}/>}/>)}
+          {showServices && (<ListRow icon={<LayoutGridIcon className="h-5 w-5"/>} tone="primary" title={t('nav.services') as string} subtitle={t('finance.servicesNetPosition') as string} wrapSubtitle trailing={<CurrencyAmount value={servicesCapitalImpact} currency="DZD" semantic="auto" size="md" decimals={0}/>} onClick={onOpenServices}/>)}
+        </SectionCard>)}
+
+      {openDeliveryExpenseModal && (<ListRow standalone icon={<PlusIcon className="h-5 w-5"/>} tone="primary" title={deliveryExpenseLabel || t('delivery.addExpense') as string} onClick={openDeliveryExpenseModal}/>)}
+    </>);
 }
