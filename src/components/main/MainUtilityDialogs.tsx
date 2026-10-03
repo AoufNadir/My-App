@@ -178,7 +178,7 @@ function MainUtilityDialogsComponent({
                         label={t('transactions.assetName')}
                         value={newAssetName}
                         onChange={(event) => setNewAssetName(event.target.value)}
-                        placeholder="Ex: Impression, Conception..."
+                        placeholder={t('services.servicePlaceholder') as string}
                     />
                     <Input
                         label={t('transactions.descriptionOptional')}

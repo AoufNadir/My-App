@@ -1,10 +1,9 @@
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Card, CardHeader, CardContent } from '../ui/Card';
+import { SectionCard } from '../cards';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
-import { SectionHeading } from '../ui/SectionHeading';
-import { TrendingUpIcon } from '../icons/TrendingUpIcon';
 import { InvestorTransaction } from '../../types';
+import { useLanguage } from '../../contexts/LanguageContext';
 interface InvestorPerformanceChartProps {
     transactions: InvestorTransaction[];
     currentCapital: number;
@@ -15,6 +14,7 @@ const CHART_COLORS = {
     tick: 'var(--color-neutral-500)',
 };
 export const InvestorPerformanceChart: React.FC<InvestorPerformanceChartProps> = ({ transactions, currentCapital }) => {
+    const { t } = useLanguage();
     const data = React.useMemo(() => {
         // Sort transactions by date
         const sortedTxs = [...transactions].sort((a, b) => a.timestamp - b.timestamp);
@@ -48,32 +48,27 @@ export const InvestorPerformanceChart: React.FC<InvestorPerformanceChartProps> =
             const today = new Date();
             chartData.push({
                 date: `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}`,
-                fullDate: 'Aujourd\'hui',
+                fullDate: t('transactions.today') as string,
                 value: currentCapital,
                 amount: 0,
                 type: 'current'
             });
         }
         return chartData;
-    }, [transactions, currentCapital]);
+    }, [transactions, currentCapital, t]);
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
             const value = Number(payload[0].value || 0);
             return (<div className="rounded-lg border border-border bg-surface p-3 shadow-card">
-                <p className="mb-1 text-xs font-medium text-neutral-500">Date: {label}</p>
+                <p className="mb-1 text-xs font-medium text-neutral-500">{t('common.date')}: <span dir="ltr">{label}</span></p>
                 <CurrencyAmount value={value} currency="DZD" semantic="plain" size="md" decimals={2}/>
-                <p className="mt-1 text-xs font-semibold text-neutral-500">Valeur Totale</p>
+                <p className="mt-1 text-xs font-semibold text-neutral-500">{t('investorDashboard.totalValue')}</p>
             </div>);
         }
         return null;
     };
-    return (<Card>
-            <CardHeader className="p-4 pb-0">
-                <SectionHeading icon={<TrendingUpIcon className="h-4 w-4"/>}>
-                    Evolution de la Valeur
-                </SectionHeading>
-            </CardHeader>
-            <CardContent className="p-4 h-[300px]">
+    return (<SectionCard title={t('investorDashboard.valueEvolution')}>
+            <div className="h-[260px] sm:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={data}>
                         <defs>
@@ -89,6 +84,6 @@ export const InvestorPerformanceChart: React.FC<InvestorPerformanceChartProps> =
                         <Area type="monotone" dataKey="value" stroke={CHART_COLORS.value} strokeWidth={3} fillOpacity={1} fill="url(#colorValue)"/>
                     </AreaChart>
                 </ResponsiveContainer>
-            </CardContent>
-        </Card>);
+            </div>
+        </SectionCard>);
 };

@@ -1,18 +1,17 @@
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { HeroCard, SectionCard, StatTile } from '../components/cards';
 import { Button } from '../components/ui/Button';
-import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
-import { HeroKpiCard } from '../components/ui/HeroKpiCard';
-import { PageHeader } from '../components/ui/PageHeader';
-import { SectionHeading } from '../components/ui/SectionHeading';
-import { Badge } from '../components/ui/Badge';
 import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { SwipeableListItem } from '../components/ui/SwipeableListItem';
 import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
 import { PlusIcon } from '../components/icons/PlusIcon';
 import { ChevronRightIcon } from '../components/icons/ChevronRightIcon';
+import { useHeaderActionsSlot } from '../components/main/headerActionsSlot';
 import type { ManualAsset, ManualAssetClient, ManualAssetTransaction } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { getNameInitials } from '../utils/nameUtils';
 type ServicesPageProps = {
     manualAssets: ManualAsset[];
     manualAssetClients: ManualAssetClient[];
@@ -65,62 +64,60 @@ export function ServicesPage({ manualAssets, manualAssetClients, manualAssetTran
         netCapitalImpact: acc.netCapitalImpact + row.netCapitalImpact,
         clientsCount: acc.clientsCount + row.clientsCount
     }), { amountToReceive: 0, clientAdvances: 0, cashReceived: 0, netCapitalImpact: 0, clientsCount: 0 }), [serviceRows]);
-    return (<div className="anim-page-in space-y-4">
-      <PageHeader title={t('services.title') as string} hideTitleOnPhone subtitle={`${serviceRows.length} service${serviceRows.length > 1 ? 's' : ''}`} className="-mx-4 sm:mx-0 sm:rounded-card" actions={(<Button onClick={onOpenCreateManualAsset} variant="primary" size="md" className="font-semibold">
-            <PlusIcon className="w-4 h-4"/>
-            <span className="hidden sm:inline">{t('services.newService')}</span>
-          </Button>)}/>
+    const headerActionsSlot = useHeaderActionsSlot();
+    const newServiceLabel = t('services.newService') as string;
+    // "3 clients · 4 services": plural from 2 on, as before.
+    const countOf = (count: number, one: string, many: string) => `${count} ${t(count > 1 ? many : one)}`;
+    return (<div className="anim-page-in flex flex-col gap-3">
+      {/* Phones get this one in the header. */}
+      <div className="hidden gap-2 sm:flex">
+        <Button onClick={onOpenCreateManualAsset} variant="primary" size="md" className="font-bold">
+          <PlusIcon className="h-4 w-4"/>
+          <span>{newServiceLabel}</span>
+        </Button>
+      </div>
+      {headerActionsSlot && createPortal(<button type="button" onClick={onOpenCreateManualAsset} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-700 transition-colors hover:bg-neutral-100 active:scale-95" title={newServiceLabel} aria-label={newServiceLabel}>
+          <PlusIcon className="h-[22px] w-[22px]"/>
+        </button>, headerActionsSlot)}
 
-      <HeroKpiCard accent="sky" icon={<BriefcaseIcon className="w-5 h-5"/>} primaryLabel={t('services.toReceive') as string} primaryValue={totals.amountToReceive} primaryCurrency="DZD" primarySemantic="profit" secondary={[
-            { label: t('services.capitalImpact') as string, value: totals.netCapitalImpact, currency: 'DZD', semantic: 'auto' },
-            { label: t('transactions.paymentReceived') as string, value: totals.cashReceived, currency: 'DZD' },
-            { label: t('services.clients') as string, value: totals.clientsCount, currency: null }
-        ]}/>
+      <HeroCard label={t('services.toReceive')} value={totals.amountToReceive} semantic="profit" secondary={{ label: t('services.capitalImpact'), value: totals.netCapitalImpact, semantic: 'auto' }}/>
+      <div className="grid grid-cols-2 gap-2">
+        <StatTile label={t('transactions.paymentReceived') as string} value={totals.cashReceived}/>
+        <StatTile label={t('services.clients') as string} value={totals.clientsCount} currency={null}/>
+      </div>
 
-      <Card>
-        <CardHeader className="p-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <SectionHeading icon={<BriefcaseIcon className="w-4 h-4"/>}>
-                {t('services.title')}
-              </SectionHeading>
-              <Badge variant="secondary" size="sm">{serviceRows.length}</Badge>
-            </div>
-            <Button onClick={onOpenCreateManualAsset} variant="outline" size="md" className="w-full font-bold text-neutral-700">
-              <PlusIcon className="w-5 h-5"/>
-              <span>{t('services.newService')}</span>
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {serviceRows.length > 0 ? (<div className="divide-y divide-neutral-100">
-              {serviceRows.map((row) => {
-                const initial = (row.asset.name || '?').charAt(0).toUpperCase();
-                const subInfo = `${row.clientsCount} client${row.clientsCount > 1 ? 's' : ''} · ${row.servicesCount} service${row.servicesCount > 1 ? 's' : ''}`;
-                return (<SwipeableListItem key={row.asset.id} onDelete={() => onDeleteManualAsset(row.asset.id)}>
-                    <div onClick={() => onOpenManualAsset(row.asset)} className="flex min-h-touch w-full cursor-pointer items-center gap-3 bg-surface p-4 transition-colors hover:bg-neutral-50">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-base font-bold text-secondary">
-                        {initial}
-                      </div>
-                      <div className="flex-grow min-w-0">
-                        <p className="truncate text-base font-semibold">{row.asset.name}</p>
-                        <p className="truncate text-xs text-neutral-500 mt-0.5">{subInfo}</p>
-                      </div>
-                      <div className="shrink-0 flex items-center gap-2">
-                        <div className="text-end">
-                          <CurrencyAmount value={row.netCapitalImpact} currency="DZD" semantic="auto" size="md" decimals={0} showSign/>
-                          {row.amountToReceive > 0 && (<p className="text-xs text-neutral-500">{t('services.toReceive')}</p>)}
-                        </div>
-                        <ChevronRightIcon className="w-5 h-5 text-neutral-400 rtl:-scale-x-100"/>
-                      </div>
-                    </div>
-                  </SwipeableListItem>);
-            })}
-            </div>) : (<EmptyState icon={<BriefcaseIcon className="w-6 h-6"/>} title={t('services.title') as string} subtitle={t('services.newService') as string} action={(<Button onClick={onOpenCreateManualAsset} variant="primary" size="md" className="font-bold">
-                  <PlusIcon className="w-4 h-4"/>
-                  {t('services.newService')}
-                </Button>)}/>)}
-        </CardContent>
-      </Card>
+      <SectionCard flush title={<>{t('services.title')} <span className="font-semibold text-neutral-500">· <bdi>{serviceRows.length}</bdi></span></>}>
+        {serviceRows.length > 0 ? (<div>
+            {serviceRows.map((row) => (<Fragment key={row.asset.id}>
+                <SwipeableListItem onDelete={() => onDeleteManualAsset(row.asset.id)}>
+                  <div onClick={() => onOpenManualAsset(row.asset)} className="relative z-10 flex w-full cursor-pointer items-center gap-3 border-t border-border bg-surface px-4 py-3 transition-colors hover:bg-surface-muted">
+                    {/* The row opens the service; this button gives it to the keyboard. */}
+                    <button type="button" className="flex min-w-0 flex-1 items-center gap-3 rounded-button text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
+                      <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-[13px] font-bold text-financial-dzd">
+                        {getNameInitials(row.asset.name || '?')}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        {/* Name and amount share the first line; counts and label use the full width below. */}
+                        <span className="flex items-start justify-between gap-3">
+                          <span className="min-w-0 break-words pt-0.5 text-[15px] font-semibold leading-snug text-neutral-900">{row.asset.name}</span>
+                          <span className="shrink-0">
+                            <CurrencyAmount value={row.netCapitalImpact} currency="DZD" semantic="auto" size="md" decimals={0} showSign className="font-semibold"/>
+                          </span>
+                        </span>
+                        <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-xs text-neutral-500">
+                          <span>{countOf(row.clientsCount, 'services.clientOne', 'services.clientMany')} · {countOf(row.servicesCount, 'services.serviceOne', 'services.serviceMany')}</span>
+                          {row.amountToReceive > 0 && (<span className="font-semibold text-financial-profit">{t('services.toReceive')}</span>)}
+                        </span>
+                      </span>
+                    </button>
+                    <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100"/>
+                  </div>
+                </SwipeableListItem>
+              </Fragment>))}
+          </div>) : (<EmptyState icon={<BriefcaseIcon className="h-5 w-5"/>} title={t('services.title') as string} subtitle={newServiceLabel} action={(<Button onClick={onOpenCreateManualAsset} variant="primary" size="md" className="font-bold">
+                <PlusIcon className="h-4 w-4"/>
+                <span>{newServiceLabel}</span>
+              </Button>)}/>)}
+      </SectionCard>
     </div>);
 }

@@ -151,8 +151,8 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                             {investorTxType === 'withdraw_profit' && (<div>
                                     <Label>{t('investorDialog.paymentSource')}</Label>
                                     <Select value={paymentSource} onChange={(event) => setInvestorTxPaymentSource(event.target.value as 'Caisse' | 'BaridiMob')} className="mt-1">
-                                        <option value="Caisse">Caisse</option>
-                                        <option value="BaridiMob">BaridiMob</option>
+                                        <option value="Caisse">{t('transactions.cash')}</option>
+                                        <option value="BaridiMob">{t('transactions.baridi')}</option>
                                     </Select>
                                     <p className="mt-1 text-xs text-neutral-500">
                                         {t('investorDialog.availableBalance')}: <span dir="ltr">{formatMoney(paymentSourceBalance, 'DZD')}</span>
@@ -162,8 +162,8 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                             {investorTxType === 'deposit_capital' && (<div>
                                     <Label>{t('investorDialog.depositDestination')}</Label>
                                     <Select value={paymentSource} onChange={(event) => setInvestorTxPaymentSource(event.target.value as 'Caisse' | 'BaridiMob')} className="mt-1">
-                                        <option value="Caisse">Caisse</option>
-                                        <option value="BaridiMob">BaridiMob</option>
+                                        <option value="Caisse">{t('transactions.cash')}</option>
+                                        <option value="BaridiMob">{t('transactions.baridi')}</option>
                                     </Select>
                                     <p className="mt-1 text-xs text-neutral-500">
                                         {t('investorDialog.currentBalance')}: <span dir="ltr">{formatMoney(paymentSourceBalance, 'DZD')}</span>
@@ -173,8 +173,8 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                             {investorTxType === 'withdraw_capital' && (<div>
                                     <Label>{t('investorDialog.withdrawalSource')}</Label>
                                     <Select value={paymentSource} onChange={(event) => setInvestorTxPaymentSource(event.target.value as 'Caisse' | 'BaridiMob')} className="mt-1">
-                                        <option value="Caisse">Caisse</option>
-                                        <option value="BaridiMob">BaridiMob</option>
+                                        <option value="Caisse">{t('transactions.cash')}</option>
+                                        <option value="BaridiMob">{t('transactions.baridi')}</option>
                                     </Select>
                                     <p className="mt-1 text-xs text-neutral-500">
                                         {t('investorDialog.availableBalance')}: <span dir="ltr">{formatMoney(paymentSourceBalance, 'DZD')}</span>

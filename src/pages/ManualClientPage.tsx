@@ -20,8 +20,8 @@ export function ManualClientPage({ client, transactions, balance, onBack, onAddT
         onAddTransaction,
         onUpdateTransaction
     });
-    return (<div className="anim-page-in space-y-4">
-      <ManualClientHeaderStats clientName={client.fullName} clientPhone={client.phone} balance={balance} onBack={onBack}/>
+    return (<div className="anim-page-in flex flex-col gap-3">
+      <ManualClientHeaderStats clientName={client.fullName} clientPhone={client.phone} balance={balance} onBack={onBack} onNewOperation={openCreateModal}/>
       <ManualClientTransactionsPanel orderedTransactions={orderedTransactions} onOpenCreateModal={openCreateModal} onOpenEditModal={openEditModal} onDeleteTransaction={onDeleteTransaction}/>
       <ManualClientTransactionDialog isTxModalOpen={isTxModalOpen} editingTx={editingTx} txType={txType} setTxType={setTxType} amount={amount} setAmount={setAmount} serviceType={serviceType} setServiceType={setServiceType} notes={notes} setNotes={setNotes} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} currentBalance={balance} onClose={closeTransactionModal} onSave={handleSaveTx}/>
     </div>);
