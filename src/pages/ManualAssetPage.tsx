@@ -46,7 +46,7 @@ export function ManualAssetPage({ asset, clients, assetTransactions, clientBalan
             netCapitalImpact: amountToReceive - clientAdvances
         };
     }, [asset.id, clients, clientBalances]);
-    return (<div className="anim-page-in space-y-4">
+    return (<div className="anim-page-in flex flex-col gap-3">
       <ManualAssetHeaderStats assetName={asset.name} assetDescription={asset.description} amountToReceive={balanceStats.amountToReceive} clientAdvances={balanceStats.clientAdvances} netCapitalImpact={balanceStats.netCapitalImpact} clientsCount={clients.length} onBack={onBack}/>
 
       <ManualAssetClientsPanel searchQuery={searchQuery} setSearchQuery={setSearchQuery} onOpenCreateModal={openCreateModal} filteredClients={filteredClients} assetId={asset.id} clientBalances={clientBalances} onSelectClient={onSelectClient} onOpenEditModal={openEditModal} onDeleteClient={onDeleteClient}/>

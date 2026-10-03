@@ -3,7 +3,8 @@ import { BottomSheet } from '../ui/BottomSheet';
 import { Button } from '../ui/Button';
 import { MoneyField } from '../ui/MoneyField';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
-import { Badge } from '../ui/Badge';
+import { AlertCard } from '../cards';
+import { CheckIcon } from '../icons/CheckIcon';
 import { db, FirestoreDocumentReference } from '../../firebase';
 import { now, parseAndEvaluate } from '../../utils';
 import { buildProfitDistributionPlan, wholeDzdDown } from '../../utils/profitDistribution';
@@ -144,9 +145,14 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
         onClose();
     };
 
+    const sourceLabel = (src: 'Caisse' | 'BaridiMob') => t(src === 'Caisse' ? 'transactions.cash' : 'transactions.baridi') as string;
+    const confirmWarning = String(t(distribution.length > 1 ? 'profitDistribution.confirmWarningMany' : 'profitDistribution.confirmWarningOne'))
+        .replace(/\{count\}/g, String(distribution.length))
+        .replace('{source}', sourceLabel(paymentSource));
+
     return (
         <BottomSheet isOpen={isOpen} onClose={resetAndClose} title={t('profitDistribution.planTitle') as string}>
-            <div className="px-4 pb-6 space-y-5">
+            <div className="flex flex-col gap-4 px-4 pb-6">
 
                 <div>
                     <MoneyField
@@ -163,25 +169,27 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                         <button
                             type="button"
                             onClick={() => setTotalInput(String(payableSuggestedTotal))}
-                            className="mt-1 text-xs font-semibold text-primary hover:underline"
+                            className="mt-1 inline-flex min-h-9 items-center rounded-button text-xs font-bold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-primary-light"
                         >
                             {t('profitDistribution.useAvailableProfit')}
                         </button>
                     )}
                 </div>
 
-                <div>
-                    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-500">{t('profitDistribution.paymentSource')}</p>
+                <div role="radiogroup" aria-label={t('profitDistribution.paymentSource') as string}>
+                    <p className="mb-1.5 text-sm font-semibold text-neutral-700">{t('profitDistribution.paymentSource')}</p>
                     <div className="grid grid-cols-2 gap-2">
                         {(['Caisse', 'BaridiMob'] as const).map(src => (
                             <button
                                 key={src}
                                 type="button"
+                                role="radio"
+                                aria-checked={paymentSource === src}
                                 onClick={() => setPaymentSource(src)}
-                                className={`rounded-xl border px-3 py-3 text-sm font-semibold transition-colors ${paymentSource === src ? 'border-primary bg-primary/10 text-primary' : 'border-border text-neutral-500'}`}
+                                className={`min-h-touch rounded-card border px-3 py-2.5 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${paymentSource === src ? 'border-primary bg-primary/10' : 'border-border bg-surface hover:bg-surface-muted'}`}
                             >
-                                <span className="block">{src}</span>
-                                <span className="block text-xs font-normal text-neutral-400 mt-0.5">
+                                <span className={`block text-sm font-bold ${paymentSource === src ? 'text-primary dark:text-primary-light' : 'text-neutral-800'}`}>{sourceLabel(src)}</span>
+                                <span dir="ltr" className="mt-0.5 block text-xs text-neutral-500 rtl:text-right">
                                     {(src === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD
                                 </span>
                             </button>
@@ -190,52 +198,51 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                 </div>
 
                 {totalAmount > 0 && distribution.length > 0 && (
-                    <div className="rounded-xl border border-border overflow-hidden">
-                        <div className="grid grid-cols-[1fr_auto_auto] gap-3 bg-surface-muted px-4 py-2 text-xs font-bold uppercase text-neutral-400 tracking-wide">
+                    <div className="overflow-hidden rounded-card border border-border">
+                        <div className="grid grid-cols-[1fr_auto_auto] gap-3 bg-surface-muted px-4 py-2 text-xs font-bold text-neutral-500">
                             <span>{t('profitDistribution.investor')}</span>
                             <span className="text-end">{t('profitDistribution.share')}</span>
-                            <span className="text-end w-28">{t('profitDistribution.amount')}</span>
+                            <span className="w-28 text-end">{t('profitDistribution.amount')}</span>
                         </div>
-                        <div className="divide-y divide-neutral-100">
+                        <div>
                             {distribution.map(({ inv, normalizedShare, amount, availableProfit, exceedsAvailable }) => (
-                                <div key={inv.id} className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 ${exceedsAvailable ? 'bg-danger/5' : ''}`}>
+                                <div key={inv.id} className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 border-t border-border px-4 py-3 first:border-t-0 ${exceedsAvailable ? 'bg-financial-loss-bg' : ''}`}>
                                     <div className="min-w-0">
                                         <div className="flex min-w-0 items-center gap-1.5">
-                                            <p className="truncate text-sm font-semibold">{inv.name}</p>
-                                            {inv.isManager && <Badge variant="warning" size="sm">{t('investors.manager')}</Badge>}
+                                            <p className="truncate text-sm font-semibold text-neutral-900">{inv.name}</p>
+                                            {inv.isManager && <span className="shrink-0 rounded-full bg-financial-debt-bg px-1.5 py-0.5 text-[11px] font-bold leading-none text-financial-debt">{t('investors.manager')}</span>}
                                         </div>
-                                        <p className={`text-xs ${exceedsAvailable ? 'text-danger font-semibold' : 'text-neutral-400'}`}>
-                                            {t('profitDistribution.available')} : {availableProfit.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} DZD
+                                        <p className={`mt-0.5 text-xs ${exceedsAvailable ? 'font-semibold text-financial-loss' : 'text-neutral-500'}`}>
+                                            {t('profitDistribution.available')} : <span dir="ltr">{availableProfit.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} DZD</span>
                                             {exceedsAvailable && ` · ${t('profitDistribution.exceeded')}`}
                                         </p>
                                     </div>
-                                    <span className="text-xs font-bold text-neutral-500 tabular-nums">
+                                    <span dir="ltr" className="text-xs font-bold tabular-nums text-neutral-600">
                                         {(normalizedShare * 100).toFixed(1)}%
                                     </span>
-                                    <div className="text-end w-28">
-                                        <CurrencyAmount value={amount} currency="DZD" semantic={exceedsAvailable ? 'loss' : 'profit'} size="md" decimals={0}/>
+                                    <div className="w-28 text-end">
+                                        <CurrencyAmount value={amount} currency="DZD" semantic={exceedsAvailable ? 'loss' : 'profit'} size="md" decimals={0} className="font-semibold"/>
                                     </div>
                                 </div>
                             ))}
                         </div>
                         <div className="flex items-center justify-between gap-3 border-t border-border bg-surface-muted px-4 py-3">
-                            <span className="text-sm font-bold text-neutral-700">{t('profitDistribution.totalDistributed')}</span>
+                            <span className="text-sm font-bold text-neutral-800">{t('profitDistribution.totalDistributed')}</span>
                             <CurrencyAmount value={totalDistributed} currency="DZD" semantic="profit" size="lg" decimals={0}/>
                         </div>
                     </div>
                 )}
 
                 {distribution.length === 0 && totalAmount > 0 && (
-                    <p className="text-sm text-center text-neutral-400">
+                    <p className="text-center text-sm text-neutral-500">
                         {t('profitDistribution.noActiveInvestors')}
                     </p>
                 )}
 
                 {(hasExceedingRow || exceedsCash) && distribution.length > 0 && (
-                    <div className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger font-medium">
-                        {hasExceedingRow && <p>⚠️ {t('profitDistribution.exceedsAvailable')}</p>}
-                        {exceedsCash && <p>⚠️ Solde {paymentSource} insuffisant ({sourceBalance.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD).</p>}
-                    </div>
+                    <AlertCard tone="danger" title={hasExceedingRow ? t('profitDistribution.exceedsAvailable') : String(t('profitDistribution.insufficientBalance')).replace('{source}', sourceLabel(paymentSource)).replace('{amount}', sourceBalance.toLocaleString('fr-FR', { maximumFractionDigits: 0 }))} detail={hasExceedingRow && exceedsCash
+                        ? String(t('profitDistribution.insufficientBalance')).replace('{source}', sourceLabel(paymentSource)).replace('{amount}', sourceBalance.toLocaleString('fr-FR', { maximumFractionDigits: 0 }))
+                        : undefined}/>
                 )}
 
                 {distribution.length > 0 && totalDistributed > 0 && (
@@ -244,18 +251,15 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                             type="button"
                             onClick={() => setConfirmed(true)}
                             disabled={!canConfirm}
-                            className="w-full font-bold gap-2"
+                            className="w-full gap-2 font-bold"
                         >
-                            Confirmer la distribution
+                            {t('profitDistribution.confirmDistribution')}
                         </Button>
                     ) : (
-                        <div className="space-y-2">
-                            <div className="rounded-xl border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-warning font-medium text-center">
-                                ⚠️ Cette action va créer {distribution.length} retrait{distribution.length > 1 ? 's' : ''} de profit + {distribution.length} mouvement{distribution.length > 1 ? 's' : ''} de trésorerie depuis {paymentSource}.
-                                {lockAfterConfirm !== null && (
-                                    <p className="mt-2">{String(t('periodLock.distributionWillLock')).replace('{date}', formatLockDate(lockAfterConfirm))}</p>
-                                )}
-                            </div>
+                        <div className="flex flex-col gap-2">
+                            <AlertCard tone="warning" title={confirmWarning} detail={lockAfterConfirm !== null
+                                ? String(t('periodLock.distributionWillLock')).replace('{date}', formatLockDate(lockAfterConfirm))
+                                : undefined}/>
                             <div className="grid grid-cols-2 gap-2">
                                 <Button type="button" variant="outline" onClick={() => setConfirmed(false)} className="w-full">
                                     {t('common.cancel')}
@@ -264,9 +268,9 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
                                     type="button"
                                     onClick={handleConfirm}
                                     disabled={isSaving || !canConfirm}
-                                    className="w-full font-bold bg-financial-profit text-white hover:bg-financial-profit/90"
+                                    className="w-full gap-1.5 bg-financial-profit font-bold text-white hover:bg-financial-profit/90"
                                 >
-                                    {isSaving ? 'Enregistrement…' : '✓ Confirmer'}
+                                    {isSaving ? t('common.saving') : (<><CheckIcon aria-hidden="true" className="h-4 w-4"/>{t('common.confirm')}</>)}
                                 </Button>
                             </div>
                         </div>

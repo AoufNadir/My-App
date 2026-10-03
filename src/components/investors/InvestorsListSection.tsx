@@ -1,20 +1,19 @@
-import React from 'react';
-import { Card, CardHeader, CardContent } from '../ui/Card';
-import { SectionHeading } from '../ui/SectionHeading';
+import { Fragment } from 'react';
+import { SectionCard } from '../cards';
 import { EmptyState } from '../ui/EmptyState';
-import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { UsersIcon } from '../icons/UsersIcon';
+import { UserPlusIcon } from '../icons/UserPlusIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
-import { DownloadCloudIcon } from '../icons/DownloadCloudIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { Investor } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { getNameInitials } from '../../utils/nameUtils';
 import type { CapitalSnapshot } from '../../utils/capitalSnapshot';
 import type { DerivedInvestor, ManagerProfitBreakdown } from '../../hooks/useInvestorEconomics';
 
-async function exportInvestorsPdf(investors: DerivedInvestor[], capitalSnapshot?: CapitalSnapshot, managerProfitBreakdown?: ManagerProfitBreakdown) {
+export async function exportInvestorsPdf(investors: DerivedInvestor[], capitalSnapshot?: CapitalSnapshot, managerProfitBreakdown?: ManagerProfitBreakdown) {
     const { buildInvestorListPdf, openPdfPrintWindow } = await import('../../utils/pdfReports');
     const rows = investors.map((inv) => ({
         name: inv.name,
@@ -38,28 +37,19 @@ type InvestorsListSectionProps = {
     managerProfitBreakdown?: ManagerProfitBreakdown;
     activeCount: number;
     onOpenInvestor: (investor: Investor) => void;
+    onAddInvestor?: () => void;
     onEditInvestor: (investor: Investor) => void;
     onDeleteInvestor: (investor: Investor) => void;
 };
-export function InvestorsListSection({ investors, capitalSnapshot, managerProfitBreakdown, activeCount, onOpenInvestor, onEditInvestor, onDeleteInvestor }: InvestorsListSectionProps) {
+const pillClass = 'shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-bold leading-none';
+export function InvestorsListSection({ investors, capitalSnapshot, managerProfitBreakdown, activeCount, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor }: InvestorsListSectionProps) {
     const { t } = useLanguage();
-    return (<Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 border-b border-border p-4">
-        <SectionHeading icon={<UsersIcon className="w-4 h-4"/>}>
-          {t('investors.title')}
-        </SectionHeading>
-        <div className="flex items-center gap-2 shrink-0">
-          <Badge variant="primary" size="sm">{activeCount} {t('investors.activeSuffix')}</Badge>
-          {investors.length > 0 && (
-            <Button onClick={() => exportInvestorsPdf(investors, capitalSnapshot, managerProfitBreakdown)} variant="icon" size="icon" className="rounded-button bg-neutral-100 hover:bg-neutral-200" aria-label={t('treasury.exportPdf')} title={t('treasury.exportPdf')}>
-              <DownloadCloudIcon className="w-4 h-4"/>
-            </Button>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        {investors.length === 0 ? (<EmptyState icon={<UsersIcon className="w-6 h-6"/>} title={t('emptyStates.investors.title') as string} subtitle={t('emptyStates.investors.subtitle') as string}/>) : (<div className="divide-y divide-neutral-100">
-            {investors.map((investor) => {
+    return (<SectionCard flush title={<>{t('investors.title')} <span className="font-semibold text-neutral-500">· <bdi>{activeCount}</bdi> {t('investors.activeSuffix')}</span></>}>
+      {investors.length === 0 ? (<EmptyState icon={<UsersIcon className="h-5 w-5"/>} title={t('emptyStates.investors.title') as string} subtitle={t('emptyStates.investors.subtitle') as string} action={onAddInvestor ? (<Button onClick={onAddInvestor} variant="primary" size="md" className="font-bold">
+            <UserPlusIcon className="h-4 w-4"/>
+            <span>{t('investorDialog.newInvestor')}</span>
+          </Button>) : undefined}/>) : (<div>
+          {investors.map((investor) => {
                 const isManager = Boolean(investor.isManager);
                 const rawAvailableProfit = Number(investor.availableProfit || 0);
                 const availableProfit = isManager ? 0 : Number(investor.displayAvailableProfit || 0);
@@ -67,43 +57,45 @@ export function InvestorsListSection({ investors, capitalSnapshot, managerProfit
                 const displayedCapital = isManager
                     ? Number(managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot?.netOwnedCapital ?? investor.capitalInvested ?? 0)
                     : Number(investor.capitalInvested || 0);
-                return (<React.Fragment key={investor.id}>
+                const hasRoi = !isManager && investor.roi !== null && investor.roi !== undefined;
+                return (<Fragment key={investor.id}>
                   <SwipeableListItem onEdit={() => onEditInvestor(investor)} onDelete={() => onDeleteInvestor(investor)}>
-                    <div onClick={() => onOpenInvestor(investor)} className="group flex min-h-touch w-full cursor-pointer items-center justify-between gap-3 bg-surface p-4 transition-colors hover:bg-neutral-50">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-lg font-bold text-secondary">
-                          {investor.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <h3 className="text-base font-semibold truncate">{investor.name}</h3>
-                          {investor.isManager && (<Badge variant="warning" size="sm">{t('investors.manager')}</Badge>)}
-                          {!investor.isActive && (<Badge variant="neutral" size="sm">{t('investors.inactive')}</Badge>)}
-                        </div>
-                      </div>
-
-                      <div className="flex shrink-0 items-center gap-3 text-end">
-                        <div>
-                          <CurrencyAmount value={displayedCapital} currency="DZD" size="lg" decimals={0}/>
-                          {!isManager && (
-                            <div className="mt-1 flex items-baseline justify-end gap-1.5">
-                              <span className={`text-xs font-semibold ${requiresRegularization ? 'text-financial-loss' : 'text-neutral-400'}`}>
+                    <div onClick={() => onOpenInvestor(investor)} className="relative z-10 flex w-full cursor-pointer items-center gap-3 border-t border-border bg-surface px-4 py-3 transition-colors hover:bg-surface-muted">
+                      {/* The row opens the investor; this button gives it to the keyboard. */}
+                      <button type="button" className="flex min-w-0 flex-1 items-center gap-3 rounded-button text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
+                        <span aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-bold ${isManager ? 'bg-primary/10 text-primary dark:text-primary-light' : 'bg-surface-muted text-neutral-600'}`}>
+                          {getNameInitials(investor.name)}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          {/* Name and capital share the first line; the profit lines use the full width below. */}
+                          <span className="flex items-start justify-between gap-3">
+                            <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 pt-0.5">
+                              <span className="min-w-0 break-words text-[15px] font-semibold leading-snug text-neutral-900">{investor.name}</span>
+                              {isManager && <span className={`${pillClass} bg-financial-debt-bg text-financial-debt`}>{t('investors.manager')}</span>}
+                              {!investor.isActive && <span className={`${pillClass} bg-surface-muted text-neutral-600`}>{t('investors.inactive')}</span>}
+                            </span>
+                            <span className="flex shrink-0 flex-col items-end gap-0.5">
+                              <CurrencyAmount value={displayedCapital} currency="DZD" semantic="plain" size="md" decimals={0} className="font-semibold"/>
+                              <span className="text-xs text-neutral-500">{isManager ? t('investors.ownCapitalShort') : t('investors.capitalShort')}</span>
+                            </span>
+                          </span>
+                          {!isManager && (<span className="mt-0.5 flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-xs">
+                              <span className={requiresRegularization ? 'font-semibold text-financial-loss' : 'text-neutral-500'}>
                                 {requiresRegularization ? t('investors.balanceToRegularize') : t('investors.availableProfit')}
                               </span>
-                              <CurrencyAmount value={requiresRegularization ? Math.abs(availableProfit) : availableProfit} currency="DZD" semantic={requiresRegularization ? 'loss' : 'auto'} size="md" showSign={!requiresRegularization} decimals={0}/>
-                            </div>
-                          )}
-                          {!isManager && investor.roi !== null && investor.roi !== undefined && (<div className={`mt-0.5 flex items-baseline justify-end gap-1 text-xs font-bold tabular-nums ${investor.roi > 0 ? 'text-financial-profit' : investor.roi < 0 ? 'text-financial-loss' : 'text-neutral-400'}`} dir="ltr">
-                            <span className="text-neutral-400">{t('investors.cumulativeReturn')}</span>
-                            <span>{investor.roi > 0 ? '+' : ''}{investor.roi.toFixed(1)}%</span>
-                          </div>)}
-                        </div>
-                        <ChevronRightIcon className="w-5 h-5 text-neutral-400 rtl:-scale-x-100"/>
-                      </div>
+                              <CurrencyAmount value={requiresRegularization ? Math.abs(availableProfit) : availableProfit} currency="DZD" semantic={requiresRegularization ? 'loss' : 'auto'} size="sm" showSign={!requiresRegularization} decimals={0} className="font-semibold"/>
+                            </span>)}
+                          {hasRoi && (<span className="mt-0.5 flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-xs">
+                              <span className="text-neutral-500">{t('investors.cumulativeReturn')}</span>
+                              <span dir="ltr" className={`font-bold tabular-nums ${investor.roi! > 0 ? 'text-financial-profit' : investor.roi! < 0 ? 'text-financial-loss' : 'text-neutral-500'}`}>{investor.roi! > 0 ? '+' : ''}{investor.roi!.toFixed(1)}%</span>
+                            </span>)}
+                        </span>
+                      </button>
+                      <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100"/>
                     </div>
                   </SwipeableListItem>
-                </React.Fragment>);
+                </Fragment>);
             })}
-          </div>)}
-      </CardContent>
-    </Card>);
+        </div>)}
+    </SectionCard>);
 }

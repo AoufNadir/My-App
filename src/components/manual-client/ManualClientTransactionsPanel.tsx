@@ -1,10 +1,14 @@
+import { SectionCard, CARD_TONE_CLASS, type CardTone } from '../cards';
 import { Button } from '../ui/Button';
-import { SectionHeading } from '../ui/SectionHeading';
 import { EmptyState } from '../ui/EmptyState';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { PlusIcon } from '../icons/PlusIcon';
 import { FileSpreadsheetIcon } from '../icons/FileSpreadsheetIcon';
+import { BriefcaseIcon } from '../icons/BriefcaseIcon';
+import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
+import { PencilIcon } from '../icons/PencilIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
+import type { ReactNode } from 'react';
 import { ManualAssetTransaction } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 type ManualClientTransactionsPanelProps = {
@@ -24,6 +28,13 @@ function getTransactionTitle(tx: ManualAssetTransaction, t: (key: string) => any
         return t('services.balanceAdjustment') as string;
     }
     return t('services.operation') as string;
+}
+function getTransactionIcon(tx: ManualAssetTransaction): { icon: ReactNode; tone: CardTone } {
+    if (tx.type === 'service' || tx.type === 'invoice')
+        return { icon: <BriefcaseIcon className="h-4 w-4"/>, tone: 'dzd' };
+    if (tx.type === 'payment_received')
+        return { icon: <ArrowDownLeftIcon className="h-4 w-4"/>, tone: 'profit' };
+    return { icon: <PencilIcon className="h-4 w-4"/>, tone: 'neutral' };
 }
 function getTransactionAmountView(tx: ManualAssetTransaction, t: (key: string) => any): {
     label: string;
@@ -45,40 +56,35 @@ function getTransactionAmountView(tx: ManualAssetTransaction, t: (key: string) =
 }
 export function ManualClientTransactionsPanel({ orderedTransactions, onOpenCreateModal, onOpenEditModal, onDeleteTransaction }: ManualClientTransactionsPanelProps) {
     const { t } = useLanguage();
-    return (<div className="overflow-hidden rounded-xl border border-border bg-surface">
-      <div className="flex items-center justify-between gap-3 border-b border-border p-3">
-        <SectionHeading icon={<FileSpreadsheetIcon className="w-4 h-4"/>}>
-          {t('transactions.history')}
-        </SectionHeading>
-        <Button onClick={onOpenCreateModal} className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-bold text-white hover:bg-primary-dark">
-          <PlusIcon className="w-4 h-4"/> {t('transactions.newOperation')}
-        </Button>
-      </div>
-
-      <div className="divide-y divide-neutral-100">
-        {orderedTransactions.length > 0 ? (orderedTransactions.map((tx) => {
+    return (<SectionCard flush title={t('transactions.history')}>
+      {orderedTransactions.length > 0 ? (<div>
+          {orderedTransactions.map((tx) => {
             const amountView = getTransactionAmountView(tx, t);
-            return (<div key={tx.id}>
+            const iconView = getTransactionIcon(tx);
+            return (<div key={tx.id} className="border-t border-border">
               <SwipeableListItem onEdit={tx.type === 'adjustment' ? undefined : () => onOpenEditModal(tx)} onDelete={() => onDeleteTransaction(tx.id)}>
-                <div className="flex min-h-touch items-center justify-between gap-3 bg-surface p-4 transition-colors hover:bg-neutral-50">
-                  <div className="min-w-0">
-                    <div className="text-base font-semibold">{getTransactionTitle(tx, t)}</div>
-                    <div className={`truncate text-xs text-neutral-500 mt-0.5`}>
-                      {tx.date} · {tx.time}{tx.notes ? ` · ${tx.notes}` : ''}
+                <div className="flex min-h-touch items-center gap-3 bg-surface px-4 py-3">
+                  <span aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${CARD_TONE_CLASS[iconView.tone]}`}>{iconView.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    {/* Title and amount on the first line; date, notes and amount label use the full width below. */}
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="min-w-0 break-words pt-0.5 text-sm font-semibold text-neutral-900">{getTransactionTitle(tx, t)}</p>
+                      <span className="shrink-0">
+                        <CurrencyAmount value={amountView.amount} currency="DZD" semantic={amountView.semantic} size="md" decimals={0} className="font-semibold"/>
+                      </span>
                     </div>
-                  </div>
-                  <div className="shrink-0 text-end">
-                    <CurrencyAmount value={amountView.amount} currency="DZD" semantic={amountView.semantic} size="lg" decimals={0}/>
-                    <div className={`text-xs text-neutral-500`}>
-                      {amountView.label}
-                    </div>
+                    <p className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-xs text-neutral-500">
+                      <span className="min-w-0 break-words"><span dir="ltr">{tx.date}</span> · <span dir="ltr">{tx.time}</span>{tx.notes ? <> · <bdi>{tx.notes}</bdi></> : null}</span>
+                      <span>{amountView.label}</span>
+                    </p>
                   </div>
                 </div>
               </SwipeableListItem>
             </div>);
-        })) : (<EmptyState icon={<FileSpreadsheetIcon className="w-6 h-6"/>} title={t('transactions.noTransactions') as string} subtitle={t('services.firstClientOperation') as string} action={<Button onClick={onOpenCreateModal} className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-bold text-white hover:bg-primary-dark">
-                <PlusIcon className="w-4 h-4"/> {t('transactions.newOperation')}
-              </Button>}/>)}
-      </div>
-    </div>);
+        })}
+        </div>) : (<EmptyState icon={<FileSpreadsheetIcon className="h-5 w-5"/>} title={t('transactions.noTransactions') as string} subtitle={t('services.firstClientOperation') as string} action={<Button onClick={onOpenCreateModal} variant="primary" size="md" className="font-bold">
+              <PlusIcon className="h-4 w-4"/>
+              <span>{t('transactions.newOperation')}</span>
+            </Button>}/>)}
+    </SectionCard>);
 }

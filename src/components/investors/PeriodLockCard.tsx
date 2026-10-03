@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader } from '../ui/Card';
-import { SectionHeading } from '../ui/SectionHeading';
+import { SectionCard } from '../cards';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
-import { CalendarIcon } from '../icons/CalendarIcon';
+import { LockIcon } from '../icons/LockIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
     closedMonthStarts,
@@ -87,24 +86,26 @@ export function PeriodLockCard({ lockedThrough, reason, updatedAt, isLoaded, sav
             ? t('periodLock.reopenAllConfirmTitle') as string
             : String(t('periodLock.reopenConfirmTitle')).replace('{month}', formatLockMonth(pending.monthStart, monthNames));
 
-    return (<Card>
-      <CardHeader className="p-4 pb-2">
-        <SectionHeading icon={<CalendarIcon className="w-4 h-4"/>}>
-          {t('periodLock.title')}
-        </SectionHeading>
-      </CardHeader>
-      <CardContent className="space-y-3 px-4 pb-4">
-        <div>
-          <p className="text-sm font-bold text-neutral-800">
-            {lockedThrough !== null
-                ? `🔒 ${String(t('periodLock.closedThrough')).replace('{date}', formatLockDate(lockedThrough))}`
+    return (<SectionCard title={t('periodLock.title')}>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-start gap-3">
+          <span aria-hidden="true" className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${lockedThrough !== null ? 'bg-primary/10 text-primary dark:text-primary-light' : 'bg-surface-muted text-neutral-500'}`}>
+            <LockIcon className="h-4 w-4"/>
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-neutral-900">
+              {lockedThrough !== null
+                ? String(t('periodLock.closedThrough')).replace('{date}', formatLockDate(lockedThrough))
                 : t('periodLock.noneClosed')}
-          </p>
-          <p className="mt-1 text-xs text-neutral-500">{t('periodLock.explanation')}</p>
-          <p className="mt-1 text-xs text-neutral-500">{t('periodLock.autoHint')}</p>
-          {updatedAt !== null && reasonLabel && (<p className="mt-1 text-xs text-neutral-400">
-              {String(t('periodLock.lastChange')).replace('{date}', formatLockDate(updatedAt)).replace('{reason}', reasonLabel)}
-            </p>)}
+            </p>
+            {updatedAt !== null && reasonLabel && (<p className="mt-0.5 text-xs text-neutral-500">
+                {String(t('periodLock.lastChange')).replace('{date}', formatLockDate(updatedAt)).replace('{reason}', reasonLabel)}
+              </p>)}
+          </div>
+        </div>
+        <div className="rounded-button bg-surface-muted px-3 py-2 text-xs leading-relaxed text-neutral-600">
+          <p>{t('periodLock.explanation')}</p>
+          <p className="mt-1">{t('periodLock.autoHint')}</p>
         </div>
 
         {closedMonths.length > 0 && (<div className="flex items-end gap-2">
@@ -121,10 +122,11 @@ export function PeriodLockCard({ lockedThrough, reason, updatedAt, isLoaded, sav
             </Button>
           </div>)}
 
-        {canLockMore && (<Button type="button" variant="outline" size="md" className="w-full" onClick={() => setPending({ kind: 'lock', lockedThrough: lastClosableMonthEnd })} disabled={!isLoaded || isSaving}>
-            🔒 {String(t('periodLock.lockThrough')).replace('{date}', formatLockDate(lastClosableMonthEnd))}
+        {canLockMore && (<Button type="button" variant="outline" size="md" className="w-full font-semibold" onClick={() => setPending({ kind: 'lock', lockedThrough: lastClosableMonthEnd })} disabled={!isLoaded || isSaving}>
+            <LockIcon aria-hidden="true" className="h-4 w-4"/>
+            {String(t('periodLock.lockThrough')).replace('{date}', formatLockDate(lastClosableMonthEnd))}
           </Button>)}
-      </CardContent>
+      </div>
 
       <ConfirmDialog
         isOpen={pending !== null}
@@ -139,5 +141,5 @@ export function PeriodLockCard({ lockedThrough, reason, updatedAt, isLoaded, sav
         variant={pending?.kind === 'lock' ? 'primary' : 'warning'}
         loading={isSaving}
       />
-    </Card>);
+    </SectionCard>);
 }

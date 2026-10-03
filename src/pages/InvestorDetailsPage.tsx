@@ -1,18 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { Button } from '../components/ui/Button';
-import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../components/ui/Modal';
-import { Label } from '../components/ui/Label';
-import { DatePicker } from '../components/ui/DatePicker';
-import { PageHeader } from '../components/ui/PageHeader';
-import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
+import { ChevronLeftIcon } from '../components/icons/ChevronLeftIcon';
+import { FileSpreadsheetIcon } from '../components/icons/FileSpreadsheetIcon';
 import { InvestorTransaction, TreasuryTx } from '../types';
 import { InvestorDetailsContent } from '../components/investor-details/InvestorDetailsContent';
+import { useInvestorReportDialog, type InvestorReportDateRange } from '../components/investor-details/useInvestorReportDialog';
+import { useLanguage } from '../contexts/LanguageContext';
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
 import type { DerivedInvestor, ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
-type InvestorReportDateRange = {
-    startTs?: number | null;
-    endTs?: number | null;
-};
 interface InvestorDetailsPageProps {
     investor: DerivedInvestor;
     transactions: InvestorTransaction[];
@@ -31,104 +26,24 @@ interface InvestorDetailsPageProps {
     personalExpenses?: TreasuryTx[];
 }
 export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ investor, transactions, onBack, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction, onExportReport, capitalSnapshot, managerProfitBreakdown, personalExpenses }) => {
+    const { t } = useLanguage();
     const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
-    const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
-    const [reportStartDate, setReportStartDate] = useState('');
-    const [reportEndDate, setReportEndDate] = useState('');
-    const [reportDateError, setReportDateError] = useState('');
     const orderedTransactions = useMemo(() => [...transactions].sort((a, b) => b.timestamp - a.timestamp), [transactions]);
-    const parseDateBoundary = (value: string, endOfDay: boolean) => {
-        if (!value) return null;
-        const [year, month, day] = value.split('-').map(Number);
-        if (!year || !month || !day) return null;
-        const date = new Date(year, month - 1, day);
-        date.setHours(endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
-        return date.getTime();
-    };
-    const setCurrentMonthRange = () => {
-        const now = new Date();
-        const start = new Date(now.getFullYear(), now.getMonth(), 1);
-        const toInput = (date: Date) => {
-            const yyyy = date.getFullYear();
-            const mm = String(date.getMonth() + 1).padStart(2, '0');
-            const dd = String(date.getDate()).padStart(2, '0');
-            return `${yyyy}-${mm}-${dd}`;
-        };
-        setReportStartDate(toInput(start));
-        setReportEndDate(toInput(now));
-        setReportDateError('');
-    };
-    const setCurrentYearRange = () => {
-        const now = new Date();
-        setReportStartDate(`${now.getFullYear()}-01-01`);
-        setReportEndDate(`${now.getFullYear()}-12-31`);
-        setReportDateError('');
-    };
-    const clearReportRange = () => {
-        setReportStartDate('');
-        setReportEndDate('');
-        setReportDateError('');
-    };
-    const openReportDialog = () => {
-        if (!reportStartDate && !reportEndDate) setCurrentMonthRange();
-        setReportDateError('');
-        setIsReportDialogOpen(true);
-    };
-    const handleCreateReport = () => {
-        const startTs = parseDateBoundary(reportStartDate, false);
-        const endTs = parseDateBoundary(reportEndDate, true);
-        if ((reportStartDate && startTs === null) || (reportEndDate && endTs === null)) {
-            setReportDateError('Date invalide.');
-            return;
-        }
-        if (startTs !== null && endTs !== null && startTs > endTs) {
-            setReportDateError('La date de début doit être avant la date de fin.');
-            return;
-        }
-        onExportReport({ startTs, endTs });
-        setIsReportDialogOpen(false);
-    };
-    return (<div className="anim-page-in space-y-6">
-      <PageHeader title={investor.name} subtitle={`Investisseur depuis le ${new Date(investor.entryDate).toLocaleDateString('fr-FR')}`} onBack={onBack} className="-mx-4 sm:mx-0 sm:rounded-lg" actions={(<Button onClick={openReportDialog} className="gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-white hover:bg-primary-dark">
-            <DownloadCloudIcon className="w-4 h-4"/>
-            PDF
-          </Button>)}/>
+    const report = useInvestorReportDialog(onExportReport);
+    return (<div className="anim-page-in flex flex-col gap-3">
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={onBack} aria-label={t('common.back')} className="-ms-2 flex h-touch w-touch shrink-0 items-center justify-center rounded-full text-neutral-600 transition-colors hover:bg-surface-muted hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <ChevronLeftIcon aria-hidden="true" className="h-6 w-6 rtl:-scale-x-100"/>
+        </button>
+        <h2 className="min-w-0 flex-1 truncate text-lg font-bold text-neutral-900">{investor.name}</h2>
+        <Button onClick={report.open} variant="primary" size="sm" className="ms-1 shrink-0">
+          <FileSpreadsheetIcon className="h-4 w-4"/>
+          PDF
+        </Button>
+      </div>
 
       <InvestorDetailsContent investor={investor} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} orderedTransactions={orderedTransactions} activeTab={activeTab} setActiveTab={setActiveTab} onAddCapital={onAddCapital} onWithdrawCapital={onWithdrawCapital} onWithdrawProfit={onWithdrawProfit} onReinvestProfit={onReinvestProfit} onDeleteTransaction={onDeleteTransaction} personalExpenses={personalExpenses}/>
 
-      <Modal isOpen={isReportDialogOpen} onClose={() => setIsReportDialogOpen(false)} className="max-w-md bg-surface">
-        <ModalHeader onClose={() => setIsReportDialogOpen(false)}>
-          <ModalTitle className="text-base sm:text-lg">Créer rapport investisseur</ModalTitle>
-        </ModalHeader>
-        <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
-          <div className="grid grid-cols-2 gap-3">
-            <Button onClick={setCurrentMonthRange} variant="outline" className="rounded-lg px-3 py-2 text-sm font-bold">
-              Mois courant
-            </Button>
-            <Button onClick={setCurrentYearRange} variant="outline" className="rounded-lg px-3 py-2 text-sm font-bold">
-              Année courante
-            </Button>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <Label>Date début</Label>
-              <DatePicker value={reportStartDate} onChange={(iso) => { setReportStartDate(iso); setReportDateError(''); }} className="mt-1"/>
-            </div>
-            <div>
-              <Label>Date fin</Label>
-              <DatePicker value={reportEndDate} onChange={(iso) => { setReportEndDate(iso); setReportDateError(''); }} className="mt-1"/>
-            </div>
-          </div>
-          {reportDateError && <p className="text-sm font-semibold text-danger">{reportDateError}</p>}
-        </ModalContent>
-        <ModalFooter>
-          <Button onClick={clearReportRange} variant="outline">
-            Tout l'historique
-          </Button>
-          <Button onClick={handleCreateReport}>
-            Créer PDF
-          </Button>
-        </ModalFooter>
-      </Modal>
+      {report.dialog}
     </div>);
 };

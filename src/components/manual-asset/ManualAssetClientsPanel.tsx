@@ -1,13 +1,16 @@
+import { Fragment } from 'react';
+import { SectionCard } from '../cards';
 import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
 import { EmptyState } from '../ui/EmptyState';
+import { SearchField } from '../ui/SearchField';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
-import { PlusIcon } from '../icons/PlusIcon';
-import { SearchIcon } from '../icons/SearchIcon';
+import { UserPlusIcon } from '../icons/UserPlusIcon';
 import { UserIcon } from '../icons/UserIcon';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { ManualAssetClient } from '../../types';
 import { describeServiceBalance, getServiceBalanceLabel } from '../../utils/serviceBalances';
+import { getNameInitials } from '../../utils/nameUtils';
 import { useLanguage } from '../../contexts/LanguageContext';
 type ManualAssetClientsPanelProps = {
     searchQuery: string;
@@ -22,42 +25,46 @@ type ManualAssetClientsPanelProps = {
 };
 export function ManualAssetClientsPanel({ searchQuery, setSearchQuery, onOpenCreateModal, filteredClients, assetId, clientBalances, onSelectClient, onOpenEditModal, onDeleteClient }: ManualAssetClientsPanelProps) {
     const { t } = useLanguage();
-    return (<div className="overflow-hidden rounded-xl border border-border bg-surface">
-      <div className="flex flex-col items-center justify-between gap-3 border-b border-border p-3 sm:flex-row">
-        <div className="relative w-full sm:w-auto flex-1">
-          <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400"/>
-          <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full ps-9" placeholder={t('reports.searchClient') as string}/>
-        </div>
-        <Button onClick={onOpenCreateModal} variant="primary" size="md" className="w-full font-bold sm:w-auto">
-          <PlusIcon className="w-4 h-4"/> {t('common.newClient')}
-        </Button>
-      </div>
-      <div className="divide-y divide-neutral-100">
-        {filteredClients.length > 0 ? (filteredClients.map((client) => {
-            const balance = clientBalances.get(`${assetId}_${client.id}`) || 0;
-            const balanceView = describeServiceBalance(balance);
-            const balanceSemantic = balanceView.kind === 'to_receive' ? 'profit' : balanceView.kind === 'client_advance' ? 'loss' : 'plain';
-            const initial = (client.fullName || '?').charAt(0).toUpperCase();
-            return (<div key={client.id}>
-                <SwipeableListItem onEdit={() => onOpenEditModal(client)} onDelete={() => onDeleteClient(client.id)}>
-                  <div className="flex min-h-touch cursor-pointer items-center justify-between gap-3 bg-surface p-4 transition-colors hover:bg-neutral-50" onClick={() => onSelectClient(client)}>
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-base font-bold text-secondary">
-                        {initial}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-base font-semibold">{client.fullName}</div>
-                        <div dir={client.phone ? 'ltr' : undefined} className="text-xs text-neutral-500">{client.phone || t('clients.noPhone')}</div>
-                      </div>
+    return (<>
+      <SearchField value={searchQuery} onChange={setSearchQuery} placeholder={t('reports.searchClient') as string} clearLabel={t('transactions.clearSearch') as string}/>
+
+      <SectionCard flush title={t('services.clients')} actions={(<Button onClick={onOpenCreateModal} variant="ghost" size="sm" className="gap-1 px-2 font-bold text-primary dark:text-primary-light">
+          <UserPlusIcon className="h-4 w-4"/>
+          <span>{t('common.newClient')}</span>
+        </Button>)}>
+        {filteredClients.length > 0 ? (<div>
+            {filteredClients.map((client) => {
+                const balance = clientBalances.get(`${assetId}_${client.id}`) || 0;
+                const balanceView = describeServiceBalance(balance);
+                const balanceColor = balanceView.kind === 'to_receive' ? 'text-financial-profit' : balanceView.kind === 'client_advance' ? 'text-financial-loss' : 'text-neutral-500';
+                return (<Fragment key={client.id}>
+                  <SwipeableListItem onEdit={() => onOpenEditModal(client)} onDelete={() => onDeleteClient(client.id)}>
+                    <div onClick={() => onSelectClient(client)} className="relative z-10 flex w-full cursor-pointer items-center gap-3 border-t border-border bg-surface px-4 py-3 transition-colors hover:bg-surface-muted">
+                      {/* The row opens the client; this button gives it to the keyboard. */}
+                      <button type="button" className="flex min-w-0 flex-1 items-center gap-3 rounded-button text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
+                        <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-muted text-[13px] font-bold text-neutral-600">
+                          {getNameInitials(client.fullName || '?')}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          {/* Name and balance share the first line; phone and balance label use the full width below. */}
+                          <span className="flex items-start justify-between gap-3">
+                            <span className="min-w-0 break-words pt-0.5 text-[15px] font-semibold leading-snug text-neutral-900">{client.fullName}</span>
+                            <span className="shrink-0">
+                              <CurrencyAmount value={balanceView.amount} currency="DZD" semantic="plain" size="md" decimals={0} className={`font-semibold ${balanceColor}`}/>
+                            </span>
+                          </span>
+                          <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-xs">
+                            <span dir={client.phone ? 'ltr' : undefined} className="text-neutral-500">{client.phone || t('clients.noPhone')}</span>
+                            <span className={`font-semibold ${balanceColor}`}>{getServiceBalanceLabel(balanceView.kind, t)}</span>
+                          </span>
+                        </span>
+                      </button>
+                      <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100"/>
                     </div>
-                    <div className="shrink-0 text-end">
-                      <CurrencyAmount value={balanceView.amount} currency="DZD" semantic={balanceSemantic} size="lg" decimals={0}/>
-                      <div className="text-xs text-neutral-500">{getServiceBalanceLabel(balanceView.kind, t)}</div>
-                    </div>
-                  </div>
-                </SwipeableListItem>
-              </div>);
-        })) : (<EmptyState icon={<UserIcon className="w-6 h-6"/>} title={t('clients.noClientFound') as string} subtitle={t('services.firstClientOperation') as string}/>)}
-      </div>
-    </div>);
+                  </SwipeableListItem>
+                </Fragment>);
+            })}
+          </div>) : (<EmptyState icon={<UserIcon className="h-5 w-5"/>} title={t('reports.noClientFound') as string} subtitle={t('services.firstClientOperation') as string}/>)}
+      </SectionCard>
+    </>);
 }

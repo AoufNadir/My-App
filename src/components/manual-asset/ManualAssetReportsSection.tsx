@@ -1,10 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { CalendarIcon } from '../icons/CalendarIcon';
-import { TrendingUpIcon } from '../icons/TrendingUpIcon';
-import { Button } from '../ui/Button';
-import { Label } from '../ui/Label';
+import { SectionCard } from '../cards';
 import { Select } from '../ui/Select';
-import { SectionHeading } from '../ui/SectionHeading';
+import { Tabs } from '../ui/Tabs';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { ManualAssetClient, ManualAssetTransaction } from '../../types';
 import { describeServiceBalance, getServiceBalanceLabel } from '../../utils/serviceBalances';
@@ -15,6 +12,8 @@ type ManualAssetReportsSectionProps = {
     clients: ManualAssetClient[];
     assetTransactions: ManualAssetTransaction[];
     clientBalances: Map<string, number>;
+    /** Report shown first; monthly unless a test or a link asks for the year. */
+    initialView?: ReportView;
 };
 type ClientPerformanceRow = {
     clientId: string;
@@ -128,10 +127,10 @@ function StatCard({ label, value, hint, valueClassName = '' }: {
     hint: ReactNode;
     valueClassName?: string;
 }) {
-    return (<div className="rounded-xl border border-border bg-surface-muted px-3 py-2">
-      <p className="text-xs font-medium text-neutral-500">{label}</p>
-      <p className={`mt-1 text-base font-bold leading-tight text-neutral-900 ${valueClassName}`}>{value}</p>
-      <p className="mt-1 text-xs text-neutral-500">{hint}</p>
+    return (<div className="min-w-0 rounded-button bg-surface-muted px-3 py-2">
+      <p className="line-clamp-2 break-words text-xs font-semibold leading-snug text-neutral-500">{label}</p>
+      <p className={`mt-0.5 text-[15px] font-bold leading-tight text-neutral-900 ${valueClassName}`}>{value}</p>
+      <p className="mt-0.5 text-xs text-neutral-500">{hint}</p>
     </div>);
 }
 function RankedClientsBlock({ title, totalClients, rows, t }: {
@@ -140,13 +139,13 @@ function RankedClientsBlock({ title, totalClients, rows, t }: {
     rows: ClientPerformanceRow[];
     t: (key: string) => any;
 }) {
-    return (<div className="rounded-xl border border-border bg-surface-muted p-3">
-      <div className="flex items-center justify-between gap-3">
-        <h4 className="text-sm font-bold leading-tight text-neutral-900">{title}</h4>
-        <span className={`text-[12px] text-neutral-500`}>{totalClients} {t('services.activeClients')}</span>
+    return (<div>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-xs font-bold text-neutral-500">{title}</h3>
+        <span className="shrink-0 text-xs text-neutral-500">{totalClients} {t('services.activeClients')}</span>
       </div>
 
-      {rows.length > 0 ? (<div className="mt-3 space-y-2">
+      {rows.length > 0 ? (<ol className="mt-1">
           {rows.map((row, index) => {
             const balanceView = describeServiceBalance(row.currentBalance);
             const balanceSemantic = balanceView.kind === 'to_receive'
@@ -154,79 +153,64 @@ function RankedClientsBlock({ title, totalClients, rows, t }: {
                 : balanceView.kind === 'client_advance'
                     ? 'loss'
                     : 'plain';
-            return (<div key={row.clientId} className="rounded-lg border border-border bg-surface px-3 py-2">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold leading-tight text-neutral-900">
-                    {index + 1}. {row.clientName}
+            return (<li key={row.clientId} className="flex items-start gap-3 border-t border-border py-2.5 first:border-t-0">
+              <span aria-hidden="true" className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-muted text-xs font-bold text-neutral-600">{index + 1}</span>
+              <div className="min-w-0 flex-1">
+                {/* Name and amount billed on the first line; the details use the full width below. */}
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 break-words pt-0.5 text-sm font-semibold leading-tight text-neutral-900">
+                    <span className="sr-only">{index + 1}. </span>{row.clientName}
                   </p>
-                  <p className={`mt-1 text-[12px] text-neutral-500`}>
-                    {row.operationsCount} {t('services.operationsShort')} · {row.servicesCount} {t('services.servicesShort')}
-                  </p>
+                  <span className="shrink-0">
+                    <CurrencyAmount value={row.serviceRevenue} currency="DZD" semantic="profit" size="md" decimals={2} className="font-semibold"/>
+                  </span>
                 </div>
-
-                <div className="min-w-[104px] shrink-0 text-end sm:min-w-[120px]">
-                  <p className="text-sm font-bold leading-tight">
-                    <CurrencyAmount value={row.serviceRevenue} currency="DZD" semantic="profit" size="md" decimals={2}/>
-                  </p>
-                  <p className={`mt-1 text-[12px] leading-4 text-neutral-500`}>
-                    {t('services.collected')}: <CurrencyAmount value={row.cashReceived} currency="DZD" semantic="profit" size="sm" decimals={2}/>
-                  </p>
-                  <p className={`text-[12px] leading-4 text-neutral-500`}>
-                    {getServiceBalanceLabel(balanceView.kind, t)}: <CurrencyAmount value={balanceView.amount} currency="DZD" semantic={balanceSemantic} size="sm" decimals={2}/>
-                  </p>
-                </div>
+                <p className="mt-0.5 text-xs text-neutral-500">
+                  {row.operationsCount} {t('services.operationsShort')} · {row.servicesCount} {t('services.servicesShort')}
+                </p>
+                <p className="mt-0.5 text-xs leading-4 text-neutral-500">
+                  {t('services.collected')}: <CurrencyAmount value={row.cashReceived} currency="DZD" semantic="profit" size="sm" decimals={2}/>
+                </p>
+                <p className="text-xs leading-4 text-neutral-500">
+                  {getServiceBalanceLabel(balanceView.kind, t)}: <CurrencyAmount value={balanceView.amount} currency="DZD" semantic={balanceSemantic} size="sm" decimals={2}/>
+                </p>
               </div>
-            </div>);
+            </li>);
         })}
-        </div>) : (<div className="mt-3 rounded-xl border border-dashed border-border-strong p-4 text-center text-sm text-neutral-400">
+        </ol>) : (<p className="mt-2 rounded-button border border-dashed border-border-strong p-4 text-center text-sm text-neutral-500">
           {t('services.noDataPeriod')}
-        </div>)}
+        </p>)}
     </div>);
 }
-function ReportCard({ title, subtitle, topTitle, report, t }: {
-    title: string;
+function ReportCard({ subtitle, topTitle, report, t }: {
     subtitle: string;
     topTitle: string;
     report: PeriodReport;
     t: (key: string) => any;
 }) {
-    return (<section className="rounded-xl border border-border bg-surface p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold leading-tight text-neutral-900">{title}</h3>
-          <p className={`mt-1 text-sm text-neutral-500`}>{subtitle}</p>
-        </div>
-        <div className="rounded-lg border border-border bg-surface-muted p-2.5 text-neutral-600">
-          <CalendarIcon className="w-4 h-4"/>
-        </div>
+    return (<div className="flex flex-col gap-3">
+      <p className="text-sm font-bold text-neutral-900">{subtitle}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <StatCard label={t('services.servicesBilled')} value={<CurrencyAmount value={report.serviceRevenue} currency="DZD" semantic="profit" size="lg" decimals={2}/>} hint={`${report.activeClientsCount} ${t('services.activeClients')}`}/>
+
+        <StatCard label={t('services.collected')} value={<CurrencyAmount value={report.cashReceived} currency="DZD" semantic="profit" size="lg" decimals={2}/>} hint={t('transactions.paymentReceived')}/>
+
+        <StatCard label={t('services.topBilledClient')} value={report.topProfitableClient?.clientName || t('services.noClient')} hint={report.topProfitableClient ? <CurrencyAmount value={report.topProfitableClient.serviceRevenue} currency="DZD" semantic="profit" size="sm" decimals={2}/> : t('services.noServiceBilled')} valueClassName="break-words"/>
+
+        <StatCard label={t('services.topActiveClient')} value={report.topActiveClient?.clientName || t('services.noClient')} hint={report.topActiveClient ? `${report.topActiveClient.operationsCount} ${t('services.operationsShort')}` : t('services.noActivity')} valueClassName="break-words"/>
       </div>
 
-      <div className="mt-3 space-y-2">
-        <div className="space-y-2">
-          <StatCard label={t('services.servicesBilled')} value={<CurrencyAmount value={report.serviceRevenue} currency="DZD" semantic="profit" size="lg" decimals={2}/>} hint={`${report.activeClientsCount} ${t('services.activeClients')}`}/>
-
-          <StatCard label={t('services.collected')} value={<CurrencyAmount value={report.cashReceived} currency="DZD" semantic="profit" size="lg" decimals={2}/>} hint={t('transactions.paymentReceived')}/>
-        </div>
-
-        <div className="space-y-2">
-          <StatCard label={t('services.topBilledClient')} value={report.topProfitableClient?.clientName || t('services.noClient')} hint={report.topProfitableClient ? <CurrencyAmount value={report.topProfitableClient.serviceRevenue} currency="DZD" semantic="profit" size="sm" decimals={2}/> : t('services.noServiceBilled')} valueClassName="break-words"/>
-
-          <StatCard label={t('services.topActiveClient')} value={report.topActiveClient?.clientName || t('services.noClient')} hint={report.topActiveClient ? `${report.topActiveClient.operationsCount} ${t('services.operationsShort')}` : t('services.noActivity')} valueClassName="break-words"/>
-        </div>
-
-        <RankedClientsBlock title={topTitle} totalClients={report.activeClientsCount} rows={report.topClients} t={t}/>
-      </div>
-    </section>);
+      <RankedClientsBlock title={topTitle} totalClients={report.activeClientsCount} rows={report.topClients} t={t}/>
+    </div>);
 }
-export function ManualAssetReportsSection({ assetId, assetName, clients, assetTransactions, clientBalances }: ManualAssetReportsSectionProps) {
+export function ManualAssetReportsSection({ assetId, assetName, clients, assetTransactions, clientBalances, initialView = 'monthly' }: ManualAssetReportsSectionProps) {
     const { t } = useLanguage();
     const today = new Date();
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
     const [selectedMonth, setSelectedMonth] = useState(currentMonth);
     const [selectedYear, setSelectedYear] = useState(currentYear);
-    const [reportView, setReportView] = useState<ReportView>('monthly');
+    const [reportView, setReportView] = useState<ReportView>(initialView);
     const availableYears = useMemo(() => {
         const years = new Set<number>([currentYear]);
         assetTransactions.forEach((tx) => {
@@ -265,56 +249,34 @@ export function ManualAssetReportsSection({ assetId, assetName, clients, assetTr
             endTs
         });
     }, [assetId, assetTransactions, clientBalances, clientsById, selectedYear]);
-    const selectClassName = 'mt-2 min-h-input rounded-button px-3 text-sm';
     const activeReport = reportView === 'monthly' ? monthlyReport : annualReport;
     const monthLabels = t('common.months') as string[];
-    const activeTitle = `${t('services.clientReport')} — ${reportView === 'monthly' ? t('services.monthly') : t('services.annual')}`;
+    const monthLabel = (index: number) => monthLabels?.[index] || MONTH_LABELS[index];
     const activeSubtitle = reportView === 'monthly'
-        ? `${monthLabels?.[selectedMonth] || MONTH_LABELS[selectedMonth]} ${selectedYear}`
+        ? `${monthLabel(selectedMonth)} ${selectedYear}`
         : `${t('portfolio.year')} ${selectedYear}`;
     const activeTopTitle = reportView === 'monthly' ? t('services.topBilledMonthly') : t('services.topBilledAnnual');
-    const pillBase = 'min-h-button-md rounded-button px-3 font-bold text-sm';
-    return (<section className="space-y-3">
-      <div>
-        <SectionHeading icon={<TrendingUpIcon className="w-4 h-4"/>}>
-          {t('services.clientReport')}
-        </SectionHeading>
-        <p className={`mt-1 max-w-[32rem] text-sm leading-6 text-neutral-500`}>
+    return (<SectionCard title={t('services.clientReport')}>
+      <div className="flex flex-col gap-3">
+        <p className="-mt-1 text-xs leading-relaxed text-neutral-500">
           {String(t('services.clientReportSubtitle')).replace('{assetName}', assetName)}
         </p>
-      </div>
 
-      <div className="rounded-xl border border-border bg-surface-muted p-3">
-        <div className="grid grid-cols-1 gap-3">
-          <div>
-            <Label>{t('portfolio.month')}</Label>
-            <Select value={String(selectedMonth)} onChange={(e) => setSelectedMonth(Number(e.target.value))} className={selectClassName}>
-              {MONTH_LABELS.map((month, index) => (<option key={month} value={index}>{month}</option>))}
-            </Select>
-          </div>
+        <Tabs variant="pills" tabs={[
+            { id: 'monthly', label: t('services.monthly') as string },
+            { id: 'annual', label: t('services.annual') as string },
+        ]} activeTab={reportView} onChange={(id) => setReportView(id === 'annual' ? 'annual' : 'monthly')}/>
 
-          <div>
-            <Label>{t('portfolio.year')}</Label>
-            <Select value={String(selectedYear)} onChange={(e) => setSelectedYear(Number(e.target.value))} className={selectClassName}>
-              {availableYears.map((year) => (<option key={year} value={year}>{year}</option>))}
-            </Select>
-          </div>
+        <div className={`grid gap-2 ${reportView === 'monthly' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {reportView === 'monthly' && (<Select label={t('portfolio.month') as string} id={`service-report-month-${assetId}`} value={String(selectedMonth)} onChange={(e) => setSelectedMonth(Number(e.target.value))}>
+              {MONTH_LABELS.map((month, index) => (<option key={month} value={index}>{monthLabel(index)}</option>))}
+            </Select>)}
+          <Select label={t('portfolio.year') as string} id={`service-report-year-${assetId}`} value={String(selectedYear)} onChange={(e) => setSelectedYear(Number(e.target.value))}>
+            {availableYears.map((year) => (<option key={year} value={year}>{year}</option>))}
+          </Select>
         </div>
-      </div>
 
-      <div className="inline-flex w-full rounded-xl border border-border bg-neutral-100 p-1">
-        <Button onClick={() => setReportView('monthly')} className={`flex-1 ${pillBase} ${reportView === 'monthly'
-            ? 'bg-success text-white shadow-sm'
-            : 'bg-transparent text-neutral-600 hover:bg-surface'}`}>
-          {t('services.monthly')}
-        </Button>
-        <Button onClick={() => setReportView('annual')} className={`flex-1 ${pillBase} ${reportView === 'annual'
-            ? 'bg-success text-white shadow-sm'
-            : 'bg-transparent text-neutral-600 hover:bg-surface'}`}>
-          {t('services.annual')}
-        </Button>
+        <ReportCard subtitle={activeSubtitle} topTitle={activeTopTitle} report={activeReport} t={t}/>
       </div>
-
-      <ReportCard title={activeTitle} subtitle={activeSubtitle} topTitle={activeTopTitle} report={activeReport} t={t}/>
-    </section>);
+    </SectionCard>);
 }

@@ -230,7 +230,7 @@ export function PersonalWithdrawalModal({
                     loading={isSaving}
                     title={errorTitle}
                 >
-                    {isSaving ? t('common.processing') : (editingTx ? 'Mettre a jour' : (mode === 'advance' ? "Prendre l'avance" : 'Enregistrer'))}
+                    {isSaving ? t('common.processing') : (editingTx ? t('investorDialog.update') : (mode === 'advance' ? t('personalWithdrawal.takeAdvance') : t('common.save')))}
                 </Button>
             </ModalFooter>
         </Modal>
