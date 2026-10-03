@@ -1,13 +1,17 @@
-import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
+import { Modal, ModalContent, ModalDescription, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Label } from '../ui/Label';
 import { MoneyField } from '../ui/MoneyField';
 import { DatePicker } from '../ui/DatePicker';
 import { Textarea } from '../ui/Textarea';
+import { FormCard } from '../ui/FormCard';
+import { OperationFooter, type OperationFooterStat } from '../ui/OperationFooter';
+import { SegmentedControl } from '../ui/SegmentedControl';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 
-import { Tabs } from '../ui/Tabs';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { parseAndEvaluate } from '../../utils';
+import { formatMoney } from '../../pages/shared/pageFormat';
 import type { PortfolioStats } from '../../types';
 import type { FinancialWallet, ProjectExpensePreview } from '../../utils/digitalServiceAccounting';
 import { getWalletCurrency, isAssetWallet } from '../../utils/digitalServiceAccounting';
@@ -60,14 +64,27 @@ export function DeliveryExpenseModal({
                 ? Number(portfolioStats.usdt.available || 0)
                 : Number(portfolioStats.eur.available || 0);
 
+    // Display only: the amount checked against the chosen wallet like the save does (it still
+    // alerts on its own), and the amount kept visible at the bottom.
+    const typedAmount = parseAndEvaluate(amount);
+    const hasAmount = Number.isFinite(typedAmount) && typedAmount > 0;
+    const exceedsBalance = hasAmount && typedAmount > availableBalance + 0.005;
+    const footerStats: OperationFooterStat[] = [];
+    if (hasAmount) {
+        footerStats.push({ label: t('delivery.amount'), value: formatMoney(typedAmount, currency, { min: currency === 'DZD' ? 0 : 2, max: 2 }), tone: 'loss' });
+        if (preview && isAssetWallet(method))
+            footerStats.push({ label: t('delivery.valueDzd'), value: formatMoney(preview.amountDzd, 'DZD', { min: 0, max: 0 }) });
+    }
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
             <ModalHeader onClose={onClose}>
                 <ModalTitle className="text-base sm:text-lg">{t('delivery.title')}</ModalTitle>
-                <p className="mt-0.5 text-sm font-normal text-neutral-500">{t('delivery.description')}</p>
+                <ModalDescription>{t('delivery.description')}</ModalDescription>
             </ModalHeader>
 
-            <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
+            <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
+                <FormCard>
                 <MoneyField
                     label={t('delivery.amount')}
                     value={amount}
@@ -79,37 +96,39 @@ export function DeliveryExpenseModal({
                             <CurrencyAmount value={availableBalance} currency={currency} semantic="plain" size="sm" decimals={currency === 'DZD' ? 0 : 2}/>
                         </span>
                     )}
+                    error={exceedsBalance ? (
+                        <span className="inline-flex flex-wrap items-center gap-1">
+                            {t('formErrors.insufficientBalance')} · {t('delivery.availableBalance')}:
+                            <CurrencyAmount value={availableBalance} currency={currency} semantic="plain" size="sm" decimals={currency === 'DZD' ? 0 : 2}/>
+                        </span>
+                    ) : undefined}
                     placeholder="0"
                 />
 
                 <div>
                     <Label>{t('delivery.method')}</Label>
-                    <Tabs
-                        tabs={[
-                            { id: 'Caisse', label: t('transactions.cash') },
-                            { id: 'BaridiMob', label: t('transactions.baridi') },
-                            { id: 'USDT', label: 'USDT' },
-                            { id: 'EUR', label: 'EUR' },
-                        ]}
-                        activeTab={method}
-                        onChange={(next) => setMethod(next as FinancialWallet)}
-                        variant="pills"
-                        className="mt-1"
-                    />
+                    <SegmentedControl size="md" columns={2} ariaLabel={t('delivery.method') as string} value={method} onChange={(next) => setMethod(next as FinancialWallet)} options={[
+                        { id: 'Caisse', label: t('transactions.cash'), tone: 'primary' },
+                        { id: 'BaridiMob', label: t('transactions.baridi'), tone: 'primary' },
+                        { id: 'USDT', label: 'USDT', tone: 'primary' },
+                        { id: 'EUR', label: 'EUR', tone: 'primary' },
+                    ]}/>
                 </div>
 
                 {preview && isAssetWallet(method) && (
-                    <div className="rounded-xl bg-surface-muted p-3 text-sm">
+                    <div className="rounded-button bg-surface-muted p-3 text-sm">
                         <div className="flex items-center justify-between gap-3">
                             <span className="text-neutral-500">{t('delivery.valueDzd')}</span>
                             <CurrencyAmount value={preview.amountDzd} currency="DZD" semantic="loss" size="sm" decimals={0}/>
                         </div>
                         <div className="mt-1 text-xs text-neutral-500">
-                            {t('delivery.autoPma')}: {preview.rateToDzd.toFixed(2)} DZD
+                            {t('delivery.autoPma')}: <span dir="ltr" className="tabular-nums">{preview.rateToDzd.toFixed(2)} DZD</span>
                         </div>
                     </div>
                 )}
+                </FormCard>
 
+                <FormCard>
                 <div>
                     <Label>{t('delivery.date')}</Label>
                     <DatePicker value={date} onChange={setDate} className="mt-1" />
@@ -122,16 +141,17 @@ export function DeliveryExpenseModal({
                     placeholder={t('delivery.notePlaceholder')}
                     rows={3}
                 />
+                </FormCard>
             </ModalContent>
 
-            <ModalFooter>
+            <OperationFooter stats={footerStats}>
                 <Button type="button" variant="outline" onClick={onClose}>
                     {t('common.cancel')}
                 </Button>
                 <Button type="button" onClick={onSave} loading={isSaving}>
                     {isSaving ? t('common.processing') : t('common.save')}
                 </Button>
-            </ModalFooter>
+            </OperationFooter>
         </Modal>
     );
 }

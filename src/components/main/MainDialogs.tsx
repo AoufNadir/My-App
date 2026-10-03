@@ -1,13 +1,16 @@
 import React from 'react';
-import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
+import { Modal, ModalContent, ModalDescription, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { Button } from '../ui/Button';
 import { MoneyField } from '../ui/MoneyField';
 import { DatePicker } from '../ui/DatePicker';
+import { FormCard } from '../ui/FormCard';
+import { OperationFooter } from '../ui/OperationFooter';
 import { TransactionPreviewCard, type PreviewRow } from '../ui/TransactionPreviewCard';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { ArrowRightLeftIcon } from '../icons/ArrowRightLeftIcon';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { parseAndEvaluate } from '../../utils';
 import { formatMoney } from '../../pages/shared/pageFormat';
 export type MainSearchResult = {
@@ -169,25 +172,27 @@ const getOppositeWallet = (wallet: InternalWallet): InternalWallet => wallet ===
 const walletBalance = (wallet: InternalWallet, caisseBalance: number, baridiBalance: number) => wallet === 'Caisse' ? caisseBalance : baridiBalance;
 type WalletChoiceCardProps = {
     wallet: InternalWallet;
+    /** The wallet's name in the page language */
+    name: string;
     balance: number;
     selected?: boolean;
     readOnly?: boolean;
     helperText?: string;
     onClick?: () => void;
 };
-function WalletChoiceCard({ wallet, balance, selected = false, readOnly = false, helperText, onClick }: WalletChoiceCardProps) {
+function WalletChoiceCard({ name, balance, selected = false, readOnly = false, helperText, onClick }: WalletChoiceCardProps) {
     const content = (<>
-      <span className="text-sm font-bold text-neutral-900">{wallet}</span>
-      <span className="mt-1 text-xs font-medium text-neutral-500">{formatMoney(balance, 'DZD')}</span>
-      {helperText && <span className="mt-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">{helperText}</span>}
+      <span className="text-sm font-bold text-neutral-900">{name}</span>
+      <span dir="ltr" className="mt-1 text-xs font-semibold tabular-nums text-neutral-500">{formatMoney(balance, 'DZD')}</span>
+      {helperText && <span className="mt-1 text-[11px] font-semibold text-neutral-400">{helperText}</span>}
     </>);
     const classes = [
-        `flex ${readOnly ? 'min-h-[66px]' : 'min-h-[74px]'} w-full flex-col items-start justify-center rounded-xl border px-4 py-3 text-start transition-colors`,
+        `flex ${readOnly ? 'min-h-[66px]' : 'min-h-[74px]'} w-full flex-col items-start justify-center rounded-button border px-3.5 py-3 text-start transition-colors`,
         readOnly
             ? 'border-border bg-surface-muted text-neutral-700'
             : selected
-                ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/15'
-                : 'border-border bg-surface-muted',
+                ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
+                : 'border-border bg-surface',
         readOnly ? 'cursor-default' : 'hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface'
     ].join(' ');
     if (readOnly) {
@@ -198,6 +203,7 @@ function WalletChoiceCard({ wallet, balance, selected = false, readOnly = false,
     </button>);
 }
 export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, source, setSource, destination, setDestination, notes, setNotes, onMax, onSwap, onConfirm, isInvalid, isSaving, caisseBalance, baridiBalance, title, subtitle, amountLabel, fromLabel, toLabel, sourceLabel, destinationLabel, notesOptionalLabel, sameAccountErrorText, processingText, confirmText }: WalletTransferDialogProps) {
+    const { t } = useLanguage();
     const destinationWallet = getOppositeWallet(source);
     React.useEffect(() => {
         if (isOpen && destination !== destinationWallet) {
@@ -208,42 +214,59 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
         setSource(nextSource);
         setDestination(getOppositeWallet(nextSource));
     };
+    // Display only: the wallet names in the page language, why Confirm is off, and the amount kept
+    // visible at the bottom. The confirm rule itself (isInvalid) comes from MainApp unchanged.
+    const walletName = (wallet: InternalWallet) => (wallet === 'Caisse' ? t('transactions.cash') : t('transactions.baridi')) as string;
+    const typedAmount = parseAndEvaluate(amount);
+    const hasAmount = !!amount && Number.isFinite(typedAmount) && typedAmount > 0;
+    const blockedReason = !isInvalid || isSaving
+        ? undefined
+        : source === destination
+            ? sameAccountErrorText
+            : !hasAmount
+                ? t('transactions.enterValidAmount') as string
+                : typedAmount > walletBalance(source, caisseBalance, baridiBalance)
+                    ? t('formErrors.insufficientBalance') as string
+                    : undefined;
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
       <ModalHeader onClose={onClose}>
         <ModalTitle className="text-base sm:text-lg">{title}</ModalTitle>
-        <p className="mt-0.5 text-sm font-normal text-neutral-500">{subtitle}</p>
+        <ModalDescription>{subtitle}</ModalDescription>
       </ModalHeader>
-      <ModalContent className="px-4 py-4 sm:px-5 space-y-4">
-        <MoneyField label={amountLabel} value={amount} onChange={setAmount} currency="DZD" placeholder="0.00" onMax={onMax}/>
+      <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
+        <FormCard>
+          <MoneyField label={amountLabel} value={amount} onChange={setAmount} currency="DZD" placeholder="0.00" onMax={onMax}/>
+        </FormCard>
 
-        <div className="space-y-3">
+        <FormCard>
           <div>
             <Label>{fromLabel}</Label>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <WalletChoiceCard wallet="Caisse" balance={caisseBalance} selected={source === 'Caisse'} onClick={() => handleSourceChange('Caisse')}/>
-              <WalletChoiceCard wallet="BaridiMob" balance={baridiBalance} selected={source === 'BaridiMob'} onClick={() => handleSourceChange('BaridiMob')}/>
+              <WalletChoiceCard wallet="Caisse" name={walletName('Caisse')} balance={caisseBalance} selected={source === 'Caisse'} onClick={() => handleSourceChange('Caisse')}/>
+              <WalletChoiceCard wallet="BaridiMob" name={walletName('BaridiMob')} balance={baridiBalance} selected={source === 'BaridiMob'} onClick={() => handleSourceChange('BaridiMob')}/>
             </div>
           </div>
 
-          <div className="flex justify-center">
-            <button type="button" onClick={onSwap} className="min-h-touch min-w-touch rounded-full bg-neutral-100 p-2 text-primary transition-colors hover:bg-neutral-200" title="Swap source and destination" aria-label="Swap">
-              <ArrowRightLeftIcon className="w-4 h-4 rotate-90"/>
+          <div className="flex items-center gap-3">
+            <span aria-hidden="true" className="h-px flex-1 bg-border"/>
+            <button type="button" onClick={onSwap} className="inline-flex h-touch w-touch items-center justify-center rounded-full border border-border bg-surface text-primary transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-primary-light" title={t('transactions.swapWallets') as string} aria-label={t('transactions.swapWallets') as string}>
+              <ArrowRightLeftIcon aria-hidden="true" className="h-4 w-4 rotate-90"/>
             </button>
+            <span aria-hidden="true" className="h-px flex-1 bg-border"/>
           </div>
 
           <div>
             <div className="flex items-center justify-between gap-3">
               <Label>{toLabel}</Label>
-              <span className="text-xs font-medium text-neutral-400">Automatique</span>
+              <span className="text-xs font-medium text-neutral-500">{t('transactions.automatic')}</span>
             </div>
             <div className="mt-2">
-              <WalletChoiceCard wallet={destinationWallet} balance={walletBalance(destinationWallet, caisseBalance, baridiBalance)} readOnly helperText="Destination"/>
+              <WalletChoiceCard wallet={destinationWallet} name={walletName(destinationWallet)} balance={walletBalance(destinationWallet, caisseBalance, baridiBalance)} readOnly helperText={destinationLabel}/>
             </div>
-            {source === destination && (<p className="mt-1 text-xs text-danger">{sameAccountErrorText}</p>)}
+            {source === destination && (<p className="mt-1 text-xs font-medium text-danger">{sameAccountErrorText}</p>)}
           </div>
-        </div>
 
-        {(() => {
+          {(() => {
             const amt = parseAndEvaluate(amount);
             if (!Number.isFinite(amt) || amt <= 0 || source === destination)
                 return null;
@@ -253,20 +276,21 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
             const nextDest = destBalance + amt;
             const insufficient = nextSource < 0;
             const rows: PreviewRow[] = [
-                { label: source, value: nextSource, currency: 'DZD', semantic: insufficient ? 'loss' : 'auto' },
-                { label: destinationWallet, value: nextDest, currency: 'DZD', semantic: 'profit' }
+                { label: walletName(source), value: nextSource, currency: 'DZD', semantic: insufficient ? 'loss' : 'auto' },
+                { label: walletName(destinationWallet), value: nextDest, currency: 'DZD', semantic: 'profit' }
             ];
-            return (<TransactionPreviewCard title="Résumé après transfert" rows={rows} error={insufficient ? 'Solde insuffisant' : undefined}/>);
+            return (<TransactionPreviewCard title={t('transactions.afterTransferSummary') as string} rows={rows} error={insufficient ? t('formErrors.insufficientBalance') as string : undefined}/>);
         })()}
+        </FormCard>
       </ModalContent>
-      <ModalFooter>
+      <OperationFooter stats={hasAmount ? [{ label: amountLabel, value: formatMoney(typedAmount, 'DZD') }] : []} reason={blockedReason} reasonTone={hasAmount ? 'fix' : 'missing'}>
         <Button onClick={onClose} variant="outline">
-          Annuler
+          {t('common.cancel')}
         </Button>
         <Button onClick={onConfirm} disabled={isInvalid}>
           {isSaving ? processingText : confirmText}
         </Button>
-      </ModalFooter>
+      </OperationFooter>
     </Modal>);
 }
 type DateFilterDialogProps = {
@@ -345,30 +369,53 @@ type ClientTransferDialogProps = {
     maxDisabled?: boolean;
 };
 export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromClientId, toClientId, setToClientId, amount, setAmount, notes, setNotes, onSave, isSaving, clients, fromBalance, toBalance, onMaxFrom, title, infoText, fromLabel, toLabel, amountLabel, notesLabel, filterClientsLabel, balanceLabel, dinarLabel, confirmLabel, date, setDate, time, setTime, dateLabel, timeLabel, maxDisabled = false }: ClientTransferDialogProps) {
+    const { t } = useLanguage();
+    const amt = parseAndEvaluate(amount);
+    const sameClient = fromClientId && toClientId && fromClientId === toClientId;
+    const invalid = isSaving
+        || !fromClientId
+        || !toClientId
+        || sameClient
+        || !Number.isFinite(amt)
+        || amt <= 0;
+    // Display only: why Confirm is off, said next to the button instead of in a hidden tooltip.
+    const hasAmount = Number.isFinite(amt) && amt > 0;
+    const blockedReason = !invalid || isSaving
+        ? undefined
+        : sameClient
+            ? t('formErrors.sameClient') as string
+            : (!fromClientId || !toClientId)
+                ? t('formErrors.selectBothClients') as string
+                : t('transactions.enterValidAmount') as string;
+    const clientOptions = clients.map((client) => ({ value: client.id, label: client.label }));
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
       <ModalHeader onClose={onClose}>
         <ModalTitle className="text-base sm:text-lg">{title}</ModalTitle>
-        <p className="mt-0.5 text-sm font-normal text-neutral-500">{infoText}</p>
+        <ModalDescription>{infoText}</ModalDescription>
       </ModalHeader>
-      <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
+      <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
+        <FormCard>
         <div>
           <Label>{fromLabel}</Label>
           <div className="mt-1">
-            <SearchableSelect value={fromClientId} onChange={setFromClientId} options={clients.map((client) => ({ value: client.id, label: client.label }))} fieldClassName="" searchPlaceholder="Rechercher un client..." emptyOptionLabel={`-- ${filterClientsLabel} --`} emptyValue="" noResultsLabel="Aucun client trouvé" clearable clearLabel="Supprimer le client source"/>
+            <SearchableSelect value={fromClientId} onChange={setFromClientId} options={clientOptions} fieldClassName={sameClient ? 'border-danger ring-1 ring-danger' : ''} searchPlaceholder={t('transactions.searchClient') as string} emptyOptionLabel={`-- ${filterClientsLabel} --`} emptyValue="" noResultsLabel={t('transactions.noClientFound') as string} clearable clearLabel={t('transactions.clearSourceClient') as string}/>
           </div>
           {fromClientId && (<p className="mt-1 text-xs text-neutral-500">
-              {balanceLabel}: {formatMoney(fromBalance, 'DZD')}
+              {balanceLabel}: <span dir="ltr" className="font-semibold tabular-nums text-neutral-700">{formatMoney(fromBalance, 'DZD')}</span>
             </p>)}
         </div>
         <div>
           <Label>{toLabel}</Label>
           <div className="mt-1">
-            <SearchableSelect value={toClientId} onChange={setToClientId} options={clients.map((client) => ({ value: client.id, label: client.label }))} fieldClassName="" searchPlaceholder="Rechercher un client..." emptyOptionLabel={`-- ${filterClientsLabel} --`} emptyValue="" noResultsLabel="Aucun client trouvé" clearable clearLabel="Supprimer le client destination"/>
+            <SearchableSelect value={toClientId} onChange={setToClientId} options={clientOptions} fieldClassName={sameClient ? 'border-danger ring-1 ring-danger' : ''} searchPlaceholder={t('transactions.searchClient') as string} emptyOptionLabel={`-- ${filterClientsLabel} --`} emptyValue="" noResultsLabel={t('transactions.noClientFound') as string} clearable clearLabel={t('transactions.clearTargetClient') as string}/>
           </div>
           {toClientId && (<p className="mt-1 text-xs text-neutral-500">
-              {balanceLabel}: {formatMoney(toBalance, 'DZD')}
+              {balanceLabel}: <span dir="ltr" className="font-semibold tabular-nums text-neutral-700">{formatMoney(toBalance, 'DZD')}</span>
             </p>)}
+          {sameClient && (<p className="mt-1 text-xs font-medium text-danger">{t('formErrors.sameClient')}</p>)}
         </div>
+        </FormCard>
+        <FormCard>
         <MoneyField label={amountLabel} value={amount} onChange={setAmount} currency="DZD" onMax={fromClientId ? onMaxFrom : undefined} maxLabel="MAX" maxDisabled={maxDisabled}/>
         {setDate && setTime && (
           <div className="grid grid-cols-2 gap-3">
@@ -398,34 +445,18 @@ export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromCli
                 { label: fromLabel, value: nextFrom, currency: 'DZD', semantic: 'profit' },
                 { label: toLabel, value: nextTo, currency: 'DZD', semantic: 'auto' }
             ];
-            return (<TransactionPreviewCard title="Résumé après transfert" rows={rows}/>);
+            return (<TransactionPreviewCard title={t('transactions.afterTransferSummary') as string} rows={rows}/>);
         })()}
+        </FormCard>
       </ModalContent>
-      <ModalFooter>
-        {(() => {
-            const amt = parseAndEvaluate(amount);
-            const sameClient = fromClientId && toClientId && fromClientId === toClientId;
-            const invalid = isSaving
-                || !fromClientId
-                || !toClientId
-                || sameClient
-                || !Number.isFinite(amt)
-                || amt <= 0;
-            const buttonLabel = sameClient
-                ? 'Source = destination'
-                : (!fromClientId || !toClientId)
-                    ? 'Sélectionnez les deux clients'
-                    : confirmLabel;
-            return (<div className="flex gap-2 w-full">
-              <Button onClick={onClose} variant="outline" className="flex-1">
-                Annuler
-              </Button>
-              <Button onClick={onSave} disabled={invalid} className="flex-1" title={invalid && !isSaving ? buttonLabel : undefined}>
-                {invalid && !isSaving && (sameClient || (!fromClientId || !toClientId)) ? 'Confirmer' : buttonLabel}
-              </Button>
-            </div>);
-        })()}
-      </ModalFooter>
+      <OperationFooter stats={hasAmount ? [{ label: amountLabel, value: formatMoney(amt, 'DZD') }] : []} reason={blockedReason} reasonTone={sameClient ? 'fix' : 'missing'}>
+        <Button onClick={onClose} variant="outline">
+          {t('common.cancel')}
+        </Button>
+        <Button onClick={onSave} disabled={invalid} loading={isSaving} title={blockedReason}>
+          {confirmLabel}
+        </Button>
+      </OperationFooter>
     </Modal>);
 }
 type TreasuryBalanceEditDialogProps = {

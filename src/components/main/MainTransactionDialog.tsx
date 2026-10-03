@@ -1,19 +1,22 @@
 import React from 'react';
-import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../ui/Modal';
+import { Modal, ModalContent, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { MoneyField } from '../ui/MoneyField';
 import { Textarea } from '../ui/Textarea';
-import { SectionHeading } from '../ui/SectionHeading';
+import { FormCard } from '../ui/FormCard';
+import { SegmentedControl } from '../ui/SegmentedControl';
+import { OperationFooter, type OperationFooterStat } from '../ui/OperationFooter';
 import { ClientLinker } from './ClientLinker';
 import { SmartPricePanel } from './SmartPricePanel';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
-import { SparklesIcon } from '../icons/SparklesIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
+import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
+import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { parseAndEvaluate } from '../../utils';
 import { formatNumber } from '../../pages/shared/pageFormat';
-import { getFirstValidationMessage } from '../../utils/financialUx';
+import { translateFormMessage } from '../../utils/formMessages';
 import { getTransactionTagLabel } from '../../utils/transactionTerminology';
 
 const QUICK_TAGS = [
@@ -40,16 +43,16 @@ function TagInput({ tags, setTags, t }: { tags: string[]; setTags: (t: string[])
             {tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                     {tags.map((tag) => (
-                        <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                        <span key={tag} className="inline-flex min-h-8 items-center gap-1 rounded-full bg-primary/10 pe-1 ps-3 text-xs font-bold text-primary dark:text-primary-light">
                             {getTransactionTagLabel(tag, t)}
-                            <button type="button" onClick={() => removeTag(tag)} className="text-primary/60 hover:text-primary" aria-label={`${t('transactions.removeTag')} ${getTransactionTagLabel(tag, t)}`}>×</button>
+                            <button type="button" onClick={() => removeTag(tag)} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-base leading-none text-primary/70 hover:bg-primary/10 hover:text-primary" aria-label={`${t('transactions.removeTag')} ${getTransactionTagLabel(tag, t)}`}>×</button>
                         </span>
                     ))}
                 </div>
             )}
             <div className="flex flex-wrap gap-1.5">
                 {QUICK_TAGS.filter(({ value }) => !tags.includes(value)).map(({ value, labelKey }) => (
-                    <button key={value} type="button" onClick={() => addTag(value)} className="rounded-full border border-dashed border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-500 hover:border-primary hover:text-primary transition-colors">
+                    <button key={value} type="button" onClick={() => addTag(value)} className="inline-flex min-h-8 items-center rounded-full border border-dashed border-border-strong px-3 text-xs font-semibold text-neutral-600 transition-colors hover:border-primary hover:text-primary">
                         + {t(labelKey)}
                     </button>
                 ))}
@@ -60,7 +63,8 @@ function TagInput({ tags, setTags, t }: { tags: string[]; setTags: (t: string[])
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(input); } }}
                 placeholder={t('transactions.addTagPlaceholder')}
-                className="h-9 w-full rounded-button border border-border bg-surface px-3 text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                aria-label={t('transactions.addTagPlaceholder')}
+                className="min-h-10 w-full rounded-button border border-border-strong bg-surface px-3 text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
         </div>
     );
@@ -260,12 +264,38 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
             return null;
         return { quantity, price, total: totalInput, profitEstimate };
     })();
-    const disabledReason = getFirstValidationMessage(formValidation?.errors, t('transactions.validationReason') || t('common.fillAllFields'));
     const isChoosingSource = (mode === 'buy_usdt' && !buyUsdtMode) || (mode === 'sell_usdt' && !editingTx && !sellUsdtSourceSelected);
-    const segBase = 'bg-neutral-100';
-    const segItem = (active: boolean, activeClass: string) => `flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${active
-        ? activeClass
-        : ('text-neutral-600 hover:text-neutral-800')} ${editingTx ? 'cursor-not-allowed opacity-70' : ''}`;
+    // Display only: nothing from here to the end of the window changes what is saved.
+    // A calm form: an empty field never turns red. What is still missing, or the first typed value
+    // to correct, is said once next to the Confirm button, in the reader's language.
+    const fieldValues: Record<string, unknown> = { buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, sellEurToDzdRate: pamEurToDzdRateInput, linkedClientId, linkedClientDzdId, creditDueDate };
+    const isFieldFilled = (field: string) => {
+        const value = fieldValues[field];
+        return value !== undefined && value !== null && value !== '' && value !== 'none';
+    };
+    const fieldError = (field: string) => (isFieldFilled(field) ? translateFormMessage(formValidation.errors[field], t) : undefined);
+    const errorEntries = Object.entries((formValidation?.errors || {}) as Record<string, string>).filter(([, message]) => Boolean(message));
+    const entryToFix = errorEntries.find(([field]) => isFieldFilled(field));
+    const reasonEntry = entryToFix ?? errorEntries[0];
+    const saveBlockedReason = formValidation.isValid
+        ? undefined
+        : (reasonEntry ? translateFormMessage(reasonEntry[1], t) : undefined) || (t('transactions.validationReason') as string) || (t('common.fillAllFields') as string);
+    // The total stays visible at the bottom: the same number as the Total field.
+    const totalFieldValue = isSellMode ? sellTotal : mode === 'buy_eur' ? buyEurTotal : buyUsdtMode === 'with_dzd' ? buyUsdtTotal : '';
+    const totalFieldNumber = parseAndEvaluate(totalFieldValue || '');
+    const totalFieldCurrency = isUsdtSellSettledInEur ? 'EUR' : 'DZD';
+    const footerStats: OperationFooterStat[] = [];
+    if (!isChoosingSource && Number.isFinite(totalFieldNumber) && totalFieldNumber > 0)
+        footerStats.push({
+            label: isUsdtSellSettledInEur ? t('transactions.eurReceived') : t('transactions.totalAmount'),
+            value: `${totalFieldNumber.toLocaleString('fr-FR', { minimumFractionDigits: totalFieldCurrency === 'EUR' ? 2 : 0, maximumFractionDigits: 2 })} ${totalFieldCurrency}`,
+        });
+    if (!isChoosingSource && transactionSummary && transactionSummary.profitEstimate !== null)
+        footerStats.push({
+            label: t('transactions.estimatedProfit'),
+            value: `${transactionSummary.profitEstimate >= 0 ? '+' : ''}${formatPreviewNumber(transactionSummary.profitEstimate, 0)} DZD`,
+            tone: transactionSummary.profitEstimate >= 0 ? 'profit' : 'loss',
+        });
     const renderSellQuantityField = () => (
         <MoneyField label={t('transactions.quantity')} value={sellAmount} onChange={(val) => {
             markSellFieldEdited('quantity');
@@ -278,24 +308,21 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
             const qty = parseAndEvaluate(sellAmount);
             if (!isNaN(qty) && qty > 0)
                 setSellAmount(qty.toFixed(2));
-        }} currency={activeCurrency as 'USDT' | 'EUR'} onMax={applySellBalanceMax} hint={`${t('common.balance')}: ${activeStats.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${activeCurrency}`} error={formValidation.errors['sellAmount']}/>
+        }} currency={activeCurrency as 'USDT' | 'EUR'} onMax={applySellBalanceMax} hint={`${t('common.balance')}: ${activeStats.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${activeCurrency}`} error={fieldError('sellAmount')}/>
     );
     const renderSellPriceField = () => (
         <div>
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-                <span className="text-sm text-neutral-700">{t('transactions.sellPrice')} ({sellPriceUnitLabel})</span>
-            </div>
-            <MoneyField label="" value={sellPrice} onChange={(val) => {
+            <MoneyField label={`${t('transactions.sellPrice')} (${sellPriceUnitLabel})`} value={sellPrice} onChange={(val) => {
                 markSellFieldEdited('price');
                 setSellPrice(val);
                 const price = parseAndEvaluate(val);
                 updateSellLinkedFieldsAfterPriceChange(price);
                 updateSellPriceMargin(price);
-            }} className="-mt-2" error={formValidation.errors['sellPrice']}/>
-            <div className="mt-1.5 grid gap-1 text-xs text-neutral-500 sm:grid-cols-2 sm:items-center">
-                <span dir="ltr" className="min-w-0 tabular-nums">{t('portfolio.currentPam')}: {activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span>
-                {parseAndEvaluate(profitPercent) !== 0 && (<span dir="ltr" className={`min-w-0 tabular-nums sm:text-end ${parseAndEvaluate(profitPercent) > 0 ? 'text-financial-profit font-medium' : 'text-financial-loss font-medium'}`}>
-                        {t('transactions.unitMargin')}: {parseAndEvaluate(profitPercent) > 0 ? '+' : ''}{parseAndEvaluate(profitPercent).toFixed(2)} {t('common.dinar')}
+            }} error={fieldError('sellPrice')}/>
+            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-neutral-500">
+                <span className="min-w-0">{t('portfolio.currentPam')}: <span dir="ltr" className="font-semibold tabular-nums text-neutral-700">{activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span></span>
+                {parseAndEvaluate(profitPercent) !== 0 && (<span className={`min-w-0 font-semibold ${parseAndEvaluate(profitPercent) > 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
+                        {t('transactions.unitMargin')}: <span dir="ltr" className="tabular-nums">{parseAndEvaluate(profitPercent) > 0 ? '+' : ''}{parseAndEvaluate(profitPercent).toFixed(2)} {t('common.dinar')}</span>
                     </span>)}
             </div>
         </div>
@@ -317,17 +344,18 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
             const total = parseAndEvaluate(sellTotal);
             if (!isNaN(total) && total > 0)
                 setSellTotal(isUsdtSellSettledInEur ? total.toFixed(2) : Math.round(total).toString());
-        }} currency={sellTotalCurrencyLabel === 'EUR' ? 'EUR' : 'DZD'} onMax={isUsdtSellSettledInEur ? undefined : applyClientMaxToSellTotal} maxDisabled={!hasPrimaryClient || selectedClientTotal <= 0} error={formValidation.errors['sellTotal']}/>
+        }} currency={sellTotalCurrencyLabel === 'EUR' ? 'EUR' : 'DZD'} onMax={isUsdtSellSettledInEur ? undefined : applyClientMaxToSellTotal} maxDisabled={!hasPrimaryClient || selectedClientTotal <= 0} error={fieldError('sellTotal')}/>
     );
+    const readonlyEurRateError = translateFormMessage(formValidation.errors['sellEurToDzdRate'], t);
     const renderReadonlyEurRateField = () => (
         <div>
             <p className="mb-1.5 text-sm font-medium text-neutral-700">{t('portfolio.rateEurDzd')} (DZD)</p>
-            <div className={`flex min-h-input w-full items-center justify-between rounded-button border px-3 py-2 ${formValidation.errors['sellEurToDzdRate'] ? 'border-danger ring-1 ring-danger' : 'border-border-strong'} bg-surface-muted text-neutral-600`}>
+            <div className={`flex min-h-input w-full items-center justify-between rounded-button border px-3 py-2 ${readonlyEurRateError ? 'border-danger ring-1 ring-danger' : 'border-border-strong'} bg-surface-muted text-neutral-600`}>
                 <span dir="ltr" className="tabular-nums">{pamEurToDzdRateInput || '0.00'}</span>
                 <span className="text-xs text-neutral-400">DZD</span>
             </div>
-            <p className={`mt-1 text-xs ${formValidation.errors['sellEurToDzdRate'] ? 'font-medium text-danger' : 'text-neutral-500'}`}>
-                {formValidation.errors['sellEurToDzdRate'] || `${t('portfolio.currentPam')} EUR (lecture seule) : ${pamEurToDzdRateInput || '0.00'} DZD`}
+            <p className={`mt-1 text-xs ${readonlyEurRateError ? 'font-medium text-danger' : 'text-neutral-500'}`}>
+                {readonlyEurRateError || <>{t('portfolio.currentPam')} EUR ({t('transactions.readOnly')}) : <span dir="ltr" className="tabular-nums">{pamEurToDzdRateInput || '0.00'} DZD</span></>}
             </p>
         </div>
     );
@@ -346,113 +374,84 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
         if (learnedSettleDays === null) return;
         setCreditDueDate(new Date(Date.now() + learnedSettleDays * 86_400_000).toISOString().slice(0, 10));
     }, [isSellMode, isUsdtSellSettledInEur, editingTx, clientPaymentStatus, linkedClientId, creditDueDate, learnedSettleDays, setCreditDueDate]);
+    const renderSourceChoice = (onClick: () => void, icon: React.ReactNode, title: string, detail: string) => (
+        <button type="button" onClick={onClick} className="flex min-h-touch w-full items-center gap-3 rounded-button px-2 py-2.5 text-start transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-financial-asset-bg text-financial-asset">{icon}</span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-bold text-neutral-900">{title}</span>
+                <span className="block text-xs text-neutral-500">{detail}</span>
+            </span>
+            <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100"/>
+        </button>
+    );
+    const renderStockAvailability = () => (
+        <FormCard title={t('transactions.stockAvailability')}>
+            <SegmentedControl size="md" ariaLabel={t('transactions.stockAvailability') as string} value={buyRestriction === 'locked_24h' ? 'locked_24h' : 'free'} onChange={(restriction) => setBuyRestriction(restriction)} options={[
+                { id: 'free', label: t('transactions.stockFree'), tone: 'profit' },
+                { id: 'locked_24h', label: t('transactions.stockLocked24h'), tone: 'debt' },
+            ]}/>
+            {buyRestriction === 'locked_24h' && (<div className="space-y-2 rounded-button bg-financial-debt-bg px-3 py-2.5">
+                <p className="text-xs leading-relaxed text-financial-debt">{t('transactions.stockLock24h')}</p>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                    <label htmlFor="real_purchase_time" className="text-xs font-semibold text-neutral-700">{t('transactions.actualPurchaseTime')}</label>
+                    <input id="real_purchase_time" type="time" value={realPurchaseTime ?? ''} onChange={(e) => setRealPurchaseTime(e.target.value)} className="h-9 rounded-button border border-border-strong bg-surface px-2 text-sm tabular-nums text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary/50"/>
+                    {unlockPreviewTime && (<span className="text-xs font-semibold text-financial-debt">{t('transactions.unlocksAt')} <span dir="ltr" className="tabular-nums">{unlockPreviewTime}</span></span>)}
+                </div>
+            </div>)}
+        </FormCard>
+    );
+    const clientLinkerErrors = { errorMessage: fieldError('linkedClientId'), hasError: !!fieldError('linkedClientId'), errorMessageDzd: fieldError('linkedClientDzdId'), hasErrorDzd: !!fieldError('linkedClientDzdId') };
+    const creditDueDateError = translateFormMessage(formValidation.errors.creditDueDate, t);
     return (<><Modal isOpen={mode !== null} onClose={closeForm} className="bg-surface max-w-md">
             <ModalHeader onClose={closeForm}>
                 <ModalTitle className="text-base sm:text-lg">{editingTx ? t('common.edit') : t('transactions.newTransaction')}</ModalTitle>
             </ModalHeader>
 
-            <ModalContent className="px-4 py-4 space-y-4 sm:px-5">
+            <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
                 {mode && (<>
-                        {/* Compact segmented controls — Operation + Currency */}
-                        <div className="space-y-2">
-                            <div className={`flex gap-1 rounded-xl p-1 ${segBase}`}>
-                                <button type="button" onClick={() => switchOperation('buy')} disabled={!!editingTx} className={segItem(isBuyMode, 'bg-success text-white shadow-sm')}>
-                                    {t('transactions.buy')}
-                                </button>
-                                <button type="button" onClick={() => switchOperation('sell')} disabled={!!editingTx} className={segItem(isSellMode, 'bg-danger text-white shadow-sm')}>
-                                    {t('transactions.sell')}
-                                </button>
+                        {/* What: operation and currency, then the balance and average price they act on */}
+                        <FormCard>
+                            <div className="grid grid-cols-2 gap-2">
+                                <SegmentedControl size="md" ariaLabel={t('transactions.operationType') as string} value={isBuyMode ? 'buy' : 'sell'} onChange={switchOperation} disabled={!!editingTx} options={[
+                                    { id: 'buy', label: <><ArrowDownLeftIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{t('transactions.buy')}</>, tone: 'profit' },
+                                    { id: 'sell', label: <><ArrowUpRightIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{t('transactions.sell')}</>, tone: 'loss' },
+                                ]}/>
+                                <SegmentedControl size="md" ariaLabel={t('transactions.currencyLabel') as string} value={activeCurrency as 'USDT' | 'EUR'} onChange={switchCurrency} disabled={!!editingTx} options={[
+                                    { id: 'USDT', label: 'USDT', tone: 'primary' },
+                                    { id: 'EUR', label: 'EUR', tone: 'primary' },
+                                ]}/>
                             </div>
-                            <div className={`flex gap-1 rounded-xl p-1 ${segBase}`}>
-                                <button type="button" onClick={() => switchCurrency('USDT')} disabled={!!editingTx} className={segItem(activeCurrency === 'USDT', 'bg-primary text-white shadow-sm')}>
-                                    USDT
-                                </button>
-                                <button type="button" onClick={() => switchCurrency('EUR')} disabled={!!editingTx} className={segItem(activeCurrency === 'EUR', 'bg-primary text-white shadow-sm')}>
-                                    EUR
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Inline balance + PAM hint (not a card) */}
-                        <div className={`flex items-center justify-between text-xs text-neutral-500 px-1`}>
-                            <span>{t('common.balance')}: <span dir="ltr" className="font-semibold text-neutral-700 tabular-nums">{activeStats.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeCurrency}</span></span>
-                            <span>{t('portfolio.currentPam')}: <span dir="ltr" className="font-semibold text-neutral-700 tabular-nums">{activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span></span>
-                        </div>
+                            <dl className="grid grid-cols-2 gap-2">
+                                <div className="min-w-0 rounded-button bg-surface-muted px-3 py-2">
+                                    <dt className="truncate text-[11px] font-semibold text-neutral-500">{t('common.balance')}</dt>
+                                    <dd className="mt-0.5 text-sm font-bold tabular-nums text-neutral-900"><span dir="ltr">{activeStats.available.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeCurrency}</span></dd>
+                                </div>
+                                <div className="min-w-0 rounded-button bg-surface-muted px-3 py-2">
+                                    <dt className="truncate text-[11px] font-semibold text-neutral-500">{t('portfolio.currentPam')}</dt>
+                                    <dd className="mt-0.5 text-sm font-bold tabular-nums text-neutral-900"><span dir="ltr">{activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span></dd>
+                                </div>
+                            </dl>
+                        </FormCard>
 
                         {/* Buy USDT: choose funding source */}
-                        {mode === 'buy_usdt' && !buyUsdtMode && (<div className="space-y-3 pt-1">
-                                <div>
-                                    <SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>
-                                        {t('transactions.fundingQuestion')}
-                                    </SectionHeading>
-                                    <p className="mt-1 text-sm text-neutral-500">{t('transactions.fundingHint')}</p>
+                        {mode === 'buy_usdt' && !buyUsdtMode && (<FormCard title={t('transactions.fundingQuestion')} description={t('transactions.fundingHint')}>
+                                <div className="-mx-2 -my-1 divide-y divide-border">
+                                    {renderSourceChoice(() => setBuyUsdtMode('with_dzd'), <BanknotesIcon className="h-5 w-5"/>, t('portfolio.buyWithDzd'), t('common.dinar'))}
+                                    {renderSourceChoice(() => { setBuyUsdtMode('with_eur'); setEurDzdPrice(portfolioStats.eur.avgBuy.toFixed(2)); }, <WalletIcon className="h-5 w-5"/>, t('portfolio.buyWithEur'), 'EUR')}
                                 </div>
-                                <div className="space-y-2">
-                                    <button type="button" onClick={() => setBuyUsdtMode('with_dzd')} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-start transition-colors bg-surface-muted hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-financial-asset-bg text-primary">
-                                                <BanknotesIcon className="h-5 w-5"/>
-                                            </div>
-                                            <div className="min-w-0">
-                                                <p className="text-base font-semibold">{t('portfolio.buyWithDzd')}</p>
-                                                <p className={`text-xs text-neutral-500`}>{t('common.dinar')}</p>
-                                            </div>
-                                        </div>
-                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100`}/>
-                                    </button>
-                                    <button type="button" onClick={() => { setBuyUsdtMode('with_eur'); setEurDzdPrice(portfolioStats.eur.avgBuy.toFixed(2)); }} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-start transition-colors bg-surface-muted hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-financial-asset-bg text-primary">
-                                                <WalletIcon className="h-5 w-5"/>
-                                            </div>
-                                            <div className="min-w-0">
-                                                <p className="text-base font-semibold">{t('portfolio.buyWithEur')}</p>
-                                                <p className={`text-xs text-neutral-500`}>EUR</p>
-                                            </div>
-                                        </div>
-                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100`}/>
-                                    </button>
-                                </div>
-                            </div>)}
+                            </FormCard>)}
 
                         {/* Sell USDT: choose settlement source */}
-                        {mode === 'sell_usdt' && !sellUsdtSourceSelected && !editingTx && (<div className="space-y-3 pt-1">
-                                <div>
-                                    <SectionHeading icon={<SparklesIcon className="w-4 h-4"/>}>
-                                        {t('transactions.saleSourceQuestion')}
-                                    </SectionHeading>
-                                    <p className="mt-1 text-sm text-neutral-500">{t('transactions.saleSourceHint')}</p>
+                        {mode === 'sell_usdt' && !sellUsdtSourceSelected && !editingTx && (<FormCard title={t('transactions.saleSourceQuestion')} description={t('transactions.saleSourceHint')}>
+                                <div className="-mx-2 -my-1 divide-y divide-border">
+                                    {renderSourceChoice(chooseSellWithDzd, <BanknotesIcon className="h-5 w-5"/>, t('portfolio.sellWithDzd'), t('common.dinar'))}
+                                    {renderSourceChoice(chooseSellWithEur, <WalletIcon className="h-5 w-5"/>, t('portfolio.sellWithEur'), 'EUR')}
                                 </div>
-                                <div className="space-y-2">
-                                    <button type="button" onClick={chooseSellWithDzd} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-start transition-colors bg-surface-muted hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-financial-asset-bg text-primary">
-                                                <BanknotesIcon className="h-5 w-5"/>
-                                            </div>
-                                            <div className="min-w-0">
-                                                <p className="text-base font-semibold">{t('portfolio.sellWithDzd')}</p>
-                                                <p className={`text-xs text-neutral-500`}>{t('common.dinar')}</p>
-                                            </div>
-                                        </div>
-                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100`}/>
-                                    </button>
-                                    <button type="button" onClick={chooseSellWithEur} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-start transition-colors bg-surface-muted hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-financial-asset-bg text-primary">
-                                                <WalletIcon className="h-5 w-5"/>
-                                            </div>
-                                            <div className="min-w-0">
-                                                <p className="text-base font-semibold">{t('portfolio.sellWithEur')}</p>
-                                                <p className={`text-xs text-neutral-500`}>EUR</p>
-                                            </div>
-                                        </div>
-                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100`}/>
-                                    </button>
-                                </div>
-                            </div>)}
+                            </FormCard>)}
 
                         {/* Buy USDT with DZD */}
-                        {buyUsdtMode === 'with_dzd' && (<div className="space-y-3">
+                        {buyUsdtMode === 'with_dzd' && (<>
+                                <FormCard title={t('transactions.stepAmounts')}>
                                 <MoneyField label={t('transactions.quantity')} value={buyUsdtAmount} onChange={(val) => {
                     setBuyUsdtAmount(val);
                     const qty = parseAndEvaluate(val);
@@ -466,7 +465,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                     const qty = parseAndEvaluate(buyUsdtAmount);
                     if (!isNaN(qty) && qty > 0)
                         setBuyUsdtAmount(qty.toFixed(2));
-                }} currency="USDT" error={formValidation.errors['buyUsdtAmount']}/>
+                }} currency="USDT" error={fieldError('buyUsdtAmount')}/>
                                 <MoneyField label={t('transactions.buyPrice')} value={buyUsdtPrice} onChange={(val) => {
                     setBuyUsdtPrice(val);
                     const qty = parseAndEvaluate(buyUsdtAmount);
@@ -476,7 +475,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                         setBuyUsdtTotal((qty * price).toFixed(0));
                     else if (price === 0 || val === '')
                         setBuyUsdtTotal('');
-                }} currency="DZD" error={formValidation.errors['buyUsdtPrice']}/>
+                }} currency="DZD" error={fieldError('buyUsdtPrice')}/>
                                 <MoneyField label={t('transactions.totalAmount')} value={buyUsdtTotal} onChange={(val) => {
                     setBuyUsdtTotal(val);
                     if (val) {
@@ -497,34 +496,20 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                     const total = parseAndEvaluate(buyUsdtTotal);
                     if (!isNaN(total) && total > 0)
                         setBuyUsdtTotal(Math.round(total).toString());
-                }} currency="DZD" onMax={applyClientMaxToBuyTotal} maxDisabled={!hasPrimaryClient || selectedClientTotal <= 0} error={formValidation.errors['buyUsdtTotal']} hint={t('transactions.autoCalc')} placeholder={t('transactions.autoCalc')}/>
-                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} errorMessage={formValidation.errors['linkedClientId']} hasError={!!formValidation.errors['linkedClientId']} errorMessageDzd={formValidation.errors['linkedClientDzdId']} hasErrorDzd={!!formValidation.errors['linkedClientDzdId']}/>
-                                <div className="space-y-1.5">
-                                    <p className="text-sm font-medium text-neutral-700">{t('transactions.stockAvailability')}</p>
-                                    <div className="flex gap-1 rounded-xl p-1 bg-neutral-100">
-                                        <button type="button" onClick={() => setBuyRestriction('free')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction !== 'locked_24h' ? 'bg-success text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
-                                            Disponible
-                                        </button>
-                                        <button type="button" onClick={() => setBuyRestriction('locked_24h')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction === 'locked_24h' ? 'bg-warning text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
-                                            Bloqué 24h
-                                        </button>
-                                    </div>
-                                    {buyRestriction === 'locked_24h' && (<>
-                                        <p className="text-xs text-warning px-1">{t('transactions.stockLock24h')}</p>
-                                        <div className="flex items-center gap-2 px-1 pt-0.5">
-                                            <label className="text-xs font-medium text-neutral-600 whitespace-nowrap">{t('transactions.actualPurchaseTime')}</label>
-                                            <input type="time" value={realPurchaseTime ?? ''} onChange={(e) => setRealPurchaseTime(e.target.value)} className="h-8 rounded-lg border border-border bg-surface px-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"/>
-                                            {unlockPreviewTime && (<span className="text-xs text-warning whitespace-nowrap">→ {unlockPreviewTime}</span>)}
-                                        </div>
-                                    </>)}
-                                </div>
-                            </div>)}
+                }} currency="DZD" onMax={applyClientMaxToBuyTotal} maxDisabled={!hasPrimaryClient || selectedClientTotal <= 0} error={fieldError('buyUsdtTotal')} hint={t('transactions.autoCalc')}/>
+                                </FormCard>
+                                <FormCard title={t('transactions.clientAndSettlement')}>
+                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} {...clientLinkerErrors}/>
+                                </FormCard>
+                                {renderStockAvailability()}
+                            </>)}
 
                         {/* Buy USDT with EUR */}
-                        {buyUsdtMode === 'with_eur' && (<div className="space-y-3">
-                                <MoneyField label={t('transactions.quantity')} value={buyEurForUsdtAmount} onChange={setBuyEurForUsdtAmount} currency="EUR" onMax={() => setBuyEurForUsdtAmount(portfolioStats.eur.available.toString())} error={formValidation.errors['buyEurForUsdtAmount']} hint={`${t('portfolio.currentBalanceEur')}: ${portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} EUR`}/>
-                                <MoneyField label={t('portfolio.rateEurUsdt')} value={eurUsdtRate} onChange={setEurUsdtRate} error={formValidation.errors['eurUsdtRate']} placeholder="Ex: 0.92"/>
-                                <MoneyField label={t('portfolio.buyPriceEur')} value={eurDzdPrice} onChange={setEurDzdPrice} currency="DZD" error={formValidation.errors['eurDzdPrice']} hint={t('transactions.basedOnPamEur')} readOnly/>
+                        {buyUsdtMode === 'with_eur' && (<>
+                                <FormCard title={t('transactions.stepAmounts')}>
+                                <MoneyField label={t('transactions.quantity')} value={buyEurForUsdtAmount} onChange={setBuyEurForUsdtAmount} currency="EUR" onMax={() => setBuyEurForUsdtAmount(portfolioStats.eur.available.toString())} error={fieldError('buyEurForUsdtAmount')} hint={`${t('portfolio.currentBalanceEur')}: ${portfolioStats.eur.available.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} EUR`}/>
+                                <MoneyField label={t('portfolio.rateEurUsdt')} value={eurUsdtRate} onChange={setEurUsdtRate} error={fieldError('eurUsdtRate')} placeholder="Ex: 0.92"/>
+                                <MoneyField label={t('portfolio.buyPriceEur')} value={eurDzdPrice} onChange={setEurDzdPrice} currency="DZD" error={fieldError('eurDzdPrice')} hint={t('transactions.basedOnPamEur')} readOnly/>
                                 {(() => {
                     const eurQty = parseAndEvaluate(buyEurForUsdtAmount);
                     const eurPrice = parseAndEvaluate(eurDzdPrice);
@@ -538,56 +523,36 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                         ? (Number(portfolioStats.usdt.costBasis || 0) + (usdtQty * incomingUnitCostDzd))
                           / (Number(portfolioStats.usdt.purchasedQty || 0) + usdtQty)
                         : 0;
-                    return (<div className="rounded-xl border border-success/20 bg-financial-profit-bg p-3">
+                    return (<div className="rounded-button border border-success/20 bg-financial-profit-bg p-3">
                                             <div className="flex items-baseline justify-between gap-3">
-                                                <span className="text-xs text-financial-profit">{t('transactions.quantity')} USDT</span>
-                                                <span dir="ltr" className="text-lg font-bold text-financial-profit tabular-nums">{formatNumber(usdtQty, { min: 0, max: 2 })}</span>
+                                                <span className="text-xs font-semibold text-financial-profit">{t('transactions.quantity')} USDT</span>
+                                                <span dir="ltr" className="text-lg font-extrabold text-financial-profit tabular-nums">{formatNumber(usdtQty, { min: 0, max: 2 })}</span>
                                             </div>
-                                            <div className={`mt-1 flex items-baseline justify-between gap-3 text-xs text-neutral-500`}>
+                                            <div className="mt-1 flex items-baseline justify-between gap-3 text-xs text-neutral-600">
                                                 <span>{t('transactions.newBalance')}</span>
                                                 <span dir="ltr" className="font-semibold tabular-nums">{totalAfter.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
                                             </div>
                                             {projectedPamUsdt > 0 && (
-                                                <div className="mt-1 flex items-baseline justify-between gap-3 text-xs text-neutral-500">
+                                                <div className="mt-1 flex items-baseline justify-between gap-3 text-xs text-neutral-600">
                                                     <span>{t('portfolio.currentPam')} USDT</span>
                                                     <span dir="ltr" className="font-semibold tabular-nums">{formatNumber(projectedPamUsdt, { min: 2, max: 2 })} DZD</span>
                                                 </div>
                                             )}
                                         </div>);
                 })()}
-                                <div className="space-y-1.5">
-                                    <p className="text-sm font-medium text-neutral-700">{t('transactions.stockAvailability')}</p>
-                                    <div className="flex gap-1 rounded-xl p-1 bg-neutral-100">
-                                        <button type="button" onClick={() => setBuyRestriction('free')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction !== 'locked_24h' ? 'bg-success text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
-                                            Disponible
-                                        </button>
-                                        <button type="button" onClick={() => setBuyRestriction('locked_24h')} className={`flex-1 min-h-touch py-2 text-sm font-semibold rounded-lg transition-colors ${buyRestriction === 'locked_24h' ? 'bg-warning text-white shadow-sm' : 'text-neutral-600 hover:text-neutral-800'}`}>
-                                            Bloqué 24h
-                                        </button>
-                                    </div>
-                                    {buyRestriction === 'locked_24h' && (<>
-                                        <p className="text-xs text-warning px-1">{t('transactions.stockLock24h')}</p>
-                                        <div className="flex items-center gap-2 px-1 pt-0.5">
-                                            <label className="text-xs font-medium text-neutral-600 whitespace-nowrap">{t('transactions.actualPurchaseTime')}</label>
-                                            <input type="time" value={realPurchaseTime ?? ''} onChange={(e) => setRealPurchaseTime(e.target.value)} className="h-8 rounded-lg border border-border bg-surface px-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"/>
-                                            {unlockPreviewTime && (<span className="text-xs text-warning whitespace-nowrap">→ {unlockPreviewTime}</span>)}
-                                        </div>
-                                    </>)}
-                                </div>
-                            </div>)}
+                                </FormCard>
+                                {renderStockAvailability()}
+                            </>)}
 
                         {/* Sell USDT/EUR */}
-                        {isSellMode && (mode !== 'sell_usdt' || sellUsdtSourceSelected || !!editingTx) && (<div className="space-y-3">
+                        {isSellMode && (mode !== 'sell_usdt' || sellUsdtSourceSelected || !!editingTx) && (<>
+                                <FormCard title={t('transactions.stepAmounts')}>
                                 {mode === 'sell_usdt' && (<div>
-                                        <p className="text-xs font-medium mb-1.5 text-neutral-500">{t('transactions.settlementCurrency')}</p>
-                                        <div className={`flex gap-1 rounded-xl p-1 ${segBase}`}>
-                                            <button type="button" onClick={chooseSellWithDzd} className={segItem(sellSettlementCurrency !== 'EUR', 'bg-primary text-white shadow-sm')}>
-                                                DZD
-                                            </button>
-                                            <button type="button" onClick={chooseSellWithEur} className={segItem(sellSettlementCurrency === 'EUR', 'bg-primary text-white shadow-sm')}>
-                                                EUR
-                                            </button>
-                                        </div>
+                                        <p className="mb-1.5 text-sm font-medium text-neutral-700">{t('transactions.settlementCurrency')}</p>
+                                        <SegmentedControl size="md" ariaLabel={t('transactions.settlementCurrency') as string} value={sellSettlementCurrency === 'EUR' ? 'EUR' : 'DZD'} onChange={(currency) => (currency === 'EUR' ? chooseSellWithEur() : chooseSellWithDzd())} options={[
+                                            { id: 'DZD', label: 'DZD', tone: 'primary' },
+                                            { id: 'EUR', label: 'EUR', tone: 'primary' },
+                                        ]}/>
                                     </div>)}
 
                                 {isUsdtSellSettledInEur ? (<>
@@ -600,27 +565,31 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                     {renderSellPriceField()}
                                     {renderSellTotalField()}
                                 </>)}
+                                </FormCard>
 
-                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} allowBaridiDzdLink hidePaymentStatus={isUsdtSellSettledInEur} hideLinkedDzdClient={isUsdtSellSettledInEur} errorMessage={formValidation.errors['linkedClientId']} hasError={!!formValidation.errors['linkedClientId']} errorMessageDzd={formValidation.errors['linkedClientDzdId']} hasErrorDzd={!!formValidation.errors['linkedClientDzdId']}/>
+                                <FormCard title={t('transactions.clientAndSettlement')}>
+                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} allowBaridiDzdLink hidePaymentStatus={isUsdtSellSettledInEur} hideLinkedDzdClient={isUsdtSellSettledInEur} {...clientLinkerErrors}/>
                                 {!isUsdtSellSettledInEur && clientPaymentStatus === 'credit' && (
-                                    <label className="block text-sm font-medium text-neutral-700">
-                                        {t('smartPricing.dueDate')}
+                                    <div>
+                                        <label htmlFor="credit_due_date" className="mb-1.5 block text-sm font-medium text-neutral-700">{t('smartPricing.dueDate')}</label>
                                         <input
+                                            id="credit_due_date"
                                             type="date"
                                             value={creditDueDate || ''}
                                             min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
                                             onChange={(event) => setCreditDueDate(event.target.value)}
-                                            className={`mt-1.5 min-h-input w-full rounded-xl border bg-surface px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 ${formValidation.errors.creditDueDate ? 'border-danger' : 'border-border'}`}
-                                            aria-invalid={!!formValidation.errors.creditDueDate}
+                                            className={`min-h-input w-full rounded-button border bg-surface px-3 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary/40 ${creditDueDateError ? 'border-danger ring-1 ring-danger' : 'border-border-strong'}`}
+                                            aria-invalid={!!creditDueDateError}
                                         />
-                                        {formValidation.errors.creditDueDate && <span role="alert" className="mt-1 block text-xs text-financial-loss">{formValidation.errors.creditDueDate}</span>}
+                                        {creditDueDateError && <span role="alert" className="mt-1 block text-xs font-medium text-financial-loss">{creditDueDateError}</span>}
                                         {learnedSettleDays !== null && (
-                                            <span className="mt-1 block text-xs font-normal text-neutral-500">
+                                            <span className="mt-1 block text-xs text-neutral-500">
                                                 {(t('smartPricing.avgSettleHint') as string).replace('{days}', String(learnedSettleDays))}
                                             </span>
                                         )}
-                                    </label>
+                                    </div>
                                 )}
+                                </FormCard>
                                 {!isUsdtSellSettledInEur && activeSmartPricing && (
                                     <SmartPricePanel
                                         smartPricing={activeSmartPricing}
@@ -641,10 +610,11 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                         smartQuoteRef={smartQuoteRef}
                                     />
                                 )}
-                            </div>)}
+                            </>)}
 
                         {/* Buy EUR */}
-                        {mode === 'buy_eur' && (<div className="space-y-3">
+                        {mode === 'buy_eur' && (<>
+                                <FormCard title={t('transactions.stepAmounts')}>
                                 <MoneyField label={t('transactions.quantity')} value={buyEurAmount} onChange={(val) => {
                     setBuyEurAmount(val);
                     const qty = parseAndEvaluate(val);
@@ -654,7 +624,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                         setBuyEurTotal((qty * price).toFixed(0));
                     else if (qty === 0 || val === '')
                         setBuyEurTotal('');
-                }} currency="EUR" error={formValidation.errors['buyEurAmount']}/>
+                }} currency="EUR" error={fieldError('buyEurAmount')}/>
                                 <MoneyField label={t('portfolio.buyPriceEur')} value={buyEurPrice} onChange={(val) => {
                     setBuyEurPrice(val);
                     const qty = parseAndEvaluate(buyEurAmount);
@@ -664,7 +634,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                         setBuyEurTotal((qty * price).toFixed(0));
                     else if (price === 0 || val === '')
                         setBuyEurTotal('');
-                }} currency="DZD" error={formValidation.errors['buyEurPrice']} hint={t('transactions.basedOnPamEur')}/>
+                }} currency="DZD" error={fieldError('buyEurPrice')} hint={t('transactions.basedOnPamEur')}/>
                                 <MoneyField label={t('transactions.totalAmount')} value={buyEurTotal} onChange={(val) => {
                     setBuyEurTotal(val);
                     if (val) {
@@ -685,18 +655,21 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                     const total = parseAndEvaluate(buyEurTotal);
                     if (!isNaN(total) && total > 0)
                         setBuyEurTotal(Math.round(total).toString());
-                }} currency="DZD" error={formValidation.errors['buyEurTotal']} hint={t('transactions.autoCalc')} placeholder={t('transactions.autoCalc')}/>
-                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} errorMessage={formValidation.errors['linkedClientId']} hasError={!!formValidation.errors['linkedClientId']} errorMessageDzd={formValidation.errors['linkedClientDzdId']} hasErrorDzd={!!formValidation.errors['linkedClientDzdId']}/>
-                            </div>)}
+                }} currency="DZD" error={fieldError('buyEurTotal')} hint={t('transactions.autoCalc')}/>
+                                </FormCard>
+                                <FormCard title={t('transactions.clientAndSettlement')}>
+                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} {...clientLinkerErrors}/>
+                                </FormCard>
+                            </>)}
 
                         {/* Notes + Tags (optional) */}
-                        {!isChoosingSource && (<>
+                        {!isChoosingSource && (<FormCard>
                             <Textarea
                                 label={t('common.notesOptional') as string}
                                 value={notes ?? ''}
                                 onChange={(e) => setNotes?.(e.target.value)}
                                 rows={2}
-                                placeholder="Ex: remarque, contexte..."
+                                placeholder={t('transactions.notesPlaceholder') as string}
                                 className="resize-none text-sm"
                             />
                             {setTxTags && (
@@ -706,28 +679,18 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                     t={t}
                                 />
                             )}
-                        </>)}
-
-                        {/* Compact summary (only when there's data) */}
-                        {transactionSummary && transactionSummary.profitEstimate !== null && (<div className={`rounded-xl px-3 py-2 text-sm flex items-center justify-between gap-2 ${transactionSummary.profitEstimate >= 0 ? 'bg-financial-profit-bg' : 'bg-financial-loss-bg'}`}>
-                                <span className={`text-xs font-medium ${transactionSummary.profitEstimate >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
-                                    {t('transactions.estimatedProfit')}
-                                </span>
-                                <span dir="ltr" className={`font-bold tabular-nums ${transactionSummary.profitEstimate >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
-                                    {transactionSummary.profitEstimate >= 0 ? '+' : ''}{formatPreviewNumber(transactionSummary.profitEstimate, 0)} DZD
-                                </span>
-                            </div>)}
+                        </FormCard>)}
                     </>)}
             </ModalContent>
 
-            {!isChoosingSource && (<ModalFooter>
+            {!isChoosingSource && (<OperationFooter stats={footerStats} reason={saveBlockedReason} reasonTone={entryToFix ? 'fix' : 'missing'}>
                     <Button onClick={closeForm} variant="outline">
                         {t('common.cancel')}
                     </Button>
-                    <Button onClick={mode?.startsWith('buy') ? handleBuy : handleSell} disabled={!formValidation.isValid} loading={isSaving} title={!formValidation.isValid ? disabledReason : undefined}>
+                    <Button onClick={mode?.startsWith('buy') ? handleBuy : handleSell} disabled={!formValidation.isValid} loading={isSaving} title={saveBlockedReason}>
                         {isSaving ? t('common.processing') : t('transactions.confirm')}
                     </Button>
-                </ModalFooter>)}
+                </OperationFooter>)}
         </Modal>
         <ConfirmDialog
             isOpen={!!pendingCreditRisk}

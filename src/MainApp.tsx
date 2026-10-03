@@ -2867,10 +2867,10 @@ export default function MainApp({ user }: {
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSourceAndSync,
         destination: walletTransferDest, setDestination: setWalletTransferDest, notes: walletTransferNotes, setNotes: setWalletTransferNotes,
         onMax: handleWalletTransferMaxClick, onSwap: handleSwapSourceDest, onConfirm: handleWalletTransfer, isInvalid: isWalletTransferInvalid,
-        isSaving, caisseBalance: getWalletTransferEditableBalance('Caisse'), baridiBalance: getWalletTransferEditableBalance('BaridiMob'), title: editingWalletTransferTx ? `${t('common.edit')} Virement interne` : 'Virement interne',
-        subtitle: 'Caisse ↔ BaridiMob', amountLabel: t('transactions.amount'), fromLabel: t('transactions.from'),
+        isSaving, caisseBalance: getWalletTransferEditableBalance('Caisse'), baridiBalance: getWalletTransferEditableBalance('BaridiMob'), title: editingWalletTransferTx ? `${t('common.edit')} ${t('transactions.internalTransferShort')}` : t('transactions.internalTransferShort'),
+        subtitle: `${t('transactions.cash')} ↔ ${t('transactions.baridi')}`, amountLabel: t('transactions.amount'), fromLabel: t('transactions.from'),
         toLabel: t('transactions.to'), sourceLabel: t('common.source'), destinationLabel: t('common.destination'),
-        notesOptionalLabel: t('common.notesOptional'), sameAccountErrorText: 'Impossible de selectionner le meme compte.',
+        notesOptionalLabel: t('common.notesOptional'), sameAccountErrorText: t('formErrors.sameWallet'),
         processingText: t('common.processing'), confirmText: editingWalletTransferTx ? t('common.save') : t('transactions.confirmTransfer')
     }), [isWalletTransferModalOpen, closeWalletTransferModal, fieldBase, walletTransferAmount, walletTransferSource, walletTransferDest, walletTransferNotes, setWalletTransferSourceAndSync, handleWalletTransferMaxClick, handleSwapSourceDest, handleWalletTransfer, isWalletTransferInvalid, isSaving, editingWalletTransferTx, treasuryStats.caisse, treasuryStats.baridi, t]);
     const clientTransferDialogProps = useMemo(() => ({

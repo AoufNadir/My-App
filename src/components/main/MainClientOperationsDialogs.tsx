@@ -1,10 +1,12 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../ui/Modal';
+import { Modal, ModalContent, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Label } from '../ui/Label';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
-import { Select } from '../ui/Select';
 import { NumberInput } from '../ui/NumberInput';
+import { FormCard } from '../ui/FormCard';
+import { OperationFooter, type OperationFooterStat } from '../ui/OperationFooter';
+import { SegmentedControl } from '../ui/SegmentedControl';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { ArrowDownIcon } from '../icons/ArrowDownIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
@@ -75,17 +77,22 @@ const resolveAdjustmentAutoPrice = (asset: string, treasuryCards: Array<{
     };
 };
 const adjustmentAssetOptions = [
-    { value: 'DZD-Caisse', label: 'DZD - Caisse' },
-    { value: 'DZD-Baridi', label: 'DZD - Baridi' },
-    { value: 'USDT', label: 'USDT' },
-    { value: 'EUR', label: 'EUR' }
+    { value: 'DZD-Caisse', label: 'DZD - Caisse', labelKey: 'transactions.assetDzdCaisse' },
+    { value: 'DZD-Baridi', label: 'DZD - Baridi', labelKey: 'transactions.assetDzdBaridi' },
+    { value: 'USDT', label: 'USDT', labelKey: '' },
+    { value: 'EUR', label: 'EUR', labelKey: '' }
 ] as const;
 type AdjustmentAssetOption = typeof adjustmentAssetOptions[number];
-const getAdjustmentAssetLabel = (asset: string) => adjustmentAssetOptions.find((option) => option.value === asset)?.label || asset;
-function AdjustmentAssetDropdown({ value, options, onChange }: {
+const assetOptionLabel = (option: AdjustmentAssetOption, t?: TranslateFn) => (option.labelKey ? getDisplayLabel(t, option.labelKey, option.label) : option.label);
+const getAdjustmentAssetLabel = (asset: string, t?: TranslateFn) => {
+    const option = adjustmentAssetOptions.find((item) => item.value === asset);
+    return option ? assetOptionLabel(option, t) : asset;
+};
+function AdjustmentAssetDropdown({ value, options, onChange, t }: {
     value: string;
     options: readonly AdjustmentAssetOption[];
     onChange: (value: AdjustmentAssetOption['value']) => void;
+    t?: TranslateFn;
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const ref = useRef<HTMLDivElement | null>(null);
@@ -111,12 +118,12 @@ function AdjustmentAssetDropdown({ value, options, onChange }: {
         };
     }, [isOpen]);
     return (<div ref={ref} className="relative">
-        <button type="button" onClick={() => setIsOpen((open) => !open)} className="flex min-h-input w-full items-center justify-between rounded-button border border-border bg-surface px-3 py-2 text-start text-sm font-medium text-neutral-900 transition-colors hover:border-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1" aria-haspopup="listbox" aria-expanded={isOpen}>
-            <span>{selected.label}</span>
+        <button type="button" onClick={() => setIsOpen((open) => !open)} className="flex min-h-input w-full items-center justify-between rounded-button border border-border-strong bg-surface px-3 py-2 text-start text-sm font-semibold text-neutral-900 transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1" aria-haspopup="listbox" aria-expanded={isOpen}>
+            <span>{assetOptionLabel(selected, t)}</span>
             <ArrowDownIcon className={`h-4 w-4 text-neutral-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}/>
         </button>
         {isOpen && (<div className="absolute z-40 mt-2 w-full overflow-hidden rounded-xl border border-border bg-surface shadow-dialog">
-            <div role="listbox" aria-label="Type d'Actif" className="py-1">
+            <div role="listbox" aria-label={getDisplayLabel(t, 'transactions.assetType', "Type d'Actif")} className="py-1">
                 {options.map((option) => {
             const isSelected = option.value === value;
             return (<button key={option.value} type="button" role="option" aria-selected={isSelected} onClick={() => {
@@ -125,7 +132,7 @@ function AdjustmentAssetDropdown({ value, options, onChange }: {
                 }} className={`flex min-h-touch w-full items-center justify-between px-4 py-3 text-start text-sm font-semibold transition-colors ${isSelected
                     ? 'bg-primary/10 text-primary'
                     : 'text-neutral-800 hover:bg-neutral-100'}`}>
-                        <span>{option.label}</span>
+                        <span>{assetOptionLabel(option, t)}</span>
                         {isSelected && <span className="h-2 w-2 rounded-full bg-primary"/>}
                     </button>);
         })}
@@ -213,7 +220,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     }, [isAdjustmentModalOpen, editingTreasuryTx, adjustmentAsset, adjustmentAuto.value, adjustmentPrice, setAdjustmentPrice]);
     const isCryptoAdjustment = adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR';
     const isDzdAdjustment = adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi';
-    const selectedAssetLabel = getAdjustmentAssetLabel(adjustmentAsset);
+    const selectedAssetLabel = getAdjustmentAssetLabel(adjustmentAsset, t);
     const selectedClient = (clientsDzd || []).find((client: any) => client.id === adjustmentClientId);
     const selectedClientName = selectedClient ? getClientFullName(selectedClient) : getDisplayLabel(t, 'transactions.noClient', 'Aucun client');
     const linkedClientBalance = Number(clientBalances?.get?.(adjustmentClientId) || 0);
@@ -290,49 +297,86 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
         : exceedsAvailableBalance
             ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: selectedAssetLabel })
             : '';
+    // Save rule of the client operation window, unchanged; also used below to say why Save is off.
+    const isVenteUsdt = normalizedClientTxType === 'Vente USDT';
+    const isAchatEur = normalizedClientTxType === 'Achat EUR';
+    const qtyVal = isVenteUsdt
+        ? parseAndEvaluate(clientTxUsdtAmount)
+        : isAchatEur
+            ? parseAndEvaluate(clientTxEurAmount)
+            : 0;
+    const priceVal = isVenteUsdt
+        ? parseAndEvaluate(clientTxSellPrice)
+        : isAchatEur
+            ? parseAndEvaluate(clientTxEurPrice)
+            : 0;
+    const amtVal = parseAndEvaluate(clientTxAmount);
+    const exceedsUsdt = isVenteUsdt && qtyVal > (portfolioStats?.usdt?.available || 0);
+    const isClientTxInvalid = (isVenteUsdt || isAchatEur)
+        ? (qtyVal <= 0 || priceVal <= 0 || exceedsUsdt)
+        : (!Number.isFinite(amtVal) || amtVal === 0 || (isClientSettlementTx && amtVal <= 0) || clientSettlementWalletInsufficient);
+    const isClientTxDisabled = isSaving || isClientTxInvalid;
+    // Display only from here: the reason next to the button, the amount kept at the bottom.
+    const insufficientUsdtText = formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: 'USDT' });
+    const insufficientWalletText = formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: clientSettlementWalletLabel });
+    const clientTxTyped = (isVenteUsdt || isAchatEur) ? Boolean(qtyVal > 0 || priceVal > 0) : clientTxAmount !== '' && clientTxAmount !== undefined;
+    const clientTxBlockedReason = isSaving || !isClientTxInvalid
+        ? undefined
+        : (isVenteUsdt || isAchatEur)
+            ? (exceedsUsdt ? insufficientUsdtText : qtyVal <= 0 ? getDisplayLabel(t, 'formErrors.quantityRequired', 'Quantité requise') : getDisplayLabel(t, 'formErrors.priceRequired', 'Prix requis'))
+            : clientSettlementWalletInsufficient
+                ? insufficientWalletText
+                : (!Number.isFinite(amtVal) || amtVal === 0)
+                    ? getDisplayLabel(t, 'transactions.enterValidAmount', 'Saisissez un montant valide.')
+                    : getDisplayLabel(t, 'transactions.enterPositiveSettlementAmount', 'Entrez un montant positif.');
+    const clientTxStats: OperationFooterStat[] = [];
+    if ((isVenteUsdt || isAchatEur) && qtyVal > 0 && priceVal > 0)
+        clientTxStats.push({ label: t('transactions.totalAmount'), value: formatMoney(qtyVal * priceVal, 'DZD') });
+    else if (!isVenteUsdt && !isAchatEur && Number.isFinite(amtVal) && amtVal !== 0)
+        clientTxStats.push({ label: t('transactions.clientBalanceImpact'), value: formatMoney(Math.abs(amtVal), 'DZD') });
+    const adjustmentTyped = !!adjustmentAmount;
+    const adjustmentBlockedReason = isConfirmDisabled && !isSaving ? confirmHelperText : undefined;
+    const adjustmentStats: OperationFooterStat[] = [];
+    if (Number.isFinite(parsedAdjustmentAmount) && parsedAdjustmentAmount > 0) {
+        adjustmentStats.push({ label: isCryptoAdjustment ? t('transactions.quantity') : t('transactions.amount'), value: formatMoney(parsedAdjustmentAmount, isCryptoAdjustment ? (adjustmentAsset as 'USDT' | 'EUR') : 'DZD'), tone: adjustmentTab === 'add' ? 'profit' : 'loss' });
+        const adjustmentPriceValue = parseAndEvaluate(adjustmentPrice);
+        if (isCryptoAdjustment && adjustmentPriceValue > 0)
+            adjustmentStats.push({ label: t('transactions.equivalentDzd'), value: formatMoney(parsedAdjustmentAmount * adjustmentPriceValue, 'DZD') });
+    }
     return (<>
             <Modal isOpen={isClientTxModalOpen} onClose={() => setIsClientTxModalOpen(false)} className="max-w-lg bg-surface">
                 <ModalHeader onClose={() => setIsClientTxModalOpen(false)}>
                     <ModalTitle className="text-base sm:text-lg">{editingClientTx ? t('transactions.editOperation') : t('transactions.newOperation')}</ModalTitle>
                 </ModalHeader>
-                <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
-                    {!editingClientTx && isClientSettlementTx && (<div>
-                            <Label>{t('transactions.operationType')}</Label>
-                            <Select id="tx_type_select" value={normalizedClientTxType} onChange={e => setClientTxType(e.target.value as any)} disabled={!!editingClientTx}>
-                                <option value="Règlement Reçu">{t('transactions.paymentReceived')}</option>
-                                <option value="Paiement Effectué">{t('transactions.paymentMade')}</option>
-                            </Select>
-                        </div>)}
+                <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
+                    {isClientSettlementTx && (<FormCard>
+                        {!editingClientTx && (<div>
+                                <Label>{t('transactions.operationType')}</Label>
+                                <SegmentedControl size="md" ariaLabel={t('transactions.operationType') as string} value={normalizedClientTxType} onChange={(type) => setClientTxType(type as any)} options={[
+                                    { id: 'Règlement Reçu', label: t('transactions.paymentReceived'), tone: 'profit' },
+                                    { id: 'Paiement Effectué', label: t('transactions.paymentMade'), tone: 'loss' },
+                                ]}/>
+                            </div>)}
 
-                    {isClientSettlementTx && (<div className="rounded-2xl border border-border bg-surface-muted p-3">
-                            <div className="mb-2 flex items-center justify-between gap-3">
-                                <Label>{t('transactions.settlementMethod')}</Label>
-                                <span className="rounded-full bg-surface px-2 py-1 text-xs font-semibold uppercase text-neutral-500 shadow-sm">
+                        <div>
+                            <div className="mb-1.5 flex items-center justify-between gap-3">
+                                <p className="text-sm font-semibold leading-snug text-neutral-700">{t('transactions.settlementMethod')}</p>
+                                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${isClientPaymentReceived ? 'bg-financial-profit-bg text-financial-profit' : 'bg-financial-loss-bg text-financial-loss'}`}>
                                     {isClientPaymentReceived ? t('transactions.add') : t('transactions.withdraw')}
                                 </span>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                {[
-                { value: 'cash', label: t('transactions.cash'), icon: <WalletIcon className="h-4 w-4"/>, activeClass: 'border-financial-profit bg-success-bg text-financial-profit' },
-                { value: 'baridi', label: t('transactions.baridi'), icon: <BanknotesIcon className="h-4 w-4"/>, activeClass: 'border-primary bg-primary/10 text-primary' }
-            ].map((option) => {
-                const isActive = settlementPaymentStatus === option.value;
-                return (<button key={option.value} type="button" onClick={() => setClientTxPaymentStatus?.(option.value)} className={`flex min-h-14 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-bold transition-all ${isActive
-                        ? option.activeClass
-                        : 'border-border bg-surface text-neutral-600 hover:border-border-strong'}`}>
-                                            {option.icon}
-                                            <span className="truncate">{option.label}</span>
-                                        </button>);
-            })}
-                            </div>
-                            <p className={`mt-2 text-xs leading-5 ${clientSettlementWalletInsufficient ? 'text-financial-loss' : 'text-neutral-500'}`}>
+                            <SegmentedControl size="md" ariaLabel={t('transactions.settlementMethod') as string} value={settlementPaymentStatus} onChange={(value) => setClientTxPaymentStatus?.(value)} options={[
+                                { id: 'cash', label: <><WalletIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{t('transactions.cash')}</>, tone: 'profit' },
+                                { id: 'baridi', label: <><BanknotesIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{t('transactions.baridi')}</>, tone: 'primary' },
+                            ]}/>
+                            <p className={`mt-1.5 text-xs leading-5 ${clientSettlementWalletInsufficient ? 'font-medium text-financial-loss' : 'text-neutral-500'}`}>
                                 {clientSettlementWalletInsufficient
                 ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant.', { asset: clientSettlementWalletLabel })
                 : clientSettlementHint}
                             </p>
-                        </div>)}
+                        </div>
 
-                    {canUseReceiverClient && (<div>
+                        {canUseReceiverClient && (<div>
                             <Label>{t('transactions.receivedBy')}</Label>
                             <SearchableSelect
                                 value={clientTxReceiverClientId}
@@ -356,8 +400,10 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                                             : formatMessage(t, 'transactions.payoutWalletFallback', 'Laissez vide si le client sélectionné a reçu le remboursement depuis {wallet}.', { wallet: clientSettlementWalletLabel })}
                             </p>
                         </div>)}
+                    </FormCard>)}
 
-                    {normalizedClientTxType === 'Vente USDT' ? (<div className="space-y-4">
+                    <FormCard>
+                    {normalizedClientTxType === 'Vente USDT' ? (<div className="space-y-3">
                             <div>
                                 <Label>{t('portfolio.qtyUsdt')}</Label>
                                 <NumberInput value={clientTxUsdtAmount} onChange={e => setClientTxUsdtAmount(e.target.value)}/>
@@ -366,7 +412,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                                 <Label>{t('portfolio.sellingPriceDzd')}</Label>
                                 <NumberInput value={clientTxSellPrice} onChange={e => setClientTxSellPrice(e.target.value)}/>
                             </div>
-                        </div>) : normalizedClientTxType === 'Achat EUR' ? (<div className="space-y-4">
+                        </div>) : normalizedClientTxType === 'Achat EUR' ? (<div className="space-y-3">
                             <div>
                                 <Label>{t('transactions.qtyEur')}</Label>
                                 <NumberInput value={clientTxEurAmount} onChange={e => setClientTxEurAmount(e.target.value)}/>
@@ -378,18 +424,18 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                         </div>) : (<div>
                             <Label>{t('transactions.amountDzd')}</Label>
                             <div className="relative">
-                                <Input type="text" inputMode="decimal" value={clientTxAmount} onChange={e => setClientTxAmount(e.target.value)} className="pe-20" placeholder={t('transactions.signedAmountPlaceholder')}/>
+                                <Input type="text" inputMode="decimal" value={clientTxAmount} onChange={e => setClientTxAmount(e.target.value)} className={`pe-20 ${clientTxTyped && clientTxBlockedReason ? 'border-danger ring-1 ring-danger' : ''}`} placeholder={t('transactions.signedAmountPlaceholder')}/>
                                 {isClientSettlementTx && (<button type="button" onClick={() => {
                     if (clientTxMaxDisabled)
                         return;
                     setClientTxAmount(formatCardValue(clientTxMaxAmount));
-                }} disabled={clientTxMaxDisabled} className={`absolute end-1 top-1/2 flex min-h-touch min-w-touch -translate-y-1/2 items-center justify-center rounded-md px-2 text-xs font-bold transition-colors ${clientTxMaxDisabled
+                }} disabled={clientTxMaxDisabled} className={`absolute end-1 top-1/2 flex h-button-sm min-w-button-sm -translate-y-1/2 items-center justify-center rounded-button px-2 text-xs font-bold transition-colors ${clientTxMaxDisabled
                     ? 'cursor-not-allowed bg-neutral-200 text-neutral-400'
                     : 'bg-primary text-white hover:bg-primary-dark'}`}>
                                         {t('common.max')}
                                     </button>)}
                             </div>
-                            <p className="mt-1 text-xs opacity-60">
+                            <p className="mt-1 text-xs text-neutral-500">
                                 {isClientSettlementTx ? t('transactions.enterPositiveSettlementAmount') : t('transactions.enterPositiveNegativeValue')}
                             </p>
                         </div>)}
@@ -459,74 +505,48 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                 return null;
             return (<TransactionPreviewCard title={t('transactions.confirmAndSave')} rows={rows.filter(r => r.label !== 'Type')} error={error}/>);
         })()}
+                    </FormCard>
                 </ModalContent>
-                <ModalFooter>
-                    {(() => {
-            const isVenteUsdt = normalizedClientTxType === 'Vente USDT';
-            const isAchatEur = normalizedClientTxType === 'Achat EUR';
-            const qtyVal = isVenteUsdt
-                ? parseAndEvaluate(clientTxUsdtAmount)
-                : isAchatEur
-                    ? parseAndEvaluate(clientTxEurAmount)
-                    : 0;
-            const priceVal = isVenteUsdt
-                ? parseAndEvaluate(clientTxSellPrice)
-                : isAchatEur
-                    ? parseAndEvaluate(clientTxEurPrice)
-                    : 0;
-            const amtVal = parseAndEvaluate(clientTxAmount);
-            const exceedsUsdt = isVenteUsdt && qtyVal > (portfolioStats?.usdt?.available || 0);
-            const isInvalid = (isVenteUsdt || isAchatEur)
-                ? (qtyVal <= 0 || priceVal <= 0 || exceedsUsdt)
-                : (!Number.isFinite(amtVal) || amtVal === 0 || (isClientSettlementTx && amtVal <= 0) || clientSettlementWalletInsufficient);
-            const isDisabled = isSaving || isInvalid;
-            return (<>
-                                <Button variant="outline" onClick={() => setIsClientTxModalOpen(false)}>{t('common.cancel')}</Button>
-                                <Button onClick={() => handleSaveClientTx(selectedClientId)} disabled={isDisabled}>
-                                    {isSaving ? t('common.processing') : exceedsUsdt ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: 'USDT' }) : t('common.save')}
-                                </Button>
-                            </>);
-        })()}
-                </ModalFooter>
+                <OperationFooter stats={clientTxStats} reason={clientTxBlockedReason} reasonTone={clientTxTyped ? 'fix' : 'missing'}>
+                    <Button variant="outline" onClick={() => setIsClientTxModalOpen(false)}>{t('common.cancel')}</Button>
+                    <Button onClick={() => handleSaveClientTx(selectedClientId)} disabled={isClientTxDisabled} title={clientTxBlockedReason}>
+                        {isSaving ? t('common.processing') : t('common.save')}
+                    </Button>
+                </OperationFooter>
             </Modal>
 
             <Modal isOpen={isAdjustmentModalOpen} onClose={() => setIsAdjustmentModalOpen(false)} className="max-w-md bg-surface">
                 <ModalHeader onClose={() => setIsAdjustmentModalOpen(false)}>
                     <ModalTitle className="text-base sm:text-lg">{editingTreasuryTx ? t('transactions.editAdjustment') : t('transactions.treasuryAdjustment')}</ModalTitle>
                 </ModalHeader>
-                <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
-                    <div className="flex gap-1 rounded-xl border border-border bg-neutral-100 p-1">
-                        <button type="button" onClick={() => setAdjustmentTab('add')} className={`min-h-touch flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${adjustmentTab === 'add'
-            ? 'bg-success text-white shadow-sm'
-            : 'text-neutral-600 hover:bg-surface hover:text-neutral-900'}`}>
-                            {t('transactions.addTo')}
-                        </button>
-                        <button type="button" onClick={() => setAdjustmentTab('subtract')} className={`min-h-touch flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${adjustmentTab === 'subtract'
-            ? 'bg-danger text-white shadow-sm'
-            : 'text-neutral-600 hover:bg-surface hover:text-neutral-900'}`}>
-                            {t('transactions.withdrawFrom')}
-                        </button>
-                    </div>
+                <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
+                    <FormCard>
+                    <SegmentedControl size="md" ariaLabel={t('transactions.operationType') as string} value={adjustmentTab === 'subtract' ? 'subtract' : 'add'} onChange={(tab) => setAdjustmentTab(tab)} options={[
+                        { id: 'add', label: t('transactions.addTo'), tone: 'profit' },
+                        { id: 'subtract', label: t('transactions.withdrawFrom'), tone: 'loss' },
+                    ]}/>
 
                     <div>
                         <Label>{t('transactions.assetType')}</Label>
                         <div className="mt-1">
-                            <AdjustmentAssetDropdown value={adjustmentAsset} options={adjustmentAssetOptions} onChange={handleAdjustmentAssetChange}/>
+                            <AdjustmentAssetDropdown value={adjustmentAsset} options={adjustmentAssetOptions} onChange={handleAdjustmentAssetChange} t={t}/>
                         </div>
                     </div>
+                    </FormCard>
 
+                    <FormCard>
                     <MoneyField label={isCryptoAdjustment ? t('transactions.quantity') : t('transactions.amount')} value={adjustmentAmount} onChange={setAdjustmentAmount} currency={isCryptoAdjustment ? (adjustmentAsset as 'USDT' | 'EUR') : 'DZD'} placeholder="0.00" onMax={() => {
             if (maxDisabled)
                 return;
             setAdjustmentAmount(formatCardValue(maxValue));
-        }} maxDisabled={maxDisabled} hint={amountHint} error={amountErrorText || undefined}/>
+        }} maxDisabled={maxDisabled} hint={amountHint} error={adjustmentTyped ? (amountErrorText || undefined) : undefined}/>
 
-                    {isCryptoAdjustment && (<MoneyField label={t('transactions.unitPrice')} value={adjustmentPrice} onChange={setAdjustmentPrice} currency="DZD" placeholder="Ex: 240.00" hint={adjustmentAuto.sourceType === 'missing'
+                    {isCryptoAdjustment && (<MoneyField label={t('transactions.unitPrice')} value={adjustmentPrice} onChange={setAdjustmentPrice} placeholder="Ex: 240.00" hint={adjustmentAuto.sourceType === 'missing'
                 ? adjustmentAuto.sourceLabel
                 : `${t('transactions.pamAuto')}: ${adjustmentAuto.sourceLabel}`}/>)}
 
                     {isDzdAdjustment && (<div>
-                            <Label>{t('transactions.linkedClientOptional')} <span className="text-xs font-normal text-neutral-400">({t('common.optional')})</span></Label>
+                            <Label>{t('transactions.linkedClientOptional')}</Label>
                             <div className="mt-1">
                                 <SearchableSelect value={adjustmentClientId} onChange={setAdjustmentClientId} options={selectableClients(clientsDzd || [], [adjustmentClientId]).map((client: any) => ({ value: client.id, label: getClientFullName(client) }))} searchPlaceholder={t('transactions.searchClient')} emptyOptionLabel={t('transactions.noClient')} emptyValue="" noResultsLabel={t('transactions.noClientFound')} clearable clearLabel={t('transactions.clearClient')}/>
                             </div>
@@ -556,15 +576,16 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
             }
             return (<TransactionPreviewCard title={t('transactions.confirmAndSave')} rows={rows} error={exceedsAvailableBalance ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: selectedAssetLabel }) : undefined}/>);
         })()}
+                    </FormCard>
                 </ModalContent>
-                <ModalFooter>
+                <OperationFooter stats={adjustmentStats} reason={adjustmentBlockedReason} reasonTone={adjustmentTyped ? 'fix' : 'missing'}>
                     <Button variant="outline" onClick={() => setIsAdjustmentModalOpen(false)}>
                         {t('common.cancel')}
                     </Button>
                     <Button onClick={handleGlobalAdjustment} disabled={isConfirmDisabled} title={!isConfirmDisabled ? undefined : confirmHelperText}>
                         {isSaving ? t('common.processing') : t('common.confirm')}
                     </Button>
-                </ModalFooter>
+                </OperationFooter>
             </Modal>
         </>);
 }
@@ -591,7 +612,8 @@ const areMainClientOperationsDialogsPropsEqual = (prev: MainClientOperationsDial
             && prev.selectedClientId === next.selectedClientId
             && prev.clientsDzd === next.clientsDzd
             && prev.clientBalances === next.clientBalances
-            && prev.treasuryStats === next.treasuryStats;
+            && prev.treasuryStats === next.treasuryStats
+            && prev.isSaving === next.isSaving;
         if (!sameClientTxDialog)
             return false;
     }

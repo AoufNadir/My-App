@@ -136,7 +136,7 @@ export function SmartPricePanel({
         : (priceMatches.find((item) => item.source === lastAppliedSourceRef.current) ?? priceMatches[0]).source;
 
     return (
-        <section aria-label={t('smartPricing.title')} className="space-y-3 rounded-2xl border border-primary/20 bg-primary/[0.03] p-3.5">
+        <section aria-label={t('smartPricing.title')} className="space-y-3 rounded-card border border-primary/25 bg-surface p-4">
             <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-xs font-extrabold text-neutral-800">{t('smartPricing.title')}</span>
                 <span className={`rounded-full px-2 py-1 text-xs font-bold ${MARKET_CLS[quote.market.effective]}`}>{marketLabel}</span>
@@ -174,10 +174,10 @@ export function SmartPricePanel({
             </div>
 
             <div aria-live="polite" className="space-y-1 text-xs text-neutral-500">
-                <p dir="ltr">
-                    {t('smartPricing.pam')}: <b>{fmt2(quote.pam)}</b>
+                <p>
+                    {t('smartPricing.pam')}: <b dir="ltr">{fmt2(quote.pam)}</b>
                     <span className="mx-1.5 text-neutral-300">·</span>
-                    <span className="font-bold text-financial-profit">{t('smartPricing.expectedProfit')} +{fmt0(quote.goal.expectedProfit)}</span>
+                    <span className="font-bold text-financial-profit">{t('smartPricing.expectedProfit')} <span dir="ltr">+{fmt0(quote.goal.expectedProfit)}</span></span>
                     {quote.goal.coveragePct !== null && quote.goal.coveragePct > 0 && (
                         <span> ({quote.goal.coveragePct}% {t('smartPricing.goalCoverage')})</span>
                     )}
