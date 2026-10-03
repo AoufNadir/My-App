@@ -49,7 +49,7 @@
   - `V2-1` إلى `V2-9`: إعادة تصميم كل الصفحات والنوافذ دون تغيير أي رقم.
   - `V3-1`: تقرير نشاط العميل.
   - `V3-2`: هذا الدليل و`CLAUDE.md`.
-- كل هذه المراحل مسودات PR متتالية (#10 إلى #20، ثم PR المرحلة `V3-2`)، ولم يُدمج منها شيء. وكل PR يستهدف الفرع الذي قبله.
+- كل هذه المراحل مسودات PR متتالية (#10 إلى #21)، ولم يُدمج منها شيء. وكل PR يستهدف الفرع الذي قبله.
 - **الخطوات التالية المتفق عليها (2026-10-03):**
   1. رابط معاينة Firebase لـ `V3-1`.
   2. مراجعة صاحب المشروع.
@@ -61,7 +61,7 @@
 
 - Node 22 (هو ما يستعمله CI). ثبّت الحزم بـ `npm ci`.
 - `npm run dev` يفتح http://localhost:3000، ويتصل **بقاعدة البيانات الحقيقية**. تصفّح فقط.
-- `npm run ci` = `typecheck` ثم `npm test` ثم `build`. يجب أن ينجح قبل أي رفع، وGitHub Actions يشغّله على كل PR (`.github/workflows/ci.yml`).
+- `npm run ci` = `typecheck` ثم `npm test` ثم `build`. يجب أن ينجح قبل أي رفع. GitHub Actions يشغّله على كل PR، وعلى كل رفع إلى `v53-dev` و`main` (`.github/workflows/ci.yml`).
 - `npm test` سلسلة طويلة من `node --import tsx <ملف>` في `package.json`. لا يوجد إطار اختبار ولا اكتشاف تلقائي للملفات: **كل اختبار جديد يُضاف إلى السلسلة يدوياً**.
 - الاختبارات تستعمل `node:assert`. اختبارات الشاشات ترسم المكوّن بـ `renderToStaticMarkup` من `react-dom/server`، ثم تقارن النص والأرقام.
 - **طريقة «الأرقام لم تتغير»** في كل مرحلة واجهة: يحتفظ الاختبار بنسخة حرفية من الكود السابق كمرجع، ويتحقق أن كل رقم ما زال يظهر بنفس القيمة والتنسيق، بالفرنسية والعربية. أمثلة: `useTransactionsViewModel.test.tsx` و`DashboardPage.test.tsx` و`financeScreens.test.tsx` و`investorScreens.test.tsx` و`operationWindows.test.tsx`. إذا غيّرت الناتج عن قصد، حدّث النسخة المرجعية بنفس الطريقة.
@@ -70,15 +70,209 @@
 
 ## 4. خريطة الكود
 
-(يُكمَّل)
+ابحث في الكود بأسماء الدوال والمتغيرات المذكورة هنا، لا بأرقام الأسطر، لأن الأسطر تتغير مع كل مرحلة.
+
+### سلسلة التشغيل
+
+- `index.html` يسجّل عامل الخدمة في الإنتاج. على `localhost` يلغيه ويمسح ذاكرته المؤقتة، ثم يعيد التحميل.
+- `src/index.tsx` ثم `src/App.tsx` (`LanguageProvider` ثم `ThemeProvider`) ثم `src/AppContent.tsx`.
+- `AppContent.tsx` يتابع تسجيل الدخول (`onAuthStateChanged`):
+  - بلا مستخدم: شاشة `src/components/Auth.tsx` (بريد وكلمة سر، أو Google).
+  - مع مستخدم: `MainApp` (يُحمَّل عند الطلب)، وفوقه شاشة القفل إذا كان الرمز مفعّلاً.
+  - بوابة الطلبات معطلة (`ORDER_SYSTEM_ENABLED = false` في `src/config/orderSystem.ts`)، فكل حساب مسجّل يرى `MainApp`.
+- قفل الرمز: `src/hooks/useAuthLock.ts` و`src/components/AuthLockScreen.tsx`. رمز من 4 إلى 6 أرقام، محفوظ كبصمة SHA-256 في `localStorage`، وقفل تلقائي بعد 3 دقائق.
+
+### `src/MainApp.tsx`: التطبيق كله في ملف واحد (نحو 3250 سطراً)
+
+- يحمّل البيانات (`useAppData`) والإعدادات (`useSettings` و`usePeriodLock` و`useSmartPricingPlan`).
+- يحسب أغلب الأرقام في `useMemo`: دفتر PAM، اقتصاد المستثمرين، `capitalSnapshot`، `dailyOverview` للرئيسية، `servicesSummary`، ترتيب العملاء ومستويات ولائهم.
+- يركّب بوابة الكتابة (المزامنة والأشهر المقفلة).
+- يمرّر الخصائص إلى الصفحات (`dashboardPageProps` و`clientsPageProps` و`portfolioPageProps` و`mainContentProps`).
+- يرسم: الشريط العلوي، سطر المزامنة، `MainContentArea`، الشريط السفلي، الرسائل (`AppToast`)، البحث، والنوافذ (`MainAppDialogs`، لا تُركَّب إلا عند فتح نافذة).
+- فيه كتل قديمة معطّلة بالتعليق، منها تصدير التقارير القديم.
+
+### التنقل (بلا مكتبة توجيه)
+
+- الصفحة الحالية حالة React محفوظة في `localStorage` باسم `app_view` (`src/hooks/useMainNavigation.ts`).
+- أسماء الصفحات في الكود: `dashboard` (Accueil)، `transactions` (Opérations)، `dzd` (Clients)، `statistiques` (Portefeuille/Stock)، `analytics` (Analyse)، `expenses` (Mes dépenses)، `tresorerie`، `services`، `investors`.
+- `src/components/main/MainContentArea.tsx` يربط كل اسم بصفحته، مع هيكل تحميل (`PageSkeleton`) وحاجز أخطاء لكل صفحة.
+- كل الصفحات `React.lazy`. صفحة العمليات تُحمَّل مسبقاً حين يتفرغ المتصفح، و`pdfReports` في ملف منفصل.
+- زر الرجوع في الهاتف يمر عبر `useBackHandler`، والنوافذ المفتوحة في مكدس واحد (`src/components/ui/overlayStack.ts`).
+- بوابة المستثمر: مسار يبدأ بـ `/investor` مع `?id=`، ويرسمها `MainApp` مكان الصفحات. إذا لم يوجد المعرّف تعرض أول مستثمر.
+
+### المجلدات
+
+| المجلد | ما فيه |
+| --- | --- |
+| `src/` (الجذر) | `MainApp.tsx`، `firebaseApp.ts` (إعداد Firebase مكتوب في الكود)، `firebase.ts` (غلاف Firestore وبوابة الكتابة)، `transactionService.ts` (التعديل والحذف المترابط)، `types.ts`، `utils.ts` (الحاسبة داخل خانات الأرقام) |
+| `src/hooks/` | تحميل البيانات (`useAppData`)، معالجات الكتابة (`useTransactionHandlers` و`useClientHandlers` و`useInvestorHandlers` و`useDigitalServiceHandlers` و`useAssetHandlers` و`useManualAssetClientManager` و`useManualClientTransactionManager`)، دوال المستثمرين (`useInvestorEconomics.ts`)، التنقل، القفل، التقارير، الملخص الأسبوعي والشهري |
+| `src/utils/` | المحركات المحاسبية (`pamLedger` و`clientDebt` و`debtWriteOffs` و`periodLock` و`capitalSnapshot` و`managerCapital` و`profitDistribution` و`digitalServiceAccounting` و`costedStock` و`money`)، التقارير (`pdfReports` و`clientActivityReport` و`imagePdf`)، الرسائل، مساعدات العملاء (`clientRegistry` و`clientTxEdit` و`clientStatementTransactions`)، `editStamp` |
+| `src/pages/` | ملف لكل صفحة، واختبارات الشاشات. `pages/shared/pageFormat.ts` ينسّق الأرقام |
+| `src/components/` | `main/` (الهيكل والنوافذ)، `transactions/`، `clients/`، `investors/`، `investor-details/`، `investor-dashboard/` (البوابة)، `modals/`، `portfolio/`، `treasury/`، `analytics/`، `financial/`، `cards/` (البطاقات الموحدة)، `ui/` (المكوّنات الأساسية)، `icons/` |
+| `src/services/smartPricingEngine.ts` | التسعير الذكي |
+| `src/readModels/` | ملخصات القراءة (read models). غير مفعّلة في الإنتاج (القسم 11) |
+| `src/accounting/` | محركات «Accounting V2» للمقارنة والتشخيص فقط. لا تكتب في Firestore، و`commit.ts` لا يستدعيه أحد |
+| `src/testing/` | ساعة ثابتة للاختبارات (30/09/2026 15:00 بتوقيت الجزائر) واستخراج الأرقام من HTML |
+| `src/translations/` و`src/styles/` و`src/contexts/` | الترجمة، الرموز (tokens)، اللغة والمظهر |
+
+### كيف تُكتب العمليات
+
+- **الشراء** (`handleBuy` في `useTransactionHandlers.ts`):
+  - سطر في `usdt_txs`، وسطر عميل `Règlement Reçu` بمبلغ موجب. لا يدخل رصيد العميل إلا إذا كان الشراء بالدَّين.
+  - الشراء المدفوع بـ EUR يضيف سحب `Retrait Manuel` من EUR مرتبطاً به.
+- **البيع** (`executeSell`):
+  - سطر في `usdt_txs` بربح محفوظ (غير معتمد، القاعدة 1)، وسطر عميل `Vente USDT` أو `Vente EUR` بمبلغ سالب. لا يدخل الرصيد إلا بالدَّين.
+  - إذا دفع عميل آخر بالدينار: سطر `Paiement Effectué` عليه (`linkRole: 'dzd_receiver'`). وإلا سطر خزينة `Ajout` إلى Caisse أو BaridiMob.
+  - يُحفظ معه ملخص التسعير الذكي (حقول `sp*`). ويُرفض البيع من مخزون بلا تكلفة.
+- **التعديل:** تُحذف السطور المرتبطة ثم تُكتب من جديد، مع الحفاظ على التاريخ (`operationStamp`).
+- **الحذف:** `applyTransactionDelete` في `transactionService.ts`، ويجد السطور المرتبطة في أربع مجموعات.
+- **دفع الأرباح** (`ProfitDistributionSheet.tsx`): لكل مستثمر سطر `withdraw_profit` وسطر خزينة `Retrait`، ثم إقفال الأشهر السابقة في نفس الدفعة.
+- **الخدمات الرقمية:** `useDigitalServiceHandlers.ts`. **المصاريف الشخصية والسلف:** `useInvestorHandlers.ts`.
+
+### بوابة الكتابة والمزامنة (`src/firebase.ts`)
+
+- تحمي 11 مجموعة مالية: `usdt_txs` و`dzd_clients` و`dzd_client_txs` و`treasury_txs` و`treasury_cards` و`digital_service_txs` و`manual_assets` و`manual_asset_clients` و`actifTransactions` و`investors` و`investor_transactions`.
+- ترفض الكتابة فيها في حالتين:
+  1. قبل أن يرد الخادم بعد الفتح من ذاكرة الجهاز، أو قبل تحميل حالة الإقفال.
+  2. إذا كانت العملية في شهر مقفل. هذا يخص 6 مجموعات فقط (`PERIOD_LOCK_COLLECTIONS` في `periodLock.ts`).
+- لا تمر عبرها: وثيقة المستخدم، `manager_fee_history`، `period_lock_history`، `pricing_*`، `read_models`، `po_*`.
+- يركّبها `MainApp`، ويظهر سطر المزامنة في الأعلى ما دام ينتظر الخادم.
+
+### ملاحظات مهمة عن الكود
+
+1. إعداد Firebase مكتوب في `firebaseApp.ts` بلا متغيرات بيئة، فكل بناء محلي أو معاينة يتصل بالبيانات الحقيقية.
+2. نسبة المسيّر وتاريخها تُقرأ مرة واحدة عند الفتح، أما إقفال الأشهر فيُتابَع مباشرة. تغيير النسبة من جهاز آخر لا يظهر إلا بعد إعادة الفتح (استنتاج).
+3. **منطق مكرر:** أي تغيير في قاعدة يجب أن يصل إلى كل نسخها.
+   - PAM يُعاد حسابه في نحو 8 أماكن: التحليلات، العمليات، الملخص الأسبوعي والشهري، التقارير، read models.
+   - طابور FIFO للدَّين في `clientDebt.ts`، ومرة أخرى داخل `MainApp` لترتيب العملاء حسب الدَّين.
+   - قاعدة «صافي المصروف الشخصي» مكتوبة ثلاث مرات: `managerCapital.ts` و`financialAudit.ts` و`PersonalExpensesPage.tsx`.
+4. لـ«متأخر» معنيان (القسم 6).
+5. «إعادة الضبط الشاملة» (`handleGlobalReset`) تحذف 10 مجموعات فقط، وتترك الخدمات الرقمية والتسعير وتاريخ النسبة وسجل الإقفال. وتُرفض إذا كان أي شهر مقفلاً.
+6. **كود غير مستعمل:**
+   - إشعارات push (مفتاح VAPID فارغ). الإشعارات المحلية وحدها تعمل.
+   - الـ hook `useInvestorEconomics` نفسه. أما الدوال الأخرى في نفس الملف فمستعملة.
+   - بوابة الطلبات (`po_*` و`ClientPortalPage` و`OrdersAdminPage.tsx`).
+   - `dataconnect/` و`src/dataconnect-generated/`، ومتغيرات Gemini في `vite.config.ts`.
+7. الشطب يكتب `paymentMethod: 'Remise'`، وهي قيمة خارج النوع المعلن في `types.ts`. ولا يوجد `strict` في `tsconfig.json`.
+8. `tailwind.config.ts` لا يُحمَّل: Tailwind v4 يقرأ `@theme` في `src/styles/tokens.css`، وهو المرجع الوحيد للرموز.
+9. أدوات تشخيص على `window`: `__PRO_DIGITAL_FIRESTORE_DIAG__` دائماً، و`__PRO_DIGITAL_READ_MODELS_SHADOW__` في وضع `shadow` فقط.
+10. عامل الخدمة (`public/service-worker.js`، `prodigital-cache-v12`) يجلب الصفحة من الشبكة أولاً، والملفات الأخرى من الذاكرة أولاً. ملفات Vite تتغير أسماؤها مع كل بناء فلا مشكلة. أما تغيير ملف في `public/` بنفس اسمه فيحتاج رفع رقم `CACHE_NAME` (استنتاج).
+11. معرّف حساب المسيّر مكتوب في `firestore.rules` و`src/config/orderSystem.ts`، ويُستعمل لبوابة الطلبات المعطلة فقط.
 
 ## 5. البيانات في Firestore
 
-(يُكمَّل)
+- كل بيانات التطبيق تحت `users/{uid}/` للمستخدم المسجّل.
+- قواعد `firestore.rules`: لا يقرأ هذه البيانات ولا يكتبها إلا صاحبها، ولا تتحقق القواعد من الحقول. المجموعات `po_*` في الجذر لبوابة الطلبات المعطلة، وكل ما عدا ذلك مرفوض. `storage.rules` ترفض كل شيء.
+- Firestore يعمل بذاكرة محلية دائمة (`persistentLocalCache`)، لذلك يفتح التطبيق فوراً من الجهاز ثم يتزامن (`V1-4`).
+
+| المجموعة | ما فيها | من يكتبها |
+| --- | --- | --- |
+| `usdt_txs` | عمليات المخزون (`Tx`): `buy` و`sell` و`Ajout Manuel` و`Retrait Manuel`، لـ USDT وEUR | `useTransactionHandlers`، `useDigitalServiceHandlers` |
+| `dzd_clients` | العملاء (`ClientDzd`) | `useClientHandlers`، استيراد CSV |
+| `dzd_client_txs` | دفتر العملاء (`ClientTransactionDzd`)، و`montant` فيه بإشارة | معالجات الشراء والبيع والعملاء والخدمات |
+| `treasury_txs` | حركات الخزينة (`TreasuryTx`)، ومصاريف التوصيل والمصاريف الشخصية (`origin`)، وسحب الأرباح، وتعديل الرصيد | `MainApp`، معالجات المستثمرين والخدمات، `ProfitDistributionSheet` |
+| `treasury_cards` | بطاقات الخزينة | `MainApp` |
+| `digital_service_txs` | الخدمات الرقمية | `useDigitalServiceHandlers` |
+| `manual_assets` و`manual_asset_clients` و`actifTransactions` | الخدمات اليدوية وعملاؤها وحركاتها | `useAssetHandlers` و`useManualAssetClientManager` و`useManualClientTransactionManager` |
+| `investors` و`investor_transactions` | المستثمرون وحركاتهم: `deposit_capital` و`withdraw_capital` و`profit_distribution` و`withdraw_profit` و`reinvest_profit` | `useInvestorHandlers`، `ProfitDistributionSheet` |
+| `manager_fee_history` | تاريخ تغيّر نسبة المسيّر | `useSettings` |
+| `period_lock_history` | سجل الإقفال والفتح | `usePeriodLock`، `ProfitDistributionSheet` |
+| `pricing_settings` و`pricing_plans` و`pricing_overrides` | خطة التسعير الذكي الشهرية | `useSmartPricingPlan` |
+| `read_models` و`read_model_applied_ops` | ملخصات القراءة | لا شيء في الإعداد الحالي (القسم 11) |
+| `legacy_operation_index` | فهرس العمليات القديمة | سكربت في `scripts/` فقط |
+| `accounting_*` | دفتر V2 | لا أحد |
+
+**حقول وثيقة `users/{uid}`:**
+
+- `managerFeePercentage` و`managerFeeUpdatedAt`: نسبة المسيّر، و30% إذا لم تُحدَّد.
+- `periodLockedThrough` (0 تعني لا إقفال) و`periodLockReason` و`periodLockUpdatedAt`.
+- `fcmToken`: لا يُكتب حالياً.
+
+**أهم الحقول** (`src/types.ts`):
+
+- **`Tx`:**
+  - الأساس: `type` و`currency` و`quantity` و`price` (سعر الشراء) و`sell` (سعر البيع بالدينار) و`total` و`timestamp`.
+  - `profit`: محفوظ عند البيع، وغير معتمد.
+  - حقول EUR: `settlementCurrency` و`purchaseFundingCurrency` وما يتبعهما.
+  - الروابط: `linkedTxId` و`linkedClientId`.
+  - الدفع: `clientPaymentStatus` (`credit` أو `baridi` أو `cash`) و`creditDueDate`.
+  - `lockedUntil`: كمية محجوزة حتى تاريخ. `sp*`: التسعير الذكي.
+- **`ClientTransactionDzd`:**
+  - `montant`: موجب = له عندنا، سالب = دَين عليه.
+  - `type`: 11 نوعاً (انظر المسرد).
+  - `linkedTxId`. `linkRole`: `primary` لعميل العملية، و`dzd_receiver` لعميل يدفع بالدينار عن غيره.
+  - `paymentMethod`: `Espèces` أو `BaridiMob` أو `Crédit` أو `USDT` أو `EUR`، ويُكتب أيضاً `Remise` عند الشطب.
+  - `creditDueDate` و`affectsBalance` و`countsAsLoss`.
+- **`TreasuryTx`:**
+  - `type`: `Ajout` أو `Retrait` أو `Adjustment (+)` أو `Adjustment (-)` أو `Transfer`. `amount` موجب دائماً.
+  - `source` و`destination` و`asset` و`origin` و`linkedAssetTxId`.
+  - حقول المصروف: `expenseWallet` و`expenseCurrency` و`amountDzd`. حقول السلفة: `advanceState` (`pending` أو `settled`).
 
 ## 6. أين يُحسب كل رقم
 
-(يُكمَّل)
+### المحركات
+
+- المحركات في `src/utils/` و`src/hooks/useInvestorEconomics.ts` و`src/services/` دوال بلا أثر جانبي، ولأغلبها اختبار في سلسلة `npm test` باسم الملف نفسه (مثل `clientDebt.test.ts`).
+- لا يوجد اختبار مخصص لـ `pamLedger.ts` في السلسلة. يغطيه جزئياً `eurFundedCost.test.ts` و`costedStock.test.ts` واختبارات الشاشات.
+- أما `clientBalances` و`treasuryStats` فداخل `useAppData`، و`servicesSummary` و`dailyOverview` داخل `MainApp`.
+
+| الرقم | أين | كيف |
+| --- | --- | --- |
+| PAM، تكلفة البيع، ربح كل بيع، المخزون | `computePamLedger` في `src/utils/pamLedger.ts`. يحسبه `MainApp` مرة لأغلب الأرقام، وتعيد حسابه صفحات أخرى (القسم 4) | بالترتيب الزمني، والكميات بخانتين عشريتين. الربح = (سعر البيع − PAM قبله) × الكمية. الشراء المحجوز (`lockedUntil` في المستقبل) يدخل دفعات محجوزة. كل شيء يعود إلى الصفر حين ينفد المخزون. |
+| تكلفة USDT المشترى بـ EUR | `findEurFundedBuys` في `pamLedger.ts` | القاعدة 10 في القسم 7. |
+| رصيد العميل | `clientBalances` في `src/hooks/useAppData.ts` | يُجمع بالسنتيم، دون سطور `affectsBalance === false`. مجموع الديون = مجموع الأرصدة السالبة، ومجموع التسبيقات = مجموع الموجبة. |
+| الدَّين والتأخر | `computeClientDebtState` في `src/utils/clientDebt.ts`، و`src/hooks/useOverdueDebtClients.ts` | انظر «معنيان لـ"متأخر"» أدناه. |
+| الشطب | `collectDebtWriteOffs` في `src/utils/debtWriteOffs.ts` | السطور التي فيها `countsAsLoss === true` فقط. |
+| الخزينة: Caisse وBaridiMob | `treasuryStats` في `useAppData.ts` | القاعدة 7. لا توجد محفظة EUR نقدية: خانة EUR في الرئيسية هي مخزون EUR. |
+| قيمة المخزون | `calculateStockValue` في `src/utils/capitalSnapshot.ts` | (المتاح + المحجوز) × PAM. |
+| رأس المال الإجمالي والصافي | `computeCapitalSnapshot` في `capitalSnapshot.ts` | الإجمالي = النقد + قيمة المخزون + بطاقات الخزينة + (ديون العملاء − تسبيقاتهم) + أثر الخدمات + سلف المسيّر المعلقة. الصافي = الإجمالي − ما نُدين به للمستثمرين. |
+| رأس مال المسيّر | `calculateManagerOwnerCapital` و`splitManagerPersonalExpenses` في `src/utils/managerCapital.ts`، ثم `reconcileManagerProfitBreakdown` في `useInvestorEconomics.ts` | الافتتاحي + الربح المحتفظ به + الإضافات − السحوبات − المصاريف المحمّلة على رأس المال. |
+| توزيع الربح | `deriveInvestorEconomics` في `src/hooks/useInvestorEconomics.ts` | القاعدة 2. مصاريف التوصيل والشطب تُخصم من ربح المشروع وتُوزَّع بنفس الطريقة. |
+| خطة دفع الأرباح | `buildProfitDistributionPlan` في `src/utils/profitDistribution.ts` | القاعدة 3. |
+| ربح الخدمات الرقمية | `src/utils/digitalServiceAccounting.ts` | USDT وEUR بسعر PAM، والدينار بـ 1. الربح = البيع − الشراء بالدينار. |
+| الخدمات اليدوية | `servicesSummary` في `MainApp.tsx` | الإيراد = مبلغ الفاتورة كاملاً دون تكلفة (سؤال المراجعة 10 في القسم 13). |
+| السعر المقترح للعميل | `src/services/smartPricingEngine.ts` | يقترح سعر بيع USDT وEUR لكل عميل حسب تصنيفه ودرجته والسوق (`quoteSale`). لا أهداف شهرية لـ EUR. |
+
+### معنيان لـ«متأخر»
+
+- الدَّين يُغلق بالأقدم أولاً (FIFO). موعد كل دَين هو تاريخ الاستحقاق `creditDueDate` (آخر ذلك اليوم). إن لم يوجد، فتاريخ العملية مع مهلة.
+- `overdueDebtClients` بمهلة 7 أيام: صفحة العملاء والإشعارات.
+- `dashboardDebtClients` بلا مهلة: تنبيه الرئيسية، وعدّاد زر Clients في الشريط السفلي.
+
+### حسب الصفحة
+
+| الصفحة | الملف | من أين تأتي أرقامها |
+| --- | --- | --- |
+| Accueil | `src/pages/DashboardPage.tsx` | انظر التفصيل تحت الجدول. |
+| Opérations | `src/pages/TransactionsPage.tsx` و`src/components/transactions/useTransactionsViewModel.tsx` | قائمة واحدة من `usdt_txs` و`dzd_client_txs` و`treasury_txs` و`digital_service_txs`. ربح كل سطر من الدفتر المشترك، وطرفا التحويل من `clientTransferIndex.ts`. |
+| Clients | `src/pages/ClientsPage.tsx` و`src/components/clients/ClientsListView.tsx` | الأرصدة من `clientBalances`. البحث والترتيب ومستويات الولاء في `MainApp` (`earlyClientLoyaltyMap`). |
+| صفحة العميل | `src/components/clients/ClientDetailsView.tsx` | الرصيد `clientBalances.get(id)`، والكشف من `buildClientStatementTransactions` (`src/utils/clientStatementTransactions.ts`). |
+| Trésorerie | `src/pages/TresoreriePage.tsx` | `treasuryStats`، التدفق الأسبوعي، و`CapitalOverviewCard` من `capitalSnapshot`. |
+| Portefeuille / Stock | `src/pages/PortfolioPage.tsx` | المخزون وقيمته، الكميات المحجوزة، بطاقة أثر قاعدة EUR، ومحاكي PAM. |
+| Analyse | `src/pages/AnalyticsPage.tsx` و`src/components/analytics/useAnalyticsViewModel.ts` | يحسب `computePamLedger` بنفسه: الإحصاءات، الخريطة الحرارية، ترتيب العملاء الشهري والكلي، السنوي، تاريخ الأسعار. |
+| Investisseurs | `src/pages/InvestorsPage.tsx` | `derivedInvestors`، الربح القابل للسحب، `ProfitDistributionSheet`، `PeriodLockCard`، تعديل النسبة. |
+| تفاصيل مستثمر | `src/pages/InvestorDetailsPage.tsx` و`src/components/investor-details/InvestorDetailsContent.tsx` | رأس مال المسيّر = `actualOwnerCapital`. أيام الاستثمار بالتقريب إلى الأسفل. |
+| بوابة المستثمر | `src/pages/InvestorDashboardPage.tsx` | القيمة = رأس المال + الربح المتاح، والنسبة = الربح ÷ رأس المال، والأيام بالتقريب إلى الأعلى. تعرض `investor.capitalInvested` حتى للمسيّر (القسم 13). |
+| Services | `src/pages/ServicesPage.tsx` و`ManualAssetPage` و`ManualClientPage` | الخدمات اليدوية. الخدمات الرقمية بلا صفحة: تُباع من قائمة (+) وتظهر في العمليات. |
+| Mes dépenses | `src/pages/PersonalExpensesPage.tsx` | صافي المصروف، المعلّق والمسوّى، المقارنة بالفترة السابقة، ونسبة الربح التي استهلكتها المصاريف. |
+
+**أرقام الرئيسية (Accueil):**
+
+- **البطاقة الكبرى:** `dailyOverview` في `MainApp`.
+  - ربح المبيعات وكمياتها لليوم، والأسبوع (يبدأ الإثنين)، والشهر، والسنة، وآخر 7 أيام، من `pamLedger.sellProfitRows`.
+  - ربح المسيّر لكل فترة من `deriveInvestorEconomics` على تلك الفترة، مع إيراد الخدمات اليدوية وربح الخدمات الرقمية.
+- **الخانات:** Caisse وBaridiMob من `capitalSnapshot`. USDT وEUR = المتاح + المحجوز.
+- **الوضع:** النقد، ديون العملاء، ما يجب دفعه قريباً (تسبيقات العملاء + أرباح المستثمرين المستحقة)، والفرق بينهما. تنبيه «مخزون منخفض» حين يكون USDT وEUR كلاهما تحت 100.
+- **القوائم:** آخر 5 عمليات من `useTransactionsViewModel`، وتنبيه المتأخرين من `dashboardDebtClients`.
+
+### التقارير
+
+- `src/utils/pdfReports.ts`: يبني صفحة HTML ويطبعها بالمتصفح، دون مكتبة PDF.
+  - التقرير الشهري، كشف العميل، تقرير المستثمر، المصاريف، وقوائم العملاء والمستثمرين والعمليات والخزينة.
+  - على الهاتف يفتح الملف في تبويب جديد.
+- المعالجات في `src/hooks/useReportExports.ts`.
+- تقرير نشاط العميل: القسم 9.
+- صورة ملخص العميل للمشاركة: `MainClientSummaryDialog.tsx`، وتُفتح بضغطة مطوّلة على العميل.
 
 ## 7. قواعد المحاسبة وقرارات صاحب المشروع
 
@@ -94,10 +288,16 @@
 3. **دفع الأرباح** (`profitDistribution.ts`): لكل مستثمر نشط على الأكثر ما يستحقه، بالدينار الكامل مع التقريب إلى الأسفل (V1-3).
 4. **مصاريف المسيّر الشخصية:** `splitManagerPersonalExpenses` في `managerCapital.ts` هي القاعدة الوحيدة. سحوبات الأرباح أولاً، ثم يُخصم المصروف من الربح الباقي، ثم الباقي من رأس المال، دون عدّ أي مبلغ مرتين. رأس المال الذي صرفه المسيّر لا يأخذ حصة من الأرباح (V1-1).
 5. **إشارة رصيد العميل:** `montant` موجب = له عندنا (تسبيق أو دفعة)، وسالب = دَين عليه. السطر الذي فيه `affectsBalance === false` تاريخي فقط. الأرصدة تُجمع بالسنتيم (`toCents`) حتى لا تنحرف (V1-5).
-6. **التأخر في الدفع:** طابور FIFO. الدفعات تغلق أقدم دَين أولاً، والعميل متأخر إذا بقي له دَين أقدم من 7 أيام (`useOverdueDebtClients`).
+6. **التأخر في الدفع:** طابور FIFO، والدفعات تغلق أقدم دَين أولاً (`clientDebt.ts`).
+   - موعد كل دَين هو تاريخ الاستحقاق `creditDueDate` (آخر ذلك اليوم). إن لم يوجد، فتاريخ العملية مع مهلة.
+   - صفحة العملاء والإشعارات تستعمل مهلة 7 أيام. تنبيه الرئيسية وعدّاد زر Clients بلا مهلة (القسم 6).
 7. **الخزينة:** `amount` موجب دائماً، والاتجاه يأتي من `type` (`Ajout` أو `Retrait` أو `Adjustment (+/-)` أو `Transfer`). الأرصدة والتدفقات تعدّ الحركات التي مصدرها `Caisse` أو `BaridiMob` فقط (V1-3).
+   - تُعدّ أيضاً السطور القديمة التي `asset` فيها `DZD-Caisse` أو `DZD-Baridi` بالضبط، والتحويلات القديمة المكتوبة «from X to Y».
+   - المصروف المدفوع بـ USDT أو EUR لا يمس رصيد Caisse وBaridiMob.
 8. **لا بيع بلا تكلفة:** البيع يُرفض إذا كان المخزون الذي يسحب منه بلا سعر شراء (`costedStock.ts`، V1-7). المبيعات المسجلة قبل ذلك تبقى قابلة للتعديل.
-9. **شطب الدَّين خسارة:** زر «Solder» على رصيد سالب يحفظ سطر `Remise solde` مع `countsAsLoss: true`، ويُحمَّل على المشروع مثل مصروف توصيل، بنفس قاعدة التوزيع (V1-7). يسري **من 2026-09-27 فقط**، والشطب القديم يبقى بلا أثر على الربح.
+9. **شطب الدَّين خسارة:** زر «Solder» على رصيد سالب يحفظ سطر `Remise solde` مع `countsAsLoss: true`، ويُحمَّل على المشروع مثل مصروف توصيل، بنفس قاعدة التوزيع (V1-7).
+   - لا يوجد تاريخ في الكود. الحد هو العلامة نفسها: لا يكتب `countsAsLoss` إلا الكود المنشور منذ 2026-09-27.
+   - الشطب القديم بلا علامة، فيبقى بلا أثر على الربح.
 10. **USDT المشترى بـ EUR:** تكلفته = كمية EUR × PAM اليورو قبل السحب المرتبط مباشرة. يسري من 2026-09-27 00:00 بتوقيت الجزائر (`EUR_FUNDED_COST_RULE_FROM_TS` في `pamLedger.ts`)، وما قبله يبقى بالمجموع الذي كُتب عند الإدخال (V1-7).
 11. **إقفال الأشهر:**
     - توزيع الأرباح يقفل كل الأشهر قبل شهره، في نفس الدفعة. القيمة `periodLockedThrough` على `users/{uid}`، و0 تعني لا إقفال.
@@ -149,7 +349,9 @@
 | `V2-8` | #18 | نوافذ الشراء والبيع والتحويل والمصاريف | غير منشورة |
 | `V2-9` | #19 | الإعدادات والقفل (رمز من 4 إلى 6 أرقام) والبحث والترجمة الباقية، ملاحظات في أربع نوافذ، تاريخ استحقاق شراء EUR بالدَّين | غير منشورة |
 | `V3-1` | #20 | تقرير نشاط العميل | غير منشورة |
-| `V3-2` | — | هذا الدليل و`CLAUDE.md` | غير منشورة (لا تغيّر التطبيق) |
+| `V3-2` | #21 | هذا الدليل و`CLAUDE.md` | غير منشورة (لا تغيّر التطبيق) |
+
+المرحلة التالية تُسمّى `V3-3`، وتُبنى على آخر مرحلة، ويستهدف الـ PR الخاص بها تلك المرحلة.
 
 ## 9. تقرير نشاط العميل
 
@@ -183,7 +385,47 @@
 
 ## 10. الواجهة والترجمة
 
-(يُكمَّل)
+**الرموز (tokens):** `src/styles/tokens.css` هو المرجع الوحيد.
+
+- الألوان: الهوية (الأزرق `#1E40AF` والأخضر المزرق `#0F766E`)، والألوان المالية (ربح، خسارة، دَين).
+- الخطوط: Cairo وTajawal للعربية، وInter وDM Sans للفرنسية.
+- ارتفاع اللمس 44px، والزوايا، وأحجام النص، والظلال.
+- `.dark` للوضع الليلي، و`.report-sheet` يفرض ألواناً فاتحة في التقارير.
+- `src/index.css` يستورد Tailwind والرموز. الأرقام فيه بعرض ثابت، وحركات `anim-*` تحل محل مكتبة framer-motion، مع احترام إعداد «تقليل الحركة».
+
+**المكوّنات المشتركة** (`src/components/ui/`):
+
+- `Dialog.tsx`: إطار كل النوافذ. على الهاتف ورقة من الأسفل تُسحب للإغلاق، مع تذييل ثابت. أسماء `Modal*` بدائل له.
+- `overlayStack.ts`: مكدس واحد لزر Escape وزر الرجوع وقفل التمرير.
+- `OperationFooter.tsx`: المجموع الثابت أسفل نوافذ العمليات، وسبب تعطيل زر التأكيد.
+- الأزرار والخانات: `Button` و`Input` و`NumberInput` و`MoneyField` و`DatePicker` و`SearchField` و`SearchableSelect` و`Select` و`SegmentedControl` و`Tabs` و`FilterChips`.
+- `AppToast.tsx`: رسالة واحدة فوق الشريط السفلي، مع زر «تراجع».
+- `PageSkeleton.tsx`: هيكل التحميل لكل صفحة.
+
+**البطاقات الموحدة** (`src/components/cards/`، منذ `V2-3`): `HeroCard` و`StatTile` و`SectionCard` و`ListRow` و`AlertCard`. المبالغ تُرسم بـ `src/components/financial/CurrencyAmount.tsx`، والرقم مع عملته داخل `<bdi dir="ltr">`.
+
+**الترجمة:**
+
+- `src/translations/index.ts` فيه `fr` ثم `ar`، بمفاتيح متداخلة.
+- `t('a.b')` في `LanguageContext.tsx` يجرّب اللغة الحالية، ثم الفرنسية، ثم يعيد المفتاح نفسه.
+- المتغيرات تُملأ يدوياً: `.replace('{name}', …)`.
+- `translations.test.ts` يتحقق أن للغتين نفس المفاتيح.
+- `LanguageProvider` يضع `dir` و`lang` على `<html>`. الأرقام والمبالغ تبقى من اليسار إلى اليمين داخل `<bdi>`.
+
+**الرسائل:**
+
+- المعالجات تكتب رسائل بالفرنسية تبدأ برمز تعبيري.
+- `src/utils/alertMessages.ts` يترجمها (`translateAlert`)، و`alertTone.ts` يستنتج نوعها من الرمز ومدة ظهورها: الأخطاء تبقى حتى الإغلاق، والنجاح 4 ثوانٍ.
+- اختبار يتحقق أن لكل رسالة في الكود ترجمة عربية. **أي رسالة جديدة تُضاف إلى `ALERT_TEMPLATES`.**
+- نصوص النماذج في `formMessages.ts`.
+
+**قواعد التصميم المتبعة منذ `V2`:**
+
+- الهوية البصرية الحالية، ولا تغيير في أي رقم أو معلومة.
+- نص بحجم 12px على الأقل، وأهداف لمس 44px.
+- نفس ترتيب الصفحات: البطاقة الكبرى، ثم التنبيهات، ثم الأرقام، ثم الأقسام، ثم القوائم.
+- إطار واحد لكل النوافذ.
+- مهارة التصميم المرجعية `ui-ux-pro-max` موجودة في `.claude/skills/`.
 
 ## 11. النشر والمعاينة والرجوع
 
@@ -220,6 +462,14 @@ firebase hosting:clone proodigital-7ec70:<قناة-النسخة-الاحتياط
 
 **فخ البناء:** Vite يدمج `VITE_READ_MODELS_MODE` و`VITE_READ_MODELS_SUMMARY_WRITE_MODE` من أي ملف `.env*` محلي (وهي ملفات خارج git). وجود ملف منها قد يشغّل تشخيصات أو كتابات ملخصات في الإنتاج. السلوك المختبَر هو أن يكون الاثنان غير معرّفين.
 
+| `VITE_READ_MODELS_MODE` | ما يحدث |
+| --- | --- |
+| غير معرّف (المختبَر والمنشور) أو `legacy` | كل الأرقام تُحسب في الذاكرة، ولا تشخيصات، ولا كتابة ملخصات. |
+| `shadow` | نفس الأرقام، مع تشخيصات في وحدة التحكم وكتابة ملخصات تجريبية. فشلها يُسجَّل ولا يوقف العملية. |
+| `read` | الرئيسية تقرأ من `read_models`، وفشل كتابة الملخص يوقف العملية، وإعادة الضبط الشاملة معطلة. كانت فيه أخطاء (القسم 13). |
+
+`VITE_READ_MODELS_SUMMARY_WRITE_MODE` إذا عُرّف يفرض وضع كتابة الملخصات أياً كان الأول. ويوجد أيضاً `VITE_ACCOUNTING_CLOSURE_AT` في `src/accounting/closure.ts`: غير معرّف يعني أن دفتر V2 «محضّر» وغير مفعّل، وهو الوضع الحالي.
+
 **PWA:** عامل الخدمة يجلب `index.html` من الشبكة أولاً، فيحصل الهاتف على النسخة الجديدة عند الفتح التالي.
 
 **Vercel:** كل فرع يُرفع يحصل على معاينة على `https://my-app-git-<اسم الفرع بأحرف صغيرة>-aout-nadirs-projects.vercel.app`، ويضع بوت Vercel الرابط في الـ PR.
@@ -240,6 +490,7 @@ firebase hosting:clone proodigital-7ec70:<قناة-النسخة-الاحتياط
   - `F:\App\My-App\preview-stable`: نسخة نظيفة من المستودع للمعاينة والنشر.
   - `F:\App\My-App\My-App`: فرع `v54-dev` قديم مع تعديلات كثيرة غير محفوظة في GitHub. رفضه صاحب المشروع كأساس. **لا تحذفه ولا تعدّله دون طلبه.**
 - **Remote Control:** جلسة Claude Code على الجهاز، مرتبطة بمحادثة المشروع. تتلقى رسائل صاحب المشروع وتتبع الخطط المكتوبة في المحادثة.
+  - بعد فترة خمول تتوقف، ولا يوقظها إلا رسالة من صاحب المشروع داخل تلك المحادثة نفسها. ما يكتبه في الصفحة الرئيسية للمشروع أو في نافذة جلسة السحابة لا يصلها، والجلسة السحابية لا تستطيع مراسلتها. فإذا احتجت الجهاز، اطلب منه أن يكتب في تلك المحادثة، أو أعطه الأوامر ليشغّلها بنفسه.
   - أوامر مثل `firebase deploy` و`git push` تطلب إذنه في التطبيق.
   - لا تلتفّ على نظام الأذونات أبداً، مثلاً بالتحكم في الشاشة.
 - **فخ النسخة المتأخرة:** نسخة الجهاز قد لا تحتوي آخر ما رُفع من السحابة. قبل البناء على عمل الجهاز:
@@ -250,9 +501,9 @@ firebase hosting:clone proodigital-7ec70:<قناة-النسخة-الاحتياط
 ## 13. ما بقي مفتوحاً
 
 1. **سؤال المراجعة 10:** هل ربح الخدمات الرقمية واليدوية للمسيّر وحده، دون حصة للمستثمرين؟ ولماذا تُحسب الخدمات اليدوية بمبلغ الفاتورة كاملاً دون تكلفة؟ لم يُجب بعد.
-2. **المراجعة 11:** رقمان مكتوبان مباشرة في الكود:
-   - رأس المال الافتتاحي `OWNER_OPENING_CAPITAL = 2_000_000` في `MainApp.tsx`.
-   - `HISTORICAL_CLOSING_BASELINE_DZD = 362_288` في `src/accounting/closure.ts`.
+2. **المراجعة 11:** رقمان مكتوبان مباشرة في الكود، ويحتاج تغييرهما قرار صاحب المشروع:
+   - رأس المال الافتتاحي `OWNER_OPENING_CAPITAL` في `MainApp.tsx`.
+   - `HISTORICAL_CLOSING_BASELINE_DZD` في `src/accounting/closure.ts`، ويُستعمل كمصاريف ما قبل التتبع.
 3. **المراجعة 12:** في بعض الحالات تُسمح أرشفة عميل رصيده ليس صفراً. يختفي من القائمة، ويبقى رصيده في مجموع الديون.
 4. **المراجعة 14:** ملفات اختبار قديمة في `scripts/` لا تنجح، وليست ضمن `npm test`.
 5. **فرق في بوابة المستثمر:** للمسيّر، تعرض البوابة «Capital propre du gérant» من `investor.capitalInvested` (`InvestorDashboardStatsGrid.tsx`). أما صفحة المسيّر فتعرض `actualOwnerCapital` تحت نفس العنوان (`InvestorDetailsContent.tsx`). لم يُغيَّر، ويحتاج موافقة صاحب المشروع.
@@ -277,12 +528,13 @@ firebase hosting:clone proodigital-7ec70:<قناة-النسخة-الاحتياط
   - أُضيفت قواعد `V1-7`.
   - صار للتطبيق شريط سفلي جديد وبطاقات موحدة.
 - مجلدات وملفات أخرى:
-  - `dist-verify/`: بناء قديم ما زال متتبَّعاً في git رغم `.gitignore`.
+  - `dist-verify/`: بناء قديم، و78 ملفاً منه ما زالت متتبَّعة في git رغم `.gitignore`.
   - `releases/` و`tools/` و`report-preview.*` و`deployed.html` و`deploy-inspect.json`.
-  - `scripts/`: اختبارات قديمة.
+  - `scripts/`: اختبارات وسكربتات قديمة.
   - `dataconnect/` و`src/dataconnect-generated/`: غير مستعملين في منطق التطبيق.
+  - `tailwind.config.ts`: لا يُحمَّل (القسم 4).
 - **لا تحذف أي شيء منها دون إذن صاحب المشروع.**
-- على GitHub نحو 40 فرعاً، أغلبها نسخ احتياطية قديمة. الفروع الحية هي سلسلة `V1` إلى `V3` والفرع المستقر.
+- على GitHub 44 فرعاً (في 2026-10-03)، أغلبها نسخ احتياطية قديمة. الفروع الحية هي سلسلة `V1` إلى `V3` والفرع المستقر.
 
 ## 15. الانتقال إلى حساب Claude آخر
 
@@ -314,6 +566,6 @@ firebase hosting:clone proodigital-7ec70:<قناة-النسخة-الاحتياط
 | Ajout Manuel / Retrait Manuel | إضافة كمية إلى المخزون أو سحبها يدوياً. |
 | Transfert Entrant / Sortant | طرفا تحويل رصيد بين عميلين. |
 | Clôture des mois | إقفال الأشهر بعد توزيع الأرباح. |
-| Smart pricing | محرك أسعار الخدمات (التصنيف والدرجة). داخلي ولا يظهر للعميل. |
+| Smart pricing | التسعير الذكي: يقترح سعر بيع USDT وEUR لكل عميل حسب تصنيفه ودرجته والسوق، ويُحفظ ملخصه مع البيع (`sp*`). داخلي ولا يظهر للعميل. |
 | Manual assets / Services | الخدمات اليدوية والخدمات الرقمية. |
 | Accueil، Opérations، Clients، Trésorerie، Portefeuille/Stock، Analyse، Investisseurs، Mes dépenses | أسماء الصفحات بالفرنسية: الرئيسية، العمليات، العملاء، الخزينة، المحفظة، التحليلات، المستثمرون، مصاريفي. |
