@@ -120,3 +120,10 @@ export function nameMatchesQuery(fullName: string, query: string): boolean {
 
     return false;
 }
+
+/** Two letters for a round name badge: the first letter of the first two words. */
+export function getNameInitials(fullName: string): string {
+    const words = fullName.trim().split(/\s+/).filter(Boolean);
+    const letters = words.slice(0, 2).map((word) => Array.from(word)[0] ?? '');
+    return letters.join('').toLocaleUpperCase() || '?';
+}

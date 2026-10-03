@@ -15,7 +15,6 @@ import type { DisplayRawTx, DisplayTx, TransactionFilterMode } from './transacti
 import { buildClientTransferIndex, findClientTransferCounterpart } from './clientTransferIndex';
 import { useTransactionsViewModel } from './useTransactionsViewModel';
 import { TransactionsPage } from '../../pages/TransactionsPage';
-import { CurrencyAmount } from '../financial/CurrencyAmount';
 
 // The operations list now builds each row's labels, amounts, names and icon only when the row is
 // read, and keeps the last full list for the next opening of the page. This test checks that the
@@ -924,6 +923,14 @@ function rowsOf(groups: Record<string, DisplayTx[]>) {
     return Object.values(groups).flat();
 }
 
+// V2-5 added the Services family (digital_services), which the reference predates: the other
+// counters are compared with the reference, and this one with the service rows it lists.
+function withoutServices(counts: Record<TransactionFilterMode, number>) {
+    const { digital_services: _services, ...others } = counts;
+    return others;
+}
+const serviceRowsOf = (groups: Record<string, DisplayTx[]>) => rowsOf(groups).filter((row) => row.category === 'digital_service');
+
 function assertSameGroups(actual: Record<string, DisplayTx[]>, expected: Record<string, DisplayTx[]>, label: string, compareText: boolean) {
     assert.deepEqual(Object.keys(actual), Object.keys(expected), `${label}: days`);
     for (const [date, expectedRows] of Object.entries(expected)) {
@@ -959,12 +966,18 @@ const DATE_RANGES = [
                 const label = `${lang} ${filterMode} ${dateRange.start ? 'period' : 'all dates'}`;
                 const expected = referenceViewModel({ ...data, t, filterMode, dateRange, getClientFullName });
                 const actual = runViewModel(data, { t, filterMode, dateRange });
-                assert.deepEqual(actual.txFilterCounts, expected.txFilterCounts, `${label}: counters`);
+                assert.deepEqual(withoutServices(actual.txFilterCounts), expected.txFilterCounts, `${label}: counters`);
                 // Every row appears under "all": its text is compared there, the other filters compare which rows they keep.
                 assertSameGroups(actual.groupedTransactions, expected.groupedTransactions, label, filterMode === 'all');
-                if (filterMode === 'all')
+                if (filterMode === 'all') {
                     comparedRows += rowsOf(expected.groupedTransactions).length;
+                    assert.equal(actual.txFilterCounts.digital_services, serviceRowsOf(expected.groupedTransactions).length, `${label}: services counter`);
+                }
             }
+            // The Services chip keeps the service rows of "all", in the same order.
+            const everything = referenceViewModel({ ...data, t, filterMode: 'all', dateRange, getClientFullName }).groupedTransactions;
+            const services = runViewModel(data, { t, filterMode: 'digital_services', dateRange });
+            assert.deepEqual(rowsOf(services.groupedTransactions).map((row) => row.rawTx), serviceRowsOf(everything).map((row) => row.rawTx), `${lang} services ${dateRange.start ? 'period' : 'all dates'}`);
         }
     }
     assert.ok(comparedRows > 2000, `enough rows compared (${comparedRows})`);
@@ -976,7 +989,7 @@ const DATE_RANGES = [
 for (const resultLimit of [5, 60]) {
     const expected = referenceViewModel({ ...data, t: translate.fr, filterMode: 'all', dateRange: DATE_RANGES[0], getClientFullName, resultLimit });
     const actual = runViewModel(data, { t: translate.fr, filterMode: 'all', dateRange: DATE_RANGES[0], resultLimit });
-    assert.deepEqual(actual.txFilterCounts, expected.txFilterCounts, `limit ${resultLimit}: counters`);
+    assert.deepEqual(withoutServices(actual.txFilterCounts), expected.txFilterCounts, `limit ${resultLimit}: counters`);
     assertSameGroups(actual.groupedTransactions, expected.groupedTransactions, `limit ${resultLimit}`, true);
 }
 
@@ -1006,7 +1019,7 @@ for (const resultLimit of [5, 60]) {
 
     const withPeriod = runViewModel(fresh, { t: translate.fr, filterMode: 'all', dateRange: DATE_RANGES[1] });
     assert.notEqual(withPeriod.txFilterCounts, first.txFilterCounts, 'a period recounts');
-    assert.deepEqual(withPeriod.txFilterCounts, referenceViewModel({ ...fresh, t: translate.fr, filterMode: 'all', dateRange: DATE_RANGES[1], getClientFullName }).txFilterCounts);
+    assert.deepEqual(withoutServices(withPeriod.txFilterCounts), referenceViewModel({ ...fresh, t: translate.fr, filterMode: 'all', dateRange: DATE_RANGES[1], getClientFullName }).txFilterCounts);
 
     const newData = { ...fresh, treasuryTransactions: fresh.treasuryTransactions.slice() };
     const rebuilt = runViewModel(newData, { t: translate.fr, filterMode: 'all', dateRange: DATE_RANGES[0] });
@@ -1017,7 +1030,8 @@ for (const resultLimit of [5, 60]) {
     assertSameGroups(arabic.groupedTransactions, referenceViewModel({ ...newData, t: translate.ar, filterMode: 'all', dateRange: DATE_RANGES[0], getClientFullName }).groupedTransactions, 'language switch', true);
 }
 
-// 5. The page itself: the counts at the top are those of the previous code, and 60 rows are shown.
+// 5. The page itself: the counts of the old top card are all on the page (V2-5 moved them to the
+//    family chips and the list title), and 60 rows are shown.
 {
     const fresh = { ...data, digitalServiceTransactions: data.digitalServiceTransactions.slice() };
     const html = renderToStaticMarkup(<TransactionsPage openAdjustmentModal={noop} openForm={noop} filterMode="all" setFilterMode={noop}
@@ -1035,9 +1049,16 @@ for (const resultLimit of [5, 60]) {
       treasury: allTxs.filter((tx) => tx.category === 'treasury').length,
       digital:  allTxs.filter((tx) => tx.category === 'digital_service').length,
     };
-    assert.ok(html.includes(renderToStaticMarkup(<CurrencyAmount value={stats.total} currency={null} semantic="plain" size="hero" decimals={0}/>)), 'total count');
-    for (const value of [stats.crypto, stats.client, stats.treasury, stats.digital])
-        assert.ok(html.includes(renderToStaticMarkup(<CurrencyAmount value={value} currency={null} semantic="plain" size="lg" decimals={0}/>)), `count ${value}`);
+    const chipCounts = [...html.matchAll(/aria-pressed="(?:true|false)"[^>]*><span>([^<]*)<\/span><span dir="ltr"[^>]*>([^<]*)<\/span><\/button>/g)]
+        .map((match) => [match[1], Number(match[2].replace(/\s/g, ''))] as const);
+    const chip = Object.fromEntries(chipCounts);
+    assert.deepEqual(chipCounts.map(([label]) => label), ['Tout', 'Achats', 'Ventes', 'Stock', 'Clients', 'Trésorerie', 'Services'], 'family chips');
+    const count = (value: number) => formatNumber(value, { min: 0, max: 0 });
+    assert.ok(html.includes(`· <bdi>${count(stats.total)}</bdi></span></h2>`), 'total count, next to the title');
+    assert.equal(chip.Tout, stats.total, 'Tout');
+    assert.equal(chip.Achats + chip.Ventes + chip.Stock, stats.crypto, 'wallet = purchases + sales + stock');
+    assert.deepEqual([chip.Clients, chip['Trésorerie'], chip.Services], [stats.client, stats.treasury, stats.digital], 'clients, treasury, services');
+    assert.ok(stats.total > 1_000 && html.includes(`>${count(stats.total)}</span></button>`), 'counts written like the old card, with the thousands apart');
     assert.equal(html.split('content-visibility').length - 1, 60, 'rows shown');
     for (const row of allTxs.slice(0, 60))
         assert.ok(html.includes(row.amountLabel.replace(/&/g, '&amp;')), `row ${row.id} shown`);

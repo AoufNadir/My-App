@@ -3,6 +3,7 @@ import { BottomSheet } from '../ui/BottomSheet';
 import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/EmptyState';
 import { parseCsvWithHeader, type ParsedCsv } from '../../utils/csv';
+import { useLanguage } from '../../contexts/LanguageContext';
 export interface CsvFieldSpec {
     /** Internal field name passed back to onConfirm (e.g. "fullName"). */
     key: string;
@@ -49,7 +50,8 @@ function autoMap(headers: string[], fields: CsvFieldSpec[]): Record<string, stri
  * for deciding what to do with the rows. This keeps the import flow safe
  * and reusable across clients / transactions / etc.
  */
-export function CsvImportSheet({ isOpen, onClose, title = 'Importer un CSV', fields, onConfirm }: CsvImportSheetProps) {
+export function CsvImportSheet({ isOpen, onClose, title, fields, onConfirm }: CsvImportSheetProps) {
+    const { t } = useLanguage();
     const [parsed, setParsed] = useState<ParsedCsv | null>(null);
     const [mapping, setMapping] = useState<Record<string, string>>({});
     const [error, setError] = useState<string | null>(null);
@@ -72,14 +74,14 @@ export function CsvImportSheet({ isOpen, onClose, title = 'Importer un CSV', fie
             const text = await file.text();
             const result = parseCsvWithHeader(text);
             if (result.headers.length === 0) {
-                setError('Le fichier est vide ou illisible.');
+                setError(t('clients.importEmptyFile') as string);
                 return;
             }
             setParsed(result);
             setMapping(autoMap(result.headers, fields));
         }
         catch (e: any) {
-            setError(e?.message || 'Erreur de lecture du fichier.');
+            setError(e?.message || t('clients.importReadError') as string);
         }
     };
     const missingRequired = useMemo(() => fields.filter(f => f.required && !mapping[f.key]).map(f => f.label), [fields, mapping]);
@@ -113,27 +115,27 @@ export function CsvImportSheet({ isOpen, onClose, title = 'Importer un CSV', fie
             onClose();
         }
         catch (e: any) {
-            setError(e?.message || 'Échec de l\'import.');
+            setError(e?.message || t('clients.importFailed') as string);
         }
         finally {
             setBusy(false);
         }
     };
-    return (<BottomSheet isOpen={isOpen} onClose={handleClose} title={title}>
+    return (<BottomSheet isOpen={isOpen} onClose={handleClose} title={title ?? t('clients.importCsv')}>
             <div className="px-5 py-4 space-y-4">
-                {!parsed ? (<EmptyState title="Choisir un fichier CSV" subtitle="La première ligne doit contenir les en-têtes de colonnes." action={<Button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 text-sm font-bold">
-                                Sélectionner un fichier
+                {!parsed ? (<EmptyState title={t('clients.importPickTitle') as string} subtitle={t('clients.importPickHint') as string} action={<Button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 text-sm font-bold">
+                                {t('clients.importPickButton')}
                             </Button>}/>) : (<>
                         <section>
-                            <h3 className="text-sm font-semibold mb-2">Mapper les colonnes</h3>
+                            <h3 className="text-sm font-semibold mb-2">{t('clients.importMapColumns')}</h3>
                             <ul className="space-y-2">
                                 {fields.map(field => (<li key={field.key} className="flex items-center justify-between gap-3">
                                         <span className="text-sm">
                                             {field.label}
                                             {field.required && <span className="text-danger ms-1">*</span>}
                                         </span>
-                                        <select value={mapping[field.key] || ''} onChange={(e) => setMapping(prev => ({ ...prev, [field.key]: e.target.value }))} className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-neutral-900">
-                                            <option value="">— Ignorer —</option>
+                                        <select value={mapping[field.key] || ''} onChange={(e) => setMapping(prev => ({ ...prev, [field.key]: e.target.value }))} className="min-h-10 max-w-[55%] rounded-button border border-border bg-surface px-2 text-sm text-neutral-900">
+                                            <option value="">{t('clients.importIgnore')}</option>
                                             {parsed.headers.map(h => (<option key={h} value={h}>{h}</option>))}
                                         </select>
                                     </li>))}
@@ -141,7 +143,7 @@ export function CsvImportSheet({ isOpen, onClose, title = 'Importer un CSV', fie
                         </section>
 
                         <section>
-                            <h3 className="text-sm font-semibold mb-2">Aperçu (5 premières lignes)</h3>
+                            <h3 className="text-sm font-semibold mb-2">{t('clients.importPreview')}</h3>
                             <div className="overflow-x-auto rounded-md border border-border">
                                 <table className="w-full text-xs">
                                     <thead>
@@ -157,22 +159,22 @@ export function CsvImportSheet({ isOpen, onClose, title = 'Importer un CSV', fie
                                 </table>
                             </div>
                             <p className="text-xs mt-1 text-neutral-500">
-                                Total : {parsed.rows.length} ligne{parsed.rows.length > 1 ? 's' : ''}
+                                {String(t('clients.importTotalRows')).replace('{count}', String(parsed.rows.length))}
                             </p>
                         </section>
                     </>)}
 
                 {error && <p className="text-sm text-danger">{error}</p>}
                 {missingRequired.length > 0 && parsed && (<p className="text-xs text-warning">
-                        Colonnes obligatoires manquantes : {missingRequired.join(', ')}
+                        {String(t('clients.importMissing')).replace('{fields}', missingRequired.join(', '))}
                     </p>)}
 
                 <div className="flex justify-end gap-2 pt-2">
                     {parsed && (<Button onClick={reset} variant="outline" className="px-4 py-2 text-sm font-medium">
-                            Recommencer
+                            {t('clients.importRestart')}
                         </Button>)}
                     {parsed && (<Button onClick={handleConfirm} disabled={missingRequired.length > 0 || busy} className="px-4 py-2 text-sm font-bold disabled:opacity-50">
-                            {busy ? 'Import...' : 'Confirmer'}
+                            {busy ? t('clients.importBusy') : t('clients.importConfirm')}
                         </Button>)}
                 </div>
 

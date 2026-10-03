@@ -3,9 +3,7 @@ import { createPortal } from 'react-dom';
 import { Button } from '../components/ui/Button';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, DigitalServiceTransaction } from '../types';
 import { PlusIcon } from '../components/icons/PlusIcon';
-import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
 import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
-import { HeroKpiCard } from '../components/ui/HeroKpiCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import { TransactionsHistoryCard } from '../components/transactions/TransactionsHistoryCard';
 import { useHeaderActionsSlot } from '../components/main/headerActionsSlot';
@@ -143,57 +141,33 @@ export function TransactionsPage({
     providedProfitByTxId,
   });
 
-  // One pass over the listed operations (the list can hold thousands of them).
-  const stats = useMemo(() => {
-    const counts = { total: 0, crypto: 0, client: 0, treasury: 0, digital: 0 };
-    for (const txs of Object.values(groupedTransactions) as DisplayTx[][]) {
-      for (const tx of txs) {
-        counts.total += 1;
-        if (tx.category === 'crypto') counts.crypto += 1;
-        else if (tx.category === 'client') counts.client += 1;
-        else if (tx.category === 'treasury') counts.treasury += 1;
-        else if (tx.category === 'digital_service') counts.digital += 1;
-      }
-    }
-    return counts;
-  }, [groupedTransactions]);
+  // Operations listed for the PDF title: the family and period picked (the list can hold thousands).
+  const listedCount = useMemo(
+    () => (Object.values(groupedTransactions) as DisplayTx[][]).reduce((count, txs) => count + txs.length, 0),
+    [groupedTransactions]
+  );
 
-  const exportPdf = () => exportTransactionsPdf(groupedTransactions, getClientFullName, clientsDzd, `${stats.total} opérations`);
+  const exportPdf = () => exportTransactionsPdf(groupedTransactions, getClientFullName, clientsDzd, `${listedCount} opérations`);
 
   return (
-    <div className="anim-page-in space-y-5">
-      <HeroKpiCard
-        accent="sky"
-        icon={<BriefcaseIcon className="w-5 h-5" />}
-        primaryLabel={t('transactions.overview') as string}
-        primaryValue={stats.total}
-        primaryCurrency={null}
-        primarySemantic="plain"
-        secondary={[
-          { label: t('nav.portfolio') as string,  value: stats.crypto,   currency: null, semantic: 'plain' },
-          { label: t('nav.clients') as string,   value: stats.client,   currency: null, semantic: 'plain' },
-          { label: t('nav.treasury') as string,  value: stats.treasury, currency: null, semantic: 'plain' },
-          { label: t('digitalServices.short') as string, value: stats.digital, currency: null, semantic: 'plain' },
-        ]}
-      />
-
+    <div className="anim-page-in flex flex-col gap-3">
       {/* Phones get (+) in the bottom bar and the PDF button in the header. */}
       <div className="hidden gap-2 sm:flex">
         <Button
           variant="primary"
-          size="lg"
+          size="md"
           onClick={onOpenNewOperation}
           disabled={!onOpenNewOperation}
-          className="flex-1 font-bold"
+          className="font-bold"
         >
           <PlusIcon className="w-4 h-4" />
           {t('transactions.newTransaction')}
         </Button>
         <Button
           variant="outline"
-          size="lg"
+          size="md"
           onClick={exportPdf}
-          className="shrink-0 font-semibold px-3"
+          className="font-semibold"
           title={t('transactions.exportPdf') as string}
           aria-label={t('transactions.exportPdf') as string}
         >
@@ -232,8 +206,8 @@ export function TransactionsPage({
         onDeleteDisplayTx={handleDeleteDisplayTx}
         formatDzdAmount={formatDzdAmount}
         profitByTxId={profitByTxId}
+        onOpenNewOperation={onOpenNewOperation}
       />
-
     </div>
   );
 }

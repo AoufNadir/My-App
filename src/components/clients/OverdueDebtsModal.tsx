@@ -3,6 +3,7 @@ import { EmptyState } from '../ui/EmptyState';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { OverdueDebtClient } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { getNameInitials } from '../../utils/nameUtils';
 type OverdueDebtsModalProps = {
     isOpen: boolean;
     onClose: () => void;
@@ -21,33 +22,35 @@ export function OverdueDebtsModal({ isOpen, onClose, overdueDebtors, onOpenClien
         <ModalTitle>{t('clients.overdueDebtsTitle')}</ModalTitle>
       </ModalHeader>
       <ModalContent className="px-4 pb-4 sm:px-6 sm:pb-6">
-        <div className="mb-3 text-sm text-neutral-500">
-          {t('treasury.total')}: <CurrencyAmount value={-totalOverdue} currency="DZD" semantic="loss" decimals={2} className="font-bold"/>
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-card bg-financial-loss-bg px-4 py-3">
+          <span className="text-sm font-semibold text-neutral-700">{t('treasury.total')}</span>
+          <CurrencyAmount value={-totalOverdue} currency="DZD" semantic="loss" decimals={2} size="lg" className="font-bold"/>
         </div>
 
-        <div className="space-y-2 max-h-[55vh] overflow-y-auto pe-1">
-          {overdueDebtors.length > 0 ? overdueDebtors.map((debtor, index) => (<button key={debtor.clientId} type="button" onClick={() => openClientFromModal(debtor.clientId)} className="w-full min-h-touch text-start p-3 rounded-xl border border-border bg-surface-muted hover:bg-neutral-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-base font-semibold truncate">
-                    #{index + 1} {debtor.fullName}
-                  </p>
-                  <p className="text-sm mt-0.5 text-neutral-500">
+        {overdueDebtors.length > 0 ? (<div className="max-h-[55vh] divide-y divide-border overflow-y-auto rounded-card border border-border">
+            {overdueDebtors.map((debtor, index) => (<button key={debtor.clientId} type="button" onClick={() => openClientFromModal(debtor.clientId)} className="flex min-h-touch w-full items-center gap-3 px-3 py-3 text-start transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+                <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-financial-loss-bg text-sm font-bold text-financial-loss">
+                  {getNameInitials(debtor.fullName)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-semibold text-neutral-900">
+                    <span dir="ltr" className="text-neutral-500">#{index + 1}</span> {debtor.fullName}
+                  </span>
+                  <span className="mt-0.5 block text-[13px] text-neutral-500">
                     {debtor.daysOverdue} {t('clients.daysLate')} - {t('clients.sinceWord')} {debtor.oldestUnpaidDate}
-                  </p>
-                  <p className="text-xs mt-0.5 text-neutral-500">
+                  </span>
+                  <span className="mt-0.5 block text-xs text-neutral-500">
                     {debtor.lastPaymentTimestamp
                 ? `${t('clients.lastPayment')} : ${new Date(debtor.lastPaymentTimestamp).toLocaleDateString('fr-FR')}`
                 : t('emptyStates.debts.noRegulation')}
-                  </p>
-                </div>
-                <div className="text-end shrink-0">
+                  </span>
+                </span>
+                <span className="shrink-0 text-end">
                   <CurrencyAmount value={-debtor.overdueAmount} currency="DZD" semantic="loss" decimals={2} size="lg"/>
-                  <span className="text-xs text-neutral-500">{t('finance.debt')}</span>
-                </div>
-              </div>
-            </button>)) : <EmptyState title={t('emptyStates.debts.overdue')} />}
-        </div>
+                  <span className="block text-xs text-neutral-500">{t('finance.debt')}</span>
+                </span>
+              </button>))}
+          </div>) : <EmptyState title={t('emptyStates.debts.overdue')} />}
       </ModalContent>
     </Modal>);
 }

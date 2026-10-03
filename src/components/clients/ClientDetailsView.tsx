@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
 import { DatePicker } from '../ui/DatePicker';
 import { Label } from '../ui/Label';
-import { SectionHeading } from '../ui/SectionHeading';
-import { HeroKpiCard } from '../ui/HeroKpiCard';
+import { Tabs } from '../ui/Tabs';
 import { EmptyState } from '../ui/EmptyState';
+import { AlertCard } from '../cards';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { ClientDzd, ClientTransactionDzd, Tx } from '../../types';
 import { ChevronLeftIcon } from '../icons/ChevronLeftIcon';
@@ -14,20 +13,17 @@ import { ShareIcon } from '../icons/ShareIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { CopyIcon } from '../icons/CopyIcon';
 import { CheckIcon } from '../icons/CheckIcon';
-import { UserIcon } from '../icons/UserIcon';
-import { InfoIcon } from '../icons/InfoIcon';
 import { FileSpreadsheetIcon } from '../icons/FileSpreadsheetIcon';
-import { WalletIcon } from '../icons/WalletIcon';
 import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
 import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { UsersIcon } from '../icons/UsersIcon';
-import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
 import { formatDzd, formatNumber, getRelativeFrDateLabel } from '../../pages/shared/pageFormat';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { ClientReportDateRange, ClientReportRequest } from '../../hooks/useReportExports';
 import { TransactionDisplayList } from '../transactions/TransactionDisplayList';
 import type { DisplayTx } from '../transactions/transactionsTypes';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel } from '../../utils/transactionTerminology';
+import { getNameInitials } from '../../utils/nameUtils';
 type ClientDetailsViewProps = {
     selectedClientId: string;
     selectedClient: ClientDzd;
@@ -128,26 +124,30 @@ function withoutGeneratedRelation(note: string, relationDetail: string, relation
         .filter((part) => part && !generatedParts.has(part))
         .join(' - ');
 }
+/** WhatsApp's own glyph, in its green. */
+function WhatsAppGlyph({ className = 'h-5 w-5' }: { className?: string }) {
+    return (<svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+      <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.122 1.532 5.852L.054 23.5l5.782-1.519A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.9a9.877 9.877 0 01-5.031-1.375l-.361-.214-3.737.981 1.001-3.648-.235-.374A9.855 9.855 0 012.1 12c0-5.467 4.433-9.9 9.9-9.9 5.467 0 9.9 4.433 9.9 9.9s-4.433 9.9-9.9 9.9z"/>
+    </svg>);
+}
 function ContactRow({ label, value, copiedValue, onCopy, isPhone }: ContactRowProps) {
     const { t } = useLanguage();
     if (!value)
         return null;
     const isCopied = copiedValue === value;
-    return (<div className="flex items-center justify-between gap-3 px-4 py-3.5">
+    return (<div className="flex min-h-14 items-center justify-between gap-3 border-t border-border px-4 py-3 first:border-t-0">
       <div className="min-w-0 flex-1">
-        <p className="text-sm text-neutral-500">{label}</p>
-        <p dir="ltr" className="text-base font-semibold truncate select-all leading-snug mt-0.5">{value}</p>
+        <p className="text-xs font-semibold text-neutral-500">{label}</p>
+        <p dir="ltr" className="mt-0.5 truncate text-[15px] font-semibold leading-snug text-neutral-900 select-all rtl:text-end">{value}</p>
       </div>
-      <div className="flex items-center gap-1 shrink-0">
-        {isPhone && (<button type="button" onClick={() => openWhatsAppMessenger(value)} className="flex h-[40px] w-[40px] items-center justify-center rounded-button bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 transition-colors" aria-label="WhatsApp Messenger" title="WhatsApp Messenger">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-              <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.122 1.532 5.852L.054 23.5l5.782-1.519A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.9a9.877 9.877 0 01-5.031-1.375l-.361-.214-3.737.981 1.001-3.648-.235-.374A9.855 9.855 0 012.1 12c0-5.467 4.433-9.9 9.9-9.9 5.467 0 9.9 4.433 9.9 9.9s-4.433 9.9-9.9 9.9z"/>
-            </svg>
+      <div className="flex shrink-0 items-center gap-1">
+        {isPhone && (<button type="button" onClick={() => openWhatsAppMessenger(value)} className="flex h-touch w-touch items-center justify-center rounded-button bg-[#25D366]/10 text-[#25D366] transition-colors hover:bg-[#25D366]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label="WhatsApp" title="WhatsApp">
+            <WhatsAppGlyph />
           </button>)}
-        <Button onClick={() => onCopy(value)} variant="icon" size="icon" className={`rounded-button ${isCopied ? 'bg-success-bg text-financial-profit' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`} aria-label={`${t('common.copy')} ${label}`}>
-          {isCopied ? <CheckIcon className="w-4 h-4"/> : <CopyIcon className="w-4 h-4"/>}
-        </Button>
+        <button type="button" onClick={() => onCopy(value)} className={`flex h-touch w-touch items-center justify-center rounded-button transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${isCopied ? 'bg-financial-profit-bg text-financial-profit' : 'bg-surface-muted text-neutral-600 hover:text-neutral-900'}`} aria-label={`${t('common.copy')} ${label}`}>
+          {isCopied ? <CheckIcon aria-hidden="true" className="h-4 w-4"/> : <CopyIcon aria-hidden="true" className="h-4 w-4"/>}
+        </button>
       </div>
     </div>);
 }
@@ -160,6 +160,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
     const [reportStartDate, setReportStartDate] = useState('');
     const [reportEndDate, setReportEndDate] = useState('');
     const [reportDateError, setReportDateError] = useState('');
+    const [activeTab, setActiveTab] = useState<'history' | 'dossier'>('history');
     const dates = Object.keys(groupedHistory);
     const linkedTransactionsById = useMemo(() => new Map(transactions.map((tx) => [tx.id, tx])), [transactions]);
     const clientsById = useMemo(() => new Map(clientsDzd.map((client) => [client.id, client])), [clientsDzd]);
@@ -196,7 +197,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
         if (firstTimestamp === null) {
             setReportStartDate('');
             setReportEndDate('');
-            setReportDateError('Aucune opération trouvée pour ce client.');
+            setReportDateError(t('clients.reportNoOperation') as string);
             return;
         }
         setReportStartDate(toInputDate(new Date(firstTimestamp)));
@@ -212,11 +213,11 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
         const startTs = parseDateBoundary(reportStartDate, false);
         const endTs = parseDateBoundary(reportEndDate, true);
         if (startTs === null || endTs === null) {
-            setReportDateError('Veuillez sélectionner les deux dates.');
+            setReportDateError(t('clients.reportPickBothDates') as string);
             return;
         }
         if (startTs > endTs) {
-            setReportDateError('La date de début doit être avant la date de fin.');
+            setReportDateError(t('clients.reportStartAfterEnd') as string);
             return;
         }
         const range: ClientReportDateRange = { startTs, endTs };
@@ -401,205 +402,158 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             navigator.clipboard.writeText(msg);
         }
     };
-    return (<div className="anim-page-in space-y-5">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <Button onClick={() => setSelectedClientId(null)} variant="icon" size="icon" aria-label={t('common.back')} className="rounded-full text-neutral-600 hover:bg-neutral-100">
-            <ChevronLeftIcon className="w-6 h-6 rtl:-scale-x-100"/>
-          </Button>
-          <div className="flex-grow min-w-0">
-            <h2 className="flex items-center gap-2 text-base font-bold text-neutral-900 truncate min-w-0">
-              <UserIcon className="w-4 h-4 shrink-0 text-primary"/>
-              <span className="truncate">{getClientFullName(selectedClient)}</span>
-            </h2>
-          </div>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <Button onClick={() => handleTouchStart(selectedClient)} variant="icon" size="icon" className="rounded-full hover:bg-neutral-100" aria-label={t('clients.share')}>
-            <ShareIcon className="w-5 h-5"/>
-          </Button>
-          <Button onClick={() => openClientModal(selectedClient)} variant="icon" size="icon" className="rounded-full hover:bg-neutral-100" aria-label={t('transactions.editClient')}>
-            <PencilIcon className="w-5 h-5"/>
-          </Button>
-          <Button onClick={openReportDialog} variant="primary" size="sm" className="ms-1">
-            <FileSpreadsheetIcon className="w-4 h-4"/>
-            PDF
-          </Button>
-        </div>
-      </div>
-
-      {(() => {
+    const clientName = getClientFullName(selectedClient);
+    const statusPillClass = selectedClientBalance > 0.01
+        ? 'bg-financial-profit-bg text-financial-profit'
+        : selectedClientBalance < -0.01
+            ? 'bg-financial-debt-bg text-financial-debt'
+            : 'bg-surface-muted text-neutral-600';
+    const quickActions = [
+        { id: 'collect', label: t('clients.actionCollect') as string, icon: <ArrowDownLeftIcon className="h-5 w-5"/>, tone: 'bg-financial-profit-bg text-financial-profit', onClick: () => openClientTxModal(null, 'Règlement Reçu', selectedClientId) },
+        { id: 'pay', label: t('clients.actionPay') as string, icon: <ArrowUpRightIcon className="h-5 w-5"/>, tone: 'bg-financial-loss-bg text-financial-loss', onClick: () => openClientTxModal(null, 'Paiement Effectué', selectedClientId) },
+        { id: 'transfer', label: t('clients.actionTransfer') as string, icon: <UsersIcon className="h-5 w-5"/>, tone: 'bg-primary/10 text-primary dark:text-primary-light', onClick: () => openClientToClientTransferModal(selectedClient), testId: 'client-transfer-button' },
+        ...(hasDebt ? [{ id: 'remind', label: (hasPhone ? t('clients.actionWhatsAppReminder') : t('clients.actionCopyReminder')) as string, icon: <WhatsAppGlyph />, tone: 'bg-[#25D366]/10 text-[#25D366]', onClick: handleSendReminder }] : []),
+    ];
+    const creditLimitAlert = (() => {
         const limit = selectedClient.creditLimit;
         if (!limit || limit <= 0 || selectedClientBalance >= 0) return null;
         const debt = Math.abs(selectedClientBalance);
         if (debt <= limit) return null;
         const pct = Math.round((debt / limit) * 100);
-        return (
-          <div className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning-bg px-4 py-3">
-            <AlertTriangleIcon className="h-5 w-5 shrink-0 text-warning mt-0.5"/>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-warning">{t('clients.creditLimitExceeded')} ({pct}%)</p>
-              <p className="mt-0.5 text-xs text-warning/70">
-                {t('finance.debt')} : <span dir="ltr" className="font-semibold">{Math.round(debt).toLocaleString('fr-FR')} DZD</span>
-                {' '}/ {t('clients.limitWord')} : <span dir="ltr" className="font-semibold">{Math.round(limit).toLocaleString('fr-FR')} DZD</span>
-              </p>
+        return (<AlertCard tone="warning" title={`${t('clients.creditLimitExceeded')} (${pct}%)`} detail={<>
+            {t('finance.debt')} : <span dir="ltr" className="font-semibold">{Math.round(debt).toLocaleString('fr-FR')} DZD</span>
+            {' '}/ {t('clients.limitWord')} : <span dir="ltr" className="font-semibold">{Math.round(limit).toLocaleString('fr-FR')} DZD</span>
+          </>}/>);
+    })();
+    const iconButtonClass = 'flex h-touch w-touch shrink-0 items-center justify-center rounded-full text-neutral-600 transition-colors hover:bg-surface-muted hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary';
+    return (<div className="anim-page-in flex flex-col gap-3">
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={() => setSelectedClientId(null)} aria-label={t('common.back')} className={`-ms-2 ${iconButtonClass}`}>
+          <ChevronLeftIcon aria-hidden="true" className="h-6 w-6 rtl:-scale-x-100"/>
+        </button>
+        <h2 className="min-w-0 flex-1 truncate text-lg font-bold text-neutral-900">{clientName}</h2>
+        <button type="button" onClick={() => handleTouchStart(selectedClient)} className={iconButtonClass} aria-label={t('clients.share')} title={t('clients.share')}>
+          <ShareIcon aria-hidden="true" className="h-5 w-5"/>
+        </button>
+        <button type="button" onClick={() => openClientModal(selectedClient)} className={iconButtonClass} aria-label={t('transactions.editClient')} title={t('transactions.editClient')}>
+          <PencilIcon aria-hidden="true" className="h-5 w-5"/>
+        </button>
+        <Button onClick={openReportDialog} variant="primary" size="sm" className="ms-1 shrink-0">
+          <FileSpreadsheetIcon className="h-4 w-4"/>
+          PDF
+        </Button>
+      </div>
+
+      {/* Balance and the actions used every day, before anything else */}
+      <section aria-label={t('common.balance') as string} className="rounded-card border border-border bg-surface p-4">
+        <div className="flex items-center gap-3">
+          <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-muted text-base font-bold text-neutral-600">
+            {getNameInitials(clientName)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[13px] font-semibold text-neutral-500">{t('common.balance')}</p>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${statusPillClass}`}>{balanceStatusLabel}</span>
             </div>
+            <CurrencyAmount value={selectedClientBalance} currency="DZD" semantic="plain" size="hero" decimals={0} className={`mt-0.5 block ${balanceStatusColor}`}/>
           </div>
-        );
-      })()}
+        </div>
+        <div role="group" aria-label={t('clients.quickActions') as string} className={`mt-4 grid gap-2 ${quickActions.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          {quickActions.map((action) => (<button key={action.id} type="button" onClick={action.onClick} data-testid={'testId' in action ? action.testId : undefined} className="flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1.5 rounded-button border border-border bg-surface px-1 py-2 text-center text-xs font-semibold leading-tight text-neutral-800 transition-colors hover:bg-surface-muted active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+              <span aria-hidden="true" className={`flex h-9 w-9 items-center justify-center rounded-full ${action.tone}`}>{action.icon}</span>
+              <span className="max-w-full">{action.label}</span>
+            </button>))}
+        </div>
+      </section>
 
-      <HeroKpiCard accent="sky" icon={<WalletIcon className="w-5 h-5"/>} primaryLabel={t('common.balance') as string} primaryValue={selectedClientBalance} primaryCurrency="DZD" primarySemantic="auto" secondary={[
-            {
-                label: t('clients.status') as string,
-                value: 0,
-                display: (<span className={`text-lg font-semibold ${balanceStatusColor}`}>
-                {balanceStatusLabel}
-              </span>),
-            },
-            { label: t('reports.operations') as string, value: totalTransactionCount, currency: null, semantic: 'plain' }
-        ]}/>
+      {creditLimitAlert}
 
-      <Card>
-        <CardHeader className="p-4 pb-3">
-          <SectionHeading icon={<InfoIcon className="w-4 h-4"/>}>{t('clients.dossier')}</SectionHeading>
-        </CardHeader>
-        <CardContent className="p-0 divide-y divide-neutral-100">
-          {hasContactInfo && (
-            <>
-              <ContactRow label={t('transactions.phone') as string} value={selectedClient.phone || ''} copiedValue={copiedValue} onCopy={handleCopy} isPhone/>
-              <ContactRow label="RedotPay ID" value={selectedClient.redotpayId || ''} copiedValue={copiedValue} onCopy={handleCopy}/>
-              <ContactRow label="Binance Email" value={selectedClient.binanceEmail || ''} copiedValue={copiedValue} onCopy={handleCopy}/>
-            </>
-          )}
-          {selectedClient.notes && (
-            <div className="px-4 py-3">
-              <p className="text-xs font-semibold uppercase text-neutral-500">{t('clients.privateNotes')}</p>
-              <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">{selectedClient.notes}</p>
-            </div>
-          )}
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <span className="text-sm text-neutral-500">{t('reports.operations')}</span>
-            <span className="text-sm font-semibold text-neutral-900 tabular-nums" dir="ltr">{clientStats.txCount}</span>
-          </div>
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <span className="text-sm text-neutral-500">{t('clients.lastOperation')}</span>
-            <span className="text-sm font-semibold text-neutral-900 tabular-nums" dir="ltr">{clientStats.lastDate || '—'}</span>
-          </div>
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <span className="text-sm text-neutral-500">{t('clients.firstOperation')}</span>
-            <span className="text-sm font-semibold text-neutral-900 tabular-nums" dir="ltr">{clientStats.firstDate || '—'}</span>
-          </div>
-          {selectedClient.creditLimit && selectedClient.creditLimit > 0 && (
-            <div className="flex items-center justify-between gap-3 px-4 py-3">
-              <span className="text-sm text-neutral-500">{t('clients.creditLimit')}</span>
-              <CurrencyAmount value={selectedClient.creditLimit} currency="DZD" semantic="plain" size="md" decimals={0}/>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <Tabs variant="pills" tabs={[
+            { id: 'history', label: t('clients.history') as string, badge: formatNumber(totalTransactionCount, { min: 0, max: 0 }) },
+            { id: 'dossier', label: t('clients.dossier') as string },
+        ]} activeTab={activeTab} onChange={(id) => setActiveTab(id === 'dossier' ? 'dossier' : 'history')}/>
 
-      <Card>
-        <CardHeader className="p-4 pb-3">
-          <SectionHeading icon={<WalletIcon className="w-4 h-4"/>}>{t('clients.actions')}</SectionHeading>
-        </CardHeader>
-        <CardContent className="p-4 pt-0 space-y-2.5">
-          <div className="grid grid-cols-2 gap-3">
-            <Button onClick={() => openClientTxModal(null, 'Règlement Reçu', selectedClientId)} variant="primary" size="md" className="w-full font-bold">
-              <ArrowDownLeftIcon className="w-4 h-4"/>
-              {t('clients.actionCollect')}
-            </Button>
-            <Button onClick={() => openClientTxModal(null, 'Paiement Effectué', selectedClientId)} variant="tab" size="md" className="w-full font-bold">
-              <ArrowUpRightIcon className="w-4 h-4"/>
-              {t('clients.actionPay')}
-            </Button>
-          </div>
-          <button
-            type="button"
-            onClick={() => openClientToClientTransferModal(selectedClient)}
-            data-testid="client-transfer-button"
-            className="inline-flex min-h-button-md w-full min-w-0 items-center justify-center gap-2 rounded-button bg-neutral-100 px-4 py-2.5 text-sm font-bold leading-tight text-neutral-700 transition-colors hover:bg-neutral-200 active:scale-[0.98] active:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-app-bg"
-          >
-            <UsersIcon className="w-4 h-4"/>
-            <span>{t('clients.actionTransfer')}</span>
-          </button>
-          {hasDebt && (
-            <button
-              type="button"
-              onClick={handleSendReminder}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#25D366]/30 bg-[#25D366]/10 py-3 text-sm font-bold text-[#25D366] transition-colors hover:bg-[#25D366]/20 active:scale-[0.99]"
-            >
-              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-                <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.122 1.532 5.852L.054 23.5l5.782-1.519A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.9a9.877 9.877 0 01-5.031-1.375l-.361-.214-3.737.981 1.001-3.648-.235-.374A9.855 9.855 0 012.1 12c0-5.467 4.433-9.9 9.9-9.9 5.467 0 9.9 4.433 9.9 9.9s-4.433 9.9-9.9 9.9z"/>
-              </svg>
-              <span>
-                {hasPhone ? t('clients.actionWhatsAppReminder') : t('clients.actionCopyReminder')}
-              </span>
-            </button>
-          )}
-        </CardContent>
-      </Card>
+      <div role="tabpanel" aria-label={t('clients.history') as string} hidden={activeTab !== 'history'} className="overflow-hidden rounded-card border border-border bg-surface">
+        {dates.length > 0 ? (<div className="pb-2">
+            <TransactionDisplayList
+              dateGroups={visibleDisplayDateGroups}
+              t={t}
+              getRelativeDateLabel={getRelativeFrDateLabel}
+              onEditDisplayTx={(displayTx) => handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
+              onDeleteDisplayTx={(displayTx) => handleDeleteClientTxClick((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
+              onOpenDisplayTx={(displayTx) => handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
+              formatDzdAmount={(value) => formatDzd(value, { min: 2, max: 2 })}
+              profitByTxId={profitByTxId}
+            />
+            {hiddenTransactionCount > 0 && (<div className="px-4 pb-3 pt-4">
+                <Button onClick={() => setVisibleTransactionCount((prev) => prev + LOAD_MORE_TRANSACTIONS)} variant="outline" className="w-full font-semibold">
+                  {t('transactions.showMore')} ({Math.min(hiddenTransactionCount, LOAD_MORE_TRANSACTIONS)})
+                </Button>
+                <p className="mt-2 text-center text-xs text-neutral-500" dir="ltr">
+                  {totalTransactionCount - hiddenTransactionCount} / {totalTransactionCount}
+                </p>
+              </div>)}
+          </div>) : (<EmptyState icon={<FileSpreadsheetIcon className="h-5 w-5"/>} title={t('transactions.noTransactions') as string}/>)}
+      </div>
 
-      <Card>
-          <CardHeader className="p-4 pb-3 flex flex-row items-center justify-between">
-            <SectionHeading icon={<FileSpreadsheetIcon className="w-4 h-4"/>}>
-              {t('clients.history')}
-            </SectionHeading>
-            <span className="text-sm text-neutral-500">{totalTransactionCount} {t('transactions.operationsWord')}</span>
-          </CardHeader>
-          <CardContent className="p-0">
-            {dates.length > 0 ? (<div className="pb-2">
-                <TransactionDisplayList
-                  dateGroups={visibleDisplayDateGroups}
-                  t={t}
-                  getRelativeDateLabel={getRelativeFrDateLabel}
-                  onEditDisplayTx={(displayTx) => handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
-                  onDeleteDisplayTx={(displayTx) => handleDeleteClientTxClick((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
-                  onOpenDisplayTx={(displayTx) => handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
-                  formatDzdAmount={(value) => formatDzd(value, { min: 2, max: 2 })}
-                  profitByTxId={profitByTxId}
-                />
-                {hiddenTransactionCount > 0 && (<div className="px-4 pt-4 pb-3">
-                    <Button onClick={() => setVisibleTransactionCount((prev) => prev + LOAD_MORE_TRANSACTIONS)} variant="outline" className="w-full rounded-xl px-4 py-3 font-semibold bg-neutral-100 text-neutral-700 hover:bg-neutral-200">
-                      {t('transactions.showMore')} ({Math.min(hiddenTransactionCount, LOAD_MORE_TRANSACTIONS)})
-                    </Button>
-                    <p className="mt-2 text-center text-xs text-neutral-500">
-                      {totalTransactionCount - hiddenTransactionCount} / {totalTransactionCount}
-                    </p>
-                  </div>)}
-              </div>) : (<EmptyState icon={<FileSpreadsheetIcon className="w-5 h-5"/>} title={t('transactions.noTransactions') as string}/>)}
-          </CardContent>
-        </Card>
+      <div role="tabpanel" aria-label={t('clients.dossier') as string} hidden={activeTab !== 'dossier'} className="overflow-hidden rounded-card border border-border bg-surface">
+        {hasContactInfo && (<>
+            <ContactRow label={t('transactions.phone') as string} value={selectedClient.phone || ''} copiedValue={copiedValue} onCopy={handleCopy} isPhone/>
+            <ContactRow label="RedotPay ID" value={selectedClient.redotpayId || ''} copiedValue={copiedValue} onCopy={handleCopy}/>
+            <ContactRow label="Binance Email" value={selectedClient.binanceEmail || ''} copiedValue={copiedValue} onCopy={handleCopy}/>
+          </>)}
+        {selectedClient.notes && (<div className="border-t border-border px-4 py-3 first:border-t-0">
+            <p className="text-xs font-semibold text-neutral-500">{t('clients.privateNotes')}</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">{selectedClient.notes}</p>
+          </div>)}
+        <div className="flex min-h-12 items-center justify-between gap-3 border-t border-border px-4 py-3 first:border-t-0">
+          <span className="text-sm text-neutral-500">{t('reports.operations')}</span>
+          <span className="text-sm font-semibold text-neutral-900 tabular-nums" dir="ltr">{clientStats.txCount}</span>
+        </div>
+        <div className="flex min-h-12 items-center justify-between gap-3 border-t border-border px-4 py-3">
+          <span className="text-sm text-neutral-500">{t('clients.lastOperation')}</span>
+          <span className="text-sm font-semibold text-neutral-900 tabular-nums" dir="ltr">{clientStats.lastDate || '—'}</span>
+        </div>
+        <div className="flex min-h-12 items-center justify-between gap-3 border-t border-border px-4 py-3">
+          <span className="text-sm text-neutral-500">{t('clients.firstOperation')}</span>
+          <span className="text-sm font-semibold text-neutral-900 tabular-nums" dir="ltr">{clientStats.firstDate || '—'}</span>
+        </div>
+        {selectedClient.creditLimit && selectedClient.creditLimit > 0 && (<div className="flex min-h-12 items-center justify-between gap-3 border-t border-border px-4 py-3">
+            <span className="text-sm text-neutral-500">{t('clients.creditLimit')}</span>
+            <CurrencyAmount value={selectedClient.creditLimit} currency="DZD" semantic="plain" size="md" decimals={0}/>
+          </div>)}
+      </div>
+
       <Modal isOpen={isReportDialogOpen} onClose={() => setIsReportDialogOpen(false)} className="max-w-md bg-surface">
         <ModalHeader onClose={() => setIsReportDialogOpen(false)}>
-          <ModalTitle className="text-base sm:text-lg">Créer rapport client</ModalTitle>
+          <ModalTitle className="text-base sm:text-lg">{t('clients.reportTitle')}</ModalTitle>
         </ModalHeader>
         <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
           <div className="grid grid-cols-2 gap-3">
-            <Button onClick={setCurrentMonthRange} variant="outline" className="rounded-lg px-3 py-2 text-sm font-bold">
-              Mois courant
+            <Button onClick={setCurrentMonthRange} variant="outline" className="font-bold">
+              {t('clients.reportThisMonth')}
             </Button>
-            <Button onClick={setCurrentYearRange} variant="outline" className="rounded-lg px-3 py-2 text-sm font-bold">
-              Année courante
+            <Button onClick={setCurrentYearRange} variant="outline" className="font-bold">
+              {t('clients.reportThisYear')}
             </Button>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label>Date début</Label>
+              <Label>{t('transactions.startDate')}</Label>
               <DatePicker value={reportStartDate} onChange={(value) => { setReportStartDate(value); setReportDateError(''); }} className="mt-1"/>
             </div>
             <div>
-              <Label>Date fin</Label>
+              <Label>{t('transactions.endDate')}</Label>
               <DatePicker value={reportEndDate} onChange={(value) => { setReportEndDate(value); setReportDateError(''); }} className="mt-1"/>
             </div>
           </div>
-          {reportDateError && <p className="text-sm font-semibold text-danger">{reportDateError}</p>}
+          {reportDateError && <p role="alert" className="text-sm font-semibold text-danger">{reportDateError}</p>}
         </ModalContent>
         <ModalFooter>
           <Button onClick={setAllHistoryRange} variant="outline">
-            Tout l'historique
+            {t('clients.reportAllHistory')}
           </Button>
-          <Button onClick={handleCreateReport}>Créer PDF</Button>
+          <Button onClick={handleCreateReport}>{t('clients.reportCreatePdf')}</Button>
         </ModalFooter>
       </Modal>
     </div>);
