@@ -83,7 +83,7 @@ export function GlobalSearchDialog({ isOpen, onClose, query, setQuery, results, 
     ].filter((g) => g.items.length > 0);
     let globalIdx = -1;
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-2xl bg-surface text-neutral-900">
-      <ModalHeader onClose={onClose} className="border-b border-border px-4 py-3">
+      <ModalHeader onClose={onClose}>
         <ModalTitle className="text-base">{title}</ModalTitle>
       </ModalHeader>
       <ModalContent className="p-4 space-y-3">
@@ -209,7 +209,7 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
         setDestination(getOppositeWallet(nextSource));
     };
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
-      <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
+      <ModalHeader onClose={onClose}>
         <ModalTitle className="text-base sm:text-lg">{title}</ModalTitle>
         <p className="mt-0.5 text-sm font-normal text-neutral-500">{subtitle}</p>
       </ModalHeader>
@@ -259,15 +259,13 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
             return (<TransactionPreviewCard title="Résumé après transfert" rows={rows} error={insufficient ? 'Solde insuffisant' : undefined}/>);
         })()}
       </ModalContent>
-      <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
-        <div className="flex gap-2 w-full">
-          <Button onClick={onClose} variant="outline" className="flex-1">
-            Annuler
-          </Button>
-          <Button onClick={onConfirm} disabled={isInvalid} className="flex-1">
-            {isSaving ? processingText : confirmText}
-          </Button>
-        </div>
+      <ModalFooter>
+        <Button onClick={onClose} variant="outline">
+          Annuler
+        </Button>
+        <Button onClick={onConfirm} disabled={isInvalid}>
+          {isSaving ? processingText : confirmText}
+        </Button>
       </ModalFooter>
     </Modal>);
 }
@@ -348,7 +346,7 @@ type ClientTransferDialogProps = {
 };
 export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromClientId, toClientId, setToClientId, amount, setAmount, notes, setNotes, onSave, isSaving, clients, fromBalance, toBalance, onMaxFrom, title, infoText, fromLabel, toLabel, amountLabel, notesLabel, filterClientsLabel, balanceLabel, dinarLabel, confirmLabel, date, setDate, time, setTime, dateLabel, timeLabel, maxDisabled = false }: ClientTransferDialogProps) {
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
-      <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
+      <ModalHeader onClose={onClose}>
         <ModalTitle className="text-base sm:text-lg">{title}</ModalTitle>
         <p className="mt-0.5 text-sm font-normal text-neutral-500">{infoText}</p>
       </ModalHeader>
@@ -403,7 +401,7 @@ export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromCli
             return (<TransactionPreviewCard title="Résumé après transfert" rows={rows}/>);
         })()}
       </ModalContent>
-      <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
+      <ModalFooter>
         {(() => {
             const amt = parseAndEvaluate(amount);
             const sameClient = fromClientId && toClientId && fromClientId === toClientId;
@@ -486,7 +484,7 @@ type PortfolioBalanceEditDialogProps = {
 };
 export function PortfolioBalanceEditDialog({ isOpen, onClose, asset, value, onValueChange, onValueBlur, notes, setNotes, onSave, isSaving, titlePrefix, descriptionText, newBalanceLabel, notesOptionalLabel, reasonPlaceholder, saveLabel, savingLabel }: PortfolioBalanceEditDialogProps) {
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-sm bg-surface text-neutral-900">
-      <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
+      <ModalHeader onClose={onClose}>
         <ModalTitle className="text-base sm:text-lg">{titlePrefix} {asset}</ModalTitle>
         <p className="mt-0.5 text-sm font-normal text-neutral-500">{descriptionText}</p>
       </ModalHeader>
@@ -494,11 +492,9 @@ export function PortfolioBalanceEditDialog({ isOpen, onClose, asset, value, onVa
         <MoneyField label={newBalanceLabel} value={value} onChange={onValueChange} onBlur={onValueBlur} currency={asset} placeholder="0"/>
         <Input label={notesOptionalLabel} value={notes} onChange={e => setNotes(e.target.value)} placeholder={reasonPlaceholder}/>
       </ModalContent>
-      <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
-        <div className="flex w-full gap-2">
-          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Annuler</Button>
-          <Button type="button" className="flex-1" onClick={onSave} loading={isSaving}>{isSaving ? savingLabel : saveLabel}</Button>
-        </div>
+      <ModalFooter>
+        <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+        <Button type="button" onClick={onSave} loading={isSaving}>{isSaving ? savingLabel : saveLabel}</Button>
       </ModalFooter>
     </Modal>);
 }

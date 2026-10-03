@@ -20,14 +20,10 @@ type ManualAssetClientDialogsProps = {
     onCreate: () => void;
     onUpdate: () => void;
 };
-const headerClass = 'sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
-const footerClass = 'sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
 export function ManualAssetClientDialogs({ isCreateClientModalOpen, isEditClientModalOpen, clientForm, setClientForm, onCloseCreateModal, onCloseEditModal, onCreate, onUpdate }: ManualAssetClientDialogsProps) {
-    const cancelClass = 'flex-1 rounded-xl bg-neutral-100 py-3 font-bold text-neutral-700 transition-colors hover:bg-neutral-200';
-    const confirmClass = 'flex-1 rounded-xl bg-primary py-3 font-bold text-white shadow-sm transition-colors hover:bg-primary-dark';
     return (<>
       <Modal isOpen={isCreateClientModalOpen} onClose={onCloseCreateModal} className="max-w-md bg-surface">
-        <ModalHeader onClose={onCloseCreateModal} className={headerClass}>
+        <ModalHeader onClose={onCloseCreateModal}>
           <ModalTitle className="text-base sm:text-lg">Nouveau Client</ModalTitle>
         </ModalHeader>
         <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
@@ -35,16 +31,14 @@ export function ManualAssetClientDialogs({ isCreateClientModalOpen, isEditClient
           <div><Label>Téléphone <span className={`text-xs font-normal text-neutral-400`}>(Optionnel)</span></Label><Input value={clientForm.phone} onChange={(e) => setClientForm((prev) => ({ ...prev, phone: e.target.value }))} className="mt-1" dir="ltr"/></div>
           <div><Label>Email <span className={`text-xs font-normal text-neutral-400`}>(Optionnel)</span></Label><Input value={clientForm.email} onChange={(e) => setClientForm((prev) => ({ ...prev, email: e.target.value }))} className="mt-1" dir="ltr"/></div>
         </ModalContent>
-        <ModalFooter className={footerClass}>
-          <div className="flex gap-2 w-full">
-            <Button onClick={onCloseCreateModal} className={cancelClass}>Annuler</Button>
-            <Button onClick={onCreate} className={confirmClass}>Créer le Client</Button>
-          </div>
+        <ModalFooter>
+          <Button onClick={onCloseCreateModal} variant="outline">Annuler</Button>
+          <Button onClick={onCreate}>Créer le Client</Button>
         </ModalFooter>
       </Modal>
 
       <Modal isOpen={isEditClientModalOpen} onClose={onCloseEditModal} className="max-w-md bg-surface">
-        <ModalHeader onClose={onCloseEditModal} className={headerClass}>
+        <ModalHeader onClose={onCloseEditModal}>
           <ModalTitle className="text-base sm:text-lg">Modifier le Client</ModalTitle>
         </ModalHeader>
         <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
@@ -60,11 +54,9 @@ export function ManualAssetClientDialogs({ isCreateClientModalOpen, isEditClient
             </p>
           </div>
         </ModalContent>
-        <ModalFooter className={footerClass}>
-          <div className="flex gap-2 w-full">
-            <Button onClick={onCloseEditModal} className={cancelClass}>Annuler</Button>
-            <Button onClick={onUpdate} className={confirmClass}>Enregistrer</Button>
-          </div>
+        <ModalFooter>
+          <Button onClick={onCloseEditModal} variant="outline">Annuler</Button>
+          <Button onClick={onUpdate}>Enregistrer</Button>
         </ModalFooter>
       </Modal>
     </>);

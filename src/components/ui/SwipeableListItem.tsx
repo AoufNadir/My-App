@@ -24,7 +24,7 @@ type SwipeableListItemProps = {
  *  - Tapping an action snaps closed before invoking the handler.
  */
 export const SwipeableListItem: React.FC<SwipeableListItemProps> = ({ children, onEdit, onDelete, disableSwipe = false, className = '' }) => {
-    const { dir } = useLanguage();
+    const { dir, t } = useLanguage();
     const isRtl = dir === 'rtl';
     const sign = isRtl ? 1 : -1;
     const actionCount = (onEdit ? 1 : 0) + (onDelete ? 1 : 0);
@@ -147,10 +147,10 @@ export const SwipeableListItem: React.FC<SwipeableListItemProps> = ({ children, 
     return (<div className={`relative w-full overflow-hidden ${className}`}>
       {/* Technical gesture dimensions: widths/opacity are driven by swipe physics, not visual design. */}
       <div ref={actionsRef} className={`absolute inset-y-0 ${isRtl ? 'left-0' : 'right-0'} flex items-stretch`} style={{ width: actionsWidth, opacity: 0 }}>
-        {onEdit ? (<button onClick={() => handleActionClick(onEdit)} className="flex h-full items-center justify-center bg-primary text-white transition-colors hover:bg-primary-dark focus:outline-none" style={{ width: ACTION_BUTTON_WIDTH }} aria-label="Modifier">
+        {onEdit ? (<button onClick={() => handleActionClick(onEdit)} className="flex h-full items-center justify-center bg-primary text-white transition-colors hover:bg-primary-dark focus:outline-none" style={{ width: ACTION_BUTTON_WIDTH }} aria-label={t('common.edit')}>
             <PencilIcon className="w-5 h-5"/>
           </button>) : null}
-        {onDelete ? (<button onClick={() => handleActionClick(onDelete)} className="flex h-full items-center justify-center bg-danger text-white transition-colors hover:bg-danger-light focus:outline-none" style={{ width: ACTION_BUTTON_WIDTH }} aria-label="Supprimer">
+        {onDelete ? (<button onClick={() => handleActionClick(onDelete)} className="flex h-full items-center justify-center bg-danger text-white transition-colors hover:bg-danger-light focus:outline-none" style={{ width: ACTION_BUTTON_WIDTH }} aria-label={t('common.delete')}>
             <Trash2Icon className="w-5 h-5"/>
           </button>) : null}
       </div>

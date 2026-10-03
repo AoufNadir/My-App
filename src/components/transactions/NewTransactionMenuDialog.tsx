@@ -76,7 +76,7 @@ function FinancialActionRow({ title, subtitle, icon, onClick }: FinancialActionR
         <p className="text-base font-semibold leading-snug text-neutral-900">{title}</p>
         <p className="mt-0.5 truncate text-sm leading-snug text-neutral-500">{subtitle}</p>
       </div>
-      <ChevronRightIcon className="h-5 w-5 justify-self-end text-neutral-400" />
+      <ChevronRightIcon className="h-5 w-5 justify-self-end text-neutral-400 rtl:-scale-x-100" />
     </button>
   );
 }
@@ -100,7 +100,7 @@ export function NewTransactionMenuDialog({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface">
-      <ModalHeader onClose={onClose} className="p-4">
+      <ModalHeader onClose={onClose}>
         <ModalTitle className="text-lg">{t('transactions.newTransaction')}</ModalTitle>
       </ModalHeader>
       <ModalContent className="space-y-5 p-4 pt-0">

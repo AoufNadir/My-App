@@ -111,7 +111,7 @@ export function ServicesPage({ manualAssets, manualAssetClients, manualAssetTran
                           <CurrencyAmount value={row.netCapitalImpact} currency="DZD" semantic="auto" size="md" decimals={0} showSign/>
                           {row.amountToReceive > 0 && (<p className="text-xs text-neutral-500">{t('services.toReceive')}</p>)}
                         </div>
-                        <ChevronRightIcon className="w-5 h-5 text-neutral-400"/>
+                        <ChevronRightIcon className="w-5 h-5 text-neutral-400 rtl:-scale-x-100"/>
                       </div>
                     </div>
                   </SwipeableListItem>);

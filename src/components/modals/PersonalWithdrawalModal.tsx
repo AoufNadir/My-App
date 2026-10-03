@@ -115,7 +115,7 @@ export function PersonalWithdrawalModal({
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
-            <ModalHeader onClose={onClose} className="sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
+            <ModalHeader onClose={onClose}>
                 <ModalTitle className="text-base sm:text-lg">
                     {editingTx ? t('personalWithdrawal.editTitle') : t('personalWithdrawal.title')}
                 </ModalTitle>
@@ -219,22 +219,19 @@ export function PersonalWithdrawalModal({
                 </div>
             </ModalContent>
 
-            <ModalFooter className="sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
-                <div className="flex w-full gap-2">
-                    <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
-                        {t('common.cancel')}
-                    </Button>
-                    <Button
-                        type="button"
-                        className="flex-1"
-                        onClick={onSave}
-                        disabled={hasError || parsedAmount <= 0}
-                        loading={isSaving}
-                        title={errorTitle}
-                    >
-                        {isSaving ? t('common.processing') : (editingTx ? 'Mettre a jour' : (mode === 'advance' ? "Prendre l'avance" : 'Enregistrer'))}
-                    </Button>
-                </div>
+            <ModalFooter>
+                <Button type="button" variant="outline" onClick={onClose}>
+                    {t('common.cancel')}
+                </Button>
+                <Button
+                    type="button"
+                    onClick={onSave}
+                    disabled={hasError || parsedAmount <= 0}
+                    loading={isSaving}
+                    title={errorTitle}
+                >
+                    {isSaving ? t('common.processing') : (editingTx ? 'Mettre a jour' : (mode === 'advance' ? "Prendre l'avance" : 'Enregistrer'))}
+                </Button>
             </ModalFooter>
         </Modal>
     );

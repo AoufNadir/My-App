@@ -4,6 +4,7 @@ import { Label } from '../ui/Label';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { Button } from '../ui/Button';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { NumberInput } from '../ui/NumberInput';
 import type { ClientDuplicateField, ClientDuplicateMatch } from '../../utils/clientRegistry';
 type MainClientCrudDialogsProps = Record<string, any>;
@@ -41,49 +42,16 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
             : isClientOnlyCleanupDelete
                 ? "Les comptes Investisseurs ne seront pas modifiés."
                 : "Le client ne pourra plus être choisi dans une nouvelle opération.";
-    const headerClass = 'sticky top-0 z-20 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
-    const footerClass = 'sticky bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5';
-    const cancelBtn = 'flex-1 py-3 rounded-xl font-bold transition-colors bg-neutral-100 text-neutral-700 hover:bg-neutral-200';
-    const dangerBtn = 'flex-1 bg-danger hover:opacity-95 text-white font-bold py-3 rounded-xl shadow-sm transition-colors';
-    const primaryBtn = 'flex-1 bg-primary hover:bg-primary-dark text-white font-bold py-3 rounded-xl shadow-sm transition-colors';
     return (<>
             {/* Delete portfolio tx confirmation */}
-            <Modal isOpen={txToDelete !== null} onClose={() => setTxToDelete(null)} className="max-w-sm bg-surface">
-                <ModalHeader onClose={() => setTxToDelete(null)} className={headerClass}>
-                    <ModalTitle className="text-base sm:text-lg">{t('transactions.deleteTransaction')}</ModalTitle>
-                </ModalHeader>
-                <ModalContent className="px-4 py-4 sm:px-5">
-                    <p className="text-sm text-neutral-700">{t('transactions.confirmDeleteTx')}</p>
-                    <p className="text-xs text-financial-loss font-medium mt-2">{t('transactions.irreversibleAction')}</p>
-                </ModalContent>
-                <ModalFooter className={footerClass}>
-                    <div className="flex gap-2 w-full">
-                        <Button onClick={() => setTxToDelete(null)} className={cancelBtn}>{t('common.cancel')}</Button>
-                        <Button onClick={handleDeleteConfirm} className={dangerBtn}>{t('common.delete')}</Button>
-                    </div>
-                </ModalFooter>
-            </Modal>
+            <ConfirmDialog isOpen={txToDelete !== null} onClose={() => setTxToDelete(null)} onConfirm={handleDeleteConfirm} title={t('transactions.deleteTransaction')} description={t('transactions.confirmDeleteTx')} note={t('transactions.irreversibleAction')} confirmLabel={t('common.delete')} cancelLabel={t('common.cancel')}/>
 
             {/* Delete client tx confirmation */}
-            <Modal isOpen={clientTxToDelete !== null} onClose={() => setClientTxToDelete(null)} className="max-w-sm bg-surface">
-                <ModalHeader onClose={() => setClientTxToDelete(null)} className={headerClass}>
-                    <ModalTitle className="text-base sm:text-lg">{t('transactions.deleteTransaction')}</ModalTitle>
-                </ModalHeader>
-                <ModalContent className="px-4 py-4 sm:px-5">
-                    <p className="text-sm text-neutral-700">{t('transactions.confirmDeleteTx')}</p>
-                    <p className="text-xs text-financial-loss font-medium mt-2">{t('transactions.irreversibleAction')}</p>
-                </ModalContent>
-                <ModalFooter className={footerClass}>
-                    <div className="flex gap-2 w-full">
-                        <Button onClick={() => setClientTxToDelete(null)} className={cancelBtn}>{t('common.cancel')}</Button>
-                        <Button onClick={handleDeleteClientTxConfirm} className={dangerBtn}>{t('common.delete')}</Button>
-                    </div>
-                </ModalFooter>
-            </Modal>
+            <ConfirmDialog isOpen={clientTxToDelete !== null} onClose={() => setClientTxToDelete(null)} onConfirm={handleDeleteClientTxConfirm} title={t('transactions.deleteTransaction')} description={t('transactions.confirmDeleteTx')} note={t('transactions.irreversibleAction')} confirmLabel={t('common.delete')} cancelLabel={t('common.cancel')}/>
 
             {/* Create/Edit Client */}
             <Modal isOpen={isClientModalOpen} onClose={() => setIsClientModalOpen(false)} className="max-w-md bg-surface">
-                <ModalHeader onClose={() => setIsClientModalOpen(false)} className={headerClass}>
+                <ModalHeader onClose={() => setIsClientModalOpen(false)}>
                     <ModalTitle className="text-base sm:text-lg">{editingClient ? t('transactions.editClient') : t('transactions.newClient')}</ModalTitle>
                 </ModalHeader>
                 <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
@@ -113,7 +81,7 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                             onClick={() => setClientIsFournisseur(!clientIsFournisseur)}
                             className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${clientIsFournisseur ? 'bg-secondary' : 'bg-neutral-300'}`}
                             aria-pressed={clientIsFournisseur}>
-                            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${clientIsFournisseur ? 'translate-x-5' : 'translate-x-0'}`}/>
+                            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${clientIsFournisseur ? 'translate-x-5 rtl:-translate-x-5' : 'translate-x-0'}`}/>
                         </button>
                     </div>
                     <div>
@@ -130,17 +98,15 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                             <NumberInput value={initialBalance} onChange={e => setInitialBalance(e.target.value)} className="mt-1" placeholder="0.00"/>
                         </div>)}
                 </ModalContent>
-                <ModalFooter className={footerClass}>
-                    <div className="flex gap-2 w-full">
-                        <Button onClick={() => setIsClientModalOpen(false)} className={cancelBtn}>{t('common.cancel')}</Button>
-                        <Button onClick={handleSaveClient} disabled={isSaving} className={primaryBtn}>{t('common.save')}</Button>
-                    </div>
+                <ModalFooter>
+                    <Button onClick={() => setIsClientModalOpen(false)} variant="outline">{t('common.cancel')}</Button>
+                    <Button onClick={handleSaveClient} disabled={isSaving}>{t('common.save')}</Button>
                 </ModalFooter>
             </Modal>
 
             {/* Duplicate client warning */}
             <Modal isOpen={isClientModalOpen && duplicateMatches.length > 0} onClose={cancelClientDuplicateWarning} className="max-w-sm bg-surface">
-                <ModalHeader onClose={cancelClientDuplicateWarning} className={headerClass}>
+                <ModalHeader onClose={cancelClientDuplicateWarning}>
                     <ModalTitle className="text-base sm:text-lg">Ce client existe peut-être déjà</ModalTitle>
                 </ModalHeader>
                 <ModalContent className="px-4 py-4 sm:px-5 space-y-2">
@@ -154,30 +120,14 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                             {archived && (<Button onClick={() => restoreArchivedClient(client.id)} disabled={isSaving} className="mt-2 w-full rounded-lg bg-primary/10 py-2 text-xs font-bold text-primary hover:bg-primary/20">Restaurer ce client</Button>)}
                         </div>))}
                 </ModalContent>
-                <ModalFooter className={footerClass}>
-                    <div className="flex gap-2 w-full">
-                        <Button onClick={closeClientModal} className={cancelBtn}>Utiliser l'existant</Button>
-                        <Button onClick={confirmSaveClientDespiteDuplicates} disabled={isSaving} className={primaryBtn}>Enregistrer quand même</Button>
-                    </div>
+                <ModalFooter>
+                    <Button onClick={closeClientModal} variant="outline">Utiliser l'existant</Button>
+                    <Button onClick={confirmSaveClientDespiteDuplicates} disabled={isSaving}>Enregistrer quand même</Button>
                 </ModalFooter>
             </Modal>
 
             {/* Delete client confirmation */}
-            <Modal isOpen={clientToDelete !== null} onClose={() => setClientToDelete(null)} className="max-w-sm bg-surface">
-                <ModalHeader onClose={() => setClientToDelete(null)} className={headerClass}>
-                    <ModalTitle className="text-base sm:text-lg">{clientDeleteTitle}</ModalTitle>
-                </ModalHeader>
-                <ModalContent className="px-4 py-4 sm:px-5">
-                    <p className="text-sm text-neutral-700">{clientDeleteMessage}</p>
-                    <p className="text-xs text-financial-loss font-medium mt-2">{clientDeleteWarning}</p>
-                </ModalContent>
-                <ModalFooter className={footerClass}>
-                    <div className="flex gap-2 w-full">
-                        <Button onClick={() => setClientToDelete(null)} className={cancelBtn}>{t('common.cancel')}</Button>
-                        {!isBlockedClientDelete && (<Button onClick={handleDeleteClient} className={dangerBtn}>{t('transactions.confirmDelete')}</Button>)}
-                    </div>
-                </ModalFooter>
-            </Modal>
+            <ConfirmDialog isOpen={clientToDelete !== null} onClose={() => setClientToDelete(null)} onConfirm={handleDeleteClient} title={clientDeleteTitle} description={clientDeleteMessage} note={clientDeleteWarning} confirmLabel={t('transactions.confirmDelete')} cancelLabel={t('common.cancel')} hideConfirm={isBlockedClientDelete}/>
         </>);
 }
 export const areMainClientCrudDialogsPropsEqual = (prev: MainClientCrudDialogsProps, next: MainClientCrudDialogsProps) => {

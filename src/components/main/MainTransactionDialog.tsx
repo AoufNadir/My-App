@@ -347,7 +347,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
         setCreditDueDate(new Date(Date.now() + learnedSettleDays * 86_400_000).toISOString().slice(0, 10));
     }, [isSellMode, isUsdtSellSettledInEur, editingTx, clientPaymentStatus, linkedClientId, creditDueDate, learnedSettleDays, setCreditDueDate]);
     return (<><Modal isOpen={mode !== null} onClose={closeForm} className="bg-surface max-w-md">
-            <ModalHeader onClose={closeForm} className="sticky top-0 z-20 border-b border-border backdrop-blur px-4 py-3 sm:px-5 bg-surface/95">
+            <ModalHeader onClose={closeForm}>
                 <ModalTitle className="text-base sm:text-lg">{editingTx ? t('common.edit') : t('transactions.newTransaction')}</ModalTitle>
             </ModalHeader>
 
@@ -398,7 +398,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                                 <p className={`text-xs text-neutral-500`}>{t('common.dinar')}</p>
                                             </div>
                                         </div>
-                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400`}/>
+                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100`}/>
                                     </button>
                                     <button type="button" onClick={() => { setBuyUsdtMode('with_eur'); setEurDzdPrice(portfolioStats.eur.avgBuy.toFixed(2)); }} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-start transition-colors bg-surface-muted hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
                                         <div className="flex items-center gap-3 min-w-0">
@@ -410,7 +410,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                                 <p className={`text-xs text-neutral-500`}>EUR</p>
                                             </div>
                                         </div>
-                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400`}/>
+                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100`}/>
                                     </button>
                                 </div>
                             </div>)}
@@ -434,7 +434,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                                 <p className={`text-xs text-neutral-500`}>{t('common.dinar')}</p>
                                             </div>
                                         </div>
-                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400`}/>
+                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100`}/>
                                     </button>
                                     <button type="button" onClick={chooseSellWithEur} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-start transition-colors bg-surface-muted hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
                                         <div className="flex items-center gap-3 min-w-0">
@@ -446,7 +446,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                                 <p className={`text-xs text-neutral-500`}>EUR</p>
                                             </div>
                                         </div>
-                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400`}/>
+                                        <ChevronRightIcon className={`h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100`}/>
                                     </button>
                                 </div>
                             </div>)}
@@ -720,19 +720,14 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                     </>)}
             </ModalContent>
 
-            <ModalFooter className="sticky bottom-0 z-20 border-t border-border backdrop-blur px-4 py-3 sm:px-5 bg-surface/95">
-                {!isChoosingSource && (<div className="flex gap-2 w-full">
-                        <Button onClick={closeForm} variant="outline" className="flex-1 py-3 rounded-xl font-bold transition-colors bg-neutral-100 text-neutral-700 hover:bg-neutral-200">
-                            {t('common.cancel')}
-                        </Button>
-                        <Button onClick={mode?.startsWith('buy') ? handleBuy : handleSell} disabled={!formValidation.isValid || isSaving} className={`flex-1 py-3 rounded-xl font-bold text-white shadow-sm transition-colors ${!formValidation.isValid || isSaving ? 'bg-neutral-400 cursor-not-allowed opacity-70' : 'bg-primary hover:bg-primary-dark'}`} title={!formValidation.isValid ? disabledReason : undefined}>
-                            {isSaving ? (<div className="flex items-center justify-center gap-2">
-                                    <div className="w-4 h-4 border-2 border-surface/30 border-t-surface rounded-full animate-spin"/>
-                                    <span>{t('common.processing')}</span>
-                                </div>) : (t('transactions.confirm'))}
-                        </Button>
-                    </div>)}
-            </ModalFooter>
+            {!isChoosingSource && (<ModalFooter>
+                    <Button onClick={closeForm} variant="outline">
+                        {t('common.cancel')}
+                    </Button>
+                    <Button onClick={mode?.startsWith('buy') ? handleBuy : handleSell} disabled={!formValidation.isValid} loading={isSaving} title={!formValidation.isValid ? disabledReason : undefined}>
+                        {isSaving ? t('common.processing') : t('transactions.confirm')}
+                    </Button>
+                </ModalFooter>)}
         </Modal>
         <ConfirmDialog
             isOpen={!!pendingCreditRisk}

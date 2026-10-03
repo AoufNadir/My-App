@@ -156,7 +156,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
                 <p className="text-sm font-bold text-neutral-900">{t('investors.addCapital')}</p>
                 <p className="text-xs text-neutral-400 mt-0.5">{t('investors.addCapitalHint')}</p>
               </div>
-              <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
+              <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300 rtl:-scale-x-100"/>
             </button>
 
             {/* Retirer Capital */}
@@ -169,7 +169,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
                 <p className="text-sm font-bold text-neutral-900">{t('investors.withdrawCapital')}</p>
                 <p className="text-xs text-neutral-400 mt-0.5">{t('investors.withdrawCapitalHint')}</p>
               </div>
-              <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
+              <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300 rtl:-scale-x-100"/>
             </button>
 
             {!isManager && (<>
@@ -187,7 +187,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
                     : t('investors.profitTransferHint')}
                 </p>
               </div>
-              <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
+              <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300 rtl:-scale-x-100"/>
             </button>)}
 
             {/* Réinvestir */}
@@ -206,7 +206,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
                 </p>
               </div>
               {canReinvest
-                ? <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300"/>
+                ? <ChevronRightIcon className="w-4 h-4 shrink-0 text-neutral-300 rtl:-scale-x-100"/>
                 : <span className="text-xs font-bold text-neutral-300 shrink-0">—</span>}
             </button>)}
             </>)}

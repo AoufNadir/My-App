@@ -105,7 +105,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
               {t('profitDistribution.availableToWithdraw')} : <CurrencyAmount value={wholeDzdDown(withdrawableProfit)} currency="DZD" semantic="plain" size="sm" decimals={0}/> - {t('investors.tapToViewPlan')}
             </p>
           </div>
-          <svg className="w-5 h-5 shrink-0 text-primary/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <svg aria-hidden="true" className="w-5 h-5 shrink-0 text-primary/40 rtl:-scale-x-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
           </svg>
         </button>)}

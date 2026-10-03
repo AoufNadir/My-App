@@ -404,8 +404,8 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
     return (<div className="anim-page-in space-y-5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <Button onClick={() => setSelectedClientId(null)} variant="icon" size="icon" className="rounded-full text-neutral-600 hover:bg-neutral-100">
-            <ChevronLeftIcon className="w-6 h-6"/>
+          <Button onClick={() => setSelectedClientId(null)} variant="icon" size="icon" aria-label={t('common.back')} className="rounded-full text-neutral-600 hover:bg-neutral-100">
+            <ChevronLeftIcon className="w-6 h-6 rtl:-scale-x-100"/>
           </Button>
           <div className="flex-grow min-w-0">
             <h2 className="flex items-center gap-2 text-base font-bold text-neutral-900 truncate min-w-0">
@@ -571,7 +571,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
           </CardContent>
         </Card>
       <Modal isOpen={isReportDialogOpen} onClose={() => setIsReportDialogOpen(false)} className="max-w-md bg-surface">
-        <ModalHeader onClose={() => setIsReportDialogOpen(false)} className="border-b border-border px-4 py-3 sm:px-5">
+        <ModalHeader onClose={() => setIsReportDialogOpen(false)}>
           <ModalTitle className="text-base sm:text-lg">Créer rapport client</ModalTitle>
         </ModalHeader>
         <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
@@ -595,11 +595,11 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
           </div>
           {reportDateError && <p className="text-sm font-semibold text-danger">{reportDateError}</p>}
         </ModalContent>
-        <ModalFooter className="border-t border-border px-4 py-3 sm:px-5">
-          <Button onClick={setAllHistoryRange} variant="outline" className="w-full">
+        <ModalFooter>
+          <Button onClick={setAllHistoryRange} variant="outline">
             Tout l'historique
           </Button>
-          <Button onClick={handleCreateReport} className="w-full bg-primary text-white hover:bg-primary-dark">Créer PDF</Button>
+          <Button onClick={handleCreateReport}>Créer PDF</Button>
         </ModalFooter>
       </Modal>
     </div>);

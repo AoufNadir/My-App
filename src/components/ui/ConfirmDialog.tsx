@@ -1,5 +1,7 @@
 import React from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Modal } from './Modal';
+import { DialogTitle } from './Dialog';
 import { Button } from './Button';
 import type { ButtonVariant } from './Button';
 export type ConfirmDialogVariant = 'danger' | 'warning' | 'primary';
@@ -8,11 +10,15 @@ export type ConfirmDialogProps = {
     onClose: () => void;
     onConfirm: () => void;
     title: string;
-    description?: string;
+    description?: React.ReactNode;
+    /** Short red line under the description, e.g. « Action irréversible ». */
+    note?: React.ReactNode;
     confirmLabel?: string;
     cancelLabel?: string;
     variant?: ConfirmDialogVariant;
     loading?: boolean;
+    /** The action is not possible right now: only a Close button is shown. */
+    hideConfirm?: boolean;
 };
 const ICON_CONFIG: Record<ConfirmDialogVariant, {
     bg: string;
@@ -40,29 +46,30 @@ const CONFIRM_VARIANT_MAP: Record<ConfirmDialogVariant, ButtonVariant> = {
     warning: 'danger',
     primary: 'primary',
 };
-const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ isOpen, onClose, onConfirm, title, description, confirmLabel = 'تأكيد', cancelLabel = 'إلغاء', variant = 'danger', loading = false, }) => {
+/** The one confirmation window of the app: icon, question, Cancel then the action. */
+const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ isOpen, onClose, onConfirm, title, description, note, confirmLabel, cancelLabel, variant = 'danger', loading = false, hideConfirm = false, }) => {
+    const { t } = useLanguage();
     const icon = ICON_CONFIG[variant];
-    return (<Modal isOpen={isOpen} onClose={onClose} layout="auto">
-      <div className="bg-surface p-6 flex flex-col gap-4">
-        {/* أيقونة + عنوان */}
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div className={`flex h-12 w-12 items-center justify-center rounded-full ${icon.bg}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`h-6 w-6 ${icon.color}`}>
+    return (<Modal isOpen={isOpen} onClose={onClose} layout="auto" className="sm:max-w-sm">
+      <div className="flex flex-col gap-5 p-5">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <div className={`mb-1 flex h-12 w-12 items-center justify-center rounded-full ${icon.bg}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`h-6 w-6 ${icon.color}`} aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d={icon.path}/>
             </svg>
           </div>
-          <h2 className="text-base font-semibold text-neutral-900">{title}</h2>
-          {description && (<p className="text-sm text-neutral-500 max-w-xs">{description}</p>)}
+          <DialogTitle>{title}</DialogTitle>
+          {description && (<p className="max-w-xs text-sm text-neutral-600">{description}</p>)}
+          {note && (<p className="max-w-xs text-xs font-semibold text-financial-loss">{note}</p>)}
         </div>
 
-        {/* أزرار */}
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-center">
-          <Button variant="outline" size="md" onClick={onClose} disabled={loading} className="sm:min-w-[120px]">
-            {cancelLabel}
+        <div className="flex gap-2 [&>*]:flex-1">
+          <Button variant="outline" size="md" onClick={onClose} disabled={loading}>
+            {hideConfirm ? t('common.close') : (cancelLabel ?? t('common.cancel'))}
           </Button>
-          <Button variant={CONFIRM_VARIANT_MAP[variant]} size="md" onClick={onConfirm} loading={loading} className="sm:min-w-[120px]">
-            {confirmLabel}
-          </Button>
+          {!hideConfirm && (<Button variant={CONFIRM_VARIANT_MAP[variant]} size="md" onClick={onConfirm} loading={loading}>
+              {confirmLabel ?? t('common.confirm')}
+            </Button>)}
         </div>
       </div>
     </Modal>);

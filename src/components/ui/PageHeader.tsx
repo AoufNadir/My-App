@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
 export type PageHeaderProps = {
     title: string;
     subtitle?: string;
@@ -10,11 +11,13 @@ export type PageHeaderProps = {
     /** Pages the phone header already names keep the title for screen readers only. */
     hideTitleOnPhone?: boolean;
 };
-const BackIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-5 w-5">
-    {/* السهم يعمل في كلا الاتجاهين عبر dir على الصفحة */}
+const BackIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-5 w-5 rtl:-scale-x-100" aria-hidden="true">
+    {/* يشير إلى بداية السطر: يسار بالفرنسية، يمين بالعربية */}
     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/>
   </svg>);
-const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, onBack, actions, className = '', hideTitleOnPhone = false, }) => (<header className={[
+const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, onBack, actions, className = '', hideTitleOnPhone = false, }) => {
+    const { t } = useLanguage();
+    return (<header className={[
         'sticky top-0 z-10 flex min-h-[56px] max-w-full items-center gap-3',
         'bg-surface border-b border-border px-4',
         className
@@ -22,7 +25,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, onBack, action
         .filter(Boolean)
         .join(' ')}>
     {/* زر الرجوع */}
-    {onBack && (<button type="button" onClick={onBack} aria-label="رجوع" className={[
+    {onBack && (<button type="button" onClick={onBack} aria-label={t('common.back')} className={[
             'shrink-0 inline-flex h-touch w-touch items-center justify-center',
             'rounded-full text-neutral-500',
             'hover:bg-neutral-100 active:bg-neutral-200',
@@ -44,5 +47,6 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, onBack, action
     {/* actions — جهة اليسار في RTL، اليمين في LTR */}
     {actions && (<div className="flex shrink-0 items-center gap-1 [&>button]:min-h-button-md">{actions}</div>)}
   </header>);
+};
 PageHeader.displayName = 'PageHeader';
 export { PageHeader };

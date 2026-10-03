@@ -1,5 +1,6 @@
 import React from 'react';
 import { CurrencyAmount, type AmountSemantic, type CurrencyCode } from '../financial/CurrencyAmount';
+import { CARD_TONE_CLASS, type CardTone } from '../cards/tones';
 export interface HeroKpiSecondary {
     label: string;
     value: number;
@@ -19,21 +20,14 @@ export interface HeroKpiCardProps {
     icon?: React.ReactNode;
     accent?: 'indigo' | 'teal' | 'sky' | 'emerald' | 'purple' | 'amber';
 }
-const ACCENT_BG: Record<string, string> = {
-    indigo: 'from-primary/15 via-transparent',
-    teal: 'from-secondary/15 via-transparent',
-    sky: 'from-primary/15 via-transparent',
-    emerald: 'from-success/15 via-transparent',
-    purple: 'from-secondary/15 via-transparent',
-    amber: 'from-warning/15 via-transparent',
-};
-const ACCENT_RING: Record<string, string> = {
-    indigo: 'ring-primary/15',
-    teal: 'ring-secondary/15',
-    sky: 'ring-primary/15',
-    emerald: 'ring-success/15',
-    purple: 'ring-secondary/15',
-    amber: 'ring-warning/15',
+/** Colour of the icon disc, same family as the Accueil cards. */
+const ACCENT_TONE: Record<NonNullable<HeroKpiCardProps['accent']>, CardTone> = {
+    indigo: 'primary',
+    teal: 'dzd',
+    sky: 'primary',
+    emerald: 'profit',
+    purple: 'dzd',
+    amber: 'debt',
 };
 const TrendBadge: React.FC<{
     pct: number;
@@ -47,6 +41,10 @@ const TrendBadge: React.FC<{
       <span>{Math.abs(pct).toFixed(2)}%</span>
     </span>);
 };
+/**
+ * Main figure of a page, drawn like the Accueil hero: flat card, label, big amount,
+ * then the secondary figures under a thin line. Same props and same amounts as before.
+ */
 export const HeroKpiCard: React.FC<HeroKpiCardProps> = ({ primaryLabel, primaryValue, primaryCurrency, primarySemantic, trendPct, secondary, className = '', icon, accent = 'indigo', }) => {
     const secondaryGridClass = secondary && secondary.length >= 4
         ? 'grid-cols-2 sm:grid-cols-4'
@@ -54,33 +52,29 @@ export const HeroKpiCard: React.FC<HeroKpiCardProps> = ({ primaryLabel, primaryV
             ? 'grid-cols-3'
             : 'grid-cols-2';
     return (<section className={[
-            'relative overflow-hidden rounded-2xl ring-1 ring-neutral-200 p-4 sm:p-5',
-            'bg-surface text-neutral-900',
-            ACCENT_RING[accent] ?? '',
+            'flex flex-col gap-3 rounded-card border border-border bg-surface p-4 text-neutral-900',
             className
         ]
             .filter(Boolean)
             .join(' ')} aria-label={primaryLabel}>
-      <div className={`absolute inset-0 -z-10 bg-gradient-to-br to-transparent ${ACCENT_BG[accent] ?? ''}`}/>
-
       <header className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-[13px] font-semibold text-neutral-500">
             {primaryLabel}
           </p>
-          <div className="mt-2 flex items-baseline gap-2 flex-wrap">
+          <div className="mt-1 flex items-baseline gap-2 flex-wrap">
             <CurrencyAmount value={primaryValue} currency={primaryCurrency} semantic={primarySemantic ?? 'plain'} size="hero" decimals={0}/>
             {typeof trendPct === 'number' && Number.isFinite(trendPct) && (<TrendBadge pct={trendPct}/>)}
           </div>
         </div>
-        {icon && (<div className="shrink-0 h-10 w-10 rounded-xl flex items-center justify-center bg-neutral-100 text-neutral-600">
+        {icon && (<div aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${CARD_TONE_CLASS[ACCENT_TONE[accent] ?? 'primary']}`}>
             {icon}
           </div>)}
       </header>
 
-      {secondary && secondary.length > 0 && (<dl className={`mt-4 grid gap-3 ${secondaryGridClass}`}>
+      {secondary && secondary.length > 0 && (<dl className={`grid gap-3 border-t border-border pt-3 ${secondaryGridClass}`}>
           {secondary.map((item, idx) => (<div key={`${item.label}-${idx}`} className="min-w-0">
-              <dt className="text-xs truncate text-neutral-500">{item.label}</dt>
+              <dt className="text-xs font-semibold truncate text-neutral-500">{item.label}</dt>
               <dd className="mt-1 flex items-baseline gap-1.5 flex-wrap">
                 {item.display ? (item.display) : (<CurrencyAmount value={item.value} currency={item.currency} semantic={item.semantic ?? 'plain'} size="lg" decimals={0}/>)}
                 {typeof item.trendPct === 'number' && Number.isFinite(item.trendPct) && (<TrendBadge pct={item.trendPct}/>)}

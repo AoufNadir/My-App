@@ -97,7 +97,7 @@ export function InvestorsListSection({ investors, capitalSnapshot, managerProfit
                             <span>{investor.roi > 0 ? '+' : ''}{investor.roi.toFixed(1)}%</span>
                           </div>)}
                         </div>
-                        <ChevronRightIcon className="w-5 h-5 text-neutral-400"/>
+                        <ChevronRightIcon className="w-5 h-5 text-neutral-400 rtl:-scale-x-100"/>
                       </div>
                     </div>
                   </SwipeableListItem>

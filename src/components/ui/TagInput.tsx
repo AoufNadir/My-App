@@ -1,4 +1,5 @@
 import React, { useRef, useState, type KeyboardEvent } from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
 export interface TagInputProps {
     value: string[];
     onChange: (tags: string[]) => void;
@@ -12,7 +13,8 @@ const RESERVED = new Set([',', ' ']);
 function normalize(tag: string): string {
     return tag.trim().replace(/^#+/, '').toLowerCase().slice(0, 24);
 }
-export function TagInput({ value, onChange, placeholder = 'Ajouter un tag…', className = '', maxTags = 8, suggestions }: TagInputProps) {
+export function TagInput({ value, onChange, placeholder, className = '', maxTags = 8, suggestions }: TagInputProps) {
+    const { t } = useLanguage();
     const [draft, setDraft] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
     const addTag = (raw: string) => {
@@ -65,7 +67,7 @@ export function TagInput({ value, onChange, placeholder = 'Ajouter un tag…', c
                             ×
                         </button>
                     </span>))}
-                <input ref={inputRef} type="text" inputMode="text" autoComplete="off" enterKeyHint="enter" value={draft} onChange={handleChange} onKeyDown={handleKeyDown} onBlur={handleBlur} placeholder={value.length === 0 ? placeholder : ''} className={`flex-1 min-w-[6rem] outline-none text-sm py-0.5 ${inputBase}`} maxLength={24} disabled={value.length >= maxTags}/>
+                <input ref={inputRef} type="text" inputMode="text" autoComplete="off" enterKeyHint="enter" value={draft} onChange={handleChange} onKeyDown={handleKeyDown} onBlur={handleBlur} placeholder={value.length === 0 ? (placeholder ?? t('transactions.addTagPlaceholder')) : ''} className={`flex-1 min-w-[6rem] outline-none text-sm py-0.5 ${inputBase}`} maxLength={24} disabled={value.length >= maxTags}/>
             </div>
             {availableSuggestions.length > 0 && (<div className="mt-2 flex flex-wrap gap-1.5">
                     {availableSuggestions.slice(0, 8).map(s => {
