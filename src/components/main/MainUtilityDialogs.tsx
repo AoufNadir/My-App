@@ -207,7 +207,7 @@ function MainUtilityDialogsComponent({
                         label={t('transactions.cardNameSource')}
                         value={treasuryCardName}
                         onChange={(event) => setTreasuryCardName(event.target.value)}
-                        placeholder="Ex: Coffre Fort"
+                        placeholder={t('transactions.cardNamePlaceholder')}
                     />
                     <MoneyField
                         label={t('transactions.valueDzd')}
@@ -221,7 +221,7 @@ function MainUtilityDialogsComponent({
                         value={treasuryCardNotes}
                         onChange={(event) => setTreasuryCardNotes(event.target.value)}
                         rows={4}
-                        placeholder="Détails de l'investissement, remarques, infos importantes..."
+                        placeholder={t('transactions.cardNotesPlaceholder')}
                     />
                 </ModalContent>
                 <ModalFooter>

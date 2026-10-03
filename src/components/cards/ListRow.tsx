@@ -10,19 +10,21 @@ export type ListRowProps = {
     /** Montant ou badge en fin de ligne */
     trailing?: ReactNode;
     onClick?: () => void;
+    /** Sous-titre en entier sur plusieurs lignes (ex. notes), au lieu d'être coupé */
+    wrapSubtitle?: boolean;
     /** Ligne seule avec bord et coins arrondis ; sinon ligne dans une carte */
     standalone?: boolean;
     className?: string;
 };
 /** Ligne de liste : icône, titre, sous-titre, fin de ligne, et flèche si elle ouvre quelque chose. */
-function ListRow({ title, subtitle, icon, tone = 'neutral', trailing, onClick, standalone = false, className = '' }: ListRowProps) {
+function ListRow({ title, subtitle, icon, tone = 'neutral', trailing, onClick, wrapSubtitle = false, standalone = false, className = '' }: ListRowProps) {
     const content = (<>
       {icon && (<span aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${CARD_TONE_CLASS[tone]}`}>
           {icon}
         </span>)}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-neutral-900">{title}</span>
-        {subtitle && <span className="mt-0.5 block truncate text-xs text-neutral-500">{subtitle}</span>}
+        {subtitle && <span className={`mt-0.5 block text-xs text-neutral-500 ${wrapSubtitle ? 'whitespace-pre-line break-words' : 'truncate'}`}>{subtitle}</span>}
       </span>
       {trailing && <span className="shrink-0 text-end">{trailing}</span>}
       {onClick && <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100"/>}

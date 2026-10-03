@@ -1,12 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '../ui/Button';
-import { Card, CardContent, CardHeader } from '../ui/Card';
 import { MoneyField } from '../ui/MoneyField';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
-import { SectionHeading } from '../ui/SectionHeading';
 import { Tabs, type Tab } from '../ui/Tabs';
-import { RefreshCwIcon } from '../icons/RefreshCwIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatNumber } from '../../pages/shared/pageFormat';
 
@@ -22,7 +19,7 @@ type SimSellResult = {
     profitMarginPercent: number;
 } | null;
 
-type PamSimulatorCardProps = {
+type PamSimulatorProps = {
     portfolioStats: any;
     smartTargetUsdt?: number;
     parseAndEvaluate: (expr: string) => number;
@@ -33,7 +30,11 @@ const parsePositive = (parseAndEvaluate: (expr: string) => number, value: string
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 };
 
-export function PamSimulatorCard({ portfolioStats, smartTargetUsdt = 0, parseAndEvaluate }: PamSimulatorCardProps) {
+/**
+ * What a purchase or a sale would do to the USDT PAM, before doing it. Nothing is saved:
+ * the figures come from the current PAM ledger and the values typed here.
+ */
+export function PamSimulator({ portfolioStats, smartTargetUsdt = 0, parseAndEvaluate }: PamSimulatorProps) {
     const { t } = useLanguage();
     const [simMode, setSimMode] = useState<PamSimulatorMode>('dzd');
     const [simBuyQty, setSimBuyQty] = useState('');
@@ -197,15 +198,9 @@ export function PamSimulatorCard({ portfolioStats, smartTargetUsdt = 0, parseAnd
     ];
 
     return (
-        <Card>
-            <CardHeader className="p-4 pb-3">
-                <SectionHeading icon={<RefreshCwIcon className="h-4 w-4" />}>
-                    {t('portfolio.pamPriceSimulator')}
-                </SectionHeading>
-            </CardHeader>
-            <CardContent className="space-y-4 p-4 pt-0">
-                <div className="space-y-3 rounded-xl border border-border bg-surface-muted p-3">
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="space-y-4">
+                <div className="space-y-3 rounded-card bg-surface-muted p-3">
+                    <div className="grid grid-cols-2 gap-2">
                         <QuickMetric
                             label={t('portfolio.currentPam')}
                             value={<CurrencyAmount value={breakEvenDzdPrice} currency="DZD" semantic="plain" size="sm" decimals={2} />}
@@ -228,13 +223,13 @@ export function PamSimulatorCard({ portfolioStats, smartTargetUsdt = 0, parseAnd
                             {quickMarginPercent >= 0 ? '+' : ''}{formatNumber(quickMarginPercent, { min: 2, max: 2 })}%
                         </span>
                         <div className="grid grid-cols-3 gap-2 sm:w-auto">
-                            <Button type="button" variant="outline" size="sm" onClick={useAllStock} className="min-w-0 rounded-lg px-1.5 text-xs leading-tight">
+                            <Button type="button" variant="outline" size="sm" onClick={useAllStock} className="min-w-0 rounded-button px-1.5 text-xs leading-tight">
                                 {t('portfolio.useAllStock')}
                             </Button>
-                            <Button type="button" variant="outline" size="sm" onClick={useSuggestedPrice} className="min-w-0 rounded-lg px-1.5 text-xs leading-tight">
+                            <Button type="button" variant="outline" size="sm" onClick={useSuggestedPrice} className="min-w-0 rounded-button px-1.5 text-xs leading-tight">
                                 {t('portfolio.useSuggestedPrice')}
                             </Button>
-                            <Button type="button" variant="ghost" size="sm" onClick={resetSimulator} className="min-w-0 rounded-lg px-1.5 text-xs leading-tight">
+                            <Button type="button" variant="ghost" size="sm" onClick={resetSimulator} className="min-w-0 rounded-button px-1.5 text-xs leading-tight">
                                 {t('portfolio.resetSimulator')}
                             </Button>
                         </div>
@@ -260,7 +255,7 @@ export function PamSimulatorCard({ portfolioStats, smartTargetUsdt = 0, parseAnd
 
                 {simMode === 'eur' && (
                     <div className="space-y-3">
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
                             <MoneyField label={t('portfolio.qtyEurToSpend') as string} value={simEurQty} onChange={setSimEurQty} currency="EUR" placeholder="1000" />
                             <MoneyField label={t('portfolio.buyPriceEur') as string} value={simEurDzdPrice} onChange={setSimEurDzdPrice} currency="DZD" placeholder="242.00" />
                             <MoneyField label={t('portfolio.rateEurUsdt') as string} value={simEurUsdtRate} onChange={setSimEurUsdtRate} placeholder="1.08" />
@@ -303,7 +298,7 @@ export function PamSimulatorCard({ portfolioStats, smartTargetUsdt = 0, parseAnd
 
                 {simMode === 'sell_eur' && (
                     <div className="space-y-3">
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
                             <MoneyField label={t('portfolio.qtyUsdt') as string} value={simSellUsdtQty} onChange={setSimSellUsdtQty} currency="USDT" placeholder="1000" onMax={() => setSimSellUsdtQty(availableUsdt.toFixed(2))} maxDisabled={availableUsdt <= 0} />
                             <MoneyField label={t('portfolio.sellingPriceEur') as string} value={simSellEurPrice} onChange={setSimSellEurPrice} currency="EUR" placeholder="0.8650" />
                             <MoneyField label={t('portfolio.rateEurDzd') as string} value={simSellEurToDzdRate} onChange={setSimSellEurToDzdRate} currency="DZD" placeholder="250.00" />
@@ -331,15 +326,14 @@ export function PamSimulatorCard({ portfolioStats, smartTargetUsdt = 0, parseAnd
                         )}
                     </div>
                 )}
-            </CardContent>
-        </Card>
+            </div>
     );
 }
 
 function QuickMetric({ label, value }: { label: ReactNode; value: ReactNode }) {
     return (
-        <div className="rounded-lg bg-surface px-3 py-2">
-            <p className="text-xs font-bold uppercase text-neutral-500">{label}</p>
+        <div className="min-w-0 rounded-button bg-surface px-3 py-2">
+            <p className="text-xs font-semibold text-neutral-500">{label}</p>
             <div className="mt-1 font-semibold">{value}</div>
         </div>
     );
@@ -347,7 +341,7 @@ function QuickMetric({ label, value }: { label: ReactNode; value: ReactNode }) {
 
 function ResultBox({ children }: { children: ReactNode }) {
     return (
-        <div className="space-y-2 rounded-lg bg-surface-muted p-3">
+        <div className="space-y-2 rounded-card bg-surface-muted p-3">
             {children}
         </div>
     );
@@ -364,7 +358,7 @@ function ResultLine({ label, value }: { label: ReactNode; value: ReactNode }) {
 
 function ResultGrid({ children }: { children: ReactNode }) {
     return (
-        <div className="grid grid-cols-1 gap-2 border-t border-border pt-2 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 border-t border-border pt-2">
             {children}
         </div>
     );
@@ -372,7 +366,7 @@ function ResultGrid({ children }: { children: ReactNode }) {
 
 function ResultItem({ label, value }: { label: ReactNode; value: ReactNode }) {
     return (
-        <div className="flex justify-between gap-3 sm:block">
+        <div className="flex items-center justify-between gap-3">
             <span className="text-xs text-neutral-500">{label}</span>
             <span className="font-semibold">{value}</span>
         </div>
@@ -389,7 +383,7 @@ function PercentValue({ value, profitable }: { value: number; profitable: boolea
 
 function ProfitPreview({ result, profitableLabel, lossLabel }: { result: NonNullable<SimSellResult>; profitableLabel: ReactNode; lossLabel: ReactNode }) {
     return (
-        <div className={`rounded-lg p-3 text-center ${result.isProfitable ? 'bg-success-bg' : 'bg-danger-bg'}`}>
+        <div className={`rounded-card p-3 text-center ${result.isProfitable ? 'bg-success-bg' : 'bg-danger-bg'}`}>
             <p className={`mb-1 text-xs font-semibold ${result.isProfitable ? 'text-success' : 'text-danger'}`}>
                 {result.isProfitable ? profitableLabel : lossLabel}
             </p>

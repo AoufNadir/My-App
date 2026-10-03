@@ -18,12 +18,18 @@ export type HeroCardProps = {
     top?: ReactNode;
     /** Une seule ligne sous le chiffre, séparée par un trait */
     secondary?: HeroCardSecondary;
+    /** Signe + devant un montant positif, ex. un profit */
+    showSign?: boolean;
+    /** Juste sous le chiffre, ex. l'évolution par rapport au mois précédent */
+    note?: ReactNode;
+    /** En bas de la carte, sous un trait, ex. les volumes de la période */
+    footer?: ReactNode;
     className?: string;
 };
 /**
  * Carte du chiffre principal d'une page : un grand montant, au plus une ligne secondaire.
  */
-function HeroCard({ label, value, currency = 'DZD', decimals = 0, semantic = 'plain', top, secondary, className = '' }: HeroCardProps) {
+function HeroCard({ label, value, currency = 'DZD', decimals = 0, semantic = 'plain', top, secondary, showSign = false, note, footer, className = '' }: HeroCardProps) {
     const labelId = useId();
     return (<section aria-labelledby={labelId} className={['flex flex-col gap-3 rounded-card border border-border bg-surface p-4', className]
             .filter(Boolean)
@@ -32,8 +38,9 @@ function HeroCard({ label, value, currency = 'DZD', decimals = 0, semantic = 'pl
       <div className="min-w-0">
         <p id={labelId} className="text-[13px] font-semibold text-neutral-500">{label}</p>
         <div className="mt-1">
-          <CurrencyAmount value={value} currency={currency} semantic={semantic} size="hero" decimals={decimals}/>
+          <CurrencyAmount value={value} currency={currency} semantic={semantic} size="hero" decimals={decimals} showSign={showSign}/>
         </div>
+        {note && <div className="mt-1">{note}</div>}
       </div>
       {secondary && (<div className="flex items-start justify-between gap-3 border-t border-border pt-3">
           <div className="min-w-0">
@@ -42,6 +49,7 @@ function HeroCard({ label, value, currency = 'DZD', decimals = 0, semantic = 'pl
           </div>
           <CurrencyAmount value={secondary.value} currency={secondary.currency === undefined ? currency : secondary.currency} semantic={secondary.semantic ?? 'auto'} size="lg" decimals={secondary.decimals ?? decimals} className="shrink-0"/>
         </div>)}
+      {footer && <div className="border-t border-border pt-3">{footer}</div>}
     </section>);
 }
 HeroCard.displayName = 'HeroCard';

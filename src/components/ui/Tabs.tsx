@@ -26,11 +26,13 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, variant = 'under
                 : tabs.length === 4
                     ? (shortLabels ? 'grid-cols-4' : 'grid-cols-2 sm:grid-cols-4')
                     : 'grid-cols-3 sm:grid-cols-5';
+        const tight = tabs.length === 4 && shortLabels;
         return (<div role="tablist" className={['grid w-full gap-0.5 rounded-button bg-surface-muted p-0.5', columns, className].filter(Boolean).join(' ')}>
         {tabs.map((tab) => {
                 const isActive = tab.id === activeTab;
                 return (<button key={tab.id} role="tab" type="button" aria-selected={isActive} disabled={tab.disabled} onClick={() => onChange(tab.id)} className={[
-                        'inline-flex min-h-10 w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] px-2 py-1.5 text-center text-[13px] font-bold leading-tight transition-colors',
+                        'inline-flex min-h-10 w-full min-w-0 items-center justify-center rounded-[10px] py-1.5 text-center text-[13px] font-bold leading-tight transition-colors',
+                        tight ? 'gap-1 px-1' : 'gap-1.5 px-2',
                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                         'disabled:opacity-40 disabled:pointer-events-none',
                         isActive
