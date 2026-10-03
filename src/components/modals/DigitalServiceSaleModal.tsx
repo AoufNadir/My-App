@@ -3,15 +3,18 @@ import type { ClientDzd, PortfolioStats } from '../../types';
 import type { DigitalServicePreview, DigitalServiceSaleWallet, FinancialWallet } from '../../utils/digitalServiceAccounting';
 import { getWalletCurrency } from '../../utils/digitalServiceAccounting';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
+import { Modal, ModalContent, ModalDescription, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { DatePicker } from '../ui/DatePicker';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { MoneyField } from '../ui/MoneyField';
 import { SearchableSelect } from '../ui/SearchableSelect';
-import { Tabs } from '../ui/Tabs';
+import { SegmentedControl } from '../ui/SegmentedControl';
 import { Textarea } from '../ui/Textarea';
+import { FormCard } from '../ui/FormCard';
+import { OperationFooter, type OperationFooterStat } from '../ui/OperationFooter';
+import { formatMoney } from '../../pages/shared/pageFormat';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { PlusIcon } from '../icons/PlusIcon';
 import { selectableClients } from '../../utils/clientRegistry';
@@ -95,14 +98,22 @@ export function DigitalServiceSaleModal({
     const saleCurrency = getWalletCurrency(saleWallet);
     const purchaseAvailable = walletBalance(purchaseWallet, treasuryStats, portfolioStats);
 
+    // Display only: once a sale price is typed, the sale and its margin stay visible at the bottom
+    // (the same numbers as the summary above).
+    const footerStats: OperationFooterStat[] = preview && saleAmount.trim() !== '' ? [
+        { label: t('digitalServices.saleValueDzd'), value: formatMoney(preview.saleAmountDzd, 'DZD', { min: 0, max: 0 }) },
+        { label: t('digitalServices.margin'), value: formatMoney(preview.profitDzd, 'DZD', { min: 0, max: 0, showSign: true }), tone: preview.profitDzd < 0 ? 'loss' : 'profit' },
+    ] : [];
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} className="max-w-lg bg-surface text-neutral-900">
             <ModalHeader onClose={onClose}>
                 <ModalTitle className="text-base sm:text-lg">{t('digitalServices.title')}</ModalTitle>
-                <p className="mt-0.5 text-sm font-normal text-neutral-500">{t('digitalServices.subtitle')}</p>
+                <ModalDescription>{t('digitalServices.subtitle')}</ModalDescription>
             </ModalHeader>
 
-            <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
+            <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
+                <FormCard>
                 <div>
                     <Label>{t('transactions.primaryClient')}</Label>
                     <div className="mt-1 flex items-center gap-2">
@@ -120,9 +131,9 @@ export function DigitalServiceSaleModal({
                                 clearLabel={t('transactions.clearClient') as string}
                             />
                         </div>
-                        <Button type="button" variant="outline" className="h-touch w-touch shrink-0 rounded-xl p-0" onClick={() => onOpenClientModal(null)} aria-label={t('clients.newClient') as string}>
-                            <PlusIcon className="h-5 w-5"/>
-                        </Button>
+                        <button type="button" onClick={() => onOpenClientModal(null)} aria-label={t('common.newClient') as string} title={t('common.newClient') as string} className="inline-flex h-touch w-touch shrink-0 items-center justify-center rounded-button border border-border-strong bg-surface text-primary transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-primary-light">
+                            <PlusIcon aria-hidden="true" className="h-5 w-5"/>
+                        </button>
                     </div>
                 </div>
 
@@ -130,64 +141,64 @@ export function DigitalServiceSaleModal({
                     <Label>{t('digitalServices.serviceName')}</Label>
                     <Input value={serviceName} onChange={(event) => setServiceName(event.target.value)} className="mt-1" placeholder={t('digitalServices.servicePlaceholder') as string}/>
                 </div>
+                </FormCard>
 
-                <div className="rounded-xl border border-border p-3">
-                    <Label>{t('digitalServices.purchaseWallet')}</Label>
-                    <Tabs
-                        tabs={[
-                            { id: 'Caisse', label: t('transactions.cash') },
-                            { id: 'BaridiMob', label: t('transactions.baridi') },
-                            { id: 'USDT', label: 'USDT' },
-                            { id: 'EUR', label: 'EUR' },
-                        ]}
-                        activeTab={purchaseWallet}
-                        onChange={(next) => setPurchaseWallet(next as FinancialWallet)}
-                        variant="pills"
-                        className="mt-1"
+                <FormCard title={t('digitalServices.purchaseWallet')}>
+                    <SegmentedControl size="md" columns={2} ariaLabel={t('digitalServices.purchaseWallet') as string} value={purchaseWallet} onChange={(next) => setPurchaseWallet(next as FinancialWallet)} options={[
+                        { id: 'Caisse', label: t('transactions.cash'), tone: 'primary' },
+                        { id: 'BaridiMob', label: t('transactions.baridi'), tone: 'primary' },
+                        { id: 'USDT', label: 'USDT', tone: 'primary' },
+                        { id: 'EUR', label: 'EUR', tone: 'primary' },
+                    ]}/>
+                    <MoneyField
+                        label={t('digitalServices.purchaseAmount')}
+                        value={purchaseAmount}
+                        onChange={setPurchaseAmount}
+                        currency={purchaseCurrency}
+                        placeholder="0"
+                        hint={(
+                            <span className="inline-flex flex-wrap items-center gap-1">
+                                {t('delivery.availableBalance')}:
+                                <CurrencyAmount value={purchaseAvailable} currency={purchaseCurrency} semantic="plain" size="sm" decimals={purchaseCurrency === 'DZD' ? 0 : 2}/>
+                            </span>
+                        )}
                     />
-                    <div className="mt-3">
-                        <MoneyField
-                            label={t('digitalServices.purchaseAmount')}
-                            value={purchaseAmount}
-                            onChange={setPurchaseAmount}
-                            currency={purchaseCurrency}
-                            placeholder="0"
-                            hint={(
-                                <span className="inline-flex flex-wrap items-center gap-1">
-                                    {t('delivery.availableBalance')}:
-                                    <CurrencyAmount value={purchaseAvailable} currency={purchaseCurrency} semantic="plain" size="sm" decimals={purchaseCurrency === 'DZD' ? 0 : 2}/>
-                                </span>
-                            )}
-                        />
-                    </div>
-                </div>
+                </FormCard>
 
-                <div className="rounded-xl border border-border p-3">
-                    <Label>{t('digitalServices.saleWallet')}</Label>
-                    <Tabs
-                        tabs={[
-                            { id: 'Caisse', label: t('transactions.cash') },
-                            { id: 'BaridiMob', label: t('transactions.baridi') },
-                            { id: 'Credit', label: t('transactions.credit') },
-                            { id: 'USDT', label: 'USDT' },
-                            { id: 'EUR', label: 'EUR' },
-                        ]}
-                        activeTab={saleWallet}
-                        onChange={(next) => setSaleWallet(next as DigitalServiceSaleWallet)}
-                        variant="pills"
-                        className="mt-1"
+                <FormCard title={t('digitalServices.saleWallet')}>
+                    <SegmentedControl size="md" columns={3} ariaLabel={t('digitalServices.saleWallet') as string} value={saleWallet} onChange={(next) => setSaleWallet(next as DigitalServiceSaleWallet)} options={[
+                        { id: 'Caisse', label: t('transactions.cash'), tone: 'primary' },
+                        { id: 'BaridiMob', label: t('transactions.baridi'), tone: 'primary' },
+                        { id: 'Credit', label: t('transactions.credit'), tone: 'debt' },
+                        { id: 'USDT', label: 'USDT', tone: 'primary' },
+                        { id: 'EUR', label: 'EUR', tone: 'primary' },
+                    ]}/>
+                    <MoneyField
+                        label={t('digitalServices.saleAmount')}
+                        value={saleAmount}
+                        onChange={setSaleAmount}
+                        currency={saleCurrency}
+                        placeholder="0"
                     />
-                    <div className="mt-3">
-                        <MoneyField
-                            label={t('digitalServices.saleAmount')}
-                            value={saleAmount}
-                            onChange={setSaleAmount}
-                            currency={saleCurrency}
-                            placeholder="0"
-                        />
-                    </div>
-                </div>
+                    {preview && (
+                        <div className="rounded-button bg-surface-muted p-3 text-sm">
+                            <div className="flex items-center justify-between gap-3">
+                                <span className="text-neutral-500">{t('digitalServices.purchaseValueDzd')}</span>
+                                <CurrencyAmount value={preview.purchaseAmountDzd} currency="DZD" semantic="loss" size="sm" decimals={0}/>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between gap-3">
+                                <span className="text-neutral-500">{t('digitalServices.saleValueDzd')}</span>
+                                <CurrencyAmount value={preview.saleAmountDzd} currency="DZD" semantic="profit" size="sm" decimals={0}/>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between gap-3 border-t border-border pt-2 font-bold">
+                                <span>{t('digitalServices.margin')}</span>
+                                <CurrencyAmount value={preview.profitDzd} currency="DZD" semantic="auto" size="md" decimals={0} showSign/>
+                            </div>
+                        </div>
+                    )}
+                </FormCard>
 
+                <FormCard>
                 <div>
                     <Label>{t('delivery.date')}</Label>
                     <DatePicker value={date} onChange={setDate} className="mt-1"/>
@@ -200,33 +211,17 @@ export function DigitalServiceSaleModal({
                     placeholder={t('digitalServices.notePlaceholder')}
                     rows={3}
                 />
-
-                {preview && (
-                    <div className="rounded-xl bg-surface-muted p-3 text-sm">
-                        <div className="flex items-center justify-between gap-3">
-                            <span className="text-neutral-500">{t('digitalServices.purchaseValueDzd')}</span>
-                            <CurrencyAmount value={preview.purchaseAmountDzd} currency="DZD" semantic="loss" size="sm" decimals={0}/>
-                        </div>
-                        <div className="mt-2 flex items-center justify-between gap-3">
-                            <span className="text-neutral-500">{t('digitalServices.saleValueDzd')}</span>
-                            <CurrencyAmount value={preview.saleAmountDzd} currency="DZD" semantic="profit" size="sm" decimals={0}/>
-                        </div>
-                        <div className="mt-2 flex items-center justify-between gap-3 border-t border-border pt-2 font-bold">
-                            <span>{t('digitalServices.margin')}</span>
-                            <CurrencyAmount value={preview.profitDzd} currency="DZD" semantic="auto" size="md" decimals={0} showSign/>
-                        </div>
-                    </div>
-                )}
+                </FormCard>
             </ModalContent>
 
-            <ModalFooter>
+            <OperationFooter stats={footerStats}>
                 <Button type="button" variant="outline" onClick={onClose}>
                     {t('common.cancel')}
                 </Button>
                 <Button type="button" onClick={onSave} loading={isSaving}>
                     {isSaving ? t('common.processing') : t('common.save')}
                 </Button>
-            </ModalFooter>
+            </OperationFooter>
         </Modal>
     );
 }
