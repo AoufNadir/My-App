@@ -2497,7 +2497,8 @@ export default function MainApp({ user }: {
         usdtReportYear,
         setUsdtReportYear,
         reportMonths: (year: number) => year === new Date().getFullYear() ? reportMonthNames.slice(0, new Date().getMonth() + 1) : reportMonthNames,
-        reportYears: Array.from({ length: 3 }, (_, i) => 2024 + i),
+        // 2024 up to the current year, so a new year can be picked as soon as it starts.
+        reportYears: Array.from({ length: Math.max(2026, new Date().getFullYear()) - 2023 }, (_, i) => 2024 + i),
         monthlyStats: { totalUsdtSoldMonth: 0, totalEurBoughtMonth: 0, realizedProfitMonth: 0, monthlyProfitMargin: 0 },
         transactions,
         selectedHeatmapDay,
