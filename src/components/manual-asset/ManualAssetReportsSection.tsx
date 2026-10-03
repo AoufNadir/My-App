@@ -58,6 +58,9 @@ const EMPTY_REPORT: PeriodReport = {
 function isServiceLike(tx: ManualAssetTransaction) {
     return tx.type === 'service' || tx.type === 'invoice';
 }
+// Nom de repli d'un client supprimé ; traduit seulement à l'affichage (le tri reste le même).
+const UNKNOWN_CLIENT_NAME = 'Client inconnu';
+const shownClientName = (name: string, t: (key: string) => any) => (name === UNKNOWN_CLIENT_NAME ? String(t('ledger.unknownClient')) : name);
 function shouldCountForActivity(tx: ManualAssetTransaction) {
     return tx.type !== 'adjustment';
 }
@@ -77,7 +80,7 @@ function buildPeriodReport({ assetId, assetTransactions, clientsById, clientBala
             continue;
         const row = rows.get(tx.clientId) || {
             clientId: tx.clientId,
-            clientName: clientsById.get(tx.clientId)?.fullName || 'Client inconnu',
+            clientName: clientsById.get(tx.clientId)?.fullName || UNKNOWN_CLIENT_NAME,
             serviceRevenue: 0,
             cashReceived: 0,
             currentBalance: clientBalances.get(`${assetId}_${tx.clientId}`) || 0,
@@ -159,7 +162,7 @@ function RankedClientsBlock({ title, totalClients, rows, t }: {
                 {/* Name and amount billed on the first line; the details use the full width below. */}
                 <div className="flex items-start justify-between gap-3">
                   <p className="min-w-0 break-words pt-0.5 text-sm font-semibold leading-tight text-neutral-900">
-                    <span className="sr-only">{index + 1}. </span>{row.clientName}
+                    <span className="sr-only">{index + 1}. </span>{shownClientName(row.clientName, t)}
                   </p>
                   <span className="shrink-0">
                     <CurrencyAmount value={row.serviceRevenue} currency="DZD" semantic="profit" size="md" decimals={2} className="font-semibold"/>
@@ -195,9 +198,9 @@ function ReportCard({ subtitle, topTitle, report, t }: {
 
         <StatCard label={t('services.collected')} value={<CurrencyAmount value={report.cashReceived} currency="DZD" semantic="profit" size="lg" decimals={2}/>} hint={t('transactions.paymentReceived')}/>
 
-        <StatCard label={t('services.topBilledClient')} value={report.topProfitableClient?.clientName || t('services.noClient')} hint={report.topProfitableClient ? <CurrencyAmount value={report.topProfitableClient.serviceRevenue} currency="DZD" semantic="profit" size="sm" decimals={2}/> : t('services.noServiceBilled')} valueClassName="break-words"/>
+        <StatCard label={t('services.topBilledClient')} value={report.topProfitableClient ? shownClientName(report.topProfitableClient.clientName, t) : t('services.noClient')} hint={report.topProfitableClient ? <CurrencyAmount value={report.topProfitableClient.serviceRevenue} currency="DZD" semantic="profit" size="sm" decimals={2}/> : t('services.noServiceBilled')} valueClassName="break-words"/>
 
-        <StatCard label={t('services.topActiveClient')} value={report.topActiveClient?.clientName || t('services.noClient')} hint={report.topActiveClient ? `${report.topActiveClient.operationsCount} ${t('services.operationsShort')}` : t('services.noActivity')} valueClassName="break-words"/>
+        <StatCard label={t('services.topActiveClient')} value={report.topActiveClient ? shownClientName(report.topActiveClient.clientName, t) : t('services.noClient')} hint={report.topActiveClient ? `${report.topActiveClient.operationsCount} ${t('services.operationsShort')}` : t('services.noActivity')} valueClassName="break-words"/>
       </div>
 
       <RankedClientsBlock title={topTitle} totalClients={report.activeClientsCount} rows={report.topClients} t={t}/>

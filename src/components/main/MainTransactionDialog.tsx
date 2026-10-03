@@ -402,6 +402,29 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
     );
     const clientLinkerErrors = { errorMessage: fieldError('linkedClientId'), hasError: !!fieldError('linkedClientId'), errorMessageDzd: fieldError('linkedClientDzdId'), hasErrorDzd: !!fieldError('linkedClientDzdId') };
     const creditDueDateError = translateFormMessage(formValidation.errors.creditDueDate, t);
+    // The due date of a deferred payment: asked when selling on credit, and when buying EUR on
+    // credit, whose save check has always required it. The average delay below is how fast the
+    // client pays us back, so it is shown for a sale only.
+    const renderCreditDueDateField = (showSettleHint: boolean) => (
+        <div>
+            <label htmlFor="credit_due_date" className="mb-1.5 block text-sm font-medium text-neutral-700">{t('smartPricing.dueDate')}</label>
+            <input
+                id="credit_due_date"
+                type="date"
+                value={creditDueDate || ''}
+                min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
+                onChange={(event) => setCreditDueDate(event.target.value)}
+                className={`min-h-input w-full rounded-button border bg-surface px-3 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary/40 ${creditDueDateError ? 'border-danger ring-1 ring-danger' : 'border-border-strong'}`}
+                aria-invalid={!!creditDueDateError}
+            />
+            {creditDueDateError && <span role="alert" className="mt-1 block text-xs font-medium text-financial-loss">{creditDueDateError}</span>}
+            {showSettleHint && learnedSettleDays !== null && (
+                <span className="mt-1 block text-xs text-neutral-500">
+                    {(t('smartPricing.avgSettleHint') as string).replace('{days}', String(learnedSettleDays))}
+                </span>
+            )}
+        </div>
+    );
     return (<><Modal isOpen={mode !== null} onClose={closeForm} className="bg-surface max-w-md">
             <ModalHeader onClose={closeForm}>
                 <ModalTitle className="text-base sm:text-lg">{editingTx ? t('common.edit') : t('transactions.newTransaction')}</ModalTitle>
@@ -569,26 +592,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
 
                                 <FormCard title={t('transactions.clientAndSettlement')}>
                                 <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} allowBaridiDzdLink hidePaymentStatus={isUsdtSellSettledInEur} hideLinkedDzdClient={isUsdtSellSettledInEur} {...clientLinkerErrors}/>
-                                {!isUsdtSellSettledInEur && clientPaymentStatus === 'credit' && (
-                                    <div>
-                                        <label htmlFor="credit_due_date" className="mb-1.5 block text-sm font-medium text-neutral-700">{t('smartPricing.dueDate')}</label>
-                                        <input
-                                            id="credit_due_date"
-                                            type="date"
-                                            value={creditDueDate || ''}
-                                            min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
-                                            onChange={(event) => setCreditDueDate(event.target.value)}
-                                            className={`min-h-input w-full rounded-button border bg-surface px-3 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary/40 ${creditDueDateError ? 'border-danger ring-1 ring-danger' : 'border-border-strong'}`}
-                                            aria-invalid={!!creditDueDateError}
-                                        />
-                                        {creditDueDateError && <span role="alert" className="mt-1 block text-xs font-medium text-financial-loss">{creditDueDateError}</span>}
-                                        {learnedSettleDays !== null && (
-                                            <span className="mt-1 block text-xs text-neutral-500">
-                                                {(t('smartPricing.avgSettleHint') as string).replace('{days}', String(learnedSettleDays))}
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
+                                {!isUsdtSellSettledInEur && clientPaymentStatus === 'credit' && renderCreditDueDateField(true)}
                                 </FormCard>
                                 {!isUsdtSellSettledInEur && activeSmartPricing && (
                                     <SmartPricePanel
@@ -659,6 +663,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                 </FormCard>
                                 <FormCard title={t('transactions.clientAndSettlement')}>
                                 <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} {...clientLinkerErrors}/>
+                                {clientPaymentStatus === 'credit' && renderCreditDueDateField(false)}
                                 </FormCard>
                             </>)}
 

@@ -500,6 +500,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             // Linked client/treasury/EUR rows are re-created on edit: keep them on the operation's own date.
             const { date, time, timestamp } = operationStamp(editingTx);
             const shouldLinkCashToDzdClient = clientPaymentStatus === 'cash' && linkedClientDzdId !== 'none';
+            // V2-9: buying EUR on credit asks for its due date (the save check always required it);
+            // it is kept on the purchase and on the client's row, like a sale on credit.
+            const buyEurDueDate = mode === 'buy_eur' && clientPaymentStatus === 'credit' ? { creditDueDate } : {};
             const createLinkedEurConversionTx = () => {
                 if (mode !== 'buy_usdt' || buyUsdtMode !== 'with_eur' || eurSpentForConversion <= 0)
                     return;
@@ -530,6 +533,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         ? computeLockedUntil(editingTx?.timestamp ?? timestamp)
                         : fieldValueDelete(),
                     currency, clientPaymentStatus: clientPaymentStatus,
+                    // Turned back to cash or Baridi, a buy EUR drops the due date it had on credit.
+                    ...(mode === 'buy_eur' && clientPaymentStatus !== 'credit' && editingTx.creditDueDate ? { creditDueDate: fieldValueDelete() } : buyEurDueDate),
                     ...buyMetadata
                 });
                 const qsClient = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', editingTx.id).get();
@@ -546,7 +551,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         linkedTxId: editingTx.id,
                         linkRole: 'primary',
                         paymentMethod: paymentMethodByStatus[clientPaymentStatus],
-                        affectsBalance: affectsClientBalance(clientPaymentStatus)
+                        affectsBalance: affectsClientBalance(clientPaymentStatus),
+                        ...buyEurDueDate
                     });
                 }
                 if (shouldLinkCashToDzdClient) {
@@ -575,6 +581,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     ...(txTags.length > 0 ? { tags: txTags } : {}),
                     ...(buyRestriction === 'locked_24h' ? { lockedUntil: computeLockedUntil(timestamp) } : {}),
                     currency, clientPaymentStatus: clientPaymentStatus,
+                    ...buyEurDueDate,
                     ...buyMetadata
                 });
                 createLinkedEurConversionTx();
@@ -592,7 +599,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         linkedTxId: mainTxRef.id,
                         linkRole: 'primary',
                         paymentMethod: paymentMethodByStatus[clientPaymentStatus],
-                        affectsBalance: affectsClientBalance(clientPaymentStatus)
+                        affectsBalance: affectsClientBalance(clientPaymentStatus),
+                        ...buyEurDueDate
                     });
                 }
                 if (shouldLinkCashToDzdClient) {

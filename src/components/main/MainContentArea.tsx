@@ -1,5 +1,5 @@
 import React, { Suspense, memo } from 'react';
-import { SkeletonList } from '../ui/SkeletonList';
+import { PageSkeleton, getPageSkeletonKind } from '../ui/PageSkeleton';
 import { ErrorBoundary } from '../ErrorBoundary';
 import type { ManualAsset } from '../../types';
 import type { ClientsPageProps } from '../../pages/ClientsPage';
@@ -91,7 +91,6 @@ const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainCont
         || prev.isFinancialDataReady !== next.isFinancialDataReady
         || false
         || prev.view !== next.view
-        || prev.PageLoadingFallback !== next.PageLoadingFallback
         || !areDailyOverviewsEqual(prev.dailyOverview, next.dailyOverview)) {
         return false;
     }
@@ -159,13 +158,17 @@ function MainContentAreaComponent({ t, dailyOverview, userDocRef, setAlert, isFi
     const selectedInvestor = selectedInvestorId
         ? derivedInvestors.find((investor: any) => investor.id === selectedInvestorId) || null
         : null;
+    const hasSelection = (view === 'investors' && Boolean(selectedInvestorId))
+        || (view === 'services' && Boolean(selectedAssetId || selectedAssetClientId))
+        || (view === 'dzd' && Boolean(clientsPageProps?.selectedClientId));
+    const pageSkeleton = <PageSkeleton kind={getPageSkeletonKind(view, hasSelection)}/>;
     if (!isFinancialDataReady) {
         return (<main className="py-4 sm:py-6">
-            <SkeletonList rows={6} itemHeight={72} className="mt-2"/>
+            {pageSkeleton}
         </main>);
     }
     return (<main className="py-4 sm:py-6">
-                    <Suspense fallback={<SkeletonList rows={6} itemHeight={72} className="mt-2"/>}>
+                    <Suspense fallback={pageSkeleton}>
                     <ErrorBoundary key={`${view}-${selectedInvestorId || ''}-${selectedAssetId || ''}-${selectedAssetClientId || ''}`}>
                     {view === 'dashboard' && <DashboardPage {...dashboardPageProps}/>}
 

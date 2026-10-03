@@ -13,6 +13,7 @@ import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { TransactionPreviewCard, type PreviewRow } from '../ui/TransactionPreviewCard';
 import { MoneyField } from '../ui/MoneyField';
+import { Textarea } from '../ui/Textarea';
 import { parseAndEvaluate } from '../../utils';
 import { formatMoney } from '../../pages/shared/pageFormat';
 import { normalizeLedgerLabel } from '../../utils/financialUx';
@@ -506,6 +507,10 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
             return (<TransactionPreviewCard title={t('transactions.confirmAndSave')} rows={rows.filter(r => r.label !== 'Type')} error={error}/>);
         })()}
                     </FormCard>
+
+                    <FormCard>
+                        <Textarea id="client_tx_notes" label={t('common.notesOptional') as string} value={clientTxNotes ?? ''} onChange={(e) => setClientTxNotes(e.target.value)} rows={2} placeholder={t('transactions.notesPlaceholder') as string} className="resize-none text-sm"/>
+                    </FormCard>
                 </ModalContent>
                 <OperationFooter stats={clientTxStats} reason={clientTxBlockedReason} reasonTone={clientTxTyped ? 'fix' : 'missing'}>
                     <Button variant="outline" onClick={() => setIsClientTxModalOpen(false)}>{t('common.cancel')}</Button>
@@ -576,6 +581,10 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
             }
             return (<TransactionPreviewCard title={t('transactions.confirmAndSave')} rows={rows} error={exceedsAvailableBalance ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant', { asset: selectedAssetLabel }) : undefined}/>);
         })()}
+                    </FormCard>
+
+                    <FormCard>
+                        <Textarea id="adjustment_notes" label={t('common.notesOptional') as string} value={adjustmentNote ?? ''} onChange={(e) => setAdjustmentNote(e.target.value)} rows={2} placeholder={t('transactions.notesPlaceholder') as string} className="resize-none text-sm"/>
                     </FormCard>
                 </ModalContent>
                 <OperationFooter stats={adjustmentStats} reason={adjustmentBlockedReason} reasonTone={adjustmentTyped ? 'fix' : 'missing'}>

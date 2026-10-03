@@ -59,7 +59,8 @@ export function formatMoney(value: number, currency?: MoneyCurrency | null, opti
     const formatted = formatNumber(safe, numberOptions);
     return currency ? `${sign}${formatted} ${currency}` : `${sign}${formatted}`;
 }
-export function getRelativeFrDateLabel(dateString: string): string {
+/** « Aujourd'hui » / « Hier » for the last two days; with `t`, in the reader's language. */
+export function getRelativeFrDateLabel(dateString: string, t?: (key: string) => unknown): string {
     const parts = dateString.split('/');
     if (parts.length !== 3)
         return dateString;
@@ -73,9 +74,20 @@ export function getRelativeFrDateLabel(dateString: string): string {
     const today = new Date();
     const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
+    const label = (key: string, fallback: string) => {
+        const value = t ? t(key) : undefined;
+        return typeof value === 'string' && value !== key ? value : fallback;
+    };
     if (txDate.toDateString() === today.toDateString())
-        return "Aujourd'hui";
+        return label('transactions.today', "Aujourd'hui");
     if (txDate.toDateString() === yesterday.toDateString())
-        return 'Hier';
+        return label('transactions.yesterday', 'Hier');
     return dateString;
+}
+/** « 3 octobre 2026 » ; in Arabic the app's month names (جانفي…) with Latin digits. */
+export function formatLongDate(date: Date, lang: 'fr' | 'ar', t: (key: string) => unknown): string {
+    const months = t('common.months');
+    if (lang === 'ar' && Array.isArray(months) && typeof months[date.getMonth()] === 'string')
+        return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+    return date.toLocaleDateString(FR_LOCALE, { day: 'numeric', month: 'long', year: 'numeric' });
 }

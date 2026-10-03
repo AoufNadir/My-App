@@ -2,6 +2,7 @@ import React from 'react';
 import { Label } from './Label';
 import { NumberInput } from './NumberInput';
 import type { MoneyCurrency } from '../../pages/shared/pageFormat';
+import { useLanguage } from '../../contexts/LanguageContext';
 type Props = {
     label: string;
     value: string;
@@ -25,7 +26,8 @@ type Props = {
  * Supports math expressions (via NumberInput), currency suffix in label,
  * inline error messages, and an optional MAX button.
  */
-export function MoneyField({ label, value, onChange, currency, hint, error, placeholder = '0.00', onMax, maxLabel = 'MAX', maxDisabled = false, className = '', autoFocus, onBlur, readOnly = false }: Props) {
+export function MoneyField({ label, value, onChange, currency, hint, error, placeholder = '0.00', onMax, maxLabel, maxDisabled = false, className = '', autoFocus, onBlur, readOnly = false }: Props) {
+    const { t } = useLanguage();
     const subtleText = 'text-neutral-500';
     const fullLabel = currency ? `${label} (${currency})` : label;
     const hasError = Boolean(error);
@@ -36,7 +38,7 @@ export function MoneyField({ label, value, onChange, currency, hint, error, plac
                 {onMax && (<button type="button" onClick={onMax} disabled={maxDisabled} className={`absolute end-1 top-1/2 flex h-button-sm min-w-button-sm -translate-y-1/2 items-center justify-center rounded-button px-2 text-xs font-bold transition-colors ${maxDisabled
                 ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
                 : 'bg-primary text-white hover:bg-primary-dark'}`}>
-                        {maxLabel}
+                        {maxLabel ?? t('common.max')}
                     </button>)}
             </div>
             {error ? (<p className="mt-1 text-xs font-medium text-danger">{error}</p>) : hint ? (<p className={`mt-1 text-xs ${subtleText}`}>{hint}</p>) : null}
