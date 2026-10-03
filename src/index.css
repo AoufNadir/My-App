@@ -103,4 +103,8 @@ html[dir="rtl"] body {
   .dark .text-primary { color: var(--color-primary-light); }
   .dark .text-danger { color: var(--color-danger-light); }
   .dark .text-success { color: var(--color-success-light); }
+  /* The client report stays light (tokens.css), so its text keeps the normal shade. */
+  .dark .report-sheet .text-primary { color: var(--color-primary); }
+  .dark .report-sheet .text-danger { color: var(--color-danger); }
+  .dark .report-sheet .text-success { color: var(--color-success); }
 }
