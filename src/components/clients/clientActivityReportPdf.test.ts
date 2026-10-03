@@ -1,0 +1,51 @@
+import assert from 'node:assert/strict';
+
+import { monthPeriod, monthWeeks, yearPeriod } from '../../utils/clientActivityReport';
+import { PDF_PAGE_HEIGHT_PX, PDF_PAGE_MARGIN_PX, planPdfPages, reportFileName } from './clientActivityReportPdf';
+
+// The PDF is the report cut into A4 pages: at the top of a block or of a table row, never
+// through a line of text, every part of the report on exactly one page.
+
+const firstCapacity = PDF_PAGE_HEIGHT_PX - PDF_PAGE_MARGIN_PX;
+const nextCapacity = PDF_PAGE_HEIGHT_PX - 2 * PDF_PAGE_MARGIN_PX;
+
+const check = (height: number, breaks: number[]) => {
+    const slices = planPdfPages(height, breaks);
+    assert.equal(slices[0].top, 0, 'The first page starts at the top');
+    assert.equal(slices[slices.length - 1].bottom, height, 'The last page ends at the bottom');
+    slices.forEach((slice, index) => {
+        assert.ok(slice.bottom > slice.top, 'No empty page');
+        assert.ok(slice.bottom - slice.top <= (index === 0 ? firstCapacity : nextCapacity) + 1e-9, `Page ${index + 1} fits on A4 with its margins`);
+        if (index > 0)
+            assert.equal(slice.top, slices[index - 1].bottom, 'Pages follow each other: nothing lost, nothing twice');
+    });
+    return slices;
+};
+
+assert.equal(check(900, [100, 400]).length, 1, 'A short report is one page');
+assert.equal(check(firstCapacity, [500]).length, 1, 'Exactly one page high: one page');
+
+// Cut at the last break that fits.
+const twoPages = check(1800, [200, 600, 1000, 1080, 1300, 1700]);
+assert.deepEqual(twoPages.map((slice) => slice.bottom), [1080, 1800], 'The first page ends at the last block that fits');
+
+// A block taller than a page is cut where the page ends.
+const tall = check(3000, [50]);
+assert.equal(tall[0].bottom, firstCapacity);
+assert.equal(tall[1].bottom, firstCapacity + nextCapacity);
+
+// A break too close to the top would leave a nearly empty page: the page is filled instead.
+const early = check(2000, [100, firstCapacity + 10]);
+assert.equal(early[0].bottom, firstCapacity, 'A break in the first quarter of the page is not used');
+
+// A long monthly report: rows every 50px from 1100 on.
+const rows = Array.from({ length: 60 }, (_, index) => 1100 + index * 50);
+const long = check(4200, [120, 300, 600, 900, ...rows]);
+long.slice(0, -1).forEach((slice) => assert.ok([120, 300, 600, 900, ...rows].includes(slice.bottom), 'Every cut is at a block or a row'));
+
+// File names the client sees.
+assert.equal(reportFileName(monthPeriod(2026, 8)), 'ProDigital_2026-09.pdf');
+assert.equal(reportFileName(monthWeeks(2026, 9)[1]), 'ProDigital_2026-10_S2.pdf');
+assert.equal(reportFileName(yearPeriod(2026)), 'ProDigital_2026.pdf');
+
+console.log('client activity report PDF pages tests passed');

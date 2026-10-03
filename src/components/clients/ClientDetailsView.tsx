@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
 import { DatePicker } from '../ui/DatePicker';
@@ -9,6 +9,7 @@ import { AlertCard } from '../cards';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { ClientDzd, ClientTransactionDzd, Tx } from '../../types';
 import { ChevronLeftIcon } from '../icons/ChevronLeftIcon';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { ShareIcon } from '../icons/ShareIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { CopyIcon } from '../icons/CopyIcon';
@@ -24,6 +25,8 @@ import { TransactionDisplayList } from '../transactions/TransactionDisplayList';
 import type { DisplayTx } from '../transactions/transactionsTypes';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel } from '../../utils/transactionTerminology';
 import { getNameInitials } from '../../utils/nameUtils';
+// Loaded on the first tap on « Rapport d’activité »: the clients page stays as light as before.
+const ClientActivityReportDialog = lazy(() => import('./ClientActivityReportDialog').then((module) => ({ default: module.ClientActivityReportDialog })));
 type ClientDetailsViewProps = {
     selectedClientId: string;
     selectedClient: ClientDzd;
@@ -157,6 +160,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
     const LOAD_MORE_TRANSACTIONS = 60;
     const [visibleTransactionCount, setVisibleTransactionCount] = useState(INITIAL_VISIBLE_TRANSACTIONS);
     const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+    const [isActivityReportOpen, setIsActivityReportOpen] = useState(false);
     const [reportStartDate, setReportStartDate] = useState('');
     const [reportEndDate, setReportEndDate] = useState('');
     const [reportDateError, setReportDateError] = useState('');
@@ -464,6 +468,16 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
               <span className="max-w-full">{action.label}</span>
             </button>))}
         </div>
+        <button type="button" onClick={() => setIsActivityReportOpen(true)} data-testid="client-activity-report-button" className="mt-2 flex min-h-touch w-full items-center gap-3 rounded-button border border-border bg-surface px-3 py-2 text-start transition-colors hover:bg-surface-muted active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary dark:text-primary-light">
+            <FileSpreadsheetIcon className="h-5 w-5"/>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-neutral-900">{t('clients.activityReport')}</span>
+            <span className="block truncate text-xs text-neutral-500">{t('clients.activityReportHint')}</span>
+          </span>
+          <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100"/>
+        </button>
       </section>
 
       {creditLimitAlert}
@@ -523,6 +537,10 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             <CurrencyAmount value={selectedClient.creditLimit} currency="DZD" semantic="plain" size="md" decimals={0}/>
           </div>)}
       </div>
+
+      {isActivityReportOpen && (<Suspense fallback={null}>
+          <ClientActivityReportDialog onClose={() => setIsActivityReportOpen(false)} clientId={selectedClientId} clientName={clientName} clientRows={clientTransactionsDzd} transactions={transactions}/>
+        </Suspense>)}
 
       <Modal isOpen={isReportDialogOpen} onClose={() => setIsReportDialogOpen(false)} className="max-w-md bg-surface">
         <ModalHeader onClose={() => setIsReportDialogOpen(false)}>
