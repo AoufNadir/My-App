@@ -3,6 +3,8 @@ import type { ClientDzd, ClientTransactionDzd, Investor, TreasuryTx, Tx } from '
 import { nameMatchesQuery } from '../utils/nameUtils';
 import { formatNumber } from '../pages/shared/pageFormat';
 import { isClientActive } from '../utils/clientRegistry';
+import { walletDisplayName } from '../utils/formMessages';
+import { getClientOperationLabel, getTreasuryOperationLabel } from '../utils/transactionTerminology';
 import type { TransactionFilterMode } from '../components/transactions/transactionsTypes';
 type DateRange = {
     start: Date | null;
@@ -66,6 +68,7 @@ export function useGlobalSearch({ clientTransactionsDzd, clientsDzd, getClientFu
         const query = deferredGlobalSearchQuery.trim().toLowerCase();
         if (!query)
             return [];
+        const translateText = (key: string) => toText(t(key), key);
         const latestClientActivity = new Map<string, number>();
         for (const tx of clientTransactionsDzd) {
             const previousTimestamp = latestClientActivity.get(tx.clientId) || 0;
@@ -121,9 +124,9 @@ export function useGlobalSearch({ clientTransactionsDzd, clientsDzd, getClientFu
                 kind: 'investor' as const,
                 title: inv.name,
                 subtitle: [
-                    inv.isManager ? 'Gérant' : 'Investisseur',
-                    inv.isActive ? 'Actif' : 'Inactif',
-                    `Capital: ${Number(inv.capitalInvested || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} DZD`,
+                    toText(t(inv.isManager ? 'investors.manager' : 'search.investor')),
+                    toText(t(inv.isActive ? 'investors.active' : 'investors.inactive')),
+                    toText(t('search.capital')).replace('{amount}', Number(inv.capitalInvested || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })),
                 ].join(' · '),
                 investorId: inv.id,
                 timestamp: new Date(inv.entryDate || 0).getTime(),
@@ -168,7 +171,7 @@ export function useGlobalSearch({ clientTransactionsDzd, clientsDzd, getClientFu
             txResults.push({
                 id: `search_client_tx_${tx.id}`,
                 kind: 'transaction',
-                title: `${tx.type} - ${(tx.montant > 0 ? '+' : '')}${Number(tx.montant || 0).toFixed(2)} DZD`,
+                title: `${getClientOperationLabel(tx.type, translateText)} - ${(tx.montant > 0 ? '+' : '')}${Number(tx.montant || 0).toFixed(2)} DZD`,
                 subtitle: `${clientName} - ${tx.date} ${tx.time}`,
                 timestamp: tx.timestamp
             });
@@ -184,13 +187,14 @@ export function useGlobalSearch({ clientTransactionsDzd, clientsDzd, getClientFu
             ].join(' ').toLowerCase();
             if (!haystack.includes(query))
                 continue;
+            const walletLabel = (wallet: string | undefined) => (wallet ? walletDisplayName(wallet, t) : '');
             const sourceLabel = tx.destination
-                ? `${tx.source || ''} -> ${tx.destination || ''}`.trim()
-                : tx.source || '';
+                ? `${walletLabel(tx.source)} -> ${walletLabel(tx.destination)}`.trim()
+                : walletLabel(tx.source);
             txResults.push({
                 id: `search_treasury_${tx.id}`,
                 kind: 'transaction',
-                title: `${tx.type} - ${Number(tx.amount || 0).toFixed(2)} DZD`,
+                title: `${getTreasuryOperationLabel(tx.type, translateText)} - ${Number(tx.amount || 0).toFixed(2)} DZD`,
                 subtitle: [sourceLabel, `${tx.date} ${tx.time}`, tx.notes || ''].filter(Boolean).join(' - '),
                 timestamp: tx.timestamp
             });

@@ -113,7 +113,7 @@ function AppBottomNavComponent({ view, onSelect, labels, onNewOperation, onOpenS
         action();
     };
     return (<>
-      <nav aria-label="Navigation principale" className="fixed bottom-0 start-0 z-[45] w-[100dvw] border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] sm:hidden">
+      <nav aria-label={t('nav.mainNavigation')} className="fixed bottom-0 start-0 z-[45] w-[100dvw] border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] sm:hidden">
         <div className="grid h-[72px] grid-cols-5 items-center px-1">
           <button type="button" onClick={() => onSelect('dashboard')} aria-current={view === 'dashboard' ? 'page' : undefined} className={tabClass(view === 'dashboard')}>
             <span className={tabIconClass(view === 'dashboard')}><HomeIcon className="h-[22px] w-[22px]"/></span>

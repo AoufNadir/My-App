@@ -4,12 +4,20 @@ import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { Button } from '../ui/Button';
 import { MoneyField } from '../ui/MoneyField';
+import { Textarea } from '../ui/Textarea';
 import { DatePicker } from '../ui/DatePicker';
 import { FormCard } from '../ui/FormCard';
 import { OperationFooter } from '../ui/OperationFooter';
 import { TransactionPreviewCard, type PreviewRow } from '../ui/TransactionPreviewCard';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { ArrowRightLeftIcon } from '../icons/ArrowRightLeftIcon';
+import { BriefcaseIcon } from '../icons/BriefcaseIcon';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
+import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
+import { UserIcon } from '../icons/UserIcon';
+import { SectionCard } from '../cards/SectionCard';
+import { CARD_TONE_CLASS } from '../cards/tones';
+import { SearchField } from '../ui/SearchField';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { parseAndEvaluate } from '../../utils';
 import { formatMoney } from '../../pages/shared/pageFormat';
@@ -47,7 +55,13 @@ type GlobalSearchDialogProps = {
     clientsText: string;
     transactionsText: string;
 };
+const SEARCH_GROUP_ICON = {
+    investor: { icon: <BriefcaseIcon className="h-5 w-5"/>, tone: 'debt' },
+    client: { icon: <UserIcon className="h-5 w-5"/>, tone: 'primary' },
+    transaction: { icon: <ArrowRightLeftIcon className="h-5 w-5"/>, tone: 'neutral' },
+} as const;
 export function GlobalSearchDialog({ isOpen, onClose, query, setQuery, results, onSelectResult, title, placeholder, noResultsText, clientsText, transactionsText }: GlobalSearchDialogProps) {
+    const { t } = useLanguage();
     const [selectedIndex, setSelectedIndex] = React.useState(0);
     const listRef = React.useRef<HTMLDivElement>(null);
     // Reset selection when results change
@@ -80,60 +94,50 @@ export function GlobalSearchDialog({ isOpen, onClose, query, setQuery, results, 
     const clients = results.filter((r) => r.kind === 'client');
     const transactions = results.filter((r) => r.kind === 'transaction');
     const groups = [
-        { label: 'Investisseurs', items: investors, color: 'bg-warning-bg text-warning' },
-        { label: clientsText, items: clients, color: 'bg-primary/10 text-primary' },
-        { label: transactionsText, items: transactions, color: 'bg-neutral-100 text-neutral-700' },
+        { kind: 'investor' as const, label: t('nav.investors') as string, items: investors },
+        { kind: 'client' as const, label: clientsText, items: clients },
+        { kind: 'transaction' as const, label: transactionsText, items: transactions },
     ].filter((g) => g.items.length > 0);
     let globalIdx = -1;
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-2xl bg-surface text-neutral-900">
       <ModalHeader onClose={onClose}>
-        <ModalTitle className="text-base">{title}</ModalTitle>
+        <ModalTitle className="text-base sm:text-lg">{title}</ModalTitle>
       </ModalHeader>
-      <ModalContent className="p-4 space-y-3">
-        <div className="relative">
-          <Input value={query} onChange={(e) => { setQuery(e.target.value); }} placeholder={placeholder} autoFocus className="pe-16"/>
-          <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 rounded border border-border bg-surface-muted px-1.5 py-0.5 text-xs font-bold text-neutral-400 hidden sm:block">
-            Ctrl K
-          </span>
-        </div>
-        <div ref={listRef} className="max-h-[55vh] overflow-y-auto rounded-xl border border-border">
-          {!query.trim() ? (<div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-              <span className="text-2xl">🔍</span>
-              <p className="text-sm text-neutral-500">Tapez pour rechercher clients, investisseurs ou transactions</p>
-              <p className="text-xs text-neutral-400">Ctrl+K pour ouvrir · Échap pour fermer · ↑↓ pour naviguer</p>
-            </div>) : results.length === 0 ? (<div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-              <span className="text-2xl">😕</span>
-              <p className="text-sm text-neutral-500">{noResultsText}</p>
-              <p className="text-xs text-neutral-400">pour "<span className="font-semibold">{query}</span>"</p>
-            </div>) : (<div>
-              {groups.map((group) => (<div key={group.label}>
-                  <div className="sticky top-0 z-10 bg-surface-muted px-3 py-1.5 text-[13px] font-bold text-neutral-500 border-b border-border">
-                    {group.label} ({group.items.length})
-                  </div>
-                  <div className="divide-y divide-border">
-                    {group.items.map((result) => {
+      <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
+        <SearchField value={query} onChange={setQuery} placeholder={placeholder} clearLabel={t('transactions.clearSearch') as string} autoFocus/>
+        <div ref={listRef} className="space-y-3">
+          {!query.trim() ? (<div className="flex flex-col items-center gap-2 rounded-card border border-border bg-surface px-4 py-8 text-center">
+              <span aria-hidden="true" className={`flex h-12 w-12 items-center justify-center rounded-full ${CARD_TONE_CLASS.primary}`}>
+                <MagnifyingGlassIcon className="h-6 w-6"/>
+              </span>
+              <p className="text-sm font-semibold text-neutral-700">{t('search.emptyTitle')}</p>
+              <p className="hidden text-xs text-neutral-500 sm:block">{t('search.openHint')}</p>
+            </div>) : results.length === 0 ? (<div className="flex flex-col items-center gap-2 rounded-card border border-border bg-surface px-4 py-8 text-center">
+              <span aria-hidden="true" className={`flex h-12 w-12 items-center justify-center rounded-full ${CARD_TONE_CLASS.neutral}`}>
+                <MagnifyingGlassIcon className="h-6 w-6"/>
+              </span>
+              <p className="text-sm font-semibold text-neutral-700">{noResultsText}</p>
+              <p className="max-w-full truncate text-xs text-neutral-500">«<span dir="auto" className="font-semibold">{query}</span>»</p>
+            </div>) : groups.map((group) => {
+                const { icon, tone } = SEARCH_GROUP_ICON[group.kind];
+                return (<React.Fragment key={group.kind}><SectionCard title={`${group.label} (${group.items.length})`} flush>
+                  {group.items.map((result) => {
                     globalIdx++;
                     const idx = globalIdx;
                     const isActive = idx === selectedIndex;
-                    return (<button key={result.id} data-index={idx} onClick={() => onSelectResult(result)} onMouseEnter={() => setSelectedIndex(idx)} className={`w-full min-h-touch px-4 py-3 text-start transition-colors ${isActive ? 'bg-primary/5' : 'hover:bg-neutral-50'}`}>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="font-semibold truncate text-sm">{result.title}</p>
-                              <p className="mt-0.5 truncate text-xs text-neutral-500">{result.subtitle || '—'}</p>
-                            </div>
-                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold uppercase tracking-wide ${group.color}`}>
-                              {group.label}
-                            </span>
-                          </div>
-                        </button>);
+                    return (<button key={result.id} type="button" data-index={idx} onClick={() => onSelectResult(result)} onMouseEnter={() => setSelectedIndex(idx)} className={`flex min-h-14 w-full items-center gap-3 border-t border-border px-4 py-3 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${isActive ? 'bg-primary/5' : 'hover:bg-surface-muted'}`}>
+                        <span aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${CARD_TONE_CLASS[tone]}`}>{icon}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-neutral-900">{result.title}</span>
+                          <span className="mt-0.5 block truncate text-xs text-neutral-500">{result.subtitle || '—'}</span>
+                        </span>
+                        <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100"/>
+                      </button>);
                 })}
-                  </div>
-                </div>))}
-            </div>)}
+                </SectionCard></React.Fragment>);
+            })}
         </div>
-        {results.length > 0 && (<p className="text-center text-xs text-neutral-400">
-            ↑↓ naviguer · Entrée sélectionner · Échap fermer
-          </p>)}
+        {results.length > 0 && (<p className="hidden text-center text-xs text-neutral-500 sm:block">{t('search.navHint')}</p>)}
       </ModalContent>
     </Modal>);
 }
@@ -282,6 +286,10 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
             return (<TransactionPreviewCard title={t('transactions.afterTransferSummary') as string} rows={rows} error={insufficient ? t('formErrors.insufficientBalance') as string : undefined}/>);
         })()}
         </FormCard>
+
+        <FormCard>
+          <Textarea id="wallet_transfer_notes" label={notesOptionalLabel} value={notes ?? ''} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder={t('transactions.notesPlaceholder') as string} className="resize-none text-sm"/>
+        </FormCard>
       </ModalContent>
       <OperationFooter stats={hasAmount ? [{ label: amountLabel, value: formatMoney(typedAmount, 'DZD') }] : []} reason={blockedReason} reasonTone={hasAmount ? 'fix' : 'missing'}>
         <Button onClick={onClose} variant="outline">
@@ -416,7 +424,7 @@ export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromCli
         </div>
         </FormCard>
         <FormCard>
-        <MoneyField label={amountLabel} value={amount} onChange={setAmount} currency="DZD" onMax={fromClientId ? onMaxFrom : undefined} maxLabel="MAX" maxDisabled={maxDisabled}/>
+        <MoneyField label={amountLabel} value={amount} onChange={setAmount} currency="DZD" onMax={fromClientId ? onMaxFrom : undefined} maxDisabled={maxDisabled}/>
         {setDate && setTime && (
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -447,6 +455,9 @@ export function ClientTransferDialog({ isOpen, onClose, fromClientId, setFromCli
             ];
             return (<TransactionPreviewCard title={t('transactions.afterTransferSummary') as string} rows={rows}/>);
         })()}
+        </FormCard>
+        <FormCard>
+        <Textarea id="client_transfer_notes" label={notesLabel} value={notes ?? ''} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder={t('transactions.notesPlaceholder') as string} className="resize-none text-sm"/>
         </FormCard>
       </ModalContent>
       <OperationFooter stats={hasAmount ? [{ label: amountLabel, value: formatMoney(amt, 'DZD') }] : []} reason={blockedReason} reasonTone={sameClient ? 'fix' : 'missing'}>

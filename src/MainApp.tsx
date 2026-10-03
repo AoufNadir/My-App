@@ -114,6 +114,7 @@ import { investorResetForDeletedRow } from './utils/managerCapital';
 import { buildPricingContext, quoteSale, type SmartSaleSnapshot } from './services/smartPricingEngine';
 import { alertToastDurationMs, detectAlertTone } from './utils/alertTone';
 import { AppToast } from './components/ui/AppToast';
+import { translateAlert } from './utils/alertMessages';
 
 /** True from the first render where `value` is true, and stays true afterwards. */
 function useLatchedFlag(value: boolean): boolean {
@@ -125,13 +126,6 @@ function useLatchedFlag(value: boolean): boolean {
 function getClientDisplayName(client: ClientDzd) {
     const raw = client.fullName || (client.prenom ? `${client.nom} ${client.prenom}` : client.nom) || '';
     return reorderClientName(raw);
-}
-function PageLoadingFallback({ text }: {
-    text: string;
-}) {
-    return (<div className="w-full rounded-2xl border border-border bg-surface/80 text-neutral-700 p-6 text-center text-sm font-semibold">
-            {text}
-        </div>);
 }
 export default function MainApp({ user }: {
     user: AppUser;
@@ -157,7 +151,7 @@ export default function MainApp({ user }: {
         });
     };
     // --- 1. CORE DATA & SETTINGS ---
-    const { t } = useLanguage();
+    const { t, lang } = useLanguage();
     const readModelsMode = getReadModelsMode();
     // The shadow comparisons below recompute the whole dashboard, the PAM ledger
     // and the investor economics a second time purely for console diagnostics.
@@ -2653,7 +2647,7 @@ export default function MainApp({ user }: {
         const investor = derivedInvestors.find(i => i.id === investorIdFromUrl) || derivedInvestors[0];
         if (!investor) {
             return (<div className="min-h-screen flex items-center justify-center bg-app-bg text-neutral-500">
-                    {derivedInvestors.length === 0 ? "Chargement des données investisseur..." : "Investisseur non trouvé."}
+                    {derivedInvestors.length === 0 ? t('investorDashboard.loadingData') : t('investorDashboard.notFound')}
                 </div>);
         }
         const myTransactions = investorTransactions.filter(tx => tx.investorId === investor.id);
@@ -2722,7 +2716,7 @@ export default function MainApp({ user }: {
 
     // Notifications
     const [showNotifBanner, setShowNotifBanner] = React.useState(false);
-    const notifications = useNotifications(userDocRef);
+    const notifications = useNotifications(userDocRef, t);
 
     // Offer notifications once (after 30s) if not yet asked and supported
     React.useEffect(() => {
@@ -2861,7 +2855,7 @@ export default function MainApp({ user }: {
             return;
         return open(item);
     };
-    const mainContentProps = { t, dailyOverview, userDocRef, setAlert, PageLoadingFallback, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete: unlessClosedMonth<Tx | TreasuryTx | null>(setTxToDelete), openDateFilterModal, dateRange, setDateRange, openNewOperationMenu, openDeliveryExpenseModal, openDigitalServiceModal: unlessClosedMonth<DigitalServiceTransaction | null>(openDigitalServiceModal), handleDeleteDigitalService: unlessClosedMonth<DigitalServiceTransaction>(handleDeleteDigitalService), treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete: unlessClosedMonth<TreasuryTx | null>(setTreasuryTxToDelete), PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal: unlessClosedMonth<TreasuryTx>(openReconcileAdvanceModal), openEditPersonalExpense: unlessClosedMonth<TreasuryTx>(openEditPersonalExpense), setPersonalExpenseToDelete: unlessClosedMonth<TreasuryTx | null>(setPersonalExpenseToDelete), handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, openClientToClientTransferModal, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete: unlessClosedMonth<InvestorTransaction | null>(setInvestorTxToDelete), managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys, periodLock: periodLockProps };
+    const mainContentProps = { t, dailyOverview, userDocRef, setAlert, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete: unlessClosedMonth<Tx | TreasuryTx | null>(setTxToDelete), openDateFilterModal, dateRange, setDateRange, openNewOperationMenu, openDeliveryExpenseModal, openDigitalServiceModal: unlessClosedMonth<DigitalServiceTransaction | null>(openDigitalServiceModal), handleDeleteDigitalService: unlessClosedMonth<DigitalServiceTransaction>(handleDeleteDigitalService), treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete: unlessClosedMonth<TreasuryTx | null>(setTreasuryTxToDelete), PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal: unlessClosedMonth<TreasuryTx>(openReconcileAdvanceModal), openEditPersonalExpense: unlessClosedMonth<TreasuryTx>(openEditPersonalExpense), setPersonalExpenseToDelete: unlessClosedMonth<TreasuryTx | null>(setPersonalExpenseToDelete), handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, openClientToClientTransferModal, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete: unlessClosedMonth<InvestorTransaction | null>(setInvestorTxToDelete), managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys, periodLock: periodLockProps };
     const walletTransferDialogProps = useMemo(() => ({
         isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSourceAndSync,
@@ -2885,7 +2879,7 @@ export default function MainApp({ user }: {
         date: transferDate, setDate: setTransferDate, time: transferTime, setTime: setTransferTime,
         dateLabel: t('common.date'), timeLabel: t('common.time'),
         title: editingTransferTx ? `${t('common.edit')} ${t('transactions.clientTransfer')}` : t('transactions.clientTransfer'), infoText: t('transactions.transferDebtCredit'), fromLabel: t('transactions.from'),
-        toLabel: t('transactions.to'), amountLabel: t('transactions.amount'), notesLabel: t('common.notes'),
+        toLabel: t('transactions.to'), amountLabel: t('transactions.amount'), notesLabel: t('common.notesOptional'),
         filterClientsLabel: t('transactions.filterClients'), balanceLabel: t('common.balance'), dinarLabel: t('common.dinar'),
         confirmLabel: editingTransferTx ? t('common.save') : t('transactions.confirmTransfer')
     }), [isTransferModalOpen, closeTransferModal, fieldBase, transferFromClientId, transferToClientId, transferAmount, transferNotes, transferDate, transferTime, handleSaveTransfer, handleClientToClientTransferSave, isSaving, clientsDzd, getClientFullName, transferFromBalance, transferToBalance, setTransferAmount, getClientTransferableAmount, editingTransferTx, t]);
@@ -3050,7 +3044,7 @@ export default function MainApp({ user }: {
 
                 <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal}/>
 
-                {alert && (<AppToast message={alert} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? t('common.undo') : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined}/>)}
+                {alert && (<AppToast message={translateAlert(alert, lang, t)} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? t('common.undo') : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined}/>)}
 
 
                 {isGlobalSearchOpen && (<Suspense fallback={null}>

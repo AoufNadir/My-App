@@ -17,7 +17,7 @@ import { FileSpreadsheetIcon } from '../icons/FileSpreadsheetIcon';
 import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
 import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { UsersIcon } from '../icons/UsersIcon';
-import { formatDzd, formatNumber, getRelativeFrDateLabel } from '../../pages/shared/pageFormat';
+import { formatDzd, formatLongDate, formatNumber, getRelativeFrDateLabel } from '../../pages/shared/pageFormat';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { ClientReportDateRange, ClientReportRequest } from '../../hooks/useReportExports';
 import { TransactionDisplayList } from '../transactions/TransactionDisplayList';
@@ -152,7 +152,7 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone }: ContactRowPr
     </div>);
 }
 export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal, handleExportClientReport }: ClientDetailsViewProps) {
-    const { t } = useLanguage();
+    const { t, lang } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 60;
     const LOAD_MORE_TRANSACTIONS = 60;
     const [visibleTransactionCount, setVisibleTransactionCount] = useState(INITIAL_VISIBLE_TRANSACTIONS);
@@ -392,7 +392,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
         const name = getClientFullName(selectedClient);
         const amount = Math.abs(selectedClientBalance);
         const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
-        const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+        const today = formatLongDate(new Date(), lang, t);
         const msg = `📋 ${t('clients.reminderTitle')}\n\n${t('clients.clientWord')} : ${name}\n${t('clients.amountDue')} : ${fmt(amount)} DZD\n${t('common.dateWord')} : ${today}\n\n${t('clients.reminderFooter')}`;
         if (selectedClient.phone) {
             openWhatsAppMessenger(selectedClient.phone, msg);
@@ -478,7 +478,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             <TransactionDisplayList
               dateGroups={visibleDisplayDateGroups}
               t={t}
-              getRelativeDateLabel={getRelativeFrDateLabel}
+              getRelativeDateLabel={(date) => getRelativeFrDateLabel(date, t)}
               onEditDisplayTx={(displayTx) => handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
               onDeleteDisplayTx={(displayTx) => handleDeleteClientTxClick((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
               onOpenDisplayTx={(displayTx) => handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}

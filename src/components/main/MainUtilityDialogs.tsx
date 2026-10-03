@@ -2,65 +2,76 @@ import { memo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Input } from '../ui/Input';
-import { Label } from '../ui/Label';
 import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
 import { MoneyField } from '../ui/MoneyField';
 import { Textarea } from '../ui/Textarea';
 import { useAuthLock } from '../../hooks/useAuthLock';
+import { CheckIcon } from '../icons/CheckIcon';
+import { LockIcon } from '../icons/LockIcon';
+import { FormCard } from '../ui/FormCard';
 
 type MainUtilityDialogsProps = Record<string, any>;
 
-function PinSettings({}: {}) {
+type PinMessage = { text: string; tone: 'error' | 'success' };
+
+function PinSettings({ t }: { t: (key: string) => any }) {
     const { pinEnabled, setPin, disablePin, lock } = useAuthLock();
     const [draft, setDraft] = useState('');
     const [confirm, setConfirm] = useState('');
-    const [msg, setMsg] = useState<string | null>(null);
+    const [msg, setMsg] = useState<PinMessage | null>(null);
 
     const handleSetPin = async () => {
         setMsg(null);
         if (draft.length < 4) {
-            setMsg('Le code doit contenir au moins 4 chiffres.');
+            setMsg({ text: t('settings.pinTooShort'), tone: 'error' });
             return;
         }
         if (draft !== confirm) {
-            setMsg('Les codes ne correspondent pas.');
+            setMsg({ text: t('settings.pinMismatch'), tone: 'error' });
             return;
         }
         await setPin(draft);
         setDraft('');
         setConfirm('');
-        setMsg('Code PIN active.');
+        setMsg({ text: t('settings.pinEnabledMessage'), tone: 'success' });
     };
 
     const handleDisable = () => {
         disablePin();
-        setMsg('Code PIN desactive.');
+        setMsg({ text: t('settings.pinDisabledMessage'), tone: 'success' });
     };
 
     return (
-        <div>
-            <Label>Verrouillage par code PIN</Label>
+        <FormCard
+            title={t('settings.pinTitle')}
+            description={pinEnabled ? t('settings.pinActiveDetail') : t('settings.pinDescription')}
+            aside={pinEnabled ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-financial-profit-bg px-2 py-0.5 text-financial-profit">
+                    <CheckIcon aria-hidden="true" className="h-3.5 w-3.5"/>
+                    {t('settings.pinActive')}
+                </span>
+            ) : undefined}
+        >
             {pinEnabled ? (
-                <div className="mt-2 rounded-lg bg-surface-muted p-3">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="text-sm">
-                            <p className="font-semibold text-neutral-900">PIN actif</p>
-                            <p className="text-xs text-neutral-500">Verrouillage automatique après 3 minutes d'inactivité.</p>
-                        </div>
-                        <div className="flex shrink-0 gap-2">
-                            <Button type="button" variant="outline" size="sm" onClick={lock}>Verrouiller</Button>
-                            <Button type="button" variant="danger" size="sm" onClick={handleDisable}>Desactiver</Button>
-                        </div>
-                    </div>
+                <div className="grid grid-cols-2 gap-2">
+                    <Button type="button" variant="outline" onClick={lock}>
+                        <LockIcon aria-hidden="true" className="h-4 w-4"/>
+                        {t('settings.lockNow')}
+                    </Button>
+                    <Button type="button" onClick={handleDisable} className="border border-financial-loss/30 bg-surface text-financial-loss hover:bg-financial-loss-bg active:bg-financial-loss-bg">
+                        {t('settings.disablePin')}
+                    </Button>
                 </div>
             ) : (
-                <div className="mt-2 space-y-2">
+                <>
                     <Input
                         type="password"
                         inputMode="numeric"
                         pattern="[0-9]*"
                         maxLength={6}
-                        placeholder="Nouveau code (4-6 chiffres)"
+                        autoComplete="off"
+                        aria-label={t('settings.newPin')}
+                        placeholder={t('settings.newPin')}
                         value={draft}
                         onChange={(event) => setDraft(event.target.value.replace(/\D/g, ''))}
                         dir="ltr"
@@ -70,18 +81,24 @@ function PinSettings({}: {}) {
                         inputMode="numeric"
                         pattern="[0-9]*"
                         maxLength={6}
-                        placeholder="Confirmer le code"
+                        autoComplete="off"
+                        aria-label={t('settings.confirmPin')}
+                        placeholder={t('settings.confirmPin')}
                         value={confirm}
                         onChange={(event) => setConfirm(event.target.value.replace(/\D/g, ''))}
                         dir="ltr"
                     />
                     <Button type="button" onClick={handleSetPin} className="w-full">
-                        Activer le verrouillage
+                        {t('settings.enablePin')}
                     </Button>
-                </div>
+                </>
             )}
-            {msg && <p className="mt-2 text-xs text-neutral-600">{msg}</p>}
-        </div>
+            {msg && (
+                <p role="status" className={`text-xs font-semibold ${msg.tone === 'error' ? 'text-financial-loss' : 'text-financial-profit'}`}>
+                    {msg.text}
+                </p>
+            )}
+        </FormCard>
     );
 }
 
@@ -128,17 +145,12 @@ function MainUtilityDialogsComponent({
         <>
             <Modal isOpen={isSettingsModalOpen} onClose={closeSettings} className="max-w-sm bg-surface text-neutral-900">
                 <ModalHeader onClose={closeSettings}>
-                    <ModalTitle className="text-base sm:text-lg">{t('settings.salesSettings')}</ModalTitle>
+                    <ModalTitle className="text-base sm:text-lg">{t('settings.securityTitle')}</ModalTitle>
                 </ModalHeader>
-                <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
-                    <PinSettings />
+                <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
+                    <PinSettings t={t} />
 
-                    {/* Backup section */}
-                    <div className="rounded-xl border border-border bg-surface-muted p-3 space-y-2">
-                        <p className="text-xs font-bold uppercase text-neutral-500 tracking-wide">Sauvegarde des données</p>
-                        <p className="text-xs text-neutral-400 leading-relaxed">
-                            Exporte toutes vos données (transactions, clients, investisseurs, trésorerie…) en fichier JSON.
-                        </p>
+                    <FormCard title={t('settings.backupTitle')} description={t('settings.backupDescription')}>
                         <Button
                             type="button"
                             variant="outline"
@@ -146,15 +158,15 @@ function MainUtilityDialogsComponent({
                             className="w-full font-semibold gap-2"
                             onClick={() => typeof handleExportBackup === 'function' && handleExportBackup()}
                         >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                             </svg>
-                            Télécharger sauvegarde JSON
+                            {t('settings.backupDownload')}
                         </Button>
-                    </div>
+                    </FormCard>
                 </ModalContent>
                 <ModalFooter>
-                    <Button type="button" variant="outline" className="w-full" onClick={closeSettings}>{t('common.cancel')}</Button>
+                    <Button type="button" variant="outline" className="w-full" onClick={closeSettings}>{t('common.close')}</Button>
                 </ModalFooter>
             </Modal>
 

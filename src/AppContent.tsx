@@ -17,7 +17,7 @@ export default function AppContent() {
     const { t } = useLanguage();
     const [user, setUser] = useState<User | null>(null);
     const [authLoading, setAuthLoading] = useState(true);
-    const { isLocked, unlock } = useAuthLock();
+    const { isLocked, unlock, pinLength } = useAuthLock();
     const { loading: profileLoading, profile, gateActive, isOperator } = usePoProfile(user);
     const bgApp = 'bg-app-bg text-neutral-900';
     useEffect(() => {
@@ -43,7 +43,7 @@ export default function AppContent() {
             <Suspense fallback={loadingScreen}>
                 <MainApp user={user} />
             </Suspense>
-            {isLocked && <AuthLockScreen onUnlock={unlock} />}
+            {isLocked && <AuthLockScreen onUnlock={unlock} pinLength={pinLength} />}
         </>
     );
     // Role gate is dormant until the operator uid is configured; the operator

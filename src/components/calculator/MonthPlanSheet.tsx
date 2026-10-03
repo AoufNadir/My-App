@@ -5,6 +5,10 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { MoneyField } from '../ui/MoneyField';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { SmartPricePanel } from '../main/SmartPricePanel';
+import { FormCard } from '../ui/FormCard';
+import { SegmentedControl } from '../ui/SegmentedControl';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { auth } from '../../firebaseAuth';
 import { formatNumber } from '../../pages/shared/pageFormat';
@@ -248,26 +252,43 @@ export function MonthPlanSheet({
     const syncLabel = t(`smartPricing.sync.${syncState}`);
     const syncClass = syncState === 'error' ? 'text-financial-loss' : syncState === 'offline' ? 'text-warning' : 'text-neutral-400';
 
+    const detailsClass = 'group rounded-card border border-border bg-surface';
+    const summaryClass = 'flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 rounded-card px-4 text-sm font-bold text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary [&::-webkit-details-marker]:hidden';
+    const summaryChevron = <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 rotate-90 text-neutral-400 transition-transform group-open:-rotate-90"/>;
+    const goalStats = [
+        { label: t('smartPricing.goal'), value: fmt0(goal), className: 'text-neutral-900' },
+        { label: t('smartPricing.achieved'), value: fmt0(context.goal.mtdProfit), className: 'text-financial-profit' },
+        { label: t('smartPricing.remaining'), value: fmt0(context.goal.remainingGoal), className: 'text-neutral-900' },
+    ];
+    const portalText = portalMessage === 'error'
+        ? t('common.error')
+        : portalMessage.startsWith('✓ ')
+            ? String(t('smartPricing.portalPublished')).replace('{count}', portalMessage.slice(2))
+            : portalMessage ? t(`smartPricing.portalFail_${portalMessage}`) : '';
+
     return (<>
         <BottomSheet isOpen={isOpen} onClose={onClose} title={t('smartPricing.monthPlan')} className="mx-auto max-w-lg">
-            <div className="space-y-4 px-4 pb-7 pt-3">
-                <section className="rounded-2xl bg-surface-muted p-3">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                        <div>
-                            <p className="text-sm font-extrabold text-neutral-900">{t('smartPricing.title')}</p>
-                            <p className="text-xs text-neutral-500">{t('smartPricing.subtitle')}</p>
+            <div className="space-y-3 bg-app-bg px-4 pb-7 pt-3">
+                <section className="rounded-card border border-border bg-surface p-4">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <h3 className="text-sm font-bold text-neutral-900">{t('smartPricing.title')}</h3>
+                            <p className="mt-0.5 text-xs leading-relaxed text-neutral-500">{t('smartPricing.subtitle')}</p>
                         </div>
-                        <span className={`text-xs font-semibold ${syncClass}`}>{syncLabel}</span>
+                        <span className={`shrink-0 pt-0.5 text-xs font-semibold ${syncClass}`}>{syncLabel}</span>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-neutral-200"><div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }}/></div>
-                    <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                        <div><span className="block text-xs text-neutral-400">{t('smartPricing.goal')}</span><b dir="ltr" className="text-xs">{fmt0(goal)}</b></div>
-                        <div><span className="block text-xs text-neutral-400">{t('smartPricing.achieved')}</span><b dir="ltr" className="text-xs text-financial-profit">{fmt0(context.goal.mtdProfit)}</b></div>
-                        <div><span className="block text-xs text-neutral-400">{t('smartPricing.remaining')}</span><b dir="ltr" className="text-xs">{fmt0(context.goal.remainingGoal)}</b></div>
-                    </div>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }}/></div>
+                    <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+                        {goalStats.map((stat) => (<React.Fragment key={stat.label}>
+                            <div className="rounded-button bg-surface-muted px-1 py-2">
+                                <dt className="truncate text-xs font-semibold text-neutral-500">{stat.label}</dt>
+                                <dd dir="ltr" className={`mt-0.5 text-sm font-extrabold tabular-nums ${stat.className}`}>{stat.value}</dd>
+                            </div>
+                        </React.Fragment>))}
+                    </dl>
                 </section>
 
-                <section className="space-y-3">
+                <FormCard>
                     <label className="block text-sm font-semibold text-neutral-700">
                         {t('smartPricing.client')}
                         <SearchableSelect value={clientId} onChange={handleClientChange} options={options}
@@ -279,14 +300,8 @@ export function MonthPlanSheet({
                         hint={`${fmt2(context.available)} USDT`}/>
                     <div>
                         <p className="mb-1.5 text-sm font-semibold text-neutral-700">{t('smartPricing.payment')}</p>
-                        <div className="grid grid-cols-3 gap-2">
-                            {(['cash', 'baridi', 'credit'] as const).map((kind) => (
-                                <button key={kind} type="button" aria-pressed={payment === kind} onClick={() => handlePayment(kind)}
-                                    className={`min-h-touch rounded-xl border px-2 text-xs font-bold ${payment === kind ? 'border-primary bg-primary text-white' : 'border-border bg-surface text-neutral-600'}`}>
-                                    {t(`smartPricing.${kind}`)}
-                                </button>
-                            ))}
-                        </div>
+                        <SegmentedControl size="md" ariaLabel={t('smartPricing.payment')} value={payment} onChange={handlePayment}
+                            options={(['cash', 'baridi', 'credit'] as const).map((kind) => ({ id: kind, label: t(`smartPricing.${kind}`), tone: 'primary' as const }))}/>
                     </div>
                     {payment === 'credit' && (
                         <label className="block text-sm font-semibold text-neutral-700">
@@ -295,28 +310,32 @@ export function MonthPlanSheet({
                                 onChange={(event) => setCreditDueDate(event.target.value)} className={`${fieldClass} mt-1.5`}/>
                         </label>
                     )}
-                </section>
+                </FormCard>
 
                 <SmartPricePanel smartPricing={context} currency="USDT" clientId={clientId || 'none'} quantity={qty}
                     payment={payment} creditDueDate={creditDueDate} available={context.available} currentPrice={actual}
                     isEditing={false} onApplyPrice={applyCorridorPrice} marketOverride={marketOverride} clientOverride={clientOverride}/>
 
                 {quote?.status === 'ready' && (
-                    <section className="space-y-3">
+                    <FormCard>
                         <MoneyField label={t('smartPricing.actualPrice')} currency="DZD" value={actualPrice}
                             onChange={(value) => { setActualPrice(value); setPriceSource('manual'); }}/>
                         <div className="grid grid-cols-2 gap-2">
                             <Button type="button" variant="outline" onClick={shareQuote}>{copied ? t('smartPricing.copied') : t('smartPricing.shareQuote')}</Button>
                             <Button type="button" onClick={useInSale} disabled={actual <= 0}>{t('smartPricing.useInSale')}</Button>
                         </div>
-                    </section>
+                    </FormCard>
                 )}
 
-                <details className="rounded-2xl border border-border bg-surface px-3.5 py-2.5">
-                    <summary className="min-h-touch cursor-pointer py-2 text-sm font-bold text-neutral-800">{t('smartPricing.planAndSettings')}</summary>
-                    <div className="space-y-3 pb-2 pt-2">
+                <details className={detailsClass}>
+                    <summary className={summaryClass}>{t('smartPricing.planAndSettings')}{summaryChevron}</summary>
+                    <div className="space-y-3 border-t border-border px-4 pb-4 pt-3">
                         {suggestedGoal > 0 && <button type="button" onClick={() => { setGoalDraft(String(Math.round(suggestedGoal))); setMinimumDraft(String(Math.round(suggestedGoal * 0.65))); }}
-                            className="w-full rounded-xl border border-dashed border-primary/40 px-3 py-2 text-start text-xs font-semibold text-primary">💡 {fmt0(suggestedGoal)} DZD</button>}
+                            className="flex min-h-touch w-full items-center gap-2 rounded-button border border-dashed border-primary/40 px-3 py-2 text-start text-xs font-semibold text-primary dark:text-primary-light">
+                            <SparklesIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>
+                            <span className="min-w-0 flex-1">{t('smartPricing.suggestedGoal')}</span>
+                            <span dir="ltr" className="shrink-0 tabular-nums">{fmt0(suggestedGoal)} DZD</span>
+                        </button>}
                         <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
                             <MoneyField label={t('smartPricing.monthlyGoal')} value={goalDraft} onChange={setGoalDraft} currency="DZD"/>
                             <MoneyField label={t('smartPricing.minimumGoal')} value={minimumDraft} onChange={setMinimumDraft} currency="DZD"/>
@@ -328,14 +347,17 @@ export function MonthPlanSheet({
                         {planError && <p role="alert" className="text-xs font-semibold text-financial-loss">{planError}</p>}
                         <Button type="button" className="w-full" loading={savingPlan} onClick={savePlan}>{t('smartPricing.savePlan')}</Button>
 
-                        <details className="rounded-xl bg-surface-muted px-3 py-2">
-                            <summary className="min-h-touch cursor-pointer py-2 text-xs font-bold text-neutral-700">{t('smartPricing.advanced')}</summary>
-                            <div className="space-y-3 pb-2">
+                        <details className="group/advanced rounded-button bg-surface-muted">
+                            <summary className="flex min-h-touch cursor-pointer list-none items-center justify-between gap-2 rounded-button px-3 text-xs font-bold text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary [&::-webkit-details-marker]:hidden">
+                                {t('smartPricing.advanced')}
+                                <ChevronRightIcon aria-hidden="true" className="h-4 w-4 shrink-0 rotate-90 text-neutral-400 transition-transform group-open/advanced:-rotate-90"/>
+                            </summary>
+                            <div className="space-y-3 px-3 pb-3">
                                 <div className="grid grid-cols-2 gap-2">
-                                    <MoneyField label="Buffer (DZD/U)" value={bufferDraft} onChange={setBufferDraft}/>
-                                    <MoneyField label="Coût capital (%/mois)" value={capitalCostDraft} onChange={setCapitalCostDraft}/>
-                                    <MoneyField label="<100 (DZD/U)" value={smallAdjDraft} onChange={setSmallAdjDraft}/>
-                                    <MoneyField label=">500 (DZD/U)" value={largeAdjDraft} onChange={setLargeAdjDraft}/>
+                                    <MoneyField label={t('smartPricing.bufferLabel')} value={bufferDraft} onChange={setBufferDraft}/>
+                                    <MoneyField label={t('smartPricing.capitalCostLabel')} value={capitalCostDraft} onChange={setCapitalCostDraft}/>
+                                    <MoneyField label={t('smartPricing.smallQtyLabel')} value={smallAdjDraft} onChange={setSmallAdjDraft}/>
+                                    <MoneyField label={t('smartPricing.largeQtyLabel')} value={largeAdjDraft} onChange={setLargeAdjDraft}/>
                                 </div>
                                 <Button type="button" variant="outline" className="w-full" loading={savingPolicy} onClick={savePolicy}>{t('common.save')}</Button>
                             </div>
@@ -343,9 +365,9 @@ export function MonthPlanSheet({
                     </div>
                 </details>
 
-                <details className="rounded-2xl border border-border bg-surface px-3.5 py-2.5">
-                    <summary className="min-h-touch cursor-pointer py-2 text-sm font-bold text-neutral-800">{t('smartPricing.marketOverride')} / {t('smartPricing.clientOverride')}</summary>
-                    <div className="space-y-3 pb-2 pt-2">
+                <details className={detailsClass}>
+                    <summary className={summaryClass}>{t('smartPricing.marketOverride')} / {t('smartPricing.clientOverride')}{summaryChevron}</summary>
+                    <div className="space-y-3 border-t border-border px-4 pb-4 pt-3">
                         <label className="block text-xs font-semibold text-neutral-600">{t('smartPricing.marketOverride')}
                             <select value={sessionMarketStatus} onChange={(event) => setSessionMarketStatus(event.target.value as MarketStatus | '')} className={`${fieldClass} mt-1`}>
                                 <option value="">{t('smartPricing.auto')}</option>
@@ -358,7 +380,7 @@ export function MonthPlanSheet({
                                 {(['vip', 'good', 'normal', 'weak', 'risky', 'new'] as CustomerSegment[]).map((segment) => <option key={segment} value={segment}>{t(`smartPricing.segment.${segment}`)}</option>)}
                             </select>
                         </label>
-                        <input value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} placeholder={t('smartPricing.overrideReason')} className={fieldClass}/>
+                        <input value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} placeholder={t('smartPricing.overrideReason')} aria-label={t('smartPricing.overrideReason')} className={fieldClass}/>
                         <div className="grid grid-cols-2 gap-2">
                             <Button type="button" variant="outline" disabled={!sessionMarketStatus || !overrideReason.trim()} loading={overrideBusy} onClick={persistMarketOverride}>{t('smartPricing.today')} · {t('smartPricing.marketOverride')}</Button>
                             <Button type="button" variant="outline" disabled={!sessionClientSegment || !clientId || !overrideReason.trim()} loading={overrideBusy} onClick={persistClientOverride}>{t('smartPricing.today')} · {t('smartPricing.clientOverride')}</Button>
@@ -371,20 +393,19 @@ export function MonthPlanSheet({
                 </details>
 
                 {ORDER_SYSTEM_CONFIGURED && (
-                    <details className="rounded-2xl border border-border bg-surface px-3.5 py-2.5">
-                        <summary className="min-h-touch cursor-pointer py-2 text-sm font-bold text-neutral-800">Portail clients</summary>
-                        <div className="space-y-2 pb-2">
-                            <p className="text-xs text-neutral-500">Prix publics anonymes basés sur la cible cash. Aucun score ou override client n’est publié.</p>
-                            <Button type="button" variant="secondary" className="w-full" loading={portalBusy} onClick={() => setPortalConfirm(true)}>Publier les paliers USDT</Button>
-                            {portalMessage && <p className="text-xs font-semibold text-neutral-600">{portalMessage}</p>}
+                    <details className={detailsClass}>
+                        <summary className={summaryClass}>{t('smartPricing.portalTitle')}{summaryChevron}</summary>
+                        <div className="space-y-2 border-t border-border px-4 pb-4 pt-3">
+                            <p className="text-xs leading-relaxed text-neutral-500">{t('smartPricing.portalDescription')}</p>
+                            <Button type="button" variant="secondary" className="w-full" loading={portalBusy} onClick={() => setPortalConfirm(true)}>{t('smartPricing.portalPublish')}</Button>
+                            {portalText && <p role="status" className="text-xs font-semibold text-neutral-600">{portalText}</p>}
                         </div>
                     </details>
                 )}
             </div>
         </BottomSheet>
         <ConfirmDialog isOpen={portalConfirm} onClose={() => setPortalConfirm(false)} onConfirm={publishPortal}
-            title="Publier les prix publics ?" description="Les anciens paliers actifs seront désactivés et remplacés. Les commandes existantes conservent leur prix."
+            title={t('smartPricing.portalConfirmTitle')} description={t('smartPricing.portalConfirmBody')}
             confirmLabel={t('common.confirm')} cancelLabel={t('common.cancel')} variant="warning" loading={portalBusy}/>
     </>);
 }
-

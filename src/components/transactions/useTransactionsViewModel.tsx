@@ -771,7 +771,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 sourceType: 'client_tx'
             }, () => {
                 const client = clientsById.get(tx.clientId);
-                const clientName = client ? getClientFullName(client) : 'Client Inconnu';
+                const clientName = client ? getClientFullName(client) : String(t('portfolio.unknownClient'));
                 const isPositive = tx.montant > 0;
                 const isTransfer = tx.type === 'Transfert Entrant' || tx.type === 'Transfert Sortant';
                 const transferCounterpart = isTransfer ? findClientTransferCounterpart(tx, clientTransferIndex) : null;
@@ -847,7 +847,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 sourceType: 'digital_service_tx'
             }, () => {
                 const client = clientsById.get(tx.clientId);
-                const clientLabel = client ? getClientFullName(client) : 'Client Inconnu';
+                const clientLabel = client ? getClientFullName(client) : String(t('portfolio.unknownClient'));
                 const profit = Number(tx.profitDzd || 0);
                 const details = [
                     clientLabel,

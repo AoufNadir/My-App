@@ -34,7 +34,7 @@ function MainHeaderBarComponent({ view, setView, globalSearchTitle, handleOpenGl
         ? <MoonIcon className="h-5 w-5 transition-transform duration-300 hover:rotate-12"/>
         : <SunIcon className="h-5 w-5 text-warning transition-transform duration-500 hover:rotate-90"/>;
     const languageDropdown = (buttonClassName: string) => (
-        <Dropdown contentClassName="w-36" trigger={(<button type="button" className={buttonClassName} aria-label="Changer la langue" title="Changer la langue">
+        <Dropdown contentClassName="w-36" trigger={(<button type="button" className={buttonClassName} aria-label={t('auth.language')} title={t('auth.language')}>
             {languageLabels[lang]}
         </button>)}>
             {(['fr', 'ar'] as Lang[]).map((item) => (<DropdownItem key={item} onClick={() => setLang(item)} isActive={lang === item} icon={<span className={`flex h-6 w-8 items-center justify-center rounded-md text-xs font-black ${lang === item ? 'bg-primary text-white' : 'bg-neutral-100 text-neutral-700'}`}>{languageLabels[item]}</span>}>

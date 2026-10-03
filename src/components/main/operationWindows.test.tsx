@@ -156,14 +156,14 @@ function walletTransfer(lang: Lang, state: Record<string, unknown>) {
         ...state,
     } as Parameters<typeof WalletTransferDialog>[0])}/>}</WithT>, lang);
 }
-function clientTransfer(lang: Lang, fromClientId: string, toClientId: string, amount: string) {
+function clientTransfer(lang: Lang, fromClientId: string, toClientId: string, amount: string, notes = '') {
     return render(<WithT>{(t) => <ClientTransferDialog {...({
-        isOpen: true, onClose: noop, fromClientId, setFromClientId: noop, toClientId, setToClientId: noop, amount, setAmount: noop, notes: '', setNotes: noop,
+        isOpen: true, onClose: noop, fromClientId, setFromClientId: noop, toClientId, setToClientId: noop, amount, setAmount: noop, notes, setNotes: noop,
         onSave: noop, isSaving: false, clients: selectableClients(clientsDzd, [fromClientId, toClientId]).map((client) => ({ id: client.id, label: getClientFullName(client) })),
         fromBalance: clientBalances.get(fromClientId) || 0, toBalance: clientBalances.get(toClientId) || 0, onMaxFrom: noop, maxDisabled: false,
         date: '2026-09-30', setDate: noop, time: '15:00', setTime: noop, dateLabel: t('common.date'), timeLabel: t('common.time'),
         title: t('transactions.clientTransfer'), infoText: t('transactions.transferDebtCredit'), fromLabel: t('transactions.from'), toLabel: t('transactions.to'),
-        amountLabel: t('transactions.amount'), notesLabel: t('common.notes'), filterClientsLabel: t('transactions.filterClients'), balanceLabel: t('common.balance'),
+        amountLabel: t('transactions.amount'), notesLabel: t('common.notesOptional'), filterClientsLabel: t('transactions.filterClients'), balanceLabel: t('common.balance'),
         dinarLabel: t('common.dinar'), confirmLabel: t('transactions.confirmTransfer'),
     } as Parameters<typeof ClientTransferDialog>[0])}/>}</WithT>, lang);
 }
@@ -393,5 +393,46 @@ for (const message of KNOWN_FORM_MESSAGES) {
     assert.ok(translateFormMessage(message, (key) => lookup('fr', key)), `fr: "${message}"`);
 }
 
+// V2-9, the user's choice: the two transfers, the client operation and the adjustment show a
+// « Notes (optional) » field, wired to the note each window already saved (empty, the windows
+// above show the same numbers as before); and buying EUR on credit asks for its due date, which
+// its save check has always required, like a sale on credit.
+const NOTE = 'Remis en main propre';
+const esc = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+function notesField(html: string, id: string) {
+    const match = html.match(new RegExp(`<label for="${id}"[^>]*>([^<]*)</label><textarea id="${id}"[^>]*placeholder="([^"]*)"[^>]*>([^<]*)</textarea>`));
+    return match ? { label: match[1], placeholder: match[2], value: match[3] } : null;
+}
+const learnedDelay = { ...smartPricingByCurrency, EUR: { ...smartPricingByCurrency.EUR, debtByClientId: new Map([['c1', { ...(smartPricingByCurrency.EUR.debtByClientId?.get('c1') ?? {}), avgSettleDays: 12, settledLotCount: 2 }]]) } };
+for (const lang of ['fr', 'ar'] as const) {
+    const windows: Array<[string, string, string]> = [
+        ['wallet transfer', walletTransfer(lang, { amount: '150000', isInvalid: false, notes: NOTE }), 'wallet_transfer_notes'],
+        ['client transfer', clientTransfer(lang, 'c1', 'c2', '20000', NOTE), 'client_transfer_notes'],
+        ['client operation', clientOperations(lang, { isClientTxModalOpen: true, clientTxAmount: '25000', clientTxLinkedClientId: 'c1', clientTxNotes: NOTE }), 'client_tx_notes'],
+        ['adjustment', clientOperations(lang, { isAdjustmentModalOpen: true, adjustmentAmount: '30000', adjustmentClientId: 'c4', adjustmentNote: NOTE }), 'adjustment_notes'],
+    ];
+    for (const [name, html, id] of windows) {
+        assert.deepEqual(notesField(html, id), { label: esc(label(lang, 'common.notesOptional')), placeholder: esc(label(lang, 'transactions.notesPlaceholder')), value: NOTE }, `${lang} ${name}: the note being saved is shown, under « Notes (optional) »`);
+        assert.equal(html.split('<textarea').length - 1, 1, `${lang} ${name}: one notes field`);
+    }
+    // Empty in each window of the number check above.
+    for (const screen of ['walletTransfer', 'clientTransfer', 'clientPayment', 'adjustDzd'] as const)
+        assert.equal(notesField(SCREENS[screen](lang), { walletTransfer: 'wallet_transfer_notes', clientTransfer: 'client_transfer_notes', clientPayment: 'client_tx_notes', adjustDzd: 'adjustment_notes' }[screen])?.value, '', `${lang} ${screen}`);
+
+    // Buying EUR: paid in cash, no due date; on credit, its date field, with the save check's
+    // message under it in the reader's language; the date typed is shown back.
+    assert.ok(!SCREENS.buyEur(lang).includes('credit_due_date'), `${lang}: a cash purchase has no due date`);
+    const onCredit = SCREENS.buyEurCredit(lang);
+    const dueDateInput = (html: string) => html.match(/<label for="credit_due_date"[^>]*>([^<]*)<\/label><input id="credit_due_date" type="date" min="([\d-]+)"[^>]*value="([^"]*)"\/>/);
+    assert.deepEqual(dueDateInput(onCredit)?.slice(1), [esc(label(lang, 'smartPricing.dueDate')), '2026-10-01', ''], `${lang}: buying EUR on credit asks for its due date, from tomorrow on`);
+    assert.ok(onCredit.includes(`<span role="alert" class="mt-1 block text-xs font-medium text-financial-loss">${esc(label(lang, 'formErrors.dueDateRequired'))}</span>`), `${lang}: what is missing, under the field`);
+    assert.equal(dueDateInput(transactionWindow(lang, { ...buyEur, clientPaymentStatus: 'credit', creditDueDate: '2026-10-15' }))?.[3], '2026-10-15', `${lang}: the date typed`);
+    // The client's average repayment delay is about a sale (the client paying us): shown when
+    // selling to Karim on credit, not when buying from him.
+    const hint = label(lang, 'smartPricing.avgSettleHint').replace('{days}', '12');
+    assert.ok(transactionWindow(lang, { mode: 'sell_eur', sellAmount: '300', sellPrice: '262', sellTotal: '78600', linkedClientId: 'c1', clientPaymentStatus: 'credit', creditDueDate: '2026-10-12', smartPricingByCurrency: learnedDelay }).includes(hint), `${lang}: selling on credit shows the client's delay`);
+    assert.ok(!transactionWindow(lang, { ...buyEur, clientPaymentStatus: 'credit', creditDueDate: '2026-10-15', smartPricingByCurrency: learnedDelay }).includes(hint), `${lang}: buying on credit does not`);
+}
+
 assert.ok(FIXED_NOW > 0);
-console.log('operationWindows.test: the buy, sell, transfer and expense windows show the same numbers as before, in French and Arabic, with their totals at the bottom');
+console.log('operationWindows.test: the buy, sell, transfer and expense windows show the same numbers as before, in French and Arabic, with their totals at the bottom; four windows have their notes field and buying EUR on credit its due date');

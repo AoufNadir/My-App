@@ -42,8 +42,8 @@ export const InvestorDashboardPage: React.FC<InvestorDashboardPageProps> = ({ in
     const orderedTransactions = useMemo(() => [...transactions].sort((a, b) => b.timestamp - a.timestamp), [transactions]);
     const report = useInvestorReportDialog(onExportReport);
     const handleRequestWithdrawal = () => {
-        const subject = encodeURIComponent(`Demande de retrait - ${investor.name}`);
-        const body = encodeURIComponent('Je souhaite effectuer un retrait de...');
+        const subject = encodeURIComponent(String(t('investorDashboard.withdrawalMailSubject')).replace('{name}', investor.name));
+        const body = encodeURIComponent(String(t('investorDashboard.withdrawalMailBody')));
         window.location.href = `mailto:admin@proodigital.com?subject=${subject}&body=${body}`;
     };
     return (<div className="min-h-screen bg-app-bg px-4 pb-24 pt-4 text-neutral-900 md:px-8 md:pt-8">

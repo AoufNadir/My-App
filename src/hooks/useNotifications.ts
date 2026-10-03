@@ -11,7 +11,24 @@ function dayKey() {
     return new Date().toISOString().slice(0, 10);
 }
 
-export function useNotifications(userDocRef?: FirestoreDocumentReference) {
+type Translate = (key: string) => unknown;
+// Texte des notifications dans la langue de l'application ; sans traduction, le français d'origine.
+const FRENCH_TEXT: Record<string, string> = {
+    'notifications.overdueTitleOne': '⚠️ {count} client en retard',
+    'notifications.overdueTitleMany': '⚠️ {count} clients en retard',
+    'notifications.overdueExtraOne': ' et {count} autre',
+    'notifications.overdueExtraMany': ' et {count} autres',
+    'notifications.overdueBody': '{names}{extra} — dettes impayées depuis plus de 7 jours',
+    'notifications.profitTitle': '💰 Profits à distribuer',
+    'notifications.profitBody': '{amount} DZD disponibles pour les investisseurs',
+};
+function fill(t: Translate | undefined, key: string, values: Record<string, string | number> = {}): string {
+    const translated = t ? t(key) : undefined;
+    const template = typeof translated === 'string' && translated !== key ? translated : FRENCH_TEXT[key];
+    return Object.entries(values).reduce((text, [name, value]) => text.split(`{${name}}`).join(String(value)), template);
+}
+
+export function useNotifications(userDocRef?: FirestoreDocumentReference, t?: Translate) {
     const isSupported = typeof window !== 'undefined' && 'Notification' in window;
 
     const [permission, setPermission] = useState<NotifPermission>(() => {
@@ -74,13 +91,15 @@ export function useNotifications(userDocRef?: FirestoreDocumentReference) {
         localStorage.setItem(NOTIF_LAST_OVERDUE_KEY, today);
 
         const names = overdueNames.slice(0, 2).join(', ');
-        const extra = overdueCount > 2 ? ` et ${overdueCount - 2} autre${overdueCount > 3 ? 's' : ''}` : '';
+        const extra = overdueCount > 2
+            ? fill(t, overdueCount > 3 ? 'notifications.overdueExtraMany' : 'notifications.overdueExtraOne', { count: overdueCount - 2 })
+            : '';
         showNotification(
-            `⚠️ ${overdueCount} client${overdueCount > 1 ? 's' : ''} en retard`,
-            `${names}${extra} — dettes impayées depuis plus de 7 jours`,
+            fill(t, overdueCount > 1 ? 'notifications.overdueTitleMany' : 'notifications.overdueTitleOne', { count: overdueCount }),
+            fill(t, 'notifications.overdueBody', { names, extra }),
             { tag: 'overdue-clients' }
         );
-    }, [isSupported, showNotification]);
+    }, [isSupported, showNotification, t]);
 
     // Auto-check investor profit distribution (once per day)
     const notifyInvestorProfit = useCallback((totalAvailable: number) => {
@@ -90,11 +109,11 @@ export function useNotifications(userDocRef?: FirestoreDocumentReference) {
         localStorage.setItem(NOTIF_LAST_DISTRIB_KEY, today);
 
         showNotification(
-            '💰 Profits à distribuer',
-            `${Math.round(totalAvailable).toLocaleString('fr-FR')} DZD disponibles pour les investisseurs`,
+            fill(t, 'notifications.profitTitle'),
+            fill(t, 'notifications.profitBody', { amount: Math.round(totalAvailable).toLocaleString('fr-FR') }),
             { tag: 'investor-profit' }
         );
-    }, [isSupported, showNotification]);
+    }, [isSupported, showNotification, t]);
 
     return {
         isSupported,

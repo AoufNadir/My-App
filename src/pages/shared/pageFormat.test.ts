@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 
-import { formatDzd, formatMoney, formatNumber } from './pageFormat';
+import { formatDzd, formatLongDate, formatMoney, formatNumber, getRelativeFrDateLabel } from './pageFormat';
+import { translations } from '../../translations';
 import type { MoneyCurrency } from './pageFormat';
 
 type Options = { min?: number; max?: number };
@@ -156,6 +157,21 @@ for (const value of values.slice(0, 400)) {
             assert.equal(formatMoney(value, currency, options), referenceFormatMoney(value, currency, options));
         }
     }
+}
+
+// A date written out: French as before; Arabic with the app's month names and Latin digits.
+const tIn = (lang: 'fr' | 'ar') => (key: string): unknown => key.split('.').reduce<any>((node, part) => node?.[part], translations[lang]) ?? key;
+assert.equal(formatLongDate(new Date(2026, 9, 3), 'fr', tIn('fr')), new Date(2026, 9, 3).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }));
+assert.equal(formatLongDate(new Date(2026, 9, 3), 'ar', tIn('ar')), '3 أكتوبر 2026');
+assert.equal(formatLongDate(new Date(2026, 0, 15), 'ar', tIn('ar')), '15 جانفي 2026');
+assert.equal(formatLongDate(new Date(2026, 6, 5), 'ar', tIn('ar')), '5 جويلية 2026');
+// « Aujourd'hui » / « Hier » in the reader's language; other days keep their date.
+{
+    const day = (offset: number) => { const d = new Date(); d.setDate(d.getDate() - offset); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; };
+    assert.equal(getRelativeFrDateLabel(day(0)), "Aujourd'hui");
+    assert.equal(getRelativeFrDateLabel(day(1), tIn('ar')), translations.ar.transactions.yesterday);
+    assert.equal(getRelativeFrDateLabel(day(0), tIn('ar')), translations.ar.transactions.today);
+    assert.equal(getRelativeFrDateLabel(day(5), tIn('ar')), day(5));
 }
 
 console.log(`pageFormat tests passed (${compared} formatNumber comparisons)`);
