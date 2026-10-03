@@ -8,7 +8,7 @@
 
 تطبيق ويب (PWA) لنشاط صرف في الجزائر: شراء وبيع `USDT` و`EUR` مقابل الدينار `DZD`، نقداً أو عبر BaridiMob أو بالدَّين. يحسب المخزون ومتوسط سعر الشراء (PAM) وربح كل بيع، أرصدة العملاء وديونهم، الخزينة (`Caisse` و`BaridiMob`)، رأس مال المسيّر والمستثمرين وتوزيع الأرباح، ويصدر تقارير PDF. الواجهة بالفرنسية والعربية، ومعظم الاستعمال من الهاتف.
 
-- الموقع الرسمي: https://proodigital-7ec70.web.app (Firebase Hosting، مشروع `proodigital-7ec70`).
+- الموقع الرسمي: https://proodigital-7ec70.web.app (Firebase Hosting، مشروع `proodigital-7ec70`). يعمل بـ `V3-1` منذ 2026-10-03، والفرع الافتراضي في GitHub هو `stable-2026-10-03`.
 - التقنية: React 19 وTypeScript وVite 6 وTailwind v4 وFirebase (Auth وFirestore).
 - المستودع `AoufNadir/My-App` **عام**: لا تكتب فيه أسماء عملاء أو مستثمرين، ولا أرقاماً حقيقية، ولا بيانات دخول.
 
