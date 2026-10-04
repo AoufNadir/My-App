@@ -33,7 +33,6 @@ export type AnalyticsPageProps = {
     reportYear: number;
     setReportYear: (year: number) => void;
     handleExportUsdtReport: () => void;
-    handleExportClientReport: (clientId: string, month: number, year: number) => void;
     openPortfolioBalanceEditModal?: (asset: 'USDT' | 'EUR') => void;
 };
 export type MonthlyClientRank = {

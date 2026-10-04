@@ -62,7 +62,6 @@ const html = renderToStaticMarkup(
         handleDeleteClientTxClick={() => {}}
         openClientTxModal={() => {}}
         openClientToClientTransferModal={() => {}}
-        handleExportClientReport={() => {}}
     />
 );
 

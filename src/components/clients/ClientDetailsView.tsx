@@ -1,8 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
-import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
-import { DatePicker } from '../ui/DatePicker';
-import { Label } from '../ui/Label';
 import { Tabs } from '../ui/Tabs';
 import { EmptyState } from '../ui/EmptyState';
 import { AlertCard } from '../cards';
@@ -20,12 +17,11 @@ import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { UsersIcon } from '../icons/UsersIcon';
 import { formatDzd, formatLongDate, formatNumber, getRelativeFrDateLabel } from '../../pages/shared/pageFormat';
 import { useLanguage } from '../../contexts/LanguageContext';
-import type { ClientReportDateRange, ClientReportRequest } from '../../hooks/useReportExports';
 import { TransactionDisplayList } from '../transactions/TransactionDisplayList';
 import type { DisplayTx } from '../transactions/transactionsTypes';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel } from '../../utils/transactionTerminology';
 import { getNameInitials } from '../../utils/nameUtils';
-// Loaded on the first tap on « Rapport d’activité »: the clients page stays as light as before.
+// Loaded on the first tap on « Rapport d’activité » or « PDF »: the clients page stays as light as before.
 const ClientActivityReportDialog = lazy(() => import('./ClientActivityReportDialog').then((module) => ({ default: module.ClientActivityReportDialog })));
 type ClientDetailsViewProps = {
     selectedClientId: string;
@@ -46,7 +42,6 @@ type ClientDetailsViewProps = {
     handleDeleteClientTxClick: (tx: ClientTransactionDzd) => void;
     openClientTxModal: (tx: ClientTransactionDzd | null, presetType?: string, selectedClientId?: string) => void;
     openClientToClientTransferModal: (sourceClient: ClientDzd) => void;
-    handleExportClientReport: (clientId: string, range: ClientReportRequest, year?: number) => void;
 };
 type ContactRowProps = {
     label: string;
@@ -154,80 +149,16 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone }: ContactRowPr
       </div>
     </div>);
 }
-export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal, handleExportClientReport }: ClientDetailsViewProps) {
+export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal }: ClientDetailsViewProps) {
     const { t, lang } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 60;
     const LOAD_MORE_TRANSACTIONS = 60;
     const [visibleTransactionCount, setVisibleTransactionCount] = useState(INITIAL_VISIBLE_TRANSACTIONS);
-    const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
     const [isActivityReportOpen, setIsActivityReportOpen] = useState(false);
-    const [reportStartDate, setReportStartDate] = useState('');
-    const [reportEndDate, setReportEndDate] = useState('');
-    const [reportDateError, setReportDateError] = useState('');
     const [activeTab, setActiveTab] = useState<'history' | 'dossier'>('history');
     const dates = Object.keys(groupedHistory);
     const linkedTransactionsById = useMemo(() => new Map(transactions.map((tx) => [tx.id, tx])), [transactions]);
     const clientsById = useMemo(() => new Map(clientsDzd.map((client) => [client.id, client])), [clientsDzd]);
-    const parseDateBoundary = (value: string, endOfDay: boolean): number | null => {
-        if (!value) return null;
-        const [year, month, day] = value.split('-').map(Number);
-        if (!year || !month || !day) return null;
-        const date = new Date(year, month - 1, day);
-        date.setHours(endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
-        return date.getTime();
-    };
-    const toInputDate = (date: Date): string => {
-        const yyyy = date.getFullYear();
-        const mm = String(date.getMonth() + 1).padStart(2, '0');
-        const dd = String(date.getDate()).padStart(2, '0');
-        return `${yyyy}-${mm}-${dd}`;
-    };
-    const setCurrentMonthRange = () => {
-        const now = new Date();
-        setReportStartDate(toInputDate(new Date(now.getFullYear(), now.getMonth(), 1)));
-        setReportEndDate(toInputDate(now));
-        setReportDateError('');
-    };
-    const setCurrentYearRange = () => {
-        const now = new Date();
-        setReportStartDate(`${now.getFullYear()}-01-01`);
-        setReportEndDate(toInputDate(now));
-        setReportDateError('');
-    };
-    const setAllHistoryRange = () => {
-        const firstTimestamp = clientTransactionsDzd
-            .filter((tx) => tx.clientId === selectedClientId && Number.isFinite(Number(tx.timestamp)))
-            .reduce<number | null>((first, tx) => first === null ? tx.timestamp : Math.min(first, tx.timestamp), null);
-        if (firstTimestamp === null) {
-            setReportStartDate('');
-            setReportEndDate('');
-            setReportDateError(t('clients.reportNoOperation') as string);
-            return;
-        }
-        setReportStartDate(toInputDate(new Date(firstTimestamp)));
-        setReportEndDate(toInputDate(new Date()));
-        setReportDateError('');
-    };
-    const openReportDialog = () => {
-        setCurrentMonthRange();
-        setReportDateError('');
-        setIsReportDialogOpen(true);
-    };
-    const handleCreateReport = () => {
-        const startTs = parseDateBoundary(reportStartDate, false);
-        const endTs = parseDateBoundary(reportEndDate, true);
-        if (startTs === null || endTs === null) {
-            setReportDateError(t('clients.reportPickBothDates') as string);
-            return;
-        }
-        if (startTs > endTs) {
-            setReportDateError(t('clients.reportStartAfterEnd') as string);
-            return;
-        }
-        const range: ClientReportDateRange = { startTs, endTs };
-        handleExportClientReport(selectedClientId, range);
-        setIsReportDialogOpen(false);
-    };
     useEffect(() => {
         setVisibleTransactionCount(INITIAL_VISIBLE_TRANSACTIONS);
     }, [groupedHistory]);
@@ -442,7 +373,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
         <button type="button" onClick={() => openClientModal(selectedClient)} className={iconButtonClass} aria-label={t('transactions.editClient')} title={t('transactions.editClient')}>
           <PencilIcon aria-hidden="true" className="h-5 w-5"/>
         </button>
-        <Button onClick={openReportDialog} variant="primary" size="sm" className="ms-1 shrink-0">
+        <Button onClick={() => setIsActivityReportOpen(true)} variant="primary" size="sm" className="ms-1 shrink-0">
           <FileSpreadsheetIcon className="h-4 w-4"/>
           PDF
         </Button>
@@ -542,37 +473,5 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
           <ClientActivityReportDialog onClose={() => setIsActivityReportOpen(false)} clientId={selectedClientId} clientName={clientName} clientRows={clientTransactionsDzd} transactions={transactions}/>
         </Suspense>)}
 
-      <Modal isOpen={isReportDialogOpen} onClose={() => setIsReportDialogOpen(false)} className="max-w-md bg-surface">
-        <ModalHeader onClose={() => setIsReportDialogOpen(false)}>
-          <ModalTitle className="text-base sm:text-lg">{t('clients.reportTitle')}</ModalTitle>
-        </ModalHeader>
-        <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
-          <div className="grid grid-cols-2 gap-3">
-            <Button onClick={setCurrentMonthRange} variant="outline" className="font-bold">
-              {t('clients.reportThisMonth')}
-            </Button>
-            <Button onClick={setCurrentYearRange} variant="outline" className="font-bold">
-              {t('clients.reportThisYear')}
-            </Button>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <Label>{t('transactions.startDate')}</Label>
-              <DatePicker value={reportStartDate} onChange={(value) => { setReportStartDate(value); setReportDateError(''); }} className="mt-1"/>
-            </div>
-            <div>
-              <Label>{t('transactions.endDate')}</Label>
-              <DatePicker value={reportEndDate} onChange={(value) => { setReportEndDate(value); setReportDateError(''); }} className="mt-1"/>
-            </div>
-          </div>
-          {reportDateError && <p role="alert" className="text-sm font-semibold text-danger">{reportDateError}</p>}
-        </ModalContent>
-        <ModalFooter>
-          <Button onClick={setAllHistoryRange} variant="outline">
-            {t('clients.reportAllHistory')}
-          </Button>
-          <Button onClick={handleCreateReport}>{t('clients.reportCreatePdf')}</Button>
-        </ModalFooter>
-      </Modal>
     </div>);
 }

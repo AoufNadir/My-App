@@ -130,7 +130,7 @@ function SearchScreen({ query }: { query: string }) {
 const searchScreen = (query: string) => (lang: Lang) => render(<SearchScreen query={query}/>, lang);
 const summaryScreen = (clientId: string) => (lang: Lang) => render(<WithT>{(t) => <MainClientSummaryDialog {...{
     summaryClient: clientsDzd.find((client) => client.id === clientId) || null, setSummaryClient: noop, t, clientBalances, clientTransactionsDzd, clientsDzd, transactions,
-    setAlert: noop, getClientFullName, handleExportClientReport: noop, reportMonth: 8, reportYear: 2026,
+    setAlert: noop, getClientFullName,
 }}/>}</WithT>, lang);
 const monthPlanScreen = (lang: Lang) => render(<MonthPlanSheet {...{
     isOpen: true, onClose: noop, context: pricingContext, clients: clientsDzd.map((client) => ({ id: client.id, name: getClientFullName(client) })), suggestedGoal: 95_000, syncState: 'synced' as const,

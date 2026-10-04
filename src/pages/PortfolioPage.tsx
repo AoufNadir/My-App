@@ -50,7 +50,6 @@ type PortfolioPageProps = {
     setReportMonth: (month: number) => void;
     reportYear: number;
     setReportYear: (year: number) => void;
-    handleExportClientReport: (clientId: string, month: number, year: number) => void;
     openPortfolioBalanceEditModal?: (asset: 'USDT' | 'EUR') => void;
 };
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
-import { monthPeriod, monthWeeks, yearPeriod } from '../../utils/clientActivityReport';
-import { PDF_PAGE_HEIGHT_PX, PDF_PAGE_MARGIN_PX, planPdfPages, reportFileName } from './clientActivityReportPdf';
+import { monthPeriod, monthWeeks, parseDayKey, rangePeriod, yearPeriod } from '../../utils/clientActivityReport';
+import { PDF_PAGE_HEIGHT_PX, PDF_PAGE_MARGIN_PX, pageRowWindow, planPdfPages, reportFileName } from './clientActivityReportPdf';
 
 // The PDF is the report cut into A4 pages: at the top of a block or of a table row, never
 // through a line of text, every part of the report on exactly one page.
@@ -45,7 +45,34 @@ long.slice(0, -1).forEach((slice) => assert.ok([120, 300, 600, 900, ...rows].inc
 
 // File names the client sees.
 assert.equal(reportFileName(monthPeriod(2026, 8)), 'ProDigital_2026-09.pdf');
-assert.equal(reportFileName(monthWeeks(2026, 9)[1]), 'ProDigital_2026-10_S2.pdf');
 assert.equal(reportFileName(yearPeriod(2026)), 'ProDigital_2026.pdf');
+assert.equal(reportFileName(rangePeriod(parseDayKey('2026-09-15', false)!, parseDayKey('2026-10-14', true)!)), 'ProDigital_2026-09-15_2026-10-14.pdf');
+assert.equal(reportFileName(monthWeeks(2026, 9)[1]), 'ProDigital_2026-10-04_2026-10-10.pdf', 'A week is named by its days');
+
+// Each page is captured without the list rows of the other pages: every row on exactly one page,
+// and the first row kept takes the place of the first row left out.
+const listTop = 1500;
+const listRows = Array.from({ length: 300 }, (_, index) => ({ top: listTop + index * 37.5, bottom: listTop + (index + 1) * 37.5 }));
+const sheetHeight = listTop + 300 * 37.5 + 80;
+const pages = check(sheetHeight, [120, 400, 900, 1400, ...listRows.slice(1).map((row) => row.top), listTop + 300 * 37.5 + 20]);
+assert.ok(pages.length >= 11, `a long list is many pages (${pages.length})`);
+const seen = new Array(listRows.length).fill(0);
+for (const page of pages) {
+    const { skip, shift } = pageRowWindow(listRows, page);
+    const kept = listRows.map((row, index) => index).filter((index) => !skip.has(index));
+    kept.forEach((index) => {
+        seen[index] += 1;
+        assert.ok(listRows[index].top >= page.top - 0.5 && listRows[index].bottom <= page.bottom + 0.5, `row ${index} lies inside its page`);
+    });
+    if (kept.length && kept[0] > 0)
+        assert.equal(listRows[kept[0]].top - shift, listRows[0].top, 'The page\'s first row moves up to where the list starts');
+    if (page.top < listTop)
+        assert.equal(shift, 0, 'Nothing moves on a page that starts before the list');
+}
+assert.ok(seen.every((count) => count === 1), 'Every row is on one page, and only one');
+const afterList = pageRowWindow(listRows, { top: listTop + 300 * 37.5 + 20, bottom: sheetHeight });
+assert.equal(afterList.skip.size, 300, 'A page after the list keeps none of its rows');
+assert.equal(afterList.shift, 300 * 37.5, '…and everything after the list moves up by the whole list');
+assert.deepEqual(pageRowWindow([], { top: 0, bottom: 1000 }), { skip: new Set(), shift: 0 }, 'A report without operations');
 
 console.log('client activity report PDF pages tests passed');

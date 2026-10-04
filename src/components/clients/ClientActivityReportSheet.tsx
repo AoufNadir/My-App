@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
-import type { BalanceLineKey, ClientActivityReport, ReportCurrencyCard, ReportEntry, ReportLang } from '../../utils/clientActivityReport';
+import type { BalanceLineKey, ClientActivityReport, ReportCurrencyCard, ReportEntry, ReportLang, ReportPeriod } from '../../utils/clientActivityReport';
 import { averagePrice } from '../../utils/clientActivityReport';
 import { REPORT_WORDS, currencyUnit, formatCompactDzd, formatDate, formatDayMonth, formatDzdCents, formatEur, formatEurPrice, formatPercent, formatPrice, formatQuantity } from './clientActivityReportText';
 
@@ -25,7 +25,7 @@ const DOT = '\u00A0· ';
 /**
  * The report as the client receives it. Always light, like paper, whatever the app theme
  * (`report-sheet` resets the colour tokens). Elements marked data-pdf-break are where a PDF page
- * may end.
+ * may end; rows marked data-pdf-row are left out of the other pages' captures.
  */
 export function ClientActivityReportSheet({ report, lang, clientName, showBalance, variant }: ClientActivityReportSheetProps) {
     const w = REPORT_WORDS[lang];
@@ -40,23 +40,15 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
             return quantities.length ? w.leadQuantities(quantities.join(lang === 'ar' ? ' و' : ' et ')) : w.leadNone;
         }
         const spent = isolate(dzd(totals.spentCents));
-        if (period.kind === 'week') {
-            if (period.week === 1)
-                return w.leadFirstWeek(spent);
-            if (report.isLive)
-                return w.leadWeekLive(spent);
-            const previous = report.comparedWith;
-            if (!previous || previous.spentCents <= 0)
-                return w.leadWeekNoPrevious(spent, period.week - 1);
-            return w.leadWeek(spent, isolate(formatPercent(Math.round(((totals.spentCents - previous.spentCents) / previous.spentCents) * 100))), period.week - 1);
-        }
-        if (period.kind === 'month') {
+        const previous = report.comparedWith;
+        const change = previous && previous.spentCents > 0
+            ? isolate(formatPercent(Math.round(((totals.spentCents - previous.spentCents) / previous.spentCents) * 100)))
+            : null;
+        if (report.kind === 'range')
+            return report.isLive ? w.leadRangeLive(spent) : w.leadRange(spent, change, previous ? previous.period : null);
+        if (report.kind === 'month') {
             if (report.isLive)
                 return w.leadMonthLive(spent, period.month);
-            const previous = report.comparedWith;
-            const change = previous && previous.spentCents > 0
-                ? isolate(formatPercent(Math.round(((totals.spentCents - previous.spentCents) / previous.spentCents) * 100)))
-                : null;
             return w.leadMonth(spent, period.month, change, previous ? previous.period.month : 0);
         }
         const best = report.bestMonth;
@@ -191,17 +183,34 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
         : null;
 
     const comparisonRows = report.comparison;
+    const unit = report.breakdownUnit;
+    // A range with a single part has nothing to compare.
+    const showComparison = comparisonRows.length > (report.kind === 'range' ? 1 : 0);
     const maxSpent = Math.max(1, ...comparisonRows.map((row) => row.totals.spentCents));
-    // Dark bar: this week in a weekly report, the strongest month (named in the first sentence) in a yearly one.
-    const isHighlighted = (row: typeof comparisonRows[number]) => row.isCurrent || (report.kind === 'year' && report.bestMonth?.period.key === row.period.key);
+    // Dark bar: the strongest month of a yearly report, named in its first sentence.
+    const isHighlighted = (row: typeof comparisonRows[number]) => report.kind === 'year' && report.bestMonth?.period.key === row.period.key;
     const totalRow = comparisonRows.reduce((sum, row) => ({
         spent: sum.spent + row.totals.spentCents,
         usdt: sum.usdt + row.totals.currencies.USDT.quantity,
         eur: sum.eur + row.totals.currencies.EUR.quantity,
     }), { spent: 0, usdt: 0, eur: 0 });
-    const periodDays = (row: typeof comparisonRows[number]) => (row.period.kind === 'week'
-        ? `${String(row.period.firstDay).padStart(2, '0')}–${String(row.period.lastDay).padStart(2, '0')}/${String(row.period.month + 1).padStart(2, '0')}`
-        : String(row.period.month + 1).padStart(2, '0'));
+    // Months of a range over several years carry their year.
+    const spansYears = new Date(period.from).getFullYear() !== new Date(period.to).getFullYear();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    // dd–dd/mm inside one month, dd/mm–dd/mm across two.
+    const partDays = (part: ReportPeriod) => {
+        const start = new Date(part.from);
+        const end = new Date(part.to);
+        return start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
+            ? `${pad(start.getDate())}–${pad(end.getDate())}/${pad(start.getMonth() + 1)}`
+            : `${formatDayMonth(part.from)}–${formatDayMonth(part.to)}`;
+    };
+    const partLabel = (part: ReportPeriod) => (unit === 'week' ? w.weekLabel(part.week) : unit === 'month' ? `${w.monthName(part.month)}${spansYears ? ` ${part.year}` : ''}` : String(part.year));
+    // Under the name: the days of a week, or of a month or a year cut by the range's first or last day.
+    const partSub = (part: ReportPeriod) => (unit === 'week' || part.cut ? partDays(part) : null);
+    const axisLabel = (part: ReportPeriod) => (unit === 'week'
+        ? (report.kind === 'month' ? partDays(part).slice(0, 5) : formatDayMonth(part.from))
+        : unit === 'month' ? `${pad(part.month + 1)}${spansYears ? `/${String(part.year).slice(2)}` : ''}` : String(part.year));
 
     const operationAmount = (entry: ReportEntry): { text: string; tone: string } => {
         if (entry.dzdCents === null)
@@ -237,7 +246,7 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
     const tdNum = `${td} text-end`;
     const issued = formatDate(report.issuedAt);
     // A client who always pays on the spot has a balance of 0 on every row: no column for it.
-    const showBalanceColumn = showBalance && (report.operations || []).some((row) => Math.abs(row.balanceAfterCents) >= 1);
+    const showBalanceColumn = showBalance && report.operations.some((row) => Math.abs(row.balanceAfterCents) >= 1);
 
     return (<article dir={lang === 'ar' ? 'rtl' : 'ltr'} lang={lang} className={[
             'report-sheet @container flex flex-col gap-4 bg-surface text-[13px] leading-relaxed text-neutral-900',
@@ -277,9 +286,9 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
 
       {facts}
 
-      {comparisonRows.length > 0 && (<section data-pdf-break="" className="flex flex-col gap-2">
-          <p className="text-[13.5px] font-bold">{w.comparisonTitle(period)}</p>
-          <div role="img" aria-label={w.comparisonTitle(period)} className="flex h-32 items-end gap-2 border-b border-border pt-4">
+      {showComparison && (<section data-pdf-break="" className="flex flex-col gap-2">
+          <p className="text-[13.5px] font-bold">{w.comparisonTitle(period, unit)}</p>
+          <div role="img" aria-label={w.comparisonTitle(period, unit)} className="flex h-32 items-end gap-2 border-b border-border pt-4">
             {comparisonRows.map((row) => (<div key={row.period.key} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
                 <em className="whitespace-nowrap font-latin text-[10.5px] font-semibold not-italic text-neutral-700" dir="ltr">{row.totals.spentCents ? formatCompactDzd(row.totals.spentCents) : '0'}</em>
                 {/* Technical exception: bar height is data. */}
@@ -287,13 +296,13 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
               </div>))}
           </div>
           <div className="-mt-1 flex gap-2 text-center text-[10.5px] text-neutral-500">
-            {comparisonRows.map((row) => (<span key={row.period.key} className="min-w-0 flex-1 truncate" dir="ltr">{report.kind === 'year' ? String(row.period.month + 1).padStart(2, '0') : periodDays(row).slice(0, 5)}</span>))}
+            {comparisonRows.map((row) => (<span key={row.period.key} className="min-w-0 flex-1 truncate" dir="ltr">{axisLabel(row.period)}</span>))}
           </div>
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full min-w-[330px] border-collapse text-xs">
               <thead>
                 <tr>
-                  <th className={th}>{report.kind === 'year' ? w.colMonth : w.colWeek}</th>
+                  <th className={th}>{unit === 'week' ? w.colWeek : unit === 'month' ? w.colMonth : w.colYear}</th>
                   <th className={`${th} text-end`}>{w.colSpent}</th>
                   <th className={`${th} text-end`}>{w.colChange}</th>
                   {report.showUsdtColumn && <th className={`${th} text-end`}>USDT</th>}
@@ -301,54 +310,56 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
                 </tr>
               </thead>
               <tbody>
-                {comparisonRows.map((row, index) => (<tr key={row.period.key} className={row.isCurrent ? 'bg-primary/5 font-semibold' : ''}>
-                    <td className={td}>{report.kind === 'year' ? w.monthName(row.period.month) : w.weekLabel(row.period.week)}{report.kind !== 'year' && <small className="block font-latin text-[10.5px] text-neutral-500" dir="ltr">{periodDays(row)}</small>}</td>
+                {comparisonRows.map((row, index) => {
+                    const sub = partSub(row.period);
+                    return (<tr key={row.period.key}>
+                    <td className={td}>{partLabel(row.period)}{sub && <small className="block font-latin text-[10.5px] text-neutral-500" dir="ltr">{sub}</small>}</td>
                     <td className={tdNum}>{num(row.totals.spentCents ? dzdShort(row.totals.spentCents) : '—')}</td>
                     <td className={`${tdNum} ${row.changePct === null ? 'text-neutral-400' : ''}`}>{row.isLive && index > 0 ? <span className="text-[10.5px]">{w.running}</span> : num(row.changePct === null ? '—' : formatPercent(row.changePct))}</td>
                     {report.showUsdtColumn && <td className={tdNum}>{num(row.totals.currencies.USDT.quantity ? formatQuantity(row.totals.currencies.USDT.quantity) : '—')}</td>}
                     {report.showEurColumn && <td className={tdNum}>{num(row.totals.currencies.EUR.quantity ? formatQuantity(row.totals.currencies.EUR.quantity) : '—')}</td>}
-                  </tr>))}
-                {report.kind !== 'week' && (<tr className="bg-surface-muted font-bold">
-                    <td className={td}>{w.total}</td>
-                    <td className={tdNum}>{num(dzdShort(totalRow.spent))}</td>
-                    <td className={td}/>
-                    {report.showUsdtColumn && <td className={tdNum}>{num(formatQuantity(totalRow.usdt))}</td>}
-                    {report.showEurColumn && <td className={tdNum}>{num(formatQuantity(totalRow.eur))}</td>}
-                  </tr>)}
+                  </tr>);
+                })}
+                <tr className="bg-surface-muted font-bold">
+                  <td className={td}>{w.total}</td>
+                  <td className={tdNum}>{num(dzdShort(totalRow.spent))}</td>
+                  <td className={td}/>
+                  {report.showUsdtColumn && <td className={tdNum}>{num(formatQuantity(totalRow.usdt))}</td>}
+                  {report.showEurColumn && <td className={tdNum}>{num(formatQuantity(totalRow.eur))}</td>}
+                </tr>
               </tbody>
             </table>
           </div>
         </section>)}
 
-      {report.operations && (<section data-pdf-break="" className="flex flex-col gap-2">
-          <p className="text-[13.5px] font-bold">{w.operationsTitle}</p>
-          {report.operations.length === 0 ? (<p className="text-xs text-neutral-500">{w.leadNone}</p>) : (<div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full min-w-[330px] border-collapse text-xs">
-                <thead>
-                  <tr>
-                    <th className={th}>{w.colDate}</th>
-                    <th className={th}>{w.colOperation}</th>
-                    <th className={`${th} text-end`}>{w.colAmount}</th>
-                    {showBalanceColumn && <th className={`${th} text-end`}>{w.colBalance}</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.operations.map((row, index) => {
-                    const amount = operationAmount(row.entry);
-                    const detail = operationDetail(row.entry);
-                    const after = balanceCell(row.balanceAfterCents);
-                    return (<tr key={row.entry.id} data-pdf-break={index > 0 ? '' : undefined}>
-                        <td className={td}>{num(formatDayMonth(row.entry.timestamp))}</td>
-                        <td className={td}>{w.operation(row.entry)}{detail && <small className="block text-[10.5px] text-neutral-500">{detail}</small>}</td>
-                        <td className={`${tdNum} ${amount.tone}`}>{num(amount.text)}</td>
-                        {showBalanceColumn && <td className={`${tdNum} ${after.tone}`}>{num(after.text)}</td>}
-                      </tr>);
-                })}
-                </tbody>
-              </table>
-            </div>)}
-        </section>)}
-      {!report.operations && <p data-pdf-break="" className="text-xs text-neutral-500">{w.operationsYear}</p>}
+      <section data-pdf-break="" className="flex flex-col gap-2">
+      <p className="text-[13.5px] font-bold">{w.operationsTitle}</p>
+      {report.operations.length === 0 ? (<p className="text-xs text-neutral-500">{w.leadNone}</p>) : (<div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full min-w-[330px] border-collapse text-xs">
+            <thead>
+              <tr>
+                <th className={th}>{w.colDate}</th>
+                <th className={th}>{w.colOperation}</th>
+                <th className={`${th} text-end`}>{w.colAmount}</th>
+                {showBalanceColumn && <th className={`${th} text-end`}>{w.colBalance}</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {report.operations.map((row, index) => {
+                const amount = operationAmount(row.entry);
+                const detail = operationDetail(row.entry);
+                const after = balanceCell(row.balanceAfterCents);
+                return (<tr key={row.entry.id} data-pdf-row="" data-pdf-break={index > 0 ? '' : undefined}>
+                    <td className={td}>{num(spansYears ? formatDate(row.entry.timestamp) : formatDayMonth(row.entry.timestamp))}</td>
+                    <td className={td}>{w.operation(row.entry)}{detail && <small className="block text-[10.5px] text-neutral-500">{detail}</small>}</td>
+                    <td className={`${tdNum} ${amount.tone}`}>{num(amount.text)}</td>
+                    {showBalanceColumn && <td className={`${tdNum} ${after.tone}`}>{num(after.text)}</td>}
+                  </tr>);
+            })}
+            </tbody>
+          </table>
+        </div>)}
+      </section>
 
       <footer data-pdf-break="" className="border-t border-border pt-2 text-[11px] text-neutral-500">{w.footer}</footer>
     </article>);

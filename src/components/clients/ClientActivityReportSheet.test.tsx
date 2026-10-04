@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import type { ClientTransactionDzd, Tx } from '../../types';
 import { toCents } from '../../utils/money';
-import { buildClientActivityReport, listReportPeriods, monthPeriod, yearPeriod, type ReportLang, type ReportPeriod } from '../../utils/clientActivityReport';
+import { buildClientActivityReport, listReportPeriods, monthPeriod, parseDayKey, rangePeriod, yearPeriod, type ReportLang, type ReportPeriod } from '../../utils/clientActivityReport';
 import { ClientActivityReportSheet } from './ClientActivityReportSheet';
 import { formatDzdCents } from './clientActivityReportText';
 
@@ -75,7 +75,10 @@ const render = (period: ReportPeriod, lang: ReportLang, showBalance: boolean, va
 };
 
 const firstAt = at(7, 1, 9);
-const periods = [...listReportPeriods('week', firstAt, NOW), ...listReportPeriods('month', firstAt, NOW), ...listReportPeriods('year', firstAt, NOW)];
+const range = (start: string, end: string) => rangePeriod(parseDayKey(start, false)!, parseDayKey(end, true)!);
+// Spans chosen with two dates: weeks, months and years in the table, finished or running, the whole history.
+const RANGES = [range('2026-09-10', '2026-09-24'), range('2026-08-15', '2026-10-02'), range('2026-09-20', '2026-10-10'), range('2025-06-01', '2026-10-03')];
+const periods = [...listReportPeriods('week', firstAt, NOW), ...listReportPeriods('month', firstAt, NOW), ...listReportPeriods('year', firstAt, NOW), ...RANGES];
 let rendered = 0;
 for (const period of periods)
     for (const lang of ['ar', 'fr'] as const)
@@ -107,7 +110,7 @@ for (const lang of ['ar', 'fr'] as const) {
 
 // Balance switched off: no balance, no debt, no balance column, no « on account ».
 for (const lang of ['ar', 'fr'] as const)
-    for (const period of [monthPeriod(2026, 8), monthPeriod(2026, 9), yearPeriod(2026)]) {
+    for (const period of [monthPeriod(2026, 8), monthPeriod(2026, 9), yearPeriod(2026), ...RANGES]) {
         const page = render(period, lang, false, 'print');
         const words = lang === 'ar' ? [/حساب رصيدك/, /الباقي عليك/, /الرصيد بعدها/, /على الحساب/, /عليك/] : [/Le calcul de votre solde/, /Reste à payer/, /Solde après/, /sur compte/, /à payer/];
         for (const word of words)
@@ -120,10 +123,40 @@ for (const lang of ['ar', 'fr'] as const)
 rows.push(row('c3', at(8, 10), -500 * 250, 'Vente USDT', { linkedTxId: 'tx-c3', linkRole: 'primary', paymentMethod: 'Espèces', affectsBalance: false }));
 transactions.push({ id: 'tx-c3', type: 'sell', currency: 'USDT', quantity: 500, sell: 250, total: 125000, date: '', time: '', timestamp: at(8, 10), ...secret } as Tx);
 for (const lang of ['ar', 'fr'] as const)
-    for (const period of [monthPeriod(2026, 8), yearPeriod(2026), ...listReportPeriods('week', at(8, 10), NOW)]) {
+    for (const period of [monthPeriod(2026, 8), yearPeriod(2026), ...listReportPeriods('week', at(8, 10), NOW), ...RANGES]) {
         const page = render(period, lang, true, 'print', 'c3', 'Nour');
         assert.doesNotMatch(page, /EUR|€|euro|اليورو|يورو/i, `${period.key} ${lang}: no euro anywhere for a USDT-only client`);
     }
 assert.match(render(monthPeriod(2026, 8), 'ar', true, 'print', 'c3', 'Nour'), /500 USDT/);
+
+// A span of days: its own title, its length, the comparison with the same length before it, once over.
+{
+    const fr = render(range('2026-08-15', '2026-10-02'), 'fr', true, 'print');
+    assert.match(fr, /Rapport d’activité\s/, 'fr: the title of a range');
+    assert.match(fr, /Période · 49 jours/);
+    assert.match(fr, /du\s+15\/08\/2026\s+au\s+02\/10\/2026/);
+    assert.match(fr, /par rapport à la période précédente de même durée \(du \u206627\/06\/2026\u2069 au \u206614\/08\/2026\u2069\)/, 'fr: says which period it is compared with');
+    assert.match(fr, /Vos dépenses mois par mois/);
+    assert.match(fr, /Solde au début de la période/);
+    const ar = render(range('2026-08-15', '2026-10-02'), 'ar', true, 'print');
+    assert.match(ar, /تقرير النشاط\s/);
+    assert.match(ar, /الفترة · 49 يوماً/);
+    assert.match(ar, /مقارنة بالفترة السابقة بنفس المدة/);
+    assert.match(ar, /ما أنفقته في كل شهر من الفترة/);
+    assert.match(ar, /رصيدك في بداية الفترة/);
+    const weeks = render(range('2026-09-10', '2026-09-24'), 'ar', true, 'print');
+    assert.match(weeks, /ما أنفقته في كل أسبوع من الفترة/);
+    assert.match(weeks, /الفترة · 15 يوماً/);
+    const live = render(range('2026-09-20', '2026-10-10'), 'ar', true, 'print');
+    assert.match(live, /أنفقت في هذه الفترة حتى اليوم/, 'A range still running says so');
+    assert.doesNotMatch(live, /مقارنة بالفترة السابقة/);
+    const history = render(range('2025-06-01', '2026-10-03'), 'fr', true, 'print');
+    assert.match(history, /Vos dépenses année par année/);
+    assert.match(history, /01\/08\/2026/, 'Over several years, each operation shows its year');
+    assert.equal(render(range('2026-10-01', '2026-10-02'), 'fr', true, 'print').includes('Vos dépenses'), false, 'A range with a single part has no chart');
+}
+// A yearly report lists its operations (the old one sent to each month's report).
+for (const lang of ['ar', 'fr'] as const)
+    assert.match(render(yearPeriod(2026), lang, true, 'print'), lang === 'ar' ? /عملياتك في هذه الفترة/ : /Vos opérations sur la période/);
 
 console.log('client activity report sheet tests passed');

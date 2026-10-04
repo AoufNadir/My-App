@@ -5,7 +5,6 @@ import { deriveInvestorEconomics, type ManagerFeeHistoryEntry } from './useInves
 import type { DebtWriteOff } from '../utils/debtWriteOffs';
 type Translator = (key: string) => unknown;
 type UseReportExportsArgs = {
-    clientBalances: Map<string, number>;
     clientTransactionsDzd: ClientTransactionDzd[];
     clientsDzd: ClientDzd[];
     derivedInvestors: Investor[];
@@ -27,11 +26,6 @@ export type InvestorReportDateRange = {
     startTs?: number | null;
     endTs?: number | null;
 };
-export type ClientReportDateRange = {
-    startTs: number;
-    endTs: number;
-};
-export type ClientReportRequest = number | ClientReportDateRange;
 function getMonthLabels(t: Translator) {
     const value = t('common.months');
     if (!Array.isArray(value))
@@ -43,7 +37,7 @@ function isMobileDevice() {
         return false;
     return /android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent || '');
 }
-export function useReportExports({ clientBalances, clientTransactionsDzd, clientsDzd, derivedInvestors, getClientFullName, investorTransactions, loadPdfReports, managerFeePercentage, managerFeeHistory, pamLedger: providedPamLedger, portfolioStats, setAlert, t, transactions, deliveryExpenses, debtWriteOffs, personalExpenses }: UseReportExportsArgs) {
+export function useReportExports({ clientTransactionsDzd, clientsDzd, derivedInvestors, getClientFullName, investorTransactions, loadPdfReports, managerFeePercentage, managerFeeHistory, pamLedger: providedPamLedger, portfolioStats, setAlert, t, transactions, deliveryExpenses, debtWriteOffs, personalExpenses }: UseReportExportsArgs) {
     const [usdtReportMonth, setUsdtReportMonth] = useState(new Date().getMonth());
     const [usdtReportYear, setUsdtReportYear] = useState(new Date().getFullYear());
     const [reportClient, setReportClient] = useState('');
@@ -51,53 +45,6 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
     const [reportYear, setReportYear] = useState(new Date().getFullYear());
     const reportMonthNames = useMemo(() => getMonthLabels(t), [t]);
     const reportPamLedger = useMemo(() => providedPamLedger || computePamLedger(transactions), [providedPamLedger, transactions]);
-    const handleExportClientReport = async (clientId: string, monthOrRange: ClientReportRequest, year?: number) => {
-        if (!clientId) {
-            setAlert('⚠️ Sélectionnez un client.');
-            return;
-        }
-        const range: ClientReportDateRange = typeof monthOrRange === 'number'
-            ? {
-                startTs: new Date(year || new Date().getFullYear(), monthOrRange, 1).getTime(),
-                endTs: new Date(year || new Date().getFullYear(), monthOrRange + 1, 0, 23, 59, 59, 999).getTime(),
-            }
-            : monthOrRange;
-        if (!Number.isFinite(range.startTs) || !Number.isFinite(range.endTs) || range.startTs > range.endTs) {
-            setAlert('⚠️ La date de début doit être avant la date de fin.');
-            return;
-        }
-        const monthLabels = getMonthLabels(t);
-        const month = typeof monthOrRange === 'number' ? monthOrRange : new Date(range.startTs).getMonth();
-        const reportYear = typeof monthOrRange === 'number' ? (year || new Date().getFullYear()) : new Date(range.startTs).getFullYear();
-        const periodLabel = typeof monthOrRange === 'number'
-            ? `${monthLabels[month] || `${month + 1}`} ${reportYear}`
-            : `Du ${new Date(range.startTs).toLocaleDateString('fr-FR')} au ${new Date(range.endTs).toLocaleDateString('fr-FR')}`;
-        const clientName = clientsDzd.find((client) => client.id === clientId);
-        const { buildClientPdfReport, openPdfPrintWindow } = await loadPdfReports();
-        const report = buildClientPdfReport({
-            clientId,
-            reportStartTs: range.startTs,
-            reportEndTs: range.endTs,
-            periodLabel,
-            clients: clientsDzd,
-            clientTransactions: clientTransactionsDzd,
-            transactions,
-            clientBalance: clientBalances.get(clientId) || 0,
-            getClientName: getClientFullName
-        });
-        if (!report) {
-            setAlert(clientName ? '⚠️ Aucune opération trouvée pour cette période.' : '⚠️ Client introuvable.');
-            return;
-        }
-        const opened = openPdfPrintWindow(report);
-        if (!opened) {
-            setAlert("❌ Impossible d’ouvrir l’aperçu PDF.");
-            return;
-        }
-        setAlert(isMobileDevice()
-            ? `Relevé client ${clientName ? getClientFullName(clientName) : ''} - ${periodLabel} ouvert. Appuyez sur 'Enregistrer PDF' dans la page.`
-            : `Relevé client ${clientName ? getClientFullName(clientName) : ''} - ${periodLabel} prêt. Enregistrez en PDF depuis l'impression.`);
-    };
     const handleExportUsdtReport = async () => {
         const monthLabels = getMonthLabels(t);
         const monthLabel = monthLabels[usdtReportMonth] || `${usdtReportMonth + 1}`;
@@ -310,7 +257,6 @@ export function useReportExports({ clientBalances, clientTransactionsDzd, client
             : "Rapport dépenses prêt. Enregistrez en PDF depuis l'impression.");
     };
     return {
-        handleExportClientReport,
         handleExportInvestorReport,
         handleExportPersonalExpensesReport,
         handleExportUsdtReport,

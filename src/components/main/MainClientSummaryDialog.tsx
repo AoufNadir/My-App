@@ -69,7 +69,7 @@ function nameInitials(name: string): string {
     const parts = name.trim().split(/\s+/).filter(Boolean);
     return parts.slice(0, 2).map((part) => Array.from(part)[0] ?? '').join('').toUpperCase();
 }
-export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, clientBalances, clientTransactionsDzd, clientsDzd, transactions, setAlert, getClientFullName, handleExportClientReport, reportMonth, reportYear }: MainClientSummaryDialogProps) {
+export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, clientBalances, clientTransactionsDzd, clientsDzd, transactions, setAlert, getClientFullName }: MainClientSummaryDialogProps) {
     const { lang } = useLanguage();
     const isArabic = lang === 'ar';
     const text = (key: string, values: Record<string, string | number> = {}) => Object.entries(values)

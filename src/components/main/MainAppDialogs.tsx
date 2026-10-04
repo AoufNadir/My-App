@@ -36,7 +36,7 @@ export function MainAppDialogs(props: MainAppDialogsProps) {
     // utility bundle
     isUtilityDialogsOpen, isSettingsModalOpen, setIsSettingsModalOpen, setIsResetModalOpen, userDocRef, isResetModalOpen, handleGlobalReset, handleExportBackup, isCreateAssetModalOpen, setIsCreateAssetModalOpen, newAssetName, setNewAssetName, newAssetDescription, setNewAssetDescription, handleCreateAsset, isTreasuryCardModalOpen, setIsTreasuryCardModalOpen, editingTreasuryCard, treasuryCardName, setTreasuryCardName, treasuryCardValue, setTreasuryCardValue, treasuryCardNotes, setTreasuryCardNotes, handleSaveTreasuryCard, treasuryCardToDelete, setTreasuryCardToDelete, handleDeleteTreasuryCard, treasuryTxToDelete, setTreasuryTxToDelete, handleDeleteTreasuryTxConfirm,
     // client summary
-    isClientSummaryOpen, summaryClient, setSummaryClient, clientTransactionsDzd, transactions, handleExportClientReport, reportMonth, reportYear, 
+    isClientSummaryOpen, summaryClient, setSummaryClient, clientTransactionsDzd, transactions, 
     // investor bundle
     isInvestorDialogsOpen, isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, handleSaveInvestor, investorName, setInvestorName, investorInitialCapital, setInvestorInitialCapital, investorInitialCapitalSource, setInvestorInitialCapitalSource, investorNotes, setInvestorNotes, isManager, setIsManager, derivedInvestors, selectedInvestorId, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorTxType, investorTxAmount, setInvestorTxAmount, investorTxPaymentSource, setInvestorTxPaymentSource, investorTxNotes, setInvestorTxNotes, handleInvestorTransaction, investorToDelete, setInvestorToDelete, handleDeleteInvestor, investorTxToDelete, setInvestorTxToDelete, handleDeleteInvestorTx, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, handleReinvestProfit,
     // project expense
@@ -76,10 +76,7 @@ export function MainAppDialogs(props: MainAppDialogsProps) {
             clientsDzd,
             transactions,
             setAlert,
-            getClientFullName,
-            handleExportClientReport,
-            reportMonth,
-            reportYear
+            getClientFullName
         }}/>
                 </Suspense>)}
             {isInvestorDialogsOpen && (<Suspense fallback={null}>

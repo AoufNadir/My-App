@@ -150,7 +150,7 @@ const pageProps = {
     reportYears: [2024, 2025, 2026], monthlyStats: {}, transactions, selectedHeatmapDay: null, setSelectedHeatmapDay: noop,
     handleExportUsdtReport: noop, dzdDashboardStats: null, reportClient: '', setReportClient: noop, clientsDzd: clients,
     clientTransactionsDzd, getClientFullName: fullName, reportMonth: 8, setReportMonth: noop, reportYear: 2026, setReportYear: noop,
-    handleExportClientReport: noop, openPortfolioBalanceEditModal: noop,
+    openPortfolioBalanceEditModal: noop,
 };
 const renderPortfolio = (lang: Lang) => render(<PortfolioPage {...pageProps}/>, lang);
 const renderSimulator = (lang: Lang) => render(<PamSimulator portfolioStats={portfolioStats} smartTargetUsdt={246.5} parseAndEvaluate={parseAndEvaluate}/>, lang);
