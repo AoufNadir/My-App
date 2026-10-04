@@ -34,6 +34,7 @@ import { OfflineBanner } from './components/ui/OfflineBanner';
 import { useMonthlyRecap } from './hooks/useMonthlyRecap';
 import { useNotifications } from './hooks/useNotifications';
 import { useWeeklyRecap } from './hooks/useWeeklyRecap';
+import { useInvestorTerms } from './hooks/useInvestorTerms';
 // Custom Hooks
 import { useAppData } from './hooks/useAppData';
 import { useDashboardSummaryReadModel } from './hooks/useDashboardSummaryReadModel';
@@ -350,6 +351,14 @@ export default function MainApp({ user }: {
         });
     }, [isFinancialDataReady, investors, investorTransactions, managerFeePercentage, managerFeeHistory, transactions, pamLedger, deliveryExpenses, debtWriteOffs, treasuryTransactions, personalExpenses]);
     const derivedInvestors = investorEconomics.derivedInvestors;
+    // Quarterly investor terms (utils/investorTerms): read only once the investors and their whole
+    // history are in, since a missing history would show every term as still to decide.
+    const investorCollections = dataStatus.collectionState;
+    const investorTermsReady = isFinancialDataReady
+        && Boolean(investorCollections.investors?.received && investorCollections.investorTransactions?.received);
+    const investorTermsSynced = investorTermsReady
+        && Boolean(investorCollections.investors?.serverSynced && investorCollections.investorTransactions?.serverSynced);
+    const investorTerms = useInvestorTerms(derivedInvestors, investorTransactions, investorTermsReady);
     const investorShadowReadReconciliation = useMemo(() => {
         if (!shadowDiagnosticsEnabled || !isFinancialDataReady || shouldUseDashboardReadModel) return null;
         return reconcileLegacyInvestorsToShadow({
@@ -2740,6 +2749,28 @@ export default function MainApp({ user }: {
             notifications.notifyInvestorProfit(totalAvailable);
         }
     }, [notifications.permission, overdueDebtClients, derivedInvestors]);
+    // Investors' quarterly terms on the phone: once a day, without the ones put off with « remind me
+    // in 3 days », and only after the server answered so a decision saved on another phone counts.
+    React.useEffect(() => {
+        if (notifications.permission !== 'granted' || !investorTermsSynced) return;
+        notifications.notifyInvestorTerms(investorTerms.reminders);
+    }, [notifications.permission, investorTermsSynced, investorTerms.reminders]);
+    // A term reminder on the home page opens the investor's page with the existing window on top,
+    // as the same buttons do on that page.
+    const openInvestorTermWindow = (investorId: string, action: 'reinvest' | 'withdraw') => {
+        const investor = derivedInvestors.find((item) => item.id === investorId);
+        if (!investor)
+            return;
+        setSelectedInvestorId(investorId);
+        setView('investors');
+        if (action === 'reinvest') {
+            setReinvestInput((investor.availableProfit || 0).toFixed(2));
+            setIsReinvestModalOpen(true);
+            return;
+        }
+        setInvestorTxType('withdraw_profit');
+        setIsInvestorTxModalOpen(true);
+    };
     const { recap: weeklyRecap, dismiss: dismissWeeklyRecap } = useWeeklyRecap({
         transactions,
         clientTransactionsDzd,
@@ -2845,6 +2876,10 @@ export default function MainApp({ user }: {
         showNotificationPrompt: showNotifBanner && notifications.permission === 'default',
         onEnableNotifications: enableNotifications,
         onDismissNotificationPrompt: dismissNotificationPrompt,
+        investorTerms: investorTerms.reminders,
+        onInvestorTermReinvest: (investorId: string) => openInvestorTermWindow(investorId, 'reinvest'),
+        onInvestorTermWithdraw: (investorId: string) => openInvestorTermWindow(investorId, 'withdraw'),
+        onInvestorTermSnooze: investorTerms.snooze,
     };
     // Deleting, or opening the edit form of, an operation of a closed month is refused at once.
     const unlessClosedMonth = <T extends { timestamp?: unknown } | null>(open: (item: T) => unknown) => (item: T) => {
@@ -2852,7 +2887,7 @@ export default function MainApp({ user }: {
             return;
         return open(item);
     };
-    const mainContentProps = { t, dailyOverview, userDocRef, setAlert, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete: unlessClosedMonth<Tx | TreasuryTx | null>(setTxToDelete), openDateFilterModal, dateRange, setDateRange, openNewOperationMenu, openDeliveryExpenseModal, openDigitalServiceModal: unlessClosedMonth<DigitalServiceTransaction | null>(openDigitalServiceModal), handleDeleteDigitalService: unlessClosedMonth<DigitalServiceTransaction>(handleDeleteDigitalService), treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete: unlessClosedMonth<TreasuryTx | null>(setTreasuryTxToDelete), PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal: unlessClosedMonth<TreasuryTx>(openReconcileAdvanceModal), openEditPersonalExpense: unlessClosedMonth<TreasuryTx>(openEditPersonalExpense), setPersonalExpenseToDelete: unlessClosedMonth<TreasuryTx | null>(setPersonalExpenseToDelete), handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, openClientToClientTransferModal, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete: unlessClosedMonth<InvestorTransaction | null>(setInvestorTxToDelete), managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys, periodLock: periodLockProps };
+    const mainContentProps = { t, dailyOverview, userDocRef, setAlert, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete: unlessClosedMonth<Tx | TreasuryTx | null>(setTxToDelete), openDateFilterModal, dateRange, setDateRange, openNewOperationMenu, openDeliveryExpenseModal, openDigitalServiceModal: unlessClosedMonth<DigitalServiceTransaction | null>(openDigitalServiceModal), handleDeleteDigitalService: unlessClosedMonth<DigitalServiceTransaction>(handleDeleteDigitalService), treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete: unlessClosedMonth<TreasuryTx | null>(setTreasuryTxToDelete), PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal: unlessClosedMonth<TreasuryTx>(openReconcileAdvanceModal), openEditPersonalExpense: unlessClosedMonth<TreasuryTx>(openEditPersonalExpense), setPersonalExpenseToDelete: unlessClosedMonth<TreasuryTx | null>(setPersonalExpenseToDelete), handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, openClientToClientTransferModal, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete: unlessClosedMonth<InvestorTransaction | null>(setInvestorTxToDelete), managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, handleExportInvestorReport, handleApplyLock24hToRecentBuys, periodLock: periodLockProps, investorTermsByInvestorId: investorTerms.byInvestorId };
     const walletTransferDialogProps = useMemo(() => ({
         isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSourceAndSync,

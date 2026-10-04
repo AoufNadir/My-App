@@ -12,6 +12,8 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { getNameInitials } from '../../utils/nameUtils';
 import type { CapitalSnapshot } from '../../utils/capitalSnapshot';
 import type { DerivedInvestor, ManagerProfitBreakdown } from '../../hooks/useInvestorEconomics';
+import type { InvestorTerm } from '../../utils/investorTerms';
+import { InvestorTermBadge } from './InvestorTermAlert';
 
 export async function exportInvestorsPdf(investors: DerivedInvestor[], capitalSnapshot?: CapitalSnapshot, managerProfitBreakdown?: ManagerProfitBreakdown) {
     const { buildInvestorListPdf, openPdfPrintWindow } = await import('../../utils/pdfReports');
@@ -40,9 +42,11 @@ type InvestorsListSectionProps = {
     onAddInvestor?: () => void;
     onEditInvestor: (investor: Investor) => void;
     onDeleteInvestor: (investor: Investor) => void;
+    /** Open quarterly terms: a mark next to the investor's name. */
+    termsByInvestorId?: ReadonlyMap<string, InvestorTerm>;
 };
 const pillClass = 'shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-bold leading-none';
-export function InvestorsListSection({ investors, capitalSnapshot, managerProfitBreakdown, activeCount, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor }: InvestorsListSectionProps) {
+export function InvestorsListSection({ investors, capitalSnapshot, managerProfitBreakdown, activeCount, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, termsByInvestorId }: InvestorsListSectionProps) {
     const { t } = useLanguage();
     return (<SectionCard flush title={<>{t('investors.title')} <span className="font-semibold text-neutral-500">· <bdi>{activeCount}</bdi> {t('investors.activeSuffix')}</span></>}>
       {investors.length === 0 ? (<EmptyState icon={<UsersIcon className="h-5 w-5"/>} title={t('emptyStates.investors.title') as string} subtitle={t('emptyStates.investors.subtitle') as string} action={onAddInvestor ? (<Button onClick={onAddInvestor} variant="primary" size="md" className="font-bold">
@@ -58,6 +62,7 @@ export function InvestorsListSection({ investors, capitalSnapshot, managerProfit
                     ? Number(managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot?.netOwnedCapital ?? investor.capitalInvested ?? 0)
                     : Number(investor.capitalInvested || 0);
                 const hasRoi = !isManager && investor.roi !== null && investor.roi !== undefined;
+                const term = termsByInvestorId?.get(investor.id);
                 return (<Fragment key={investor.id}>
                   <SwipeableListItem onEdit={() => onEditInvestor(investor)} onDelete={() => onDeleteInvestor(investor)}>
                     <div onClick={() => onOpenInvestor(investor)} className="relative z-10 flex w-full cursor-pointer items-center gap-3 border-t border-border bg-surface px-4 py-3 transition-colors hover:bg-surface-muted">
@@ -73,6 +78,7 @@ export function InvestorsListSection({ investors, capitalSnapshot, managerProfit
                               <span className="min-w-0 break-words text-[15px] font-semibold leading-snug text-neutral-900">{investor.name}</span>
                               {isManager && <span className={`${pillClass} bg-financial-debt-bg text-financial-debt`}>{t('investors.manager')}</span>}
                               {!investor.isActive && <span className={`${pillClass} bg-surface-muted text-neutral-600`}>{t('investors.inactive')}</span>}
+                              {term && <InvestorTermBadge term={term}/>}
                             </span>
                             <span className="flex shrink-0 flex-col items-end gap-0.5">
                               <CurrencyAmount value={displayedCapital} currency="DZD" semantic="plain" size="md" decimals={0} className="font-semibold"/>

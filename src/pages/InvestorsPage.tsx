@@ -18,6 +18,7 @@ import type { DerivedInvestor, InvestorEconomicsResult, ManagerProfitBreakdown }
 import type { FirestoreDocumentReference } from '../firebase';
 import type { CapitalSnapshot, InvestorBreakdown } from '../utils/capitalSnapshot';
 import { calculateWithdrawableProfit, wholeDzdDown } from '../utils/profitDistribution';
+import type { InvestorTerm } from '../utils/investorTerms';
 interface InvestorsPageProps {
     investors: DerivedInvestor[];
     capitalSnapshot?: CapitalSnapshot;
@@ -34,6 +35,8 @@ interface InvestorsPageProps {
     treasuryStats: { caisse: number; baridi: number };
     managerProfitBreakdown?: ManagerProfitBreakdown;
     periodLock?: Omit<PeriodLockCardProps, 'setAlert' | 'nowMs'>;
+    /** Open quarterly terms, for the mark next to each name. */
+    investorTermsByInvestorId?: ReadonlyMap<string, InvestorTerm>;
 }
 type InvestorsStats = {
     totalCapital: number;
@@ -46,7 +49,7 @@ type InvestorsStats = {
     totalDebtWriteOffs: number;
     netDistributableProfit: number;
 };
-export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, saveManagerFeePercentage, userDocRef, setAlert, treasuryStats, managerProfitBreakdown, periodLock }) => {
+export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, saveManagerFeePercentage, userDocRef, setAlert, treasuryStats, managerProfitBreakdown, periodLock, investorTermsByInvestorId }) => {
     const { t } = useLanguage();
     const stats: InvestorsStats = useMemo(() => {
         const nonManagerInvestors = investors.filter((inv) => inv.isActive && !inv.isManager);
@@ -120,7 +123,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
         <StatTile label={t('investors.managerShare') as string} value={stats.managerFee} semantic="auto"/>
       </StatTileGrid>
 
-      <InvestorsListSection investors={investors} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onAddInvestor={onAddInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor}/>
+      <InvestorsListSection investors={investors} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onAddInvestor={onAddInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor} termsByInvestorId={investorTermsByInvestorId}/>
 
       <InvestorsDetailsCard stats={displayedStats} capitalSnapshot={capitalSnapshot} managerFeePercentage={managerFeePercentage} managerProfitBreakdown={managerProfitBreakdown} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference}/>
 
