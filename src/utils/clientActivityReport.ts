@@ -2,7 +2,8 @@ import type { ClientTransactionDzd, Tx } from '../types';
 import { toCents } from './money';
 
 /**
- * Client activity report (weekly, monthly, yearly), sent to the client as a PDF.
+ * Client activity report for any span of days chosen with two dates, sent to the client as a PDF.
+ * A whole calendar month or year is reported as that month or year.
  *
  * Read-only. The numbers come from the client's own ledger rows, with the same rule and the same
  * cent arithmetic as the balance on the client page (rows with affectsBalance === false never
@@ -15,24 +16,32 @@ import { toCents } from './money';
  * EUR cost. Only the EUR amount the client actually paid or received is shown for those.
  */
 
-export type ReportKind = 'week' | 'month' | 'year';
+/** Calendar periods, and « range »: any span of whole days. */
+export type PeriodKind = 'week' | 'month' | 'year' | 'range';
+export type CalendarKind = Exclude<PeriodKind, 'range'>;
+/** What a report covers: a whole month, a whole year, or any other span of days. */
+export type ReportKind = 'month' | 'year' | 'range';
+/** How the period is cut in the report's chart and table. */
+export type BreakdownUnit = CalendarKind;
 export type ReportLang = 'ar' | 'fr';
 export type ReportCurrency = 'USDT' | 'EUR';
 
 export type ReportPeriod = {
-    kind: ReportKind;
+    kind: PeriodKind;
     key: string;
+    /** Year and month (0-11) of the first day; month is -1 for a year */
     year: number;
-    /** 0-11; -1 for a year */
     month: number;
-    /** Week number inside its month (week 1 holds the 1st); 0 for a month or a year */
+    /** A week's place in its month (week 1 holds the 1st) or in the report's breakdown; 0 otherwise */
     week: number;
-    /** First and last day of the month covered by a week (1 and the month's last day otherwise) */
+    /** Day of the month of the first and of the last day (1 and 31 for a year) */
     firstDay: number;
     lastDay: number;
     /** Local start of the first day and local end of the last day, in ms */
     from: number;
     to: number;
+    /** A breakdown part cut short by the report's first or last day */
+    cut?: boolean;
 };
 
 export type ReportPaymentMethod = 'cash' | 'baridi' | 'usdt' | 'eur' | 'other';
@@ -111,7 +120,6 @@ export type ComparisonRow = {
     totals: PeriodTotals;
     /** Change of spentCents against the row before, in %, when both rows have purchases and this one is over */
     changePct: number | null;
-    isCurrent: boolean;
     /** Still running: compared with nothing, a few days against a whole period would mislead */
     isLive: boolean;
 };
@@ -125,6 +133,10 @@ export type OperationRow = {
 export type ClientActivityReport = {
     kind: ReportKind;
     period: ReportPeriod;
+    /** Days in the period, the first and the last one counted */
+    days: number;
+    /** Unit of the chart and table: the weeks of a month, the months of a year, or by the range's length */
+    breakdownUnit: BreakdownUnit;
     /** The period is still running: its data stops today */
     isLive: boolean;
     /** Last day shown in the period header (today for a running period) */
@@ -133,7 +145,7 @@ export type ClientActivityReport = {
     reference: string;
     totals: PeriodTotals;
     currencyCards: ReportCurrencyCard[];
-    /** Spending of the period this report is compared with (previous week of the month, previous month); null while the period is running */
+    /** Spending of the period of the same length just before (the previous month for a month); null for a year and while the period is running */
     comparedWith: { period: ReportPeriod; spentCents: number } | null;
     /** Yearly report: the month with the most purchases */
     bestMonth: { period: ReportPeriod; spentCents: number } | null;
@@ -144,8 +156,8 @@ export type ClientActivityReport = {
     comparison: ComparisonRow[];
     showUsdtColumn: boolean;
     showEurColumn: boolean;
-    /** Weekly and monthly reports; the yearly report sends to each month's own report */
-    operations: OperationRow[] | null;
+    /** Every row of the period with the balance after it, oldest first */
+    operations: OperationRow[];
     /** Some DZD amount has cents: the report shows two decimals for every DZD amount */
     showCents: boolean;
 };
@@ -154,6 +166,7 @@ const pad2 = (value: number) => String(value).padStart(2, '0');
 const startOfDay = (year: number, month: number, day: number) => new Date(year, month, day).getTime();
 const endOfDay = (year: number, month: number, day: number) => new Date(year, month, day, 23, 59, 59, 999).getTime();
 const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+const DAY_MS = 86400000;
 
 /** Weeks of a month, Sunday to Saturday, cut at the month's first and last day so they add up to the month. */
 export function monthWeeks(year: number, month: number): ReportPeriod[] {
@@ -192,7 +205,76 @@ export function yearPeriod(year: number): ReportPeriod {
     return { kind: 'year', key: `y-${year}`, year, month: -1, week: 0, firstDay: 1, lastDay: 31, from: startOfDay(year, 0, 1), to: endOfDay(year, 11, 31) };
 }
 
-export function periodContaining(kind: ReportKind, timestamp: number): ReportPeriod {
+/** A local day as the date fields write it (YYYY-MM-DD). */
+export function dayKey(timestamp: number): string {
+    const date = new Date(timestamp);
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+/** Start (or end) of a day written YYYY-MM-DD, in local time; null when it is not a real day. */
+export function parseDayKey(value: string, end: boolean): number | null {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+    if (!match)
+        return null;
+    const [year, month, day] = [Number(match[1]), Number(match[2]) - 1, Number(match[3])];
+    if (month > 11 || day < 1 || day > daysInMonth(year, month))
+        return null;
+    return end ? endOfDay(year, month, day) : startOfDay(year, month, day);
+}
+
+/** Any span of whole days, from the start of `from`'s day to the end of `to`'s day. */
+export function rangePeriod(from: number, to: number): ReportPeriod {
+    const start = new Date(from);
+    const end = new Date(to);
+    const [y, m, d] = [start.getFullYear(), start.getMonth(), start.getDate()];
+    const [y2, m2, d2] = [end.getFullYear(), end.getMonth(), end.getDate()];
+    return {
+        kind: 'range',
+        key: `r-${y}${pad2(m + 1)}${pad2(d)}-${y2}${pad2(m2 + 1)}${pad2(d2)}`,
+        year: y,
+        month: m,
+        week: 0,
+        firstDay: d,
+        lastDay: d2,
+        from: startOfDay(y, m, d),
+        to: endOfDay(y2, m2, d2),
+    };
+}
+
+/** Days in a period, the first and the last one counted. */
+export function periodDays(period: Pick<ReportPeriod, 'from' | 'to'>): number {
+    const start = new Date(period.from);
+    const end = new Date(period.to);
+    // Calendar days, not 24-hour blocks: a change of clock time never adds or loses a day.
+    return Math.round((Date.UTC(end.getFullYear(), end.getMonth(), end.getDate()) - Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())) / DAY_MS) + 1;
+}
+
+const sameDay = (left: number, right: number) => dayKey(left) === dayKey(right);
+
+/**
+ * The period of a report chosen with two dates. A whole calendar month or year is reported as that
+ * month or year, and so is the current one when it is chosen up to today (« this month », « this
+ * year »). Any other span is a range.
+ */
+export function reportPeriodForDates(from: number, to: number, now: number): ReportPeriod {
+    const range = rangePeriod(from, to);
+    const start = new Date(range.from);
+    const end = new Date(range.to);
+    const endsToday = sameDay(range.to, now);
+    if (start.getDate() === 1 && end.getFullYear() === start.getFullYear() && end.getMonth() === start.getMonth()) {
+        const month = monthPeriod(start.getFullYear(), start.getMonth());
+        if (range.to === month.to || endsToday)
+            return month;
+    }
+    if (start.getMonth() === 0 && start.getDate() === 1 && end.getFullYear() === start.getFullYear()) {
+        const year = yearPeriod(start.getFullYear());
+        if (range.to === year.to || endsToday)
+            return year;
+    }
+    return range;
+}
+
+export function periodContaining(kind: CalendarKind, timestamp: number): ReportPeriod {
     const date = new Date(timestamp);
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -204,21 +286,17 @@ export function periodContaining(kind: ReportKind, timestamp: number): ReportPer
     return monthWeeks(year, month).find((week) => day >= week.firstDay && day <= week.lastDay)!;
 }
 
-/** The calendar period just before (a week can be in the previous month). */
-export function periodBefore(period: ReportPeriod): ReportPeriod {
-    return periodContaining(period.kind, period.from - 1);
-}
-
 /**
- * The period a report is compared with: the previous week of the same month (week 1 has none,
- * as the user asked), the previous month, the previous year.
+ * The period of the same length just before: the previous month, the previous year, or as many
+ * days before a range (a week is a range of seven days here).
  */
-export function comparisonPeriod(period: ReportPeriod): ReportPeriod | null {
-    if (period.kind === 'week')
-        return period.week > 1 ? monthWeeks(period.year, period.month)[period.week - 2] : null;
+export function previousPeriod(period: ReportPeriod): ReportPeriod {
     if (period.kind === 'month')
         return monthPeriod(period.year, period.month - 1);
-    return yearPeriod(period.year - 1);
+    if (period.kind === 'year')
+        return yearPeriod(period.year - 1);
+    const start = new Date(period.from);
+    return rangePeriod(new Date(start.getFullYear(), start.getMonth(), start.getDate() - periodDays(period)).getTime(), period.from - 1);
 }
 
 export function parsePeriodKey(key: string): ReportPeriod | null {
@@ -233,33 +311,89 @@ export function parsePeriodKey(key: string): ReportPeriod | null {
     const year = /^y-(\d{4})$/.exec(key);
     if (year)
         return yearPeriod(Number(year[1]));
+    const range = /^r-(\d{4})(\d{2})(\d{2})-(\d{4})(\d{2})(\d{2})$/.exec(key);
+    if (range) {
+        const from = parseDayKey(`${range[1]}-${range[2]}-${range[3]}`, false);
+        const to = parseDayKey(`${range[4]}-${range[5]}-${range[6]}`, true);
+        return from !== null && to !== null && from <= to ? rangePeriod(from, to) : null;
+    }
     return null;
 }
 
-const PERIOD_LIST_LIMIT: Record<ReportKind, number> = { week: 30, month: 36, year: 10 };
+const PERIOD_LIST_LIMIT: Record<CalendarKind, number> = { week: 30, month: 36, year: 10 };
 
-/** Periods offered in the report window, newest first: from the current one back to the client's first operation. */
-export function listReportPeriods(kind: ReportKind, firstOperationAt: number | null, now: number): ReportPeriod[] {
+/** Calendar periods, newest first: from the current one back to the client's first operation. */
+export function listReportPeriods(kind: CalendarKind, firstOperationAt: number | null, now: number): ReportPeriod[] {
     const periods: ReportPeriod[] = [];
     let period = periodContaining(kind, now);
     while (periods.length < PERIOD_LIST_LIMIT[kind]) {
         periods.push(period);
         if (firstOperationAt === null || period.from <= firstOperationAt)
             break;
-        period = periodBefore(period);
+        period = periodContaining(kind, period.from - 1);
     }
     return periods;
 }
 
 /**
- * Period selected when the window opens: the newest finished week or month with an operation of the
- * client (the one usually sent), else the newest with an operation, else the current one. For a
- * year, the newest with an operation (the current year to date, most of the time).
+ * Period chosen when the window opens: the newest finished month with an operation of the client
+ * (the report usually sent), else the newest with an operation, else the current one.
  */
 export function defaultReportPeriod(periods: ReportPeriod[], clientRows: ReadonlyArray<Pick<ClientTransactionDzd, 'timestamp'>>, now: number): ReportPeriod {
     const hasActivity = (period: ReportPeriod) => clientRows.some((row) => row.timestamp >= period.from && row.timestamp <= period.to);
     const finished = periods[0]?.kind === 'year' ? undefined : periods.find((period) => period.to < now && hasActivity(period));
     return finished || periods.find(hasActivity) || periods[0];
+}
+
+/** Unit of a report's chart and table: weeks up to 31 days, months up to a year, years beyond. */
+export function breakdownUnit(period: ReportPeriod): BreakdownUnit {
+    if (period.kind === 'month' || period.kind === 'week')
+        return 'week';
+    if (period.kind === 'year')
+        return 'month';
+    const days = periodDays(period);
+    return days <= 31 ? 'week' : days <= 366 ? 'month' : 'year';
+}
+
+/** Weeks (Sunday to Saturday), months or years of a range, the first and last ones cut at its edges. */
+function rangeParts(period: ReportPeriod, unit: BreakdownUnit): ReportPeriod[] {
+    const parts: ReportPeriod[] = [];
+    let from = period.from;
+    while (from <= period.to) {
+        const start = new Date(from);
+        const [y, m, d] = [start.getFullYear(), start.getMonth(), start.getDate()];
+        const naturalEnd = unit === 'week'
+            ? endOfDay(y, m, d + (6 - start.getDay()))
+            : unit === 'month' ? endOfDay(y, m, daysInMonth(y, m)) : endOfDay(y, 11, 31);
+        const naturalStart = unit === 'week'
+            ? startOfDay(y, m, d - start.getDay())
+            : unit === 'month' ? startOfDay(y, m, 1) : startOfDay(y, 0, 1);
+        const to = Math.min(naturalEnd, period.to);
+        const end = new Date(to);
+        parts.push({
+            kind: unit,
+            key: `${unit}-${dayKey(from)}`,
+            year: y,
+            month: unit === 'year' ? -1 : m,
+            week: unit === 'week' ? parts.length + 1 : 0,
+            firstDay: d,
+            lastDay: end.getDate(),
+            from,
+            to,
+            cut: from !== naturalStart || to !== naturalEnd,
+        });
+        from = to + 1;
+    }
+    return parts;
+}
+
+/** The parts shown in the chart and table, up to today: the weeks of a month, the months of a year, the parts of a range. */
+export function breakdownPeriods(period: ReportPeriod, now: number): ReportPeriod[] {
+    if (period.kind === 'year')
+        return Array.from({ length: 12 }, (_, month) => monthPeriod(period.year, month)).filter((month) => month.from <= now);
+    if (period.kind === 'month')
+        return monthWeeks(period.year, period.month).filter((week) => week.from <= now);
+    return rangeParts(period, breakdownUnit(period)).filter((part) => part.from <= now);
 }
 
 function methodFromLedger(paymentMethod: ClientTransactionDzd['paymentMethod'] | string | undefined): ReportPaymentMethod {
@@ -467,21 +601,11 @@ export function balanceCalculation(entries: ReadonlyArray<ReportEntry>, period: 
 
 export const percentChange = (current: number, previous: number): number | null => (previous > 0 && current > 0 ? Math.round(((current - previous) / previous) * 100) : null);
 
-function comparisonPeriods(period: ReportPeriod, now: number): ReportPeriod[] {
-    if (period.kind === 'year')
-        return Array.from({ length: 12 }, (_, month) => monthPeriod(period.year, month)).filter((month) => month.from <= now);
-    const weeks = monthWeeks(period.year, period.month).filter((week) => week.from <= now);
-    return period.kind === 'week' ? weeks.filter((week) => week.week <= period.week) : weeks;
-}
-
-/** Average price of each of the last three periods with DZD purchases of the currency (ج). */
+/** Average price of each of the last three periods of the same length with DZD purchases of the currency (ج). */
 function priceTrend(entries: ReadonlyArray<ReportEntry>, period: ReportPeriod, currency: ReportCurrency): PriceTrendPoint[] {
     const periods: ReportPeriod[] = [period];
-    let previous = comparisonPeriod(period);
-    while (previous && periods.length < 3) {
-        periods.unshift(previous);
-        previous = comparisonPeriod(previous);
-    }
+    while (periods.length < 3)
+        periods.unshift(previousPeriod(periods[0]));
     const points = periods
         .map((item) => {
             const summary = periodTotals(entries, item).currencies[currency];
@@ -492,13 +616,15 @@ function priceTrend(entries: ReadonlyArray<ReportEntry>, period: ReportPeriod, c
     return points.length >= 2 && points[points.length - 1].period.key === period.key ? points : [];
 }
 
+const dayStamp = (timestamp: number) => dayKey(timestamp).replace(/-/g, '');
+
 function reportReference(period: ReportPeriod, clientId: string): string {
     const code = clientId.replace(/[^A-Za-z0-9]/g, '').slice(-4).toUpperCase() || '0000';
     const stamp = period.kind === 'year'
         ? `${period.year}`
         : period.kind === 'month'
             ? `${period.year}${pad2(period.month + 1)}`
-            : `${period.year}${pad2(period.month + 1)}-S${period.week}`;
+            : `${dayStamp(period.from)}-${dayStamp(period.to)}`;
     return `R-${stamp}-${code}`;
 }
 
@@ -507,12 +633,15 @@ export type BuildClientActivityReportInput = {
     /** Every ledger row of the client (any other client's rows are ignored) */
     clientRows: ReadonlyArray<ClientTransactionDzd>;
     transactions: ReadonlyArray<Tx>;
+    /** A month, a year, or any span of days (see reportPeriodForDates); a week is reported as a span of seven days */
     period: ReportPeriod;
     now: number;
 };
 
 export function buildClientActivityReport(input: BuildClientActivityReportInput): ClientActivityReport {
-    const { period, now } = input;
+    const { now } = input;
+    const period = input.period.kind === 'week' ? rangePeriod(input.period.from, input.period.to) : input.period;
+    const kind: ReportKind = period.kind === 'month' || period.kind === 'year' ? period.kind : 'range';
     const entries = buildReportEntries(input.clientRows.filter((row) => row.clientId === input.clientId), input.transactions);
     const totals = periodTotals(entries, period);
     const isLive = period.to >= now;
@@ -520,27 +649,29 @@ export function buildClientActivityReport(input: BuildClientActivityReportInput)
         .filter((currency) => totals.currencies[currency].purchases > 0)
         .map((currency) => ({ ...totals.currencies[currency], trend: priceTrend(entries, period, currency) }));
 
-    const previous = period.kind === 'year' || isLive ? null : comparisonPeriod(period);
+    // A year is summed up by its best month; the others are compared with the same length just before, once over.
+    const previous = kind === 'year' || isLive ? null : previousPeriod(period);
     const comparedWith = previous ? { period: previous, spentCents: periodTotals(entries, previous).spentCents } : null;
 
-    const comparison = comparisonPeriods(period, now).map((item): ComparisonRow => ({
+    const comparison = breakdownPeriods(period, now).map((item): ComparisonRow => ({
         period: item,
         totals: periodTotals(entries, item),
         changePct: null,
-        isCurrent: period.kind === 'week' && item.key === period.key,
         isLive: item.to >= now,
     }));
     comparison.forEach((row, index) => {
-        if (index > 0 && !row.isLive)
+        // A part of a range cut at its edge is shorter than the others: no change against or from it.
+        const comparable = kind !== 'range' || (!row.period.cut && !comparison[index - 1]?.period.cut);
+        if (index > 0 && !row.isLive && comparable)
             row.changePct = percentChange(row.totals.spentCents, comparison[index - 1].totals.spentCents);
     });
-    const bestMonth = period.kind === 'year'
+    const bestMonth = kind === 'year'
         ? comparison.reduce<{ period: ReportPeriod; spentCents: number } | null>((best, row) => (row.totals.spentCents > (best?.spentCents ?? 0) ? { period: row.period, spentCents: row.totals.spentCents } : best), null)
         : null;
 
     let sinceJanuary: ClientActivityReport['sinceJanuary'] = null;
     let biggestPurchase: ReportEntry | null = null;
-    if (period.kind === 'month') {
+    if (kind === 'month') {
         const yearToDate = periodTotals(entries, { from: yearPeriod(period.year).from, to: period.to });
         sinceJanuary = {
             quantities: { USDT: yearToDate.currencies.USDT.quantity, EUR: yearToDate.currencies.EUR.quantity },
@@ -555,22 +686,21 @@ export function buildClientActivityReport(input: BuildClientActivityReportInput)
     }
 
     const balance = balanceCalculation(entries, period);
-    let operations: OperationRow[] | null = null;
-    if (period.kind !== 'year') {
-        let running = balance.openingCents;
-        operations = entries.filter((entry) => inPeriod(entry, period)).map((entry) => {
-            running += entry.balanceCents;
-            return { entry, balanceAfterCents: running };
-        });
-    }
+    let running = balance.openingCents;
+    const operations: OperationRow[] = entries.filter((entry) => inPeriod(entry, period)).map((entry) => {
+        running += entry.balanceCents;
+        return { entry, balanceAfterCents: running };
+    });
     const centsSeen = [
         balance.openingCents, balance.closingCents, ...Object.values(balance.lines),
-        ...(operations || []).flatMap((row) => [row.entry.dzdCents ?? 0, row.balanceAfterCents]),
+        ...operations.flatMap((row) => [row.entry.dzdCents ?? 0, row.balanceAfterCents]),
         ...currencyCards.map((card) => card.dzdCents),
     ];
     return {
-        kind: period.kind,
+        kind,
         period,
+        days: periodDays(period),
+        breakdownUnit: breakdownUnit(period),
         isLive,
         shownTo: Math.min(period.to, now),
         issuedAt: now,

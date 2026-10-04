@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, lazy, Suspense, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { HeroCard, ListRow, SectionCard, StatTile } from '../components/cards';
 import { CurrencyAmount } from '../components/financial/CurrencyAmount';
@@ -18,6 +18,10 @@ import { useHeaderActionsSlot } from '../components/main/headerActionsSlot';
 import { AnalyticsExportSheet } from '../components/analytics/AnalyticsExportSheet';
 import { AnalyticsPageProps } from '../components/analytics/analyticsTypes';
 import { useAnalyticsViewModel } from '../components/analytics/useAnalyticsViewModel';
+import { dayKey, monthPeriod } from '../utils/clientActivityReport';
+
+// The client report (the same window as on the client page), loaded on first use.
+const ClientActivityReportDialog = lazy(() => import('../components/clients/ClientActivityReportDialog').then((module) => ({ default: module.ClientActivityReportDialog })));
 
 const MONTH_LABELS_FR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
 
@@ -87,6 +91,7 @@ export function AnalyticsPage({ initialTab = 'month', ...props }: AnalyticsPageP
     const { t, lang } = useLanguage();
     const [activeTab, setActiveTab] = useState<AnalyticsTab>(initialTab);
     const [isExportOpen, setIsExportOpen] = useState(false);
+    const [clientReport, setClientReport] = useState<{ clientId: string; start: string; end: string } | null>(null);
     const headerActionsSlot = useHeaderActionsSlot();
     const { calculatedStats, heatmapData, monthlyClientRanking, allTimeClientRanking, annualStats, allTimeStats, prevMonthStats, priceHistory } = useAnalyticsViewModel({
         transactions: props.transactions,
@@ -379,6 +384,12 @@ export function AnalyticsPage({ initialTab = 'month', ...props }: AnalyticsPageP
           </SectionCard>) : (<EmptyState icon={<UsersIcon className="h-5 w-5"/>} title={t('portfolio.noClientMonthlyData') as string} subtitle={t('portfolio.emptyPeriod') as string} className="rounded-card border border-border bg-surface"/>)}
       </>);
 
+    // The client chosen in « Exporter » opens on the month chosen there; its dates can then be changed.
+    const openClientReport = (clientId: string, reportMonth: number, reportYear: number) => {
+        const chosen = monthPeriod(reportYear, reportMonth);
+        setClientReport({ clientId, start: dayKey(chosen.from), end: dayKey(Math.min(chosen.to, Date.now())) });
+    };
+    const reportedClient = clientReport ? props.clientsDzd.find((client) => client.id === clientReport.clientId) : undefined;
     return (<div className="anim-page-in flex flex-col gap-3">
       {headerActionsSlot && createPortal(<button type="button" onClick={() => setIsExportOpen(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-700 transition-colors hover:bg-neutral-100 active:scale-95" title={exportLabel} aria-label={exportLabel}>
           <DownloadCloudIcon className="h-[22px] w-[22px]"/>
@@ -400,6 +411,9 @@ export function AnalyticsPage({ initialTab = 'month', ...props }: AnalyticsPageP
       {activeTab === 'alltime' && allTimeTab}
       {activeTab === 'clients' && clientsTab}
 
-      <AnalyticsExportSheet isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} monthLabel={selectedMonthLabel} year={year} realizedProfit={calculatedStats.realizedProfit} monthlyHasData={monthlyHasData} onExportMonthly={props.handleExportUsdtReport} reportClient={props.reportClient} reportMonth={props.reportMonth} reportYear={props.reportYear} reportMonths={props.reportMonths} reportYears={props.reportYears} clientsDzd={props.clientsDzd} getClientFullName={props.getClientFullName} onExportClient={props.handleExportClientReport}/>
+      <AnalyticsExportSheet isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} monthLabel={selectedMonthLabel} year={year} realizedProfit={calculatedStats.realizedProfit} monthlyHasData={monthlyHasData} onExportMonthly={props.handleExportUsdtReport} reportClient={props.reportClient} reportMonth={props.reportMonth} reportYear={props.reportYear} reportMonths={props.reportMonths} reportYears={props.reportYears} clientsDzd={props.clientsDzd} getClientFullName={props.getClientFullName} onExportClient={openClientReport}/>
+      {reportedClient && clientReport && (<Suspense fallback={null}>
+          <ClientActivityReportDialog onClose={() => setClientReport(null)} clientId={reportedClient.id} clientName={props.getClientFullName(reportedClient)} clientRows={props.clientTransactionsDzd} transactions={props.transactions} initialRange={{ start: clientReport.start, end: clientReport.end }}/>
+        </Suspense>)}
     </div>);
 }

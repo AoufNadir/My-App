@@ -4,16 +4,23 @@ import type { ClientTransactionDzd, Tx } from '../types';
 import { toCents } from './money';
 import {
     balanceCalculation,
+    breakdownPeriods,
+    breakdownUnit,
     buildClientActivityReport,
     buildReportEntries,
-    comparisonPeriod,
+    dayKey,
     defaultReportPeriod,
     listReportPeriods,
     monthPeriod,
     monthWeeks,
+    parseDayKey,
     parsePeriodKey,
     periodContaining,
+    periodDays,
     periodTotals,
+    previousPeriod,
+    rangePeriod,
+    reportPeriodForDates,
     yearPeriod,
     type ReportPeriod,
 } from './clientActivityReport';
@@ -86,12 +93,62 @@ for (let month = 0; month < 12; month++) {
     weeks.slice(1).forEach((week, index) => assert.equal(week.from, weeks[index].to + 1, 'Weeks follow each other with no gap'));
     weeks.slice(1, -1).forEach((week) => assert.equal(new Date(week.from).getDay(), 0, 'A full week starts on Sunday'));
 }
-assert.equal(comparisonPeriod(monthWeeks(2026, 9)[0]), null, 'Week 1 is not compared (the user\'s rule)');
-assert.equal(comparisonPeriod(monthWeeks(2026, 9)[2])?.key, monthWeeks(2026, 9)[1].key, 'A week is compared with the week before it in the same month');
-assert.equal(comparisonPeriod(monthPeriod(2026, 0))?.key, 'm-2025-12', 'January is compared with December');
+assert.equal(previousPeriod(monthPeriod(2026, 0)).key, 'm-2025-12', 'January is compared with December');
+assert.equal(previousPeriod(yearPeriod(2026)).key, 'y-2025');
 assert.equal(parsePeriodKey('w-2026-10-2')?.from, monthWeeks(2026, 9)[1].from);
 assert.equal(parsePeriodKey('m-2026-10')?.to, monthPeriod(2026, 9).to);
 assert.equal(parsePeriodKey('y-2026')?.from, yearPeriod(2026).from);
+assert.equal(parsePeriodKey('r-20260915-20261014')?.key, 'r-20260915-20261014');
+assert.equal(parsePeriodKey('r-20261014-20260915'), null, 'A range that ends before it starts is no range');
+
+// ---------- two dates: the period a report covers ----------
+const day = (key: string, end = false) => parseDayKey(key, end)!;
+const forDates = (start: string, end: string) => reportPeriodForDates(day(start), day(end, true), NOW);
+assert.equal(parseDayKey('2026-02-30', false), null, 'Not a real day');
+assert.equal(parseDayKey('', true), null);
+assert.equal(dayKey(day('2026-09-01')), '2026-09-01');
+assert.equal(forDates('2026-09-01', '2026-09-30').key, 'm-2026-09', 'A whole month is that month');
+assert.equal(forDates('2026-10-01', '2026-10-03').key, 'm-2026-10', '« This month »: the 1st to today is the running month');
+assert.equal(forDates('2026-10-01', '2026-10-31').key, 'm-2026-10', 'The running month to its last day too');
+assert.equal(forDates('2026-01-01', '2026-10-03').key, 'y-2026', '« This year »: January 1st to today is the running year');
+assert.equal(forDates('2025-01-01', '2025-12-31').key, 'y-2025', 'A whole year is that year');
+assert.equal(forDates('2026-09-01', '2026-09-29').kind, 'range', 'A month without its last day is a range');
+assert.equal(forDates('2026-10-01', '2026-10-02').kind, 'range', 'The 1st to yesterday is a range');
+assert.equal(forDates('2026-01-01', '2026-03-31').kind, 'range', 'A quarter is a range');
+assert.equal(forDates('2026-09-15', '2026-10-14').key, 'r-20260915-20261014');
+assert.equal(periodDays(forDates('2026-09-15', '2026-10-14')), 30, 'Both days counted');
+assert.equal(periodDays(forDates('2026-10-03', '2026-10-03')), 1);
+assert.equal(periodDays(yearPeriod(2024)), 366);
+
+// ---------- the period of the same length just before ----------
+assert.equal(previousPeriod(rangePeriod(day('2026-09-15'), day('2026-10-14'))).key, 'r-20260816-20260914', 'The 30 days before 30 days');
+assert.equal(previousPeriod(rangePeriod(day('2026-03-01'), day('2026-03-10'))).key, 'r-20260219-20260228', 'Across the end of February');
+assert.equal(previousPeriod(monthWeeks(2026, 9)[1]).key, 'r-20260927-20261003', 'A week is compared with the seven days before it');
+
+// ---------- the chart and table: weeks up to 31 days, months up to a year, years beyond ----------
+assert.equal(breakdownUnit(monthPeriod(2026, 8)), 'week');
+assert.equal(breakdownUnit(yearPeriod(2026)), 'month');
+assert.equal(breakdownUnit(forDates('2026-09-04', '2026-10-04')), 'week', '31 days: weeks');
+assert.equal(breakdownUnit(forDates('2026-09-03', '2026-10-04')), 'month', '32 days: months');
+assert.equal(breakdownUnit(forDates('2025-10-04', '2026-10-04')), 'month', '366 days: months');
+assert.equal(breakdownUnit(forDates('2025-10-03', '2026-10-04')), 'year', '367 days: years');
+const rangeWeeks = breakdownPeriods(forDates('2026-09-10', '2026-09-24'), NOW);
+assert.deepEqual(rangeWeeks.map((part) => `${dayKey(part.from)}/${dayKey(part.to)}/${part.cut ? 'cut' : 'whole'}`),
+    ['2026-09-10/2026-09-12/cut', '2026-09-13/2026-09-19/whole', '2026-09-20/2026-09-24/cut'], 'Sunday to Saturday, cut at the range\'s first and last day');
+assert.deepEqual(rangeWeeks.map((part) => part.week), [1, 2, 3]);
+const rangeMonths = breakdownPeriods(forDates('2026-08-15', '2026-10-02'), NOW);
+assert.deepEqual(rangeMonths.map((part) => `${dayKey(part.from)}/${dayKey(part.to)}/${part.cut ? 'cut' : 'whole'}`),
+    ['2026-08-15/2026-08-31/cut', '2026-09-01/2026-09-30/whole', '2026-10-01/2026-10-02/cut']);
+const rangeYears = breakdownPeriods(forDates('2024-11-20', '2026-10-02'), NOW);
+assert.deepEqual(rangeYears.map((part) => `${dayKey(part.from)}/${dayKey(part.to)}`), ['2024-11-20/2024-12-31', '2025-01-01/2025-12-31', '2026-01-01/2026-10-02']);
+assert.deepEqual(breakdownPeriods(forDates('2026-09-27', '2026-10-24'), NOW).map((part) => dayKey(part.from)), ['2026-09-27'],
+    'Weeks after today are left out of a range that ends later');
+for (const period of [forDates('2026-08-15', '2026-10-02'), forDates('2026-09-10', '2026-09-24'), forDates('2024-11-20', '2026-10-02')]) {
+    const parts = breakdownPeriods(period, NOW);
+    assert.equal(parts[0].from, period.from, `${period.key}: the first part starts on the first day`);
+    assert.equal(parts[parts.length - 1].to, period.to, `${period.key}: the last part ends on the last day`);
+    parts.slice(1).forEach((part, index) => assert.equal(part.from, parts[index].to + 1, `${period.key}: parts follow each other with no gap`));
+}
 
 // ---------- periods offered ----------
 const firstAt = Math.min(...rows.filter((item) => item.clientId === 'c1').map((item) => item.timestamp));
@@ -173,7 +230,8 @@ assert.equal(yearRows[yearRows.length - 1].changePct, null, 'The running month h
 assert.notEqual(yearRows[yearRows.length - 2].changePct, null, 'September against August is a change');
 const septemberWeeks = build(monthWeeks(2026, 8)[4]);
 assert.equal(septemberWeeks.isLive, false);
-assert.equal(septemberWeeks.comparedWith?.period.key, monthWeeks(2026, 8)[3].key, 'A finished week is compared with the week before it');
+assert.equal(septemberWeeks.kind, 'range', 'A week is reported as a span of days');
+assert.equal(septemberWeeks.comparedWith?.period.key, 'r-20260923-20260926', 'September 27-30 is compared with the four days before');
 
 // ---------- ج: the client's average price over the last three periods ----------
 const october = build(monthPeriod(2026, 9));
@@ -183,10 +241,10 @@ assert.equal(octoberUsdt.trend[0].averagePrice, (1000 * 250 + 400 * 251) / 1400)
 assert.equal(octoberUsdt.trend[1].averagePrice, (800 * 249.5 + 600 * 248.75) / 1400, 'September: the USDT paid in EUR stays out of the DZD price');
 assert.equal(Math.round(octoberUsdt.trend[2].averagePrice * 100) / 100, 250.25, 'Shown with two decimals: 1 200.5 USDT for 300 425.13 DZD');
 assert.equal(october.currencyCards.some((card) => card.currency === 'EUR'), false, 'No EUR bought in October: no EUR card');
-assert.equal(build(monthWeeks(2026, 9)[0]).currencyCards[0].trend.length, 0, 'Week 1 has no trend: weeks are compared inside their month');
+assert.equal(build(monthWeeks(2026, 9)[0]).currencyCards[0].trend.length, 0, 'October 1-3: no USDT in the six days before, no trend');
 const septemberWeek3 = build(monthWeeks(2026, 8)[2]);
-assert.deepEqual(septemberWeek3.currencyCards.find((card) => card.currency === 'USDT')?.trend.map((point) => point.period.week) ?? [], [1, 3],
-    'A week without USDT is skipped, the trend keeps the weeks of the month that have a price');
+assert.deepEqual(septemberWeek3.currencyCards.find((card) => card.currency === 'USDT')?.trend.map((point) => point.period.key) ?? [], ['r-20260830-20260905', 'r-20260913-20260919'],
+    'Seven days without USDT are skipped, the trend keeps the periods of the same length that have a price');
 
 // ---------- the client's balance on the spot of every row ----------
 const augustOps = build(monthPeriod(2026, 7)).operations!;
@@ -197,5 +255,41 @@ assert.deepEqual(augustOps.map((item) => item.balanceAfterCents), [-2000000, -27
 const eurEntry = entries.find((entry) => entry.id === rows.find((item) => item.linkedTxId === 'tx-eur')!.id)!;
 assert.equal(eurEntry.dzdCents, null, 'The DZD value of a sale settled in EUR is our valuation: never shown');
 assert.equal(eurEntry.eurAmount, 470);
+
+// ---------- any span of days ----------
+const summer = build(forDates('2026-08-15', '2026-10-02'));
+assert.equal(summer.kind, 'range');
+assert.equal(summer.days, 49);
+assert.equal(summer.breakdownUnit, 'month');
+assert.equal(summer.reference, 'R-20260815-20261002-C1');
+assert.equal(summer.isLive, false);
+assert.equal(summer.balance.openingCents, balanceCalculation(entries, { from: day('2026-08-15'), to: day('2026-08-15') }).openingCents, 'Opening: the balance before the first day');
+assert.equal(summer.balance.closingCents, entries.filter((entry) => entry.timestamp <= day('2026-10-02', true)).reduce((sum, entry) => sum + entry.balanceCents, 0), 'Closing: the balance at the end of the last day');
+assert.equal(summer.comparison.reduce((sum, row) => sum + row.totals.spentCents, 0), summer.totals.spentCents, 'The parts add up to the range');
+assert.deepEqual(summer.comparison.map((row) => row.changePct), [null, null, null], 'No change against or from a part cut at the range\'s edge');
+assert.equal(summer.operations.length, entries.filter((entry) => entry.timestamp >= day('2026-08-15') && entry.timestamp <= day('2026-10-02', true)).length, 'Every row of the range');
+assert.equal(summer.operations[summer.operations.length - 1].balanceAfterCents, summer.balance.closingCents);
+assert.equal(summer.comparedWith?.period.key, 'r-20260627-20260814', 'Compared with the 49 days before');
+assert.equal(summer.comparedWith?.spentCents, toCents(1000 * 250 + 400 * 251), 'What was bought in those 49 days (August 3 and 12)');
+assert.equal(summer.sinceJanuary, null, 'Since January: for a whole month only');
+assert.equal(summer.biggestPurchase, null);
+assert.equal(summer.bestMonth, null);
+const wholeWeeks = build(forDates('2026-09-06', '2026-09-26'));
+assert.equal(wholeWeeks.breakdownUnit, 'week');
+assert.deepEqual(wholeWeeks.comparison.map((row) => row.changePct), [null, Math.round(((600 * 248.75 - 300 * 262.5) / (300 * 262.5)) * 100), null],
+    'Whole weeks are compared with each other; a week without purchases has no change');
+const liveRange = build(forDates('2026-09-20', '2026-10-10'));
+assert.equal(liveRange.isLive, true);
+assert.equal(liveRange.comparedWith, null, 'A range still running is compared with nothing');
+assert.equal(liveRange.shownTo, NOW, 'Its data stop today');
+assert.equal(liveRange.balance.closingCents, pageBalanceCents, 'A range up to today ends on the client page balance');
+const fullYear = build(yearPeriod(2026));
+assert.equal(fullYear.operations.length, entries.filter((entry) => entry.timestamp >= yearPeriod(2026).from).length, 'A yearly report lists its operations too');
+assert.equal(fullYear.operations[fullYear.operations.length - 1].balanceAfterCents, pageBalanceCents);
+const history = build(forDates('2024-11-20', '2026-10-03'));
+assert.equal(history.breakdownUnit, 'year');
+assert.equal(history.balance.openingCents, 0);
+assert.equal(history.balance.closingCents, pageBalanceCents, 'The whole history ends on the client page balance');
+assert.equal(history.operations.length, entries.length);
 
 console.log('client activity report model tests passed');

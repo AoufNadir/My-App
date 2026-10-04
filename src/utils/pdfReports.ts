@@ -1821,6 +1821,11 @@ export function buildMonthlyPdfReport(input: MonthlyReportInput): ReportPayload 
         pageSize: 'A4 landscape'
     });
 }
+/**
+ * The old client statement (« Relevé client »). The app no longer opens it since V3-3: the client
+ * report (clientActivityReport.ts) replaced it. Kept until the other reports of this file move to
+ * the new design, for the test that compares the two reports' numbers (clientReportVsStatement.test.ts).
+ */
 export function buildClientPdfReport(input: ClientReportInput): ClientReportPayload | null {
     const client = input.clients.find((item) => item.id === input.clientId);
     if (!client)

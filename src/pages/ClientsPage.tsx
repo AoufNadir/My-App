@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, OverdueDebtClient } from '../types';
 import { ClientDetailsView } from '../components/clients/ClientDetailsView';
 import { ClientsListView } from '../components/clients/ClientsListView';
-import type { ClientReportRequest } from '../hooks/useReportExports';
 import { buildClientStatementTransactions } from '../utils/clientStatementTransactions';
 type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
 export type ClientsPageProps = {
@@ -28,7 +27,6 @@ export type ClientsPageProps = {
     clientTransactionsDzd: ClientTransactionDzd[];
     transactions: Tx[];
     profitByTxId?: Record<string, { derivedProfit: number }>;
-    handleExportClientReport: (clientId: string, range: ClientReportRequest, year?: number) => void;
     openClientTxModal: (tx: ClientTransactionDzd | null, presetType?: string, selectedClientId?: string) => void;
     openClientToClientTransferModal: (sourceClient: ClientDzd) => void;
     copiedValue: string | null;
@@ -43,7 +41,7 @@ export type ClientsPageProps = {
     onImportClients?: (rows: Record<string, string>[]) => Promise<void>;
 };
 export function ClientsPage(props: ClientsPageProps) {
-    const { selectedClientId, setSelectedClientId, openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, clientsDzd, filteredClientsDzd, searchedClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, selectedClient, selectedClientTransactions, clientTransactionsDzd, transactions, profitByTxId, handleExportClientReport, openClientTxModal, openClientToClientTransferModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick, overdueDebtClients, clientLoyaltyMap, clientPrevMonthVolume, clientLastSellDate, handleZeroOutBalance, onImportClients } = props;
+    const { selectedClientId, setSelectedClientId, openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, clientsDzd, filteredClientsDzd, searchedClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, selectedClient, selectedClientTransactions, clientTransactionsDzd, transactions, profitByTxId, openClientTxModal, openClientToClientTransferModal, copiedValue, handleCopy, handleEditClientTx, handleDeleteClientTxClick, overdueDebtClients, clientLoyaltyMap, clientPrevMonthVolume, clientLastSellDate, handleZeroOutBalance, onImportClients } = props;
     const statementTransactions = useMemo(() => selectedClientId
         ? buildClientStatementTransactions({ clientId: selectedClientId, clientTransactions: clientTransactionsDzd })
         : selectedClientTransactions || [], [clientTransactionsDzd, selectedClientId, selectedClientTransactions]);
@@ -59,7 +57,7 @@ export function ClientsPage(props: ClientsPageProps) {
     }, [statementTransactions]);
     if (selectedClientId && selectedClient) {
         const selectedClientBalance = clientBalances.get(selectedClientId) || 0;
-        return (<ClientDetailsView selectedClientId={selectedClientId} selectedClient={selectedClient} selectedClientBalance={selectedClientBalance} groupedHistory={groupedHistory} clientTransactionsDzd={clientTransactionsDzd} clientsDzd={clientsDzd} setSelectedClientId={setSelectedClientId} getClientFullName={getClientFullName} handleTouchStart={handleTouchStart} openClientModal={openClientModal} copiedValue={copiedValue} handleCopy={handleCopy} transactions={transactions} profitByTxId={profitByTxId} handleEditClientTx={handleEditClientTx} handleDeleteClientTxClick={handleDeleteClientTxClick} openClientTxModal={openClientTxModal} openClientToClientTransferModal={openClientToClientTransferModal} handleExportClientReport={handleExportClientReport}/>);
+        return (<ClientDetailsView selectedClientId={selectedClientId} selectedClient={selectedClient} selectedClientBalance={selectedClientBalance} groupedHistory={groupedHistory} clientTransactionsDzd={clientTransactionsDzd} clientsDzd={clientsDzd} setSelectedClientId={setSelectedClientId} getClientFullName={getClientFullName} handleTouchStart={handleTouchStart} openClientModal={openClientModal} copiedValue={copiedValue} handleCopy={handleCopy} transactions={transactions} profitByTxId={profitByTxId} handleEditClientTx={handleEditClientTx} handleDeleteClientTxClick={handleDeleteClientTxClick} openClientTxModal={openClientTxModal} openClientToClientTransferModal={openClientToClientTransferModal}/>);
     }
     return (<ClientsListView openClientModal={openClientModal} clientSearchQuery={clientSearchQuery} setClientSearchQuery={setClientSearchQuery} clientSortMode={clientSortMode} setClientSortMode={setClientSortMode} filteredClientsDzd={filteredClientsDzd} searchedClientsDzd={searchedClientsDzd} clientBalances={clientBalances} getClientFullName={getClientFullName} handleTouchStart={handleTouchStart} handleTouchEnd={handleTouchEnd} setClientToDelete={setClientToDelete} setSelectedClientId={setSelectedClientId} overdueDebtClients={overdueDebtClients} clientLoyaltyMap={clientLoyaltyMap} clientPrevMonthVolume={clientPrevMonthVolume} clientLastSellDate={clientLastSellDate} handleZeroOutBalance={handleZeroOutBalance} onImportClients={onImportClients}/>);
 }

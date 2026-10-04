@@ -612,8 +612,7 @@ export default function MainApp({ user }: {
         investors: derivedInvestors,
         setSelectedInvestorId,
     });
-    const { handleExportClientReport, handleExportInvestorReport, handleExportPersonalExpensesReport, handleExportUsdtReport, reportClient, reportMonth, reportMonthNames, reportYear, setReportClient, setReportMonth, setReportYear, setUsdtReportMonth, setUsdtReportYear, usdtReportMonth, usdtReportYear } = useReportExports({
-        clientBalances,
+    const { handleExportInvestorReport, handleExportPersonalExpensesReport, handleExportUsdtReport, reportClient, reportMonth, reportMonthNames, reportYear, setReportClient, setReportMonth, setReportYear, setUsdtReportMonth, setUsdtReportYear, usdtReportMonth, usdtReportYear } = useReportExports({
         clientTransactionsDzd,
         clientsDzd,
         derivedInvestors,
@@ -2509,14 +2508,13 @@ export default function MainApp({ user }: {
         setReportMonth,
         reportYear,
         setReportYear,
-        handleExportClientReport,
         openPortfolioBalanceEditModal
     }), [
         statsView, portfolioStats, smartTargetPrices,
         usdtReportMonth, usdtReportYear, transactions, clientTransactionsDzd, selectedHeatmapDay,
         fieldBase,
         reportClient, clientsDzd, reportMonth, reportYear, reportMonthNames,
-        getClientFullName, handleExportClientReport, handleExportUsdtReport, openPortfolioBalanceEditModal
+        getClientFullName, handleExportUsdtReport, openPortfolioBalanceEditModal
     ]);
     // Bulk-import clients from CSV. Skips duplicates by name or phone, creates
     // an initial-balance ledger entry when an `initialBalance` column is mapped.
@@ -2621,7 +2619,6 @@ export default function MainApp({ user }: {
         clientTransactionsDzd,
         transactions,
         profitByTxId: pamLedger.profitByTxId,
-        handleExportClientReport,
         openClientTxModal,
         copiedValue,
         handleCopy,
@@ -2636,7 +2633,7 @@ export default function MainApp({ user }: {
     }), [
         selectedClientId, clientSearchQuery, clientSortMode,
         clientsDzd, filteredClientsDzd, searchedClientsDzd, clientBalances, selectedClient, selectedClientTransactions, clientTransactionsDzd, transactions, pamLedger.profitByTxId, copiedValue,
-        openClientModal, handleTouchStart, handleTouchEnd, handleClientDeleteRequest, handleExportClientReport, openClientTxModal,
+        openClientModal, handleTouchStart, handleTouchEnd, handleClientDeleteRequest, openClientTxModal,
         handleCopy, handleEditLinkedClientTx, handleDeleteLinkedClientTxClick, overdueDebtClients, clientLoyaltyMap,
         earlyClientPrevMonthVolumeMap, earlyClientLastSellDateMap, handleZeroOutBalance
     ]);
@@ -3220,8 +3217,6 @@ export default function MainApp({ user }: {
         isClientSummaryOpen,
         summaryClient, setSummaryClient,
         clientTransactionsDzd, transactions,
-        handleExportClientReport,
-        reportMonth, reportYear,
         isInvestorDialogsOpen,
         isInvestorModalOpen, setIsInvestorModalOpen,
         editingInvestor,
