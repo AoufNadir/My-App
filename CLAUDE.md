@@ -50,6 +50,7 @@ npm run ci         # typecheck + كل الاختبارات + build. يجب أن 
 | الشراء والبيع والحذف | `src/hooks/useTransactionHandlers.ts`، `src/transactionService.ts` |
 | العملاء | `src/hooks/useClientHandlers.ts`، `src/utils/clientRegistry.ts`، `src/components/clients/` |
 | تقرير نشاط العميل | `src/utils/clientActivityReport.ts`، `src/components/clients/ClientActivityReport*` |
+| تنبيه المستثمرين كل 3 أشهر | `src/utils/investorTerms.ts`، `src/hooks/useInvestorTerms.ts`، `src/components/investors/InvestorTermAlert.tsx` |
 | الواجهة المشتركة | `src/styles/tokens.css`، `src/components/ui/`، `src/components/cards/` |
 | الترجمة | `src/translations/index.ts`، `src/utils/alertMessages.ts`، `src/utils/formMessages.ts` |
 
