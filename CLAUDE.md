@@ -2,15 +2,21 @@
 
 اقرأ هذا الملف أولاً. التفاصيل في [`docs/PROJECT_GUIDE.md`](docs/PROJECT_GUIDE.md): خريطة الكود، أين يُحسب كل رقم، قرارات صاحب المشروع، النشر، وما بقي مفتوحاً. ونية صاحب المشروع الأصلية في [`CLAUDE_PROJECT_INTENT.md`](CLAUDE_PROJECT_INTENT.md) (كُتبت قبل سبتمبر 2026، وما تغيّر بعدها مذكور في الدليل).
 
-آخر تحديث: 2026-10-04.
+آخر تحديث: 2026-10-09.
 
 ## التطبيق
 
 تطبيق ويب (PWA) لنشاط صرف في الجزائر: شراء وبيع `USDT` و`EUR` مقابل الدينار `DZD`، نقداً أو عبر BaridiMob أو بالدَّين. يحسب المخزون ومتوسط سعر الشراء (PAM) وربح كل بيع، أرصدة العملاء وديونهم، الخزينة (`Caisse` و`BaridiMob`)، رأس مال المسيّر والمستثمرين وتوزيع الأرباح، ويصدر تقارير PDF. الواجهة بالفرنسية والعربية، ومعظم الاستعمال من الهاتف.
 
-- الموقع الرسمي: https://proodigital-7ec70.web.app (Firebase Hosting، مشروع `proodigital-7ec70`). يعمل بـ `V3-1` منذ 2026-10-03، والفرع الافتراضي في GitHub هو `stable-2026-10-03`.
+- الموقع الرسمي: https://proodigital-7ec70.web.app (Firebase Hosting، مشروع `proodigital-7ec70`). يعمل بـ `V3-1` منذ 2026-10-03، وكوده في الفرع المستقر `stable-2026-10-03`. حتى 2026-10-09 كان الفرع الافتراضي في GitHub ما زال `stable-2026-09-01-v2` القديم، فلا تعتمد عليه.
 - التقنية: React 19 وTypeScript وVite 6 وTailwind v4 وFirebase (Auth وFirestore).
 - المستودع `AoufNadir/My-App` **عام**: لا تكتب فيه أسماء عملاء أو مستثمرين، ولا أرقاماً حقيقية، ولا بيانات دخول.
+
+## أين توقف العمل (2026-10-09)
+
+- آخر عمل في الفرع `V3-4`: مسودتا `V3-3` (PR #22، تقرير العميل من تاريخ إلى تاريخ) و`V3-4` (PR #23، تنبيه المستثمرين كل 3 أشهر). فحوصهما ناجحة، ولم تُنشرا.
+- المرحلة التالية `V3-5` (الإطار المشترك للتقارير وتقرير المستثمر) لم تبدأ في الكود. ما تقرر في تصميمها، وخطة التقارير كلها حتى `V3-7`، في الدليل (§9).
+- ينتظر صاحب المشروع: تغيير الفرع الافتراضي، وحذف الفروع القديمة بعد أن يكتب «احذف» (الدليل §13).
 
 ## قواعد لا تُكسر
 
@@ -51,6 +57,7 @@ npm run ci         # typecheck + كل الاختبارات + build. يجب أن 
 | العملاء | `src/hooks/useClientHandlers.ts`، `src/utils/clientRegistry.ts`، `src/components/clients/` |
 | تقرير نشاط العميل | `src/utils/clientActivityReport.ts`، `src/components/clients/ClientActivityReport*` |
 | تنبيه المستثمرين كل 3 أشهر | `src/utils/investorTerms.ts`، `src/hooks/useInvestorTerms.ts`، `src/components/investors/InvestorTermAlert.tsx` |
+| التقارير القديمة (تنتقل إلى شكل تقرير العميل في `V3-5` إلى `V3-7`) | `src/utils/pdfReports.ts`، `src/hooks/useReportExports.ts` |
 | الواجهة المشتركة | `src/styles/tokens.css`، `src/components/ui/`، `src/components/cards/` |
 | الترجمة | `src/translations/index.ts`، `src/utils/alertMessages.ts`، `src/utils/formMessages.ts` |
 
