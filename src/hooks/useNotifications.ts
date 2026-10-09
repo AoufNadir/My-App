@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FirestoreDocumentReference } from '../firebase';
+import { investorTermWhenText, type InvestorTerm } from '../utils/investorTerms';
 
 const PERM_ASKED_KEY = 'app_notification_perm_asked';
 const NOTIF_LAST_OVERDUE_KEY = 'app_notif_last_overdue';
 const NOTIF_LAST_DISTRIB_KEY = 'app_notif_last_distrib';
+const NOTIF_LAST_INVESTOR_TERMS_KEY = 'app_notif_last_investor_terms';
 
 export type NotifPermission = 'default' | 'granted' | 'denied' | 'unsupported';
 
@@ -21,6 +23,16 @@ const FRENCH_TEXT: Record<string, string> = {
     'notifications.overdueBody': '{names}{extra} — dettes impayées depuis plus de 7 jours',
     'notifications.profitTitle': '💰 Profits à distribuer',
     'notifications.profitBody': '{amount} DZD disponibles pour les investisseurs',
+    'notifications.termTitleOne': '📅 Échéance des 3 mois : {name}',
+    'notifications.termTitleMany': '📅 {count} échéances d’investisseurs',
+    'notifications.termBodyMany': '{names}{extra} : réinvestir ou retirer le profit.',
+    'investorTerms.dueIn': 'Le {date}, dans {days}',
+    'investorTerms.dueToday': 'Aujourd’hui, le {date}',
+    'investorTerms.overdue': 'Le {date}, il y a {days}',
+    'investorTerms.dayOne': '{count} jour',
+    'investorTerms.dayTwo': '{count} jours',
+    'investorTerms.dayFew': '{count} jours',
+    'investorTerms.dayMany': '{count} jours',
 };
 function fill(t: Translate | undefined, key: string, values: Record<string, string | number> = {}): string {
     const translated = t ? t(key) : undefined;
@@ -115,6 +127,32 @@ export function useNotifications(userDocRef?: FirestoreDocumentReference, t?: Tr
         );
     }, [isSupported, showNotification, t]);
 
+    // Investors' quarterly terms (once per day): one investor with the day of the term, several by name.
+    const notifyInvestorTerms = useCallback((terms: ReadonlyArray<Pick<InvestorTerm, 'investorName' | 'daysLeft' | 'state' | 'termTs'>>) => {
+        if (!isSupported || Notification.permission !== 'granted' || terms.length === 0) return;
+        const today = dayKey();
+        if (localStorage.getItem(NOTIF_LAST_INVESTOR_TERMS_KEY) === today) return;
+        localStorage.setItem(NOTIF_LAST_INVESTOR_TERMS_KEY, today);
+
+        if (terms.length === 1) {
+            showNotification(
+                fill(t, 'notifications.termTitleOne', { name: terms[0].investorName }),
+                investorTermWhenText(terms[0], (key) => fill(t, key)),
+                { tag: 'investor-terms' }
+            );
+            return;
+        }
+        const names = terms.slice(0, 2).map((term) => term.investorName).join(', ');
+        const extra = terms.length > 2
+            ? fill(t, terms.length > 3 ? 'notifications.overdueExtraMany' : 'notifications.overdueExtraOne', { count: terms.length - 2 })
+            : '';
+        showNotification(
+            fill(t, 'notifications.termTitleMany', { count: terms.length }),
+            fill(t, 'notifications.termBodyMany', { names, extra }),
+            { tag: 'investor-terms' }
+        );
+    }, [isSupported, showNotification, t]);
+
     return {
         isSupported,
         permission,
@@ -123,6 +161,7 @@ export function useNotifications(userDocRef?: FirestoreDocumentReference, t?: Tr
         showNotification,
         notifyOverdueClients,
         notifyInvestorProfit,
+        notifyInvestorTerms,
     };
 }
 

@@ -8,6 +8,8 @@ import { useInvestorReportDialog, type InvestorReportDateRange } from '../compon
 import { useLanguage } from '../contexts/LanguageContext';
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
 import type { DerivedInvestor, ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
+import type { InvestorTerm } from '../utils/investorTerms';
+import { InvestorTermAlert } from '../components/investors/InvestorTermAlert';
 interface InvestorDetailsPageProps {
     investor: DerivedInvestor;
     transactions: InvestorTransaction[];
@@ -24,8 +26,10 @@ interface InvestorDetailsPageProps {
     capitalSnapshot?: CapitalSnapshot;
     managerProfitBreakdown?: ManagerProfitBreakdown;
     personalExpenses?: TreasuryTx[];
+    /** The investor's open quarterly term, if any: shown at the top with the same two windows. */
+    term?: InvestorTerm | null;
 }
-export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ investor, transactions, onBack, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction, onExportReport, capitalSnapshot, managerProfitBreakdown, personalExpenses }) => {
+export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ investor, transactions, onBack, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction, onExportReport, capitalSnapshot, managerProfitBreakdown, personalExpenses, term }) => {
     const { t } = useLanguage();
     const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
     const orderedTransactions = useMemo(() => [...transactions].sort((a, b) => b.timestamp - a.timestamp), [transactions]);
@@ -41,6 +45,8 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ invest
           PDF
         </Button>
       </div>
+
+      {term && term.investorId === investor.id && (<InvestorTermAlert term={term} showName={false} onReinvest={onReinvestProfit} onWithdraw={onWithdrawProfit}/>)}
 
       <InvestorDetailsContent investor={investor} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} orderedTransactions={orderedTransactions} activeTab={activeTab} setActiveTab={setActiveTab} onAddCapital={onAddCapital} onWithdrawCapital={onWithdrawCapital} onWithdrawProfit={onWithdrawProfit} onReinvestProfit={onReinvestProfit} onDeleteTransaction={onDeleteTransaction} personalExpenses={personalExpenses}/>
 

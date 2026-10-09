@@ -22,6 +22,8 @@ import type { ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
 import type { FinancialAuditData } from '../components/financial/OwnerProfitSummary';
 import type { WeeklyRecap } from '../hooks/useWeeklyRecap';
 import type { MonthlyRecap } from '../hooks/useMonthlyRecap';
+import type { InvestorTerm } from '../utils/investorTerms';
+import { InvestorTermAlert } from '../components/investors/InvestorTermAlert';
 import { useLanguage } from '../contexts/LanguageContext';
 const RECENT_TRANSACTION_LIMIT = 5;
 const EMPTY_RECENT_DATE_RANGE = { start: null, end: null };
@@ -106,6 +108,11 @@ type DashboardPageProps = {
     showNotificationPrompt?: boolean;
     onEnableNotifications?: () => Promise<unknown>;
     onDismissNotificationPrompt?: () => void;
+    /** Investors' quarterly terms to recall, the most urgent first, without the ones put off. */
+    investorTerms?: ReadonlyArray<InvestorTerm>;
+    onInvestorTermReinvest?: (investorId: string) => void;
+    onInvestorTermWithdraw?: (investorId: string) => void;
+    onInvestorTermSnooze?: (term: InvestorTerm) => void;
 };
 type ProfitPeriod = 'today' | 'week' | 'month' | 'year';
 const PROFIT_PERIODS: ProfitPeriod[] = ['today', 'week', 'month', 'year'];
@@ -274,6 +281,10 @@ function DashboardContent({
     showNotificationPrompt = false,
     onEnableNotifications,
     onDismissNotificationPrompt,
+    investorTerms = [],
+    onInvestorTermReinvest,
+    onInvestorTermWithdraw,
+    onInvestorTermSnooze,
 }: DashboardPageProps) {
     const { t } = useLanguage();
     const [profitPeriod, setProfitPeriod] = useState<ProfitPeriod>(readStoredProfitPeriod);
@@ -382,6 +393,15 @@ function DashboardContent({
             id: 'uncovered-advances',
             element: (<AlertCard tone="warning" title={t('dashboard.uncoveredAdvances') as string} detail={t('dashboard.uncoveredAdvancesBody') as string} onAction={onOpenTreasury} actionLabel={t('dashboard.viewAction') as string}/>),
         });
+    }
+    // One card per investor whose three months come up: the buttons open that investor's page with the window on top.
+    if (onInvestorTermReinvest && onInvestorTermWithdraw) {
+        for (const term of investorTerms) {
+            alerts.push({
+                id: `investor-term-${term.investorId}`,
+                element: (<InvestorTermAlert term={term} onReinvest={() => onInvestorTermReinvest(term.investorId)} onWithdraw={() => onInvestorTermWithdraw(term.investorId)} onSnooze={onInvestorTermSnooze ? () => onInvestorTermSnooze(term) : undefined}/>),
+            });
+        }
     }
     if (weeklyRecap) {
         alerts.push({ id: 'weekly-recap', element: <WeeklyRecapAlert recap={weeklyRecap} onDismiss={onDismissWeeklyRecap}/> });
