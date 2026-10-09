@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import type { BalanceLineKey, ClientActivityReport, ReportCurrencyCard, ReportEntry, ReportLang, ReportPeriod } from '../../utils/clientActivityReport';
 import { averagePrice } from '../../utils/clientActivityReport';
+import { DOT, ReportSheetFrame, isolate, num, reportTd, reportTdNum, reportTh } from '../reports/ReportSheet';
 import { REPORT_WORDS, currencyUnit, formatCompactDzd, formatDate, formatDayMonth, formatDzdCents, formatEur, formatEurPrice, formatPercent, formatPrice, formatQuantity } from './clientActivityReportText';
 
 export type ClientActivityReportSheetProps = {
@@ -13,14 +14,8 @@ export type ClientActivityReportSheetProps = {
     variant: 'screen' | 'print';
 };
 
-// Unicode isolates keep a number and its unit in one piece inside an Arabic sentence.
-const isolate = (text: string) => `\u2066${text}\u2069`;
-const num = (text: ReactNode) => <bdi dir="ltr" className="whitespace-nowrap tabular-nums">{text}</bdi>;
-
 // Lines after purchases and payments, in this order; the opening balance entered during the period comes first.
 const OTHER_BALANCE_LINES: BalanceLineKey[] = ['saleToUs', 'withdrawal', 'transfer', 'writeOff', 'adjustment'];
-// A no-break space before the dot keeps it at the end of a line when the text wraps.
-const DOT = '\u00A0· ';
 
 /**
  * The report as the client receives it. Always light, like paper, whatever the app theme
@@ -29,7 +24,6 @@ const DOT = '\u00A0· ';
  */
 export function ClientActivityReportSheet({ report, lang, clientName, showBalance, variant }: ClientActivityReportSheetProps) {
     const w = REPORT_WORDS[lang];
-    const isPrint = variant === 'print';
     const { period, totals, balance, showCents } = report;
     const dzd = (cents: number) => `${formatDzdCents(cents, showCents)} DZD`;
     const dzdShort = (cents: number) => formatDzdCents(cents, showCents);
@@ -241,43 +235,16 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
     };
     const balanceCell = (cents: number) => (Math.abs(cents) < 1 ? { text: '0', tone: '' } : cents < 0 ? { text: `−${dzdShort(cents)}`, tone: 'text-financial-debt' } : { text: `+${dzdShort(cents)}`, tone: 'text-financial-profit' });
 
-    const th = 'border-b border-border bg-surface-muted px-2 py-1.5 text-start text-[11px] font-semibold text-neutral-500';
-    const td = 'border-b border-border px-2 py-1.5 text-start align-top';
-    const tdNum = `${td} text-end`;
+    const th = reportTh;
+    const td = reportTd;
+    const tdNum = reportTdNum;
     const issued = formatDate(report.issuedAt);
     // A client who always pays on the spot has a balance of 0 on every row: no column for it.
     const showBalanceColumn = showBalance && report.operations.some((row) => Math.abs(row.balanceAfterCents) >= 1);
 
-    return (<article dir={lang === 'ar' ? 'rtl' : 'ltr'} lang={lang} className={[
-            'report-sheet @container flex flex-col gap-4 bg-surface text-[13px] leading-relaxed text-neutral-900',
-            lang === 'ar' ? 'font-arabic' : 'font-latin',
-            isPrint ? 'w-[794px] px-11 pb-8 pt-10' : 'w-full rounded-md p-4 shadow-card',
-        ].join(' ')}>
-      <header data-pdf-break="" className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-primary pb-3">
-        <div className="flex items-center gap-2.5">
-          <img src="/logo.png" alt="" className="h-10 w-10 rounded-md border border-border object-cover"/>
-          <div className="flex flex-col leading-tight">
-            <b className="font-latin text-xl tracking-wide text-primary">ProDigital</b>
-            <span className="text-xs text-neutral-500">{w.brandTagline}</span>
-          </div>
-        </div>
-        <div className="flex flex-col gap-0.5 text-end text-xs text-neutral-500">
-          <strong className="text-base text-neutral-900">{w.title[report.kind]}</strong>
-          <span>{w.reference} {num(report.reference)} · {w.issued} {num(issued)}</span>
-        </div>
-      </header>
-
-      <div data-pdf-break="" className="flex flex-wrap justify-between gap-x-4 gap-y-2 rounded-lg bg-surface-muted px-3 py-2">
-        <div className="flex min-w-0 flex-col">
-          <small className="text-[11px] text-neutral-500">{w.client}</small>
-          <b className="text-[13.5px]"><bdi>{clientName}</bdi></b>
-        </div>
-        <div className="flex min-w-0 flex-col">
-          <small className="text-[11px] text-neutral-500">{w.period} · {w.periodName(period)}</small>
-          <b className="text-[13.5px]">{w.from} {num(formatDate(period.from))} {w.to} {num(formatDate(report.shownTo))}{report.isLive ? ` (${w.soFar})` : ''}</b>
-        </div>
-      </div>
-
+    return (<ReportSheetFrame lang={lang} variant={variant} brandTagline={w.brandTagline} title={w.title[report.kind]} referenceLabel={w.reference} reference={report.reference} issuedLabel={w.issued} issued={issued}
+        partyLabel={w.client} partyName={clientName} periodCaption={<>{w.period} · {w.periodName(period)}</>}
+        period={<>{w.from} {num(formatDate(period.from))} {w.to} {num(formatDate(report.shownTo))}{report.isLive ? ` (${w.soFar})` : ''}</>} footer={w.footer}>
       <p data-pdf-break="" className="rounded-lg bg-primary/5 px-3 py-2 text-[13.5px] font-semibold text-neutral-900">{lead}</p>
 
       {cards.length > 0 && (<div data-pdf-break="" className="grid grid-cols-1 gap-2.5 @lg:grid-cols-2">{cards}</div>)}
@@ -361,6 +328,5 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
         </div>)}
       </section>
 
-      <footer data-pdf-break="" className="border-t border-border pt-2 text-[11px] text-neutral-500">{w.footer}</footer>
-    </article>);
+    </ReportSheetFrame>);
 }

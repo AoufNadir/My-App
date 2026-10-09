@@ -75,6 +75,8 @@ const render = (period: ReportPeriod, lang: ReportLang, showBalance: boolean, va
 };
 
 const firstAt = at(7, 1, 9);
+// sha256 of the HTML of every case below, recorded before V3-5 (see the end of this file).
+const CLIENT_SHEET_HTML_DIGEST = '6f55d1e30b3419a9ada6f37c00eb25756a91f6f7791e4f90b976574fd178d386';
 const range = (start: string, end: string) => rangePeriod(parseDayKey(start, false)!, parseDayKey(end, true)!);
 // Spans chosen with two dates: weeks, months and years in the table, finished or running, the whole history.
 const RANGES = [range('2026-09-10', '2026-09-24'), range('2026-08-15', '2026-10-02'), range('2026-09-20', '2026-10-10'), range('2025-06-01', '2026-10-03')];
@@ -159,4 +161,24 @@ assert.match(render(monthPeriod(2026, 8), 'ar', true, 'print', 'c3', 'Nour'), /5
 for (const lang of ['ar', 'fr'] as const)
     assert.match(render(yearPeriod(2026), lang, true, 'print'), lang === 'ar' ? /عملياتك في هذه الفترة/ : /Vos opérations sur la période/);
 
+
+// V3-5 moved the report's frame (header, client and period bar, footer) into the shared report
+// sheet. The HTML of every case must be the same, character for character, as before the move.
+{
+    const { createHash } = await import('node:crypto');
+    const digest = createHash('sha256');
+    let cases = 0;
+    for (const period of periods)
+        for (const lang of ['ar', 'fr'] as const)
+            for (const showBalance of [true, false])
+                for (const variant of ['print', 'screen'] as const) {
+                    const report = buildClientActivityReport({ clientId: 'c1', clientRows: rows, transactions, period, now: NOW });
+                    digest.update(renderToStaticMarkup(<ClientActivityReportSheet report={report} lang={lang} clientName="Client Test" showBalance={showBalance} variant={variant}/>));
+                    cases += 1;
+                }
+    const html = digest.digest('hex');
+    if (process.env.PRINT_REPORT_DIGEST)
+        console.log(`client report HTML digest (${cases} cases): ${html}`);
+    assert.equal(html, CLIENT_SHEET_HTML_DIGEST, `the client report HTML is unchanged in all ${cases} cases`);
+}
 console.log('client activity report sheet tests passed');
