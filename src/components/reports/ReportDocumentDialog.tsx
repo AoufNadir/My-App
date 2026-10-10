@@ -36,7 +36,7 @@ export function ReportDocumentDialog({ onClose, title, subtitle, languageKey, fi
     const { t, lang: appLang } = useLanguage();
     const [reportLang, setReportLang] = useReportLanguage(languageKey, appLang);
     const job = empty ? null : { fileName, title: pdfTitle(reportLang), footer: reportPageFooter(reportLang, issuedAt, reference) };
-    const { sendState, printHolder, changed, send } = useReportSender(job);
+    const { sendState, progress, printHolder, changed, send } = useReportSender(job);
     const handleSend = () => {
         if (job)
             void send(job);
@@ -53,7 +53,7 @@ export function ReportDocumentDialog({ onClose, title, subtitle, languageKey, fi
           {renderSheet(reportLang, 'screen')}
         </ReportPreview>
       </ModalContent>
-      <ReportSendFooter sendState={sendState} onClose={onClose} onSend={handleSend} showSend canSend={!empty}/>
+      <ReportSendFooter sendState={sendState} progress={progress} onClose={onClose} onSend={handleSend} showSend canSend={!empty}/>
       <ReportPrintHolder holderRef={printHolder}>
         {renderSheet(reportLang, 'print')}
       </ReportPrintHolder>

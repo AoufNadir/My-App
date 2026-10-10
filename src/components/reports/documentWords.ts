@@ -1,7 +1,7 @@
 import { translations } from '../../translations';
 import type { ReportSheetLang } from './ReportSheet';
 
-// The words of the monthly, personal-expenses and treasury reports (V3-6). A report has its own
+// The words of the monthly, personal-expenses, treasury (V3-6) and list reports (V3-7). A report has its own
 // language, chosen when it is sent, so it does not use the app's t(): `reportTranslator(lang)` reads
 // the app's wording in the report's language, for the names the app already gives to operations.
 
@@ -361,5 +361,199 @@ export const TREASURY_REPORT_WORDS: Record<ReportSheetLang, TreasuryReportWords>
         colAmount: 'Montant (DZD)',
         colNotes: 'Notes',
         empty: 'Aucun mouvement.',
+    },
+};
+
+// ---- The lists (V3-7) ----
+
+export type ClientListWords = {
+    title: string;
+    situationAt: string;
+    summaryTitle: string;
+    totalClients: string;
+    toCollect: string;
+    inTheirFavour: string;
+    clientsCount: (count: number) => string;
+    listTitle: (count: number) => string;
+    colName: string;
+    colPhone: string;
+    colEmail: string;
+    colRedotpay: string;
+    colBalance: string;
+    colStatus: string;
+    debt: string;
+    advance: string;
+    zero: string;
+    empty: string;
+};
+
+export const CLIENT_LIST_WORDS: Record<ReportSheetLang, ClientListWords> = {
+    ar: {
+        title: 'قائمة العملاء',
+        situationAt: 'الوضع في',
+        summaryTitle: 'الملخص',
+        totalClients: 'إجمالي العملاء',
+        toCollect: 'مبالغ مستحقة من العملاء',
+        inTheirFavour: 'أرصدة لصالح العملاء',
+        clientsCount: (count) => `${count} ${count === 1 ? 'عميل' : 'عملاء'}`,
+        listTitle: (count) => `قائمة العملاء (${count})`,
+        colName: 'الاسم الكامل',
+        colPhone: 'الهاتف',
+        colEmail: 'بريد Binance',
+        colRedotpay: 'معرّف RedotPay',
+        colBalance: 'الرصيد (DZD)',
+        colStatus: 'الحالة',
+        debt: 'دَين',
+        advance: 'رصيد له',
+        zero: 'صفر',
+        empty: 'لا يوجد عملاء.',
+    },
+    fr: {
+        title: 'Liste des clients',
+        situationAt: 'Situation au',
+        summaryTitle: 'Synthèse',
+        totalClients: 'Total clients',
+        toCollect: 'Montants à encaisser des clients',
+        inTheirFavour: 'Soldes en faveur des clients',
+        clientsCount: (count) => `${count} client${count > 1 ? 's' : ''}`,
+        listTitle: (count) => `Liste des clients (${count})`,
+        colName: 'Nom complet',
+        colPhone: 'Téléphone',
+        colEmail: 'Email Binance',
+        colRedotpay: 'Redotpay ID',
+        colBalance: 'Solde (DZD)',
+        colStatus: 'Statut',
+        debt: 'Dette',
+        advance: 'Avance',
+        zero: 'Nul',
+        empty: 'Aucun client.',
+    },
+};
+
+export type InvestorListWords = {
+    title: string;
+    situationAt: string;
+    summaryTitle: string;
+    capital: string;
+    investorsCount: (count: number) => string;
+    availableProfits: string;
+    totalProfit: string;
+    listTitle: (count: number) => string;
+    colName: string;
+    colCapital: string;
+    colAvailable: string;
+    colWithdrawn: string;
+    colTotalProfit: string;
+    colRoi: string;
+    colEntry: string;
+    manager: string;
+    investor: string;
+    active: string;
+    inactive: string;
+    empty: string;
+};
+
+export const INVESTOR_LIST_WORDS: Record<ReportSheetLang, InvestorListWords> = {
+    ar: {
+        title: 'قائمة المستثمرين',
+        situationAt: 'الوضع في',
+        summaryTitle: 'الملخص',
+        capital: 'رأس المال المستثمر',
+        investorsCount: (count) => `${count} ${count === 1 ? 'مستثمر' : 'مستثمرون'}`,
+        availableProfits: 'أرباح المستثمرين المتاحة',
+        totalProfit: 'الربح التراكمي',
+        listTitle: (count) => `قائمة المستثمرين (${count})`,
+        colName: 'الاسم',
+        colCapital: 'رأس المال المستثمر',
+        colAvailable: 'الربح المتاح',
+        colWithdrawn: 'إجمالي المسحوب',
+        colTotalProfit: 'الربح التراكمي',
+        colRoi: 'العائد التراكمي',
+        colEntry: 'تاريخ الدخول',
+        manager: 'المدير',
+        investor: 'مستثمر',
+        active: 'نشط',
+        inactive: 'غير نشط',
+        empty: 'لا يوجد مستثمرون.',
+    },
+    fr: {
+        title: 'Liste des investisseurs',
+        situationAt: 'Situation au',
+        summaryTitle: 'Synthèse',
+        capital: 'Capital investi',
+        investorsCount: (count) => `${count} investisseur${count > 1 ? 's' : ''}`,
+        availableProfits: 'Profits disponibles des investisseurs',
+        totalProfit: 'Profit total cumulé',
+        listTitle: (count) => `Liste des investisseurs (${count})`,
+        colName: 'Nom',
+        colCapital: 'Capital investi',
+        colAvailable: 'Profit disponible',
+        colWithdrawn: 'Total retiré',
+        colTotalProfit: 'Profit total cumulé',
+        colRoi: 'Rendement cumulé',
+        colEntry: 'Date entrée',
+        manager: 'Gérant',
+        investor: 'Investisseur',
+        active: 'Actif',
+        inactive: 'Inactif',
+        empty: 'Aucun investisseur.',
+    },
+};
+
+export type TransactionListWords = {
+    title: string;
+    situationAt: string;
+    summaryTitle: string;
+    totalOperations: string;
+    portfolioBuys: string;
+    portfolioSales: string;
+    listTitle: (count: number) => string;
+    colDate: string;
+    colType: string;
+    colQuantity: string;
+    colPrice: string;
+    colTotal: string;
+    colClient: string;
+    colNotes: string;
+    categories: Record<'portfolio' | 'client' | 'digital_service' | 'treasury', string>;
+    empty: string;
+};
+
+export const TRANSACTION_LIST_WORDS: Record<ReportSheetLang, TransactionListWords> = {
+    ar: {
+        title: 'سجل العمليات',
+        situationAt: 'الوضع في',
+        summaryTitle: 'الملخص',
+        totalOperations: 'إجمالي العمليات',
+        portfolioBuys: 'مشتريات المحفظة',
+        portfolioSales: 'مبيعات المحفظة',
+        listTitle: (count) => `سجل العمليات (${count})`,
+        colDate: 'التاريخ',
+        colType: 'النوع',
+        colQuantity: 'الكمية',
+        colPrice: 'السعر',
+        colTotal: 'المجموع (DZD)',
+        colClient: 'العميل',
+        colNotes: 'ملاحظات',
+        categories: { portfolio: 'المحفظة', client: 'العميل', digital_service: 'خدمة رقمية', treasury: 'الخزينة' },
+        empty: 'لا توجد عمليات.',
+    },
+    fr: {
+        title: 'Journal des opérations',
+        situationAt: 'Situation au',
+        summaryTitle: 'Synthèse',
+        totalOperations: 'Total opérations',
+        portfolioBuys: 'Achats portefeuille',
+        portfolioSales: 'Ventes portefeuille',
+        listTitle: (count) => `Historique des opérations (${count})`,
+        colDate: 'Date',
+        colType: 'Type',
+        colQuantity: 'Quantité',
+        colPrice: 'Prix',
+        colTotal: 'Total (DZD)',
+        colClient: 'Client',
+        colNotes: 'Notes',
+        categories: { portfolio: 'Portefeuille', client: 'Client', digital_service: 'Service numérique', treasury: 'Trésorerie' },
+        empty: 'Aucune opération.',
     },
 };

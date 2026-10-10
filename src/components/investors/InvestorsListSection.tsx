@@ -11,13 +11,14 @@ import { Investor } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { getNameInitials } from '../../utils/nameUtils';
 import type { CapitalSnapshot } from '../../utils/capitalSnapshot';
+import type { InvestorListInput } from '../../utils/listReports';
 import type { DerivedInvestor, ManagerProfitBreakdown } from '../../hooks/useInvestorEconomics';
 import type { InvestorTerm } from '../../utils/investorTerms';
 import { InvestorTermBadge } from './InvestorTermAlert';
 
-export async function exportInvestorsPdf(investors: DerivedInvestor[], capitalSnapshot?: CapitalSnapshot, managerProfitBreakdown?: ManagerProfitBreakdown) {
-    const { buildInvestorListPdf, openPdfPrintWindow } = await import('../../utils/pdfReports');
-    const rows = investors.map((inv) => ({
+/** The investor list report's rows (the manager's capital as the page shows it); fixed when the window opens. */
+export function investorListRows(investors: DerivedInvestor[], capitalSnapshot?: CapitalSnapshot, managerProfitBreakdown?: ManagerProfitBreakdown): InvestorListInput[] {
+    return investors.map((inv) => ({
         name: inv.name,
         isManager: !!inv.isManager,
         isActive: !!inv.isActive,
@@ -30,8 +31,6 @@ export async function exportInvestorsPdf(investors: DerivedInvestor[], capitalSn
         roi: inv.isManager ? null : (inv as any).roi !== null && (inv as any).roi !== undefined ? Number((inv as any).roi) : null,
         entryDate: inv.entryDate || '',
     }));
-    const report = buildInvestorListPdf(rows);
-    openPdfPrintWindow(report);
 }
 type InvestorsListSectionProps = {
     investors: DerivedInvestor[];

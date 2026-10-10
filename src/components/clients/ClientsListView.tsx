@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 import { Dropdown, DropdownItem } from '../ui/Dropdown';
@@ -22,19 +22,9 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useHeaderActionsSlot } from '../main/headerActionsSlot';
 import { formatNumber } from '../../pages/shared/pageFormat';
 import { getNameInitials } from '../../utils/nameUtils';
+import type { ClientListInput } from '../../utils/listReports';
 
-async function exportClientsPdf(clients: ClientDzd[], balances: Map<string, number>, getName: (c: ClientDzd) => string) {
-    const { buildClientListPdf, openPdfPrintWindow } = await import('../../utils/pdfReports');
-    const rows = clients.map((c) => ({
-        name: getName(c),
-        phone: c.phone,
-        email: c.binanceEmail,
-        redotpay: c.redotpayId,
-        balance: balances.get(c.id) || 0,
-    }));
-    const report = buildClientListPdf(rows);
-    openPdfPrintWindow(report);
-}
+const ClientListDialog = lazy(() => import('../reports/documents/DocumentReportDialogs').then((module) => ({ default: module.ClientListDialog })));
 // The French labels stay as aliases, so a file exported in French maps itself in either language.
 const CLIENT_IMPORT_FIELDS: Array<Omit<CsvFieldSpec, 'label'> & { labelKey: string }> = [
     { key: 'fullName', labelKey: 'transactions.fullName', required: true, aliases: ['nom complet', 'name', 'nom', 'fullname'] },
@@ -166,7 +156,15 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
         setClientSortMode(id === clientSortMode && !overdueOnly ? 'all' : id as ClientSortMode);
     };
 
-    const exportPdf = () => exportClientsPdf(filteredClientsDzd, clientBalances, getClientFullName);
+    // The client list report: its rows are fixed when the window opens.
+    const [listReport, setListReport] = useState<ClientListInput[] | null>(null);
+    const exportPdf = () => setListReport(filteredClientsDzd.map((client) => ({
+        name: getClientFullName(client),
+        phone: client.phone,
+        email: client.binanceEmail,
+        redotpay: client.redotpayId,
+        balance: clientBalances.get(client.id) || 0,
+    })));
     const importFields = useMemo<CsvFieldSpec[]>(() => CLIENT_IMPORT_FIELDS.map(({ labelKey, ...field }) => ({ ...field, label: labelKey.includes('.') ? t(labelKey) as string : labelKey })), [t]);
     const headerIconClass = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-700 transition-colors hover:bg-neutral-100 active:scale-95';
     const activeTier = activeTierFilter ? LOYALTY_CONFIG[activeTierFilter as TierKey] : null;
@@ -308,6 +306,10 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
       </SectionCard>
 
       {onImportClients && (<CsvImportSheet isOpen={importOpen} onClose={() => setImportOpen(false)} title={t('clients.importClients')} fields={importFields} onConfirm={onImportClients}/>)}
+
+      {listReport && (<Suspense fallback={null}>
+          <ClientListDialog onClose={() => setListReport(null)} rows={listReport}/>
+        </Suspense>)}
 
       <OverdueDebtsModal isOpen={isOverdueModalOpen} onClose={() => setIsOverdueModalOpen(false)} overdueDebtors={overdueDebtClients} onOpenClient={setSelectedClientId}/>
 

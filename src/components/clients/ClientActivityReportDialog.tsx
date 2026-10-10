@@ -54,7 +54,7 @@ export function ClientActivityReportDialog({ onClose, clientId, clientName, clie
         footer: reportPageFooter(reportLang, report.issuedAt, report.reference),
     } : null;
     // The PDF is made in the background once the report is on screen: « Envoyer » only shares it.
-    const { sendState, printHolder, changed, send } = useReportSender(job);
+    const { sendState, progress, printHolder, changed, send } = useReportSender(job);
 
     const choose = (start: string, end: string) => {
         setRange({ start, end });
@@ -93,7 +93,7 @@ export function ClientActivityReportDialog({ onClose, clientId, clientName, clie
               </ReportPreview>)}
           </>)}
       </ModalContent>
-      <ReportSendFooter sendState={sendState} onClose={onClose} onSend={handleSend} showSend={hasOperations} canSend={Boolean(report)}/>
+      <ReportSendFooter sendState={sendState} progress={progress} onClose={onClose} onSend={handleSend} showSend={hasOperations} canSend={Boolean(report)}/>
       {hasOperations && report && (<ReportPrintHolder holderRef={printHolder}>
           <ClientActivityReportSheet report={report} lang={reportLang} clientName={clientName} showBalance={showBalance} variant="print"/>
         </ReportPrintHolder>)}

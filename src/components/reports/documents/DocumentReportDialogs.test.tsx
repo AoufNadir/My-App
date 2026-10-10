@@ -9,11 +9,12 @@ import { LanguageProvider } from '../../../contexts/LanguageContext';
 import type { ClientDzd, TreasuryTx, Tx } from '../../../types';
 import { buildMonthlyReport } from '../../../utils/monthlyReport';
 import { computePamLedger } from '../../../utils/pamLedger';
-import { EXPENSES_REPORT_WORDS, MONTHLY_REPORT_WORDS, TREASURY_REPORT_WORDS } from '../documentWords';
-import { ExpensesReportDialog, MonthlyReportDialog, TreasuryReportDialog } from './DocumentReportDialogs';
+import { CLIENT_LIST_WORDS, EXPENSES_REPORT_WORDS, INVESTOR_LIST_WORDS, MONTHLY_REPORT_WORDS, TRANSACTION_LIST_WORDS, TREASURY_REPORT_WORDS } from '../documentWords';
+import { ClientListDialog, ExpensesReportDialog, InvestorListDialog, MonthlyReportDialog, TransactionListDialog, TreasuryReportDialog } from './DocumentReportDialogs';
 import { MonthlyReportSheet } from './MonthlyReportSheet';
 
-// The windows of the monthly, personal-expenses and treasury reports (V3-6): the report's language
+// The windows of the monthly, personal-expenses and treasury reports (V3-6) and of the client list, the
+// investor list and the operations log (V3-7): the report's language
 // (the app's until a choice is made, remembered per kind of report), the preview and the A4 sheet
 // the PDF is made from, a send button, and nothing that can write.
 
@@ -44,6 +45,9 @@ const expenses: TreasuryTx[] = [
     { id: 'e1', timestamp: at(2026, 10, 3, 12), date: dayOf(at(2026, 10, 3, 12)), time: timeOf(at(2026, 10, 3, 12)), type: 'Retrait', origin: 'personal_expense', source: 'Caisse', amount: 4_000, notes: 'Courses' },
 ];
 const treasuryRows = [{ date: '03/10/2026', time: '12:00', type: 'Ajout', source: 'Caisse', amount: 100_000, notes: 'Règlement client' }];
+const clientListRows = [{ name: 'Sofiane Haddad', phone: '0550 123 456', balance: -12_500 }, { name: 'Nadia Cherif', balance: 8_000 }];
+const investorListRows = [{ name: 'Karim Benali', isManager: false, isActive: true, capitalInvested: 500_000, availableProfit: 12_000, withdrawnProfit: 3_000, totalProfit: 15_000, roi: 3, entryDate: '2026-03-01' }];
+const transactionListRows = [{ category: 'portfolio' as const, date: '03/10/2026', time: '12:00', type: 'Vente USDT', currency: 'USDT', quantity: 400, price: 255, totalDzd: 102_000, client: 'Sofiane Haddad', notes: '', tags: ['credit'], side: 'sell' as const }];
 
 // The sheets speak one language only (the words of the other one never appear).
 {
@@ -60,6 +64,9 @@ const treasuryRows = [{ date: '03/10/2026', time: '12:00', type: 'Ajout', source
 const windows = [
     { name: 'monthly', key: 'monthly_report_lang', open: (appLang: string) => { storage.set('app_lang', appLang); return renderToStaticMarkup(<LanguageProvider><MonthlyReportDialog onClose={() => {}} input={monthlyInput} now={NOW}/></LanguageProvider>); }, ar: [MONTHLY_REPORT_WORDS.ar.summaryTitle], fr: [MONTHLY_REPORT_WORDS.fr.summaryTitle], title: { ar: 'التقرير الشهري', fr: 'Rapport mensuel' } },
     { name: 'expenses', key: 'expenses_report_lang', open: (appLang: string) => { storage.set('app_lang', appLang); return renderToStaticMarkup(<LanguageProvider><ExpensesReportDialog onClose={() => {}} periodKey="month" expenses={expenses} managerProfitAvailable={50_000} now={NOW}/></LanguageProvider>); }, ar: [EXPENSES_REPORT_WORDS.ar.summaryTitle], fr: [EXPENSES_REPORT_WORDS.fr.summaryTitle], title: { ar: 'تقرير المصاريف', fr: 'Rapport de dépenses' } },
+    { name: 'client list', key: 'client_list_report_lang', open: (appLang: string) => { storage.set('app_lang', appLang); return renderToStaticMarkup(<LanguageProvider><ClientListDialog onClose={() => {}} rows={clientListRows} now={NOW}/></LanguageProvider>); }, ar: [CLIENT_LIST_WORDS.ar.summaryTitle], fr: [CLIENT_LIST_WORDS.fr.summaryTitle], title: { ar: 'قائمة العملاء', fr: 'Liste des clients' } },
+    { name: 'investor list', key: 'investor_list_report_lang', open: (appLang: string) => { storage.set('app_lang', appLang); return renderToStaticMarkup(<LanguageProvider><InvestorListDialog onClose={() => {}} rows={investorListRows} now={NOW}/></LanguageProvider>); }, ar: [INVESTOR_LIST_WORDS.ar.summaryTitle], fr: [INVESTOR_LIST_WORDS.fr.summaryTitle], title: { ar: 'قائمة المستثمرين', fr: 'Liste des investisseurs' } },
+    { name: 'operations log', key: 'transaction_list_report_lang', open: (appLang: string) => { storage.set('app_lang', appLang); return renderToStaticMarkup(<LanguageProvider><TransactionListDialog onClose={() => {}} rows={transactionListRows} now={NOW}/></LanguageProvider>); }, ar: [TRANSACTION_LIST_WORDS.ar.summaryTitle], fr: [TRANSACTION_LIST_WORDS.fr.summaryTitle], title: { ar: 'سجل العمليات', fr: 'Journal des opérations' } },
     { name: 'treasury', key: 'treasury_report_lang', open: (appLang: string) => { storage.set('app_lang', appLang); return renderToStaticMarkup(<LanguageProvider><TreasuryReportDialog onClose={() => {}} rows={treasuryRows} balances={{ caisse: 100_000, baridi: 0 }} now={NOW}/></LanguageProvider>); }, ar: [TREASURY_REPORT_WORDS.ar.balancesTitle], fr: [TREASURY_REPORT_WORDS.fr.balancesTitle], title: { ar: 'تقرير الخزينة', fr: 'Rapport de trésorerie' } },
 ];
 for (const window of windows) {
@@ -119,4 +126,13 @@ for (const window of windows) {
     assert.ok(seen.size > 10, 'the walk followed the imports');
 }
 
-console.log('monthly, expenses and treasury report windows tests passed');
+// A list with nothing in it has no send button to press.
+{
+    storage.set('app_lang', 'fr');
+    storage.delete('client_list_report_lang');
+    const empty = renderToStaticMarkup(<LanguageProvider><ClientListDialog onClose={() => {}} rows={[]} now={NOW}/></LanguageProvider>);
+    assert.ok(empty.includes(CLIENT_LIST_WORDS.fr.empty), 'an empty client list says so');
+    assert.match(empty, /<button[^>]*disabled=""[^>]*>[\s\S]*?Envoyer le PDF/, 'an empty list cannot be sent');
+}
+
+console.log('monthly, expenses, treasury and list report windows tests passed');

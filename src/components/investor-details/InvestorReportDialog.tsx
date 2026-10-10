@@ -58,7 +58,7 @@ export function InvestorReportDialog({ onClose, investorId, investorName, prepar
         footer: reportPageFooter(reportLang, report.issuedAt, report.reference),
     } : null;
     // The PDF is made in the background once the report is on screen: « Envoyer » only shares it.
-    const { sendState, printHolder, changed, send } = useReportSender(job);
+    const { sendState, progress, printHolder, changed, send } = useReportSender(job);
 
     const choose = (start: string, end: string) => {
         setRange({ start, end });
@@ -83,7 +83,7 @@ export function InvestorReportDialog({ onClose, investorId, investorName, prepar
             <InvestorReportSheet report={report} lang={reportLang} variant="screen"/>
           </ReportPreview>)}
       </ModalContent>
-      <ReportSendFooter sendState={sendState} onClose={onClose} onSend={handleSend} showSend canSend={Boolean(report) && !catchingUp}/>
+      <ReportSendFooter sendState={sendState} progress={progress} onClose={onClose} onSend={handleSend} showSend canSend={Boolean(report) && !catchingUp}/>
       {report && (<ReportPrintHolder holderRef={printHolder}>
           <InvestorReportSheet report={report} lang={reportLang} variant="print"/>
         </ReportPrintHolder>)}

@@ -46,6 +46,7 @@ export function useReportLanguage(storageKey: string, appLang: string): [ReportS
 }
 
 export type ReportSendState = 'idle' | 'busy' | 'ready' | 'downloaded' | 'error';
+export type ReportSendProgress = { done: number; count: number };
 
 export type ReportPdfJob = { fileName: string; title: string; footer?: PdfPageFooter };
 
@@ -67,6 +68,8 @@ const PREPARE_DELAY_MS = 1000;
  */
 export function useReportSender(job: ReportPdfJob | null = null) {
     const [sendState, setSendState] = useState<ReportSendState>('idle');
+    // How far a long PDF has got, shown on the button while the reader waits for it.
+    const [progress, setProgress] = useState<ReportSendProgress | null>(null);
     const [preparer] = useState(createPdfPreparer);
     const printHolder = useRef<HTMLDivElement | null>(null);
     const latestJob = useRef(job);
@@ -79,7 +82,19 @@ export function useReportSender(job: ReportPdfJob | null = null) {
         preparer.invalidate();
         setSendState('idle');
     };
-    const render = (sheet: HTMLElement, current: ReportPdfJob) => () => renderReportPdf(sheet, current.title, current.footer);
+    // Redrawing the window on every page of a long report would slow the pages down: only about ten updates.
+    const reportProgress = (done: number, count: number) => {
+        if (count > 1 && done < count && done % Math.max(1, Math.ceil(count / 10)) === 0)
+            setProgress({ done, count });
+    };
+    const render = (sheet: HTMLElement, current: ReportPdfJob) => async () => {
+        try {
+            return await renderReportPdf(sheet, current.title, current.footer, reportProgress);
+        }
+        finally {
+            setProgress(null);
+        }
+    };
     const afterShare = (outcome: ShareOutcome) => setSendState(outcome === 'needsTap' ? 'ready' : outcome === 'downloaded' ? 'downloaded' : 'idle');
 
     // After every render: when the sheet shows something new (other dates, language, data that
@@ -141,7 +156,7 @@ export function useReportSender(job: ReportPdfJob | null = null) {
             setSendState('error');
         }
     };
-    return { sendState, printHolder, changed, send };
+    return { sendState, progress, printHolder, changed, send };
 }
 
 type ReportRangePickerProps = {
@@ -203,6 +218,8 @@ export function ReportPreview({ label, children }: { label: string; children?: R
 
 type ReportSendFooterProps = {
     sendState: ReportSendState;
+    /** Pages made so far, for a long report */
+    progress?: ReportSendProgress | null;
     onClose: () => void;
     onSend: () => void;
     /** No send button at all (nothing to report) */
@@ -212,9 +229,10 @@ type ReportSendFooterProps = {
 };
 
 /** What happened to the PDF stays in sight above the buttons, however far the preview is scrolled. */
-export function ReportSendFooter({ sendState, onClose, onSend, showSend, canSend }: ReportSendFooterProps) {
+export function ReportSendFooter({ sendState, progress, onClose, onSend, showSend, canSend }: ReportSendFooterProps) {
     const { t } = useLanguage();
-    const sendLabel = sendState === 'busy' ? t('clients.activityReportPreparing') : t('clients.activityReportSend');
+    // « 12/75 » alone: next to the spinner it fits the button, and the words would be cut.
+    const sendLabel = sendState === 'busy' ? (progress ? `${progress.done}/${progress.count}` : t('clients.activityReportPreparing')) : t('clients.activityReportSend');
     return (<OperationFooter reason={sendState === 'ready' ? t('clients.activityReportReady') : sendState === 'downloaded' ? t('clients.activityReportDownloaded') : sendState === 'error' ? t('clients.activityReportFailed') : undefined} reasonTone={sendState === 'error' ? 'fix' : 'missing'}>
         <Button variant="outline" onClick={onClose}>{t('common.close')}</Button>
         {showSend && (<Button onClick={onSend} loading={sendState === 'busy'} disabled={!canSend}>

@@ -82,11 +82,37 @@ const canvasToJpeg = (canvas: HTMLCanvasElement, quality: number) => new Promise
 type ToCanvas = typeof import('html-to-image').toCanvas;
 type CaptureOptions = NonNullable<Parameters<ToCanvas>[1]>;
 
+/**
+ * The CSS properties the capture copies onto every element it draws. By default html-to-image
+ * copies all of them (about 350 per element): a page of a long list became a 10 MB picture of
+ * styles that took seconds to read back. The report sheets use only these, so a page is a third
+ * of the size and about a third faster, with the very same pixels (checked on every report).
+ */
+export const CAPTURE_STYLE_PROPERTIES: ReadonlyArray<string> = [
+    'display', 'position', 'top', 'right', 'bottom', 'left', 'float', 'clear', 'z-index', 'box-sizing', 'visibility',
+    'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height', 'aspect-ratio',
+    'margin-top', 'margin-right', 'margin-bottom', 'margin-left', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+    'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
+    'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
+    'border-top-left-radius', 'border-top-right-radius', 'border-bottom-left-radius', 'border-bottom-right-radius',
+    'border-collapse', 'border-spacing', 'table-layout', 'caption-side', 'empty-cells', 'vertical-align',
+    'color', 'background-color', 'background-image', 'background-size', 'background-position', 'background-repeat', 'opacity', 'box-shadow',
+    'font-family', 'font-size', 'font-weight', 'font-style', 'font-variant-numeric', 'font-variant-ligatures', 'font-feature-settings', 'font-kerning', 'font-variation-settings',
+    'line-height', 'letter-spacing', 'word-spacing', 'text-align', 'text-align-last', 'text-indent', 'text-transform',
+    'text-decoration-line', 'text-decoration-color', 'text-decoration-style', 'text-overflow', 'text-wrap',
+    'white-space', 'word-break', 'overflow-wrap', 'overflow-x', 'overflow-y', 'direction', 'unicode-bidi', 'writing-mode',
+    'flex-direction', 'flex-wrap', 'flex-grow', 'flex-shrink', 'flex-basis', 'align-items', 'align-self', 'align-content',
+    'justify-content', 'justify-items', 'justify-self', 'gap', 'row-gap', 'column-gap', 'order',
+    'grid-template-columns', 'grid-template-rows', 'grid-column-start', 'grid-column-end', 'grid-row-start', 'grid-row-end', 'grid-auto-flow', 'grid-auto-columns', 'grid-auto-rows',
+    'object-fit', 'list-style-type', 'list-style-position', 'transform', 'transform-origin', 'fill', 'stroke', 'stroke-width',
+];
+
 /** One capture, as sharp as the phone allows: twice the CSS pixels (or `ratios`), then less if the canvas is refused. */
 async function capture(toCanvas: ToCanvas, sheet: HTMLElement, options: CaptureOptions, ratios: ReadonlyArray<number> = [2, 1.5, 1]): Promise<HTMLCanvasElement> {
     for (const pixelRatio of ratios) {
         try {
-            const canvas = await toCanvas(sheet, { ...options, pixelRatio });
+            const canvas = await toCanvas(sheet, { includeStyleProperties: [...CAPTURE_STYLE_PROPERTIES], ...options, pixelRatio });
             if (canvas.width > 0 && canvas.height > 0)
                 return canvas;
         }
@@ -118,6 +144,24 @@ export function freezeListColumns(sheet: HTMLElement): () => void {
     return () => undo.forEach((step) => step());
 }
 
+/**
+ * The screen lets a wide table scroll inside its box. A capture has no scrollbar to show, but the
+ * copy it draws can be a fraction of a pixel taller than the box and then draws one (and cuts the
+ * last column and row). So during the capture a box that only differs by a hair clips the hair; a
+ * table really wider than its box is left to show all of itself rather than be cut.
+ */
+export function releaseTableScroll(sheet: HTMLElement): () => void {
+    const undo: Array<() => void> = [];
+    sheet.querySelectorAll<HTMLTableElement>('table').forEach((table) => {
+        const box = table.parentElement;
+        if (!box)
+            return;
+        box.style.overflow = box.scrollWidth - box.clientWidth > 2 ? 'visible' : 'hidden';
+        undo.push(() => box.style.removeProperty('overflow'));
+    });
+    return () => undo.forEach((step) => step());
+}
+
 /** The line under every page of a report longer than one page, in the report's language. */
 export type PdfPageFooter = {
     lang: 'ar' | 'fr';
@@ -131,13 +175,16 @@ export type PdfPageFooter = {
  * copies every element's laid-out height, so the list must really be that short), so a long report
  * needs no canvas taller than a page and each page costs about the same. Runs in the browser only.
  */
-export async function renderReportPdf(sheet: HTMLElement, title: string, footer?: PdfPageFooter): Promise<Blob> {
+export async function renderReportPdf(sheet: HTMLElement, title: string, footer?: PdfPageFooter, onProgress?: (done: number, count: number) => void): Promise<Blob> {
     if (document.fonts?.ready)
         await document.fonts.ready;
     const { toCanvas, getFontEmbedCSS } = await import('html-to-image');
     const unfreeze = freezeListColumns(sheet);
+    const unrelease = releaseTableScroll(sheet);
+    let away = rowsAway([]);
     try {
         const { width, slices, rows } = planSheetPages(sheet);
+        away = rowsAway(rows);
         // The fonts are read once for all the pages.
         let fontEmbedCSS: string | undefined;
         try {
@@ -147,13 +194,47 @@ export async function renderReportPdf(sheet: HTMLElement, title: string, footer?
             console.warn('Report fonts could not be read once:', error);
         }
         const pages: PdfImagePage[] = [];
-        for (let index = 0; index < slices.length; index++)
-            pages.push(await renderPage(toCanvas, sheet, { width, rows, slice: slices[index], index, count: slices.length, fontEmbedCSS, footer }));
+        for (let index = 0; index < slices.length; index++) {
+            pages.push(await renderPage(toCanvas, sheet, { width, rows, slice: slices[index], index, count: slices.length, fontEmbedCSS, footer, away }));
+            onProgress?.(index + 1, slices.length);
+        }
         return new Blob([buildImagePdf(pages, { title })], { type: 'application/pdf' });
     }
     finally {
+        away.restore();
+        unrelease();
         unfreeze();
     }
+}
+
+/**
+ * The list rows that are out of the layout while a page is captured. A page shows and hides only
+ * the rows that change from the page before, and all come back at the end: laying a table of
+ * a thousand rows out again on every page cost more than half a second each time.
+ */
+export function rowsAway(rows: ReadonlyArray<{ element: HTMLElement }>) {
+    const hidden = new Set<number>();
+    return {
+        /** Hides exactly these rows, and returns their elements (what the capture must leave out). */
+        set(skip: ReadonlySet<number>): Set<Node> {
+            for (const row of [...hidden]) {
+                if (!skip.has(row)) {
+                    rows[row].element.style.removeProperty('display');
+                    hidden.delete(row);
+                }
+            }
+            for (const row of skip) {
+                if (!hidden.has(row)) {
+                    rows[row].element.style.display = 'none';
+                    hidden.add(row);
+                }
+            }
+            return new Set<Node>([...hidden].map((row) => rows[row].element));
+        },
+        restore() {
+            this.set(new Set());
+        },
+    };
 }
 
 /**
@@ -168,7 +249,7 @@ export function planSheetPages(sheet: HTMLElement): { width: number; slices: Pdf
     return { width: sheet.offsetWidth || PDF_PAGE_WIDTH_PX, slices: planPdfPages(height, pdfBreakPoints(sheet)), rows: pdfRowBoxes(sheet) };
 }
 
-type PageJob = { width: number; rows: ReadonlyArray<PdfRowBox & { element: HTMLElement }>; slice: PdfSlice; index: number; count: number; fontEmbedCSS?: string; footer?: PdfPageFooter };
+type PageJob = { width: number; rows: ReadonlyArray<PdfRowBox & { element: HTMLElement }>; slice: PdfSlice; index: number; count: number; fontEmbedCSS?: string; footer?: PdfPageFooter; away: ReturnType<typeof rowsAway> };
 
 /** What is written under a page: its number, and with the report's words its issue date and reference. */
 export function pdfPageFooterText(index: number, count: number, footer?: PdfPageFooter): string {
@@ -176,30 +257,20 @@ export function pdfPageFooterText(index: number, count: number, footer?: PdfPage
 }
 
 /** One A4 page: its part of the sheet, drawn under the top margin (from page 2), with its number. */
-async function renderPage(toCanvas: ToCanvas, sheet: HTMLElement, { width, rows, slice, index, count, fontEmbedCSS, footer }: PageJob): Promise<PdfImagePage> {
+async function renderPage(toCanvas: ToCanvas, sheet: HTMLElement, { width, rows, slice, index, count, fontEmbedCSS, footer, away }: PageJob): Promise<PdfImagePage> {
     const { skip, shift } = pageRowWindow(rows, slice);
-    const away = [...skip].map((row) => rows[row].element);
-    const skipped = new Set<Node>(away);
-    away.forEach((element) => {
-        element.style.display = 'none';
+    const skipped = away.set(skip);
+    const shot = await capture(toCanvas, sheet, {
+        width,
+        height: slice.bottom - slice.top,
+        backgroundColor: '#ffffff',
+        // The logo comes from the app's offline cache: no cache-busting query.
+        cacheBust: false,
+        ...(fontEmbedCSS ? { fontEmbedCSS } : {}),
+        filter: (node) => !skipped.has(node),
+        // Technical export override: the sheet keeps its own height and is moved up to the page's first line.
+        style: { margin: '0', marginTop: `${-(slice.top - shift)}px`, height: 'auto', transform: 'none' },
     });
-    let shot: HTMLCanvasElement;
-    try {
-        shot = await capture(toCanvas, sheet, {
-            width,
-            height: slice.bottom - slice.top,
-            backgroundColor: '#ffffff',
-            // The logo comes from the app's offline cache: no cache-busting query.
-            cacheBust: false,
-            ...(fontEmbedCSS ? { fontEmbedCSS } : {}),
-            filter: (node) => !skipped.has(node),
-            // Technical export override: the sheet keeps its own height and is moved up to the page's first line.
-            style: { margin: '0', marginTop: `${-(slice.top - shift)}px`, height: 'auto', transform: 'none' },
-        });
-    }
-    finally {
-        away.forEach((element) => element.style.removeProperty('display'));
-    }
     const scale = shot.width / width;
     const pageWidth = shot.width;
     const pageHeight = Math.round((pageWidth * PDF_PAGE_HEIGHT_PX) / PDF_PAGE_WIDTH_PX);
