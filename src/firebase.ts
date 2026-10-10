@@ -233,6 +233,8 @@ const FINANCIAL_COLLECTIONS = new Set([
     'usdt_txs', 'dzd_clients', 'dzd_client_txs', 'treasury_txs', 'treasury_cards',
     'digital_service_txs', 'manual_assets', 'manual_asset_clients', 'actifTransactions',
     'investors', 'investor_transactions',
+    // A count compares with the books: made on stale balances it would show false differences.
+    'cash_counts',
 ]);
 export type FinancialWrite = {
     path: string;

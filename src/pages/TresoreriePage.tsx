@@ -1,6 +1,8 @@
 import { Fragment, lazy, Suspense, useMemo, useState } from 'react';
 import { TreasuryCard, TreasuryTx } from '../types';
 import { TreasurySummarySection } from '../components/treasury/TreasurySummarySection';
+import { CashCountSection } from '../components/treasury/CashCountSection';
+import { expectedCashCount } from '../utils/cashCount';
 import { TreasuryCollectionsSection } from '../components/treasury/TreasuryCollectionsSection';
 import { CapitalOverviewCard } from '../components/financial/CapitalOverviewCard';
 import { ListRow, SectionCard } from '../components/cards';
@@ -64,7 +66,7 @@ type TresoreriePageProps = {
     onOpenServices?: () => void;
     [key: string]: any;
 };
-export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown, capitalSnapshot, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, treasuryTransactions = [], onOpenServices }: TresoreriePageProps) {
+export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown, capitalSnapshot, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, treasuryTransactions = [], onOpenServices, userDocRef, portfolioStats }: TresoreriePageProps) {
     const { t } = useLanguage();
     const weekdays = t('common.weekdaysNarrow') as unknown as string[];
 
@@ -108,6 +110,9 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
       <CapitalOverviewCard t={t} capitalSnapshot={capitalSnapshot} investorBreakdown={investorBreakdown} showBreakdown/>
 
       <TreasurySummarySection caisseBalance={caisseBalance} baridiBalance={baridiBalance} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} servicesCapitalImpact={capitalSnapshot.servicesCapitalImpact} openTreasuryBalanceEditModal={openTreasuryBalanceEditModal} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string} onOpenServices={onOpenServices}/>
+
+      {/* V5-2: the count, right under the balances it checks. */}
+      <CashCountSection userDocRef={userDocRef} expected={expectedCashCount({ caisse: caisseBalance, baridi: baridiBalance, usdt: portfolioStats?.usdt ?? { available: 0 }, eur: portfolioStats?.eur ?? { available: 0 } })}/>
 
       {weeklyFlow.days.some((d) => d.cashIn > 0 || d.cashOut > 0) && (<SectionCard title={t('treasury.flow7Days')}>
           <div aria-hidden="true" className="flex h-20 items-end gap-1">

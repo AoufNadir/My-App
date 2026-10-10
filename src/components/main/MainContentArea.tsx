@@ -190,6 +190,7 @@ function MainContentAreaComponent({ t, dailyOverview, userDocRef, setAlert, isFi
                     {view === 'tresorerie' && (<TresoreriePage {...{
             caisseBalance: treasuryStats.caisse,
             baridiBalance: treasuryStats.baridi,
+            userDocRef,
             investorLiability,
             investorBreakdown,
             capitalSnapshot,
