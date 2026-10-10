@@ -1012,6 +1012,7 @@ export const translations = {
             deleteDesc: 'Seul l’enregistrement de l’inventaire est supprimé. Aucun solde ne change.',
             investigator: {
                 title: 'Pistes de l’enquêteur',
+                jump: '↓ Voir les pistes de l’enquêteur ({count})',
                 note: 'Ce sont des suggestions. Rien n’est écrit tant que vous n’avez pas appuyé sur Enregistrer dans la fenêtre qui s’ouvre.',
                 boxCaisse: 'la Caisse',
                 boxBaridi: 'BaridiMob',
@@ -2764,6 +2765,7 @@ export const translations = {
             deleteDesc: 'يُحذف سجل الجرد فقط. لا يتغير أي رصيد.',
             investigator: {
                 title: 'اقتراحات المحقّق',
+                jump: '↓ عرض اقتراحات المحقّق ({count})',
                 note: 'اقتراحات فقط. لا يُكتب شيء قبل أن تضغط «حفظ» في النافذة التي تُفتح.',
                 boxCaisse: 'الصندوق',
                 boxBaridi: 'BaridiMob',

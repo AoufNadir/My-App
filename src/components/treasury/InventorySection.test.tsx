@@ -29,7 +29,7 @@ const render = (lang: Lang, props: Partial<React.ComponentProps<typeof Inventory
     storage.set('app_lang', lang);
     return renderToStaticMarkup(<LanguageProvider><InventorySection expected={expected} checks={[]} corrections={[]} ready onSave={noop} onDelete={noop} onCorrect={noop} {...props}/></LanguageProvider>);
 };
-const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/[\s  ]+/g, ' ');
+const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/[\u2066\u2069]/g, '').replace(/[\s  ]+/g, ' ');
 const count = (html: string, needle: string) => html.split(needle).length - 1;
 
 for (const lang of ['fr', 'ar'] as const) {

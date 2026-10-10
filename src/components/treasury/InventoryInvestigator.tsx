@@ -47,10 +47,12 @@ export function InventoryInvestigator({ suggestions, ready, onAction }: Inventor
     const { t } = useLanguage();
     const word = (key: string, values: Record<string, string> = {}) =>
         Object.entries(values).reduce((out, [name, value]) => out.replace(new RegExp(`\\{${name}\\}`, 'g'), value), String(t(`inventory.investigator.${key}`)));
+    // An amount inside an Arabic sentence keeps its own left-to-right order (« 5 000 DZD », not « DZD 5 000 »).
+    const ltr = (value: string) => `\u2066${value}\u2069`;
     // Whole dinars without decimals, otherwise always two (same rule as the counts above).
-    const dzd = (value: number) => formatMoney(value, 'DZD', Number.isInteger(value) ? { min: 0, max: 0 } : { min: 2, max: 2 });
-    const price = (value: number) => formatMoney(value, 'DZD', { min: 2, max: 2 });
-    const units = (value: number) => formatNumber(value, { min: 2, max: 2 });
+    const dzd = (value: number) => ltr(formatMoney(value, 'DZD', Number.isInteger(value) ? { min: 0, max: 0 } : { min: 2, max: 2 }));
+    const price = (value: number) => ltr(formatMoney(value, 'DZD', { min: 2, max: 2 }));
+    const units = (value: number) => ltr(formatNumber(value, { min: 2, max: 2 }));
     const box = (account: CashAccount) => word(account === 'caisse' ? 'boxCaisse' : 'boxBaridi');
     const otherBox = (account: CashAccount): CashAccount => (account === 'caisse' ? 'baridi' : 'caisse');
     const operationLabel = (type: string) => (OPERATION_LABEL_KEYS[type] ? word(OPERATION_LABEL_KEYS[type]) : type);
@@ -83,7 +85,7 @@ export function InventoryInvestigator({ suggestions, ready, onAction }: Inventor
                         <p className="text-xs text-neutral-600">{word('candidateMove', { from: box(otherBox(candidate.shouldBe)), to: box(candidate.shouldBe) })}</p>
                         {candidate.linked && (<p className="text-xs text-neutral-500">{word('candidateLinked', {
                             kind: word(candidate.linked.type === 'buy' ? 'kindBuy' : 'kindSell'),
-                            quantity: formatNumber(candidate.linked.quantity, { min: 0, max: 2 }),
+                            quantity: ltr(formatNumber(candidate.linked.quantity, { min: 0, max: 2 })),
                             currency: candidate.linked.currency,
                         })}</p>)}
                       </div>
@@ -125,7 +127,7 @@ export function InventoryInvestigator({ suggestions, ready, onAction }: Inventor
     const unexplained = (s: UnexplainedSuggestion, index: number) => card(`gap-${index}`, <>
         <p className="text-sm font-bold text-neutral-900">{word('unexplainedTitle', {
             account: String(t(ACCOUNT_LABEL_KEYS[s.account])),
-            gap: formatMoney(s.gap, ACCOUNT_CURRENCY[s.account], { min: 0, max: 2, showSign: true }),
+            gap: ltr(formatMoney(s.gap, ACCOUNT_CURRENCY[s.account], { min: 0, max: 2, showSign: true })),
         })}</p>
         <p className="text-xs text-neutral-600">
           {s.count === 0

@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react';
 import { SectionCard } from '../cards';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -78,10 +78,12 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
     const [justSaved, setJustSaved] = useState(false);
     const [showAllMonths, setShowAllMonths] = useState(false);
     const [checkToDelete, setCheckToDelete] = useState<InventoryCheck | null>(null);
+    const investigatorRef = useRef<HTMLDivElement>(null);
 
     // Whole dinars without decimals, otherwise always two (never « 120 000,4 »).
     const decimals = (value: number, account: InventoryAccount) => (isDzdAccount(account) && Number.isInteger(value) ? { min: 0, max: 0 } : { min: 2, max: 2 });
-    const money = (value: number, account: InventoryAccount) => formatMoney(value, ACCOUNT_CURRENCY[account], decimals(value, account));
+    // Isolated left to right, so an amount inside an Arabic sentence reads « 5 000 DZD », not « DZD 5 000 ».
+    const money = (value: number, account: InventoryAccount) => `\u2066${formatMoney(value, ACCOUNT_CURRENCY[account], decimals(value, account))}\u2069`;
     
     // What was typed: empty means not counted; text that is not a plain non-negative amount is flagged.
     const parsed = useMemo(() => {
@@ -190,6 +192,9 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
           <p className="mt-0.5 text-sm font-normal text-neutral-500">{t('inventory.dialogHint')}</p>
         </ModalHeader>
         <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
+          {suggestions.length > 0 && (<button type="button" onClick={() => investigatorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="sticky top-0 z-10 w-full rounded-button border border-border bg-surface px-3 py-2 text-start text-xs font-bold text-primary shadow-card">
+              {text('inventory.investigator.jump', { count: String(suggestions.length) })}
+            </button>)}
           {!ready && (<p role="status" className="rounded-button bg-warning-bg px-3 py-2 text-xs font-semibold text-warning">{t('inventory.waitingSync')}</p>)}
           {INVENTORY_ACCOUNTS.map((account) => {
               const row = rowByAccount.get(account);
@@ -210,7 +215,7 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
                 </div>
               </Fragment>);
           })}
-          <InventoryInvestigator suggestions={suggestions} ready={ready} onAction={investigate}/>
+          <div ref={investigatorRef}><InventoryInvestigator suggestions={suggestions} ready={ready} onAction={investigate}/></div>
           <Input label={t('inventory.note') as string} value={note} onChange={(event) => { setNote(event.target.value); setJustSaved(false); }} placeholder={t('inventory.notePlaceholder') as string}/>
           {rows.length === 0 && !hasInvalid && (<p className="text-xs text-neutral-500">{t('inventory.nothingCounted')}</p>)}
           <p className="text-xs text-neutral-500">{t('inventory.saveHint')}</p>
