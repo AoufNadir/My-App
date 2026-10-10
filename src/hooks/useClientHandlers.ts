@@ -12,6 +12,7 @@ import { combineClientPositionDeltas, transitionClientBalanceDelta, type ClientP
 import { CLIENT_TX_PAYMENT_MADE, CLIENT_TX_PAYMENT_RECEIVED, clientTxEditAmountInput, normalizeClientTxType, paymentStatusForExistingClientTx, planClientTxSave } from '../utils/clientTxEdit';
 import { operationStamp } from '../utils/editStamp';
 import { changedClientIdentity, findClientDuplicates, isClientActive, type ClientDuplicateMatch } from '../utils/clientRegistry';
+import { clientWalletInputFrom, emptyClientWalletInput, normalizeClientWallets, type ClientWalletInput } from '../utils/clientWallets';
 import type { ManagerFeeHistoryEntry } from './useInvestorEconomics';
 import { DEBT_WRITE_OFF_TYPE } from '../utils/debtWriteOffs';
 import { prepareDebtWriteOffReadModelDelta } from '../readModels/debtWriteOffDelta';
@@ -75,6 +76,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     const [initialBalance, setInitialBalance] = useState('');
     const [clientRedotpayId, setClientRedotpayId] = useState('');
     const [clientBinanceEmail, setClientBinanceEmail] = useState('');
+    const [clientWallets, setClientWallets] = useState<ClientWalletInput>(emptyClientWalletInput);
     const [clientNotes, setClientNotes] = useState('');
     const [clientCreditLimit, setClientCreditLimit] = useState('');
     const [clientGroup, setClientGroup] = useState('');
@@ -88,6 +90,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientPhone(client.phone || '');
             setClientRedotpayId(client.redotpayId || '');
             setClientBinanceEmail(client.binanceEmail || '');
+            setClientWallets(clientWalletInputFrom(client));
             setClientNotes(client.notes || '');
             setClientCreditLimit(client.creditLimit ? String(client.creditLimit) : '');
             setClientGroup(client.group || '');
@@ -101,6 +104,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientPhone('');
             setClientRedotpayId('');
             setClientBinanceEmail('');
+            setClientWallets(emptyClientWalletInput());
             setClientNotes('');
             setClientCreditLimit('');
             setClientGroup('');
@@ -184,6 +188,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 phone: clientPhone.trim(),
                 redotpayId: clientRedotpayId.trim(),
                 binanceEmail: clientBinanceEmail.trim(),
+                wallets: normalizeClientWallets(clientWallets),
                 notes: clientNotes.trim() || null,
                 creditLimit: parsedLimit > 0 ? parsedLimit : null,
                 group: clientGroup.trim() || null,
@@ -1051,7 +1056,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         isSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode,
         clientFullName, setClientFullName, clientPhone, setClientPhone,
         initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId,
-        clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, clientBalanceInput, setClientBalanceInput,
+        clientBinanceEmail, setClientBinanceEmail, clientWallets, setClientWallets, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, clientBalanceInput, setClientBalanceInput,
         clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient,
         openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient, handleZeroOutBalance,
         isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx,

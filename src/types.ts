@@ -1,3 +1,4 @@
+import type { ClientWallets } from './utils/clientWallets';
 export interface Tx {
     id: string;
     type: 'buy' | 'sell' | 'Ajout Manuel' | 'Retrait Manuel';
@@ -166,6 +167,8 @@ export interface ClientDzd {
     phone?: string;
     redotpayId?: string;
     binanceEmail?: string;
+    /** Wallet addresses by network (TRC20, BEP20…), see utils/clientWallets.ts. Null once the last one is cleared. */
+    wallets?: ClientWallets | null;
     notes?: string;
     creditLimit?: number;
     group?: string;
