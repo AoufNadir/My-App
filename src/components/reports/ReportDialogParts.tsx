@@ -1,4 +1,4 @@
-import { useRef, useState, type MutableRefObject, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { ShareIcon } from '../icons/ShareIcon';
 import { Button } from '../ui/Button';
@@ -7,6 +7,7 @@ import { inBody } from '../ui/Dialog';
 import { Label } from '../ui/Label';
 import { OperationFooter } from '../ui/OperationFooter';
 import { SegmentedControl } from '../ui/SegmentedControl';
+import { createPdfPreparer, sheetFingerprint } from './pdfPreparer';
 import type { ReportSheetLang } from './ReportSheet';
 import { renderReportPdf, shareOrDownloadPdf, type PdfPageFooter, type ShareOutcome } from './reportPdf';
 
@@ -49,26 +50,75 @@ export type ReportSendState = 'idle' | 'busy' | 'ready' | 'downloaded' | 'error'
 export type ReportPdfJob = { fileName: string; title: string; footer?: PdfPageFooter };
 
 /**
- * Makes the PDF from the hidden A4 sheet and shares it (or downloads it). The PDF is kept until
- * `changed()`: when the browser asks for a fresh tap, the second tap shares it at once.
+ * How long the report must stay as it is before its PDF is made in the background: a moment when
+ * the window has just opened, longer once the dates or the language are being changed (each
+ * change would start a capture that holds the page).
  */
-export function useReportSender() {
+const FIRST_PREPARE_DELAY_MS = 400;
+const PREPARE_DELAY_MS = 1000;
+
+/**
+ * Makes the PDF from the hidden A4 sheet and shares it (or downloads it).
+ *
+ * `job` is the report as it is now (null: nothing to send yet). The PDF is made in the background
+ * a moment after the report appears or changes, so « Envoyer » shares it at once: the browser
+ * only opens the share sheet within a few seconds of the tap, and on a slow phone making the PDF
+ * takes longer than that. A tap before it is ready simply waits for it. `changed()` forgets the PDF.
+ */
+export function useReportSender(job: ReportPdfJob | null = null) {
     const [sendState, setSendState] = useState<ReportSendState>('idle');
-    const readyPdf = useRef<Blob | null>(null);
+    const [preparer] = useState(createPdfPreparer);
     const printHolder = useRef<HTMLDivElement | null>(null);
+    const latestJob = useRef(job);
+    latestJob.current = job;
+    const seenSheet = useRef<string | null>(null);
+    const timer = useRef<number | null>(null);
 
     // Any change makes the prepared PDF stale.
     const changed = () => {
-        readyPdf.current = null;
+        preparer.invalidate();
         setSendState('idle');
     };
+    const render = (sheet: HTMLElement, current: ReportPdfJob) => () => renderReportPdf(sheet, current.title, current.footer);
     const afterShare = (outcome: ShareOutcome) => setSendState(outcome === 'needsTap' ? 'ready' : outcome === 'downloaded' ? 'downloaded' : 'idle');
-    const send = async ({ fileName, title, footer }: ReportPdfJob) => {
+
+    // After every render: when the sheet shows something new (other dates, language, data that
+    // arrived), the PDF made before is out of date, and a new one is made once it stays put.
+    useEffect(() => {
+        const sheet = printHolder.current?.firstElementChild;
+        if (!job || !(sheet instanceof HTMLElement))
+            return;
+        const fingerprint = sheetFingerprint(job.fileName, job.title, sheet.textContent);
+        if (fingerprint === seenSheet.current)
+            return;
+        const delay = seenSheet.current === null ? FIRST_PREPARE_DELAY_MS : PREPARE_DELAY_MS;
+        seenSheet.current = fingerprint;
+        preparer.invalidate();
+        if (timer.current !== null)
+            window.clearTimeout(timer.current);
+        timer.current = window.setTimeout(() => {
+            timer.current = null;
+            const current = latestJob.current;
+            const printed = printHolder.current?.firstElementChild;
+            if (!current || !(printed instanceof HTMLElement))
+                return;
+            preparer.make(render(printed, current)).catch((error) => console.warn('The report PDF could not be prepared ahead:', error));
+        }, delay);
+    });
+    useEffect(() => () => {
+        if (timer.current !== null)
+            window.clearTimeout(timer.current);
+        // The window closed: a PDF still being made is not wanted.
+        preparer.invalidate();
+    }, [preparer]);
+
+    const send = async (current: ReportPdfJob) => {
         if (sendState === 'busy')
             return;
-        // Prepared already (the browser asked for a fresh tap, or the same report again): share at once.
-        if (readyPdf.current) {
-            afterShare(await shareOrDownloadPdf(readyPdf.current, fileName, title));
+        // Made already (in the background, or the browser asked for a fresh tap): share at once.
+        const prepared = preparer.ready();
+        if (prepared) {
+            afterShare(await shareOrDownloadPdf(prepared, current.fileName, current.title));
             return;
         }
         const sheet = printHolder.current?.firstElementChild;
@@ -78,12 +128,16 @@ export function useReportSender() {
         try {
             // Let the button show its busy state before the capture holds the page.
             await new Promise((resolve) => setTimeout(resolve, 40));
-            readyPdf.current = await renderReportPdf(sheet, title, footer);
-            afterShare(await shareOrDownloadPdf(readyPdf.current, fileName, title));
+            const pdf = await preparer.make(render(sheet, current));
+            // null: the report changed while it was being made, nothing to share.
+            if (!pdf) {
+                setSendState('idle');
+                return;
+            }
+            afterShare(await shareOrDownloadPdf(pdf, current.fileName, current.title));
         }
         catch (error) {
             console.error(error);
-            readyPdf.current = null;
             setSendState('error');
         }
     };

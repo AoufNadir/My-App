@@ -22,6 +22,7 @@ import type { DisplayTx } from '../transactions/transactionsTypes';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel } from '../../utils/transactionTerminology';
 import { getNameInitials } from '../../utils/nameUtils';
 import { readClientWallets } from '../../utils/clientWallets';
+import { openWhatsAppMessenger } from '../../utils/whatsapp';
 // Loaded on the first tap on « Rapport d’activité » or « PDF »: the clients page stays as light as before.
 const ClientActivityReportDialog = lazy(() => import('./ClientActivityReportDialog').then((module) => ({ default: module.ClientActivityReportDialog })));
 type ClientDetailsViewProps = {
@@ -33,7 +34,8 @@ type ClientDetailsViewProps = {
     clientsDzd: ClientDzd[];
     setSelectedClientId: (id: string | null) => void;
     getClientFullName: (client: ClientDzd) => string;
-    handleTouchStart: (client: ClientDzd) => void;
+    /** The share icon: the client's summary picture, at once (the list's long press waits 800 ms) */
+    openClientSummary: (client: ClientDzd) => void;
     openClientModal: (client: ClientDzd | null) => void;
     copiedValue: string | null;
     handleCopy: (text: string) => void;
@@ -53,42 +55,6 @@ type ContactRowProps = {
     /** A wallet address: shown whole on two lines at most (it is checked by eye before a transfer), not cut with an ellipsis. */
     isAddress?: boolean;
 };
-function formatWaNumber(phone: string): string {
-    const digits = phone.replace(/\D/g, '');
-    if (digits.startsWith('0') && digits.length >= 9) return '213' + digits.slice(1);
-    return digits;
-}
-function getUserAgent(): string {
-    return typeof navigator === 'undefined' ? '' : navigator.userAgent;
-}
-function isAndroidDevice(): boolean {
-    return /Android/i.test(getUserAgent());
-}
-function isAppleMobileDevice(): boolean {
-    return /iPhone|iPad|iPod/i.test(getUserAgent());
-}
-function buildWhatsAppWebUrl(phone: string, text?: string): string {
-    const encodedText = text ? `?text=${encodeURIComponent(text)}` : '';
-    return `https://wa.me/${phone}${encodedText}`;
-}
-function buildWhatsAppMessengerUrl(phone: string, text?: string): string {
-    const query = `phone=${phone}${text ? `&text=${encodeURIComponent(text)}` : ''}`;
-    if (isAndroidDevice()) {
-        return `intent://send?${query}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
-    }
-    return `whatsapp://send?${query}`;
-}
-function openWhatsAppMessenger(phone: string, text?: string): void {
-    const intl = formatWaNumber(phone);
-    if (!intl) return;
-
-    if (isAndroidDevice() || isAppleMobileDevice()) {
-        window.location.href = buildWhatsAppMessengerUrl(intl, text);
-        return;
-    }
-
-    window.open(buildWhatsAppWebUrl(intl, text), '_blank', 'noopener');
-}
 function findClientTransferCounterpart(tx: ClientTransactionDzd, allClientTxs: ClientTransactionDzd[]) {
     if (tx.type !== 'Transfert Sortant' && tx.type !== 'Transfert Entrant')
         return null;
@@ -152,7 +118,7 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone, isAddress }: C
       </div>
     </div>);
 }
-export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal }: ClientDetailsViewProps) {
+export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, openClientSummary, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal }: ClientDetailsViewProps) {
     const { t, lang } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 60;
     const LOAD_MORE_TRANSACTIONS = 60;
@@ -371,7 +337,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
           <ChevronLeftIcon aria-hidden="true" className="h-6 w-6 rtl:-scale-x-100"/>
         </button>
         <h2 className="min-w-0 flex-1 truncate text-lg font-bold text-neutral-900">{clientName}</h2>
-        <button type="button" onClick={() => handleTouchStart(selectedClient)} className={iconButtonClass} aria-label={t('clients.share')} title={t('clients.share')}>
+        <button type="button" onClick={() => openClientSummary(selectedClient)} className={iconButtonClass} aria-label={t('clients.share')} title={t('clients.share')}>
           <ShareIcon aria-hidden="true" className="h-5 w-5"/>
         </button>
         <button type="button" onClick={() => openClientModal(selectedClient)} className={iconButtonClass} aria-label={t('transactions.editClient')} title={t('transactions.editClient')}>

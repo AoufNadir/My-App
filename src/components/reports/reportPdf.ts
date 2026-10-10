@@ -83,9 +83,9 @@ const canvasToJpeg = (canvas: HTMLCanvasElement, quality: number) => new Promise
 type ToCanvas = typeof import('html-to-image').toCanvas;
 type CaptureOptions = NonNullable<Parameters<ToCanvas>[1]>;
 
-/** One capture, as sharp as the phone allows: twice the CSS pixels, then less if the canvas is refused. */
-async function capture(toCanvas: ToCanvas, sheet: HTMLElement, options: CaptureOptions): Promise<HTMLCanvasElement> {
-    for (const pixelRatio of [2, 1.5, 1]) {
+/** One capture, as sharp as the phone allows: twice the CSS pixels (or `ratios`), then less if the canvas is refused. */
+async function capture(toCanvas: ToCanvas, sheet: HTMLElement, options: CaptureOptions, ratios: ReadonlyArray<number> = [2, 1.5, 1]): Promise<HTMLCanvasElement> {
+    for (const pixelRatio of ratios) {
         try {
             const canvas = await toCanvas(sheet, { ...options, pixelRatio });
             if (canvas.width > 0 && canvas.height > 0)
@@ -232,7 +232,32 @@ async function renderPage(toCanvas: ToCanvas, sheet: HTMLElement, { width, rows,
     return result;
 }
 
-export type ShareOutcome = 'shared' | 'downloaded' | 'cancelled' | 'needsTap';
+/**
+ * A short sheet (the client summary) as one PNG picture, at three times its CSS size: 1.26
+ * thousand pixels wide for the 420px phone sheet, as sharp as a phone screen and light to send.
+ * Runs in the browser only.
+ */
+export async function renderSheetImage(sheet: HTMLElement): Promise<Blob> {
+    if (document.fonts?.ready)
+        await document.fonts.ready;
+    const { toCanvas } = await import('html-to-image');
+    const canvas = await capture(toCanvas, sheet, {
+        width: sheet.offsetWidth || PDF_PAGE_WIDTH_PX,
+        height: sheet.scrollHeight || sheet.offsetHeight,
+        backgroundColor: '#ffffff',
+        // The logo comes from the app's offline cache: no cache-busting query.
+        cacheBust: false,
+        style: { margin: '0', transform: 'none' },
+    }, [3, 2, 1]);
+    const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((png) => (png ? resolve(png) : reject(new Error('PNG encoding failed'))), 'image/png');
+    });
+    canvas.width = 0;
+    canvas.height = 0;
+    return blob;
+}
+
+export type ShareOutcome ='shared' | 'downloaded' | 'cancelled' | 'needsTap';
 
 /**
  * Opens the phone's share sheet (WhatsApp, e-mail…) with the PDF, or downloads it where sharing
@@ -240,8 +265,13 @@ export type ShareOutcome = 'shared' | 'downloaded' | 'cancelled' | 'needsTap';
  * file took too long), the caller offers a button that calls this again.
  */
 export async function shareOrDownloadPdf(blob: Blob, fileName: string, title: string): Promise<ShareOutcome> {
+    return shareOrDownloadFile(blob, fileName, title, 'application/pdf');
+}
+
+/** The same for any file, a PDF or a picture. */
+export async function shareOrDownloadFile(blob: Blob, fileName: string, title: string, type: string): Promise<ShareOutcome> {
     if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare && typeof File !== 'undefined') {
-        const file = new File([blob], fileName, { type: 'application/pdf' });
+        const file = new File([blob], fileName, { type });
         if (navigator.canShare({ files: [file] })) {
             try {
                 await navigator.share({ files: [file], title });

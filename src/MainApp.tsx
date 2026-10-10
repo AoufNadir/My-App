@@ -2608,6 +2608,7 @@ export default function MainApp({ user }: {
         getClientFullName,
         handleTouchStart,
         handleTouchEnd,
+        openClientSummary: setSummaryClient,
         setClientToDelete: handleClientDeleteRequest,
         selectedClient,
         selectedClientTransactions,
@@ -2628,7 +2629,7 @@ export default function MainApp({ user }: {
     }), [
         selectedClientId, clientSearchQuery, clientSortMode,
         clientsDzd, filteredClientsDzd, searchedClientsDzd, clientBalances, selectedClient, selectedClientTransactions, clientTransactionsDzd, transactions, pamLedger.profitByTxId, copiedValue,
-        openClientModal, handleTouchStart, handleTouchEnd, handleClientDeleteRequest, openClientTxModal,
+        openClientModal, handleTouchStart, handleTouchEnd, setSummaryClient, handleClientDeleteRequest, openClientTxModal,
         handleCopy, handleEditLinkedClientTx, handleDeleteLinkedClientTxClick, overdueDebtClients, clientLoyaltyMap,
         earlyClientPrevMonthVolumeMap, earlyClientLastSellDateMap, handleZeroOutBalance
     ]);

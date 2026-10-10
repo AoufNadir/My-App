@@ -162,17 +162,20 @@ if (process.env.SCREEN_CAPTURE) {
 }
 
 // Recorded on V2-8 (548a217) with the same data and clock; French and Arabic gave the same lists.
+// The client summary lists were recorded again on V4-4: the picture sent to the client moved to the
+// shared report sheet (balance with its side, reference, last operations as the client report reads
+// them). The numbers in the window itself did not change.
 const BEFORE: Record<keyof typeof SCREENS, string[]> = {
     searchClient: ['+139100.00', '-20000.00', '-224100.00', '05/09/2026 14:00', '0555 10 20 30', '1', '12/09/2026 10:00', '14/09/2026 17:30', '4', '900'],
     searchAllGroups: ['-12500.00', '01/06/2026 09:00', '1', '1⍽000⍽000', '2', '2500.00', '26/09/2026 12:00', '27/09/2026 18:40', '3', '300', '350⍽000'],
     searchInvestor: ['1', '1⍽000⍽000'],
     searchDate: ['150000.00', '2', '26/09/2026 10:15', '26/09/2026 12:00', '300'],
     searchNone: [],
-    summaryOwes: ['+139⍽100', '+139⍽100,00', '-105⍽000', '-105⍽000,00', '-20⍽000', '-20⍽000,00', '-224⍽100', '-224⍽100,00', '05/09/2026', '0555 10 20 30', '10:00', '12/09/2026', '14/09/2026', '14:00', '17:30', '249,00', '3', '30/09/2026 15:00:00', '5', '900,00'],
-    summaryAdvance: ['+20⍽000', '+20⍽000,00', '+40⍽000', '+40⍽000,00', '+60⍽000', '+60⍽000,00', '-300⍽000', '-300⍽000,00', '0661 40 50 60', '11:00', '14/09/2026', '16:00', '17:30', '1⍽200,00', '20/09/2026', '25/09/2026', '250,00', '3', '30/09/2026 15:00:00', '5'],
-    summaryAdjusted: ['+5⍽000', '+5⍽000,00', '09:00', '1', '15/09/2026', '30/09/2026 15:00:00', '5'],
-    summarySupplier: ['-12⍽500', '-12⍽500,00', '01/06/2026', '09:00', '1', '30/09/2026 15:00:00', '5'],
-    summaryEmpty: ['0', '0,00', '0770 11 22 33', '30/09/2026 15:00:00', '5'],
+    summaryOwes: ['+139·100', '+139⍽100,00', '-105⍽000,00', '-20260905', '-20260930', '-20⍽000,00', '-224⍽100,00', '05/09/2026', '0555 10 20 30', '1', '105·000', '10:00', '12/09/2026', '14/09/2026', '14:00', '17:30', '224·100', '249,00', '3', '30/09/2026', '7', '900', '900,00', '−20·000'],
+    summaryAdvance: ['+20·000', '+20⍽000,00', '+40·000', '+40⍽000,00', '+60⍽000,00', '-20260914', '-20260930', '-300⍽000,00', '0661 40 50 60', '11:00', '14/09/2026', '16:00', '17:30', '1·200', '1⍽200,00', '2', '20/09/2026', '25/09/2026', '250,00', '3', '30/09/2026', '300·000', '60·000', '7'],
+    summaryAdjusted: ['+5·000', '+5⍽000,00', '-20260915', '-20260930', '09:00', '1', '15/09/2026', '3', '30/09/2026', '5·000', '7'],
+    summarySupplier: ['-12⍽500,00', '-20260601', '-20260930', '01/06/2026', '09:00', '1', '12·500', '30/09/2026', '4', '7', '−12·500'],
+    summaryEmpty: ['-20260930', '0', '0,00', '0770 11 22 33', '30/09/2026', '5', '6', '7'],
     monthPlan: ['100', '112⍽000', '120⍽000', '500', '5⍽900,00', '8⍽000', '95⍽000'],
 };
 const changed: string[] = [];
@@ -201,7 +204,7 @@ const attributesOf = (html: string) => [...html.matchAll(/\s(?:aria-label|placeh
 const names = [...clientsDzd.map(getClientFullName), ...investors.map((inv) => inv.name)];
 const initials = names.map((name) => name.split(' ').map((part) => part[0]).join('').toUpperCase());
 const DATA_TEXT = [...names, ...initials.map((pair) => `|${pair}|`), 'Vente salon', 'Livraison salon', 'Correction', 'zzz'];
-const SAME_IN_BOTH = /^(USDT|EUR|DZD|PAM|PMA|PDF|JSON|VIP|Pro|Digital|ProDigital|Google|Français|Ctrl|Esc|Enter)$/;
+const SAME_IN_BOTH = /^(USDT|EUR|DZD|PAM|PMA|PDF|JSON|VIP|Pro|Digital|ProDigital|Google|WhatsApp|BaridiMob|Français|Ctrl|Esc|Enter)$/;
 function frenchWords(html: string): string[] {
     let text = `${textOf(html)}|${attributesOf(html)}`;
     for (const data of DATA_TEXT)
@@ -266,23 +269,22 @@ for (const lang of ['fr', 'ar'] as const) {
     assert.ok(textOf(old).includes(label(lang, 'lock.enterCodeRange')), `${lang}: an old PIN may have 4 to 6 digits`);
 }
 
-// ---- Client summary: the screen and the shared image follow the reader's language ----
+// ---- Client summary: the window follows the app's language, the picture the client's own ----
 {
     const fr = summaryScreen('c1')('fr');
     const ar = summaryScreen('c1')('ar');
-    // In French the image keeps its words, as V2-8 wrote them.
-    for (const text of ['Relevé Client', 'Export image', 'Compte client', 'Etat du compte', 'Client doit payer ce montant', 'Solde négatif: paiement attendu du client.', 'Dernières opérations (5)', 'Pro Digital - Document généré automatiquement'])
-        assert.ok(textOf(fr).includes(text), `French image: ${text}`);
-    assert.ok(/dir="rtl" lang="ar"/.test(ar), 'the Arabic image is written right to left');
-    for (const key of ['clientSummary.account', 'clientSummary.accountState', 'clientSummary.owes', 'clientSummary.hintOwes', 'clientSummary.generated'])
-        assert.ok(textOf(ar).includes(label('ar', key)), `Arabic image: ${key}`);
-    assert.ok(textOf(ar).includes(label('ar', 'clientSummary.lastOperations').replace('{count}', '5')), 'Arabic image: last 5 operations');
-    // Letter spacing breaks Arabic letters apart: only the French image spaces its capitals.
-    assert.ok(fr.includes('tracking-[0.14em]') && !ar.includes('tracking-[0.14em]'), 'no letter spacing on Arabic words');
-    // « 900,00 USDT @ 249,00 DZD » and each date line keep their own order inside Arabic text
-    // (V2-8 showed « USDT @ 249,00 DZD 900,00 »), on the screen and in the image.
-    assert.equal(ar.split('<bdi>900,00 USDT @ 249,00 DZD</bdi>').length - 1, 2, 'the sale line, isolated on the screen and in the image');
-    assert.equal(ar.split('<bdi>05/09/2026 · 14:00</bdi>').length - 1, 2, 'its date, isolated too');
+    // V4-4: the picture is the shared report sheet, in the client's report language (the app's
+    // language until one is chosen for this client).
+    for (const text of ['Relevé de compte', 'Reste à payer', 'dernières opérations', 'Situation au'])
+        assert.ok(textOf(fr).includes(text), `French picture: ${text}`);
+    assert.ok(/<article dir="rtl" lang="ar"/.test(ar), 'the Arabic picture is written right to left');
+    for (const text of ['كشف حساب مختصر', 'الباقي عليك', 'عمليات'])
+        assert.ok(textOf(ar).includes(text), `Arabic picture: ${text}`);
+    // The window still keeps « 900,00 USDT @ 249,00 DZD » and each date line in their own order.
+    assert.equal(ar.split('<bdi>900,00 USDT @ 249,00 DZD</bdi>').length - 1, 1, 'the sale line, isolated on the screen');
+    assert.equal(ar.split('<bdi>05/09/2026 · 14:00</bdi>').length - 1, 1, 'its date, isolated too');
+    // A WhatsApp button for a client with a phone number.
+    assert.ok(textOf(fr).includes('WhatsApp'), 'the client with a phone gets a WhatsApp button');
 }
 
 console.log('securityScreens.test: the search, the month plan and the client summary show the same numbers as V2-8; settings, lock (4 to 6 digits), sign-in and (+) read in Arabic with no French left');

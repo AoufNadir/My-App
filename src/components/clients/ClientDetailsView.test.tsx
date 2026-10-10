@@ -52,7 +52,7 @@ const html = renderToStaticMarkup(
         clientsDzd={[sourceClient, targetClient]}
         setSelectedClientId={() => {}}
         getClientFullName={(client) => client.fullName}
-        handleTouchStart={() => {}}
+        openClientSummary={() => {}}
         openClientModal={() => {}}
         copiedValue={null}
         handleCopy={() => {}}

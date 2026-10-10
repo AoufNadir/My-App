@@ -31,7 +31,7 @@ function render(client: ClientDzd, lang: 'fr' | 'ar', copiedValue: string | null
     storage.set('app_lang', lang);
     return renderToStaticMarkup(<LanguageProvider>
         <ClientDetailsView selectedClientId={client.id} selectedClient={client} selectedClientBalance={-500} groupedHistory={{ '27/08/2026': [tx] }}
-            clientTransactionsDzd={[tx]} clientsDzd={[client]} setSelectedClientId={() => {}} getClientFullName={(c) => c.fullName} handleTouchStart={() => {}}
+            clientTransactionsDzd={[tx]} clientsDzd={[client]} setSelectedClientId={() => {}} getClientFullName={(c) => c.fullName} openClientSummary={() => {}}
             openClientModal={() => {}} copiedValue={copiedValue} handleCopy={() => {}} transactions={[]} profitByTxId={{}} handleEditClientTx={() => {}}
             handleDeleteClientTxClick={() => {}} openClientTxModal={() => {}} openClientToClientTransferModal={() => {}}/>
       </LanguageProvider>);

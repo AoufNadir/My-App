@@ -46,9 +46,15 @@ export function ClientActivityReportDialog({ onClose, clientId, clientName, clie
     // Some clients read French, others Arabic: remembered per client.
     const [reportLang, setReportLang] = useReportLanguage(`client_report_lang_${clientId}`, appLang);
     const [showBalance, setShowBalance] = useState(true);
-    const { sendState, printHolder, changed, send } = useReportSender();
 
     const report = useMemo(() => (period ? buildClientActivityReport({ clientId, clientRows: ownRows, transactions, period, now }) : null), [clientId, ownRows, transactions, period, now]);
+    const job = report ? {
+        fileName: reportFileName(report.period),
+        title: `${REPORT_WORDS[reportLang].title[report.kind]} · ${clientName}`,
+        footer: reportPageFooter(reportLang, report.issuedAt, report.reference),
+    } : null;
+    // The PDF is made in the background once the report is on screen: « Envoyer » only shares it.
+    const { sendState, printHolder, changed, send } = useReportSender(job);
 
     const choose = (start: string, end: string) => {
         setRange({ start, end });
@@ -60,13 +66,8 @@ export function ClientActivityReportDialog({ onClose, clientId, clientName, clie
     const allHistory = () => choose(dayKey(firstOperationAt ?? now), today);
 
     const handleSend = () => {
-        if (!report)
-            return;
-        void send({
-            fileName: reportFileName(report.period),
-            title: `${REPORT_WORDS[reportLang].title[report.kind]} · ${clientName}`,
-            footer: reportPageFooter(reportLang, report.issuedAt, report.reference),
-        });
+        if (job)
+            void send(job);
     };
 
     const hasOperations = ownRows.length > 0;

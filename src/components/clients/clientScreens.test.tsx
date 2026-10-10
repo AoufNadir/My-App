@@ -87,7 +87,7 @@ for (const tx of statement)
 
 function renderDetails(lang: 'fr' | 'ar') {
     return render(<ClientDetailsView selectedClientId="c1" selectedClient={clients[0]} selectedClientBalance={-85_000} groupedHistory={groupedHistory}
-        clientTransactionsDzd={allClientTx} clientsDzd={clients} setSelectedClientId={noop} getClientFullName={fullName} handleTouchStart={noop}
+        clientTransactionsDzd={allClientTx} clientsDzd={clients} setSelectedClientId={noop} getClientFullName={fullName} openClientSummary={noop}
         openClientModal={noop} copiedValue={null} handleCopy={noop} transactions={sales} profitByTxId={{ 'sell-usdt': { derivedProfit: 2_100 } }}
         handleEditClientTx={noop} handleDeleteClientTxClick={noop} openClientTxModal={noop} openClientToClientTransferModal={noop}/>, lang);
 }
