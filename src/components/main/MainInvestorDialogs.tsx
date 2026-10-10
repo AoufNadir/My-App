@@ -134,6 +134,13 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                 titleStr = t('investorDialog.distributeProfitTitle');
             }
             const isInvalid = !validAmount || exceedsCap || exceedsPaymentSource;
+            // V5-1: what the investor can take is always in sight, and Max fills it in: the smaller of
+            // their profit (or capital) and the chosen register's balance, never a cent above either.
+            const isWithdrawal = investorTxType === 'withdraw_profit' || investorTxType === 'withdraw_capital';
+            const floorCents = (value: number) => Math.floor(Math.max(0, value) * 100 + 1e-6) / 100;
+            const maxAmount = isWithdrawal ? floorCents(Math.min(cap, paymentSourceBalance)) : 0;
+            const maxLimitedBySource = isWithdrawal && paymentSourceBalance < cap;
+            const amountHint = (<>{capLabel}: <span dir="ltr">{formatMoney(cap, 'DZD')}</span>{isWithdrawal && maxLimitedBySource && <span className="block">{template('investorDialog.maxLimitedBySource', { source: paymentSource })}</span>}</>);
             const errorMsg = !validAmount
                 ? t('common.invalidAmount')
                 : exceedsCap
@@ -146,7 +153,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                             <ModalTitle className="text-base sm:text-lg">{titleStr}</ModalTitle>
                         </ModalHeader>
                         <ModalContent className="px-4 py-4 sm:px-5 space-y-3">
-                            <MoneyField label={t('transactions.amount') as string} value={investorTxAmount} onChange={setInvestorTxAmount} currency="DZD" placeholder="0.00" error={errorMsg && validAmount ? errorMsg : undefined}/>
+                            <MoneyField label={t('transactions.amount') as string} value={investorTxAmount} onChange={setInvestorTxAmount} currency="DZD" placeholder="0.00" hint={amountHint} onMax={isWithdrawal ? () => setInvestorTxAmount(maxAmount.toFixed(2)) : undefined} maxDisabled={maxAmount <= 0} error={errorMsg && validAmount ? errorMsg : undefined}/>
 
                             {investorTxType === 'withdraw_profit' && (<div>
                                     <Label>{t('investorDialog.paymentSource')}</Label>
