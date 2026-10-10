@@ -79,7 +79,7 @@ for (const file of files) {
         ts.forEachChild(node, visit);
     })(sf);
 }
-assert.ok(messages.size > 120, `the source scan finds the app's messages (${messages.size})`);
+assert.ok(messages.size > 100, `the source scan finds the app's messages (${messages.size})`);
 
 // A value filled in at run time ({value}) is shown here as a number. Messages that are only
 // a value, or a translated text with an emoji, are already in the reader's language.

@@ -76,4 +76,21 @@ assert.equal(afterList.skip.size, 300, 'A page after the list keeps none of its 
 assert.equal(afterList.shift, 300 * 37.5, '…and everything after the list moves up by the whole list');
 assert.deepEqual(pageRowWindow([], { top: 0, bottom: 1000 }), { skip: new Set(), shift: 0 }, 'A report without operations');
 
+// V3-6: a sheet with several lists (the monthly report). Only the rows leave the layout: the titles
+// and the table headers between two lists stay, so they are not counted in how far the page moves up.
+{
+    const first = Array.from({ length: 10 }, (_, index) => ({ top: 400 + index * 40, bottom: 440 + index * 40 }));
+    const second = Array.from({ length: 10 }, (_, index) => ({ top: 1000 + index * 40, bottom: 1040 + index * 40 }));
+    const both = [...first, ...second];
+    // A page that starts in the second list, five rows in (the title and header of the list are 160px).
+    const page = { top: 1200, bottom: 1400 };
+    const { skip, shift } = pageRowWindow(both, page);
+    assert.deepEqual([...skip].sort((a, b) => a - b), [...Array(15).keys()], 'The ten rows of the first list and the first five of the second leave');
+    assert.equal(shift, 15 * 40, 'Fifteen rows of 40px leave the layout, not the 560px that lie between the first row and the sixth row of the second list');
+    // A page inside the first list leaves the second list out and moves nothing before it.
+    const inFirst = pageRowWindow(both, { top: 600, bottom: 800 });
+    assert.equal(inFirst.shift, 5 * 40);
+    assert.ok([...Array(10).keys()].map((index) => index + 10).every((index) => inFirst.skip.has(index)), 'The second list is left out');
+}
+
 console.log('client activity report PDF pages tests passed');

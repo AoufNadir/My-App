@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, PortfolioStats, TreasuryTx, Tx } from '../types';
+import type { ExpensesPeriodKey } from '../utils/expensesReport';
+import type { MonthlyReportInput } from '../utils/monthlyReport';
 import { computePamLedger, type PamLedgerResult } from '../utils/pamLedger';
 import type { ManagerFeeHistoryEntry } from './useInvestorEconomics';
 import type { DebtWriteOff } from '../utils/debtWriteOffs';
@@ -11,12 +13,10 @@ type UseReportExportsArgs = {
     derivedInvestors: Investor[];
     getClientFullName: (client: ClientDzd) => string;
     investorTransactions: InvestorTransaction[];
-    loadPdfReports: () => Promise<typeof import('../utils/pdfReports')>;
     managerFeePercentage: string;
     managerFeeHistory?: ManagerFeeHistoryEntry[];
     pamLedger?: PamLedgerResult;
     portfolioStats: PortfolioStats;
-    setAlert: (message: string) => void;
     t: Translator;
     transactions: Tx[];
     deliveryExpenses?: TreasuryTx[];
@@ -24,18 +24,18 @@ type UseReportExportsArgs = {
     personalExpenses?: TreasuryTx[];
 };
 export type { InvestorReportDateRange };
+/** The report window to show: what it reports on is fixed when the user asks for it. */
+export type ReportWindowRequest =
+    | { kind: 'monthly'; input: MonthlyReportInput }
+    | { kind: 'expenses'; periodKey: ExpensesPeriodKey; expenses: TreasuryTx[]; managerProfitAvailable: number };
 function getMonthLabels(t: Translator) {
     const value = t('common.months');
     if (!Array.isArray(value))
         return [];
     return value.filter((item): item is string => typeof item === 'string');
 }
-function isMobileDevice() {
-    if (typeof window === 'undefined')
-        return false;
-    return /android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent || '');
-}
-export function useReportExports({ clientTransactionsDzd, clientsDzd, derivedInvestors, getClientFullName, investorTransactions, loadPdfReports, managerFeePercentage, managerFeeHistory, pamLedger: providedPamLedger, portfolioStats, setAlert, t, transactions, deliveryExpenses, debtWriteOffs, personalExpenses }: UseReportExportsArgs) {
+export function useReportExports({ clientTransactionsDzd, clientsDzd, derivedInvestors, getClientFullName, investorTransactions, managerFeePercentage, managerFeeHistory, pamLedger: providedPamLedger, portfolioStats, t, transactions, deliveryExpenses, debtWriteOffs, personalExpenses }: UseReportExportsArgs) {
+    const [reportWindow, setReportWindow] = useState<ReportWindowRequest | null>(null);
     const [usdtReportMonth, setUsdtReportMonth] = useState(new Date().getMonth());
     const [usdtReportYear, setUsdtReportYear] = useState(new Date().getFullYear());
     const [reportClient, setReportClient] = useState('');
@@ -43,29 +43,21 @@ export function useReportExports({ clientTransactionsDzd, clientsDzd, derivedInv
     const [reportYear, setReportYear] = useState(new Date().getFullYear());
     const reportMonthNames = useMemo(() => getMonthLabels(t), [t]);
     const reportPamLedger = useMemo(() => providedPamLedger || computePamLedger(transactions), [providedPamLedger, transactions]);
-    const handleExportUsdtReport = async () => {
-        const monthLabels = getMonthLabels(t);
-        const monthLabel = monthLabels[usdtReportMonth] || `${usdtReportMonth + 1}`;
-        const { buildMonthlyPdfReport, openPdfPrintWindow } = await loadPdfReports();
-        const report = buildMonthlyPdfReport({
-            month: usdtReportMonth,
-            year: usdtReportYear,
-            monthLabel,
-            transactions,
-            clientTransactions: clientTransactionsDzd,
-            clients: clientsDzd,
-            getClientName: getClientFullName,
-            portfolioStats,
-            pamLedger: reportPamLedger
+    /** Opens the monthly report window for the month chosen on the Analyse page. */
+    const handleExportUsdtReport = () => {
+        setReportWindow({
+            kind: 'monthly',
+            input: {
+                month: usdtReportMonth,
+                year: usdtReportYear,
+                transactions,
+                clientTransactions: clientTransactionsDzd,
+                clients: clientsDzd,
+                getClientName: getClientFullName,
+                portfolioStats,
+                pamLedger: reportPamLedger
+            }
         });
-        const opened = openPdfPrintWindow(report);
-        if (!opened) {
-            setAlert("❌ Impossible d’ouvrir l’aperçu PDF.");
-            return;
-        }
-        setAlert(isMobileDevice()
-            ? `Rapport mensuel ${monthLabel} ${usdtReportYear} ouvert. Appuyez sur 'Enregistrer PDF' dans la page.`
-            : `Rapport mensuel ${monthLabel} ${usdtReportYear} prêt. Enregistrez en PDF depuis l'impression.`);
     };
     /**
      * The investor report's numbers for one investor and period, for the report window (which
@@ -83,114 +75,21 @@ export function useReportExports({ clientTransactionsDzd, clientsDzd, derivedInv
         debtWriteOffs,
         personalExpenses
     }, investorId, range), [derivedInvestors, investorTransactions, transactions, managerFeePercentage, managerFeeHistory, reportPamLedger, deliveryExpenses, debtWriteOffs, personalExpenses]);
-    const handleExportPersonalExpensesReport = async (periodKey: 'day' | 'week' | 'month' | 'year') => {
-        const expenses = personalExpenses || [];
-        const { buildPersonalExpensesPdfReport, openPdfPrintWindow } = await loadPdfReports();
-        const nowTs = Date.now();
-        const d = new Date(nowTs);
-        let periodStart: number;
-        let periodEnd: number;
-        let periodLabel: string;
-        if (periodKey === 'day') {
-            const sd = new Date(d);
-            sd.setHours(0, 0, 0, 0);
-            periodStart = sd.getTime();
-            const ed = new Date(sd);
-            ed.setHours(23, 59, 59, 999);
-            periodEnd = ed.getTime();
-            periodLabel = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-        }
-        else if (periodKey === 'week') {
-            const sd = new Date(d);
-            const dow = sd.getDay();
-            const diff = dow === 0 ? -6 : 1 - dow;
-            sd.setDate(sd.getDate() + diff);
-            sd.setHours(0, 0, 0, 0);
-            periodStart = sd.getTime();
-            const ed = new Date(sd);
-            ed.setDate(ed.getDate() + 6);
-            ed.setHours(23, 59, 59, 999);
-            periodEnd = ed.getTime();
-            periodLabel = `Semaine du ${sd.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
-        }
-        else if (periodKey === 'month') {
-            const sd = new Date(d.getFullYear(), d.getMonth(), 1);
-            periodStart = sd.getTime();
-            periodEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
-            periodLabel = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-        }
-        else {
-            const sd = new Date(d.getFullYear(), 0, 1);
-            periodStart = sd.getTime();
-            periodEnd = new Date(d.getFullYear(), 11, 31, 23, 59, 59, 999).getTime();
-            periodLabel = String(d.getFullYear());
-        }
-        const prevStart = (() => {
-            const ps = new Date(periodStart);
-            if (periodKey === 'day') {
-                ps.setDate(ps.getDate() - 1);
-                ps.setHours(0, 0, 0, 0);
-                return ps.getTime();
-            }
-            if (periodKey === 'week') {
-                ps.setDate(ps.getDate() - 7);
-                return ps.getTime();
-            }
-            if (periodKey === 'month') {
-                return new Date(ps.getFullYear(), ps.getMonth() - 1, 1).getTime();
-            }
-            return new Date(ps.getFullYear() - 1, 0, 1).getTime();
-        })();
-        const prevEnd = (() => {
-            if (periodKey === 'day') {
-                const e = new Date(prevStart);
-                e.setHours(23, 59, 59, 999);
-                return e.getTime();
-            }
-            if (periodKey === 'week') {
-                const e = new Date(prevStart);
-                e.setDate(e.getDate() + 6);
-                e.setHours(23, 59, 59, 999);
-                return e.getTime();
-            }
-            if (periodKey === 'month') {
-                const e = new Date(prevStart);
-                return new Date(e.getFullYear(), e.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
-            }
-            return new Date(new Date(prevStart).getFullYear(), 11, 31, 23, 59, 59, 999).getTime();
-        })();
-        const netExpense = (tx: TreasuryTx): number => {
-            if (tx.origin === 'personal_expense_return')
-                return 0;
-            if (tx.advanceState === 'settled')
-                return Number(tx.settledAmount || 0);
-            return Number(tx.amount || 0);
-        };
-        const previousPeriodTotal = expenses
-            .filter((tx) => tx.timestamp >= prevStart && tx.timestamp <= prevEnd && tx.advanceState !== 'pending' && tx.origin !== 'personal_expense_return')
-            .reduce((sum, tx) => sum + netExpense(tx), 0);
+    /** Opens the personal-expenses report window for the day, week, month or year that holds today. */
+    const handleExportPersonalExpensesReport = (periodKey: ExpensesPeriodKey) => {
         const managerInvestor = derivedInvestors.find((inv) => inv.isManager === true);
-        const managerProfitAvailable = Number(managerInvestor?.availableProfit || 0);
-        const report = buildPersonalExpensesPdfReport({
-            expenses,
-            periodLabel,
+        setReportWindow({
+            kind: 'expenses',
             periodKey,
-            periodStart,
-            periodEnd,
-            previousPeriodTotal,
-            managerProfitAvailable
+            expenses: personalExpenses || [],
+            managerProfitAvailable: Number(managerInvestor?.availableProfit || 0)
         });
-        const opened = openPdfPrintWindow(report);
-        if (!opened) {
-            setAlert("❌ Impossible d’ouvrir l’aperçu PDF.");
-            return;
-        }
-        setAlert(isMobileDevice()
-            ? "Rapport dépenses ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
-            : "Rapport dépenses prêt. Enregistrez en PDF depuis l'impression.");
     };
+    const closeReportWindow = useCallback(() => setReportWindow(null), []);
     return {
         prepareInvestorReport,
+        reportWindow,
+        closeReportWindow,
         handleExportPersonalExpensesReport,
         handleExportUsdtReport,
         reportClient,

@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from 'react';
+import { Fragment, lazy, Suspense, useMemo, useState } from 'react';
 import { TreasuryCard, TreasuryTx } from '../types';
 import { TreasurySummarySection } from '../components/treasury/TreasurySummarySection';
 import { TreasuryCollectionsSection } from '../components/treasury/TreasuryCollectionsSection';
@@ -12,6 +12,7 @@ import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useLanguage } from '../contexts/LanguageContext';
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
+const TreasuryReportDialog = lazy(() => import('../components/reports/documents/DocumentReportDialogs').then((module) => ({ default: module.TreasuryReportDialog })));
 
 /** Mirrors the wallet resolution used for the Caisse/BaridiMob balances in useAppData. */
 function isCashWalletMovement(tx: TreasuryTx): boolean {
@@ -99,15 +100,9 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
             .slice(0, 12);
     }, [treasuryTransactions]);
 
-    const exportPdf = async () => {
-        const { buildTreasuryPdf, openPdfPrintWindow } = await import('../utils/pdfReports');
-        const report = buildTreasuryPdf(
-            treasuryPdfRows(treasuryTransactions),
-            { caisse: caisseBalance, baridi: baridiBalance },
-            `${t('treasury.exportedOn')} ${new Date().toLocaleDateString('fr-FR')}`
-        );
-        openPdfPrintWindow(report);
-    };
+    // The treasury report: its movements and balances are fixed when the window opens.
+    const [report, setReport] = useState<{ rows: ReturnType<typeof treasuryPdfRows>; balances: { caisse: number; baridi: number } } | null>(null);
+    const exportPdf = () => setReport({ rows: treasuryPdfRows(treasuryTransactions), balances: { caisse: caisseBalance, baridi: baridiBalance } });
 
     return (<div className="anim-page-in flex flex-col gap-3">
       <CapitalOverviewCard t={t} capitalSnapshot={capitalSnapshot} investorBreakdown={investorBreakdown} showBreakdown/>
@@ -156,5 +151,9 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
               </Fragment>);
         })}
       </SectionCard>
+
+      {report && (<Suspense fallback={null}>
+          <TreasuryReportDialog onClose={() => setReport(null)} rows={report.rows} balances={report.balances}/>
+        </Suspense>)}
     </div>);
 }

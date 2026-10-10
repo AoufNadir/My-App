@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { InvestorReport } from '../../utils/investorReport';
 import { formatAmount, formatDate, formatTime } from '../reports/reportFormat';
-import { DOT, REPORT_CELL, ReportCard, ReportCardGrid, ReportCardValue, ReportFooter, ReportHeader, ReportIdentity, ReportSection, ReportSheet, ReportTable, num, type ReportSheetLang } from '../reports/ReportSheet';
+import { DOT, REPORT_CELL, ReportCard, ReportCardGrid, ReportCardValue, ReportFact, ReportFooter, ReportHeader, ReportIdentity, ReportSection, ReportSheet, ReportTable, num, type ReportSheetLang } from '../reports/ReportSheet';
 import { INVESTOR_REPORT_WORDS } from './investorReportText';
 
 export type InvestorReportSheetProps = {
@@ -16,14 +16,6 @@ const tone = (value: number) => (value > 0.005 ? 'text-financial-profit' : value
 const sign = (value: number) => (value > 0 ? '+' : value < 0 ? '−' : '');
 const signedDzd = (value: number) => `${sign(value)}${formatAmount(Math.abs(value))} DZD`;
 const plainDzd = (value: number) => `${value < 0 ? '−' : ''}${formatAmount(Math.abs(value))} DZD`;
-
-/** A small labelled number, for the period's figures. */
-function Fact({ label, value, valueTone = '' }: { label: string; value: ReactNode; valueTone?: string }) {
-    return (<div className="flex min-w-0 flex-col gap-px rounded-lg bg-surface-muted px-3 py-2">
-        <small className="text-[11px] text-neutral-500">{label}</small>
-        <b className={`self-start text-sm ${valueTone || 'text-neutral-900'}`}>{value}</b>
-      </div>);
-}
 
 /** The investor report on the shared report frame: his situation at the end date, the period, the operations. */
 export function InvestorReportSheet({ report, lang, variant }: InvestorReportSheetProps) {
@@ -72,9 +64,9 @@ export function InvestorReportSheet({ report, lang, variant }: InvestorReportShe
 
       <ReportSection title={w.performanceTitle}>
         <div data-pdf-break="" className="grid grid-cols-1 gap-2.5 @lg:grid-cols-3">
-          <Fact label={w.periodProfit} value={num(signedDzd(report.periodProfit))} valueTone={tone(report.periodProfit)}/>
-          <Fact label={w.periodYield} value={num(report.yieldPct === null ? '—' : `${sign(report.yieldPct)}${formatAmount(Math.abs(report.yieldPct))}%`)} valueTone={report.yieldPct === null ? '' : tone(report.yieldPct)}/>
-          <Fact label={w.movementCount} value={num(String(operations.length))}/>
+          <ReportFact label={w.periodProfit} value={num(signedDzd(report.periodProfit))} valueTone={tone(report.periodProfit)}/>
+          <ReportFact label={w.periodYield} value={num(report.yieldPct === null ? '—' : `${sign(report.yieldPct)}${formatAmount(Math.abs(report.yieldPct))}%`)} valueTone={report.yieldPct === null ? '' : tone(report.yieldPct)}/>
+          <ReportFact label={w.movementCount} value={num(String(operations.length))}/>
         </div>
         {operations.length === 0 ? (<p data-pdf-break="" className="text-xs text-neutral-500">{w.noMovement}</p>) : (<div data-pdf-break="" className="flex flex-col rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-neutral-700">
             {movementRows.map((row) => (<div key={row.key} className="flex items-baseline justify-between gap-3 py-1">
