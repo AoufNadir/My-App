@@ -121,6 +121,46 @@ export function buildInventoryCheckData(
     };
 }
 
+const STATUSES: readonly InventoryGapStatus[] = ['match', 'short', 'over'];
+
+/**
+ * Reads a saved document defensively: a row that does not make sense is dropped, a check with no
+ * valid row (or no valid time) is ignored. The stored status is kept as written, not recomputed.
+ */
+export function parseInventoryCheck(id: string, data: unknown): InventoryCheck | null {
+    if (!data || typeof data !== 'object')
+        return null;
+    const raw = data as Record<string, unknown>;
+    const timestamp = Number(raw.timestamp);
+    if (!Number.isFinite(timestamp) || timestamp <= 0 || !Array.isArray(raw.rows))
+        return null;
+    const rows: InventoryCheck['rows'] = [];
+    for (const item of raw.rows) {
+        const row = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+        const account = INVENTORY_ACCOUNTS.find((a) => a === row.account);
+        const expected = Number(row.expected);
+        const counted = Number(row.counted);
+        const gap = Number(row.gap);
+        const status = STATUSES.find((st) => st === row.status);
+        if (!account || !status || ![expected, counted, gap].every(Number.isFinite))
+            continue;
+        if (rows.some((r) => r.account === account))
+            continue;
+        rows.push({ account, expected, counted, gap, status });
+    }
+    if (rows.length === 0)
+        return null;
+    const note = typeof raw.note === 'string' && raw.note.trim() ? raw.note.trim() : undefined;
+    return {
+        id,
+        timestamp,
+        date: typeof raw.date === 'string' ? raw.date : '',
+        time: typeof raw.time === 'string' ? raw.time : '',
+        rows,
+        ...(note ? { note } : {}),
+    };
+}
+
 /** True when every account counted that day matched the books. */
 export const isCheckClean = (check: Pick<InventoryCheck, 'rows'>): boolean =>
     check.rows.length > 0 && check.rows.every((row) => row.status === 'match');

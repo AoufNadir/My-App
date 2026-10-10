@@ -11,6 +11,7 @@ import {
     lastMatchingCheck,
     listBalanceCorrections,
     monthKeyOf,
+    parseInventoryCheck,
     type InventoryCheck,
 } from './inventoryCheck';
 
@@ -128,6 +129,32 @@ const correctionRows = () => listBalanceCorrections(
     assert.equal(correctionEntryFor(row('usdt', 1_480.5, -20)), '-20.00');
     assert.equal(correctionEntryFor(row('eur', 93.25, 3)), '+3.00');
     assert.equal(correctionEntryFor(row('usdt', 1, 0.1 + 0.2)), '+0.30');
+}
+
+// Reading a saved document: bad rows are dropped, a document with nothing usable is ignored.
+{
+    const good = { timestamp: 1_000, date: '10/10/2026', time: '20:00', note: ' x ', rows: [
+        { account: 'caisse', expected: 100, counted: 90, gap: -10, status: 'short' },
+        { account: 'caisse', expected: 1, counted: 1, gap: 0, status: 'match' },
+        { account: 'bitcoin', expected: 1, counted: 1, gap: 0, status: 'match' },
+        { account: 'usdt', expected: 'abc', counted: 1, gap: 0, status: 'match' },
+        { account: 'eur', expected: 5, counted: 5, gap: 0, status: 'weird' },
+        null,
+        { account: 'baridi', expected: 5, counted: 7, gap: 2, status: 'over' },
+    ] };
+    const parsed = parseInventoryCheck('id1', good);
+    assert.ok(parsed);
+    assert.equal(parsed!.id, 'id1');
+    assert.equal(parsed!.note, 'x');
+    assert.deepEqual(parsed!.rows.map((r) => r.account), ['caisse', 'baridi'], 'duplicate, unknown account, bad number, bad status and null rows dropped');
+    assert.equal(parseInventoryCheck('id2', { ...good, rows: [] }), null);
+    assert.equal(parseInventoryCheck('id3', { ...good, timestamp: 'soon' }), null);
+    assert.equal(parseInventoryCheck('id4', { ...good, rows: 'oops' }), null);
+    assert.equal(parseInventoryCheck('id5', null), null);
+    assert.equal('note' in parseInventoryCheck('id6', { ...good, note: 5 })!, false);
+    // What we save is read back unchanged.
+    const saved = buildInventoryCheckData(expected, { caisse: 482_500, usdt: 1_400 }, stamp(5_000), 'ok')!;
+    assert.deepEqual(parseInventoryCheck('s', saved), { id: 's', ...saved });
 }
 
 console.log('inventory check tests passed');
