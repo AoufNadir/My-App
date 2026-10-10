@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { translations } from '../translations';
 import { KNOWN_ALERT_TEMPLATES, translateAlert } from './alertMessages';
@@ -29,7 +30,7 @@ templateKeys.forEach((key, index) => {
 
 // Every setAlert(...) of the app, read from the source: literals, templates (a {hole} per
 // value), both sides of ?: and of ||.
-const SRC = new URL('..', import.meta.url).pathname;
+const SRC = fileURLToPath(new URL('..', import.meta.url));
 const files: string[] = [];
 (function walk(dir: string) {
     for (const name of readdirSync(dir)) {
