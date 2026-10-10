@@ -3,6 +3,7 @@ import { SectionCard } from '../cards';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Input } from '../ui/Input';
+import { InventoryInvestigator } from './InventoryInvestigator';
 import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
 import { MoneyField } from '../ui/MoneyField';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -24,6 +25,7 @@ import {
     type InventoryGapStatus,
     type InventoryRow,
 } from '../../utils/inventoryCheck';
+import { investigateInventory, type InvestigatorAction, type InvestigatorPortfolioTx, type InvestigatorTreasuryTx } from '../../utils/inventoryInvestigator';
 
 const ACCOUNT_LABEL_KEYS: Record<InventoryAccount, string> = {
     caisse: 'inventory.accountCaisse',
@@ -57,12 +59,16 @@ type InventorySectionProps = {
     onDelete: (id: string) => void;
     /** Opens the existing « edit balance » window for this gap; the inventory window closes first */
     onCorrect: (row: InventoryRow) => void;
+    /** V5-3: the operations the investigator reads, and what its buttons open (windows that already exist, filled in) */
+    treasuryTransactions?: readonly InvestigatorTreasuryTx[];
+    portfolioTransactions?: readonly InvestigatorPortfolioTx[];
+    onInvestigate?: (action: InvestigatorAction) => void;
     /** Opens the window at once, with these entries typed (screenshots and tests) */
     defaultOpen?: boolean;
     initialDraft?: Partial<Draft>;
 };
 
-export function InventorySection({ expected, checks, corrections, ready, onSave, onDelete, onCorrect, defaultOpen = false, initialDraft }: InventorySectionProps) {
+export function InventorySection({ expected, checks, corrections, ready, onSave, onDelete, onCorrect, treasuryTransactions = [], portfolioTransactions = [], onInvestigate, defaultOpen = false, initialDraft }: InventorySectionProps) {
     const { t } = useLanguage();
     const text = (key: string, values: Record<string, string> = {}) =>
         Object.entries(values).reduce((out, [name, value]) => out.replace(new RegExp(`\\{${name}\\}`, 'g'), value), String(t(key)));
@@ -137,6 +143,14 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
         setIsOpen(false);
         onCorrect(row);
     };
+    // The investigator's buttons open another window; this one closes first and keeps what was typed.
+    const investigate = (action: InvestigatorAction) => {
+        setIsOpen(false);
+        onInvestigate?.(action);
+    };
+    const suggestions = useMemo(() => (onInvestigate
+        ? investigateInventory({ rows, checks, treasuryTransactions, portfolioTransactions, now: Date.now() })
+        : []), [onInvestigate, rows, checks, treasuryTransactions, portfolioTransactions]);
 
     const checkLine = (check: InventoryCheck): ReactNode => (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -196,6 +210,7 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
                 </div>
               </Fragment>);
           })}
+          <InventoryInvestigator suggestions={suggestions} ready={ready} onAction={investigate}/>
           <Input label={t('inventory.note') as string} value={note} onChange={(event) => { setNote(event.target.value); setJustSaved(false); }} placeholder={t('inventory.notePlaceholder') as string}/>
           {rows.length === 0 && !hasInvalid && (<p className="text-xs text-neutral-500">{t('inventory.nothingCounted')}</p>)}
           <p className="text-xs text-neutral-500">{t('inventory.saveHint')}</p>

@@ -57,6 +57,7 @@ import { useReportExports } from './hooks/useReportExports';
 import { now, parseAndEvaluate } from './utils';
 import { computePamLedger } from './utils/pamLedger';
 import { correctionEntryFor, type InventoryRow } from './utils/inventoryCheck';
+import type { InvestigatorAction } from './utils/inventoryInvestigator';
 import { collectDebtWriteOffs } from './utils/debtWriteOffs';
 import { findPeriodLockViolation, formatLockDate, isInLockedPeriod, savedTimestampFrom } from './utils/periodLock';
 import { operationStamp } from './utils/editStamp';
@@ -1255,8 +1256,16 @@ export default function MainApp({ user }: {
         setWalletTransferSource('Caisse');
         setWalletTransferDest('BaridiMob');
     };
-    const openWalletTransferModal = (txToEdit: TreasuryTx | null = null) => {
-        if (txToEdit) {
+    const openWalletTransferModal = (txToEdit: TreasuryTx | null = null, prefill?: { amount: string; source: 'Caisse' | 'BaridiMob'; destination: 'Caisse' | 'BaridiMob'; notes: string }) => {
+        if (!txToEdit && prefill) {
+            // V5-3: a transfer the inventory investigator suggests; it is saved only when the user presses Save.
+            setEditingWalletTransferTx(null);
+            setWalletTransferSource(prefill.source);
+            setWalletTransferDest(prefill.destination);
+            setWalletTransferAmount(prefill.amount);
+            setWalletTransferNotes(prefill.notes);
+        }
+        else if (txToEdit) {
             const nextSource = txToEdit.source || 'Caisse';
             const nextDestination = txToEdit.destination || (nextSource === 'Caisse' ? 'BaridiMob' : 'Caisse');
             setEditingWalletTransferTx(txToEdit);
@@ -1731,6 +1740,44 @@ export default function MainApp({ user }: {
             }
         }
         openAdjustmentModal(tx.type === 'Retrait' ? 'subtract' : 'add', tx);
+    };
+    // V5-3: the inventory investigator only suggests. Each button opens a window that already exists,
+    // filled in; the user still checks it and presses Save there, and that window's own handler writes.
+    const openInventoryAction = (action: InvestigatorAction) => {
+        if (action.kind === 'editOperation') {
+            if (action.source === 'treasury') {
+                const treasuryTx = treasuryTransactions.find((candidate) => candidate.id === action.id);
+                if (treasuryTx)
+                    handleEditTreasuryTx(treasuryTx);
+            }
+            else {
+                const portfolioTx = transactions.find((candidate) => candidate.id === action.id);
+                if (portfolioTx)
+                    handleEditPortfolioTx(portfolioTx);
+            }
+            return;
+        }
+        if (action.kind === 'recordTransfer') {
+            const wallet = (account: 'caisse' | 'baridi') => (account === 'caisse' ? 'Caisse' : 'BaridiMob');
+            openWalletTransferModal(null, {
+                amount: String(Math.round(action.amount)),
+                source: wallet(action.from),
+                destination: wallet(action.to),
+                notes: `Transfert oublié (inventaire ${now().date})`,
+            });
+            return;
+        }
+        const { suggestion } = action;
+        const isSale = suggestion.kind === 'unrecordedSale';
+        const prefill = {
+            total: String(Math.round(suggestion.dzdAmount)),
+            paymentStatus: suggestion.channel === 'baridi' ? 'baridi' as const : 'cash' as const,
+            ...(isSale
+                ? { sellQty: suggestion.quantity.toFixed(2), sellPrice: suggestion.unitPrice.toFixed(2) }
+                : { buyQty: suggestion.quantity.toFixed(2), buyPrice: suggestion.unitPrice.toFixed(2) }),
+        };
+        const side = isSale ? 'sell' : 'buy';
+        openForm(`${side}_${suggestion.currency === 'EUR' ? 'eur' : 'usdt'}`, null, prefill);
     };
     const handleWalletTransfer = async () => {
         const amountInput = parseAndEvaluate(walletTransferAmount);
@@ -2718,7 +2765,7 @@ export default function MainApp({ user }: {
             return;
         return open(item);
     };
-    const mainContentProps = { t, dailyOverview, userDocRef, setAlert, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete: unlessClosedMonth<Tx | TreasuryTx | null>(setTxToDelete), openDateFilterModal, dateRange, setDateRange, openNewOperationMenu, openDeliveryExpenseModal, openDigitalServiceModal: unlessClosedMonth<DigitalServiceTransaction | null>(openDigitalServiceModal), handleDeleteDigitalService: unlessClosedMonth<DigitalServiceTransaction>(handleDeleteDigitalService), treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete: unlessClosedMonth<TreasuryTx | null>(setTreasuryTxToDelete), PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal: unlessClosedMonth<TreasuryTx>(openReconcileAdvanceModal), openEditPersonalExpense: unlessClosedMonth<TreasuryTx>(openEditPersonalExpense), setPersonalExpenseToDelete: unlessClosedMonth<TreasuryTx | null>(setPersonalExpenseToDelete), handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, openClientToClientTransferModal, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete: unlessClosedMonth<InvestorTransaction | null>(setInvestorTxToDelete), managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, prepareInvestorReport, handleApplyLock24hToRecentBuys, periodLock: periodLockProps, investorTermsByInvestorId: investorTerms.byInvestorId, inventoryReady: isFinancialDataReady && !isAwaitingServerSync, openInventoryCorrection };
+    const mainContentProps = { t, dailyOverview, userDocRef, setAlert, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete: unlessClosedMonth<Tx | TreasuryTx | null>(setTxToDelete), openDateFilterModal, dateRange, setDateRange, openNewOperationMenu, openDeliveryExpenseModal, openDigitalServiceModal: unlessClosedMonth<DigitalServiceTransaction | null>(openDigitalServiceModal), handleDeleteDigitalService: unlessClosedMonth<DigitalServiceTransaction>(handleDeleteDigitalService), treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete: unlessClosedMonth<TreasuryTx | null>(setTreasuryTxToDelete), PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal: unlessClosedMonth<TreasuryTx>(openReconcileAdvanceModal), openEditPersonalExpense: unlessClosedMonth<TreasuryTx>(openEditPersonalExpense), setPersonalExpenseToDelete: unlessClosedMonth<TreasuryTx | null>(setPersonalExpenseToDelete), handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, openClientToClientTransferModal, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete: unlessClosedMonth<InvestorTransaction | null>(setInvestorTxToDelete), managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, prepareInvestorReport, handleApplyLock24hToRecentBuys, periodLock: periodLockProps, investorTermsByInvestorId: investorTerms.byInvestorId, inventoryReady: isFinancialDataReady && !isAwaitingServerSync, openInventoryAction, openInventoryCorrection };
     const walletTransferDialogProps = useMemo(() => ({
         isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSourceAndSync,

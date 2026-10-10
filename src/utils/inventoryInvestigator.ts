@@ -140,6 +140,12 @@ export type UnexplainedSuggestion = {
 
 export type InventorySuggestion = WrongChannelSuggestion | TradeSuggestion | UnexplainedSuggestion;
 
+/** What a button of the investigator asks the app to open. Each one opens a window that already exists, filled in; nothing is saved from here. */
+export type InvestigatorAction =
+    | { kind: 'editOperation'; source: 'treasury' | 'portfolio'; id: string }
+    | { kind: 'recordTransfer'; amount: number; from: CashAccount; to: CashAccount }
+    | { kind: 'recordTrade'; suggestion: TradeSuggestion };
+
 const centsOf = (value: unknown): number => {
     const n = Number(value);
     return Number.isFinite(n) ? toCents(n) : 0;

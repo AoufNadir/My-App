@@ -75,6 +75,11 @@ export type PrefillSell = {
     clientId?: string;
     paymentStatus?: 'credit' | 'baridi' | 'cash';
     creditDueDate?: string;
+    /** V5-3: the exact total in dinars, kept as typed (the inventory investigator's sale or purchase) */
+    total?: string;
+    /** V5-3: a purchase prefilled from the inventory investigator (buy_usdt pays in dinars) */
+    buyQty?: string;
+    buyPrice?: string;
 };
 export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats, setAlert, setSelectedClientId, setView, smartQuoteRef }: HandlerProps) {
     const [isSaving, setIsSaving] = useState(false);
@@ -317,7 +322,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setSellPrice(prefill?.sellPrice ?? '');
         const prefillQty = parseAndEvaluate(prefill?.sellQty || '');
         const prefillPrice = parseAndEvaluate(prefill?.sellPrice || '');
-        setSellTotal(prefillQty > 0 && prefillPrice > 0 ? String(Math.round(prefillQty * prefillPrice)) : '');
+        setSellTotal(prefill?.total ?? (prefillQty > 0 && prefillPrice > 0 ? String(Math.round(prefillQty * prefillPrice)) : ''));
         setProfitPercent('');
         setNotes('');
         setBuyUsdtMode(null);
@@ -335,7 +340,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setPendingCreditRisk(null);
         setEditingTx(txToEdit);
         setMode(newMode);
-        setIsTotalManual(false);
+        // A total handed over by the investigator is the amount that really moved: it is kept as typed.
+        setIsTotalManual(Boolean(prefill?.total) && !txToEdit);
         setLinkedClientId(prefill?.clientId ?? 'none');
         setLinkedClientDzdId('none');
         if (txToEdit) {
@@ -433,6 +439,18 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 setBuyEurPrice(portfolioStats.eur.avgBuy.toFixed(2));
             if (newMode === 'sell_usdt' && portfolioStats.eur.avgBuy > 0)
                 setSellEurToDzdRate(portfolioStats.eur.avgBuy.toFixed(2));
+            // V5-3: a purchase the inventory investigator found, opened with its figures typed in.
+            if (prefill?.buyQty && newMode === 'buy_usdt') {
+                setBuyUsdtMode('with_dzd');
+                setBuyUsdtAmount(prefill.buyQty);
+                setBuyUsdtPrice(prefill.buyPrice ?? '');
+                setBuyUsdtTotal(prefill.total ?? '');
+            }
+            else if (prefill?.buyQty && newMode === 'buy_eur') {
+                setBuyEurAmount(prefill.buyQty);
+                setBuyEurPrice(prefill.buyPrice ?? '');
+                setBuyEurTotal(prefill.total ?? '');
+            }
         }
     };
     const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setBuyRestriction('free'); setRealPurchaseTime(''); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setSellSettlementCurrency('DZD'); setSellEurToDzdRate(''); setLinkedClientDzdId('none'); setCreditDueDate(''); setPendingCreditRisk(null); setIsTotalManual(false); setTxTags([]); };
