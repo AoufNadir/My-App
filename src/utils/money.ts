@@ -21,6 +21,12 @@ export const sumM = (values: ReadonlyArray<number>): number => fromCents(values.
 /** Round a money amount to 2 decimals through the cent bus. */
 export const roundM = (n: number): number => fromCents(toCents(n));
 /**
+ * Round a money amount DOWN to whole cents, so a « max » button never fills in more than is
+ * available (roundM rounds half up: 1234.565 becomes 1234.57). The small constant absorbs float
+ * drift such as 0.29 * 100 = 28.999999999999996. A negative or invalid amount gives 0.
+ */
+export const floorM = (n: number): number => (Number.isFinite(n) && n > 0 ? fromCents(Math.floor(n * 100 + 1e-6)) : 0);
+/**
  * Distribute a total proportionally across weights, with cent-level remainder
  * spread to the largest residuals first (largest-remainder method). Returned
  * shares always sum exactly to `total` (no rounding leakage).

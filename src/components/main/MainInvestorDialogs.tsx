@@ -9,6 +9,7 @@ import { MoneyField } from '../ui/MoneyField';
 import { TransactionPreviewCard, type PreviewRow } from '../ui/TransactionPreviewCard';
 import { parseAndEvaluate } from '../../utils';
 import { formatMoney } from '../../pages/shared/pageFormat';
+import { investorWithdrawLimit } from '../../utils/investorWithdraw';
 type MainInvestorDialogsProps = Record<string, any>;
 export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, handleSaveInvestor, investorName, setInvestorName, fieldBase, investorInitialCapital, setInvestorInitialCapital, investorInitialCapitalSource, setInvestorInitialCapitalSource, investorNotes, setInvestorNotes, isManager, setIsManager, derivedInvestors, selectedInvestorId, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorTxType, investorTxAmount, setInvestorTxAmount, investorTxPaymentSource, setInvestorTxPaymentSource, treasuryStats, investorTxNotes, setInvestorTxNotes, handleInvestorTransaction, t, investorToDelete, setInvestorToDelete, handleDeleteInvestor, investorTxToDelete, setInvestorTxToDelete, handleDeleteInvestorTx, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, handleReinvestProfit, setAlert }: MainInvestorDialogsProps) {
     const template = (key: string, values: Record<string, string>) => Object.entries(values).reduce((text, [name, value]) => text.replace(new RegExp(`\\{${name}\\}`, 'g'), value), String(t(key)));
@@ -137,9 +138,9 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
             // V5-1: what the investor can take is always in sight, and Max fills it in: the smaller of
             // their profit (or capital) and the chosen register's balance, never a cent above either.
             const isWithdrawal = investorTxType === 'withdraw_profit' || investorTxType === 'withdraw_capital';
-            const floorCents = (value: number) => Math.floor(Math.max(0, value) * 100 + 1e-6) / 100;
-            const maxAmount = isWithdrawal ? floorCents(Math.min(cap, paymentSourceBalance)) : 0;
-            const maxLimitedBySource = isWithdrawal && paymentSourceBalance < cap;
+            const withdrawLimit = investorWithdrawLimit({ entitlement: cap, sourceBalance: paymentSourceBalance });
+            const maxAmount = isWithdrawal ? withdrawLimit.max : 0;
+            const maxLimitedBySource = isWithdrawal && withdrawLimit.limitedBySource;
             const amountHint = (<>{capLabel}: <span dir="ltr">{formatMoney(cap, 'DZD')}</span>{isWithdrawal && maxLimitedBySource && <span className="block">{template('investorDialog.maxLimitedBySource', { source: paymentSource })}</span>}</>);
             const errorMsg = !validAmount
                 ? t('common.invalidAmount')
