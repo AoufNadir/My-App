@@ -938,6 +938,9 @@ export const translations = {
             investorSince: 'Investisseur depuis le {date}',
             reportTitle: 'Créer le rapport de l’investisseur',
             reportInvalidDate: 'Date invalide.',
+            reportPreview: 'Aperçu du rapport',
+            reportNotFound: 'Investisseur introuvable.',
+            reportNotFoundAtClose: 'Investisseur introuvable à la date de fin.',
         },
         investorTerms: {
             title: 'Échéance des 3 mois',
@@ -2592,6 +2595,9 @@ export const translations = {
             investorSince: 'مستثمر منذ {date}',
             reportTitle: 'إنشاء تقرير المستثمر',
             reportInvalidDate: 'تاريخ غير صالح.',
+            reportPreview: 'معاينة التقرير',
+            reportNotFound: 'المستثمر غير موجود.',
+            reportNotFoundAtClose: 'المستثمر غير موجود في تاريخ النهاية.',
         },
         investorTerms: {
             title: 'موعد الأشهر الثلاثة',

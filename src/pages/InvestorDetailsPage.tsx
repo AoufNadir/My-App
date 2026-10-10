@@ -4,11 +4,12 @@ import { ChevronLeftIcon } from '../components/icons/ChevronLeftIcon';
 import { FileSpreadsheetIcon } from '../components/icons/FileSpreadsheetIcon';
 import { InvestorTransaction, TreasuryTx } from '../types';
 import { InvestorDetailsContent } from '../components/investor-details/InvestorDetailsContent';
-import { useInvestorReportDialog, type InvestorReportDateRange } from '../components/investor-details/useInvestorReportDialog';
+import { useInvestorReportDialog } from '../components/investor-details/useInvestorReportDialog';
 import { useLanguage } from '../contexts/LanguageContext';
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
 import type { DerivedInvestor, ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
 import type { InvestorTerm } from '../utils/investorTerms';
+import type { InvestorReportDateRange, PreparedInvestorReport } from '../utils/investorReport';
 import { InvestorTermAlert } from '../components/investors/InvestorTermAlert';
 interface InvestorDetailsPageProps {
     investor: DerivedInvestor;
@@ -19,7 +20,8 @@ interface InvestorDetailsPageProps {
     onWithdrawProfit: () => void;
     onReinvestProfit: () => void;
     onDeleteTransaction: (tx: InvestorTransaction) => void;
-    onExportReport: (range?: InvestorReportDateRange) => void;
+    /** The investor report's numbers for a period, shown and sent by the report window */
+    prepareReport?: (investorId: string, range: InvestorReportDateRange) => PreparedInvestorReport;
     globalNetProfit: number;
     managerFeePercentage: number;
     totalCapital: number;
@@ -29,11 +31,11 @@ interface InvestorDetailsPageProps {
     /** The investor's open quarterly term, if any: shown at the top with the same two windows. */
     term?: InvestorTerm | null;
 }
-export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ investor, transactions, onBack, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction, onExportReport, capitalSnapshot, managerProfitBreakdown, personalExpenses, term }) => {
+export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ investor, transactions, onBack, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction, prepareReport, capitalSnapshot, managerProfitBreakdown, personalExpenses, term }) => {
     const { t } = useLanguage();
     const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
     const orderedTransactions = useMemo(() => [...transactions].sort((a, b) => b.timestamp - a.timestamp), [transactions]);
-    const report = useInvestorReportDialog(onExportReport);
+    const report = useInvestorReportDialog({ investorId: investor.id, investorName: investor.name, prepareReport });
     return (<div className="anim-page-in flex flex-col gap-3">
       <div className="flex items-center gap-1">
         <button type="button" onClick={onBack} aria-label={t('common.back')} className="-ms-2 flex h-touch w-touch shrink-0 items-center justify-center rounded-full text-neutral-600 transition-colors hover:bg-surface-muted hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">

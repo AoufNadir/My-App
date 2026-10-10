@@ -1,89 +1,111 @@
-import { Fragment } from 'react';
+import type { ReactNode } from 'react';
 import type { InvestorReport } from '../../utils/investorReport';
-import { formatDate, formatPrice } from '../clients/clientActivityReportText';
-import { DOT, ReportCard, ReportSection, ReportSheetFrame, num, reportTd, reportTdNum, reportTh, type ReportSheetLang, type ReportSheetVariant } from '../reports/ReportSheet';
+import { formatAmount, formatDate, formatTime } from '../reports/reportFormat';
+import { DOT, REPORT_CELL, ReportCard, ReportCardGrid, ReportCardValue, ReportFooter, ReportHeader, ReportIdentity, ReportSection, ReportSheet, ReportTable, num, type ReportSheetLang } from '../reports/ReportSheet';
 import { INVESTOR_REPORT_WORDS } from './investorReportText';
 
 export type InvestorReportSheetProps = {
     report: InvestorReport;
     lang: ReportSheetLang;
-    investorName: string;
-    reference: string;
-    issuedAt: number;
-    variant: ReportSheetVariant;
+    /** « print »: the A4 sheet captured for the PDF (794px wide); « screen »: the preview in the window */
+    variant: 'screen' | 'print';
 };
 
-// Amounts keep two decimals, as in the report before V3-5.
-const money = (value: number) => `${formatPrice(Math.abs(value))} DZD`;
-const signedMoney = (value: number) => `${value > 0.005 ? '+' : value < -0.005 ? '−' : ''}${money(value)}`;
-const signedPercent = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatPrice(Math.abs(value))}%`;
-const tone = (value: number) => (value > 0.005 ? 'text-financial-profit' : value < -0.005 ? 'text-financial-debt' : undefined);
-const pad2 = (value: number) => String(value).padStart(2, '0');
-const timeOf = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-};
+// As on the old printed report: under half a centime is neither a gain nor a loss.
+const tone = (value: number) => (value > 0.005 ? 'text-financial-profit' : value < -0.005 ? 'text-financial-loss' : '');
+const sign = (value: number) => (value > 0 ? '+' : value < 0 ? '−' : '');
+const signedDzd = (value: number) => `${sign(value)}${formatAmount(Math.abs(value))} DZD`;
+const plainDzd = (value: number) => `${value < 0 ? '−' : ''}${formatAmount(Math.abs(value))} DZD`;
 
-/** The investor report on the shared sheet: situation at the end date, the period, its operations. */
-export function InvestorReportSheet({ report, lang, investorName, reference, issuedAt, variant }: InvestorReportSheetProps) {
+/** A small labelled number, for the period's figures. */
+function Fact({ label, value, valueTone = '' }: { label: string; value: ReactNode; valueTone?: string }) {
+    return (<div className="flex min-w-0 flex-col gap-px rounded-lg bg-surface-muted px-3 py-2">
+        <small className="text-[11px] text-neutral-500">{label}</small>
+        <b className={`self-start text-sm ${valueTone || 'text-neutral-900'}`}>{value}</b>
+      </div>);
+}
+
+/** The investor report on the shared report frame: his situation at the end date, the period, the operations. */
+export function InvestorReportSheet({ report, lang, variant }: InvestorReportSheetProps) {
     const w = INVESTOR_REPORT_WORDS[lang];
-    const issued = formatDate(issuedAt);
-    const { isManager } = report;
-    const movements = [
-        { key: 'added', label: w.capitalAdded, value: report.capitalAdded, text: `${report.capitalAdded > 0 ? '+' : ''}${money(report.capitalAdded)}`, className: 'text-financial-profit' },
-        { key: 'reinvested', label: isManager ? w.retained : w.reinvested, value: report.reinvested, text: `${report.reinvested > 0 ? '+' : ''}${money(report.reinvested)}`, className: 'text-financial-profit' },
-        { key: 'out', label: isManager ? w.personalExpenses : w.profitOut, value: report.profitOut, text: `${report.profitOut > 0 ? '−' : ''}${money(report.profitOut)}`, className: 'text-financial-debt' },
-        { key: 'net', label: w.netMovement, value: report.netCapitalMovement, text: signedMoney(report.netCapitalMovement), className: tone(report.netCapitalMovement) || 'text-neutral-900' },
+    const { startTs, endTs, operations, isManager } = report;
+
+    const periodText: ReactNode = startTs != null && endTs != null
+        ? <>{w.from} {num(formatDate(startTs))} {w.to} {num(formatDate(endTs))}</>
+        : startTs != null ? <>{w.since} {num(formatDate(startTs))}</>
+            : endTs != null ? <>{w.until} {num(formatDate(endTs))}</>
+                : w.allHistory;
+    // Capital, profit and share are those of the end date; today when the period has no end or ends later.
+    const situationDate = endTs != null && endTs < report.issuedAt ? endTs : report.issuedAt;
+
+    const movementRows: Array<{ key: string; label: string; value: string; valueTone: string }> = [
+        { key: 'deposits', label: w.deposits, value: `${report.deposits > 0 ? '+' : report.deposits < 0 ? '−' : ''}${formatAmount(Math.abs(report.deposits))} DZD`, valueTone: report.deposits > 0 ? 'text-financial-profit' : '' },
+        { key: 'reinvested', label: isManager ? w.retained : w.reinvested, value: `${report.reinvested > 0 ? '+' : report.reinvested < 0 ? '−' : ''}${formatAmount(Math.abs(report.reinvested))} DZD`, valueTone: report.reinvested > 0 ? 'text-financial-profit' : '' },
+        { key: 'profitOut', label: isManager ? w.personalExpenses : w.profitOut, value: `${report.profitOut > 0 ? '−' : ''}${formatAmount(Math.abs(report.profitOut))} DZD`, valueTone: report.profitOut > 0 ? 'text-financial-loss' : '' },
+        { key: 'net', label: w.netMovement, value: signedDzd(report.netMovement), valueTone: tone(report.netMovement) },
     ];
-    return (<ReportSheetFrame lang={lang} variant={variant} brandTagline={w.brandTagline} title={w.title} referenceLabel={w.reference} reference={reference} issuedLabel={w.issued} issued={issued}
-        partyLabel={isManager ? w.manager : w.investor} partyName={investorName} periodCaption={w.period}
-        period={w.periodText(report.startTs, report.endTs, (timestamp) => `⁦${formatDate(timestamp)}⁩`)} footer={w.footer}>
-      <ReportSection title={w.situationTitle}>
-        <div className="grid grid-cols-1 gap-2.5 @lg:grid-cols-2">
-          <ReportCard label={w.capital} value={num(money(report.capital))} tone="primary"/>
-          <ReportCard label={w.availableProfit} value={num(signedMoney(report.availableProfit))} tone={report.availableProfit < -0.005 ? 'danger' : 'success'} valueTone={tone(report.availableProfit)}/>
-          <ReportCard label={w.estimatedValue} value={num(money(report.estimatedValue))} tone="secondary"/>
-          <ReportCard label={w.share} value={num(`${formatPrice(report.sharePercent)}%`)} tone="neutral"/>
-        </div>
-        {report.notes && (<p className="rounded-lg bg-surface-muted px-3 py-2 text-xs text-neutral-700"><b>{w.notes}:</b> <bdi>{report.notes}</bdi></p>)}
+
+    const { th, td, tdNum } = REPORT_CELL;
+
+    return (<ReportSheet lang={lang} variant={variant}>
+      <ReportHeader tagline={w.brandTagline} title={w.title} referenceLabel={w.reference} reference={report.reference} issuedLabel={w.issued} issued={formatDate(report.issuedAt)}/>
+
+      <ReportIdentity whoLabel={isManager ? w.manager : w.investor} who={report.investorName} periodLabel={w.period} period={periodText}/>
+
+      <ReportSection title={<>{w.situationAt} {num(formatDate(situationDate))}</>}>
+        <ReportCardGrid>
+          <ReportCard dot="bg-primary" title={w.capital}>
+            <ReportCardValue>{num(plainDzd(report.capital))}</ReportCardValue>
+          </ReportCard>
+          <ReportCard dot="bg-financial-profit" title={w.availableProfit}>
+            <ReportCardValue tone={tone(report.availableProfit)}>{num(signedDzd(report.availableProfit))}</ReportCardValue>
+          </ReportCard>
+          <ReportCard dot="bg-secondary" title={w.estimatedValue}>
+            <ReportCardValue>{num(plainDzd(report.estimatedValue))}</ReportCardValue>
+          </ReportCard>
+          <ReportCard dot="bg-neutral-500" title={w.fundShare}>
+            <ReportCardValue>{num(`${formatAmount(report.sharePercent)}%`)}</ReportCardValue>
+          </ReportCard>
+        </ReportCardGrid>
+        {report.notes && (<p data-pdf-break="" className="rounded-lg bg-surface-muted px-3 py-2 text-xs text-neutral-700"><b>{w.notes}:</b> <bdi>{report.notes}</bdi></p>)}
       </ReportSection>
 
       <ReportSection title={w.performanceTitle}>
-        <div className="grid grid-cols-1 gap-2.5 @lg:grid-cols-3">
-          <ReportCard label={w.periodProfit} value={num(signedMoney(report.periodProfit))} tone={report.periodProfit < -0.005 ? 'danger' : 'success'} valueTone={tone(report.periodProfit)}/>
-          <ReportCard label={w.yield} value={num(report.yieldPercent === null ? '—' : signedPercent(report.yieldPercent))} tone="neutral" valueTone={report.yieldPercent === null ? undefined : tone(report.yieldPercent)}/>
-          <ReportCard label={w.movementCount} value={num(String(report.movementCount))} tone="neutral"/>
+        <div data-pdf-break="" className="grid grid-cols-1 gap-2.5 @lg:grid-cols-3">
+          <Fact label={w.periodProfit} value={num(signedDzd(report.periodProfit))} valueTone={tone(report.periodProfit)}/>
+          <Fact label={w.periodYield} value={num(report.yieldPct === null ? '—' : `${sign(report.yieldPct)}${formatAmount(Math.abs(report.yieldPct))}%`)} valueTone={report.yieldPct === null ? '' : tone(report.yieldPct)}/>
+          <Fact label={w.movementCount} value={num(String(operations.length))}/>
         </div>
-        {report.movementCount === 0
-            ? (<p className="text-xs text-neutral-500">{w.noMovement}</p>)
-            : (<p className="rounded-lg bg-surface-muted px-3 py-2 text-xs text-neutral-700">
-                {movements.map((item, index) => (<Fragment key={item.key}>{index > 0 && DOT}{item.label} <b className={item.className}>{num(item.text)}</b></Fragment>))}
-              </p>)}
+        {operations.length === 0 ? (<p data-pdf-break="" className="text-xs text-neutral-500">{w.noMovement}</p>) : (<div data-pdf-break="" className="flex flex-col rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-neutral-700">
+            {movementRows.map((row) => (<div key={row.key} className="flex items-baseline justify-between gap-3 py-1">
+                <span className="min-w-0">{row.label}</span>
+                <span className={`shrink-0 font-semibold ${row.valueTone || 'text-neutral-900'}`}>{num(row.value)}</span>
+              </div>))}
+          </div>)}
       </ReportSection>
 
       <ReportSection title={w.operationsTitle}>
-        {report.rows.length === 0 ? (<p className="text-xs text-neutral-500">{w.noOperation}</p>) : (<div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full min-w-[330px] border-collapse text-xs">
-              <thead>
-                <tr>
-                  <th className={reportTh}>{w.colDate}</th>
-                  <th className={reportTh}>{w.colType}</th>
-                  <th className={`${reportTh} text-end`}>{w.colAmount}</th>
-                  <th className={reportTh}>{w.colSource}</th>
-                  <th className={reportTh}>{w.colNotes}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.rows.map((row, index) => (<tr key={row.id} data-pdf-row="" data-pdf-break={index > 0 ? '' : undefined}>
-                    <td className={reportTd}>{num(formatDate(row.timestamp))}<small className="block text-[10.5px] text-neutral-500">{num(timeOf(row.timestamp))}</small></td>
-                    <td className={reportTd}>{w.kind[row.kind]}</td>
-                    <td className={`${reportTdNum} font-semibold ${row.amount >= 0 ? 'text-financial-profit' : 'text-financial-debt'}`}>{num(`${row.amount >= 0 ? '+' : '−'}${money(row.amount)}`)}</td>
-                    <td className={reportTd}>{row.source ? <bdi>{row.source}</bdi> : '—'}</td>
-                    <td className={reportTd}>{row.notes ? <bdi>{row.notes}</bdi> : '—'}</td>
-                  </tr>))}
-              </tbody>
-            </table>
-          </div>)}
+        {operations.length === 0 ? (<p className="text-xs text-neutral-500">{w.noOperation}</p>) : (<ReportTable>
+            <thead>
+              <tr>
+                <th className={th}>{w.colDate}</th>
+                <th className={th}>{w.colOperation}</th>
+                <th className={`${th} text-end`}>{w.colAmount}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {operations.map((operation, index) => {
+                const detail = [operation.source ? w.source[operation.source] : '', operation.notes].filter(Boolean).join(DOT);
+                return (<tr key={operation.id} data-pdf-row="" data-pdf-break={index > 0 ? '' : undefined}>
+                    <td className={td}>{num(formatDate(operation.timestamp))}<small className="block text-[10.5px] text-neutral-500">{num(formatTime(operation.timestamp))}</small></td>
+                    <td className={td}>{w.operation[operation.kind]}{detail && <small className="block text-[10.5px] text-neutral-500"><bdi>{detail}</bdi></small>}</td>
+                    <td className={`${tdNum} font-semibold ${operation.positive ? 'text-financial-profit' : 'text-financial-loss'}`}>{num(`${operation.positive ? '+' : '−'}${formatAmount(operation.amount)}`)}</td>
+                  </tr>);
+            })}
+            </tbody>
+          </ReportTable>)}
       </ReportSection>
-    </ReportSheetFrame>);
+
+      <ReportFooter>{w.footer}</ReportFooter>
+    </ReportSheet>);
 }

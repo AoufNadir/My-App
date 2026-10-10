@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 
 import { monthPeriod, monthWeeks, parseDayKey, rangePeriod, yearPeriod } from '../../utils/clientActivityReport';
-import { PDF_PAGE_HEIGHT_PX, PDF_PAGE_MARGIN_PX, pageRowWindow, planPdfPages, reportFileName } from './clientActivityReportPdf';
+import { PDF_PAGE_HEIGHT_PX, PDF_PAGE_MARGIN_PX, pageRowWindow, planPdfPages } from '../reports/reportPdf';
+import { reportFileName } from './clientActivityReportPdf';
 
 // The PDF is the report cut into A4 pages: at the top of a block or of a table row, never
 // through a line of text, every part of the report on exactly one page.

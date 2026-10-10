@@ -181,14 +181,14 @@ function renderCommission(lang: Lang) {
     return render(<CommissionEditorModal isOpen onClose={noop} value="30" onSave={asyncNoop} managerFeeAmount={totalsWithCosts.managerShare}/>, lang);
 }
 function renderInvestorDetail(lang: Lang, who: DerivedInvestor, txs: InvestorTransaction[]) {
-    return render(<InvestorDetailsPage investor={who} transactions={txs} onBack={noop} onAddCapital={noop} onWithdrawCapital={noop} onWithdrawProfit={noop} onReinvestProfit={noop} onDeleteTransaction={noop} onExportReport={noop} globalNetProfit={241_870} managerFeePercentage={30} totalCapital={1_720_000} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} personalExpenses={personalExpenses}/>, lang);
+    return render(<InvestorDetailsPage investor={who} transactions={txs} onBack={noop} onAddCapital={noop} onWithdrawCapital={noop} onWithdrawProfit={noop} onReinvestProfit={noop} onDeleteTransaction={noop} globalNetProfit={241_870} managerFeePercentage={30} totalCapital={1_720_000} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} personalExpenses={personalExpenses}/>, lang);
 }
 function renderInvestorHistory(lang: Lang, who: DerivedInvestor, txs: InvestorTransaction[]) {
     const ordered = [...txs].sort((a, b) => b.timestamp - a.timestamp);
     return render(<InvestorDetailsContent investor={who} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} orderedTransactions={ordered} activeTab="history" setActiveTab={noop} onAddCapital={noop} onWithdrawCapital={noop} onWithdrawProfit={noop} onReinvestProfit={noop} onDeleteTransaction={noop} personalExpenses={personalExpenses}/>, lang);
 }
 function renderPortal(lang: Lang, who: DerivedInvestor, txs: InvestorTransaction[]) {
-    return render(<InvestorDashboardPage investor={who} transactions={txs} globalNetProfit={241_870} managerFeePercentage={30} totalCapital={1_720_000} onExportReport={noop}/>, lang);
+    return render(<InvestorDashboardPage investor={who} transactions={txs} globalNetProfit={241_870} managerFeePercentage={30} totalCapital={1_720_000}/>, lang);
 }
 function renderServices(lang: Lang) {
     return render(<ServicesPage manualAssets={manualAssets} manualAssetClients={manualAssetClients} manualAssetTransactions={manualAssetTransactions} assetClientBalances={assetClientBalances} onOpenManualAsset={noop} onOpenCreateManualAsset={noop} onDeleteManualAsset={noop}/>, lang);

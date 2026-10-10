@@ -1,9 +1,14 @@
+import type { InvestorTransaction } from '../../types';
+import { translations } from '../../translations';
+import type { InvestorReportOperationKind } from '../../utils/investorReport';
 import type { ReportSheetLang } from '../reports/ReportSheet';
-import type { InvestorReportRowKind } from '../../utils/investorReport';
+
+type PaymentSource = NonNullable<InvestorTransaction['paymentSource']>;
 
 /**
- * Words of the investor report. Like the client report it has its own language, chosen when it is
- * sent, so it does not use the app's t(). The row names are the investor page's (getTxMeta).
+ * Words of the investor report. The report has its own language, chosen when it is sent (an
+ * investor can get French while the app is in Arabic), so it does not use the app's t(). The
+ * operations keep the names the investor page gives them.
  */
 export type InvestorReportWords = {
     brandTagline: string;
@@ -13,35 +18,60 @@ export type InvestorReportWords = {
     investor: string;
     manager: string;
     period: string;
-    periodText: (startTs: number | null, endTs: number | null, date: (timestamp: number) => string) => string;
-    situationTitle: string;
+    /** « من X إلى Y », « منذ X », « حتى X », « كل السجل » */
+    from: string;
+    to: string;
+    since: string;
+    until: string;
+    allHistory: string;
+    /** Followed by the date the situation is given at */
+    situationAt: string;
     capital: string;
     availableProfit: string;
     estimatedValue: string;
-    share: string;
+    fundShare: string;
     notes: string;
     performanceTitle: string;
     periodProfit: string;
-    yield: string;
+    periodYield: string;
     movementCount: string;
-    capitalAdded: string;
+    deposits: string;
     reinvested: string;
+    /** The manager's profit kept in the business, in place of « reinvested » */
     retained: string;
     profitOut: string;
+    /** The manager's personal expenses, in place of « profit withdrawn » */
     personalExpenses: string;
-    capitalWithdrawn: string;
     netMovement: string;
     noMovement: string;
     operationsTitle: string;
-    noOperation: string;
     colDate: string;
-    colType: string;
+    colOperation: string;
     colAmount: string;
-    colSource: string;
-    colNotes: string;
-    kind: Record<InvestorReportRowKind, string>;
+    noOperation: string;
+    operation: Record<InvestorReportOperationKind, string>;
+    source: Record<PaymentSource, string>;
     footer: string;
 };
+
+function operationNames(lang: ReportSheetLang): Record<InvestorReportOperationKind, string> {
+    const investors = translations[lang].investors;
+    return {
+        deposit: investors.txDepositCapital,
+        withdrawCapital: investors.txWithdrawCapital,
+        personalExpenseCapital: investors.txPersonalExpenseCapital,
+        withdrawProfit: investors.txWithdrawProfit,
+        personalExpense: investors.txPersonalExpense,
+        reinvest: investors.txReinvestProfit,
+        retained: investors.profitsReinvestedInCapital,
+        distribution: investors.txProfitDistribution,
+    };
+}
+
+function sourceNames(lang: ReportSheetLang): Record<PaymentSource, string> {
+    const words = translations[lang].transactions;
+    return { Caisse: words.cash, BaridiMob: words.baridi, USDT: 'USDT', EUR: 'EUR' };
+}
 
 export const INVESTOR_REPORT_WORDS: Record<ReportSheetLang, InvestorReportWords> = {
     ar: {
@@ -50,47 +80,38 @@ export const INVESTOR_REPORT_WORDS: Record<ReportSheetLang, InvestorReportWords>
         reference: 'رقم',
         issued: 'صدر في',
         investor: 'المستثمر',
-        manager: 'المسيّر',
+        manager: 'المدير',
         period: 'الفترة',
-        periodText: (startTs, endTs, date) => (startTs != null && endTs != null
-            ? `من ${date(startTs)} إلى ${date(endTs)}`
-            : startTs != null ? `ابتداءً من ${date(startTs)}` : endTs != null ? `حتى ${date(endTs)}` : 'كل السجل'),
-        situationTitle: 'الوضع في تاريخ النهاية',
-        capital: 'رأس المال الحالي',
+        from: 'من',
+        to: 'إلى',
+        since: 'منذ',
+        until: 'حتى',
+        allHistory: 'كل السجل',
+        situationAt: 'الوضع في',
+        capital: 'رأس المال',
         availableProfit: 'الربح المتاح',
         estimatedValue: 'القيمة التقديرية',
-        share: 'الحصة من الصندوق',
+        fundShare: 'الحصة من الصندوق',
         notes: 'ملاحظات',
         performanceTitle: 'الأداء والحركات',
         periodProfit: 'صافي ربح الفترة',
-        yield: 'مردود الفترة',
+        periodYield: 'مردود الفترة',
         movementCount: 'عدد الحركات',
-        capitalAdded: 'إضافات رأس المال',
+        deposits: 'إضافات رأس المال',
         reinvested: 'أعيد استثماره',
         retained: 'الأرباح المحتفظ بها',
         profitOut: 'سحب الأرباح',
         personalExpenses: 'المصاريف الشخصية',
-        capitalWithdrawn: 'سحب رأس المال',
         netMovement: 'صافي الحركة',
-        noMovement: 'لا توجد حركات في هذه الفترة.',
+        noMovement: 'لا حركة في هذه الفترة.',
         operationsTitle: 'تفاصيل العمليات',
-        noOperation: 'لا توجد عمليات في هذه الفترة.',
         colDate: 'التاريخ',
-        colType: 'النوع',
-        colAmount: 'المبلغ',
-        colSource: 'المصدر',
-        colNotes: 'ملاحظة',
-        kind: {
-            profitDistribution: 'توزيع ربح',
-            withdrawProfit: 'سحب ربح',
-            personalExpense: 'مصروف شخصي',
-            reinvestProfit: 'إعادة استثمار',
-            retainedProfit: 'الأرباح المحتفظ بها داخل المشروع',
-            depositCapital: 'إضافة رأس مال',
-            personalExpenseCapital: 'مصروف شخصي من رأس المال',
-            withdrawCapital: 'سحب رأس مال',
-        },
-        footer: 'هذا التقرير ملخص لاستثمارك مع ProDigital. إذا وجدت أي فرق، راسلنا خلال 7 أيام.',
+        colOperation: 'العملية',
+        colAmount: 'المبلغ (DZD)',
+        noOperation: 'لا عملية في هذه الفترة.',
+        operation: operationNames('ar'),
+        source: sourceNames('ar'),
+        footer: 'هذا التقرير ملخص لحسابك الاستثماري مع ProDigital. إذا وجدت أي فرق، راسلنا خلال 7 أيام.',
     },
     fr: {
         brandTagline: 'Change de devises',
@@ -100,44 +121,35 @@ export const INVESTOR_REPORT_WORDS: Record<ReportSheetLang, InvestorReportWords>
         investor: 'Investisseur',
         manager: 'Gérant',
         period: 'Période',
-        periodText: (startTs, endTs, date) => (startTs != null && endTs != null
-            ? `du ${date(startTs)} au ${date(endTs)}`
-            : startTs != null ? `à partir du ${date(startTs)}` : endTs != null ? `jusqu’au ${date(endTs)}` : 'Tout l’historique'),
-        situationTitle: 'Situation à la date de fin',
-        capital: 'Capital actuel',
+        from: 'Du',
+        to: 'au',
+        since: 'Depuis le',
+        until: 'Jusqu’au',
+        allHistory: 'Tout l’historique',
+        situationAt: 'Situation au',
+        capital: 'Capital',
         availableProfit: 'Profit disponible',
         estimatedValue: 'Valeur estimée',
-        share: 'Part du fonds',
+        fundShare: 'Part du fonds',
         notes: 'Notes',
         performanceTitle: 'Performance et mouvements',
         periodProfit: 'Profit net de la période',
-        yield: 'Rendement de la période',
+        periodYield: 'Rendement de la période',
         movementCount: 'Nombre de mouvements',
-        capitalAdded: 'Ajouts capital',
+        deposits: 'Ajouts capital',
         reinvested: 'Réinvesti',
         retained: 'Bénéfices conservés',
         profitOut: 'Retraits bénéfices',
         personalExpenses: 'Dépenses personnelles',
-        capitalWithdrawn: 'Retraits capital',
         netMovement: 'Mouvement net',
         noMovement: 'Aucun mouvement sur cette période.',
         operationsTitle: 'Détail des opérations',
-        noOperation: 'Aucune opération sur cette période.',
         colDate: 'Date',
-        colType: 'Type',
-        colAmount: 'Montant',
-        colSource: 'Source',
-        colNotes: 'Notes',
-        kind: {
-            profitDistribution: 'Distribution de profit',
-            withdrawProfit: 'Retrait de profit',
-            personalExpense: 'Dépense personnelle',
-            reinvestProfit: 'Réinvestissement',
-            retainedProfit: 'Bénéfices conservés dans le projet',
-            depositCapital: 'Ajout de capital',
-            personalExpenseCapital: 'Dépense personnelle (capital)',
-            withdrawCapital: 'Retrait de capital',
-        },
-        footer: 'Ce rapport résume votre investissement chez ProDigital. Signalez-nous toute différence sous 7 jours.',
+        colOperation: 'Opération',
+        colAmount: 'Montant (DZD)',
+        noOperation: 'Aucune opération sur cette période.',
+        operation: operationNames('fr'),
+        source: sourceNames('fr'),
+        footer: 'Ce rapport résume votre compte d’investissement chez ProDigital. Signalez-nous toute différence sous 7 jours.',
     },
 };

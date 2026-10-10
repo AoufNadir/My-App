@@ -159,7 +159,7 @@ assert.equal(linaTerm.daysLeft, -1);
 // ---- 4. The investor page ----
 {
     const capitalSnapshot = { netOwnedCapital: 3_000_000 } as CapitalSnapshot;
-    const pageOf = (who: DerivedInvestor, term?: InvestorTerm | null) => render(<InvestorDetailsPage investor={who} transactions={[]} onBack={noop} onAddCapital={noop} onWithdrawCapital={noop} onWithdrawProfit={noop} onReinvestProfit={noop} onDeleteTransaction={noop} onExportReport={noop} globalNetProfit={0} managerFeePercentage={20} totalCapital={1_000_000} capitalSnapshot={capitalSnapshot} {...(term === undefined ? {} : { term })}/>);
+    const pageOf = (who: DerivedInvestor, term?: InvestorTerm | null) => render(<InvestorDetailsPage investor={who} transactions={[]} onBack={noop} onAddCapital={noop} onWithdrawCapital={noop} onWithdrawProfit={noop} onReinvestProfit={noop} onDeleteTransaction={noop} globalNetProfit={0} managerFeePercentage={20} totalCapital={1_000_000} capitalSnapshot={capitalSnapshot} {...(term === undefined ? {} : { term })}/>);
     const before = pageOf(karim);
     assert.equal(pageOf(karim, null), before, 'no term: the page is unchanged');
     assert.equal(pageOf(karim, samiTerm), before, 'another investor\'s term is not shown');

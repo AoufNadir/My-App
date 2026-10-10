@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, PortfolioStats, TreasuryTx, Tx } from '../types';
 import { computePamLedger, type PamLedgerResult } from '../utils/pamLedger';
-import { deriveInvestorEconomics, type ManagerFeeHistoryEntry } from './useInvestorEconomics';
+import type { ManagerFeeHistoryEntry } from './useInvestorEconomics';
 import type { DebtWriteOff } from '../utils/debtWriteOffs';
+import { prepareInvestorReportInput, type InvestorReportDateRange, type PreparedInvestorReport } from '../utils/investorReport';
 type Translator = (key: string) => unknown;
 type UseReportExportsArgs = {
     clientTransactionsDzd: ClientTransactionDzd[];
@@ -22,10 +23,7 @@ type UseReportExportsArgs = {
     debtWriteOffs?: DebtWriteOff[];
     personalExpenses?: TreasuryTx[];
 };
-export type InvestorReportDateRange = {
-    startTs?: number | null;
-    endTs?: number | null;
-};
+export type { InvestorReportDateRange };
 function getMonthLabels(t: Translator) {
     const value = t('common.months');
     if (!Array.isArray(value))
@@ -69,87 +67,22 @@ export function useReportExports({ clientTransactionsDzd, clientsDzd, derivedInv
             ? `Rapport mensuel ${monthLabel} ${usdtReportYear} ouvert. Appuyez sur 'Enregistrer PDF' dans la page.`
             : `Rapport mensuel ${monthLabel} ${usdtReportYear} prêt. Enregistrez en PDF depuis l'impression.`);
     };
-    const handleExportInvestorReport = async (investorId: string, range: InvestorReportDateRange = {}) => {
-        const periodEconomics = deriveInvestorEconomics({
-            investors: derivedInvestors,
-            investorTransactions,
-            transactions,
-            managerFeePercentage,
-            managerFeeHistory,
-            pamLedger: reportPamLedger,
-            periodStartTs: range.startTs,
-            periodEndTs: range.endTs,
-            deliveryExpenses,
-            debtWriteOffs,
-            personalExpenses
-        });
-        const investor = periodEconomics.derivedInvestors.find((item) => item.id === investorId);
-        if (!investor) {
-            setAlert('⚠️ Investisseur introuvable.');
-            return;
-        }
-        // Period profit is intentionally calculated with the selected range,
-        // while balances must represent the investor's complete state at the
-        // report end date. Rebuild the closing view from data up to endTs so a
-        // reinvestment funded by earlier profit is not mistaken for a loss in
-        // the selected period.
-        const closingEndTs = range.endTs ?? null;
-        const transactionsAtClose = closingEndTs == null
-            ? transactions
-            : transactions.filter((tx) => Number(tx.timestamp) <= closingEndTs);
-        const investorTransactionsAtClose = closingEndTs == null
-            ? investorTransactions
-            : investorTransactions.filter((tx) => Number(tx.timestamp) <= closingEndTs);
-        const deliveryExpensesAtClose = closingEndTs == null
-            ? deliveryExpenses
-            : (deliveryExpenses || []).filter((tx) => Number(tx.timestamp) <= closingEndTs);
-        const debtWriteOffsAtClose = closingEndTs == null
-            ? debtWriteOffs
-            : (debtWriteOffs || []).filter((row) => row.timestamp <= closingEndTs);
-        const personalExpensesAtClose = closingEndTs == null
-            ? personalExpenses
-            : (personalExpenses || []).filter((tx) => Number(tx.timestamp) <= closingEndTs);
-        const closingEconomics = deriveInvestorEconomics({
-            investors: derivedInvestors,
-            investorTransactions: investorTransactionsAtClose,
-            transactions: transactionsAtClose,
-            managerFeePercentage,
-            managerFeeHistory,
-            pamLedger: computePamLedger(transactionsAtClose),
-            periodEndTs: closingEndTs,
-            deliveryExpenses: deliveryExpensesAtClose,
-            debtWriteOffs: debtWriteOffsAtClose,
-            personalExpenses: personalExpensesAtClose
-        });
-        const closingInvestor = closingEconomics.derivedInvestors.find((item) => item.id === investorId);
-        if (!closingInvestor) {
-            setAlert('⚠️ Investisseur introuvable à la date de clôture.');
-            return;
-        }
-        const reportInvestor = {
-            ...investor,
-            capitalInvested: closingInvestor.capitalInvested,
-            availableProfit: closingInvestor.availableProfit,
-            displayAvailableProfit: closingInvestor.displayAvailableProfit,
-            sharePercentage: closingInvestor.sharePercentage,
-        };
-        const { buildInvestorPdfReport, openPdfPrintWindow } = await loadPdfReports();
-        const report = buildInvestorPdfReport({
-            investor: reportInvestor,
-            investorTransactions: investorTransactions.filter((tx) => tx.investorId === investorId),
-            personalExpenses,
-            reportStartTs: range.startTs,
-            reportEndTs: range.endTs
-        });
-        const opened = openPdfPrintWindow(report);
-        if (!opened) {
-            setAlert("❌ Impossible d’ouvrir l’aperçu PDF.");
-            return;
-        }
-        setAlert(isMobileDevice()
-            ? "Rapport investisseur ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
-            : "Rapport investisseur prêt. Enregistrez en PDF depuis l'impression.");
-    };
+    /**
+     * The investor report's numbers for one investor and period, for the report window (which
+     * shows them and makes the PDF). Recomputed for each period the window asks for, and when the
+     * data changes while it is open.
+     */
+    const prepareInvestorReport = useCallback((investorId: string, range: InvestorReportDateRange = {}): PreparedInvestorReport => prepareInvestorReportInput({
+        derivedInvestors,
+        investorTransactions,
+        transactions,
+        managerFeePercentage,
+        managerFeeHistory,
+        pamLedger: reportPamLedger,
+        deliveryExpenses,
+        debtWriteOffs,
+        personalExpenses
+    }, investorId, range), [derivedInvestors, investorTransactions, transactions, managerFeePercentage, managerFeeHistory, reportPamLedger, deliveryExpenses, debtWriteOffs, personalExpenses]);
     const handleExportPersonalExpensesReport = async (periodKey: 'day' | 'week' | 'month' | 'year') => {
         const expenses = personalExpenses || [];
         const { buildPersonalExpensesPdfReport, openPdfPrintWindow } = await loadPdfReports();
@@ -257,7 +190,7 @@ export function useReportExports({ clientTransactionsDzd, clientsDzd, derivedInv
             : "Rapport dépenses prêt. Enregistrez en PDF depuis l'impression.");
     };
     return {
-        handleExportInvestorReport,
+        prepareInvestorReport,
         handleExportPersonalExpensesReport,
         handleExportUsdtReport,
         reportClient,

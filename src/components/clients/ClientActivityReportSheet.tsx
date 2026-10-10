@@ -1,8 +1,8 @@
 import { Fragment, type ReactNode } from 'react';
 import type { BalanceLineKey, ClientActivityReport, ReportCurrencyCard, ReportEntry, ReportLang, ReportPeriod } from '../../utils/clientActivityReport';
 import { averagePrice } from '../../utils/clientActivityReport';
-import { DOT, ReportSheetFrame, isolate, num, reportTd, reportTdNum, reportTh } from '../reports/ReportSheet';
 import { REPORT_WORDS, currencyUnit, formatCompactDzd, formatDate, formatDayMonth, formatDzdCents, formatEur, formatEurPrice, formatPercent, formatPrice, formatQuantity } from './clientActivityReportText';
+import { DOT, REPORT_CELL, ReportCard, ReportCardGrid, ReportCardValue, ReportFooter, ReportHeader, ReportIdentity, ReportLead, ReportSection, ReportSheet, ReportTable, isolate, num } from '../reports/ReportSheet';
 
 export type ClientActivityReportSheetProps = {
     report: ClientActivityReport;
@@ -17,11 +17,7 @@ export type ClientActivityReportSheetProps = {
 // Lines after purchases and payments, in this order; the opening balance entered during the period comes first.
 const OTHER_BALANCE_LINES: BalanceLineKey[] = ['saleToUs', 'withdrawal', 'transfer', 'writeOff', 'adjustment'];
 
-/**
- * The report as the client receives it. Always light, like paper, whatever the app theme
- * (`report-sheet` resets the colour tokens). Elements marked data-pdf-break are where a PDF page
- * may end; rows marked data-pdf-row are left out of the other pages' captures.
- */
+/** The report as the client receives it, on the shared report frame. */
 export function ClientActivityReportSheet({ report, lang, clientName, showBalance, variant }: ClientActivityReportSheetProps) {
     const w = REPORT_WORDS[lang];
     const { period, totals, balance, showCents } = report;
@@ -65,12 +61,8 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
             }
         }
         rows.push({ label: w.purchases, value: num(String(card.purchases)) });
-        return (<div key={card.currency} className="flex min-w-0 flex-col gap-1 rounded-lg border border-border px-3 py-2.5">
-        <span className="flex items-center gap-1.5 text-[11.5px] font-semibold text-neutral-500">
-          <i aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-sm ${card.currency === 'USDT' ? 'bg-secondary' : 'bg-primary'}`}/>
-          {w.currencyTitle[card.currency]}
-        </span>
-        <span className="self-start text-[19px] font-bold leading-tight text-neutral-900">{num(`${formatQuantity(card.quantity)} ${currencyUnit(card.currency)}`)}</span>
+        return (<Fragment key={card.currency}><ReportCard dot={card.currency === 'USDT' ? 'bg-secondary' : 'bg-primary'} title={w.currencyTitle[card.currency]}>
+        <ReportCardValue>{num(`${formatQuantity(card.quantity)} ${currencyUnit(card.currency)}`)}</ReportCardValue>
         {card.trend.length > 0 && (<div className="mt-0.5">
             <span className="text-[11.5px] text-neutral-600">{w.yourAveragePrice}</span>
             <div className="mt-1 flex items-stretch gap-1">
@@ -89,7 +81,7 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
         <span className="flex flex-col gap-px text-xs text-neutral-700">
           {rows.map((row) => (<span key={row.label} className="flex justify-between gap-2"><span>{row.label}</span>{row.value}</span>))}
         </span>
-      </div>);
+      </ReportCard></Fragment>);
     };
 
     const methods = balance.paymentsByMethod;
@@ -98,18 +90,16 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
         : methods.map((item, index) => (<Fragment key={item.method}>{index > 0 && DOT}{w.method[item.method]} {num(dzdShort(item.cents))}</Fragment>));
 
     const paymentsCard = !showBalance && balance.lines.payments > 0
-        ? (<div key="paid" className="flex min-w-0 flex-col gap-1 rounded-lg border border-border px-3 py-2.5">
-          <span className="flex items-center gap-1.5 text-[11.5px] font-semibold text-neutral-500"><i aria-hidden="true" className="h-2 w-2 shrink-0 rounded-sm bg-success"/>{w.paid}</span>
-          <span className="self-start text-[19px] font-bold leading-tight text-neutral-900">{num(dzd(balance.lines.payments))}</span>
+        ? (<Fragment key="paid"><ReportCard dot="bg-success" title={w.paid}>
+          <ReportCardValue>{num(dzd(balance.lines.payments))}</ReportCardValue>
           <span className="text-xs text-neutral-700">{methodsText}</span>
-        </div>)
+        </ReportCard></Fragment>)
         : null;
     const servicesCard = totals.serviceCount > 0
-        ? (<div key="services" className="flex min-w-0 flex-col gap-1 rounded-lg border border-border px-3 py-2.5">
-          <span className="flex items-center gap-1.5 text-[11.5px] font-semibold text-neutral-500"><i aria-hidden="true" className="h-2 w-2 shrink-0 rounded-sm bg-neutral-500"/>{w.services}</span>
-          {totals.serviceCents > 0 && <span className="self-start text-[19px] font-bold leading-tight text-neutral-900">{num(dzd(totals.serviceCents))}</span>}
+        ? (<Fragment key="services"><ReportCard dot="bg-neutral-500" title={w.services}>
+          {totals.serviceCents > 0 && <ReportCardValue>{num(dzd(totals.serviceCents))}</ReportCardValue>}
           <span className="flex justify-between gap-2 text-xs text-neutral-700"><span>{w.servicesCount}</span>{num(String(totals.serviceCount))}</span>
-        </div>)
+        </ReportCard></Fragment>)
         : null;
     const cards = [...report.currencyCards.map(currencyCard), servicesCard, paymentsCard].filter(Boolean);
 
@@ -235,26 +225,25 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
     };
     const balanceCell = (cents: number) => (Math.abs(cents) < 1 ? { text: '0', tone: '' } : cents < 0 ? { text: `−${dzdShort(cents)}`, tone: 'text-financial-debt' } : { text: `+${dzdShort(cents)}`, tone: 'text-financial-profit' });
 
-    const th = reportTh;
-    const td = reportTd;
-    const tdNum = reportTdNum;
+    const { th, td, tdNum } = REPORT_CELL;
     const issued = formatDate(report.issuedAt);
     // A client who always pays on the spot has a balance of 0 on every row: no column for it.
     const showBalanceColumn = showBalance && report.operations.some((row) => Math.abs(row.balanceAfterCents) >= 1);
 
-    return (<ReportSheetFrame lang={lang} variant={variant} brandTagline={w.brandTagline} title={w.title[report.kind]} referenceLabel={w.reference} reference={report.reference} issuedLabel={w.issued} issued={issued}
-        partyLabel={w.client} partyName={clientName} periodCaption={<>{w.period} · {w.periodName(period)}</>}
-        period={<>{w.from} {num(formatDate(period.from))} {w.to} {num(formatDate(report.shownTo))}{report.isLive ? ` (${w.soFar})` : ''}</>} footer={w.footer}>
-      <p data-pdf-break="" className="rounded-lg bg-primary/5 px-3 py-2 text-[13.5px] font-semibold text-neutral-900">{lead}</p>
+    return (<ReportSheet lang={lang} variant={variant}>
+      <ReportHeader tagline={w.brandTagline} title={w.title[report.kind]} referenceLabel={w.reference} reference={report.reference} issuedLabel={w.issued} issued={issued}/>
 
-      {cards.length > 0 && (<div data-pdf-break="" className="grid grid-cols-1 gap-2.5 @lg:grid-cols-2">{cards}</div>)}
+      <ReportIdentity whoLabel={w.client} who={clientName} periodLabel={<>{w.period} · {w.periodName(period)}</>} period={<>{w.from} {num(formatDate(period.from))} {w.to} {num(formatDate(report.shownTo))}{report.isLive ? ` (${w.soFar})` : ''}</>}/>
+
+      <ReportLead>{lead}</ReportLead>
+
+      {cards.length > 0 && (<ReportCardGrid>{cards}</ReportCardGrid>)}
 
       {balanceBlock}
 
       {facts}
 
-      {showComparison && (<section data-pdf-break="" className="flex flex-col gap-2">
-          <p className="text-[13.5px] font-bold">{w.comparisonTitle(period, unit)}</p>
+      {showComparison && (<ReportSection title={w.comparisonTitle(period, unit)}>
           <div role="img" aria-label={w.comparisonTitle(period, unit)} className="flex h-32 items-end gap-2 border-b border-border pt-4">
             {comparisonRows.map((row) => (<div key={row.period.key} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
                 <em className="whitespace-nowrap font-latin text-[10.5px] font-semibold not-italic text-neutral-700" dir="ltr">{row.totals.spentCents ? formatCompactDzd(row.totals.spentCents) : '0'}</em>
@@ -265,8 +254,7 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
           <div className="-mt-1 flex gap-2 text-center text-[10.5px] text-neutral-500">
             {comparisonRows.map((row) => (<span key={row.period.key} className="min-w-0 flex-1 truncate" dir="ltr">{axisLabel(row.period)}</span>))}
           </div>
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full min-w-[330px] border-collapse text-xs">
+          <ReportTable>
               <thead>
                 <tr>
                   <th className={th}>{unit === 'week' ? w.colWeek : unit === 'month' ? w.colMonth : w.colYear}</th>
@@ -295,14 +283,11 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
                   {report.showEurColumn && <td className={tdNum}>{num(formatQuantity(totalRow.eur))}</td>}
                 </tr>
               </tbody>
-            </table>
-          </div>
-        </section>)}
+          </ReportTable>
+        </ReportSection>)}
 
-      <section data-pdf-break="" className="flex flex-col gap-2">
-      <p className="text-[13.5px] font-bold">{w.operationsTitle}</p>
-      {report.operations.length === 0 ? (<p className="text-xs text-neutral-500">{w.leadNone}</p>) : (<div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full min-w-[330px] border-collapse text-xs">
+      <ReportSection title={w.operationsTitle}>
+      {report.operations.length === 0 ? (<p className="text-xs text-neutral-500">{w.leadNone}</p>) : (<ReportTable>
             <thead>
               <tr>
                 <th className={th}>{w.colDate}</th>
@@ -324,9 +309,9 @@ export function ClientActivityReportSheet({ report, lang, clientName, showBalanc
                   </tr>);
             })}
             </tbody>
-          </table>
-        </div>)}
-      </section>
+        </ReportTable>)}
+      </ReportSection>
 
-    </ReportSheetFrame>);
+      <ReportFooter>{w.footer}</ReportFooter>
+    </ReportSheet>);
 }

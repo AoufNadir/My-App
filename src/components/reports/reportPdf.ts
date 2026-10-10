@@ -1,5 +1,8 @@
 import { buildImagePdf, type PdfImagePage } from '../../utils/imagePdf';
 
+// The PDF of every report: a print sheet laid out off screen (794px wide), cut into A4 pages
+// between blocks and table rows, one image per page, then shared from the phone.
+
 /** A4 at 96 CSS px per inch: the print sheet is this wide, a page this tall. */
 export const PDF_PAGE_WIDTH_PX = 794;
 export const PDF_PAGE_HEIGHT_PX = 1123;
@@ -116,16 +119,20 @@ export function freezeListColumns(sheet: HTMLElement): () => void {
     return () => undo.forEach((step) => step());
 }
 
+/** The line under every page of a report longer than one page, in the report's language. */
+export type PdfPageFooter = {
+    lang: 'ar' | 'fr';
+    /** « صفحة 1 من 2 · صدر في … · رقم … » */
+    text: (page: number, count: number) => string;
+};
+
 /**
  * Turns the print sheet (794px wide, laid out off screen) into a PDF: one capture and one JPEG per
  * A4 page. While a page is captured, the list rows of the other pages leave the layout (the capture
  * copies every element's laid-out height, so the list must really be that short), so a long report
  * needs no canvas taller than a page and each page costs about the same. Runs in the browser only.
  */
-/** Text under each page of a report with more than one page, in the report's language: « Page 1 sur 2 · Émis le … · Réf. … ». */
-export type PdfPageLabel = (pageNumber: number, pageCount: number) => string;
-
-export async function renderReportPdf(sheet: HTMLElement, title: string, pageLabel?: PdfPageLabel): Promise<Blob> {
+export async function renderReportPdf(sheet: HTMLElement, title: string, footer?: PdfPageFooter): Promise<Blob> {
     if (document.fonts?.ready)
         await document.fonts.ready;
     const { toCanvas, getFontEmbedCSS } = await import('html-to-image');
@@ -142,7 +149,7 @@ export async function renderReportPdf(sheet: HTMLElement, title: string, pageLab
         }
         const pages: PdfImagePage[] = [];
         for (let index = 0; index < slices.length; index++)
-            pages.push(await renderPage(toCanvas, sheet, { width, rows, slice: slices[index], index, count: slices.length, fontEmbedCSS, pageLabel }));
+            pages.push(await renderPage(toCanvas, sheet, { width, rows, slice: slices[index], index, count: slices.length, fontEmbedCSS, footer }));
         return new Blob([buildImagePdf(pages, { title })], { type: 'application/pdf' });
     }
     finally {
@@ -162,10 +169,15 @@ export function planSheetPages(sheet: HTMLElement): { width: number; slices: Pdf
     return { width: sheet.offsetWidth || PDF_PAGE_WIDTH_PX, slices: planPdfPages(height, pdfBreakPoints(sheet)), rows: pdfRowBoxes(sheet) };
 }
 
-type PageJob = { width: number; rows: ReadonlyArray<PdfRowBox & { element: HTMLElement }>; slice: PdfSlice; index: number; count: number; fontEmbedCSS?: string; pageLabel?: PdfPageLabel };
+type PageJob = { width: number; rows: ReadonlyArray<PdfRowBox & { element: HTMLElement }>; slice: PdfSlice; index: number; count: number; fontEmbedCSS?: string; footer?: PdfPageFooter };
+
+/** What is written under a page: its number, and with the report's words its issue date and reference. */
+export function pdfPageFooterText(index: number, count: number, footer?: PdfPageFooter): string {
+    return footer ? footer.text(index + 1, count) : `${index + 1} / ${count}`;
+}
 
 /** One A4 page: its part of the sheet, drawn under the top margin (from page 2), with its number. */
-async function renderPage(toCanvas: ToCanvas, sheet: HTMLElement, { width, rows, slice, index, count, fontEmbedCSS, pageLabel }: PageJob): Promise<PdfImagePage> {
+async function renderPage(toCanvas: ToCanvas, sheet: HTMLElement, { width, rows, slice, index, count, fontEmbedCSS, footer }: PageJob): Promise<PdfImagePage> {
     const { skip, shift } = pageRowWindow(rows, slice);
     const away = [...skip].map((row) => rows[row].element);
     const skipped = new Set<Node>(away);
@@ -204,12 +216,11 @@ async function renderPage(toCanvas: ToCanvas, sheet: HTMLElement, { width, rows,
     context.drawImage(shot, 0, 0, shot.width, shot.height, 0, targetTop, pageWidth, shot.height);
     if (count > 1) {
         context.fillStyle = '#6B7280';
-        // Cairo after Inter: an Arabic label needs a font with Arabic letters on the canvas too.
-        context.font = `${Math.round(10 * scale)}px Inter, Cairo, system-ui, sans-serif`;
+        // The sheet's own fonts: Cairo for Arabic, Inter for the numbers and French.
+        context.font = `${Math.round(10 * scale)}px ${footer?.lang === 'ar' ? 'Cairo, ' : ''}Inter, system-ui, sans-serif`;
+        context.direction = footer?.lang === 'ar' ? 'rtl' : 'ltr';
         context.textAlign = 'center';
-        const label = pageLabel ? pageLabel(index + 1, count) : `${index + 1} / ${count}`;
-        context.direction = /[؀-ۿ]/.test(label) ? 'rtl' : 'ltr';
-        context.fillText(label, pageWidth / 2, pageHeight - Math.round(14 * scale));
+        context.fillText(pdfPageFooterText(index, count, footer), pageWidth / 2, pageHeight - Math.round(14 * scale));
     }
     const jpeg = await canvasToJpeg(page, 0.92);
     const result = { jpeg: new Uint8Array(await jpeg.arrayBuffer()), widthPx: pageWidth, heightPx: pageHeight };
