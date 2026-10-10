@@ -29,6 +29,33 @@ function BreakdownMetric({ label, value, semantic = 'auto' }: { label: string; v
     );
 }
 
+/** One line of the owner's profit by source: what it comes from (and what it covers), then the amount. */
+function ProfitSourceLine({ label, hint, value, decimals, strong = false }: { label: string; hint?: string; value: number; decimals: number; strong?: boolean }) {
+    return (
+        <div className="flex items-center justify-between gap-3 py-2.5">
+            <div className="min-w-0">
+                <p className={`break-words text-sm leading-snug ${strong ? 'font-bold text-neutral-900' : 'font-semibold text-neutral-700'}`}>{label}</p>
+                {hint && <p className="mt-0.5 text-xs leading-snug text-neutral-500">{hint}</p>}
+            </div>
+            <CurrencyAmount value={value} currency="DZD" semantic="auto" size={strong ? 'lg' : 'md'} decimals={decimals} className="shrink-0 font-semibold" />
+        </div>
+    );
+}
+
+/**
+ * The three figures are written in whole dinars, as everywhere on the page, as long as the whole
+ * dinars shown above the total add up to it. When rounding would make them miss the total by a
+ * dinar, all three show their cents, so that what is above the total always adds up to it.
+ */
+function profitSourceDecimals(breakdown: ManagerProfitBreakdown): number {
+    // Rounded the way the screen writes them: half a dinar goes away from zero.
+    const shown = (value: number) => {
+        const amount = Number(value || 0);
+        return Math.sign(amount) * Math.round(Math.abs(amount));
+    };
+    return shown(breakdown.tradingOwnerProfit) + shown(breakdown.serviceProfit) === shown(breakdown.ownerTotalProfit) ? 0 : 2;
+}
+
 function BreakdownPercentage({ label, value }: { label: string; value: number }) {
     const formatted = Number(value || 0).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
     return (
@@ -43,15 +70,20 @@ function BreakdownPercentage({ label, value }: { label: string; value: number })
 
 export function OwnerProfitBreakdownCard({ breakdown }: { breakdown: ManagerProfitBreakdown }) {
     const { t } = useLanguage();
+    const sourceDecimals = profitSourceDecimals(breakdown);
     return (
         <SectionCard title={t('investors.ownerProfitBreakdown') as string}>
             <p className="-mt-1 mb-3 text-xs text-neutral-500">{t('investors.ownerProfitBreakdownHint') as string}</p>
+            {/* Where the owner's profit comes from: the USDT and EUR sales, the other businesses, then the total. */}
+            <div className="mb-2 divide-y divide-border rounded-button bg-surface-muted px-3">
+                <ProfitSourceLine label={t('investors.profitFromSales') as string} value={breakdown.tradingOwnerProfit} decimals={sourceDecimals} />
+                <ProfitSourceLine label={t('investors.profitFromOtherBusinesses') as string} hint={t('investors.profitFromOtherBusinessesHint') as string} value={breakdown.serviceProfit} decimals={sourceDecimals} />
+                <ProfitSourceLine label={t('investors.personalTotalProfit') as string} value={breakdown.ownerTotalProfit} decimals={sourceDecimals} strong />
+            </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <BreakdownMetric label={t('investors.ideaShare') as string} value={breakdown.ideaShareProfit} />
                 <BreakdownPercentage label={t('investors.managerCommissionRate') as string} value={breakdown.managerFeePercentage} />
                 <BreakdownMetric label={t('investors.personalCapitalShare') as string} value={breakdown.personalCapitalProfit} />
-                <BreakdownMetric label={t('investors.serviceProfit') as string} value={breakdown.serviceProfit} />
-                <BreakdownMetric label={t('investors.personalTotalProfit') as string} value={breakdown.ownerTotalProfit} />
                 <BreakdownMetric label={t('investors.profitsReinvestedInCapital') as string} value={breakdown.retainedProfit} />
                 <BreakdownMetric label={t('investors.externalInvestorsShare') as string} value={breakdown.externalInvestorsProfit} semantic="plain" />
                 <BreakdownMetric label={t('investors.openingCapital') as string} value={breakdown.openingCapital} semantic="plain" />
