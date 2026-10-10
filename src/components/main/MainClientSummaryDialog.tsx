@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
@@ -8,6 +8,11 @@ import { ShareIcon } from '../icons/ShareIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { ClientDzd, ClientTransactionDzd } from '../../types';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote } from '../../utils/transactionTerminology';
+import { buildClientSummary } from '../../utils/clientSummary';
+import { openWhatsAppMessenger } from '../../utils/whatsapp';
+import { ClientSummarySheet, clientSummaryMessage, CLIENT_SUMMARY_WORDS } from '../clients/ClientSummarySheet';
+import { ReportLanguagePicker, ReportPrintHolder, useReportLanguage } from '../reports/ReportDialogParts';
+import { renderSheetImage, shareOrDownloadFile } from '../reports/reportPdf';
 type MainClientSummaryDialogProps = Record<string, any>;
 const CLIENT_SUMMARY_VISIBLE_TX_LIMIT = 5;
 type ClientRow = {
@@ -20,29 +25,6 @@ function formatAmount(value: number, digits = 2): string {
         minimumFractionDigits: digits,
         maximumFractionDigits: digits
     });
-}
-function formatClientAmount(value: number): string {
-    return value.toLocaleString('fr-FR', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    });
-}
-function dataUrlToBlob(dataUrl: string): Blob {
-    const [header, data] = dataUrl.split(',');
-    const mimeMatch = header.match(/data:(.*?);base64/);
-    const mime = mimeMatch?.[1] || 'image/png';
-    const binary = atob(data || '');
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) {
-        bytes[i] = binary.charCodeAt(i);
-    }
-    return new Blob([bytes], { type: mime });
-}
-function readTokenColor(tokenName: string): string | undefined {
-    if (typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') {
-        return undefined;
-    }
-    return window.getComputedStyle(document.documentElement).getPropertyValue(tokenName).trim() || undefined;
 }
 function findClientTransferCounterpart(tx: ClientTransactionDzd, allClientTxs: ClientTransactionDzd[]) {
     if (tx.type !== 'Transfert Sortant' && tx.type !== 'Transfert Entrant')
@@ -71,14 +53,8 @@ function nameInitials(name: string): string {
 }
 export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, clientBalances, clientTransactionsDzd, clientsDzd, transactions, setAlert, getClientFullName }: MainClientSummaryDialogProps) {
     const { lang } = useLanguage();
-    const isArabic = lang === 'ar';
     const text = (key: string, values: Record<string, string | number> = {}) => Object.entries(values)
         .reduce((result, [name, value]) => result.split(`{${name}}`).join(String(value)), String(t(key)));
-    const [isSharing, setIsSharing] = useState(false);
-    const exportCardRef = useRef<HTMLDivElement | null>(null);
-    const isMobileUserAgent = typeof navigator !== 'undefined'
-        && /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || '');
-    const exportCardWidth = isMobileUserAgent ? 860 : 980;
     const selectedClientTxs: ClientTransactionDzd[] = useMemo(() => {
         if (!summaryClient)
             return [];
@@ -90,27 +66,11 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
     const clientsById = useMemo(() => new Map((clientsDzd || []).map((client: ClientDzd) => [client.id, client])), [clientsDzd]);
     const currentBalance = summaryClient ? (clientBalances.get(summaryClient.id) || 0) : 0;
     const balanceColorClass = currentBalance < 0 ? 'text-financial-loss' : currentBalance > 0 ? 'text-financial-profit' : 'text-neutral-300';
-    const balanceExportPanelClass = currentBalance < 0
-        ? 'border-danger/40 bg-danger/20'
-        : currentBalance > 0
-            ? 'border-success/40 bg-success/20'
-            : 'border-border bg-surface-muted';
-    const balanceExportAmountClass = currentBalance < 0
-        ? 'text-financial-loss'
-        : currentBalance > 0
-            ? 'text-financial-profit'
-            : 'text-neutral-900';
-    const balanceAmountDisplay = `${currentBalance > 0 ? '+' : ''}${formatClientAmount(currentBalance)} DZD`;
     const balanceTitle = text(currentBalance < 0
         ? 'clientSummary.owes'
         : currentBalance > 0
             ? 'clientSummary.credit'
             : 'clientSummary.settled');
-    const balanceHint = text(currentBalance < 0
-        ? 'clientSummary.hintOwes'
-        : currentBalance > 0
-            ? 'clientSummary.hintCredit'
-            : 'clientSummary.hintSettled');
     const clientRows: ClientRow[] = useMemo(() => {
         return visibleTxs.map((tx: ClientTransactionDzd) => {
             const linked = tx.linkedTxId ? transactions.find((row: any) => row.id === tx.linkedTxId) : null;
@@ -134,124 +94,76 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
             return { tx, label, details };
         });
     }, [clientTransactionsDzd, clientsById, getClientFullName, t, visibleTxs, transactions]);
+    // V4-4: the picture the client receives, in the client's own report language, on the shared
+    // report sheet. It is made as soon as the window opens, so « Partager » opens the phone's share
+    // sheet at once (a share started long after the tap is refused by the browser).
+    const clientName = summaryClient ? getClientFullName(summaryClient) : '';
+    const [now] = useState(() => Date.now());
+    const [reportLang, setReportLang] = useReportLanguage(`client_report_lang_${summaryClient?.id || ''}`, lang);
+    const summary = useMemo(() => (summaryClient ? buildClientSummary({ clientId: summaryClient.id, clientRows: clientTransactionsDzd, transactions, now }) : null), [summaryClient, clientTransactionsDzd, transactions, now]);
+    const imageHolder = useRef<HTMLDivElement | null>(null);
+    const [image, setImage] = useState<{ blob: Blob; key: string } | null>(null);
+    const [isSharing, setIsSharing] = useState(false);
+    const imageKey = `${summaryClient?.id || ''}:${reportLang}`;
+    useEffect(() => {
+        if (!summary)
+            return;
+        let cancelled = false;
+        // After the window has painted: the capture holds the page for a moment.
+        const timer = window.setTimeout(async () => {
+            const sheet = imageHolder.current?.firstElementChild;
+            if (!(sheet instanceof HTMLElement))
+                return;
+            try {
+                const blob = await renderSheetImage(sheet);
+                if (!cancelled)
+                    setImage({ blob, key: imageKey });
+            }
+            catch (error) {
+                console.warn('Client summary picture could not be prepared:', error);
+            }
+        }, 150);
+        return () => {
+            cancelled = true;
+            window.clearTimeout(timer);
+        };
+    }, [summary, imageKey]);
+    const readyImage = image && image.key === imageKey ? image.blob : null;
+    const fileName = `ProDigital_${(summaryClient?.id || 'client').replace(/[^A-Za-z0-9]/g, '').slice(-6)}_${new Date(now).toISOString().slice(0, 10)}.png`;
+    const shareTitle = `${CLIENT_SUMMARY_WORDS[reportLang].title} · ${clientName}`;
     const handleShareImage = async () => {
         if (!summaryClient || isSharing)
             return;
-        const exportNode = exportCardRef.current;
-        if (!exportNode) {
-            setAlert('❌ Image introuvable.');
-            return;
-        }
+        setIsSharing(true);
         try {
-            setIsSharing(true);
-            await new Promise((resolve) => setTimeout(resolve, 280));
-            if (document.fonts?.ready) {
-                await document.fonts.ready;
-            }
-            const { toBlob, toPng, toJpeg } = await import('html-to-image');
-            const nodeWidth = exportNode.scrollWidth || exportNode.clientWidth || exportCardWidth;
-            const nodeHeight = exportNode.scrollHeight || exportNode.clientHeight || 1400;
-            const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || '');
-            const maxPixels = isMobile ? 16000000 : 28000000;
-            const baseRatio = Math.min(3, Math.max(1.4, window.devicePixelRatio || 2));
-            const safeRatio = Math.min(baseRatio, Math.sqrt(maxPixels / Math.max(1, nodeWidth * nodeHeight)));
-            const ratioCandidates = [...new Set([
-                    Number(safeRatio.toFixed(2)),
-                    2.2, 2, 1.8, 1.5, 1.2, 1
-                ])].filter((ratio) => ratio > 0).sort((a, b) => b - a);
-            const exportCaptureBackground = readTokenColor('--color-surface');
-            const captureBaseOptions = {
-                cacheBust: true,
-                width: nodeWidth,
-                height: nodeHeight,
-                ...(exportCaptureBackground ? { backgroundColor: exportCaptureBackground } : {}),
-                // Technical export override: html-to-image needs these dimensions/styles to avoid clipped captures.
-                style: { margin: '0', transform: 'none' }
-            };
-            let blob: Blob | null = null;
-            for (const ratio of ratioCandidates) {
-                try {
-                    blob = await toBlob(exportNode, {
-                        ...captureBaseOptions,
-                        pixelRatio: ratio
-                    });
-                    if (blob)
-                        break;
-                }
-                catch (captureError) {
-                    console.warn(`Share image capture failed at ratio ${ratio}:`, captureError);
-                }
-            }
+            let blob = readyImage;
             if (!blob) {
-                for (const ratio of ratioCandidates) {
-                    try {
-                        const dataUrl = await toPng(exportNode, {
-                            ...captureBaseOptions,
-                            pixelRatio: ratio
-                        });
-                        if (dataUrl) { blob = dataUrlToBlob(dataUrl); break; }
-                    }
-                    catch (captureError) {
-                        console.warn(`Share PNG capture failed at ratio ${ratio}:`, captureError);
-                    }
-                }
+                const sheet = imageHolder.current?.firstElementChild;
+                if (!(sheet instanceof HTMLElement))
+                    return;
+                blob = await renderSheetImage(sheet);
+                setImage({ blob, key: imageKey });
             }
-            if (!blob) {
-                try {
-                    const jpegDataUrl = await toJpeg(exportNode, {
-                        ...captureBaseOptions,
-                        pixelRatio: 1.6,
-                        quality: 0.98
-                    });
-                    if (jpegDataUrl) blob = dataUrlToBlob(jpegDataUrl);
-                }
-                catch (captureError) {
-                    console.warn('Share JPEG capture failed:', captureError);
-                }
-            }
-            if (!blob) {
-                setAlert('❌ Génération de l’image impossible. Veuillez réessayer.');
-                return;
-            }
-            const shareText = text('clientSummary.shareText', { name: getClientFullName(summaryClient), count: CLIENT_SUMMARY_VISIBLE_TX_LIMIT });
-            const extension = blob.type.includes('jpeg') ? 'jpg' : 'png';
-            const baseName = `releve_client_${summaryClient.id}_simple.${extension}`;
-            let shared = false;
-            if (navigator.share && navigator.canShare && typeof File !== 'undefined') {
-                try {
-                    const file = new File([blob], baseName, { type: blob.type || 'image/png' });
-                    if (navigator.canShare({ files: [file] })) {
-                        await navigator.share({ files: [file], title: t('transactions.clientStatement'), text: shareText });
-                        shared = true;
-                    }
-                }
-                catch (error: any) {
-                    if (error?.name !== 'AbortError') console.warn('Share with files failed:', error);
-                }
-            }
-            if (!shared) {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = baseName;
-                document.body.appendChild(a); a.click();
-                document.body.removeChild(a); URL.revokeObjectURL(url);
+            const outcome = await shareOrDownloadFile(blob, fileName, shareTitle, 'image/png');
+            if (outcome === 'downloaded')
                 setAlert('✅ Image téléchargée.');
-            }
+            else if (outcome === 'needsTap')
+                setAlert(t('clients.activityReportReady') as string);
         }
-        catch (error: any) {
+        catch (error) {
             console.error(error);
-            setAlert(`❌ Erreur de capture : ${error?.message || ''}`);
+            setAlert('❌ Génération de l’image impossible. Veuillez réessayer.');
         }
         finally {
             setIsSharing(false);
         }
     };
+    // A WhatsApp link carries text only: the client's chat opens on the same summary as a message.
+    const handleWhatsApp = () => {
+        if (summaryClient?.phone && summary)
+            openWhatsAppMessenger(summaryClient.phone, clientSummaryMessage(summary, reportLang, clientName));
+    };
     const close = () => setSummaryClient(null);
-    // Image partagée avec le client : même contenu, dans la langue de l'application.
-    // L'espacement des lettres casse l'écriture arabe : majuscules espacées en français seulement.
-    const kicker = isArabic ? 'text-xs font-black' : 'text-xs font-black uppercase tracking-[0.14em]';
-    const kickerTight = isArabic ? 'text-xs font-black' : 'text-xs font-black uppercase tracking-[0.12em]';
-    const clientName = summaryClient ? getClientFullName(summaryClient) : '';
     const balanceTextClass = currentBalance < 0 ? 'text-financial-loss' : currentBalance > 0 ? 'text-financial-profit' : 'text-neutral-500';
     return (<Modal isOpen={summaryClient !== null} onClose={close} className="max-w-md bg-surface text-neutral-900">
       <ModalHeader onClose={close}>
@@ -260,60 +172,9 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
 
       <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
         {summaryClient && (<>
-            {/* Technical export positioning only: the card is rendered off-screen at a fixed capture width. */}
-            <div style={{ position: 'fixed', left: '-20000px', top: 0, width: exportCardWidth, pointerEvents: 'none' }}>
-              <div ref={exportCardRef} dir={isArabic ? 'rtl' : 'ltr'} lang={lang} className={`box-border rounded-md border border-border bg-surface p-7 text-neutral-900 shadow-card ${isArabic ? 'font-arabic' : 'font-latin'}`}>
-                <div className="flex items-center justify-between gap-4 border-b border-border pb-5">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <img src="/logo.png" alt="Pro Digital" className="h-12 w-12 shrink-0 rounded-md border border-border bg-surface object-cover shadow-card"/>
-                    <div className="min-w-0">
-                      <div className="text-[18px] font-black leading-tight text-neutral-900">Pro Digital</div>
-                      <div className={`mt-1 text-primary ${kicker}`}>{t('transactions.clientStatement')}</div>
-                    </div>
-                  </div>
-                  <div className="shrink-0 rounded-md border border-border bg-surface-muted px-4 py-3 text-end">
-                    <div className={`text-neutral-500 ${kickerTight}`}>{t('clientSummary.exportImage')}</div>
-                    <div className="mt-1 text-sm font-bold text-neutral-700" dir="ltr">{new Date().toLocaleString('fr-FR')}</div>
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <div className={`text-secondary ${kicker}`}>{t('clientSummary.account')}</div>
-                  <div className="mt-1 text-[34px] font-black leading-tight text-neutral-900">{clientName}</div>
-                  <div className="mt-1 text-sm font-semibold text-neutral-500">
-                    {summaryClient.phone ? <bdi dir="ltr">{summaryClient.phone}</bdi> : t('clientSummary.noPhone')}
-                  </div>
-                </div>
-
-                <div className={`mt-5 rounded-md border px-5 py-4 ${balanceExportPanelClass}`}>
-                  <div className={`text-neutral-500 ${kickerTight}`}>{t('clientSummary.accountState')}</div>
-                  <div className="mt-2 text-2xl font-black text-neutral-900">{balanceTitle}</div>
-                  <div className={`mt-3 text-[60px] font-black leading-none ${balanceExportAmountClass}`} dir="ltr">{balanceAmountDisplay}</div>
-                  <div className="mt-3 text-[16px] font-semibold text-neutral-500">{balanceHint}</div>
-                </div>
-
-                <div className="mt-5 overflow-hidden rounded-md border border-border bg-surface">
-                  <div className={`border-b border-border bg-surface-muted px-4 py-3 text-primary ${kickerTight}`}>
-                    {text('clientSummary.lastOperations', { count: CLIENT_SUMMARY_VISIBLE_TX_LIMIT })}
-                  </div>
-                  {clientRows.length > 0 ? clientRows.map(({ tx, label, details }) => (<div key={tx.id} className="border-b border-border px-4 py-3 last:border-b-0">
-                      <div className="flex justify-between gap-3">
-                        <div className="text-lg font-black text-neutral-900">{label}</div>
-                        <div className={`text-[22px] font-black ${tx.montant >= 0 ? 'text-financial-profit' : 'text-financial-loss'}`} dir="ltr">
-                          {tx.montant >= 0 ? '+' : ''}{formatClientAmount(tx.montant)} DZD
-                        </div>
-                      </div>
-                      {details ? (<div className="mt-1 text-sm font-semibold text-neutral-600"><bdi>{details}</bdi></div>) : null}
-                      <div className="mt-1 text-[13px] font-semibold text-neutral-500"><bdi>{`${tx.date} · ${tx.time}`}</bdi></div>
-                    </div>)) : (<div className="p-5 text-center font-semibold text-neutral-500">{t('clientSummary.noOperations')}</div>)}
-                </div>
-
-                <div className="mt-5 flex items-center justify-between border-t border-border pt-4 text-xs font-bold text-neutral-500">
-                  <span>{t('clientSummary.generated')}</span>
-                  <span>{t('clientSummary.footerTag')}</span>
-                </div>
-              </div>
-            </div>
+            {summary && (<ReportPrintHolder holderRef={imageHolder}>
+                <ClientSummarySheet summary={summary} lang={reportLang} clientName={clientName}/>
+              </ReportPrintHolder>)}
 
             <div data-client-summary className="space-y-3">
               <section aria-label={t('transactions.currentBalance') as string} className="rounded-card border border-border bg-surface p-4">
@@ -341,11 +202,16 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                     <ListRow title={label} subtitle={<>{details && <><bdi>{details}</bdi>{'\n'}</>}<bdi>{`${tx.date} · ${tx.time}`}</bdi></>} wrapSubtitle trailing={<CurrencyAmount value={tx.montant} currency="DZD" decimals={2} showSign semantic={tx.montant > 0 ? 'profit' : 'loss'} size="md" className="font-bold"/>}/>
                   </React.Fragment>)) : (<p className="px-4 pb-4 text-center text-sm text-neutral-500">{t('clientSummary.noOperations')}</p>)}
               </SectionCard>
+
+              <ReportLanguagePicker value={reportLang} onChange={setReportLang}/>
             </div>
           </>)}
       </ModalContent>
       <ModalFooter>
         <Button type="button" variant="outline" onClick={close}>{t('common.close')}</Button>
+        {summaryClient?.phone && (<Button type="button" variant="outline" onClick={handleWhatsApp} disabled={!summary} className="gap-2 text-[#128C7E]">
+            WhatsApp
+          </Button>)}
         <Button type="button" variant="primary" onClick={handleShareImage} disabled={isSharing || !summaryClient} className="gap-2">
           <ShareIcon aria-hidden="true" className="h-4 w-4"/>
           {isSharing ? t('clientSummary.preparing') : t('clientSummary.shareImage')}
