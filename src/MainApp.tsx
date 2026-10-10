@@ -61,6 +61,7 @@ import { findPeriodLockViolation, formatLockDate, isInLockedPeriod, savedTimesta
 import { operationStamp } from './utils/editStamp';
 import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot } from './utils/capitalSnapshot';
 import { summarizePersonalExpenseTotals } from './utils/financialAudit';
+import { buildServiceProfitOverview } from './utils/serviceProfitOverview';
 import { buildDashboardReadModelShadowFromLegacy, getReadModelsMode, reconcileDashboardReadModelsWithLegacy, type DashboardReadModelShadowDiagnostic } from './readModels/dashboardReadModels';
 import { shouldUseDashboardSummaryForView } from './readModels/readModelActivation';
 import { mustPrepareWriterReadModelDelta } from './readModels/preparedWriterDeltas';
@@ -857,36 +858,19 @@ export default function MainApp({ user }: {
             debtWriteOffs,
             treasuryTransactions,
         }), managerFeePercentage).ownerTotalProfit;
-        const serviceProfitForPeriod = (periodStartTs: number) => manualAssetTransactions.reduce((sum, tx) => {
-            if (tx.timestamp < periodStartTs || tx.timestamp > nowTs)
-                return sum;
-            if (tx.type !== 'service' && tx.type !== 'invoice')
-                return sum;
-            const amount = Math.abs(Number(tx.amount || 0));
-            return Number.isFinite(amount) ? sum + amount : sum;
-        }, 0);
-        const serviceProfitAllTime = manualAssetTransactions.reduce((sum, tx) => {
-            if (tx.timestamp > nowTs || (tx.type !== 'service' && tx.type !== 'invoice'))
-                return sum;
-            const amount = Math.abs(Number(tx.amount || 0));
-            return Number.isFinite(amount) ? sum + amount : sum;
-        }, 0);
-        const digitalServiceProfitForPeriod = (periodStartTs: number) => digitalServiceTransactions.reduce((sum, tx) => {
-            if (tx.timestamp < periodStartTs || tx.timestamp > nowTs)
-                return sum;
-            const amount = Number(tx.profitDzd || 0);
-            return Number.isFinite(amount) ? sum + amount : sum;
-        }, 0);
-        const digitalServiceProfitAllTime = digitalServiceTransactions.reduce((sum, tx) => {
-            if (tx.timestamp > nowTs)
-                return sum;
-            const amount = Number(tx.profitDzd || 0);
-            return Number.isFinite(amount) ? sum + amount : sum;
-        }, 0);
-        const ownerProfitToday = deriveOwnerTradingProfitForPeriod(dayStartTs) + serviceProfitForPeriod(dayStartTs) + digitalServiceProfitForPeriod(dayStartTs);
-        const ownerProfitWeek = deriveOwnerTradingProfitForPeriod(weekStartTs) + serviceProfitForPeriod(weekStartTs) + digitalServiceProfitForPeriod(weekStartTs);
-        const ownerProfitMonth = deriveOwnerTradingProfitForPeriod(monthStartTs) + serviceProfitForPeriod(monthStartTs) + digitalServiceProfitForPeriod(monthStartTs);
-        const ownerProfitYear = deriveOwnerTradingProfitForPeriod(yearStartTs) + serviceProfitForPeriod(yearStartTs) + digitalServiceProfitForPeriod(yearStartTs);
+        // The other businesses (services, digital services) are counted apart from the USDT and EUR
+        // sales: the same sums as before, returned one by one (utils/serviceProfitOverview.ts).
+        const serviceProfit = buildServiceProfitOverview({ manualAssetTransactions, digitalServiceTransactions, nowTs, dayStartTs, weekStartTs, monthStartTs, yearStartTs });
+        const tradingOwnerProfit = {
+            today: deriveOwnerTradingProfitForPeriod(dayStartTs),
+            week: deriveOwnerTradingProfitForPeriod(weekStartTs),
+            month: deriveOwnerTradingProfitForPeriod(monthStartTs),
+            year: deriveOwnerTradingProfitForPeriod(yearStartTs),
+        };
+        const ownerProfitToday = tradingOwnerProfit.today + serviceProfit.today.manual + serviceProfit.today.digital;
+        const ownerProfitWeek = tradingOwnerProfit.week + serviceProfit.week.manual + serviceProfit.week.digital;
+        const ownerProfitMonth = tradingOwnerProfit.month + serviceProfit.month.manual + serviceProfit.month.digital;
+        const ownerProfitYear = tradingOwnerProfit.year + serviceProfit.year.manual + serviceProfit.year.digital;
         pamLedger.sellProfitRows.forEach((tx) => {
             if (tx.timestamp > nowTs)
                 return;
@@ -954,7 +938,9 @@ export default function MainApp({ user }: {
             ownerProfitWeek,
             ownerProfitMonth,
             ownerProfitYear,
-            ownerProfitAllTime: baseManagerProfitBreakdown.ownerTotalProfit + serviceProfitAllTime + digitalServiceProfitAllTime,
+            ownerProfitAllTime: baseManagerProfitBreakdown.ownerTotalProfit + serviceProfit.allTime.manual + serviceProfit.allTime.digital,
+            // Owner profit of the USDT and EUR sales alone, and the other businesses' profit, for the Home page.
+            ownerProfitSplit: { trading: tradingOwnerProfit, services: serviceProfit },
             last7DaysProfit,
         };
     }, [pamLedger, clientTransactionsDzd, treasuryStats, investors, investorTransactions, transactions, managerFeePercentage, managerFeeHistory, deliveryExpenses, debtWriteOffs, treasuryTransactions, manualAssetTransactions, digitalServiceTransactions, baseManagerProfitBreakdown]);
@@ -2843,6 +2829,7 @@ export default function MainApp({ user }: {
         onOpenClient: openDashboardClient,
         onOpenClientDebts: openClientsWithDebtFollowUp,
         onOpenTreasury: () => setView('tresorerie'),
+        onOpenServices: openServicesView,
         onOpenAnalytics: () => setView('analytics'),
         onOpenPersonalWithdrawal: openPersonalWithdrawalModal,
         transactions: dashboardSummary ? EMPTY_TRANSACTIONS : transactions,

@@ -24,6 +24,8 @@ import type { WeeklyRecap } from '../hooks/useWeeklyRecap';
 import type { MonthlyRecap } from '../hooks/useMonthlyRecap';
 import type { InvestorTerm } from '../utils/investorTerms';
 import { InvestorTermAlert } from '../components/investors/InvestorTermAlert';
+import { ServiceProfitCard } from '../components/dashboard/ServiceProfitCard';
+import { hasNoServiceActivity, type OwnerProfitSplit } from '../utils/serviceProfitOverview';
 import { useLanguage } from '../contexts/LanguageContext';
 const RECENT_TRANSACTION_LIMIT = 5;
 const EMPTY_RECENT_DATE_RANGE = { start: null, end: null };
@@ -55,6 +57,8 @@ type DashboardPageProps = {
         ownerProfitMonth: number;
         ownerProfitYear: number;
         ownerProfitAllTime: number;
+        /** Absent when the dashboard comes from the stored summary, which only has the total. */
+        ownerProfitSplit?: OwnerProfitSplit;
         last7DaysProfit?: number[];
     };
     portfolioStats: any;
@@ -77,6 +81,7 @@ type DashboardPageProps = {
     onOpenClient: (clientId: string) => void;
     onOpenClientDebts: () => void;
     onOpenTreasury: () => void;
+    onOpenServices?: () => void;
     onOpenAnalytics: () => void;
     onOpenPersonalWithdrawal?: () => void;
     transactions: Tx[];
@@ -256,6 +261,7 @@ function DashboardContent({
     overdueDebtClientCount,
     onOpenClientDebts,
     onOpenTreasury,
+    onOpenServices,
     transactions,
     clientTransactionsDzd,
     clientsDzd,
@@ -363,12 +369,16 @@ function DashboardContent({
         month: dailyOverview.monthToDateProfit,
         year: dailyOverview.yearToDateProfit,
     };
-    const ownerProfitByPeriod: Record<ProfitPeriod, number> = {
+    // With the split, « mon profit » is the USDT and EUR sales alone and the other businesses have a card of their own;
+    // without it (the stored summary) the total that includes them stays as it was.
+    const profitSplit = dailyOverview.ownerProfitSplit;
+    const ownerProfitByPeriod: Record<ProfitPeriod, number> = profitSplit ? profitSplit.trading : {
         today: dailyOverview.ownerProfitToday,
         week: dailyOverview.ownerProfitWeek,
         month: dailyOverview.ownerProfitMonth,
         year: dailyOverview.ownerProfitYear,
     };
+    const serviceProfitCard = profitSplit && !hasNoServiceActivity(profitSplit.services) ? (<ServiceProfitCard periodTitle={t(PROFIT_PERIOD_LABEL_KEYS[profitPeriod].title) as string} parts={profitSplit.services[profitPeriod]} inUse={{ manual: profitSplit.services.allTime.manual !== 0, digital: profitSplit.services.allTime.digital !== 0 }} onOpen={onOpenServices}/>) : null;
     const salesProfit = salesProfitByPeriod[profitPeriod];
 
     // Most urgent first; the stack shows two and folds the rest.
@@ -424,10 +434,12 @@ function DashboardContent({
 
       <HeroCard top={<SegmentedControl options={PROFIT_PERIODS.map((period) => ({ id: period, label: t(PROFIT_PERIOD_LABEL_KEYS[period].option) as string }))} value={profitPeriod} onChange={selectProfitPeriod} ariaLabel={t('dashboard.periodPicker') as string}/>} label={`${t('dashboard.profitSummary')} · ${t(PROFIT_PERIOD_LABEL_KEYS[profitPeriod].title)}`} value={salesProfit} semantic={salesProfit < 0 ? 'loss' : 'plain'} secondary={{
             label: t('dashboard.ownerProfitSummary') as string,
-            hint: t('dashboard.ownerProfitSummaryHint') as string,
+            hint: t(profitSplit ? 'dashboard.ownerProfitSummaryTradingHint' : 'dashboard.ownerProfitSummaryHint') as string,
             value: ownerProfitByPeriod[profitPeriod],
             semantic: 'auto',
         }}/>
+
+      {serviceProfitCard}
 
       <StatTileGrid>
         <StatTile label={t('common.caisseBalance') as string} value={capitalSnapshot.caisseBalance} icon={<WalletIcon className="h-3.5 w-3.5"/>} tone="dzd"/>

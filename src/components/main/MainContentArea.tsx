@@ -3,6 +3,7 @@ import { PageSkeleton, getPageSkeletonKind } from '../ui/PageSkeleton';
 import { ErrorBoundary } from '../ErrorBoundary';
 import type { ManualAsset } from '../../types';
 import type { ClientsPageProps } from '../../pages/ClientsPage';
+import { areOwnerProfitSplitsEqual } from '../../utils/serviceProfitOverview';
 type ClientsPageComponent = React.ComponentType<ClientsPageProps> | React.LazyExoticComponent<React.ComponentType<ClientsPageProps>>;
 type ClientsPageDataProps = Omit<ClientsPageProps, 'openClientToClientTransferModal'>;
 type MainContentAreaProps = Record<string, any> & {
@@ -24,6 +25,7 @@ const areDailyOverviewsEqual = (prev: any, next: any) => (prev?.caisse === next?
     && prev?.ownerProfitMonth === next?.ownerProfitMonth
     && prev?.ownerProfitYear === next?.ownerProfitYear
     && prev?.ownerProfitAllTime === next?.ownerProfitAllTime
+    && areOwnerProfitSplitsEqual(prev?.ownerProfitSplit, next?.ownerProfitSplit)
     && prev?.todayUsdtSold === next?.todayUsdtSold
     && prev?.todayEurSold === next?.todayEurSold
     && prev?.monthToDateUsdtSold === next?.monthToDateUsdtSold
