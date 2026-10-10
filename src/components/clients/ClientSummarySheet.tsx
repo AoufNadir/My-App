@@ -52,7 +52,7 @@ export type ClientSummarySheetProps = {
     clientName: string;
 };
 
-/** The summary picture: always the 794px paper sheet, light whatever the app theme. */
+/** The summary picture: a phone-wide sheet (420px), light whatever the app theme, so it reads on a phone without zooming. */
 export function ClientSummarySheet({ summary, lang, clientName }: ClientSummarySheetProps) {
     const w = REPORT_WORDS[lang];
     const s = CLIENT_SUMMARY_WORDS[lang];
@@ -61,12 +61,12 @@ export function ClientSummarySheet({ summary, lang, clientName }: ClientSummaryS
     const owes = balanceCents < 0;
     const label = balanceCents === 0 ? w.balanceNow : owes ? w.remainingOwed : w.remainingCredit;
     const { th: reportTh, td: reportTd, tdNum: reportTdNum } = REPORT_CELL;
-    return (<ReportSheet lang={lang} variant="print">
-      <ReportHeader tagline={w.brandTagline} title={s.title} referenceLabel={w.reference} reference={report.reference} issuedLabel={w.issued} issued={issued}/>
+    return (<ReportSheet lang={lang} variant="image">
+      <ReportHeader tagline={w.brandTagline} title={s.title} referenceLabel={w.reference} reference={report.reference} issuedLabel={w.issued} issued={issued} narrow/>
       <ReportIdentity whoLabel={w.client} who={clientName} periodLabel={s.situationOn} period={num(issued)}/>
       <div data-pdf-break="" className={`rounded-lg border px-4 py-4 ${owes ? 'border-financial-debt/40 bg-financial-debt-bg' : 'border-border bg-surface-muted'}`}>
         <p className="text-[13px] font-semibold text-neutral-600">{label}</p>
-        <p className={`mt-1 text-[40px] font-bold leading-tight ${balanceCents === 0 ? 'text-neutral-900' : owes ? 'text-financial-debt' : 'text-financial-profit'}`}>{num(`${formatDzdCents(balanceCents, showCents)} DZD`)}</p>
+        <p className={`mt-1 text-[34px] font-bold leading-tight ${balanceCents === 0 ? 'text-neutral-900' : owes ? 'text-financial-debt' : 'text-financial-profit'}`}>{num(`${formatDzdCents(balanceCents, showCents)} DZD`)}</p>
         <p className="mt-1 text-xs text-neutral-500">{s.totalOperations(operationCount)}</p>
       </div>
 

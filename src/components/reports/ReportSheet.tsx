@@ -24,16 +24,25 @@ export const REPORT_CELL = {
 
 type ReportSheetProps = {
     lang: ReportSheetLang;
-    /** « print »: the A4 sheet captured for the PDF (794px wide); « screen »: the preview in the window */
-    variant: 'screen' | 'print';
+    /**
+     * « print »: the A4 sheet captured for the PDF (794px wide); « screen »: the preview in the window;
+     * « image »: a phone-wide sheet (420px) captured as a picture, so its text is about as big as in the app
+     */
+    variant: 'screen' | 'print' | 'image';
     children?: ReactNode;
+};
+
+const SHEET_SIZE = {
+    print: 'w-[794px] px-11 pb-8 pt-10',
+    screen: 'w-full rounded-md p-4 shadow-card',
+    image: 'w-[420px] px-5 pb-5 pt-5',
 };
 
 export function ReportSheet({ lang, variant, children }: ReportSheetProps) {
     return (<article dir={lang === 'ar' ? 'rtl' : 'ltr'} lang={lang} className={[
             'report-sheet @container flex flex-col gap-4 bg-surface text-[13px] leading-relaxed text-neutral-900',
             lang === 'ar' ? 'font-arabic' : 'font-latin',
-            variant === 'print' ? 'w-[794px] px-11 pb-8 pt-10' : 'w-full rounded-md p-4 shadow-card',
+            SHEET_SIZE[variant],
         ].join(' ')}>{children}</article>);
 }
 
@@ -45,10 +54,12 @@ type ReportHeaderProps = {
     issuedLabel: string;
     /** Already written as a date */
     issued: string;
+    /** A phone-wide sheet: the title wraps under the logo, so it reads from the start edge like the rest */
+    narrow?: boolean;
 };
 
 /** Logo, ProDigital, the report's name, its reference and issue date. */
-export function ReportHeader({ tagline, title, referenceLabel, reference, issuedLabel, issued }: ReportHeaderProps) {
+export function ReportHeader({ tagline, title, referenceLabel, reference, issuedLabel, issued, narrow = false }: ReportHeaderProps) {
     return (<header data-pdf-break="" className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-primary pb-3">
         <div className="flex items-center gap-2.5">
           <img src="/logo.png" alt="" className="h-10 w-10 rounded-md border border-border object-cover"/>
@@ -57,7 +68,7 @@ export function ReportHeader({ tagline, title, referenceLabel, reference, issued
             <span className="text-xs text-neutral-500">{tagline}</span>
           </div>
         </div>
-        <div className="flex flex-col gap-0.5 text-end text-xs text-neutral-500">
+        <div className={`flex flex-col gap-0.5 ${narrow ? 'text-start' : 'text-end'} text-xs text-neutral-500`}>
           <strong className="text-base text-neutral-900">{title}</strong>
           <span>{referenceLabel} {num(reference)} · {issuedLabel} {num(issued)}</span>
         </div>

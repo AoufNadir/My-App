@@ -34,7 +34,8 @@ type ClientDetailsViewProps = {
     clientsDzd: ClientDzd[];
     setSelectedClientId: (id: string | null) => void;
     getClientFullName: (client: ClientDzd) => string;
-    handleTouchStart: (client: ClientDzd) => void;
+    /** The share icon: the client's summary picture, at once (the list's long press waits 800 ms) */
+    openClientSummary: (client: ClientDzd) => void;
     openClientModal: (client: ClientDzd | null) => void;
     copiedValue: string | null;
     handleCopy: (text: string) => void;
@@ -117,7 +118,7 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone, isAddress }: C
       </div>
     </div>);
 }
-export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, handleTouchStart, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal }: ClientDetailsViewProps) {
+export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, openClientSummary, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal }: ClientDetailsViewProps) {
     const { t, lang } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 60;
     const LOAD_MORE_TRANSACTIONS = 60;
@@ -336,7 +337,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
           <ChevronLeftIcon aria-hidden="true" className="h-6 w-6 rtl:-scale-x-100"/>
         </button>
         <h2 className="min-w-0 flex-1 truncate text-lg font-bold text-neutral-900">{clientName}</h2>
-        <button type="button" onClick={() => handleTouchStart(selectedClient)} className={iconButtonClass} aria-label={t('clients.share')} title={t('clients.share')}>
+        <button type="button" onClick={() => openClientSummary(selectedClient)} className={iconButtonClass} aria-label={t('clients.share')} title={t('clients.share')}>
           <ShareIcon aria-hidden="true" className="h-5 w-5"/>
         </button>
         <button type="button" onClick={() => openClientModal(selectedClient)} className={iconButtonClass} aria-label={t('transactions.editClient')} title={t('transactions.editClient')}>

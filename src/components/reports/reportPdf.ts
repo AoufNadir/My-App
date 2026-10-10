@@ -83,9 +83,9 @@ const canvasToJpeg = (canvas: HTMLCanvasElement, quality: number) => new Promise
 type ToCanvas = typeof import('html-to-image').toCanvas;
 type CaptureOptions = NonNullable<Parameters<ToCanvas>[1]>;
 
-/** One capture, as sharp as the phone allows: twice the CSS pixels, then less if the canvas is refused. */
-async function capture(toCanvas: ToCanvas, sheet: HTMLElement, options: CaptureOptions): Promise<HTMLCanvasElement> {
-    for (const pixelRatio of [2, 1.5, 1]) {
+/** One capture, as sharp as the phone allows: twice the CSS pixels (or `ratios`), then less if the canvas is refused. */
+async function capture(toCanvas: ToCanvas, sheet: HTMLElement, options: CaptureOptions, ratios: ReadonlyArray<number> = [2, 1.5, 1]): Promise<HTMLCanvasElement> {
+    for (const pixelRatio of ratios) {
         try {
             const canvas = await toCanvas(sheet, { ...options, pixelRatio });
             if (canvas.width > 0 && canvas.height > 0)
@@ -233,8 +233,9 @@ async function renderPage(toCanvas: ToCanvas, sheet: HTMLElement, { width, rows,
 }
 
 /**
- * A short sheet (the client summary) as one PNG picture, at twice its CSS size: about 1.6 × 2.4
- * thousand pixels for the 794px sheet, sharp on a phone and quick to make. Runs in the browser only.
+ * A short sheet (the client summary) as one PNG picture, at three times its CSS size: 1.26
+ * thousand pixels wide for the 420px phone sheet, as sharp as a phone screen and light to send.
+ * Runs in the browser only.
  */
 export async function renderSheetImage(sheet: HTMLElement): Promise<Blob> {
     if (document.fonts?.ready)
@@ -247,7 +248,7 @@ export async function renderSheetImage(sheet: HTMLElement): Promise<Blob> {
         // The logo comes from the app's offline cache: no cache-busting query.
         cacheBust: false,
         style: { margin: '0', transform: 'none' },
-    });
+    }, [3, 2, 1]);
     const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((png) => (png ? resolve(png) : reject(new Error('PNG encoding failed'))), 'image/png');
     });

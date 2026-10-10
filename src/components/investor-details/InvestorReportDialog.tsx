@@ -40,7 +40,6 @@ export function InvestorReportDialog({ onClose, investorId, investorName, prepar
         : startTs !== null && endTs !== null && startTs > endTs ? t('clients.reportStartAfterEnd') : null;
     // Some investors read French, others Arabic: remembered per investor.
     const [reportLang, setReportLang] = useReportLanguage(`investor_report_lang_${investorId}`, appLang);
-    const { sendState, printHolder, changed, send } = useReportSender();
 
     // The numbers follow the dates a moment later, so the date fields answer at once on a slow
     // phone; until they catch up, the report shown is the previous one and cannot be sent.
@@ -52,19 +51,23 @@ export function InvestorReportDialog({ onClose, investorId, investorName, prepar
     const report = useMemo(() => (prepared?.ok ? buildInvestorReport(prepared.input, now) : null), [prepared, now]);
     const notFound = prepared && !prepared.ok ? t(prepared.reason === 'notFoundAtClose' ? 'investors.reportNotFoundAtClose' : 'investors.reportNotFound') : null;
 
+    // Nothing is sent, or made ahead, while the report is catching up with the dates.
+    const job = report && !catchingUp ? {
+        fileName: investorReportFileName(report),
+        title: `${INVESTOR_REPORT_WORDS[reportLang].title} · ${investorName}`,
+        footer: reportPageFooter(reportLang, report.issuedAt, report.reference),
+    } : null;
+    // The PDF is made in the background once the report is on screen: « Envoyer » only shares it.
+    const { sendState, printHolder, changed, send } = useReportSender(job);
+
     const choose = (start: string, end: string) => {
         setRange({ start, end });
         changed();
     };
 
     const handleSend = () => {
-        if (!report || catchingUp)
-            return;
-        void send({
-            fileName: investorReportFileName(report),
-            title: `${INVESTOR_REPORT_WORDS[reportLang].title} · ${investorName}`,
-            footer: reportPageFooter(reportLang, report.issuedAt, report.reference),
-        });
+        if (job)
+            void send(job);
     };
 
     return (<Modal isOpen onClose={onClose} className="max-w-lg bg-surface">

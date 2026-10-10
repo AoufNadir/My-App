@@ -68,6 +68,11 @@ for (const lang of ['ar', 'fr'] as const) {
     assert.doesNotMatch(message, /[⁦⁩]/, `${lang}: no invisible isolate characters in a WhatsApp message`);
 }
 
+// The picture is phone-wide (420px), not the A4 sheet: its text stays readable in a chat without zooming.
+const wide = renderToStaticMarkup(<ClientSummarySheet summary={summary} lang="fr" clientName="Client Test"/>);
+assert.match(wide, /w-\[420px\]/, 'the picture is phone-wide');
+assert.doesNotMatch(wide, /w-\[794px\]/, 'and not the A4 sheet');
+
 // A client without any operation still gets a picture and a message.
 const empty = buildClientSummary({ clientId: 'none', clientRows: rows, transactions, now: NOW });
 assert.equal(empty.balanceCents, 0);
