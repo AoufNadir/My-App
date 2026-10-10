@@ -3,6 +3,9 @@ import { TreasuryCard, TreasuryTx } from '../types';
 import { TreasurySummarySection } from '../components/treasury/TreasurySummarySection';
 import { TreasuryCollectionsSection } from '../components/treasury/TreasuryCollectionsSection';
 import { CapitalOverviewCard } from '../components/financial/CapitalOverviewCard';
+import { InventorySection } from '../components/treasury/InventorySection';
+import { useInventoryChecks } from '../hooks/useInventoryChecks';
+import { inventoryExpected, listBalanceCorrections, type InventoryRow } from '../utils/inventoryCheck';
 import { ListRow, SectionCard } from '../components/cards';
 import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { ArrowDownLeftIcon } from '../components/icons/ArrowDownLeftIcon';
@@ -62,9 +65,19 @@ type TresoreriePageProps = {
     openDeliveryExpenseModal?: () => void;
     treasuryTransactions?: TreasuryTx[];
     onOpenServices?: () => void;
+    /** Inventory (V5-2): the user document, to save counts. Without it the section is not shown. */
+    userDocRef?: any;
+    setAlert?: (message: string) => void;
+    portfolioStats?: { usdt?: { available?: number; locked?: number }; eur?: { available?: number; locked?: number } };
+    /** Portfolio (USDT/EUR) operations, whose balance corrections the monthly list shows */
+    transactions?: any[];
+    /** False while the figures come from the phone's cache */
+    inventoryReady?: boolean;
+    /** Opens the existing balance correction window, prefilled for this gap */
+    onCorrectInventory?: (row: InventoryRow) => void;
     [key: string]: any;
 };
-export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown, capitalSnapshot, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, treasuryTransactions = [], onOpenServices }: TresoreriePageProps) {
+export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown, capitalSnapshot, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, treasuryTransactions = [], onOpenServices, userDocRef, setAlert, portfolioStats, transactions = [], inventoryReady = true, onCorrectInventory }: TresoreriePageProps) {
     const { t } = useLanguage();
     const weekdays = t('common.weekdaysNarrow') as unknown as string[];
 
@@ -100,6 +113,20 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
             .slice(0, 12);
     }, [treasuryTransactions]);
 
+    // Inventory (V5-2): what the books say, the saved counts, and the corrections already made.
+    const inventoryEnabled = Boolean(userDocRef && onCorrectInventory);
+    const { checks: inventoryChecks, saveCheck: saveInventoryCheck, deleteCheck: deleteInventoryCheck } = useInventoryChecks(
+        userDocRef, inventoryEnabled, () => setAlert?.(t('inventory.saveFailed') as string));
+    const inventoryExpectedNow = useMemo(() => inventoryExpected({
+        caisse: caisseBalance,
+        baridi: baridiBalance,
+        usdtAvailable: portfolioStats?.usdt?.available ?? 0,
+        usdtLocked: portfolioStats?.usdt?.locked ?? 0,
+        eurAvailable: portfolioStats?.eur?.available ?? 0,
+        eurLocked: portfolioStats?.eur?.locked ?? 0,
+    }), [caisseBalance, baridiBalance, portfolioStats]);
+    const balanceCorrections = useMemo(() => listBalanceCorrections(treasuryTransactions, transactions), [treasuryTransactions, transactions]);
+
     // The treasury report: its movements and balances are fixed when the window opens.
     const [report, setReport] = useState<{ rows: ReturnType<typeof treasuryPdfRows>; balances: { caisse: number; baridi: number } } | null>(null);
     const exportPdf = () => setReport({ rows: treasuryPdfRows(treasuryTransactions), balances: { caisse: caisseBalance, baridi: baridiBalance } });
@@ -108,6 +135,8 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
       <CapitalOverviewCard t={t} capitalSnapshot={capitalSnapshot} investorBreakdown={investorBreakdown} showBreakdown/>
 
       <TreasurySummarySection caisseBalance={caisseBalance} baridiBalance={baridiBalance} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} servicesCapitalImpact={capitalSnapshot.servicesCapitalImpact} openTreasuryBalanceEditModal={openTreasuryBalanceEditModal} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string} onOpenServices={onOpenServices}/>
+
+      {inventoryEnabled && (<InventorySection expected={inventoryExpectedNow} checks={inventoryChecks} corrections={balanceCorrections} ready={inventoryReady} onSave={(data) => { saveInventoryCheck(data); }} onDelete={deleteInventoryCheck} onCorrect={(row) => onCorrectInventory?.(row)}/>)}
 
       {weeklyFlow.days.some((d) => d.cashIn > 0 || d.cashOut > 0) && (<SectionCard title={t('treasury.flow7Days')}>
           <div aria-hidden="true" className="flex h-20 items-end gap-1">

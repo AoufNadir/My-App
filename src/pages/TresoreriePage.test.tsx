@@ -44,4 +44,23 @@ const treasuryTransactions = [cashIn, usdtExpense, legacyCash];
     assert.doesNotMatch(text, /25 000/);
 }
 
+// Inventory (V5-2): the card shows on the page when the page can save it, and is absent otherwise.
+{
+    const props = {
+        caisseBalance: 95000,
+        baridiBalance: 0,
+        capitalSnapshot: computeCapitalSnapshot({ caisseBalance: 95000, baridiBalance: 0, totalDettes: 0, totalAvances: 0 }),
+        treasuryCards: [],
+        openTreasuryModal: () => {},
+        openTreasuryCardModal: () => {},
+        setTreasuryCardToDelete: () => {},
+        openTreasuryBalanceEditModal: () => {},
+        treasuryTransactions,
+    };
+    const without = renderToStaticMarkup(<TresoreriePage {...props}/>).replace(/<[^>]+>/g, ' ');
+    assert.doesNotMatch(without, /Faire l’inventaire/);
+    const withInventory = renderToStaticMarkup(<TresoreriePage {...props} userDocRef={{ collection: () => ({}) }} onCorrectInventory={() => {}} portfolioStats={{ usdt: { available: 10, locked: 5 }, eur: { available: 0, locked: 0 } }} transactions={[]}/>).replace(/<[^>]+>/g, ' ');
+    assert.match(withInventory, /Faire l’inventaire/);
+}
+
 console.log('TresoreriePage tests passed');
