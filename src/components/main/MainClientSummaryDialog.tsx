@@ -11,7 +11,7 @@ import { getClientOperationLabel, getClientTransferDetails, getManualClientNote 
 import { buildClientSummary } from '../../utils/clientSummary';
 import { openWhatsAppMessenger } from '../../utils/whatsapp';
 import { ClientSummarySheet, clientSummaryMessage, CLIENT_SUMMARY_WORDS } from '../clients/ClientSummarySheet';
-import { ReportLanguagePicker, ReportPrintHolder, useReportLanguage } from '../reports/ReportDialogParts';
+import { ReportLanguagePicker, ReportPreview, ReportPrintHolder, useReportLanguage } from '../reports/ReportDialogParts';
 import { renderSheetImage, shareOrDownloadFile } from '../reports/reportPdf';
 type MainClientSummaryDialogProps = Record<string, any>;
 const CLIENT_SUMMARY_VISIBLE_TX_LIMIT = 5;
@@ -129,6 +129,17 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
         };
     }, [summary, imageKey]);
     const readyImage = image && image.key === imageKey ? image.blob : null;
+    // V6-1: the window shows the very picture that will be sent, in the language that will be sent.
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    useEffect(() => {
+        if (!readyImage) {
+            setPreviewUrl(null);
+            return;
+        }
+        const url = URL.createObjectURL(readyImage);
+        setPreviewUrl(url);
+        return () => URL.revokeObjectURL(url);
+    }, [readyImage]);
     const fileName = `ProDigital_${(summaryClient?.id || 'client').replace(/[^A-Za-z0-9]/g, '').slice(-6)}_${new Date(now).toISOString().slice(0, 10)}.png`;
     const shareTitle = `${CLIENT_SUMMARY_WORDS[reportLang].title} · ${clientName}`;
     const handleShareImage = async () => {
@@ -176,6 +187,15 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                 <ClientSummarySheet summary={summary} lang={reportLang} clientName={clientName}/>
               </ReportPrintHolder>)}
 
+            <div className="space-y-3">
+              <ReportLanguagePicker value={reportLang} onChange={setReportLang}/>
+              <ReportPreview label={t('clients.activityReportPreview') as string}>
+                {previewUrl
+                    ? (<img src={previewUrl} alt={shareTitle} className="mx-auto block w-full max-w-[420px] rounded-md bg-white shadow-card"/>)
+                    : (<p role="status" className="py-12 text-center text-sm text-neutral-500">{t('clientSummary.preparing')}</p>)}
+              </ReportPreview>
+            </div>
+
             <div data-client-summary className="space-y-3">
               <section aria-label={t('transactions.currentBalance') as string} className="rounded-card border border-border bg-surface p-4">
                 <div className="flex items-center gap-3">
@@ -202,19 +222,17 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
                     <ListRow title={label} subtitle={<>{details && <><bdi>{details}</bdi>{'\n'}</>}<bdi>{`${tx.date} · ${tx.time}`}</bdi></>} wrapSubtitle trailing={<CurrencyAmount value={tx.montant} currency="DZD" decimals={2} showSign semantic={tx.montant > 0 ? 'profit' : 'loss'} size="md" className="font-bold"/>}/>
                   </React.Fragment>)) : (<p className="px-4 pb-4 text-center text-sm text-neutral-500">{t('clientSummary.noOperations')}</p>)}
               </SectionCard>
-
-              <ReportLanguagePicker value={reportLang} onChange={setReportLang}/>
             </div>
           </>)}
       </ModalContent>
-      <ModalFooter>
+      <ModalFooter className="flex-wrap">
         <Button type="button" variant="outline" onClick={close}>{t('common.close')}</Button>
         {summaryClient?.phone && (<Button type="button" variant="outline" onClick={handleWhatsApp} disabled={!summary} className="gap-2 text-[#128C7E]">
             WhatsApp
           </Button>)}
-        <Button type="button" variant="primary" onClick={handleShareImage} disabled={isSharing || !summaryClient} className="gap-2">
+        <Button type="button" variant="primary" onClick={handleShareImage} disabled={isSharing || !summaryClient} className="order-first min-w-full gap-2">
           <ShareIcon aria-hidden="true" className="h-4 w-4"/>
-          {isSharing ? t('clientSummary.preparing') : t('clientSummary.shareImage')}
+          {isSharing ? t('clientSummary.preparing') : `${t('clientSummary.shareImage')} · ${reportLang === 'ar' ? 'ع' : 'FR'}`}
         </Button>
       </ModalFooter>
     </Modal>);
