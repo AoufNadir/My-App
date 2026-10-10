@@ -3,6 +3,7 @@ import type { ClientDzd, ClientTransactionDzd, Investor, TreasuryTx, Tx } from '
 import { nameMatchesQuery } from '../utils/nameUtils';
 import { formatNumber } from '../pages/shared/pageFormat';
 import { isClientActive } from '../utils/clientRegistry';
+import { clientWalletMatchesQuery } from '../utils/clientWallets';
 import { walletDisplayName } from '../utils/formMessages';
 import { getClientOperationLabel, getTreasuryOperationLabel } from '../utils/transactionTerminology';
 import type { TransactionFilterMode } from '../components/transactions/transactionsTypes';
@@ -106,7 +107,7 @@ export function useGlobalSearch({ clientTransactionsDzd, clientsDzd, getClientFu
             const name = getClientFullName(client);
             if (nameMatchesQuery(name, query)) return true;
             const extras = [client.phone || '', client.redotpayId || '', client.binanceEmail || ''].join(' ').toLowerCase();
-            return extras.includes(query);
+            return extras.includes(query) || clientWalletMatchesQuery(client, query);
         })
             .map((client) => ({
             id: `search_client_${client.id}`,

@@ -7,8 +7,12 @@ import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { NumberInput } from '../ui/NumberInput';
 import type { ClientDuplicateField, ClientDuplicateMatch } from '../../utils/clientRegistry';
+import { CLIENT_WALLET_NETWORKS, emptyClientWalletInput, type ClientWalletNetwork } from '../../utils/clientWallets';
 type MainClientCrudDialogsProps = Record<string, any>;
 const CLIENT_GROUPS = ['Retail', 'Gros compte', 'OTC', 'Particulier', 'Entreprise', 'Autre'];
+// How an address begins on each network, shown in the empty field.
+const WALLET_PLACEHOLDERS: Partial<Record<ClientWalletNetwork, string>> = { TRC20: 'T…', BEP20: '0x…' };
+const NO_WALLET_TEXTS = emptyClientWalletInput();
 const DUPLICATE_FIELD_LABEL_KEYS: Record<ClientDuplicateField, string> = {
     name: 'clients.duplicateSameName',
     phone: 'clients.duplicateSamePhone',
@@ -16,8 +20,9 @@ const DUPLICATE_FIELD_LABEL_KEYS: Record<ClientDuplicateField, string> = {
     binanceEmail: 'clients.duplicateSameBinance',
 };
 
-function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, initialBalance, setInitialBalance, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, closeClientModal, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient, isSaving = false }: MainClientCrudDialogsProps) {
+function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientWallets, setClientWallets, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, initialBalance, setInitialBalance, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, closeClientModal, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient, isSaving = false }: MainClientCrudDialogsProps) {
     const duplicateMatches: ClientDuplicateMatch[] = clientDuplicateMatches || [];
+    const walletTexts = clientWallets || NO_WALLET_TEXTS;
     const isBlockedClientDelete = clientDeleteMode === 'blocked';
     const isBalanceOnlyClientDelete = clientDeleteMode === 'balance_only';
     const isClientOnlyCleanupDelete = clientDeleteMode === 'client_only_cleanup';
@@ -59,6 +64,10 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                     <div><Label>{t('transactions.phone')}</Label><Input type="tel" inputMode="tel" autoComplete="tel" dir="ltr" value={clientPhone} onChange={e => setClientPhone(e.target.value)} className="mt-1 rtl:text-end"/></div>
                     <div><Label>RedotPay ID</Label><Input dir="ltr" value={clientRedotpayId} onChange={e => setClientRedotpayId(e.target.value)} className="mt-1 rtl:text-end"/></div>
                     <div><Label>Binance Email</Label><Input type="email" inputMode="email" dir="ltr" value={clientBinanceEmail} onChange={e => setClientBinanceEmail(e.target.value)} className="mt-1 rtl:text-end"/></div>
+                    {CLIENT_WALLET_NETWORKS.map((network) => (<div key={network}>
+                            <Label>{t('clients.walletAddressLabel')} {network}</Label>
+                            <Input dir="ltr" autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} value={walletTexts[network]} onChange={e => setClientWallets((previous: typeof walletTexts) => ({ ...previous, [network]: e.target.value }))} placeholder={WALLET_PLACEHOLDERS[network]} className="mt-1 font-mono text-xs rtl:text-end"/>
+                        </div>))}
                     <div>
                         <Label>{t('clients.groupLabel')}</Label>
                         <div className="mt-1 flex flex-wrap gap-1.5">
@@ -158,6 +167,7 @@ export const areMainClientCrudDialogsPropsEqual = (prev: MainClientCrudDialogsPr
             && prev.clientPhone === next.clientPhone
             && prev.clientRedotpayId === next.clientRedotpayId
             && prev.clientBinanceEmail === next.clientBinanceEmail
+            && prev.clientWallets === next.clientWallets
             && prev.clientNotes === next.clientNotes
             && prev.clientCreditLimit === next.clientCreditLimit
             && prev.clientGroup === next.clientGroup

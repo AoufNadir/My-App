@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { Tabs } from '../ui/Tabs';
 import { EmptyState } from '../ui/EmptyState';
@@ -21,6 +21,7 @@ import { TransactionDisplayList } from '../transactions/TransactionDisplayList';
 import type { DisplayTx } from '../transactions/transactionsTypes';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel } from '../../utils/transactionTerminology';
 import { getNameInitials } from '../../utils/nameUtils';
+import { readClientWallets } from '../../utils/clientWallets';
 // Loaded on the first tap on « Rapport d’activité » or « PDF »: the clients page stays as light as before.
 const ClientActivityReportDialog = lazy(() => import('./ClientActivityReportDialog').then((module) => ({ default: module.ClientActivityReportDialog })));
 type ClientDetailsViewProps = {
@@ -49,6 +50,8 @@ type ContactRowProps = {
     copiedValue: string | null;
     onCopy: (value: string) => void;
     isPhone?: boolean;
+    /** A wallet address: shown whole on two lines at most (it is checked by eye before a transfer), not cut with an ellipsis. */
+    isAddress?: boolean;
 };
 function formatWaNumber(phone: string): string {
     const digits = phone.replace(/\D/g, '');
@@ -129,7 +132,7 @@ function WhatsAppGlyph({ className = 'h-5 w-5' }: { className?: string }) {
       <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.122 1.532 5.852L.054 23.5l5.782-1.519A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.9a9.877 9.877 0 01-5.031-1.375l-.361-.214-3.737.981 1.001-3.648-.235-.374A9.855 9.855 0 012.1 12c0-5.467 4.433-9.9 9.9-9.9 5.467 0 9.9 4.433 9.9 9.9s-4.433 9.9-9.9 9.9z"/>
     </svg>);
 }
-function ContactRow({ label, value, copiedValue, onCopy, isPhone }: ContactRowProps) {
+function ContactRow({ label, value, copiedValue, onCopy, isPhone, isAddress }: ContactRowProps) {
     const { t } = useLanguage();
     if (!value)
         return null;
@@ -137,7 +140,7 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone }: ContactRowPr
     return (<div className="flex min-h-14 items-center justify-between gap-3 border-t border-border px-4 py-3 first:border-t-0">
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold text-neutral-500">{label}</p>
-        <p dir="ltr" className="mt-0.5 truncate text-[15px] font-semibold leading-snug text-neutral-900 select-all rtl:text-end">{value}</p>
+        <p dir="ltr" className={`mt-0.5 leading-snug text-neutral-900 select-all rtl:text-end ${isAddress ? 'break-all font-mono text-[13px] font-medium' : 'truncate text-[15px] font-semibold'}`}>{value}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {isPhone && (<button type="button" onClick={() => openWhatsAppMessenger(value)} className="flex h-touch w-touch items-center justify-center rounded-button bg-[#25D366]/10 text-[#25D366] transition-colors hover:bg-[#25D366]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label="WhatsApp" title="WhatsApp">
@@ -319,7 +322,8 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
         : selectedClientBalance < -0.01
             ? 'text-financial-debt'
             : 'text-neutral-500';
-    const hasContactInfo = Boolean(selectedClient.phone || selectedClient.redotpayId || selectedClient.binanceEmail);
+    const wallets = readClientWallets(selectedClient);
+    const hasContactInfo = Boolean(selectedClient.phone || selectedClient.redotpayId || selectedClient.binanceEmail || wallets.length > 0);
     const hasDebt = selectedClientBalance < -0.01;
     const hasPhone = Boolean(selectedClient.phone);
 
@@ -446,6 +450,9 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             <ContactRow label={t('transactions.phone') as string} value={selectedClient.phone || ''} copiedValue={copiedValue} onCopy={handleCopy} isPhone/>
             <ContactRow label="RedotPay ID" value={selectedClient.redotpayId || ''} copiedValue={copiedValue} onCopy={handleCopy}/>
             <ContactRow label="Binance Email" value={selectedClient.binanceEmail || ''} copiedValue={copiedValue} onCopy={handleCopy}/>
+            {wallets.map(({ network, address }) => (<Fragment key={network}>
+                <ContactRow label={`${t('clients.walletAddressLabel')} ${network}`} value={address} copiedValue={copiedValue} onCopy={handleCopy} isAddress/>
+              </Fragment>))}
           </>)}
         {selectedClient.notes && (<div className="border-t border-border px-4 py-3 first:border-t-0">
             <p className="text-xs font-semibold text-neutral-500">{t('clients.privateNotes')}</p>
