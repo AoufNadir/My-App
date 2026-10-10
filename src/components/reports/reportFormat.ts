@@ -21,6 +21,10 @@ export const formatEurPrice = (price: number) => wideSpaces(numberFormat(2, 4).f
 export const formatEur = (amount: number) => wideSpaces(numberFormat(2, 2).format(amount));
 /** An amount with exactly two decimals (12 345,60), what a non-finite value shows as 0,00. */
 export const formatAmount = (amount: number) => wideSpaces(numberFormat(2, 2).format(Number.isFinite(amount) ? amount : 0));
+/** A whole number of dinars (the treasury report), the old report's formatNumber(value, 0) */
+export const formatWholeDzd = (amount: number) => wideSpaces(numberFormat(0, 0).format(Number.isFinite(amount) ? amount : 0));
+/** One decimal (12,3), for percentages */
+export const formatOneDecimal = (value: number) => wideSpaces(numberFormat(1, 1).format(Number.isFinite(value) ? value : 0));
 export const formatCompactDzd = (cents: number) => wideSpaces(compactFormat.format(cents / 100));
 export const formatPercent = (pct: number) => `${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct)}%`;
 const pad2 = (value: number) => String(value).padStart(2, '0');

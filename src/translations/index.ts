@@ -725,6 +725,9 @@ export const translations = {
         reports: {
             title: 'Rapports',
             monthlyReport: 'Rapport mensuel',
+            expensesReport: 'Rapport de dépenses',
+            treasuryReport: 'Rapport de trésorerie',
+            preview: 'Aperçu du rapport',
             dataAvailable: 'Données disponibles',
             noData: 'Aucune donnée',
             realizedProfit: 'Profit de vente réalisé (PAM)',
@@ -2391,6 +2394,9 @@ export const translations = {
         reports: {
             title: 'التقارير',
             monthlyReport: 'التقرير الشهري',
+            expensesReport: 'تقرير المصاريف',
+            treasuryReport: 'تقرير الخزينة',
+            preview: 'معاينة التقرير',
             dataAvailable: 'البيانات متوفرة',
             noData: 'لا توجد بيانات',
             realizedProfit: 'ربح المبيعات المحقق (PAM)',

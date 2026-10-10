@@ -85,7 +85,8 @@ const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then((mod
 const GlobalSearchDialog = React.lazy(() => import('./components/main/MainDialogs').then((module) => ({ default: module.GlobalSearchDialog })));
 const MainAppDialogs = React.lazy(() => import('./components/main/MainAppDialogs').then((module) => ({ default: module.MainAppDialogs })));
 const MonthPlanSheet = React.lazy(() => import('./components/calculator/MonthPlanSheet').then((module) => ({ default: module.MonthPlanSheet })));
-const loadPdfReports = () => import('./utils/pdfReports');
+const MonthlyReportDialog = React.lazy(() => import('./components/reports/documents/DocumentReportDialogs').then((module) => ({ default: module.MonthlyReportDialog })));
+const ExpensesReportDialog = React.lazy(() => import('./components/reports/documents/DocumentReportDialogs').then((module) => ({ default: module.ExpensesReportDialog })));
 const EMPTY_TRANSACTIONS: Tx[] = [];
 const EMPTY_CLIENTS_DZD: ClientDzd[] = [];
 const EMPTY_CLIENT_TRANSACTIONS_DZD: ClientTransactionDzd[] = [];
@@ -622,18 +623,16 @@ export default function MainApp({ user }: {
         investors: derivedInvestors,
         setSelectedInvestorId,
     });
-    const { prepareInvestorReport, handleExportPersonalExpensesReport, handleExportUsdtReport, reportClient, reportMonth, reportMonthNames, reportYear, setReportClient, setReportMonth, setReportYear, setUsdtReportMonth, setUsdtReportYear, usdtReportMonth, usdtReportYear } = useReportExports({
+    const { prepareInvestorReport, reportWindow, closeReportWindow, handleExportPersonalExpensesReport, handleExportUsdtReport, reportClient, reportMonth, reportMonthNames, reportYear, setReportClient, setReportMonth, setReportYear, setUsdtReportMonth, setUsdtReportYear, usdtReportMonth, usdtReportYear } = useReportExports({
         clientTransactionsDzd,
         clientsDzd,
         derivedInvestors,
         getClientFullName,
         investorTransactions,
-        loadPdfReports,
         managerFeePercentage,
         managerFeeHistory,
         portfolioStats,
         pamLedger,
-        setAlert,
         t,
         transactions,
         deliveryExpenses,
@@ -1856,179 +1855,6 @@ export default function MainApp({ user }: {
         || walletTransferAmountValue <= 0
         || walletTransferAmountValue > walletTransferSourceBalance
         || walletTransferSource === walletTransferDest;
-    /* Legacy report export handlers moved to useReportExports.
-    const handleExportPersonalExpensesReport = async (periodKey: 'day' | 'week' | 'month' | 'year') => {
-        const { buildPersonalExpensesPdfReport, openPdfPrintWindow } = await loadPdfReports();
-        const nowTs = Date.now();
-        const d = new Date(nowTs);
-
-        // Compute period boundaries
-        let periodStart: number;
-        let periodEnd: number;
-        let periodLabel: string;
-
-        if (periodKey === 'day') {
-            const sd = new Date(d);
-            sd.setHours(0, 0, 0, 0);
-            periodStart = sd.getTime();
-            const ed = new Date(sd);
-            ed.setHours(23, 59, 59, 999);
-            periodEnd = ed.getTime();
-            periodLabel = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-        } else if (periodKey === 'week') {
-            const sd = new Date(d);
-            const dow = sd.getDay();
-            const diff = dow === 0 ? -6 : 1 - dow;
-            sd.setDate(sd.getDate() + diff);
-            sd.setHours(0, 0, 0, 0);
-            periodStart = sd.getTime();
-            const ed = new Date(sd);
-            ed.setDate(ed.getDate() + 6);
-            ed.setHours(23, 59, 59, 999);
-            periodEnd = ed.getTime();
-            periodLabel = `Semaine du ${sd.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
-        } else if (periodKey === 'month') {
-            const sd = new Date(d.getFullYear(), d.getMonth(), 1);
-            periodStart = sd.getTime();
-            periodEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
-            periodLabel = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-        } else {
-            const sd = new Date(d.getFullYear(), 0, 1);
-            periodStart = sd.getTime();
-            periodEnd = new Date(d.getFullYear(), 11, 31, 23, 59, 59, 999).getTime();
-            periodLabel = String(d.getFullYear());
-        }
-
-        // Compute previous period total
-        const prevStart = (() => {
-            const ps = new Date(periodStart);
-            if (periodKey === 'day') { ps.setDate(ps.getDate() - 1); ps.setHours(0, 0, 0, 0); return ps.getTime(); }
-            if (periodKey === 'week') { ps.setDate(ps.getDate() - 7); return ps.getTime(); }
-            if (periodKey === 'month') { return new Date(ps.getFullYear(), ps.getMonth() - 1, 1).getTime(); }
-            return new Date(ps.getFullYear() - 1, 0, 1).getTime();
-        })();
-        const prevEnd = (() => {
-            if (periodKey === 'day') { const e = new Date(prevStart); e.setHours(23, 59, 59, 999); return e.getTime(); }
-            if (periodKey === 'week') { const e = new Date(prevStart); e.setDate(e.getDate() + 6); e.setHours(23, 59, 59, 999); return e.getTime(); }
-            if (periodKey === 'month') { const e = new Date(prevStart); return new Date(e.getFullYear(), e.getMonth() + 1, 0, 23, 59, 59, 999).getTime(); }
-            return new Date(new Date(prevStart).getFullYear(), 11, 31, 23, 59, 59, 999).getTime();
-        })();
-
-        const netExpense = (tx: any): number => {
-            if (tx.origin === 'personal_expense_return') return 0;
-            if (tx.advanceState === 'settled') return Number(tx.settledAmount || 0);
-            return Number(tx.amount || 0);
-        };
-        const previousPeriodTotal = personalExpenses
-            .filter((tx) => tx.timestamp >= prevStart && tx.timestamp <= prevEnd && tx.advanceState !== 'pending' && tx.origin !== 'personal_expense_return')
-            .reduce((sum, tx) => sum + netExpense(tx), 0);
-
-        const managerInvestor = derivedInvestors.find((inv) => inv.isManager === true);
-        const managerProfitAvailable = Number(managerInvestor?.availableProfit || 0);
-
-        const report = buildPersonalExpensesPdfReport({
-            expenses: personalExpenses,
-            periodLabel,
-            periodKey,
-            periodStart,
-            periodEnd,
-            previousPeriodTotal,
-            managerProfitAvailable
-        });
-
-        const opened = openPdfPrintWindow(report);
-        if (!opened) {
-            setAlert("❌ Impossible d'ouvrir l'apercu PDF.");
-            return;
-        }
-        const isMobile = /android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent || '');
-        setAlert(isMobile
-            ? "✅ Rapport dépenses ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
-            : "✅ Rapport dépenses prêt. Enregistrez en PDF depuis l'impression.");
-    };
-
-    const handleExportClientReport = async (cId: string, m: number, y: number) => {
-        if (!cId) {
-            setAlert("⚠️ Selectionnez un client.");
-            return;
-        }
-        const monthLabels = Array.isArray(t('common.months')) ? (t('common.months') as any as string[]) : [];
-        const { buildClientPdfReport, openPdfPrintWindow } = await loadPdfReports();
-        const report = buildClientPdfReport({
-            clientId: cId,
-            month: m,
-            year: y,
-            monthLabel: monthLabels[m] || `${m + 1}`,
-            clients: clientsDzd,
-            clientTransactions: clientTransactionsDzd,
-            transactions,
-            clientBalance: clientBalances.get(cId) || 0,
-            getClientName: getClientFullName
-        });
-
-        if (!report) {
-            setAlert("❌ Client introuvable.");
-            return;
-        }
-
-        const opened = openPdfPrintWindow(report);
-        if (!opened) {
-            setAlert("❌ Impossible d'ouvrir l'apercu PDF.");
-            return;
-        }
-        const isMobile = /android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent || '');
-        setAlert(isMobile
-            ? "✅ Rapport client ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
-            : "✅ Rapport client pret. Enregistrez en PDF depuis l'impression.");
-    };
-    const handleExportUsdtReport = async () => {
-        const monthLabels = Array.isArray(t('common.months')) ? (t('common.months') as any as string[]) : [];
-        const { buildMonthlyPdfReport, openPdfPrintWindow } = await loadPdfReports();
-        const pamLedger = computePamLedger(transactions);
-        const report = buildMonthlyPdfReport({
-            month: usdtReportMonth,
-            year: usdtReportYear,
-            monthLabel: monthLabels[usdtReportMonth] || `${usdtReportMonth + 1}`,
-            transactions,
-            clientTransactions: clientTransactionsDzd,
-            clients: clientsDzd,
-            getClientName: getClientFullName,
-            portfolioStats,
-            pamLedger
-        });
-        const opened = openPdfPrintWindow(report);
-        if (!opened) {
-            setAlert("❌ Impossible d'ouvrir l'apercu PDF.");
-            return;
-        }
-        const isMobile = /android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent || '');
-        setAlert(isMobile
-            ? "✅ Rapport mensuel ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
-            : "✅ Rapport mensuel pret. Enregistrez en PDF depuis l'impression.");
-    };
-    const handleExportInvestorReport = async (investorId: string) => {
-        const investor = derivedInvestors.find((item) => item.id === investorId);
-        if (!investor) {
-            setAlert("❌ Investisseur introuvable.");
-            return;
-        }
-
-        const { buildInvestorPdfReport, openPdfPrintWindow } = await loadPdfReports();
-        const report = buildInvestorPdfReport({
-            investor,
-            investorTransactions: investorTransactions.filter((tx) => tx.investorId === investorId)
-        });
-        const opened = openPdfPrintWindow(report);
-        if (!opened) {
-            setAlert("❌ Impossible d'ouvrir l'apercu PDF.");
-            return;
-        }
-        const isMobile = /android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent || '');
-        setAlert(isMobile
-            ? "✅ Rapport investisseur ouvert. Appuyez sur 'Enregistrer PDF' dans la page."
-            : "✅ Rapport investisseur pret. Enregistrez en PDF depuis l'impression.");
-    };
-    */
     const handleSaveTreasuryCard = async () => {
         const name = treasuryCardName.trim();
         const value = parseAndEvaluate(treasuryCardValue);
@@ -3089,6 +2915,11 @@ export default function MainApp({ user }: {
                         />
                     </Suspense>
                 )}
+
+                {reportWindow && (<Suspense fallback={null}>
+                        {reportWindow.kind === 'monthly' && <MonthlyReportDialog onClose={closeReportWindow} input={reportWindow.input}/>}
+                        {reportWindow.kind === 'expenses' && <ExpensesReportDialog onClose={closeReportWindow} periodKey={reportWindow.periodKey} expenses={reportWindow.expenses} managerProfitAvailable={reportWindow.managerProfitAvailable}/>}
+                    </Suspense>)}
             </div>
 
             {hasOpenMainAppDialog && (<Suspense fallback={null}>

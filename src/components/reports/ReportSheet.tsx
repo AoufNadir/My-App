@@ -78,8 +78,9 @@ export function ReportHeader({ tagline, title, referenceLabel, reference, issued
 type ReportIdentityProps = {
     whoLabel: ReactNode;
     who: string;
-    periodLabel: ReactNode;
-    period: ReactNode;
+    /** A report with only one thing to say (the month of the monthly report) leaves the second half out */
+    periodLabel?: ReactNode;
+    period?: ReactNode;
 };
 
 /** Who the report is for, and its period. */
@@ -89,10 +90,10 @@ export function ReportIdentity({ whoLabel, who, periodLabel, period }: ReportIde
           <small className="text-[11px] text-neutral-500">{whoLabel}</small>
           <b className="text-[13.5px]"><bdi>{who}</bdi></b>
         </div>
-        <div className="flex min-w-0 flex-col">
-          <small className="text-[11px] text-neutral-500">{periodLabel}</small>
-          <b className="text-[13.5px]">{period}</b>
-        </div>
+        {periodLabel !== undefined && (<div className="flex min-w-0 flex-col">
+            <small className="text-[11px] text-neutral-500">{periodLabel}</small>
+            <b className="text-[13.5px]">{period}</b>
+          </div>)}
       </div>);
 }
 
@@ -133,10 +134,18 @@ export function ReportSection({ title, children }: { title: ReactNode; children?
       </section>);
 }
 
-/** A table that scrolls sideways on a narrow phone rather than squeezing its columns. */
-export function ReportTable({ children }: { children?: ReactNode }) {
+/** A table that scrolls sideways on a narrow phone rather than squeezing its columns (`wide`: five columns or more). */
+export function ReportTable({ children, wide = false }: { children?: ReactNode; wide?: boolean }) {
     return (<div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full min-w-[330px] border-collapse text-xs">{children}</table>
+        <table className={`w-full ${wide ? 'min-w-[560px]' : 'min-w-[330px]'} border-collapse text-xs`}>{children}</table>
+      </div>);
+}
+
+/** A small labelled number, for a period's figures. */
+export function ReportFact({ label, value, valueTone = '' }: { label: string; value: ReactNode; valueTone?: string }) {
+    return (<div className="flex min-w-0 flex-col gap-px rounded-lg bg-surface-muted px-3 py-2">
+        <small className="text-[11px] text-neutral-500">{label}</small>
+        <b className={`self-start text-sm ${valueTone || 'text-neutral-900'}`}>{value}</b>
       </div>);
 }
 

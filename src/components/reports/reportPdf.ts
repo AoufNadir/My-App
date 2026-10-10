@@ -58,21 +58,20 @@ export function pdfRowBoxes(sheet: HTMLElement): Array<PdfRowBox & { element: HT
 /**
  * What the capture of one page leaves out: the list rows above and below the page (their indexes),
  * and how far up everything after them moves once the rows above are gone. A page of a long list
- * is captured without the hundreds of rows around it.
+ * is captured without the hundreds of rows around it. A sheet may hold several lists (the monthly
+ * report has four): only the rows themselves leave the layout, not the titles between the lists.
  */
 export function pageRowWindow(rows: ReadonlyArray<PdfRowBox>, slice: PdfSlice): { skip: Set<number>; shift: number } {
     const skip = new Set<number>();
-    let above = 0;
+    let shift = 0;
     rows.forEach((row, index) => {
         if (row.bottom <= slice.top + 0.5) {
             skip.add(index);
-            above = index + 1;
+            shift += row.bottom - row.top;
         }
         else if (row.top >= slice.bottom - 0.5)
             skip.add(index);
     });
-    // The first row kept takes the place of the first row left out.
-    const shift = above === 0 ? 0 : (above < rows.length ? rows[above].top : rows[rows.length - 1].bottom) - rows[0].top;
     return { skip, shift };
 }
 
