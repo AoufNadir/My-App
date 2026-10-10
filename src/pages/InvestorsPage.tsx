@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCard, HeroCard, StatTile, StatTileGrid } from '../components/cards';
 import { BanknotesIcon } from '../components/icons/BanknotesIcon';
@@ -7,7 +7,7 @@ import { UserPlusIcon } from '../components/icons/UserPlusIcon';
 import { Investor } from '../types';
 import { InvestorsDetailsCard } from '../components/investors/InvestorsDetailsCard';
 import { CommissionEditorModal } from '../components/investors/CommissionEditorModal';
-import { InvestorsListSection, exportInvestorsPdf } from '../components/investors/InvestorsListSection';
+import { InvestorsListSection, investorListRows } from '../components/investors/InvestorsListSection';
 import { ProfitDistributionSheet } from '../components/investors/ProfitDistributionSheet';
 import { PeriodLockCard, type PeriodLockCardProps } from '../components/investors/PeriodLockCard';
 import { Button } from '../components/ui/Button';
@@ -19,6 +19,8 @@ import type { FirestoreDocumentReference } from '../firebase';
 import type { CapitalSnapshot, InvestorBreakdown } from '../utils/capitalSnapshot';
 import { calculateWithdrawableProfit, wholeDzdDown } from '../utils/profitDistribution';
 import type { InvestorTerm } from '../utils/investorTerms';
+import type { InvestorListInput } from '../utils/listReports';
+const InvestorListDialog = lazy(() => import('../components/reports/documents/DocumentReportDialogs').then((module) => ({ default: module.InvestorListDialog })));
 interface InvestorsPageProps {
     investors: DerivedInvestor[];
     capitalSnapshot?: CapitalSnapshot;
@@ -83,7 +85,9 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
         setIsCommissionModalOpen(false);
     }, [saveManagerFeePercentage, setAlert, t]);
     const headerActionsSlot = useHeaderActionsSlot();
-    const exportPdf = () => exportInvestorsPdf(investors, capitalSnapshot, managerProfitBreakdown);
+    // The investor list report: its rows are fixed when the window opens.
+    const [listReport, setListReport] = useState<InvestorListInput[] | null>(null);
+    const exportPdf = () => setListReport(investorListRows(investors, capitalSnapshot, managerProfitBreakdown));
     const addLabel = t('investorDialog.newInvestor') as string;
     const pdfLabel = t('treasury.exportPdf') as string;
     const headerIconClass = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-700 transition-colors hover:bg-neutral-100 active:scale-95';
@@ -130,6 +134,10 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
       {periodLock && (<PeriodLockCard {...periodLock} setAlert={setAlert}/>)}
 
       <CommissionEditorModal isOpen={isCommissionModalOpen} onClose={() => setIsCommissionModalOpen(false)} value={managerFeePercentage} onSave={handleSaveCommission} managerFeeAmount={stats.managerFee}/>
+
+      {listReport && (<Suspense fallback={null}>
+          <InvestorListDialog onClose={() => setListReport(null)} rows={listReport}/>
+        </Suspense>)}
 
       <ProfitDistributionSheet
         isOpen={isDistributionOpen}

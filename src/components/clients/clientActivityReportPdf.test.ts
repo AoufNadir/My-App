@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { monthPeriod, monthWeeks, parseDayKey, rangePeriod, yearPeriod } from '../../utils/clientActivityReport';
-import { PDF_PAGE_HEIGHT_PX, PDF_PAGE_MARGIN_PX, pageRowWindow, planPdfPages } from '../reports/reportPdf';
+import { CAPTURE_STYLE_PROPERTIES, PDF_PAGE_HEIGHT_PX, PDF_PAGE_MARGIN_PX, pageRowWindow, planPdfPages, rowsAway } from '../reports/reportPdf';
 import { reportFileName } from './clientActivityReportPdf';
 
 // The PDF is the report cut into A4 pages: at the top of a block or of a table row, never
@@ -91,6 +91,46 @@ assert.deepEqual(pageRowWindow([], { top: 0, bottom: 1000 }), { skip: new Set(),
     const inFirst = pageRowWindow(both, { top: 600, bottom: 800 });
     assert.equal(inFirst.shift, 5 * 40);
     assert.ok([...Array(10).keys()].map((index) => index + 10).every((index) => inFirst.skip.has(index)), 'The second list is left out');
+}
+
+// V3-7: the rows that leave the layout stay out from page to page, and every one comes back at the end.
+{
+    const log: string[] = [];
+    const rows = Array.from({ length: 6 }, (_, index) => ({
+        element: {
+            style: {
+                display: '',
+                removeProperty(name: string) {
+                    assert.equal(name, 'display');
+                    log.push(`show ${index}`);
+                    this.display = '';
+                },
+            },
+        } as unknown as HTMLElement,
+    }));
+    const hide = (index: number) => rows[index].element.style.display === 'none';
+    const away = rowsAway(rows);
+    const first = away.set(new Set([3, 4, 5]));
+    assert.deepEqual([...first], [3, 4, 5].map((index) => rows[index].element), 'The page leaves out the rows below it');
+    assert.deepEqual(rows.map((_, index) => hide(index)), [false, false, false, true, true, true]);
+    log.length = 0;
+    const second = away.set(new Set([0, 1, 2, 5]));
+    assert.equal(second.size, 4, 'The next page leaves out its own rows');
+    assert.deepEqual(rows.map((_, index) => hide(index)), [true, true, true, false, false, true]);
+    assert.deepEqual(log, ['show 3', 'show 4'], 'Only the rows that come back are touched: the others stay hidden, the table is not laid out again for them');
+    away.set(new Set([0, 1, 2, 5]));
+    assert.equal(log.length, 2, 'The same page twice changes nothing');
+    away.restore();
+    assert.ok(rows.every((_, index) => !hide(index)), 'Every row is back at the end');
+    assert.equal(rowsAway([]).set(new Set()).size, 0, 'A report without operations');
+}
+
+// V3-7: the styles the capture copies. Every property once, and the ones the report sheets rely on.
+{
+    assert.equal(new Set(CAPTURE_STYLE_PROPERTIES).size, CAPTURE_STYLE_PROPERTIES.length, 'No property twice');
+    for (const needed of ['display', 'width', 'height', 'padding-top', 'padding-right', 'border-bottom-color', 'border-collapse', 'table-layout', 'color', 'background-color', 'font-family', 'font-size', 'font-weight', 'line-height', 'text-align', 'direction', 'unicode-bidi', 'white-space', 'word-break', 'overflow-x', 'overflow-y', 'flex-direction', 'gap', 'grid-template-columns', 'vertical-align', 'border-top-left-radius', 'font-variant-numeric'])
+        assert.ok(CAPTURE_STYLE_PROPERTIES.includes(needed), `${needed} is copied`);
+    assert.ok(CAPTURE_STYLE_PROPERTIES.length < 200, 'Far fewer than the 350 of a default capture');
 }
 
 console.log('client activity report PDF pages tests passed');

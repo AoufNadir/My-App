@@ -25,7 +25,11 @@ export const formatAmount = (amount: number) => wideSpaces(numberFormat(2, 2).fo
 export const formatWholeDzd = (amount: number) => wideSpaces(numberFormat(0, 0).format(Number.isFinite(amount) ? amount : 0));
 /** One decimal (12,3), for percentages */
 export const formatOneDecimal = (value: number) => wideSpaces(numberFormat(1, 1).format(Number.isFinite(value) ? value : 0));
-export const formatCompactDzd = (cents: number) => wideSpaces(compactFormat.format(cents / 100));
+/** A quantity as it was typed, up to eight decimals (the operations log keeps every digit the old log showed) */
+export const formatLoggedQuantity = (quantity: number) => wideSpaces(numberFormat(0, 8).format(Number.isFinite(quantity) ? quantity : 0));
+/** A price as it was typed: at least two decimals, up to six */
+export const formatLoggedPrice = (price: number) => wideSpaces(numberFormat(2, 6).format(Number.isFinite(price) ? price : 0));
+export const formatCompactDzd =(cents: number) => wideSpaces(compactFormat.format(cents / 100));
 export const formatPercent = (pct: number) => `${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct)}%`;
 const pad2 = (value: number) => String(value).padStart(2, '0');
 export const formatDate = (timestamp: number) => {

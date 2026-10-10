@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../components/ui/Button';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, DigitalServiceTransaction } from '../types';
@@ -10,10 +10,15 @@ import { useHeaderActionsSlot } from '../components/main/headerActionsSlot';
 import { TransactionFilterMode, DisplayTx } from '../components/transactions/transactionsTypes';
 import { useTransactionsViewModel } from '../components/transactions/useTransactionsViewModel';
 import type { PamLedgerResult } from '../utils/pamLedger';
-import { getTransactionTagLabel } from '../utils/transactionTerminology';
+import type { TransactionListInput } from '../utils/listReports';
+const TransactionListDialog = lazy(() => import('../components/reports/documents/DocumentReportDialogs').then((module) => ({ default: module.TransactionListDialog })));
 
-async function exportTransactionsPdf(groupedTransactions: Record<string, DisplayTx[]>, getClientFullName: (c: ClientDzd) => string, clientsDzd: ClientDzd[], filterLabel: string) {
-    const { buildTransactionListPdf, openPdfPrintWindow } = await import('../utils/pdfReports');
+/**
+ * The operations log's rows, one per listed operation (what the page lists, with the same names as the
+ * list shows). The old print page wrote the quantity, the price and the total as plain text; the sheet
+ * writes the same numbers with their separators.
+ */
+function transactionListRows(groupedTransactions: Record<string, DisplayTx[]>, getClientFullName: (c: ClientDzd) => string, clientsDzd: ClientDzd[]): TransactionListInput[] {
     const clientById = new Map(clientsDzd.map((c) => [c.id, c]));
     const getClientName = (id: string | undefined) => {
         if (!id) return '';
@@ -21,30 +26,26 @@ async function exportTransactionsPdf(groupedTransactions: Record<string, Display
         return c ? getClientFullName(c) : id;
     };
     const allTxs = Object.values(groupedTransactions).flat() as DisplayTx[];
-    const rows = allTxs.map((dtx) => {
+    return allTxs.map((dtx): TransactionListInput => {
         const raw = dtx.rawTx;
-        const tagsStr = Array.isArray((raw as any).tags)
-            ? ((raw as any).tags as string[]).map((tag) => getTransactionTagLabel(tag)).join(';')
-            : '';
+        const tags = Array.isArray((raw as any).tags) ? ((raw as any).tags as string[]) : [];
         if (dtx.category === 'crypto') {
             const tx = raw as Tx;
             const qty = tx.quantity ?? 0;
             const price = tx.price ?? tx.sell ?? 0;
             const total = tx.total ?? (qty * price);
-            return { date: dtx.date, time: dtx.time, category: 'Portefeuille', type: dtx.typeLabel, currency: tx.currency, quantity: String(qty), price: String(price), totalDzd: String(Math.round(total)), client: getClientName(tx.linkedClientId), notes: tx.notes ?? '', tags: tagsStr };
+            return { category: 'portfolio', date: dtx.date, time: dtx.time, type: dtx.typeLabel, currency: tx.currency, quantity: qty, price, totalDzd: Math.round(total), client: getClientName(tx.linkedClientId), notes: tx.notes ?? '', tags, side: tx.type === 'buy' ? 'buy' : tx.type === 'sell' ? 'sell' : undefined };
         } else if (dtx.category === 'client') {
             const tx = raw as ClientTransactionDzd;
-            return { date: dtx.date, time: dtx.time, category: 'Client', type: dtx.typeLabel, currency: 'DZD', quantity: '', price: '', totalDzd: String(Math.round(Math.abs(Number(tx.montant ?? 0)))), client: getClientName(tx.clientId), notes: tx.notes ?? '', tags: tagsStr };
+            return { category: 'client', date: dtx.date, time: dtx.time, type: dtx.typeLabel, currency: 'DZD', quantity: null, price: null, totalDzd: Math.round(Math.abs(Number(tx.montant ?? 0))), client: getClientName(tx.clientId), notes: tx.notes ?? '', tags };
         } else if (dtx.category === 'digital_service') {
             const tx = raw as DigitalServiceTransaction;
-            return { date: dtx.date, time: dtx.time, category: 'Service numérique', type: dtx.typeLabel, currency: tx.saleCurrency, quantity: String(tx.saleAmount), price: '', totalDzd: String(Math.round(tx.saleAmountDzd)), client: getClientName(tx.clientId), notes: tx.notes ?? '', tags: tagsStr };
+            return { category: 'digital_service', date: dtx.date, time: dtx.time, type: dtx.typeLabel, currency: tx.saleCurrency, quantity: tx.saleAmount, price: null, totalDzd: Math.round(tx.saleAmountDzd), client: getClientName(tx.clientId), notes: tx.notes ?? '', tags };
         } else {
             const tx = raw as TreasuryTx;
-            return { date: dtx.date, time: dtx.time, category: 'Trésorerie', type: dtx.typeLabel, currency: 'DZD', quantity: '', price: '', totalDzd: String(Math.round(Number(tx.amountDzd ?? tx.amount ?? 0))), client: '', notes: tx.notes ?? '', tags: tagsStr };
+            return { category: 'treasury', date: dtx.date, time: dtx.time, type: dtx.typeLabel, currency: 'DZD', quantity: null, price: null, totalDzd: Math.round(Number(tx.amountDzd ?? tx.amount ?? 0)), client: '', notes: tx.notes ?? '', tags };
         }
     });
-    const report = buildTransactionListPdf(rows, filterLabel);
-    openPdfPrintWindow(report);
 }
 
 type TransactionsPageProps = {
@@ -141,13 +142,9 @@ export function TransactionsPage({
     providedProfitByTxId,
   });
 
-  // Operations listed for the PDF title: the family and period picked (the list can hold thousands).
-  const listedCount = useMemo(
-    () => (Object.values(groupedTransactions) as DisplayTx[][]).reduce((count, txs) => count + txs.length, 0),
-    [groupedTransactions]
-  );
-
-  const exportPdf = () => exportTransactionsPdf(groupedTransactions, getClientFullName, clientsDzd, `${listedCount} opérations`);
+  // The operations log: its rows are fixed when the window opens.
+  const [listReport, setListReport] = useState<TransactionListInput[] | null>(null);
+  const exportPdf = () => setListReport(transactionListRows(groupedTransactions, getClientFullName, clientsDzd));
 
   return (
     <div className="anim-page-in flex flex-col gap-3">
@@ -208,6 +205,10 @@ export function TransactionsPage({
         profitByTxId={profitByTxId}
         onOpenNewOperation={onOpenNewOperation}
       />
+
+      {listReport && (<Suspense fallback={null}>
+          <TransactionListDialog onClose={() => setListReport(null)} rows={listReport}/>
+        </Suspense>)}
     </div>
   );
 }
