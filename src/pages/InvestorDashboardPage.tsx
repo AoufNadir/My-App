@@ -9,16 +9,15 @@ import { InvestorDashboardTransactionsTable } from '../components/investor-dashb
 import { useInvestorReportDialog } from '../components/investor-details/useInvestorReportDialog';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getNameInitials } from '../utils/nameUtils';
+import type { InvestorReportDateRange, PreparedInvestorReport } from '../utils/investorReport';
 interface InvestorDashboardPageProps {
     investor: Investor;
     transactions: InvestorTransaction[];
     globalNetProfit: number;
     managerFeePercentage: number;
     totalCapital: number;
-    onExportReport?: (range?: {
-        startTs?: number | null;
-        endTs?: number | null;
-    }) => void;
+    /** The investor report's numbers for a period, shown and sent by the report window */
+    prepareReport?: (investorId: string, range: InvestorReportDateRange) => PreparedInvestorReport;
 }
 type DashboardStats = {
     totalValue: number;
@@ -26,7 +25,7 @@ type DashboardStats = {
     diffDays: number;
     currentTotalProfit: number;
 };
-export const InvestorDashboardPage: React.FC<InvestorDashboardPageProps> = ({ investor, transactions, onExportReport }) => {
+export const InvestorDashboardPage: React.FC<InvestorDashboardPageProps> = ({ investor, transactions, prepareReport }) => {
     const { t } = useLanguage();
     const stats = useMemo<DashboardStats>(() => {
         const currentTotalProfit = Number(investor.totalProfit || 0);
@@ -40,7 +39,7 @@ export const InvestorDashboardPage: React.FC<InvestorDashboardPageProps> = ({ in
         return { totalValue, profitPercentage, diffDays, currentTotalProfit };
     }, [investor]);
     const orderedTransactions = useMemo(() => [...transactions].sort((a, b) => b.timestamp - a.timestamp), [transactions]);
-    const report = useInvestorReportDialog(onExportReport);
+    const report = useInvestorReportDialog({ investorId: investor.id, investorName: investor.name, prepareReport });
     const handleRequestWithdrawal = () => {
         const subject = encodeURIComponent(String(t('investorDashboard.withdrawalMailSubject')).replace('{name}', investor.name));
         const body = encodeURIComponent(String(t('investorDashboard.withdrawalMailBody')));
