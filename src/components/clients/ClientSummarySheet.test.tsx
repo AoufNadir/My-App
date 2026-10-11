@@ -118,7 +118,7 @@ assert.match(text(renderToStaticMarkup(<ClientSummarySheet summary={empty} lang=
     // What the client pays us and takes from us.
     assert.equal(line(mk('Règlement Reçu', 5000, { paymentMethod: 'Espèces' }), undefined, 'fr'), 'Versement en espèces');
     assert.equal(line(mk('Règlement Reçu', 7000, { paymentMethod: 'BaridiMob' }), undefined, 'ar'), 'دفعتَ لنا عبر BaridiMob');
-    assert.equal(line(mk('Paiement Effectué', -3000, { paymentMethod: 'Espèces' }), undefined, 'fr'), 'Retrait en espèces');
+    assert.equal(line(mk('Paiement Effectué', -3000, { paymentMethod: 'Espèces' }), undefined, 'fr'), 'Vous avez reçu de nous en espèces');
     assert.equal(line(mk('Paiement Effectué', -3000, { paymentMethod: 'BaridiMob' }), undefined, 'ar'), 'استلمتَ منا عبر BaridiMob');
     // The other client's side of a sale paid to them, and of a purchase they paid for us.
     const received = mk('Paiement Effectué', -52400, { paymentMethod: 'BaridiMob', linkRole: 'dzd_receiver', linkedTxId: 's2' });
@@ -129,10 +129,11 @@ assert.match(text(renderToStaticMarkup(<ClientSummarySheet summary={empty} lang=
     // Transfers between client accounts: the direction, no name, no channel that the row does not say.
     const transferIn = mk('Transfert Sortant', 12000, { paymentMethod: 'Crédit', notes: 'Transfert vers SECRETNAME BaridiMob' });
     const transferOut = mk('Transfert Entrant', -9000, { paymentMethod: 'Crédit', notes: 'Transfert de SECRETNAME' });
-    assert.equal(line(transferIn, undefined, 'fr'), 'Transfert reçu d’un autre compte client');
-    assert.equal(line(transferOut, undefined, 'fr'), 'Transfert vers un autre compte client');
-    assert.equal(line(transferIn, undefined, 'ar'), 'تحويل من حساب عميل آخر إلى حسابك');
-    assert.equal(line(transferOut, undefined, 'ar'), 'تحويل من حسابك إلى حساب عميل آخر');
+    // V7-3: the outgoing side (Transfert Sortant, credited) is the client who sent the money, the incoming side received it.
+    assert.equal(line(transferIn, undefined, 'fr'), 'Vous avez transféré à un autre client');
+    assert.equal(line(transferOut, undefined, 'fr'), 'Vous avez reçu d’un autre client');
+    assert.equal(line(transferIn, undefined, 'ar'), 'حوّلتَ مبلغًا إلى عميل آخر');
+    assert.equal(line(transferOut, undefined, 'ar'), 'استلمتَ مبلغًا من عميل آخر');
     assert.doesNotMatch(line(transferIn, undefined, 'fr') + line(transferIn, undefined, 'ar'), /SECRETNAME|BaridiMob/, 'a ledger transfer never claims a channel or a name');
     // Opening balance, forgiven debt, plain adjustment.
     assert.equal(line(mk('Solde Initial', -20000), undefined, 'fr'), 'Solde d’ouverture');

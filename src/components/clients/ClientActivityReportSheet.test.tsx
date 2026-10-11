@@ -75,8 +75,9 @@ const render = (period: ReportPeriod, lang: ReportLang, showBalance: boolean, va
 };
 
 const firstAt = at(7, 1, 9);
-// sha256 of the HTML of every case below, recorded before V3-5 (see the end of this file).
-const CLIENT_SHEET_HTML_DIGEST = '6f55d1e30b3419a9ada6f37c00eb25756a91f6f7791e4f90b976574fd178d386';
+// sha256 of the HTML of every case below, recorded before V3-5 (see the end of this file), and again
+// on V7-3 when only the transfer wording changed (« Vous avez transféré à … / reçu d’un autre client »).
+const CLIENT_SHEET_HTML_DIGEST = 'fb0b85d24d9c616851fdfc0aa758a03f8affa46a7d210a4aaf044f829f6fcca9';
 const range = (start: string, end: string) => rangePeriod(parseDayKey(start, false)!, parseDayKey(end, true)!);
 // Spans chosen with two dates: weeks, months and years in the table, finished or running, the whole history.
 const RANGES = [range('2026-09-10', '2026-09-24'), range('2026-08-15', '2026-10-02'), range('2026-09-20', '2026-10-10'), range('2025-06-01', '2026-10-03')];

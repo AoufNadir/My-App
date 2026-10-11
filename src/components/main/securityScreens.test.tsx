@@ -162,6 +162,8 @@ if (process.env.SCREEN_CAPTURE) {
 }
 
 // Recorded on V2-8 (548a217) with the same data and clock; French and Arabic gave the same lists.
+// V7-3: the window shows only the picture the client receives (the older in-app list of the same
+// operations was a second copy), so the summary lists were recorded again.
 // The client summary lists were recorded again on V4-4: the picture sent to the client moved to the
 // shared report sheet (balance with its side, reference, last operations as the client report reads
 // them). The numbers in the window itself did not change.
@@ -174,11 +176,11 @@ const BEFORE: Record<keyof typeof SCREENS, string[]> = {
     searchInvestor: ['1', '1⍽000⍽000'],
     searchDate: ['150000.00', '2', '26/09/2026 10:15', '26/09/2026 12:00', '300'],
     searchNone: [],
-    summaryOwes: ['+139⍽100,00', '-105⍽000,00', '-20260905', '-20260930', '-20⍽000,00', '-224⍽100,00', '05/09/2026', '0555 10 20 30', '1', '10:00', '12/09/2026', '14/09/2026', '14:00', '17:30', '249,00', '3', '30/09/2026', '7', '900', '900,00', '+139·100,00', '105·000,00', '−105·000,00', '−20·000,00', '−224·100,00', '−85·000,00'],
-    summaryAdvance: ['+20⍽000,00', '+40⍽000,00', '+60⍽000,00', '-20260914', '-20260930', '-300⍽000,00', '0661 40 50 60', '11:00', '14/09/2026', '16:00', '17:30', '1·200', '1⍽200,00', '2', '20/09/2026', '25/09/2026', '250,00', '3', '30/09/2026', '7', '+20·000,00', '+40·000,00', '+60·000,00', '300·000,00', '60·000,00'],
-    summaryAdjusted: ['+5⍽000,00', '-20260915', '-20260930', '09:00', '1', '15/09/2026', '3', '30/09/2026', '7', '+5·000,00', '5·000,00'],
-    summarySupplier: ['-12⍽500,00', '-20260601', '-20260930', '01/06/2026', '09:00', '1', '30/09/2026', '4', '7', '12·500,00', '−12·500,00'],
-    summaryEmpty: ['-20260930', '0', '0,00', '0770 11 22 33', '30/09/2026', '5', '6', '7'],
+    summaryOwes: ['+139·100,00', '-20260905', '-20260930', '05/09/2026', '1', '105·000,00', '12/09/2026', '14/09/2026', '249,00', '3', '30/09/2026', '7', '900', '−105·000,00', '−20·000,00', '−224·100,00', '−85·000,00'],
+    summaryAdvance: ['+20·000,00', '+40·000,00', '+60·000,00', '-20260914', '-20260930', '14/09/2026', '1·200', '2', '20/09/2026', '25/09/2026', '250,00', '3', '30/09/2026', '300·000,00', '60·000,00', '7'],
+    summaryAdjusted: ['+5·000,00', '-20260915', '-20260930', '1', '15/09/2026', '3', '30/09/2026', '5·000,00', '7'],
+    summarySupplier: ['-20260601', '-20260930', '01/06/2026', '1', '12·500,00', '30/09/2026', '4', '7', '−12·500,00'],
+    summaryEmpty: ['-20260930', '0', '0,00', '30/09/2026', '5', '6', '7'],
     monthPlan: ['100', '112⍽000', '120⍽000', '500', '5⍽900,00', '8⍽000', '95⍽000'],
 };
 const changed: string[] = [];
@@ -283,9 +285,8 @@ for (const lang of ['fr', 'ar'] as const) {
     assert.ok(/<article dir="rtl" lang="ar"/.test(ar), 'the Arabic picture is written right to left');
     for (const text of ['كشف حساب مختصر', 'الباقي عليك', 'عمليات'])
         assert.ok(textOf(ar).includes(text), `Arabic picture: ${text}`);
-    // The window still keeps « 900,00 USDT @ 249,00 DZD » and each date line in their own order.
-    assert.equal(ar.split('<bdi>900,00 USDT @ 249,00 DZD</bdi>').length - 1, 1, 'the sale line, isolated on the screen');
-    assert.equal(ar.split('<bdi>05/09/2026 · 14:00</bdi>').length - 1, 1, 'its date, isolated too');
+    // V7-3: one copy only, the picture the client receives; the in-app list of the same operations is gone.
+    assert.equal(ar.split('<bdi>900,00 USDT @ 249,00 DZD</bdi>').length - 1, 0, 'no second, in-app list of the operations');
     // A WhatsApp button for a client with a phone number.
     assert.ok(textOf(fr).includes('WhatsApp'), 'the client with a phone gets a WhatsApp button');
 }

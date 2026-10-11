@@ -181,7 +181,7 @@ const AR: ReportWords = {
             case 'payment': return entry.method === 'cash' ? 'دفعة نقداً' : entry.method === 'baridi' ? 'دفعة BaridiMob' : entry.method === 'usdt' ? 'دفعة بـ USDT' : entry.method === 'eur' ? 'دفعة باليورو' : 'دفعة';
             case 'saleToUs': return entry.currency === 'EUR' ? 'بيع يورو لنا' : 'بيع USDT لنا';
             case 'withdrawal': return 'سحب من رصيدك';
-            case 'transfer': return entry.balanceCents >= 0 ? 'تحويل لصالحك' : 'تحويل على حسابك';
+            case 'transfer': return entry.balanceCents >= 0 ? 'حوّلتَ مبلغًا إلى عميل آخر' : 'استلمتَ مبلغًا من عميل آخر';
             case 'opening': return 'الرصيد الافتتاحي';
             case 'writeOff': return 'تخفيض من دينك';
             default: return entry.balanceCents >= 0 ? 'إضافة إلى رصيدك' : 'خصم من رصيدك';
@@ -279,7 +279,7 @@ const FR: ReportWords = {
             case 'payment': return entry.method === 'cash' ? 'Versement espèces' : entry.method === 'baridi' ? 'Versement BaridiMob' : entry.method === 'usdt' ? 'Versement en USDT' : entry.method === 'eur' ? 'Versement en euros' : 'Versement';
             case 'saleToUs': return entry.currency === 'EUR' ? 'Vente EUR à ProDigital' : 'Vente USDT à ProDigital';
             case 'withdrawal': return 'Retrait sur votre solde';
-            case 'transfer': return entry.balanceCents >= 0 ? 'Transfert en votre faveur' : 'Transfert à votre charge';
+            case 'transfer': return entry.balanceCents >= 0 ? 'Vous avez transféré à un autre client' : 'Vous avez reçu d’un autre client';
             case 'opening': return 'Solde d’ouverture';
             case 'writeOff': return 'Remise sur votre dette';
             default: return entry.balanceCents >= 0 ? 'Ajout à votre solde' : 'Déduction de votre solde';
