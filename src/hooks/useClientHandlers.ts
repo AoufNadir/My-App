@@ -12,6 +12,7 @@ import { combineClientPositionDeltas, transitionClientBalanceDelta, type ClientP
 import { CLIENT_TX_PAYMENT_MADE, CLIENT_TX_PAYMENT_RECEIVED, clientTxEditAmountInput, normalizeClientTxType, paymentStatusForExistingClientTx, planClientTxSave } from '../utils/clientTxEdit';
 import { operationStamp } from '../utils/editStamp';
 import { changedClientIdentity, findClientDuplicates, isClientActive, type ClientDuplicateMatch } from '../utils/clientRegistry';
+import { usualChannelOf, usualChannelToSave } from '../utils/usualChannel';
 import { clientWalletInputFrom, emptyClientWalletInput, normalizeClientWallets, type ClientWalletInput } from '../utils/clientWallets';
 import type { ManagerFeeHistoryEntry } from './useInvestorEconomics';
 import { DEBT_WRITE_OFF_TYPE } from '../utils/debtWriteOffs';
@@ -80,6 +81,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     const [clientNotes, setClientNotes] = useState('');
     const [clientCreditLimit, setClientCreditLimit] = useState('');
     const [clientGroup, setClientGroup] = useState('');
+    const [clientUsualChannel, setClientUsualChannel] = useState('');
     const [clientBalanceInput, setClientBalanceInput] = useState('');
     const [clientIsFournisseur, setClientIsFournisseur] = useState(false);
     const [clientDuplicateMatches, setClientDuplicateMatches] = useState<ClientDuplicateMatch[] | null>(null);
@@ -94,6 +96,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientNotes(client.notes || '');
             setClientCreditLimit(client.creditLimit ? String(client.creditLimit) : '');
             setClientGroup(client.group || '');
+            setClientUsualChannel(usualChannelOf(client) ?? '');
             setClientIsFournisseur(client.isFournisseur || false);
             const currentBal = clientBalances.get(client.id) || 0;
             setClientBalanceInput(currentBal.toString());
@@ -108,6 +111,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientNotes('');
             setClientCreditLimit('');
             setClientGroup('');
+            setClientUsualChannel('');
             setClientIsFournisseur(false);
             setClientBalanceInput('');
             setInitialBalance('0');
@@ -192,6 +196,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 notes: clientNotes.trim() || null,
                 creditLimit: parsedLimit > 0 ? parsedLimit : null,
                 group: clientGroup.trim() || null,
+                usualChannel: usualChannelToSave(clientUsualChannel),
                 isFournisseur: clientIsFournisseur || null,
                 nom: clientFullName.trim()
             };
@@ -487,10 +492,13 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         }
         else {
             setClientTxAmount('');
-            setClientTxType(normalizeClientTxType(presetType || CLIENT_TX_PAYMENT_RECEIVED));
+            const presetClientTxType = normalizeClientTxType(presetType || CLIENT_TX_PAYMENT_RECEIVED);
+            setClientTxType(presetClientTxType);
             setClientTxNotes('');
             setClientTxSource('Caisse');
-            setClientPaymentStatus('cash');
+            // V5-4: a payment received starts on the way this client usually pays; every other operation starts in cash.
+            const usualChannel = presetClientTxType === CLIENT_TX_PAYMENT_RECEIVED ? usualChannelOf(clientsDzd.find((client) => client.id === selectedClientId)) : null;
+            setClientPaymentStatus(usualChannel ?? 'cash');
             setLinkedClientId(selectedClientId || 'none');
             setClientTxReceiverClientId('none');
             setClientTxUsdtAmount('');
@@ -1056,7 +1064,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         isSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode,
         clientFullName, setClientFullName, clientPhone, setClientPhone,
         initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId,
-        clientBinanceEmail, setClientBinanceEmail, clientWallets, setClientWallets, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, clientBalanceInput, setClientBalanceInput,
+        clientBinanceEmail, setClientBinanceEmail, clientWallets, setClientWallets, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientUsualChannel, setClientUsualChannel, clientIsFournisseur, setClientIsFournisseur, clientBalanceInput, setClientBalanceInput,
         clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient,
         openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient, handleZeroOutBalance,
         isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx,

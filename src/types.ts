@@ -171,6 +171,8 @@ export interface ClientDzd {
     wallets?: ClientWallets | null;
     notes?: string;
     creditLimit?: number;
+    /** V5-4: how this client usually pays ('cash' or 'baridi'). Only a help for the sale and payment windows; null or missing means none. */
+    usualChannel?: 'cash' | 'baridi' | null;
     group?: string;
     isFournisseur?: boolean;
     isActive?: boolean;

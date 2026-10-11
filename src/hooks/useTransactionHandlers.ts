@@ -29,6 +29,7 @@ import {
 import { allocateProfitDeltaAtTimestamp, type ManagerFeeHistoryEntry } from './useInvestorEconomics';
 import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDeltas';
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
+import { usualChannelOf } from '../utils/usualChannel';
 import { isClientActive } from '../utils/clientRegistry';
 import { sellHasNoPurchaseCost, UNCOSTED_STOCK_MESSAGE } from '../utils/costedStock';
 import { planBackdatedSale, resolveSaleMoment, SALE_DATE_MESSAGES, type SaleDraft } from '../utils/backdatedSale';
@@ -381,7 +382,11 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setSellTime('');
         setBuyUsdtTotal('');
         setBuyEurTotal('');
-        setClientPaymentStatus(prefill?.paymentStatus ?? 'cash');
+        // V5-4: a new sale to a client chosen beforehand starts on the way he usually pays.
+        const usualSaleChannel = !txToEdit && !prefill?.paymentStatus && prefill?.clientId && (newMode === 'sell_usdt' || newMode === 'sell_eur')
+            ? usualChannelOf(clientsDzd.find((client) => client.id === prefill.clientId))
+            : null;
+        setClientPaymentStatus(prefill?.paymentStatus ?? usualSaleChannel ?? 'cash');
         setCreditDueDate(prefill?.creditDueDate ?? '');
         setPendingCreditRisk(null);
         setEditingTx(txToEdit);

@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { NumberInput } from '../ui/NumberInput';
 import { FormCard } from '../ui/FormCard';
 import { OperationFooter, type OperationFooterStat } from '../ui/OperationFooter';
+import { ChannelStrip } from '../ui/ChannelStrip';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { AdjustmentReasonPicker } from './AdjustmentReasonPicker';
@@ -19,6 +20,8 @@ import { parseAndEvaluate } from '../../utils';
 import { formatMoney } from '../../pages/shared/pageFormat';
 import { normalizeLedgerLabel } from '../../utils/financialUx';
 import { selectableClients } from '../../utils/clientRegistry';
+import { settlementChannel } from '../../utils/channelSummary';
+import { usualChannelDiffers, usualChannelOf } from '../../utils/usualChannel';
 import { adjustmentAssetOf, adjustmentReasonBlock, isAdjustmentReasonAllowed, type AdjustmentReason } from '../../utils/movementReason';
 type MainClientOperationsDialogsProps = Record<string, any>;
 const normalizeCardName = (value: string) => value
@@ -364,6 +367,16 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
         clientTxStats.push({ label: t('transactions.totalAmount'), value: formatMoney(qtyVal * priceVal, 'DZD') });
     else if (!isVenteUsdt && !isAchatEur && Number.isFinite(amtVal) && amtVal !== 0)
         clientTxStats.push({ label: t('transactions.clientBalanceImpact'), value: formatMoney(Math.abs(amtVal), 'DZD') });
+    // V5-4: where a payment from or to a client is recorded, in the colour of the channel. Only for a
+    // payment (not a sale or a purchase made from the client page), and only a payment received can
+    // warn about the client's usual channel.
+    const settlementSummary = isClientSettlementTx && Number.isFinite(amtVal)
+        ? settlementChannel({ received: isClientPaymentReceived, status: settlementPaymentStatus, receiverClientId: hasReceiverClient ? clientTxReceiverClientId : undefined, amount: Math.abs(amtVal) })
+        : null;
+    const settlementTargetClient = (clientsDzd || []).find((client: any) => client.id === clientTxTargetClientId) || null;
+    const settlementStrip = settlementSummary
+        ? (<ChannelStrip summary={settlementSummary} operation="settlement" t={t} clientName={receiverClientName || undefined} amountLabel={formatMoney(Math.abs(amtVal), 'DZD')} usualDiffers={isClientPaymentReceived ? usualChannelDiffers(usualChannelOf(settlementTargetClient), settlementSummary.kind) : null}/>)
+        : undefined;
     const adjustmentTyped = !!adjustmentAmount;
     // What the chosen client's balance becomes, said before Save. Not for an edit: his balance already holds the old effect.
     const adjustmentClientBalanceHint = selectedClient && !editingTreasuryTx && Number.isFinite(parsedAdjustmentAmount) && parsedAdjustmentAmount > 0
@@ -548,7 +561,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                         <Textarea id="client_tx_notes" label={t('common.notesOptional') as string} value={clientTxNotes ?? ''} onChange={(e) => setClientTxNotes(e.target.value)} rows={2} placeholder={t('transactions.notesPlaceholder') as string} className="resize-none text-sm"/>
                     </FormCard>
                 </ModalContent>
-                <OperationFooter stats={clientTxStats} reason={clientTxBlockedReason} reasonTone={clientTxTyped ? 'fix' : 'missing'}>
+                <OperationFooter stats={clientTxStats} channel={settlementStrip} reason={clientTxBlockedReason} reasonTone={clientTxTyped ? 'fix' : 'missing'}>
                     <Button variant="outline" onClick={() => setIsClientTxModalOpen(false)}>{t('common.cancel')}</Button>
                     <Button onClick={() => handleSaveClientTx(selectedClientId)} disabled={isClientTxDisabled} title={clientTxBlockedReason}>
                         {isSaving ? t('common.processing') : t('common.save')}

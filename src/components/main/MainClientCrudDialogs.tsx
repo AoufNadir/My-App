@@ -6,6 +6,7 @@ import { Textarea } from '../ui/Textarea';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { NumberInput } from '../ui/NumberInput';
+import { SegmentedControl } from '../ui/SegmentedControl';
 import type { ClientDuplicateField, ClientDuplicateMatch } from '../../utils/clientRegistry';
 import { CLIENT_WALLET_NETWORKS, emptyClientWalletInput, type ClientWalletNetwork } from '../../utils/clientWallets';
 type MainClientCrudDialogsProps = Record<string, any>;
@@ -20,7 +21,7 @@ const DUPLICATE_FIELD_LABEL_KEYS: Record<ClientDuplicateField, string> = {
     binanceEmail: 'clients.duplicateSameBinance',
 };
 
-function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientWallets, setClientWallets, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, initialBalance, setInitialBalance, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, closeClientModal, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient, isSaving = false }: MainClientCrudDialogsProps) {
+function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientWallets, setClientWallets, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientUsualChannel = '', setClientUsualChannel, clientIsFournisseur, setClientIsFournisseur, initialBalance, setInitialBalance, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, closeClientModal, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient, isSaving = false }: MainClientCrudDialogsProps) {
     const duplicateMatches: ClientDuplicateMatch[] = clientDuplicateMatches || [];
     const walletTexts = clientWallets || NO_WALLET_TEXTS;
     const isBlockedClientDelete = clientDeleteMode === 'blocked';
@@ -102,6 +103,15 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                         <NumberInput value={clientCreditLimit} onChange={e => setClientCreditLimit(e.target.value)} className="mt-1" placeholder={t('clients.creditLimitPlaceholder')}/>
                         <p className="mt-1 text-xs text-neutral-400">{t('clients.creditLimitHint')}</p>
                     </div>
+                    {setClientUsualChannel && (<div>
+                        <Label>{t('clients.usualChannel')}</Label>
+                        <SegmentedControl size="md" className="mt-1" ariaLabel={t('clients.usualChannel') as string} value={clientUsualChannel === 'cash' || clientUsualChannel === 'baridi' ? clientUsualChannel : 'none'} onChange={(id) => setClientUsualChannel(id === 'none' ? '' : id)} options={[
+                            { id: 'none', label: t('clients.usualChannelNone') },
+                            { id: 'cash', label: t('transactions.cash'), tone: 'profit' },
+                            { id: 'baridi', label: t('transactions.baridi'), tone: 'primary' },
+                        ]}/>
+                        <p className="mt-1 text-xs text-neutral-400">{t('clients.usualChannelHint')}</p>
+                    </div>)}
                     {!editingClient && (<div>
                             <Label>{t('transactions.initialBalance')} ({t('common.dinar')})</Label>
                             <NumberInput value={initialBalance} onChange={e => setInitialBalance(e.target.value)} className="mt-1" placeholder="0.00"/>
@@ -171,6 +181,7 @@ export const areMainClientCrudDialogsPropsEqual = (prev: MainClientCrudDialogsPr
             && prev.clientNotes === next.clientNotes
             && prev.clientCreditLimit === next.clientCreditLimit
             && prev.clientGroup === next.clientGroup
+            && prev.clientUsualChannel === next.clientUsualChannel
             && prev.clientIsFournisseur === next.clientIsFournisseur
             && prev.initialBalance === next.initialBalance
             && prev.clientDuplicateMatches === next.clientDuplicateMatches);

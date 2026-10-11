@@ -108,7 +108,7 @@ export function DeliveryExpenseModal({
                 <div>
                     <Label>{t('delivery.method')}</Label>
                     <SegmentedControl size="md" columns={2} ariaLabel={t('delivery.method') as string} value={method} onChange={(next) => setMethod(next as FinancialWallet)} options={[
-                        { id: 'Caisse', label: t('transactions.cash'), tone: 'primary' },
+                        { id: 'Caisse', label: t('transactions.cash'), tone: 'profit' },
                         { id: 'BaridiMob', label: t('transactions.baridi'), tone: 'primary' },
                         { id: 'USDT', label: 'USDT', tone: 'primary' },
                         { id: 'EUR', label: 'EUR', tone: 'primary' },

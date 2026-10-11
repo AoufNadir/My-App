@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FirestoreDocumentReference } from '../firebase';
 import { investorTermWhenText, type InvestorTerm } from '../utils/investorTerms';
+import { inventoryReminderText, type InventoryReminder } from '../utils/inventoryReminder';
 
 const PERM_ASKED_KEY = 'app_notification_perm_asked';
 const NOTIF_LAST_OVERDUE_KEY = 'app_notif_last_overdue';
 const NOTIF_LAST_DISTRIB_KEY = 'app_notif_last_distrib';
 const NOTIF_LAST_INVESTOR_TERMS_KEY = 'app_notif_last_investor_terms';
+const NOTIF_LAST_INVENTORY_KEY = 'app_notif_last_inventory';
 
 export type NotifPermission = 'default' | 'granted' | 'denied' | 'unsupported';
 
@@ -26,6 +28,10 @@ const FRENCH_TEXT: Record<string, string> = {
     'notifications.termTitleOne': '📅 Échéance des 3 mois : {name}',
     'notifications.termTitleMany': '📅 {count} échéances d’investisseurs',
     'notifications.termBodyMany': '{names}{extra} : réinvestir ou retirer le profit.',
+    'inventoryReminder.title': 'Inventaire de la caisse',
+    'inventoryReminder.never': 'Aucun inventaire enregistré pour le moment. Comptez la caisse, BaridiMob et les portefeuilles.',
+    'inventoryReminder.yesterday': 'Dernier inventaire hier. Comptez avant de fermer la journée.',
+    'inventoryReminder.days': 'Dernier inventaire il y a {days}. Comptez la caisse, BaridiMob et les portefeuilles.',
     'investorTerms.dueIn': 'Le {date}, dans {days}',
     'investorTerms.dueToday': 'Aujourd’hui, le {date}',
     'investorTerms.overdue': 'Le {date}, il y a {days}',
@@ -153,6 +159,20 @@ export function useNotifications(userDocRef?: FirestoreDocumentReference, t?: Tr
         );
     }, [isSupported, showNotification, t]);
 
+    // The reminder to count the cash (once per day): the date of the last count only, never a balance.
+    const notifyInventoryReminder = useCallback((reminder: Pick<InventoryReminder, 'daysSince'> | null) => {
+        if (!isSupported || Notification.permission !== 'granted' || !reminder) return;
+        const today = dayKey();
+        if (localStorage.getItem(NOTIF_LAST_INVENTORY_KEY) === today) return;
+        localStorage.setItem(NOTIF_LAST_INVENTORY_KEY, today);
+
+        showNotification(
+            fill(t, 'inventoryReminder.title'),
+            inventoryReminderText(reminder, (key) => fill(t, key)),
+            { tag: 'inventory-reminder' }
+        );
+    }, [isSupported, showNotification, t]);
+
     return {
         isSupported,
         permission,
@@ -162,6 +182,7 @@ export function useNotifications(userDocRef?: FirestoreDocumentReference, t?: Tr
         notifyOverdueClients,
         notifyInvestorProfit,
         notifyInvestorTerms,
+        notifyInventoryReminder,
     };
 }
 

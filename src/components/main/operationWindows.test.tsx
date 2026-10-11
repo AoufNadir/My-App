@@ -330,12 +330,17 @@ const label = (lang: Lang, key: string) => {
 };
 const textOf = (html: string) => screenText(html).replace(/\s*\|(?:\s*\|)*\s*/g, '|').replace(/^\||\|$/g, '');
 const n = (shown: string) => shown.replace(/(\d) (?=\d)/g, '$1 ');
-type Bar = { stats?: Array<[string, string]>; reason?: string; tone?: 'fix' | 'missing' };
-function assertBar(screen: keyof typeof SCREENS, lang: Lang, { stats = [], reason, tone }: Bar) {
+// V5-4: between the totals and the reason, one line says where the money is recorded (ChannelStrip).
+type Bar = { stats?: Array<[string, string]>; strip?: [string, string]; reason?: string; tone?: 'fix' | 'missing' };
+const stripLine = (key: string, amount: string, client = ''): [string, string] => [key, `${amount} DZD`.concat(client ? `|${client}` : '')];
+function assertBar(screen: keyof typeof SCREENS, lang: Lang, { stats = [], strip, reason, tone }: Bar) {
     const [, bar] = splitAtBar(SCREENS[screen](lang));
     assert.ok(bar, `${screen}.${lang}: a bar at the bottom`);
     const beforeButtons = bar.slice(0, bar.indexOf('<button'));
-    const expected = [...stats.flatMap(([key, value]) => [label(lang, key), n(value)]), ...(reason ? [reason] : [])].join('|');
+    // The amount and the client's name are isolated (U+2066 … U+2069) so an Arabic sentence keeps them whole.
+    const isolated = (text: string) => `\u2066${text}\u2069`;
+    const stripText = strip ? [label(lang, 'channelStrip.title'), n(label(lang, strip[0]).replace('{amount}', isolated(strip[1].split('|')[0])).replace('{client}', isolated(strip[1].split('|')[1] ?? '')))] : [];
+    const expected = [...stats.flatMap(([key, value]) => [label(lang, key), n(value)]), ...stripText, ...(reason ? [reason] : [])].join('|');
     assert.equal(textOf(beforeButtons), expected, `${screen}.${lang}: the bar at the bottom`);
     if (reason) {
         const reasonClass = beforeButtons.match(/role="status" class="([^"]*)"/)?.[1] ?? '';
@@ -350,14 +355,14 @@ for (const lang of ['fr', 'ar'] as const) {
     assert.equal(splitAtBar(SCREENS.sellSource(lang))[1], '', `sellSource.${lang}: no bar`);
     // Buy and sell: the Total field, and the sale's estimated profit as in the summary above.
     assertBar('buyDzdEmpty', lang, { reason: label(lang, 'formErrors.quantityMissing'), tone: 'missing' });
-    assertBar('buyDzd', lang, { stats: [total('246 500')] });
-    assertBar('buyDzdLocked', lang, { stats: [total('246 500')] });
+    assertBar('buyDzd', lang, { stats: [total('246 500')], strip: stripLine('channelStrip.outCaisse', '246 500') });
+    assertBar('buyDzdLocked', lang, { stats: [total('246 500')], strip: stripLine('channelStrip.outCaisse', '246 500') });
     assertBar('buyWithEur', lang, {});
-    assertBar('buyEur', lang, { stats: [total('126 000')] });
-    assertBar('buyEurCredit', lang, { stats: [total('126 000')], reason: label(lang, 'formErrors.dueDateRequired'), tone: 'missing' });
-    assertBar('sellEur', lang, { stats: [total('78 600'), profit('+3 300')] });
-    assertBar('sellEurOver', lang, { stats: [total('393 000'), profit('+16 500')], reason: label(lang, 'formErrors.insufficientBalance'), tone: 'fix' });
-    assertBar('editSell', lang, { stats: [total('224 100'), profit('+4 572')] });
+    assertBar('buyEur', lang, { stats: [total('126 000')], strip: stripLine('channelStrip.outCaisse', '126 000') });
+    assertBar('buyEurCredit', lang, { stats: [total('126 000')], strip: stripLine('channelStrip.creditBuy', '126 000', 'Karim Belkacem'), reason: label(lang, 'formErrors.dueDateRequired'), tone: 'missing' });
+    assertBar('sellEur', lang, { stats: [total('78 600'), profit('+3 300')], strip: stripLine('channelStrip.inCaisse', '78 600') });
+    assertBar('sellEurOver', lang, { stats: [total('393 000'), profit('+16 500')], strip: stripLine('channelStrip.inCaisse', '393 000'), reason: label(lang, 'formErrors.insufficientBalance'), tone: 'fix' });
+    assertBar('editSell', lang, { stats: [total('224 100'), profit('+4 572')], strip: stripLine('channelStrip.creditSell', '224 100', 'Karim Belkacem') });
     assertBar('editSellForEur', lang, { stats: [['transactions.eurReceived', '920,00 EUR'], profit('+35 784')] });
     // Transfers: the amount typed.
     assertBar('walletTransfer', lang, { stats: [['transactions.amount', '150 000,00 DZD']] });
@@ -365,8 +370,8 @@ for (const lang of ['fr', 'ar'] as const) {
     assertBar('clientTransfer', lang, { stats: [['transactions.amount', '20 000,00 DZD']] });
     assertBar('clientTransferSame', lang, { stats: [['transactions.amount', '20 000,00 DZD']], reason: label(lang, 'formErrors.sameClient'), tone: 'fix' });
     // Client operation and adjustment: the same figures as their summary.
-    assertBar('clientPayment', lang, { stats: [['transactions.clientBalanceImpact', '25 000,00 DZD']] });
-    assertBar('clientPayout', lang, { stats: [['transactions.clientBalanceImpact', '10 000,00 DZD']] });
+    assertBar('clientPayment', lang, { stats: [['transactions.clientBalanceImpact', '25 000,00 DZD']], strip: ['channelStrip.inCaisse', '25 000,00 DZD'] });
+    assertBar('clientPayout', lang, { stats: [['transactions.clientBalanceImpact', '10 000,00 DZD']], strip: ['channelStrip.outBaridi', '10 000,00 DZD'] });
     assertBar('clientEditBalance', lang, { stats: [['transactions.clientBalanceImpact', '5 000,00 DZD']] });
     assertBar('adjustDzd', lang, { stats: [['transactions.amount', '30 000,00 DZD']] });
     assertBar('adjustUsdt', lang, { stats: [['transactions.quantity', '120,00 USDT'], ['transactions.equivalentDzd', '29 270,40 DZD']] });
@@ -474,6 +479,45 @@ for (const lang of ['fr', 'ar'] as const) {
         const refused = transactionWindow(lang, { ...sale, sellDate: '2026-09-28', saleDatePlan: { moment, plan: null }, formValidation: invalid({ sellDate: message }) });
         assert.ok(refused.includes(`<span role="alert" class="block text-xs font-medium text-financial-loss">${esc(label(lang, `formErrors.${key}`))}</span>`), `${lang}: "${message}"`);
         assert.ok(refused.includes('aria-invalid="true"'), `${lang}: the day field is marked`);
+    }
+}
+
+// V5-4: the channel strip names the wallet in the colour of its channel, and a client who usually pays
+// the other way gets one line of warning (never a block). Purchases and payments made do not warn.
+{
+    const withUsual = (id: string, usualChannel: 'cash' | 'baridi') => clientsDzd.map((client) => (client.id === id ? { ...client, usualChannel } : client));
+    for (const lang of ['fr', 'ar'] as const) {
+        const warning = (key: string) => esc(label(lang, key));
+        const saleOf = (status: string, clients: ClientDzd[]) => transactionWindow(lang, { mode: 'sell_eur', sellAmount: '300', sellPrice: '262', sellTotal: '78600', profitPercent: (262 - portfolioStats.eur.avgBuy).toFixed(2), linkedClientId: 'c3', clientPaymentStatus: status, clientsDzd: clients });
+        const usualBaridi = withUsual('c3', 'baridi');
+        // Cash chosen, BaridiMob is the habit: the warning, under the green strip.
+        const cash = saleOf('cash', usualBaridi);
+        assert.ok(cash.includes('data-channel="cash"') && cash.includes(warning('channelStrip.usualBaridi')), `${lang}: warns that this client usually pays by BaridiMob`);
+        // BaridiMob chosen: blue strip, no warning.
+        const baridi = saleOf('baridi', usualBaridi);
+        assert.ok(baridi.includes('data-channel="baridi"') && !baridi.includes(warning('channelStrip.usualBaridi')), `${lang}: no warning when the habit is followed`);
+        // Credit is not a channel: no warning.
+        const credit = saleOf('credit', usualBaridi);
+        assert.ok(credit.includes('data-channel="credit"') && !credit.includes(warning('channelStrip.usualBaridi')), `${lang}: credit never warns`);
+        // A client without a habit never warns.
+        assert.ok(!saleOf('cash', clientsDzd).includes('role="note"'), `${lang}: no habit, no warning`);
+        // The other way round.
+        assert.ok(saleOf('baridi', withUsual('c3', 'cash')).includes(warning('channelStrip.usualCash')), `${lang}: warns that this client usually pays in cash`);
+        // A purchase from the same client does not warn: the habit is how he pays us.
+        const purchase = transactionWindow(lang, { ...buyEur, linkedClientId: 'c3', clientPaymentStatus: 'cash', clientsDzd: usualBaridi });
+        assert.ok(purchase.includes('data-channel="cash"') && !purchase.includes('role="note"'), `${lang}: a purchase does not warn`);
+        // The payment window: received warns, made does not.
+        const received = (status: string) => clientOperations(lang, { isClientTxModalOpen: true, clientTxAmount: '25000', clientTxLinkedClientId: 'c3', selectedClientId: 'c3', clientTxPaymentStatus: status, clientsDzd: usualBaridi });
+        assert.ok(received('cash').includes(warning('channelStrip.usualBaridi')), `${lang}: a payment received in cash from a BaridiMob client warns`);
+        assert.ok(!received('baridi').includes('role="note"'), `${lang}: a payment received by BaridiMob does not`);
+        const made = clientOperations(lang, { isClientTxModalOpen: true, clientTxType: 'Paiement Effectué', clientTxPaymentStatus: 'cash', clientTxAmount: '10000', clientTxLinkedClientId: 'c3', selectedClientId: 'c3', clientsDzd: usualBaridi });
+        assert.ok(made.includes('data-channel="cash"') && !made.includes('role="note"'), `${lang}: a payment made does not warn`);
+        // An amount taken by another client moves no wallet: neutral strip naming that client.
+        const taken = transactionWindow(lang, { mode: 'sell_eur', sellAmount: '300', sellPrice: '262', sellTotal: '78600', profitPercent: (262 - portfolioStats.eur.avgBuy).toFixed(2), linkedClientId: 'c3', linkedClientDzdId: 'c2', clientPaymentStatus: 'cash' });
+        const takenStrip = taken.slice(taken.indexOf('data-channel="client"'));
+        assert.ok(takenStrip.startsWith('data-channel="client"') && takenStrip.slice(0, takenStrip.indexOf('</p>')).includes('Nadia Ferhat'), `${lang}: the client who takes the amount is named`);
+        // No amount yet: no strip.
+        assert.ok(!transactionWindow(lang, { mode: 'sell_eur', linkedClientId: 'c3' }).includes('data-channel'), `${lang}: nothing before an amount`);
     }
 }
 

@@ -6,6 +6,7 @@ import { Textarea } from '../ui/Textarea';
 import { FormCard } from '../ui/FormCard';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { OperationFooter, type OperationFooterStat } from '../ui/OperationFooter';
+import { ChannelStrip } from '../ui/ChannelStrip';
 import { ClientLinker } from './ClientLinker';
 import { SmartPricePanel } from './SmartPricePanel';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -17,6 +18,8 @@ import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { parseAndEvaluate } from '../../utils';
 import { formatNumber } from '../../pages/shared/pageFormat';
 import { translateFormMessage } from '../../utils/formMessages';
+import { tradeChannel } from '../../utils/channelSummary';
+import { saleStatusAfterClientPick, usualChannelDiffers, usualChannelOf } from '../../utils/usualChannel';
 import { getTransactionTagLabel } from '../../utils/transactionTerminology';
 
 const QUICK_TAGS = [
@@ -95,6 +98,35 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
     const selectedClientTotalLabel = Number(selectedClientTotal.toFixed(2)).toString();
     const isSellMode = mode === 'sell_usdt' || mode === 'sell_eur';
     const isBuyMode = mode === 'buy_usdt' || mode === 'buy_eur';
+    // V5-4: picking the client of a new sale starts the payment on the way he usually pays, unless the
+    // status was already chosen by hand. Clearing the client puts back the default it replaced. The
+    // setters are read from a ref because the client picker is memoised and does not re-render for them.
+    const saleStatusTouchedRef = React.useRef(false);
+    const saleStatusFromClientRef = React.useRef(false);
+    const latestSale = React.useRef({ clientsDzd, editingTx, setLinkedClientId, setClientPaymentStatus });
+    latestSale.current = { clientsDzd, editingTx, setLinkedClientId, setClientPaymentStatus };
+    React.useEffect(() => {
+        saleStatusTouchedRef.current = false;
+        saleStatusFromClientRef.current = false;
+    }, [mode, editingTx?.id]);
+    const pickSaleClient = React.useCallback((id: string) => {
+        const latest = latestSale.current;
+        latest.setLinkedClientId(id);
+        const next = saleStatusAfterClientPick({
+            usual: usualChannelOf((latest.clientsDzd || []).find((client: any) => client.id === id)),
+            touched: saleStatusTouchedRef.current,
+            editing: Boolean(latest.editingTx),
+            fromClient: saleStatusFromClientRef.current,
+        });
+        saleStatusFromClientRef.current = next.fromClient;
+        if (next.status)
+            latest.setClientPaymentStatus(next.status);
+    }, []);
+    const pickSaleStatus = React.useCallback((status: string) => {
+        saleStatusTouchedRef.current = true;
+        saleStatusFromClientRef.current = false;
+        latestSale.current.setClientPaymentStatus(status);
+    }, []);
     const activeCurrency = mode === 'buy_eur' || mode === 'sell_eur' ? 'EUR' : 'USDT';
     const activeStats = activeCurrency === 'EUR' ? portfolioStats.eur : portfolioStats.usdt;
     const isUsdtSellSettledInEur = mode === 'sell_usdt' && sellSettlementCurrency === 'EUR';
@@ -292,6 +324,26 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
             label: isUsdtSellSettledInEur ? t('transactions.eurReceived') : t('transactions.totalAmount'),
             value: `${totalFieldNumber.toLocaleString('fr-FR', { minimumFractionDigits: totalFieldCurrency === 'EUR' ? 2 : 0, maximumFractionDigits: 2 })} ${totalFieldCurrency}`,
         });
+    // V5-4: where the money will be recorded, from the same choices the save reads. Nothing when the
+    // sale or the purchase has no dinar amount (EUR settlement, USDT bought with EUR, source not chosen).
+    const hasDinarAmount = !isChoosingSource && !isUsdtSellSettledInEur && !(mode === 'buy_usdt' && buyUsdtMode !== 'with_dzd');
+    const channelSummary = hasDinarAmount && (isSellMode || isBuyMode)
+        ? tradeChannel({
+            operation: isSellMode ? 'sell' : 'buy',
+            status: clientPaymentStatus === 'credit' || clientPaymentStatus === 'baridi' ? clientPaymentStatus : 'cash',
+            primaryClientId: linkedClientId,
+            otherClientId: linkedClientDzdId,
+            amount: totalFieldNumber,
+        })
+        : null;
+    const clientNameOf = (id: string) => {
+        const client = (clientsDzd || []).find((c: any) => c.id === id);
+        return client ? String(client.fullName?.trim() || client.nom || '') : '';
+    };
+    const channelClientId = channelSummary?.accountClientId ?? undefined;
+    const channelStrip = channelSummary
+        ? (<ChannelStrip summary={channelSummary} operation={isSellMode ? 'sell' : 'buy'} t={t} clientName={channelClientId ? clientNameOf(channelClientId) : undefined} amountLabel={`${totalFieldNumber.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} DZD`} usualDiffers={isSellMode && hasPrimaryClient ? usualChannelDiffers(usualChannelOf((clientsDzd || []).find((c: any) => c.id === linkedClientId)), channelSummary.kind) : null}/>)
+        : undefined;
     // A sale dated on another day earns what that day's PAM gives, not what today's does.
     const datedSalePlan = saleDatePlan?.moment?.kind === 'at' ? saleDatePlan.plan : null;
     const barProfit: number | null = datedSalePlan && 'profit' in datedSalePlan ? datedSalePlan.profit : (transactionSummary?.profitEstimate ?? null);
@@ -637,7 +689,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                 </FormCard>
 
                                 <FormCard title={t('transactions.clientAndSettlement')}>
-                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} allowBaridiDzdLink hidePaymentStatus={isUsdtSellSettledInEur} hideLinkedDzdClient={isUsdtSellSettledInEur} {...clientLinkerErrors}/>
+                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} setLinkedClientId={pickSaleClient} setClientPaymentStatus={pickSaleStatus} allowBaridiDzdLink hidePaymentStatus={isUsdtSellSettledInEur} hideLinkedDzdClient={isUsdtSellSettledInEur} {...clientLinkerErrors}/>
                                 {!isUsdtSellSettledInEur && clientPaymentStatus === 'credit' && renderCreditDueDateField(true)}
                                 </FormCard>
                                 {!isUsdtSellSettledInEur && !editingTx && renderSaleDate()}
@@ -735,7 +787,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                     </>)}
             </ModalContent>
 
-            {!isChoosingSource && (<OperationFooter stats={footerStats} reason={saveBlockedReason} reasonTone={entryToFix ? 'fix' : 'missing'}>
+            {!isChoosingSource && (<OperationFooter stats={footerStats} channel={channelStrip} reason={saveBlockedReason} reasonTone={entryToFix ? 'fix' : 'missing'}>
                     <Button onClick={closeForm} variant="outline">
                         {t('common.cancel')}
                     </Button>

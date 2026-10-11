@@ -24,6 +24,8 @@ import type { WeeklyRecap } from '../hooks/useWeeklyRecap';
 import type { MonthlyRecap } from '../hooks/useMonthlyRecap';
 import type { InvestorTerm } from '../utils/investorTerms';
 import { InvestorTermAlert } from '../components/investors/InvestorTermAlert';
+import type { InventoryReminder } from '../utils/inventoryReminder';
+import { InventoryReminderAlert } from '../components/treasury/InventoryReminderAlert';
 import { ServiceProfitCard } from '../components/dashboard/ServiceProfitCard';
 import { hasNoServiceActivity, type OwnerProfitSplit } from '../utils/serviceProfitOverview';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -118,6 +120,9 @@ type DashboardPageProps = {
     onInvestorTermReinvest?: (investorId: string) => void;
     onInvestorTermWithdraw?: (investorId: string) => void;
     onInvestorTermSnooze?: (term: InvestorTerm) => void;
+    /** Reminder to count the cash (V5-4): only when the last inventory is old or missing. */
+    inventoryReminder?: InventoryReminder | null;
+    onInventoryReminderSnooze?: () => void;
 };
 type ProfitPeriod = 'today' | 'week' | 'month' | 'year';
 const PROFIT_PERIODS: ProfitPeriod[] = ['today', 'week', 'month', 'year'];
@@ -291,6 +296,8 @@ function DashboardContent({
     onInvestorTermReinvest,
     onInvestorTermWithdraw,
     onInvestorTermSnooze,
+    inventoryReminder = null,
+    onInventoryReminderSnooze,
 }: DashboardPageProps) {
     const { t } = useLanguage();
     const [profitPeriod, setProfitPeriod] = useState<ProfitPeriod>(readStoredProfitPeriod);
@@ -412,6 +419,10 @@ function DashboardContent({
                 element: (<InvestorTermAlert term={term} onReinvest={() => onInvestorTermReinvest(term.investorId)} onWithdraw={() => onInvestorTermWithdraw(term.investorId)} onSnooze={onInvestorTermSnooze ? () => onInvestorTermSnooze(term) : undefined}/>),
             });
         }
+    }
+    // The daily count of the cash: the button opens the treasury page, where the inventory is.
+    if (inventoryReminder && onOpenTreasury && onInventoryReminderSnooze) {
+        alerts.push({ id: 'inventory-reminder', element: <InventoryReminderAlert reminder={inventoryReminder} onOpen={onOpenTreasury} onSnooze={onInventoryReminderSnooze}/> });
     }
     if (weeklyRecap) {
         alerts.push({ id: 'weekly-recap', element: <WeeklyRecapAlert recap={weeklyRecap} onDismiss={onDismissWeeklyRecap}/> });

@@ -100,3 +100,23 @@ const buttonTag = (html: string, label: string) => {
 }
 
 console.log('MainClientCrudDialogs tests passed');
+
+// V5-4: « usual payment method » (none, cash or BaridiMob) in the client window; it travels with the rest of the form.
+{
+    const group = (html: string) => {
+        const start = html.indexOf('aria-label="clients.usualChannel"');
+        assert.ok(start >= 0, 'the usual payment method control is not rendered');
+        return html.slice(start, html.indexOf('</div>', start));
+    };
+    const states = (html: string) => [...group(html).matchAll(/aria-pressed="(true|false)"[^>]*>([^<]*)</g)].map((match) => `${match[2]}:${match[1]}`);
+    const withSetter = { ...baseProps, setClientUsualChannel: noop };
+    assert.ok(!renderToStaticMarkup(<MainClientCrudDialogs {...baseProps}/>).includes('clients.usualChannel'), 'no control without its setter');
+    assert.deepEqual(states(renderToStaticMarkup(<MainClientCrudDialogs {...withSetter}/>)), ['clients.usualChannelNone:true', 'transactions.cash:false', 'transactions.baridi:false']);
+    assert.deepEqual(states(renderToStaticMarkup(<MainClientCrudDialogs {...withSetter} clientUsualChannel="baridi"/>)), ['clients.usualChannelNone:false', 'transactions.cash:false', 'transactions.baridi:true']);
+    assert.deepEqual(states(renderToStaticMarkup(<MainClientCrudDialogs {...withSetter} clientUsualChannel="cash"/>)), ['clients.usualChannelNone:false', 'transactions.cash:true', 'transactions.baridi:false']);
+    // A stray value reads as none.
+    assert.equal(states(renderToStaticMarkup(<MainClientCrudDialogs {...withSetter} clientUsualChannel="credit"/>))[0], 'clients.usualChannelNone:true');
+    // The open window re-renders when the choice changes.
+    assert.equal(areMainClientCrudDialogsPropsEqual(withSetter, { ...withSetter }), true);
+    assert.equal(areMainClientCrudDialogsPropsEqual(withSetter, { ...withSetter, clientUsualChannel: 'cash' }), false);
+}

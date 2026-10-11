@@ -83,6 +83,7 @@ const areDashboardPagePropsEqual = (prev: any, next: any) => (prev?.portfolioSta
     && prev?.monthlyRecap === next?.monthlyRecap
     && prev?.showNotificationPrompt === next?.showNotificationPrompt
     && prev?.investorTerms === next?.investorTerms
+    && prev?.inventoryReminder === next?.inventoryReminder
     && prev?.investors === next?.investors
     && prev?.managerProfitBreakdown === next?.managerProfitBreakdown
     && prev?.treasuryTransactions === next?.treasuryTransactions

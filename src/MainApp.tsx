@@ -35,6 +35,7 @@ import { useMonthlyRecap } from './hooks/useMonthlyRecap';
 import { useNotifications } from './hooks/useNotifications';
 import { useWeeklyRecap } from './hooks/useWeeklyRecap';
 import { useInvestorTerms } from './hooks/useInvestorTerms';
+import { useInventoryReminder } from './hooks/useInventoryReminder';
 // Custom Hooks
 import { useAppData } from './hooks/useAppData';
 import { useDashboardSummaryReadModel } from './hooks/useDashboardSummaryReadModel';
@@ -368,6 +369,8 @@ export default function MainApp({ user }: {
     const investorTermsSynced = investorTermsReady
         && Boolean(investorCollections.investors?.serverSynced && investorCollections.investorTransactions?.serverSynced);
     const investorTerms = useInvestorTerms(derivedInvestors, investorTransactions, investorTermsReady);
+    // Daily reminder to count the cash (utils/inventoryReminder): it reads only when the last inventory was saved.
+    const inventoryReminder = useInventoryReminder(userDocRef, isFinancialDataReady);
     const investorShadowReadReconciliation = useMemo(() => {
         if (!shadowDiagnosticsEnabled || !isFinancialDataReady || shouldUseDashboardReadModel) return null;
         return reconcileLegacyInvestorsToShadow({
@@ -553,7 +556,7 @@ export default function MainApp({ user }: {
         treasuryStats,
         setAlert,
     });
-    const { isSaving: isClientSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientWallets, setClientWallets, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientIsFournisseur, setClientIsFournisseur, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, handleDeleteClient, handleZeroOutBalance, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, clientTxReceiverClientId, setClientTxReceiverClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, handleClientToClientTransfer, getClientTransferableAmount } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert, { investorTransactions, managerFeePercentage, managerFeeHistory }, notifyWithUndo);
+    const { isSaving: isClientSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientWallets, setClientWallets, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientUsualChannel, setClientUsualChannel, clientIsFournisseur, setClientIsFournisseur, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, handleDeleteClient, handleZeroOutBalance, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, clientTxReceiverClientId, setClientTxReceiverClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, handleClientToClientTransfer, getClientTransferableAmount } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert, { investorTransactions, managerFeePercentage, managerFeeHistory }, notifyWithUndo);
     const { isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, setEditingInvestor, investorToDelete, setInvestorToDelete, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorName, setInvestorName, investorInitialCapital, setInvestorInitialCapital, investorInitialCapitalSource, setInvestorInitialCapitalSource, investorNotes, setInvestorNotes, isManager, setIsManager, investorTxType, setInvestorTxType, investorTxAmount, setInvestorTxAmount, investorTxNotes, setInvestorTxNotes, investorTxPaymentSource, setInvestorTxPaymentSource, investorTxToDelete, setInvestorTxToDelete, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, selectedInvestorId, setSelectedInvestorId, handleSaveInvestor, handleSaveInvestorTx, handleReinvestProfit, handleDeleteInvestor, openInvestorModal, closeInvestorModal,
     // Personal withdrawal (manager's daily personal expense)
     isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen, personalWithdrawalAmount, setPersonalWithdrawalAmount, personalWithdrawalMethod, setPersonalWithdrawalMethod, personalWithdrawalDate, setPersonalWithdrawalDate, personalWithdrawalNote, setPersonalWithdrawalNote, personalWithdrawalMode, setPersonalWithdrawalMode, personalWithdrawalPreview, editingPersonalExpenseTx, personalExpenseToDelete, setPersonalExpenseToDelete, openEditPersonalExpense, openPersonalWithdrawalModal, closePersonalWithdrawalModal, handleSavePersonalWithdrawal, handleDeletePersonalExpense, managerAvailableProfit, managerCapitalInvested, managerExists,
@@ -2692,6 +2695,11 @@ export default function MainApp({ user }: {
         if (notifications.permission !== 'granted' || !investorTermsSynced) return;
         notifications.notifyInvestorTerms(investorTerms.reminders);
     }, [notifications.permission, investorTermsSynced, investorTerms.reminders]);
+    // The same reminder on the phone, once a day; nothing while it is put off or the server has not answered.
+    React.useEffect(() => {
+        if (notifications.permission !== 'granted' || !inventoryReminder.reminder) return;
+        notifications.notifyInventoryReminder(inventoryReminder.reminder);
+    }, [notifications.permission, inventoryReminder.reminder]);
     // A term reminder on the home page opens the investor's page with the existing window on top,
     // as the same buttons do on that page.
     const openInvestorTermWindow = (investorId: string, action: 'reinvest' | 'withdraw') => {
@@ -2818,6 +2826,8 @@ export default function MainApp({ user }: {
         onInvestorTermReinvest: (investorId: string) => openInvestorTermWindow(investorId, 'reinvest'),
         onInvestorTermWithdraw: (investorId: string) => openInvestorTermWindow(investorId, 'withdraw'),
         onInvestorTermSnooze: investorTerms.snooze,
+        inventoryReminder: inventoryReminder.reminder,
+        onInventoryReminderSnooze: inventoryReminder.snooze,
     };
     // Deleting, or opening the edit form of, an operation of a closed month is refused at once.
     const unlessClosedMonth = <T extends { timestamp?: unknown } | null>(open: (item: T) => unknown) => (item: T) => {
@@ -3166,6 +3176,7 @@ export default function MainApp({ user }: {
         clientNotes, setClientNotes,
         clientCreditLimit, setClientCreditLimit,
         clientGroup, setClientGroup,
+        clientUsualChannel, setClientUsualChannel,
         clientIsFournisseur, setClientIsFournisseur,
         initialBalance, setInitialBalance,
         handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, closeClientModal, isClientSaving,

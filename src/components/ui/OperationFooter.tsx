@@ -10,6 +10,8 @@ export type OperationFooterStat = {
 export type OperationFooterProps = {
     /** Le total (et le profit d'une vente), toujours visibles pendant le défilement */
     stats?: ReadonlyArray<OperationFooterStat>;
+    /** V5-4 : la ligne colorée qui dit où l’argent sera enregistré (ChannelStrip), entre le total et la raison */
+    channel?: ReactNode;
     /** Pourquoi le bouton principal est désactivé : ce qui manque, ou ce qu'il faut corriger */
     reason?: ReactNode;
     /** « fix » : une valeur saisie est à corriger ; « missing » : un champ reste à remplir */
@@ -27,7 +29,7 @@ const STAT_TONE: Record<NonNullable<OperationFooterStat['tone']>, string> = {
  * DialogFooter, avec au-dessus le total de l'opération et la raison pour laquelle on ne peut pas
  * encore confirmer. Reste visible pendant le défilement.
  */
-function OperationFooter({ stats = [], reason, reasonTone = 'missing', children }: OperationFooterProps) {
+function OperationFooter({ stats = [], channel, reason, reasonTone = 'missing', children }: OperationFooterProps) {
     const single = stats.length === 1;
     return (<div className="sticky bottom-0 z-20 space-y-2.5 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-5">
       {stats.length > 0 && (<dl className={single ? '' : 'grid grid-cols-2 gap-3'}>
@@ -38,6 +40,7 @@ function OperationFooter({ stats = [], reason, reasonTone = 'missing', children 
               </div>
             </Fragment>))}
         </dl>)}
+      {channel}
       {reason && (<p role="status" className={`flex items-start gap-1.5 text-xs font-semibold leading-snug ${reasonTone === 'fix' ? 'text-financial-loss' : 'text-neutral-600'}`}>
           {reasonTone === 'fix'
                 ? <AlertCircleIcon aria-hidden="true" className="mt-px h-4 w-4 shrink-0"/>
