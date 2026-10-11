@@ -218,8 +218,8 @@ const SCREENS = {
         isClientTxModalOpen: true, editingClientTx: editedBalanceRow, clientTxType: normalizeClientTxType(editedBalanceRow.type), clientTxAmount: clientTxEditAmountInput(editedBalanceRow),
         clientTxNotes: editedBalanceRow.notes, clientTxPaymentStatus: paymentStatusForExistingClientTx(editedBalanceRow.paymentMethod), selectedClientId: 'c3',
     }),
-    adjustDzd: (lang: Lang) => clientOperations(lang, { isAdjustmentModalOpen: true, adjustmentAmount: '30000', adjustmentClientId: 'c4' }),
-    adjustUsdt: (lang: Lang) => clientOperations(lang, { isAdjustmentModalOpen: true, adjustmentTab: 'subtract', adjustmentAsset: 'USDT', adjustmentAmount: '120', adjustmentPrice: pam(portfolioStats.usdt.avgBuy) }),
+    adjustDzd: (lang: Lang) => clientOperations(lang, { isAdjustmentModalOpen: true, adjustmentAmount: '30000', adjustmentClientId: 'c4', adjustmentReason: 'client' }),
+    adjustUsdt: (lang: Lang) => clientOperations(lang, { isAdjustmentModalOpen: true, adjustmentTab: 'subtract', adjustmentAsset: 'USDT', adjustmentAmount: '120', adjustmentPrice: pam(portfolioStats.usdt.avgBuy), adjustmentReason: 'other', adjustmentNote: 'erreur de saisie' }),
     deliveryDzd: (lang: Lang) => delivery(lang, 'Caisse', '2500', 'Livraison Bab Ezzouar'),
     deliveryUsdt: (lang: Lang) => delivery(lang, 'USDT', '15', 'Frais réseau TRC20'),
     serviceEmpty: (lang: Lang) => service(lang, { clientId: '', name: '', purchaseWallet: 'Caisse', purchaseAmount: '', saleWallet: 'Caisse', saleAmount: '', note: '' }),
@@ -262,7 +262,8 @@ const BEFORE: Record<keyof typeof SCREENS, string[]> = {
     clientPayment: ['25⍽000,00'],
     clientPayout: ['10⍽000,00'],
     clientEditBalance: ['5⍽000,00'],
-    adjustDzd: ['12⍽500', '1⍽280⍽000,00', '30⍽000,00'],
+    // V7-2 adds one line under the chosen client: his balance before and after (-12 500 + 30 000 = 17 500).
+    adjustDzd: ['12⍽500', '1⍽280⍽000,00', '30⍽000,00', '-12⍽500,00', '17⍽500,00'],
     adjustUsdt: ['120,00', '243,92', '29⍽270,40', '5⍽780,00', '5⍽900'],
     deliveryDzd: ['1⍽250⍽000'],
     deliveryUsdt: ['20', '243.92', '3⍽659', '5⍽900,00'],
@@ -409,7 +410,7 @@ for (const lang of ['fr', 'ar'] as const) {
         ['wallet transfer', walletTransfer(lang, { amount: '150000', isInvalid: false, notes: NOTE }), 'wallet_transfer_notes'],
         ['client transfer', clientTransfer(lang, 'c1', 'c2', '20000', NOTE), 'client_transfer_notes'],
         ['client operation', clientOperations(lang, { isClientTxModalOpen: true, clientTxAmount: '25000', clientTxLinkedClientId: 'c1', clientTxNotes: NOTE }), 'client_tx_notes'],
-        ['adjustment', clientOperations(lang, { isAdjustmentModalOpen: true, adjustmentAmount: '30000', adjustmentClientId: 'c4', adjustmentNote: NOTE }), 'adjustment_notes'],
+        ['adjustment', clientOperations(lang, { isAdjustmentModalOpen: true, adjustmentAmount: '30000', adjustmentClientId: 'c4', adjustmentReason: 'client', adjustmentNote: NOTE }), 'adjustment_notes'],
     ];
     for (const [name, html, id] of windows) {
         assert.deepEqual(notesField(html, id), { label: esc(label(lang, 'common.notesOptional')), placeholder: esc(label(lang, 'transactions.notesPlaceholder')), value: NOTE }, `${lang} ${name}: the note being saved is shown, under « Notes (optional) »`);

@@ -8,6 +8,7 @@ import { FormCard } from '../ui/FormCard';
 import { OperationFooter, type OperationFooterStat } from '../ui/OperationFooter';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { SearchableSelect } from '../ui/SearchableSelect';
+import { AdjustmentReasonPicker } from './AdjustmentReasonPicker';
 import { ArrowDownIcon } from '../icons/ArrowDownIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { WalletIcon } from '../icons/WalletIcon';
@@ -18,6 +19,7 @@ import { parseAndEvaluate } from '../../utils';
 import { formatMoney } from '../../pages/shared/pageFormat';
 import { normalizeLedgerLabel } from '../../utils/financialUx';
 import { selectableClients } from '../../utils/clientRegistry';
+import { adjustmentAssetOf, adjustmentReasonBlock, isAdjustmentReasonAllowed, type AdjustmentReason } from '../../utils/movementReason';
 type MainClientOperationsDialogsProps = Record<string, any>;
 const normalizeCardName = (value: string) => value
     .toLowerCase()
@@ -145,7 +147,7 @@ const formatDisplayMetric = (value: number, digits = 2) => new Intl.NumberFormat
     minimumFractionDigits: 0,
     maximumFractionDigits: digits
 }).format(Number.isFinite(value) ? value : 0);
-function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, t, clientTxType, setClientTxType, fieldBase, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, clientTxAmount, setClientTxAmount, clientTxNotes, setClientTxNotes, clientTxPaymentStatus = 'cash', setClientTxPaymentStatus, clientTxLinkedClientId, clientTxReceiverClientId = 'none', setClientTxReceiverClientId, handleSaveClientTx, selectedClientId, isAdjustmentModalOpen, setIsAdjustmentModalOpen, editingTreasuryTx, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentClientId, clientBalances, portfolioStats, treasuryStats, clientsDzd, getClientFullName, setAdjustmentClientId, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, treasuryCards, handleGlobalAdjustment, isSaving }: MainClientOperationsDialogsProps) {
+function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, t, clientTxType, setClientTxType, fieldBase, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, clientTxAmount, setClientTxAmount, clientTxNotes, setClientTxNotes, clientTxPaymentStatus = 'cash', setClientTxPaymentStatus, clientTxLinkedClientId, clientTxReceiverClientId = 'none', setClientTxReceiverClientId, handleSaveClientTx, selectedClientId, isAdjustmentModalOpen, setIsAdjustmentModalOpen, editingTreasuryTx, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentClientId, adjustmentReason = '', setAdjustmentReason, onAdjustmentRedirect, clientBalances, portfolioStats, treasuryStats, clientsDzd, getClientFullName, setAdjustmentClientId, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, treasuryCards, handleGlobalAdjustment, isSaving }: MainClientOperationsDialogsProps) {
     const lastAutoPriceRef = useRef('');
     const normalizedClientTxType = normalizeLedgerLabel(clientTxType || '');
     const isClientSettlementTx = normalizedClientTxType === 'Règlement Reçu' || normalizedClientTxType === 'Paiement Effectué';
@@ -178,8 +180,26 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
         && Number.isFinite(parsedClientTxAmount)
         && Math.abs(parsedClientTxAmount) > clientSettlementWalletBalance + 0.01);
     const adjustmentAuto = useMemo(() => resolveAdjustmentAutoPrice(adjustmentAsset, treasuryCards || [], portfolioStats, t), [adjustmentAsset, treasuryCards, portfolioStats, t]);
+    // V7-2: a reason that the new wallet or direction does not offer is dropped (and its client with it).
+    const dropReasonNotOffered = (asset: string, tab: 'add' | 'subtract') => {
+        if (adjustmentReason && !isAdjustmentReasonAllowed(asset, tab, adjustmentReason)) {
+            if (adjustmentReason === 'client')
+                setAdjustmentClientId('');
+            setAdjustmentReason?.('');
+        }
+    };
+    const handleAdjustmentTabChange = (tab: 'add' | 'subtract') => {
+        setAdjustmentTab(tab);
+        dropReasonNotOffered(adjustmentAsset, tab);
+    };
+    const handleAdjustmentReasonChange = (reason: AdjustmentReason) => {
+        if (reason !== 'client')
+            setAdjustmentClientId('');
+        setAdjustmentReason?.(reason);
+    };
     const handleAdjustmentAssetChange = (value: string) => {
         setAdjustmentAsset(value);
+        dropReasonNotOffered(value, adjustmentTab);
         if (editingTreasuryTx)
             return;
         const nextAuto = resolveAdjustmentAutoPrice(value, treasuryCards || [], portfolioStats, t);
@@ -222,9 +242,14 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     const isCryptoAdjustment = adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR';
     const isDzdAdjustment = adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi';
     const selectedAssetLabel = getAdjustmentAssetLabel(adjustmentAsset, t);
-    const selectedClient = (clientsDzd || []).find((client: any) => client.id === adjustmentClientId);
+    // V7-2: only the « client » reason carries a client.
+    const reasonClientId = isDzdAdjustment && adjustmentReason === 'client' ? adjustmentClientId : '';
+    const reasonBlock = isAdjustmentReasonAllowed(adjustmentAsset, adjustmentTab, adjustmentReason)
+        ? adjustmentReasonBlock({ reason: adjustmentReason, clientId: reasonClientId, note: adjustmentNote ?? '' })
+        : 'reason';
+    const selectedClient = (clientsDzd || []).find((client: any) => client.id === reasonClientId);
     const selectedClientName = selectedClient ? getClientFullName(selectedClient) : getDisplayLabel(t, 'transactions.noClient', 'Aucun client');
-    const linkedClientBalance = Number(clientBalances?.get?.(adjustmentClientId) || 0);
+    const linkedClientBalance = Number(clientBalances?.get?.(reasonClientId) || 0);
     const selectedAssetMax = Number(adjustmentAsset === 'DZD-Caisse'
         ? (treasuryStats?.caisse || 0)
         : adjustmentAsset === 'DZD-Baridi'
@@ -250,6 +275,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     ? parsedAdjustmentAmount > (treasuryStats?.baridi || 0)
                     : false);
     const isConfirmDisabled = (isSaving ||
+        reasonBlock !== null ||
         !adjustmentAmount ||
         parsedAdjustmentAmount <= 0 ||
         exceedsAvailableBalance);
@@ -258,7 +284,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
             ? Math.max(0, -linkedClientBalance)
             : Math.max(0, linkedClientBalance))
         : 0;
-    const usesClientMax = isDzdAdjustment && !!adjustmentClientId;
+    const usesClientMax = isDzdAdjustment && !!reasonClientId;
     const usesAssetMax = !usesClientMax && !(adjustmentTab === 'add' && isDzdAdjustment);
     const maxValue = usesClientMax ? linkedClientMax : (usesAssetMax ? selectedAssetMax : 0);
     const maxDisabled = maxValue <= 0;
@@ -278,7 +304,8 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                 ? getDisplayLabel(t, 'transactions.noClientDebtToSettle', 'Aucune dette client à régler')
                 : getDisplayLabel(t, 'transactions.noClientCreditToRefund', 'Aucun solde en faveur du client à rembourser')))
         : adjustmentTab === 'add' && isDzdAdjustment
-            ? getDisplayLabel(t, 'transactions.maxAfterClientSelection', 'Maximum disponible après sélection du client.')
+            // Money entering a wallet has no maximum, except what a chosen client still owes.
+            ? (adjustmentReason === 'client' ? getDisplayLabel(t, 'transactions.maxAfterClientSelection', 'Maximum disponible après sélection du client.') : undefined)
             : formatMessage(t, 'transactions.maxAssetBalance', 'Maximum selon {asset} : {amount} {currency}.', {
                 asset: selectedAssetLabel,
                 amount: formatDisplayMetric(selectedAssetMax),
@@ -286,7 +313,9 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
             });
     const confirmHelperText = isSaving
         ? getDisplayLabel(t, 'common.processing', 'Traitement...')
-        : !adjustmentAmount || parsedAdjustmentAmount <= 0
+        : reasonBlock
+            ? getDisplayLabel(t, `movementReason.blocked.${reasonBlock}`, 'Choisissez la raison du mouvement.')
+            : !adjustmentAmount || parsedAdjustmentAmount <= 0
             ? getDisplayLabel(t, 'transactions.enterValidAmount', 'Saisissez un montant valide.')
             : exceedsAvailableBalance
                 ? formatMessage(t, 'transactions.amountExceedsAssetBalance', 'Le montant dépasse le solde {asset}.', { asset: adjustmentAsset })
@@ -336,6 +365,13 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     else if (!isVenteUsdt && !isAchatEur && Number.isFinite(amtVal) && amtVal !== 0)
         clientTxStats.push({ label: t('transactions.clientBalanceImpact'), value: formatMoney(Math.abs(amtVal), 'DZD') });
     const adjustmentTyped = !!adjustmentAmount;
+    // What the chosen client's balance becomes, said before Save. Not for an edit: his balance already holds the old effect.
+    const adjustmentClientBalanceHint = selectedClient && !editingTreasuryTx && Number.isFinite(parsedAdjustmentAmount) && parsedAdjustmentAmount > 0
+        ? formatMessage(t, 'movementReason.clientBalance', 'Solde du client : {before} avant, {after} après', {
+            before: `\u2066${formatMoney(linkedClientBalance, 'DZD')}\u2069`,
+            after: `\u2066${formatMoney(linkedClientBalance + (adjustmentTab === 'add' ? 1 : -1) * parsedAdjustmentAmount, 'DZD')}\u2069`,
+        })
+        : '';
     const adjustmentBlockedReason = isConfirmDisabled && !isSaving ? confirmHelperText : undefined;
     const adjustmentStats: OperationFooterStat[] = [];
     if (Number.isFinite(parsedAdjustmentAmount) && parsedAdjustmentAmount > 0) {
@@ -526,7 +562,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                 </ModalHeader>
                 <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
                     <FormCard>
-                    <SegmentedControl size="md" ariaLabel={t('transactions.operationType') as string} value={adjustmentTab === 'subtract' ? 'subtract' : 'add'} onChange={(tab) => setAdjustmentTab(tab)} options={[
+                    <SegmentedControl size="md" ariaLabel={t('transactions.operationType') as string} value={adjustmentTab === 'subtract' ? 'subtract' : 'add'} onChange={(tab) => handleAdjustmentTabChange(tab)} options={[
                         { id: 'add', label: t('transactions.addTo'), tone: 'profit' },
                         { id: 'subtract', label: t('transactions.withdrawFrom'), tone: 'loss' },
                     ]}/>
@@ -540,6 +576,19 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     </FormCard>
 
                     <FormCard>
+                        <AdjustmentReasonPicker t={t} asset={adjustmentAssetOf(adjustmentAsset) || 'DZD-Caisse'} direction={adjustmentTab === 'subtract' ? 'subtract' : 'add'} value={adjustmentReason} onChange={handleAdjustmentReasonChange} allowRedirects={!editingTreasuryTx} onRedirect={(reason) => onAdjustmentRedirect?.({ reason, asset: adjustmentAsset, direction: adjustmentTab === 'subtract' ? 'subtract' : 'add', amount: adjustmentAmount })}>
+                            {adjustmentReason === 'client' && isDzdAdjustment && (<div>
+                                <Label>{t('movementReason.clientField')}</Label>
+                                <div className="mt-1">
+                                    <SearchableSelect value={adjustmentClientId} onChange={setAdjustmentClientId} options={selectableClients(clientsDzd || [], [adjustmentClientId]).map((client: any) => ({ value: client.id, label: getClientFullName(client) }))} searchPlaceholder={t('transactions.searchClient')} noResultsLabel={t('transactions.noClientFound')}/>
+                                </div>
+                                {adjustmentClientBalanceHint && <p className="mt-1.5 text-xs leading-snug text-neutral-500">{adjustmentClientBalanceHint}</p>}
+                            </div>)}
+                            {adjustmentReason === 'other' && (<Textarea id="adjustment_reason_note" label={t('movementReason.otherNoteLabel') as string} value={adjustmentNote ?? ''} onChange={(e) => setAdjustmentNote(e.target.value)} rows={2} placeholder={t('movementReview.reasonPlaceholder') as string} className="resize-none text-sm" error={reasonBlock === 'note' && (adjustmentNote ?? '').trim() !== '' ? t('movementReason.noteRequired') as string : undefined} helperText={reasonBlock === 'note' && (adjustmentNote ?? '').trim() === '' ? t('movementReason.noteRequired') as string : undefined}/>)}
+                        </AdjustmentReasonPicker>
+                    </FormCard>
+
+                    <FormCard>
                     <MoneyField label={isCryptoAdjustment ? t('transactions.quantity') : t('transactions.amount')} value={adjustmentAmount} onChange={setAdjustmentAmount} currency={isCryptoAdjustment ? (adjustmentAsset as 'USDT' | 'EUR') : 'DZD'} placeholder="0.00" onMax={() => {
             if (maxDisabled)
                 return;
@@ -549,13 +598,6 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     {isCryptoAdjustment && (<MoneyField label={t('transactions.unitPrice')} value={adjustmentPrice} onChange={setAdjustmentPrice} placeholder="Ex: 240.00" hint={adjustmentAuto.sourceType === 'missing'
                 ? adjustmentAuto.sourceLabel
                 : `${t('transactions.pamAuto')}: ${adjustmentAuto.sourceLabel}`}/>)}
-
-                    {isDzdAdjustment && (<div>
-                            <Label>{t('transactions.linkedClientOptional')}</Label>
-                            <div className="mt-1">
-                                <SearchableSelect value={adjustmentClientId} onChange={setAdjustmentClientId} options={selectableClients(clientsDzd || [], [adjustmentClientId]).map((client: any) => ({ value: client.id, label: getClientFullName(client) }))} searchPlaceholder={t('transactions.searchClient')} emptyOptionLabel={t('transactions.noClient')} emptyValue="" noResultsLabel={t('transactions.noClientFound')} clearable clearLabel={t('transactions.clearClient')}/>
-                            </div>
-                        </div>)}
 
                     {(() => {
             const qty = parsedAdjustmentAmount;
@@ -583,9 +625,9 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
         })()}
                     </FormCard>
 
-                    <FormCard>
+                    {adjustmentReason !== 'other' && (<FormCard>
                         <Textarea id="adjustment_notes" label={t('common.notesOptional') as string} value={adjustmentNote ?? ''} onChange={(e) => setAdjustmentNote(e.target.value)} rows={2} placeholder={t('transactions.notesPlaceholder') as string} className="resize-none text-sm"/>
-                    </FormCard>
+                    </FormCard>)}
                 </ModalContent>
                 <OperationFooter stats={adjustmentStats} reason={adjustmentBlockedReason} reasonTone={adjustmentTyped ? 'fix' : 'missing'}>
                     <Button variant="outline" onClick={() => setIsAdjustmentModalOpen(false)}>
@@ -632,6 +674,7 @@ const areMainClientOperationsDialogsPropsEqual = (prev: MainClientOperationsDial
             && prev.adjustmentAsset === next.adjustmentAsset
             && prev.adjustmentAmount === next.adjustmentAmount
             && prev.adjustmentClientId === next.adjustmentClientId
+            && prev.adjustmentReason === next.adjustmentReason
             && prev.clientBalances === next.clientBalances
             && prev.portfolioStats === next.portfolioStats
             && prev.treasuryStats === next.treasuryStats

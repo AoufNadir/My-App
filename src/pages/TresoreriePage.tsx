@@ -5,6 +5,9 @@ import { TreasuryCollectionsSection } from '../components/treasury/TreasuryColle
 import { CapitalOverviewCard } from '../components/financial/CapitalOverviewCard';
 import { InventorySection } from '../components/treasury/InventorySection';
 import { useInventoryChecks } from '../hooks/useInventoryChecks';
+import { MovementReviewSection } from '../components/treasury/MovementReviewSection';
+import { useMovementReasons } from '../hooks/useMovementReasons';
+import type { ReviewRow } from '../utils/movementReason';
 import { inventoryExpected, listBalanceCorrections, type InventoryRow } from '../utils/inventoryCheck';
 import type { InvestigatorAction } from '../utils/inventoryInvestigator';
 import { ListRow, SectionCard } from '../components/cards';
@@ -78,9 +81,12 @@ type TresoreriePageProps = {
     onCorrectInventory?: (row: InventoryRow) => void;
     /** V5-3: a button of the investigator asks the app to open a window, filled in */
     onInvestigate?: (action: InvestigatorAction) => void;
+    /** V7-2: the client rows (to tell which movements already reach a client) and what attaching a movement to a client opens */
+    clientTransactionsDzd?: Array<{ linkedTxId?: string }>;
+    onLinkMovementToClient?: (tx: TreasuryTx) => void;
     [key: string]: any;
 };
-export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown, capitalSnapshot, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, treasuryTransactions = [], onOpenServices, userDocRef, setAlert, portfolioStats, transactions = [], inventoryReady = true, onCorrectInventory, onInvestigate }: TresoreriePageProps) {
+export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown, capitalSnapshot, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, treasuryTransactions = [], onOpenServices, userDocRef, setAlert, portfolioStats, transactions = [], inventoryReady = true, onCorrectInventory, onInvestigate, clientTransactionsDzd = [], onLinkMovementToClient }: TresoreriePageProps) {
     const { t } = useLanguage();
     const weekdays = t('common.weekdaysNarrow') as unknown as string[];
 
@@ -128,6 +134,15 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
         eurAvailable: portfolioStats?.eur?.available ?? 0,
         eurLocked: portfolioStats?.eur?.locked ?? 0,
     }), [caisseBalance, baridiBalance, portfolioStats]);
+    // Money movements typed by hand that nothing explains (V7-2).
+    const movementReviewEnabled = Boolean(userDocRef && onLinkMovementToClient);
+    const { reasons: movementReasons, saveReason: saveMovementReason } = useMovementReasons(
+        userDocRef, movementReviewEnabled, () => setAlert?.(t('movementReview.saveFailed') as string));
+    const linkMovementToClient = (row: ReviewRow) => {
+        const tx = treasuryTransactions.find((candidate) => candidate.id === row.id);
+        if (tx)
+            onLinkMovementToClient?.(tx);
+    };
     const balanceCorrections = useMemo(() => listBalanceCorrections(treasuryTransactions, transactions), [treasuryTransactions, transactions]);
 
     // The treasury report: its movements and balances are fixed when the window opens.
@@ -140,6 +155,8 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
       <TreasurySummarySection caisseBalance={caisseBalance} baridiBalance={baridiBalance} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} servicesCapitalImpact={capitalSnapshot.servicesCapitalImpact} openTreasuryBalanceEditModal={openTreasuryBalanceEditModal} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string} onOpenServices={onOpenServices}/>
 
       {inventoryEnabled && (<InventorySection expected={inventoryExpectedNow} checks={inventoryChecks} corrections={balanceCorrections} ready={inventoryReady} onSave={(data) => { saveInventoryCheck(data); }} onDelete={deleteInventoryCheck} onCorrect={(row) => onCorrectInventory?.(row)} treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} onInvestigate={onInvestigate}/>)}
+
+      {movementReviewEnabled && (<MovementReviewSection treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} clientRows={clientTransactionsDzd} reasons={movementReasons} ready={inventoryReady} onWriteReason={saveMovementReason} onLinkClient={linkMovementToClient}/>)}
 
       {weeklyFlow.days.some((d) => d.cashIn > 0 || d.cashOut > 0) && (<SectionCard title={t('treasury.flow7Days')}>
           <div aria-hidden="true" className="flex h-20 items-end gap-1">

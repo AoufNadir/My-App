@@ -58,6 +58,7 @@ import { now, parseAndEvaluate } from './utils';
 import { computePamLedger } from './utils/pamLedger';
 import { correctionEntryFor, type InventoryRow } from './utils/inventoryCheck';
 import type { InvestigatorAction } from './utils/inventoryInvestigator';
+import type { AdjustmentReason } from './utils/movementReason';
 import type { ClientTransferRequest } from './components/clients/ClientConfirmation';
 import { collectDebtWriteOffs } from './utils/debtWriteOffs';
 import { withAdjustmentChannels } from './utils/clientRowChannels';
@@ -537,7 +538,7 @@ export default function MainApp({ user }: {
     // Live smart-pricing quote of the open sell form — persisted on the Tx
     // by handleSell as the sp* snapshot (negotiation-loss tracking).
     const smartQuoteRef = React.useRef<SmartSaleSnapshot | null>(null);
-    const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, deliveryExpensePreview, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, transferDate, setTransferDate, transferTime, setTransferTime, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer, handleApplyLock24hToRecentBuys, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, sellTime, setSellTime, saleDatePlan } = useTransactionHandlers({
+    const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, adjustmentReason, setAdjustmentReason, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, deliveryExpensePreview, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, transferDate, setTransferDate, transferTime, setTransferTime, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer, handleApplyLock24hToRecentBuys, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, sellTime, setSellTime, saleDatePlan } = useTransactionHandlers({
         userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd,
         investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats,
         periodLockedThrough: periodLock.lockedThrough,
@@ -1746,6 +1747,43 @@ export default function MainApp({ user }: {
         }
         openAdjustmentModal(tx.type === 'Retrait' ? 'subtract' : 'add', tx);
     };
+    // V7-2: « attach it to a client » on a movement of the review list opens the adjustment window on it,
+    // where a reason (the client) is chosen; the closed-month rule is the one of every other edit.
+    const openMovementForClient = (tx: TreasuryTx) => {
+        if (refuseIfClosedMonth(tx.timestamp))
+            return;
+        openAdjustmentModal(tx.type === 'Retrait' || tx.type === 'Adjustment (-)' ? 'subtract' : 'add', tx);
+    };
+    // V7-2: the treasury adjustment window gives way to the window that already exists for the chosen
+    // reason, opened on the same wallet with the amount typed so far. Nothing is saved by this step.
+    const onAdjustmentRedirect = ({ reason, asset, direction, amount }: { reason: AdjustmentReason; asset: string; direction: 'add' | 'subtract'; amount: string }) => {
+        const wallet = asset === 'DZD-Caisse' ? 'Caisse' : asset === 'DZD-Baridi' ? 'BaridiMob' : asset === 'EUR' ? 'EUR' : 'USDT';
+        setIsAdjustmentModalOpen(false);
+        window.setTimeout(() => {
+            if (reason === 'wallet_transfer') {
+                const other = wallet === 'Caisse' ? 'BaridiMob' : 'Caisse';
+                openWalletTransferModal(null, {
+                    amount,
+                    source: direction === 'subtract' ? (wallet === 'BaridiMob' ? 'BaridiMob' : 'Caisse') : other,
+                    destination: direction === 'subtract' ? other : (wallet === 'BaridiMob' ? 'BaridiMob' : 'Caisse'),
+                    notes: '',
+                });
+            }
+            else if (reason === 'personal_withdrawal') {
+                openPersonalWithdrawalModal();
+                setPersonalWithdrawalMethod(wallet);
+                setPersonalWithdrawalAmount(amount);
+            }
+            else if (reason === 'project_expense') {
+                openDeliveryExpenseModal();
+                setDeliveryExpenseMethod(wallet);
+                setDeliveryExpenseAmount(amount);
+            }
+            else if (reason === 'buy' || reason === 'sell') {
+                openForm(`${reason}_${asset === 'EUR' ? 'eur' : 'usdt'}`);
+            }
+        }, 80);
+    };
     // V5-3: the inventory investigator only suggests. Each button opens a window that already exists,
     // filled in; the user still checks it and presses Save there, and that window's own handler writes.
     const openInventoryAction = (action: InvestigatorAction) => {
@@ -2787,7 +2825,7 @@ export default function MainApp({ user }: {
             return;
         return open(item);
     };
-    const mainContentProps = { t, dailyOverview, userDocRef, setAlert, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete: unlessClosedMonth<Tx | TreasuryTx | null>(setTxToDelete), openDateFilterModal, dateRange, setDateRange, openNewOperationMenu, openDeliveryExpenseModal, openDigitalServiceModal: unlessClosedMonth<DigitalServiceTransaction | null>(openDigitalServiceModal), handleDeleteDigitalService: unlessClosedMonth<DigitalServiceTransaction>(handleDeleteDigitalService), treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete: unlessClosedMonth<TreasuryTx | null>(setTreasuryTxToDelete), PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal: unlessClosedMonth<TreasuryTx>(openReconcileAdvanceModal), openEditPersonalExpense: unlessClosedMonth<TreasuryTx>(openEditPersonalExpense), setPersonalExpenseToDelete: unlessClosedMonth<TreasuryTx | null>(setPersonalExpenseToDelete), handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, openClientToClientTransferModal, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete: unlessClosedMonth<InvestorTransaction | null>(setInvestorTxToDelete), managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, prepareInvestorReport, handleApplyLock24hToRecentBuys, periodLock: periodLockProps, investorTermsByInvestorId: investorTerms.byInvestorId, inventoryReady: isFinancialDataReady && !isAwaitingServerSync, openInventoryAction, openInventoryCorrection };
+    const mainContentProps = { t, dailyOverview, userDocRef, setAlert, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete: unlessClosedMonth<Tx | TreasuryTx | null>(setTxToDelete), openDateFilterModal, dateRange, setDateRange, openNewOperationMenu, openDeliveryExpenseModal, openDigitalServiceModal: unlessClosedMonth<DigitalServiceTransaction | null>(openDigitalServiceModal), handleDeleteDigitalService: unlessClosedMonth<DigitalServiceTransaction>(handleDeleteDigitalService), treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete: unlessClosedMonth<TreasuryTx | null>(setTreasuryTxToDelete), PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal: unlessClosedMonth<TreasuryTx>(openReconcileAdvanceModal), openEditPersonalExpense: unlessClosedMonth<TreasuryTx>(openEditPersonalExpense), setPersonalExpenseToDelete: unlessClosedMonth<TreasuryTx | null>(setPersonalExpenseToDelete), handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, openClientToClientTransferModal, ServicesPage, selectedAssetClientId, ManualClientPage, manualAssetClients, manualAssetTransactions, assetClientBalances, selectedAssetId, setSelectedAssetClientId, handleCreateAssetTransaction, handleUpdateAssetTransaction, handleDeleteAssetTransaction, fieldBase, ManualAssetPage, manualAssets, handleCreateAssetClient, handleUpdateAssetClient, handleDeleteAssetClient, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, assetBalances, servicesSummary, openServicesView, setSelectedAssetId, setIsCreateAssetModalOpen, handleDeleteAsset, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete: unlessClosedMonth<InvestorTransaction | null>(setInvestorTxToDelete), managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, prepareInvestorReport, handleApplyLock24hToRecentBuys, periodLock: periodLockProps, investorTermsByInvestorId: investorTerms.byInvestorId, inventoryReady: isFinancialDataReady && !isAwaitingServerSync, openInventoryAction, openInventoryCorrection, openMovementForClient };
     const walletTransferDialogProps = useMemo(() => ({
         isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSourceAndSync,
@@ -3031,7 +3069,7 @@ export default function MainApp({ user }: {
         adjustmentTab, setAdjustmentTab,
         adjustmentAsset, setAdjustmentAsset,
         adjustmentAmount, setAdjustmentAmount,
-        adjustmentClientId, setAdjustmentClientId,
+        adjustmentClientId, setAdjustmentClientId, adjustmentReason, setAdjustmentReason, onAdjustmentRedirect,
         adjustmentPrice, setAdjustmentPrice,
         adjustmentNote, setAdjustmentNote,
         isDeliveryExpenseModalOpen, closeDeliveryExpenseModal,

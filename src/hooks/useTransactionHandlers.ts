@@ -3,6 +3,14 @@ import { db, fieldValueDelete, type FirestoreDocumentReference } from '../fireba
 import { Tx, PortfolioStats, ClientDzd, TreasuryTx, ClientTransactionDzd, Investor, InvestorTransaction } from '../types';
 import { now, parseAndEvaluate } from '../utils';
 import { roundM } from '../utils/money';
+import {
+    adjustmentReasonBlock,
+    buildMovementReasonData,
+    isAdjustmentReasonAllowed,
+    isMeaningfulReasonNote,
+    movementReasonDocId,
+    type AdjustmentReason,
+} from '../utils/movementReason';
 import { operationStamp } from '../utils/editStamp';
 import { formatNumber } from '../pages/shared/pageFormat';
 import { applyTransactionDelete } from '../transactionService';
@@ -150,6 +158,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [adjustmentPrice, setAdjustmentPrice] = useState('');
     const [adjustmentNote, setAdjustmentNote] = useState('');
     const [adjustmentClientId, setAdjustmentClientId] = useState('');
+    // V7-2: why this movement (a client, a correction...). Empty until the user chooses.
+    const [adjustmentReason, setAdjustmentReason] = useState<AdjustmentReason | ''>('');
     const [editingTreasuryTx, setEditingTreasuryTx] = useState<TreasuryTx | null>(null);
     const [isDeliveryExpenseModalOpen, setIsDeliveryExpenseModalOpen] = useState(false);
     const [deliveryExpenseAmount, setDeliveryExpenseAmount] = useState('');
@@ -1303,6 +1313,17 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             setAlert('⚠️ Montant invalide.');
             return;
         }
+        // V7-2: every movement typed by hand says why. Only a client reason carries a client; the window
+        // already refuses Save in these cases, this is the same rule once more where the money is written.
+        const isCashAdjustment = adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi';
+        const adjustedClientId = isCashAdjustment && adjustmentReason === 'client' ? adjustmentClientId : '';
+        const reasonBlock = isAdjustmentReasonAllowed(adjustmentAsset, adjustmentTab, adjustmentReason)
+            ? adjustmentReasonBlock({ reason: adjustmentReason, clientId: adjustedClientId, note: adjustmentNote })
+            : 'reason';
+        if (reasonBlock) {
+            setAlert(reasonBlock === 'client' ? '⚠️ Choisissez le client.' : reasonBlock === 'note' ? '⚠️ Écrivez la raison du mouvement.' : '⚠️ Choisissez la raison du mouvement.');
+            return;
+        }
         const epsilon = 0.005;
         // When editing an existing subtract adjustment on the same wallet, restore
         // its old effect before checking affordability — otherwise the balance
@@ -1354,6 +1375,12 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 }
                 const txRef = userDocRef.collection('usdt_txs').doc();
                 batch.set(txRef, txData);
+                if (adjustmentReason === 'other') {
+                    // The reason in words sits beside the movement, in a collection that holds no money.
+                    const reasonData = buildMovementReasonData('crypto', txRef.id, adjustmentNote, stamp.timestamp, 'adjustment');
+                    if (reasonData)
+                        batch.set(userDocRef.collection('movement_reasons').doc(movementReasonDocId('crypto', txRef.id)), reasonData);
+                }
                 readModelDeltas.push(mustPrepareWriterReadModelDelta('portfolio.manual-adjustment', {
                     operationId: `legacy:portfolio.manual-adjustment:${txRef.id}`,
                     effectiveAt: stamp.timestamp,
@@ -1392,9 +1419,14 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     batch.update(userDocRef.collection('treasury_txs').doc(editingTreasuryTx.id), {
                         type, source, amount: amountNum, notes: note
                     });
-                    if (linkedAdjustmentClientTx && adjustmentClientId) {
+                    if (adjustmentReason === 'other') {
+                        const reasonData = buildMovementReasonData('treasury', editingTreasuryTx.id, adjustmentNote, stamp.timestamp, 'adjustment');
+                        if (reasonData)
+                            batch.set(userDocRef.collection('movement_reasons').doc(movementReasonDocId('treasury', editingTreasuryTx.id)), reasonData);
+                    }
+                    if (linkedAdjustmentClientTx && adjustedClientId) {
                         batch.update(userDocRef.collection('dzd_client_txs').doc(linkedAdjustmentClientTx.id), {
-                            clientId: adjustmentClientId,
+                            clientId: adjustedClientId,
                             timestamp: linkedTimestamp,
                             date: linkedDate,
                             time: linkedTime,
@@ -1407,9 +1439,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     else if (linkedAdjustmentClientTx) {
                         batch.delete(userDocRef.collection('dzd_client_txs').doc(linkedAdjustmentClientTx.id));
                     }
-                    else if (adjustmentClientId) {
+                    else if (adjustedClientId) {
                         batch.set(userDocRef.collection('dzd_client_txs').doc(), {
-                            clientId: adjustmentClientId, timestamp: linkedTimestamp,
+                            clientId: adjustedClientId, timestamp: linkedTimestamp,
                             date: linkedDate, time: linkedTime, montant: clientAmount,
                             type: clientTxType, paymentMethod: clientPaymentMethod, notes: `${note} (${source})`,
                             linkedTxId: editingTreasuryTx.id, origin: 'adjustment'
@@ -1419,6 +1451,11 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 else {
                     const treasuryTxRef = userDocRef.collection('treasury_txs').doc();
                     batch.set(treasuryTxRef, { timestamp: stamp.timestamp, date: stamp.date, time: stamp.time, type, source, amount: amountNum, notes: note });
+                    if (adjustmentReason === 'other') {
+                        const reasonData = buildMovementReasonData('treasury', treasuryTxRef.id, adjustmentNote, stamp.timestamp, 'adjustment');
+                        if (reasonData)
+                            batch.set(userDocRef.collection('movement_reasons').doc(movementReasonDocId('treasury', treasuryTxRef.id)), reasonData);
+                    }
                     readModelDeltas.push(mustPrepareWriterReadModelDelta('treasury.adjustment', {
                         operationId: `legacy:treasury.adjustment:${treasuryTxRef.id}`,
                         effectiveAt: stamp.timestamp,
@@ -1432,21 +1469,21 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                             effectiveAt: stamp.timestamp,
                         },
                     }));
-                    if (adjustmentClientId) {
-                        const client = clientsDzd.find(c => c.id === adjustmentClientId);
+                    if (adjustedClientId) {
+                        const client = clientsDzd.find(c => c.id === adjustedClientId);
                         if (client) {
                             const clientTxRef = userDocRef.collection('dzd_client_txs').doc();
                             batch.set(clientTxRef, {
-                                clientId: adjustmentClientId, timestamp: stamp.timestamp,
+                                clientId: adjustedClientId, timestamp: stamp.timestamp,
                                 date: stamp.date, time: stamp.time, montant: clientAmount,
                                 type: clientTxType, paymentMethod: clientPaymentMethod, notes: `${note} (${source})`,
                                 linkedTxId: treasuryTxRef.id, origin: 'adjustment'
                             });
-                            const beforeBalance = clientPositionFromLegacyRows(clientTransactionsDzd, adjustmentClientId, stamp.timestamp).balanceDzd;
+                            const beforeBalance = clientPositionFromLegacyRows(clientTransactionsDzd, adjustedClientId, stamp.timestamp).balanceDzd;
                             readModelDeltas.push(mustPrepareWriterReadModelDelta('clients.initial-adjustment-remise', {
                                 operationId: `legacy:clients.initial-adjustment-remise:${clientTxRef.id}`,
                                 effectiveAt: stamp.timestamp,
-                                payload: { type: 'linked_treasury_client_adjustment', txId: clientTxRef.id, treasuryTxId: treasuryTxRef.id, clientId: adjustmentClientId, amount: clientAmount },
+                                payload: { type: 'linked_treasury_client_adjustment', txId: clientTxRef.id, treasuryTxId: treasuryTxRef.id, clientId: adjustedClientId, amount: clientAmount },
                                 affectedSummaries: ['dashboard_summary', 'clients_summary', 'financial_summary'],
                                 clients: transitionClientBalanceDelta(beforeBalance, beforeBalance + clientAmount),
                                 recentOperation: {
@@ -1471,19 +1508,19 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     wallet,
                     amountDzd: amountNum,
                 }, [{ type: adjustmentTab === 'add' ? 'Ajout' : 'Retrait', source: wallet, amount: amountNum }]);
-                if (!editingTreasuryTx && adjustmentClientId) {
+                if (!editingTreasuryTx && adjustedClientId) {
                     const clientAmount = adjustmentTab === 'add' ? amountNum : -amountNum;
                     recordClientShadow({
-                        operationId: `shadow:client-linked-cash-adjustment:${adjustmentClientId}:${stamp.timestamp}`,
+                        operationId: `shadow:client-linked-cash-adjustment:${adjustedClientId}:${stamp.timestamp}`,
                         actorUid: userDocRef.id,
                         effectiveAt: stamp.timestamp,
                         kind: adjustmentTab === 'add' ? 'client_cash_receipt' : 'client_cash_payout',
-                        clientId: adjustmentClientId,
+                        clientId: adjustedClientId,
                         amountDzd: amountNum,
-                        positionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, adjustmentClientId, stamp.timestamp),
+                        positionBefore: clientPositionFromLegacyRows(clientTransactionsDzd, adjustedClientId, stamp.timestamp),
                         wallet,
                     }, {
-                        clientDeltas: { [adjustmentClientId]: clientAmount },
+                        clientDeltas: { [adjustedClientId]: clientAmount },
                         cashDeltasDzd: { [wallet]: adjustmentTab === 'add' ? amountNum : -amountNum },
                     });
                 }
@@ -1520,9 +1557,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: editingTreasuryTx ? [] : readModelDeltas });
             setAlert('✅ Ajustement enregistré.');
             setIsAdjustmentModalOpen(false);
-            if (adjustmentClientId) {
+            if (adjustedClientId) {
                 setTimeout(() => {
-                    setSelectedClientId(adjustmentClientId);
+                    setSelectedClientId(adjustedClientId);
                     setView('dzd');
                 }, 100);
             }
@@ -1562,12 +1599,16 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             setAdjustmentAsset(txToEdit.source === 'Caisse' ? 'DZD-Caisse' : 'DZD-Baridi');
             setAdjustmentNote(txToEdit.notes || '');
             setAdjustmentClientId(linkedAdjustmentClientTx?.clientId || '');
+            // V7-2: a movement already tied to a client keeps that reason; one whose note says something
+            // is a written reason; the rest has to be given a reason now.
+            setAdjustmentReason(linkedAdjustmentClientTx ? 'client' : isMeaningfulReasonNote(txToEdit.notes) ? 'other' : '');
         }
         else {
             setAdjustmentAmount('');
             setAdjustmentNote('');
             setAdjustmentAsset('DZD-Caisse');
             setAdjustmentClientId('');
+            setAdjustmentReason('');
         }
         setIsAdjustmentModalOpen(true);
     };
@@ -2021,7 +2062,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab,
         adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount,
         adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote,
-        adjustmentClientId, setAdjustmentClientId, editingTreasuryTx, setEditingTreasuryTx,
+        adjustmentClientId, setAdjustmentClientId, adjustmentReason, setAdjustmentReason, editingTreasuryTx, setEditingTreasuryTx,
         usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell,
         handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal,
         isDeliveryExpenseModalOpen, setIsDeliveryExpenseModalOpen,
