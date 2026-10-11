@@ -23,6 +23,7 @@ import { getClientOperationLabel, getClientTransferDetails, getManualClientNote,
 import { getNameInitials } from '../../utils/nameUtils';
 import { readClientWallets } from '../../utils/clientWallets';
 import { openWhatsAppMessenger } from '../../utils/whatsapp';
+import { ClientConfirmationEntry, type ClientTransferRequest } from './ClientConfirmation';
 // Loaded on the first tap on « Rapport d’activité » or « PDF »: the clients page stays as light as before.
 const ClientActivityReportDialog = lazy(() => import('./ClientActivityReportDialog').then((module) => ({ default: module.ClientActivityReportDialog })));
 type ClientDetailsViewProps = {
@@ -45,6 +46,11 @@ type ClientDetailsViewProps = {
     handleDeleteClientTxClick: (tx: ClientTransactionDzd) => void;
     openClientTxModal: (tx: ClientTransactionDzd | null, presetType?: string, selectedClientId?: string) => void;
     openClientToClientTransferModal: (sourceClient: ClientDzd) => void;
+    /** V5-3 « confirm the client's balance »: the user document (to save what the client said), every balance, and the transfer window filled in */
+    userDocRef?: any;
+    clientBalances?: ReadonlyMap<string, number>;
+    onRecordClientTransfer?: (transfer: ClientTransferRequest) => void;
+    setAlert?: (message: string) => void;
 };
 type ContactRowProps = {
     label: string;
@@ -118,7 +124,7 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone, isAddress }: C
       </div>
     </div>);
 }
-export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, openClientSummary, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal }: ClientDetailsViewProps) {
+export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, openClientSummary, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal, userDocRef, clientBalances, onRecordClientTransfer, setAlert}: ClientDetailsViewProps) {
     const { t, lang } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 60;
     const LOAD_MORE_TRANSACTIONS = 60;
@@ -379,6 +385,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
           </span>
           <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100"/>
         </button>
+        <ClientConfirmationEntry userDocRef={userDocRef} client={selectedClient} balance={selectedClientBalance} balances={clientBalances ?? new Map<string, number>()} clients={clientsDzd} getClientFullName={getClientFullName} clientTransactions={clientTransactionsDzd} onEditOperation={handleEditClientTx} onRecordTransfer={onRecordClientTransfer} setAlert={setAlert}/>
       </section>
 
       {creditLimitAlert}

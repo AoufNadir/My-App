@@ -58,6 +58,7 @@ import { now, parseAndEvaluate } from './utils';
 import { computePamLedger } from './utils/pamLedger';
 import { correctionEntryFor, type InventoryRow } from './utils/inventoryCheck';
 import type { InvestigatorAction } from './utils/inventoryInvestigator';
+import type { ClientTransferRequest } from './components/clients/ClientConfirmation';
 import { collectDebtWriteOffs } from './utils/debtWriteOffs';
 import { findPeriodLockViolation, formatLockDate, isInLockedPeriod, savedTimestampFrom } from './utils/periodLock';
 import { operationStamp } from './utils/editStamp';
@@ -2482,6 +2483,18 @@ export default function MainApp({ user }: {
         setTransferTime(stamp.time);
     }, [openTransferModal, setTransferAmount, setTransferDate, setTransferFromClientId, setTransferNotes, setTransferTime, setTransferToClientId]);
 
+    // V5-3: « confirm the client's balance » found two clients whose gaps cancel out: the transfer window
+    // opens with both clients and the amount typed in; it is saved only when the user presses Save there.
+    const openClientTransferPrefilled = React.useCallback((transfer: ClientTransferRequest) => {
+        const source = clientsDzd.find((candidate) => candidate.id === transfer.fromClientId);
+        if (!source)
+            return;
+        openClientToClientTransferModal(source);
+        setTransferToClientId(transfer.toClientId);
+        setTransferAmount(String(transfer.amount));
+        setTransferNotes('Transfert oublié (confirmation du solde)');
+    }, [clientsDzd, openClientToClientTransferModal, setTransferAmount, setTransferNotes, setTransferToClientId]);
+
     const clientsPageProps = useMemo(() => ({
         selectedClientId,
         setSelectedClientId,
@@ -2516,12 +2529,15 @@ export default function MainApp({ user }: {
         clientLastSellDate: earlyClientLastSellDateMap,
         handleZeroOutBalance,
         onImportClients: handleImportClients,
+        userDocRef,
+        setAlert,
+        onRecordClientTransfer: openClientTransferPrefilled,
     }), [
         selectedClientId, clientSearchQuery, clientSortMode,
         clientsDzd, filteredClientsDzd, searchedClientsDzd, clientBalances, selectedClient, selectedClientTransactions, clientTransactionsDzd, transactions, pamLedger.profitByTxId, copiedValue,
         openClientModal, handleTouchStart, handleTouchEnd, setSummaryClient, handleClientDeleteRequest, openClientTxModal,
         handleCopy, handleEditLinkedClientTx, handleDeleteLinkedClientTxClick, overdueDebtClients, clientLoyaltyMap,
-        earlyClientPrevMonthVolumeMap, earlyClientLastSellDateMap, handleZeroOutBalance
+        earlyClientPrevMonthVolumeMap, earlyClientLastSellDateMap, handleZeroOutBalance, userDocRef, setAlert, openClientTransferPrefilled
     ]);
     if (isInvestorRoute) {
         if (!isFinancialDataReady) {
