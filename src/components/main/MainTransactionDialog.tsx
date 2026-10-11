@@ -73,8 +73,9 @@ function TagInput({ tags, setTags, t }: { tags: string[]; setTags: (t: string[])
 type MainTransactionDialogProps = Record<string, any>;
 type LastEditedSellField = 'eurReceived' | 'quantity' | 'total' | 'price';
 type SellCalculationBasis = Exclude<LastEditedSellField, 'price'>;
-export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, smartPricingByCurrency, smartQuoteRef }: MainTransactionDialogProps) {
+export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, sellTime, setSellTime, saleDatePlan, smartPricingByCurrency, smartQuoteRef }: MainTransactionDialogProps) {
     const [sellUsdtSourceSelected, setSellUsdtSourceSelected] = React.useState(false);
+    const [saleDateOpen, setSaleDateOpen] = React.useState(false);
     const [lastEditedSellField, setLastEditedSellField] = React.useState<LastEditedSellField>('quantity');
     const sellCalculationBasisRef = React.useRef<SellCalculationBasis>('quantity');
     const unlockPreviewTime = React.useMemo(() => {
@@ -149,6 +150,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
     };
     React.useEffect(() => {
         setSellUsdtSourceSelected(mode === 'sell_usdt' && (!!sellAmount || !!sellPrice));
+        setSaleDateOpen(false);
         setLastEditedSellField('quantity');
         sellCalculationBasisRef.current = 'quantity';
     }, [mode, editingTx?.id]);
@@ -268,7 +270,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
     // Display only: nothing from here to the end of the window changes what is saved.
     // A calm form: an empty field never turns red. What is still missing, or the first typed value
     // to correct, is said once next to the Confirm button, in the reader's language.
-    const fieldValues: Record<string, unknown> = { buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, sellEurToDzdRate: pamEurToDzdRateInput, linkedClientId, linkedClientDzdId, creditDueDate };
+    const fieldValues: Record<string, unknown> = { buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, sellEurToDzdRate: pamEurToDzdRateInput, linkedClientId, linkedClientDzdId, creditDueDate, sellDate };
     const isFieldFilled = (field: string) => {
         const value = fieldValues[field];
         return value !== undefined && value !== null && value !== '' && value !== 'none';
@@ -290,11 +292,14 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
             label: isUsdtSellSettledInEur ? t('transactions.eurReceived') : t('transactions.totalAmount'),
             value: `${totalFieldNumber.toLocaleString('fr-FR', { minimumFractionDigits: totalFieldCurrency === 'EUR' ? 2 : 0, maximumFractionDigits: 2 })} ${totalFieldCurrency}`,
         });
-    if (!isChoosingSource && transactionSummary && transactionSummary.profitEstimate !== null)
+    // A sale dated on another day earns what that day's PAM gives, not what today's does.
+    const datedSalePlan = saleDatePlan?.moment?.kind === 'at' ? saleDatePlan.plan : null;
+    const barProfit: number | null = datedSalePlan && 'profit' in datedSalePlan ? datedSalePlan.profit : (transactionSummary?.profitEstimate ?? null);
+    if (!isChoosingSource && transactionSummary && barProfit !== null)
         footerStats.push({
             label: t('transactions.estimatedProfit'),
-            value: `${transactionSummary.profitEstimate >= 0 ? '+' : ''}${formatPreviewNumber(transactionSummary.profitEstimate, 0)} DZD`,
-            tone: transactionSummary.profitEstimate >= 0 ? 'profit' : 'loss',
+            value: `${barProfit >= 0 ? '+' : ''}${formatPreviewNumber(barProfit, 0)} DZD`,
+            tone: barProfit >= 0 ? 'profit' : 'loss',
         });
     const renderSellQuantityField = () => (
         <MoneyField label={t('transactions.quantity')} value={sellAmount} onChange={(val) => {
@@ -374,6 +379,47 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
         if (learnedSettleDays === null) return;
         setCreditDueDate(new Date(Date.now() + learnedSettleDays * 86_400_000).toISOString().slice(0, 10));
     }, [isSellMode, isUsdtSellSettledInEur, editingTx, clientPaymentStatus, linkedClientId, creditDueDate, learnedSettleDays, setCreditDueDate]);
+    // « When did the sale really happen? » — a new sale in dinars only. Empty means now, as always.
+    // A past day is calculated as if the sale had been typed then; what that gives is shown here.
+    const saleDateError = translateFormMessage(formValidation.errors.sellDate, t);
+    const renderSaleDate = () => {
+        const picked = !!sellDate || !!sellTime;
+        const todayParts = new Date();
+        const pad = (value: number) => String(value).padStart(2, '0');
+        const todayIso = `${todayParts.getFullYear()}-${pad(todayParts.getMonth() + 1)}-${pad(todayParts.getDate())}`;
+        const plan = saleDatePlan?.moment?.kind === 'at' ? saleDatePlan.plan : null;
+        const ltr = (value: string) => `\u2066${value}\u2069`;
+        const signed = (value: number) => `${value > 0 ? '+' : ''}${formatNumber(value, { min: 0, max: 0 })}`;
+        const words = (key: string, values: Record<string, string>) => Object.entries(values)
+            .reduce((out, [name, value]) => out.replace(`{${name}}`, value), String(t(key)));
+        const inputClass = (invalid: boolean) => `min-h-input w-full rounded-button border bg-surface px-3 text-sm tabular-nums text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary/40 ${invalid ? 'border-danger ring-1 ring-danger' : 'border-border-strong'}`;
+        return (<FormCard title={t('transactions.saleDateTitle')}>
+            {!(saleDateOpen || picked)
+                ? (<div className="flex items-center justify-between gap-3">
+                    <p className="min-w-0 text-sm text-neutral-700">{t('transactions.saleDateToday')}</p>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setSaleDateOpen(true)}>{t('transactions.saleDateChange')}</Button>
+                  </div>)
+                : (<div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="min-w-0">
+                        <label htmlFor="sale_date" className="mb-1.5 block text-sm font-medium text-neutral-700">{t('transactions.saleDateLabel')}</label>
+                        <input id="sale_date" type="date" value={sellDate || ''} max={todayIso} onChange={(event) => setSellDate(event.target.value)} className={inputClass(!!saleDateError)} aria-invalid={!!saleDateError}/>
+                      </div>
+                      <div className="min-w-0">
+                        <label htmlFor="sale_time" className="mb-1.5 block text-sm font-medium text-neutral-700">{t('transactions.saleTimeLabel')}</label>
+                        <input id="sale_time" type="time" value={sellTime || ''} onChange={(event) => setSellTime(event.target.value)} className={inputClass(false)}/>
+                      </div>
+                    </div>
+                    {saleDateError && (<span role="alert" className="block text-xs font-medium text-financial-loss">{saleDateError}</span>)}
+                    {plan && plan.ok && (<div className="space-y-1 rounded-button bg-surface-muted px-3 py-2.5 text-xs text-neutral-700">
+                        <p className="font-semibold">{words('transactions.saleDateProfit', { profit: ltr(signed(plan.profit)), pam: ltr(formatNumber(plan.avgAtSale, { min: 2, max: 2 })) })}</p>
+                        {plan.laterSales.count > 0 && (<p>{words('transactions.saleDateLater', { count: String(plan.laterSales.count), shift: ltr(signed(plan.laterSales.shift)) })}</p>)}
+                      </div>)}
+                    <p className="text-xs text-neutral-500">{t('transactions.saleDateHint')}</p>
+                    <button type="button" onClick={() => { setSellDate(''); setSellTime(''); setSaleDateOpen(false); }} className="min-h-touch text-xs font-semibold text-primary">{t('transactions.saleDateReset')}</button>
+                  </div>)}
+        </FormCard>);
+    };
     const renderSourceChoice = (onClick: () => void, icon: React.ReactNode, title: string, detail: string) => (
         <button type="button" onClick={onClick} className="flex min-h-touch w-full items-center gap-3 rounded-button px-2 py-2.5 text-start transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-financial-asset-bg text-financial-asset">{icon}</span>
@@ -594,6 +640,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                 <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} allowBaridiDzdLink hidePaymentStatus={isUsdtSellSettledInEur} hideLinkedDzdClient={isUsdtSellSettledInEur} {...clientLinkerErrors}/>
                                 {!isUsdtSellSettledInEur && clientPaymentStatus === 'credit' && renderCreditDueDateField(true)}
                                 </FormCard>
+                                {!isUsdtSellSettledInEur && !editingTx && renderSaleDate()}
                                 {!isUsdtSellSettledInEur && activeSmartPricing && (
                                     <SmartPricePanel
                                         smartPricing={activeSmartPricing}

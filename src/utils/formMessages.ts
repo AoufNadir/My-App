@@ -1,4 +1,5 @@
 import { UNCOSTED_STOCK_MESSAGE } from './costedStock';
+import { SALE_DATE_MESSAGES } from './backdatedSale';
 
 // The save checks in the hooks write their messages in French and the windows used to show them
 // as they are, also in Arabic. The windows now look each message up here and show it in the
@@ -18,6 +19,10 @@ const FORM_MESSAGE_KEYS: Readonly<Record<string, string>> = {
     'Taux EUR/DZD requis': 'formErrors.eurDzdRateRequired',
     [UNCOSTED_STOCK_MESSAGE]: 'formErrors.uncostedStock',
     'Ce client a été supprimé': 'formErrors.clientArchived',
+    [SALE_DATE_MESSAGES.invalid]: 'formErrors.saleDateInvalid',
+    [SALE_DATE_MESSAGES.future]: 'formErrors.saleDateFuture',
+    [SALE_DATE_MESSAGES.closedMonth]: 'formErrors.saleDateClosedMonth',
+    [SALE_DATE_MESSAGES.noStock]: 'formErrors.saleDateNoStock',
 };
 
 type Translate = (key: string) => unknown;

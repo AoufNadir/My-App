@@ -23,6 +23,7 @@ import { mustPrepareWriterReadModelDelta } from '../readModels/preparedWriterDel
 import { commitLegacyWithReadModelDeltas } from '../readModels/productionSummaryWriter';
 import { isClientActive } from '../utils/clientRegistry';
 import { sellHasNoPurchaseCost, UNCOSTED_STOCK_MESSAGE } from '../utils/costedStock';
+import { planBackdatedSale, resolveSaleMoment, SALE_DATE_MESSAGES, type SaleDraft } from '../utils/backdatedSale';
 import { combineClientPositionDeltas, derivePortfolioSellReadModelEconomics, transitionClientBalanceDelta, type ClientPositionDelta, type ReadModelDelta } from '../readModels/readModelDeltas';
 interface HandlerProps {
     userDocRef: FirestoreDocumentReference;
@@ -40,6 +41,8 @@ interface HandlerProps {
         caisse: number;
         baridi: number;
     };
+    /** End of the last closed month: a sale cannot be dated inside it */
+    periodLockedThrough?: number | null;
     setAlert: (msg: string) => void;
     setSelectedClientId: (id: string | null) => void;
     setView: (view: 'transactions' | 'dzd' | 'tresorerie' | 'statistiques' | 'tresorerie' | 'investors') => void;
@@ -81,7 +84,15 @@ export type PrefillSell = {
     buyQty?: string;
     buyPrice?: string;
 };
-export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats, setAlert, setSelectedClientId, setView, smartQuoteRef }: HandlerProps) {
+/** The sale as the DZD-settled sell window will save it: the typed total is kept as typed, otherwise quantity times price. */
+const dzdSaleDraft = (currency: PortfolioCurrency, sellAmount: string, sellPrice: string, sellTotal: string, isTotalManual: boolean): SaleDraft => {
+    const quantity = roundM(parseAndEvaluate(sellAmount));
+    const unitPrice = parseAndEvaluate(sellPrice);
+    const totalInput = parseAndEvaluate(sellTotal);
+    const saleValueDzd = isTotalManual && totalInput > 0 ? totalInput : quantity * unitPrice;
+    return { currency, quantity, sellPrice: unitPrice, saleValueDzd, totalRevenue: Math.round(saleValueDzd) };
+};
+export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats, periodLockedThrough, setAlert, setSelectedClientId, setView, smartQuoteRef }: HandlerProps) {
     const [isSaving, setIsSaving] = useState(false);
     const paymentMethodByStatus: Record<'credit' | 'baridi' | 'cash', 'Crédit' | 'BaridiMob' | 'Espèces'> = {
         credit: 'Crédit',
@@ -114,6 +125,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [sellTotal, setSellTotal] = useState('');
     const [sellSettlementCurrency, setSellSettlementCurrency] = useState<SettlementCurrency>('DZD');
     const [sellEurToDzdRate, setSellEurToDzdRate] = useState('');
+    // V5-3: the day (and optional time) the sale really happened; empty means « now », as always.
+    const [sellDate, setSellDate] = useState('');
+    const [sellTime, setSellTime] = useState('');
     const [buyUsdtMode, setBuyUsdtMode] = useState<'with_dzd' | 'with_eur' | null>(null);
     const [buyEurForUsdtAmount, setBuyEurForUsdtAmount] = useState('');
     const [eurDzdPrice, setEurDzdPrice] = useState('');
@@ -219,6 +233,20 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             return null;
         return { usdtQty: eurQty / rate, usdtPriceDzd: eurPrice * rate, totalCostDzd: (eurQty / rate) * (eurPrice * rate) };
     }, [buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate]);
+    // A new sale in dinars may be dated on the day it happened. What that day's stock and PAM give,
+    // and whether it is allowed, is decided once here and shown by the window and the save check.
+    const saleDatePlan = useMemo(() => {
+        if (!(mode === 'sell_usdt' || mode === 'sell_eur') || editingTx || (mode === 'sell_usdt' && sellSettlementCurrency === 'EUR'))
+            return null;
+        const nowMs = Date.now();
+        const moment = resolveSaleMoment(sellDate, sellTime, nowMs);
+        if (moment.kind !== 'at')
+            return { moment, plan: null };
+        const draft = dzdSaleDraft(mode === 'sell_eur' ? 'EUR' : 'USDT', sellAmount, sellPrice, sellTotal, isTotalManual);
+        if (!(draft.quantity > 0 && draft.sellPrice > 0 && draft.totalRevenue > 0))
+            return { moment, plan: null };
+        return { moment, plan: planBackdatedSale({ transactions, draft, timestamp: moment.timestamp, nowMs, lockedThrough: periodLockedThrough }) };
+    }, [mode, editingTx, sellSettlementCurrency, sellDate, sellTime, sellAmount, sellPrice, sellTotal, isTotalManual, transactions, periodLockedThrough]);
     const formValidation = useMemo(() => {
         const errors: Record<string, string> = {};
         let isValid = true;
@@ -303,6 +331,12 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             if (canUseLinkedDzdClient && linkedClientDzdId && linkedClientDzdId !== 'none' && linkedClientDzdId === linkedClientId) {
                 addError('linkedClientDzdId', 'Le client DZD doit etre different du client principal');
             }
+            if (saleDatePlan?.moment.kind === 'invalid')
+                addError('sellDate', SALE_DATE_MESSAGES.invalid);
+            else if (saleDatePlan?.moment.kind === 'future')
+                addError('sellDate', SALE_DATE_MESSAGES.future);
+            else if (saleDatePlan?.plan && !saleDatePlan.plan.ok)
+                addError('sellDate', SALE_DATE_MESSAGES[saleDatePlan.plan.reason]);
         }
         if (!editingTx && mode) {
             const isArchivedPick = (clientId: string) => !!clientId && clientId !== 'none' && !isClientActive(clientsDzd.find((client) => client.id === clientId));
@@ -312,7 +346,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 addError('linkedClientDzdId', 'Ce client a été supprimé');
         }
         return { isValid, errors };
-    }, [clientsDzd, mode, buyUsdtMode, buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, sellSettlementCurrency, sellEurToDzdRate, portfolioStats, editingTx, linkedClientId, linkedClientDzdId, clientPaymentStatus, creditDueDate, transactions]);
+    }, [clientsDzd, mode, buyUsdtMode, buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, sellSettlementCurrency, sellEurToDzdRate, portfolioStats, editingTx, linkedClientId, linkedClientDzdId, clientPaymentStatus, creditDueDate, transactions, saleDatePlan]);
     const openForm = (newMode: TransactionFormMode, txToEdit: Tx | null = null, prefill?: PrefillSell) => {
         setBuyUsdtAmount('');
         setBuyUsdtPrice('');
@@ -333,6 +367,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setEurUsdtRate('');
         setSellSettlementCurrency('DZD');
         setSellEurToDzdRate('');
+        setSellDate('');
+        setSellTime('');
         setBuyUsdtTotal('');
         setBuyEurTotal('');
         setClientPaymentStatus(prefill?.paymentStatus ?? 'cash');
@@ -453,7 +489,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             }
         }
     };
-    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setBuyRestriction('free'); setRealPurchaseTime(''); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setSellSettlementCurrency('DZD'); setSellEurToDzdRate(''); setLinkedClientDzdId('none'); setCreditDueDate(''); setPendingCreditRisk(null); setIsTotalManual(false); setTxTags([]); };
+    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setBuyRestriction('free'); setRealPurchaseTime(''); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setSellSettlementCurrency('DZD'); setSellEurToDzdRate(''); setSellDate(''); setSellTime(''); setLinkedClientDzdId('none'); setCreditDueDate(''); setPendingCreditRisk(null); setIsTotalManual(false); setTxTags([]); };
     const computeLockedUntil = (baseTs: number): number => {
         const t = realPurchaseTime.trim();
         if (!t) return baseTs + 24 * 60 * 60 * 1000;
@@ -800,13 +836,38 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             const clientTxType = sellCurrency === 'EUR' ? 'Vente EUR' : 'Vente USDT';
             const sellAssetStats = getPortfolioAssetStats(sellCurrency);
             const isUsdtSettledInEur = sellCurrency === 'USDT' && sellSettlementCurrency === 'EUR';
+            // V5-3: a new sale in dinars dated on the day it really happened. Every other sale is stamped as always.
+            const nowMs = Date.now();
+            const saleMoment = !editingTx && !isUsdtSettledInEur
+                ? resolveSaleMoment(sellDate, sellTime, nowMs)
+                : { kind: 'now' as const };
+            if (saleMoment.kind === 'invalid' || saleMoment.kind === 'future') {
+                setAlert(`⚠️ ${SALE_DATE_MESSAGES[saleMoment.kind]}.`);
+                return;
+            }
+            const backdated = saleMoment.kind === 'at'
+                ? planBackdatedSale({
+                    transactions,
+                    draft: dzdSaleDraft(sellCurrency, sellAmount, sellPrice, sellTotal, isTotalManual),
+                    timestamp: saleMoment.timestamp,
+                    nowMs,
+                    lockedThrough: periodLockedThrough,
+                })
+                : null;
+            if (backdated && 'reason' in backdated) {
+                setAlert(`⚠️ ${SALE_DATE_MESSAGES[backdated.reason]}.`);
+                return;
+            }
+            const datedSale = backdated && 'avgAtSale' in backdated ? backdated : null;
             // FIX-10 (Q2 reversal): preserve up to 2 decimals (see handleBuy comment).
             const quantity = roundM(parseAndEvaluate(sellAmount));
             const inputSellPrice = parseAndEvaluate(sellPrice);
             const eurToDzdRateAtSale = isUsdtSettledInEur
                 ? Number(portfolioStats.eur.avgBuy || 0)
                 : parseAndEvaluate(sellEurToDzdRate);
-            const avg = sellAssetStats.avgBuy;
+            // On a dated sale the PAM is the one of that day (what the window would have shown then).
+            const avg = datedSale ? datedSale.avgAtSale : sellAssetStats.avgBuy;
+            const removalCost = datedSale ? datedSale.soldCost : getPortfolioRemovalCost(sellCurrency, quantity);
             const totalInput = parseAndEvaluate(sellTotal);
             let saleValueEur = 0;
             let saleValueDzd = 0;
@@ -835,7 +896,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 setPendingCreditRisk(validSnapshot);
                 return;
             }
-            const pricingSnapshot = validSnapshot ? stripUndefinedDeep({
+            // The engine's suggestion is today's: it says nothing about a sale dated on another day, so none is kept.
+            const pricingSnapshot = validSnapshot && !datedSale ? stripUndefinedDeep({
                 ...validSnapshot,
                 creditRisk: {
                     ...validSnapshot.creditRisk,
@@ -844,7 +906,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 },
             }) : null;
             // Linked client/treasury/EUR rows are re-created on edit: keep them on the operation's own date.
-            const { date, time, timestamp } = operationStamp(editingTx);
+            const { date, time, timestamp } = saleMoment.kind === 'at' ? saleMoment : operationStamp(editingTx);
             const shouldLinkSettlementToDzdClient = !isUsdtSettledInEur && (clientPaymentStatus === 'cash' || clientPaymentStatus === 'baridi') && linkedClientDzdId !== 'none';
             const batch = db.batch();
             const settlementMetadata: any = isUsdtSettledInEur
@@ -1062,7 +1124,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     proceedsDzd: totalRevenue,
                 }, {
                     quantityDeltas: { [sellCurrency]: -quantity },
-                    costBasisDeltasDzd: { [sellCurrency]: -getPortfolioRemovalCost(sellCurrency, quantity) },
+                    costBasisDeltasDzd: { [sellCurrency]: -removalCost },
                     clientReceivableDzd: totalRevenue,
                     realizedTradingProfitDzd: profit,
                     warnings: portfolioWarnings,
@@ -1082,7 +1144,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     proceedsDzd: totalRevenue,
                 }, {
                     quantityDeltas: { [sellCurrency]: -quantity },
-                    costBasisDeltasDzd: { [sellCurrency]: -getPortfolioRemovalCost(sellCurrency, quantity) },
+                    costBasisDeltasDzd: { [sellCurrency]: -removalCost },
                     cashDeltasDzd: { [wallet]: totalRevenue },
                     realizedTradingProfitDzd: profit,
                     warnings: portfolioWarnings,
@@ -1108,7 +1170,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     const portfolioDelta = {
                         [sellCurrency]: {
                             quantityDelta: -quantity,
-                            costBasisDeltaDzd: -getPortfolioRemovalCost(sellCurrency, quantity),
+                            costBasisDeltaDzd: -removalCost,
                             realizedProfitDeltaDzd: profit,
                             soldQuantityDelta: quantity,
                         },
@@ -1148,7 +1210,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         transactions,
                         sellTx: readModelSellTx,
                         fallbackProfitDzd: profit,
-                        fallbackCostBasisDzd: getPortfolioRemovalCost(sellCurrency, quantity),
+                        fallbackCostBasisDzd: removalCost,
                         nowMs: timestamp,
                     });
                     portfolioDelta[sellCurrency].costBasisDeltaDzd = -sellEconomics.soldCostDzd;
@@ -1166,8 +1228,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     });
                     if (clientPaymentStatus === 'credit' || shouldLinkSettlementToDzdClient) {
                         const clientId = shouldLinkSettlementToDzdClient ? linkedClientDzdId : linkedClientId;
-                        const clientsDelta = clientBalanceTransition(clientId, -totalRevenue, timestamp);
-                        clientsDelta.activeClientsTodayDelta = activeClientTodayDelta(clientId, timestamp);
+                        // A dated sale lands on a balance that already holds everything recorded since: start from today's balance.
+                        const clientsDelta = clientBalanceTransition(clientId, -totalRevenue, datedSale ? nowMs : timestamp);
+                        clientsDelta.activeClientsTodayDelta = new Date(timestamp).toDateString() === new Date(nowMs).toDateString() ? activeClientTodayDelta(clientId, timestamp) : 0;
                         return mustPrepareWriterReadModelDelta('portfolio.sell-credit', {
                             operationId: `legacy:portfolio.sell-credit:${committedSellTxId}`,
                             effectiveAt: timestamp,
@@ -1943,6 +2006,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal,
         sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal,
         sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate,
+        sellDate, setSellDate, sellTime, setSellTime, saleDatePlan,
         buyRestriction, setBuyRestriction,
         realPurchaseTime, setRealPurchaseTime,
         buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount,

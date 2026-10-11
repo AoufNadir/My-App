@@ -434,5 +434,47 @@ for (const lang of ['fr', 'ar'] as const) {
     assert.ok(!transactionWindow(lang, { ...buyEur, clientPaymentStatus: 'credit', creditDueDate: '2026-10-15', smartPricingByCurrency: learnedDelay }).includes(hint), `${lang}: buying on credit does not`);
 }
 
+// V5-3: « when did the sale really happen? ». A new sale in dinars has a Date card; closed it says
+// the sale is stamped now (no figure at all, so the numbers of the window are the same as before),
+// open it has the day and time fields, the profit that day's stock gives, and why a day is refused.
+const SALE_DATE_FIELDS = '<input id="sale_date" type="date"';
+for (const lang of ['fr', 'ar'] as const) {
+    const sale = { mode: 'sell_eur', sellAmount: '300', sellPrice: '262', sellTotal: '78600', linkedClientId: 'c3' };
+    const closed = transactionWindow(lang, sale);
+    assert.ok(closed.includes(esc(label(lang, 'transactions.saleDateTitle'))), `${lang}: the sale has its Date card`);
+    assert.ok(closed.includes(esc(label(lang, 'transactions.saleDateToday'))), `${lang}: closed, the sale is stamped when saved`);
+    assert.ok(closed.includes(`>${esc(label(lang, 'transactions.saleDateChange'))}</button>`), `${lang}: a button to pick another day`);
+    assert.ok(!closed.includes(SALE_DATE_FIELDS), `${lang}: no field until asked`);
+    // Not in a purchase, not when an existing sale is edited, not when the sale is settled in EUR.
+    assert.ok(!transactionWindow(lang, buyWithDzd).includes(esc(label(lang, 'transactions.saleDateTitle'))), `${lang}: a purchase has no sale date`);
+    assert.ok(!transactionWindow(lang, { ...sale, editingTx: trade('s3', 'sell', 'EUR', 300, 262, at(2026, 9, 26, 12)) }).includes(esc(label(lang, 'transactions.saleDateTitle'))), `${lang}: an edited sale keeps its date`);
+    assert.ok(!transactionWindow(lang, { ...sale, mode: 'sell_usdt', sellSettlementCurrency: 'EUR', editingTx: eurSale }).includes(esc(label(lang, 'transactions.saleDateTitle'))), `${lang}: a sale settled in EUR is stamped now`);
+
+    const moment = { kind: 'at', timestamp: at(2026, 9, 28, 12), date: '28/09/2026', time: '12:00' };
+    const dated = transactionWindow(lang, { ...sale, sellDate: '2026-09-28', saleDatePlan: { moment, plan: { ok: true, avgAtSale: 243.5, profit: 650, soldCost: 73050, laterSales: { count: 2, shift: -120 } } } });
+    // The server renderer writes an input's value after its other attributes.
+    const input = dated.match(/<input id="sale_date" type="date" max="([^"]*)"[^>]*value="([^"]*)"/);
+    assert.equal(input?.[2], '2026-09-28', `${lang}: the day typed is shown back`);
+    assert.equal(input?.[1], '2026-09-30', `${lang}: no day after today (the clock of this test)`);
+    assert.ok(dated.includes('<input id="sale_time" type="time"'), `${lang}: the optional time`);
+    const out = screenText(dated).replace(/[⁦⁩]/g, '');
+    assert.ok(out.includes(label(lang, 'transactions.saleDateProfit').replace('{profit}', '+650').replace('{pam}', '243,50').replace(/\s+/g, ' ')) || out.includes(label(lang, 'transactions.saleDateProfit').replace('{profit}', '+650').replace('{pam}', '243.50')), `${lang}: the profit of that day, with that day's PAM`);
+    assert.ok(out.includes(label(lang, 'transactions.saleDateLater').replace('{count}', '2').replace('{shift}', '-120')), `${lang}: the later sales that are recalculated`);
+    assert.ok(dated.includes(`>${esc(label(lang, 'transactions.saleDateReset'))}</button>`), `${lang}: back to today`);
+    // The bar at the bottom shows that day's profit too, not the one today's PAM would give.
+    const [, datedBar] = splitAtBar(dated);
+    assert.ok(textOf(datedBar.slice(0, datedBar.indexOf('<button'))).includes(n('+650 DZD')), `${lang}: the bar shows the profit of that day`);
+    assert.ok(!textOf(splitAtBar(closed)[1].slice(0, splitAtBar(closed)[1].indexOf('<button'))).includes(n('+650 DZD')), `${lang}: a sale typed now keeps its own estimate`);
+    // A sale that changes nothing for the sales after it does not mention them.
+    const calm = transactionWindow(lang, { ...sale, sellDate: '2026-09-28', saleDatePlan: { moment, plan: { ok: true, avgAtSale: 243.5, profit: 650, soldCost: 73050, laterSales: { count: 0, shift: 0 } } } });
+    assert.ok(!screenText(calm).includes(label(lang, 'transactions.saleDateLater').split('{count}')[1].trim().split('{shift}')[0].trim()), `${lang}: nothing about later sales when none moves`);
+    // Each refusal reads in the reader's language, in red, under the fields.
+    for (const [message, key] of [['Date de vente invalide', 'saleDateInvalid'], ['La date de la vente ne peut pas être dans le futur', 'saleDateFuture'], ['Ce mois est clôturé : la vente ne peut pas y être ajoutée', 'saleDateClosedMonth'], ['Stock insuffisant à cette date', 'saleDateNoStock']] as const) {
+        const refused = transactionWindow(lang, { ...sale, sellDate: '2026-09-28', saleDatePlan: { moment, plan: null }, formValidation: invalid({ sellDate: message }) });
+        assert.ok(refused.includes(`<span role="alert" class="block text-xs font-medium text-financial-loss">${esc(label(lang, `formErrors.${key}`))}</span>`), `${lang}: "${message}"`);
+        assert.ok(refused.includes('aria-invalid="true"'), `${lang}: the day field is marked`);
+    }
+}
+
 assert.ok(FIXED_NOW > 0);
 console.log('operationWindows.test: the buy, sell, transfer and expense windows show the same numbers as before, in French and Arabic, with their totals at the bottom; four windows have their notes field and buying EUR on credit its due date');
