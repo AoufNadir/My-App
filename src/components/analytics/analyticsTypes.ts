@@ -25,6 +25,8 @@ export type AnalyticsPageProps = {
     dzdDashboardStats: any;
     clientsDzd: ClientDzd[];
     clientTransactionsDzd: ClientTransactionDzd[];
+    /** The client rows as the client reports read them (adjustment payments carry their channel) */
+    reportClientRows?: ClientTransactionDzd[];
     getClientFullName: (client: ClientDzd) => string;
     reportClient: string;
     setReportClient: (id: string) => void;

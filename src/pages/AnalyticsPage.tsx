@@ -413,7 +413,7 @@ export function AnalyticsPage({ initialTab = 'month', ...props }: AnalyticsPageP
 
       <AnalyticsExportSheet isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} monthLabel={selectedMonthLabel} year={year} realizedProfit={calculatedStats.realizedProfit} monthlyHasData={monthlyHasData} onExportMonthly={props.handleExportUsdtReport} reportClient={props.reportClient} reportMonth={props.reportMonth} reportYear={props.reportYear} reportMonths={props.reportMonths} reportYears={props.reportYears} clientsDzd={props.clientsDzd} getClientFullName={props.getClientFullName} onExportClient={openClientReport}/>
       {reportedClient && clientReport && (<Suspense fallback={null}>
-          <ClientActivityReportDialog onClose={() => setClientReport(null)} clientId={reportedClient.id} clientName={props.getClientFullName(reportedClient)} clientRows={props.clientTransactionsDzd} transactions={props.transactions} initialRange={{ start: clientReport.start, end: clientReport.end }}/>
+          <ClientActivityReportDialog onClose={() => setClientReport(null)} clientId={reportedClient.id} clientName={props.getClientFullName(reportedClient)} clientRows={props.reportClientRows ?? props.clientTransactionsDzd} transactions={props.transactions} initialRange={{ start: clientReport.start, end: clientReport.end }}/>
         </Suspense>)}
     </div>);
 }

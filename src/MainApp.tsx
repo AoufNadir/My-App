@@ -60,6 +60,7 @@ import { correctionEntryFor, type InventoryRow } from './utils/inventoryCheck';
 import type { InvestigatorAction } from './utils/inventoryInvestigator';
 import type { ClientTransferRequest } from './components/clients/ClientConfirmation';
 import { collectDebtWriteOffs } from './utils/debtWriteOffs';
+import { withAdjustmentChannels } from './utils/clientRowChannels';
 import { findPeriodLockViolation, formatLockDate, isInLockedPeriod, savedTimestampFrom } from './utils/periodLock';
 import { operationStamp } from './utils/editStamp';
 import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot } from './utils/capitalSnapshot';
@@ -339,6 +340,8 @@ export default function MainApp({ user }: {
     const deliveryExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense'), [treasuryTransactions]);
     const personalExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense'), [treasuryTransactions]);
     const debtWriteOffs = useMemo(() => collectDebtWriteOffs(clientTransactionsDzd), [clientTransactionsDzd]);
+    // The client rows as the client reports read them: payments recorded from the treasury adjustment window get their channel back (V7-1).
+    const reportClientRows = useMemo(() => withAdjustmentChannels(clientTransactionsDzd, treasuryTransactions), [clientTransactionsDzd, treasuryTransactions]);
     const investorEconomics = useMemo(() => {
         if (!isFinancialDataReady)
             return EMPTY_INVESTOR_ECONOMICS;
@@ -2390,6 +2393,7 @@ export default function MainApp({ user }: {
         setReportClient,
         clientsDzd,
         clientTransactionsDzd,
+        reportClientRows,
         getClientFullName,
         reportMonth,
         setReportMonth,
@@ -2398,7 +2402,7 @@ export default function MainApp({ user }: {
         openPortfolioBalanceEditModal
     }), [
         statsView, portfolioStats, smartTargetPrices,
-        usdtReportMonth, usdtReportYear, transactions, clientTransactionsDzd, selectedHeatmapDay,
+        usdtReportMonth, usdtReportYear, transactions, clientTransactionsDzd, reportClientRows, selectedHeatmapDay,
         fieldBase,
         reportClient, clientsDzd, reportMonth, reportYear, reportMonthNames,
         getClientFullName, handleExportUsdtReport, openPortfolioBalanceEditModal
@@ -2517,6 +2521,7 @@ export default function MainApp({ user }: {
         selectedClient,
         selectedClientTransactions,
         clientTransactionsDzd,
+        reportClientRows,
         transactions,
         profitByTxId: pamLedger.profitByTxId,
         openClientTxModal,
@@ -2535,7 +2540,7 @@ export default function MainApp({ user }: {
         onRecordClientTransfer: openClientTransferPrefilled,
     }), [
         selectedClientId, clientSearchQuery, clientSortMode,
-        clientsDzd, filteredClientsDzd, searchedClientsDzd, clientBalances, selectedClient, selectedClientTransactions, clientTransactionsDzd, transactions, pamLedger.profitByTxId, copiedValue,
+        clientsDzd, filteredClientsDzd, searchedClientsDzd, clientBalances, selectedClient, selectedClientTransactions, clientTransactionsDzd, reportClientRows, transactions, pamLedger.profitByTxId, copiedValue,
         openClientModal, handleTouchStart, handleTouchEnd, setSummaryClient, handleClientDeleteRequest, openClientTxModal,
         handleCopy, handleEditLinkedClientTx, handleDeleteLinkedClientTxClick, overdueDebtClients, clientLoyaltyMap,
         earlyClientPrevMonthVolumeMap, earlyClientLastSellDateMap, handleZeroOutBalance, userDocRef, setAlert, openClientTransferPrefilled
@@ -3152,7 +3157,7 @@ export default function MainApp({ user }: {
         handleDeleteTreasuryTxConfirm,
         isClientSummaryOpen,
         summaryClient, setSummaryClient,
-        clientTransactionsDzd, transactions,
+        clientTransactionsDzd, reportClientRows, transactions,
         isInvestorDialogsOpen,
         isInvestorModalOpen, setIsInvestorModalOpen,
         editingInvestor,

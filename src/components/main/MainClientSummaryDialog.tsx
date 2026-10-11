@@ -51,7 +51,7 @@ function nameInitials(name: string): string {
     const parts = name.trim().split(/\s+/).filter(Boolean);
     return parts.slice(0, 2).map((part) => Array.from(part)[0] ?? '').join('').toUpperCase();
 }
-export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, clientBalances, clientTransactionsDzd, clientsDzd, transactions, setAlert, getClientFullName }: MainClientSummaryDialogProps) {
+export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, clientBalances, clientTransactionsDzd, reportClientRows, clientsDzd, transactions, setAlert, getClientFullName }: MainClientSummaryDialogProps) {
     const { lang } = useLanguage();
     const text = (key: string, values: Record<string, string | number> = {}) => Object.entries(values)
         .reduce((result, [name, value]) => result.split(`{${name}}`).join(String(value)), String(t(key)));
@@ -100,7 +100,7 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
     const clientName = summaryClient ? getClientFullName(summaryClient) : '';
     const [now] = useState(() => Date.now());
     const [reportLang, setReportLang] = useReportLanguage(`client_report_lang_${summaryClient?.id || ''}`, lang);
-    const summary = useMemo(() => (summaryClient ? buildClientSummary({ clientId: summaryClient.id, clientRows: clientTransactionsDzd, transactions, now }) : null), [summaryClient, clientTransactionsDzd, transactions, now]);
+    const summary = useMemo(() => (summaryClient ? buildClientSummary({ clientId: summaryClient.id, clientRows: reportClientRows ?? clientTransactionsDzd, transactions, now }) : null), [summaryClient, reportClientRows, clientTransactionsDzd, transactions, now]);
     const imageHolder = useRef<HTMLDivElement | null>(null);
     const [image, setImage] = useState<{ blob: Blob; key: string } | null>(null);
     const [isSharing, setIsSharing] = useState(false);

@@ -1381,6 +1381,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 const note = adjustmentNote || 'Ajustement Trésorerie';
                 const clientTxType = adjustmentTab === 'add' ? 'Règlement Reçu' : 'Paiement Effectué';
                 const clientAmount = adjustmentTab === 'add' ? amountNum : -amountNum;
+                // The client page saves how the client paid on his row; so does this window (V7-1), which
+                // lets the client reports word a BaridiMob or cash payment the same whichever way it was recorded.
+                const clientPaymentMethod = source === 'Caisse' ? 'Espèces' : 'BaridiMob';
                 if (editingTreasuryTx) {
                     const linkedAdjustmentClientTx = clientTransactionsDzd.find((tx) => tx.linkedTxId === editingTreasuryTx.id && tx.origin === 'adjustment');
                     const linkedTimestamp = editingTreasuryTx.timestamp || stamp.timestamp;
@@ -1397,6 +1400,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                             time: linkedTime,
                             montant: clientAmount,
                             type: clientTxType,
+                            paymentMethod: clientPaymentMethod,
                             notes: `${note} (${source})`
                         });
                     }
@@ -1407,7 +1411,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         batch.set(userDocRef.collection('dzd_client_txs').doc(), {
                             clientId: adjustmentClientId, timestamp: linkedTimestamp,
                             date: linkedDate, time: linkedTime, montant: clientAmount,
-                            type: clientTxType, notes: `${note} (${source})`,
+                            type: clientTxType, paymentMethod: clientPaymentMethod, notes: `${note} (${source})`,
                             linkedTxId: editingTreasuryTx.id, origin: 'adjustment'
                         });
                     }
@@ -1435,7 +1439,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                             batch.set(clientTxRef, {
                                 clientId: adjustmentClientId, timestamp: stamp.timestamp,
                                 date: stamp.date, time: stamp.time, montant: clientAmount,
-                                type: clientTxType, notes: `${note} (${source})`,
+                                type: clientTxType, paymentMethod: clientPaymentMethod, notes: `${note} (${source})`,
                                 linkedTxId: treasuryTxRef.id, origin: 'adjustment'
                             });
                             const beforeBalance = clientPositionFromLegacyRows(clientTransactionsDzd, adjustmentClientId, stamp.timestamp).balanceDzd;

@@ -32,6 +32,7 @@ type ClientDetailsViewProps = {
     selectedClientBalance: number;
     groupedHistory: Record<string, ClientTransactionDzd[]>;
     clientTransactionsDzd: ClientTransactionDzd[];
+    reportClientRows?: ClientTransactionDzd[];
     clientsDzd: ClientDzd[];
     setSelectedClientId: (id: string | null) => void;
     getClientFullName: (client: ClientDzd) => string;
@@ -124,7 +125,7 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone, isAddress }: C
       </div>
     </div>);
 }
-export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, clientsDzd, setSelectedClientId, getClientFullName, openClientSummary, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal, userDocRef, clientBalances, onRecordClientTransfer, setAlert}: ClientDetailsViewProps) {
+export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, reportClientRows, clientsDzd, setSelectedClientId, getClientFullName, openClientSummary, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal, userDocRef, clientBalances, onRecordClientTransfer, setAlert}: ClientDetailsViewProps) {
     const { t, lang } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 60;
     const LOAD_MORE_TRANSACTIONS = 60;
@@ -450,7 +451,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
       </div>
 
       {isActivityReportOpen && (<Suspense fallback={null}>
-          <ClientActivityReportDialog onClose={() => setIsActivityReportOpen(false)} clientId={selectedClientId} clientName={clientName} clientRows={clientTransactionsDzd} transactions={transactions}/>
+          <ClientActivityReportDialog onClose={() => setIsActivityReportOpen(false)} clientId={selectedClientId} clientName={clientName} clientRows={reportClientRows ?? clientTransactionsDzd} transactions={transactions}/>
         </Suspense>)}
 
     </div>);
