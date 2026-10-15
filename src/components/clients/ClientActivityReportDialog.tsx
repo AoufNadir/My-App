@@ -8,6 +8,7 @@ import { reportPageFooter } from '../reports/reportPageFooter';
 import { ClientActivityReportSheet } from './ClientActivityReportSheet';
 import { reportFileName } from './clientActivityReportPdf';
 import { REPORT_WORDS } from './clientActivityReportText';
+import { clientReportLanguageKey } from '../reports/reportLanguage';
 
 export type ClientActivityReportDialogProps = {
     onClose: () => void;
@@ -44,7 +45,7 @@ export function ClientActivityReportDialog({ onClose, clientId, clientName, clie
     const dateError = from === null || to === null ? t('clients.reportPickBothDates') : from > to ? t('clients.reportStartAfterEnd') : null;
     const period = useMemo(() => (from !== null && to !== null && from <= to ? reportPeriodForDates(from, to, now) : null), [from, to, now]);
     // Some clients read French, others Arabic: remembered per client.
-    const [reportLang, setReportLang] = useReportLanguage(`client_report_lang_${clientId}`, appLang);
+    const [reportLang, setReportLang] = useReportLanguage(clientReportLanguageKey(clientId), appLang);
     const [showBalance, setShowBalance] = useState(true);
 
     const report = useMemo(() => (period ? buildClientActivityReport({ clientId, clientRows: ownRows, transactions, period, now }) : null), [clientId, ownRows, transactions, period, now]);

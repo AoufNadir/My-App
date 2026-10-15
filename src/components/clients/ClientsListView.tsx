@@ -13,6 +13,7 @@ import { UsersIcon } from '../icons/UsersIcon';
 import { UploadCloudIcon } from '../icons/UploadCloudIcon';
 import { DownloadCloudIcon } from '../icons/DownloadCloudIcon';
 import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
+import { WhatsAppIcon } from '../icons/WhatsAppIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { SwipeableListItem } from '../ui/SwipeableListItem';
 import { CsvImportSheet, type CsvFieldSpec } from '../import/CsvImportSheet';
@@ -22,6 +23,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useHeaderActionsSlot } from '../main/headerActionsSlot';
 import { formatNumber } from '../../pages/shared/pageFormat';
 import { getNameInitials } from '../../utils/nameUtils';
+import { openClientWhatsApp } from '../../utils/clientWhatsApp';
 import type { ClientListInput } from '../../utils/listReports';
 
 const ClientListDialog = lazy(() => import('../reports/documents/DocumentReportDialogs').then((module) => ({ default: module.ClientListDialog })));
@@ -71,7 +73,7 @@ const TIER_ORDER: TierKey[] = ['vip', 'regular', 'petit', 'new', 'inactive', 'fo
 type QuickFilter = ClientSortMode | 'overdue';
 const formatCount = (value: number) => formatNumber(value, { min: 0, max: 0 });
 export function ClientsListView({ openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, searchedClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, setSelectedClientId, overdueDebtClients, clientLoyaltyMap, clientPrevMonthVolume, clientLastSellDate, handleZeroOutBalance, onImportClients }: ClientsListViewProps) {
-    const { t } = useLanguage();
+    const { t, lang } = useLanguage();
     const headerActionsSlot = useHeaderActionsSlot();
     const INITIAL_VISIBLE_CLIENTS = 50;
     const LOAD_MORE_CLIENTS = 50;
@@ -281,12 +283,21 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                         {balance !== 0 && (<span className={`text-xs font-semibold ${balanceColor}`}>
                             {balance < 0 ? t('finance.debt') : t('finance.advance')}
                           </span>)}
-                        {handleZeroOutBalance && balance !== 0 && (<button type="button" onClick={e => {
+                        <div className="mt-1 flex items-center gap-2">
+                          {handleZeroOutBalance && balance !== 0 && (<button type="button" onClick={e => {
                                 e.stopPropagation();
                                 setSolderTarget({ clientId: client.id, name: fullName, balance });
-                            }} className="relative mt-1 min-h-8 rounded-button border border-border-strong bg-surface px-3 text-[13px] font-semibold text-neutral-700 transition-colors before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                            {t('clients.solder')}
-                          </button>)}
+                            }} className="relative min-h-8 rounded-button border border-border-strong bg-surface px-3 text-[13px] font-semibold text-neutral-700 transition-colors before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                              {t('clients.solder')}
+                            </button>)}
+                          {/* A greeting and the state of the account, ready in the client's chat. */}
+                          <button type="button" onClick={e => {
+                                e.stopPropagation();
+                                openClientWhatsApp({ clientId: client.id, name: fullName, balance, appLang: lang, phone: client.phone });
+                            }} aria-label={`${t('clients.writeOnWhatsApp')} · ${fullName}`} title={t('clients.writeOnWhatsApp') as string} className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#25D366]/10 text-[#25D366] transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-[#25D366]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                            <WhatsAppIcon className="h-4 w-4"/>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </SwipeableListItem>);
