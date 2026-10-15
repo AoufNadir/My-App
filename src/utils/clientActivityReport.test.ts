@@ -293,27 +293,21 @@ assert.equal(history.balance.openingCents, 0);
 assert.equal(history.balance.closingCents, pageBalanceCents, 'The whole history ends on the client page balance');
 assert.equal(history.operations.length, entries.length);
 
-// ---------- the phone report's price lines: lowest and highest price, and the period before ----------
+// ---------- the phone report's price lines: the period's own average, lowest and highest price (V8-3: no other month) ----------
 {
     const september = build(monthPeriod(2026, 8));
     const usdt = september.currencyCards.find((card) => card.currency === 'USDT')!;
     const eur = september.currencyCards.find((card) => card.currency === 'EUR')!;
     assert.deepEqual(usdt.priceRange, { min: 248.75, max: 249.5 }, 'USDT: the lowest and highest of the two DZD purchases (the one paid in EUR has no DZD price)');
     assert.equal(eur.priceRange, null, 'EUR: a single purchase has no range');
-    const august = periodTotals(buildReportEntries(rows.filter((item) => item.clientId === 'c1'), transactions), monthPeriod(2026, 7)).currencies.USDT;
-    assert.equal(usdt.previousPrice?.period.key, 'm-2026-08', 'Compared with the month before');
-    assert.equal(usdt.previousPrice?.averagePrice, august.dzdCents / 100 / august.dzdQuantity, 'The previous average is the average of that month');
-    assert.equal(eur.previousPrice, null, 'No euros in August: nothing to compare with');
     // The old three-period trend is still made for the A4 report.
     assert.ok(Array.isArray(usdt.trend));
-    // A year is compared with the year before, a range with as many days before it.
-    assert.equal(build(yearPeriod(2026)).currencyCards.find((card) => card.currency === 'USDT')!.previousPrice, null, '2025 has no purchase');
-    const wide = build(forDates('2026-09-01', '2026-10-02'));
-    assert.equal(wide.currencyCards.find((card) => card.currency === 'USDT')!.previousPrice?.period.key, previousPeriod(wide.period).key);
+    // A card carries nothing about another period: the price is the report's own.
+    assert.ok(!('previousPrice' in usdt), 'No price of the month before');
     // One price only: no range, whatever the quantity.
     const october = build(monthPeriod(2026, 9));
     assert.equal(october.currencyCards.find((card) => card.currency === 'USDT')!.priceRange, null, 'October: one DZD purchase');
-    // The price comparison never reads what is ours.
+    // The price lines never read what is ours.
     assert.ok(!JSON.stringify(september.currencyCards).includes('243.17'), 'our buy price is never in the cards');
 }
 

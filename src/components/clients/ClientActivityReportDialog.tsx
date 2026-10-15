@@ -48,8 +48,6 @@ export function ClientActivityReportDialog({ onClose, clientId, clientName, clie
     // Arabic until a client's language is chosen (some read French): remembered per client.
     const [reportLang, setReportLang] = useReportLanguage(clientReportLanguageKey(clientId), CLIENT_DEFAULT_LANGUAGE);
     const [showBalance, setShowBalance] = useState(true);
-    // The average price against the period before: on unless the sender would rather not open that talk.
-    const [showPriceComparison, setShowPriceComparison] = useState(true);
 
     const report = useMemo(() => (period ? buildClientActivityReport({ clientId, clientRows: ownRows, transactions, period, now }) : null), [clientId, ownRows, transactions, period, now]);
     const job = report ? {
@@ -94,24 +92,17 @@ export function ClientActivityReportDialog({ onClose, clientId, clientName, clie
                 <span className="mt-0.5 block text-xs font-normal text-neutral-500">{t('clients.activityReportShowBalanceHint')}</span>
               </span>
             </label>
-            <label htmlFor="client-report-price-comparison" className="flex min-h-touch cursor-pointer items-center gap-3 rounded-xl bg-surface-muted p-3 transition-colors hover:bg-neutral-100">
-              <input type="checkbox" id="client-report-price-comparison" checked={showPriceComparison} onChange={(event) => { setShowPriceComparison(event.target.checked); changed(); }} className="h-5 w-5 shrink-0 rounded accent-primary"/>
-              <span className="text-sm font-medium select-none">
-                <span>{t('clients.activityReportShowPriceComparison')}</span>
-                <span className="mt-0.5 block text-xs font-normal text-neutral-500">{t('clients.activityReportShowPriceComparisonHint')}</span>
-              </span>
-            </label>
             {/* The page as it will look on the client's phone: as wide as the sheet. */}
             {report && (<ReportPreview label={t('clients.activityReportPreview') as string}>
                 <div className="mx-auto w-full max-w-[420px]">
-                  <ClientActivityPhoneSheet report={report} lang={reportLang} clientName={clientName} showBalance={showBalance} showPriceComparison={showPriceComparison} variant="screen"/>
+                  <ClientActivityPhoneSheet report={report} lang={reportLang} clientName={clientName} showBalance={showBalance} variant="screen"/>
                 </div>
               </ReportPreview>)}
           </>)}
       </ModalContent>
       <ReportSendFooter sendState={sendState} progress={progress} onClose={onClose} onSend={handleSend} showSend={hasOperations} canSend={Boolean(report)}/>
       {hasOperations && report && (<ReportPrintHolder holderRef={printHolder}>
-          <ClientActivityPhoneSheet report={report} lang={reportLang} clientName={clientName} showBalance={showBalance} showPriceComparison={showPriceComparison} variant="phone"/>
+          <ClientActivityPhoneSheet report={report} lang={reportLang} clientName={clientName} showBalance={showBalance} variant="phone"/>
         </ReportPrintHolder>)}
     </Modal>);
 }

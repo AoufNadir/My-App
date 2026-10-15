@@ -98,8 +98,6 @@ export type ReportCurrencyCard = CurrencySummary & {
     trend: PriceTrendPoint[];
     /** Lowest and highest price paid in DZD; null unless the period has two different prices (to the cent) */
     priceRange: PriceRange | null;
-    /** Average price (DZD) of the period of the same length just before, when it had purchases paid in DZD; the phone report's one comparison line */
-    previousPrice: { period: ReportPeriod; averagePrice: number } | null;
 };
 
 export type PeriodTotals = {
@@ -645,14 +643,6 @@ function priceRange(entries: ReadonlyArray<ReportEntry>, period: ReportPeriod, c
     return roundToCent(min) === roundToCent(max) ? null : { min, max };
 }
 
-function previousPrice(entries: ReadonlyArray<ReportEntry>, period: ReportPeriod, currency: ReportCurrency, current: CurrencySummary): ReportCurrencyCard['previousPrice'] {
-    if (current.dzdQuantity <= 0)
-        return null;
-    const before = previousPeriod(period);
-    const summary = periodTotals(entries, before).currencies[currency];
-    return summary.dzdQuantity > 0 ? { period: before, averagePrice: averagePrice(summary.dzdCents, summary.dzdQuantity) } : null;
-}
-
 /** A small amount is shown lighter, never hidden: under 100 DZD and under 0.1% of what the period's purchases come to. */
 export const SMALL_AMOUNT_MAX_CENTS = 10000;
 export const isSmallAmount = (cents: number, periodPurchasesCents: number): boolean => {
@@ -695,7 +685,6 @@ export function buildClientActivityReport(input: BuildClientActivityReportInput)
             ...totals.currencies[currency],
             trend: priceTrend(entries, period, currency),
             priceRange: priceRange(entries, period, currency),
-            previousPrice: previousPrice(entries, period, currency, totals.currencies[currency]),
         }));
 
     // A year is summed up by its best month; the others are compared with the same length just before, once over.
