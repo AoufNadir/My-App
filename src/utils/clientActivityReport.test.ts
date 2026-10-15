@@ -10,6 +10,7 @@ import {
     buildReportEntries,
     dayKey,
     defaultReportPeriod,
+    isSmallAmount,
     listReportPeriods,
     monthPeriod,
     monthWeeks,
@@ -291,5 +292,43 @@ assert.equal(history.breakdownUnit, 'year');
 assert.equal(history.balance.openingCents, 0);
 assert.equal(history.balance.closingCents, pageBalanceCents, 'The whole history ends on the client page balance');
 assert.equal(history.operations.length, entries.length);
+
+// ---------- the phone report's price lines: lowest and highest price, and the period before ----------
+{
+    const september = build(monthPeriod(2026, 8));
+    const usdt = september.currencyCards.find((card) => card.currency === 'USDT')!;
+    const eur = september.currencyCards.find((card) => card.currency === 'EUR')!;
+    assert.deepEqual(usdt.priceRange, { min: 248.75, max: 249.5 }, 'USDT: the lowest and highest of the two DZD purchases (the one paid in EUR has no DZD price)');
+    assert.equal(eur.priceRange, null, 'EUR: a single purchase has no range');
+    const august = periodTotals(buildReportEntries(rows.filter((item) => item.clientId === 'c1'), transactions), monthPeriod(2026, 7)).currencies.USDT;
+    assert.equal(usdt.previousPrice?.period.key, 'm-2026-08', 'Compared with the month before');
+    assert.equal(usdt.previousPrice?.averagePrice, august.dzdCents / 100 / august.dzdQuantity, 'The previous average is the average of that month');
+    assert.equal(eur.previousPrice, null, 'No euros in August: nothing to compare with');
+    // The old three-period trend is still made for the A4 report.
+    assert.ok(Array.isArray(usdt.trend));
+    // A year is compared with the year before, a range with as many days before it.
+    assert.equal(build(yearPeriod(2026)).currencyCards.find((card) => card.currency === 'USDT')!.previousPrice, null, '2025 has no purchase');
+    const wide = build(forDates('2026-09-01', '2026-10-02'));
+    assert.equal(wide.currencyCards.find((card) => card.currency === 'USDT')!.previousPrice?.period.key, previousPeriod(wide.period).key);
+    // One price only: no range, whatever the quantity.
+    const october = build(monthPeriod(2026, 9));
+    assert.equal(october.currencyCards.find((card) => card.currency === 'USDT')!.priceRange, null, 'October: one DZD purchase');
+    // The price comparison never reads what is ours.
+    assert.ok(!JSON.stringify(september.currencyCards).includes('243.17'), 'our buy price is never in the cards');
+}
+
+// ---------- small amounts: under 100 DZD and under 0.1% of the period\'s purchases ----------
+{
+    const million = toCents(1434952);
+    assert.equal(isSmallAmount(toCents(3), million), true, '3 DZD against 1.4 million');
+    assert.equal(isSmallAmount(toCents(-3), million), true, 'The sign does not matter');
+    assert.equal(isSmallAmount(0, million), false, 'Zero is not an amount');
+    assert.equal(isSmallAmount(toCents(100), million), false, '100 DZD is not under the limit');
+    assert.equal(isSmallAmount(toCents(99.99), million), true);
+    assert.equal(isSmallAmount(toCents(3), toCents(2000)), false, '3 DZD is more than 0.1% of 2 000 DZD');
+    assert.equal(isSmallAmount(toCents(3), toCents(3000)), false, 'Exactly 0.1% is not under it');
+    assert.equal(isSmallAmount(toCents(2), toCents(3000)), true);
+    assert.equal(isSmallAmount(toCents(3), 0), false, 'A period without purchases: nothing is small');
+}
 
 console.log('client activity report model tests passed');

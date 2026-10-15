@@ -90,9 +90,16 @@ export type CurrencySummary = {
 
 export type PriceTrendPoint = { period: ReportPeriod; averagePrice: number };
 
+/** Lowest and highest DZD price per unit the client paid in the period. */
+export type PriceRange = { min: number; max: number };
+
 export type ReportCurrencyCard = CurrencySummary & {
     /** Average price over the last three periods, oldest first (ج); empty when fewer than two have purchases */
     trend: PriceTrendPoint[];
+    /** Lowest and highest price paid in DZD; null unless the period has two different prices (to the cent) */
+    priceRange: PriceRange | null;
+    /** Average price (DZD) of the period of the same length just before, when it had purchases paid in DZD; the phone report's one comparison line */
+    previousPrice: { period: ReportPeriod; averagePrice: number } | null;
 };
 
 export type PeriodTotals = {
@@ -616,6 +623,43 @@ function priceTrend(entries: ReadonlyArray<ReportEntry>, period: ReportPeriod, c
     return points.length >= 2 && points[points.length - 1].period.key === period.key ? points : [];
 }
 
+/** Price per unit of every purchase of the currency paid in DZD in the period, the same rows the average price is made of. */
+function dzdPricesPaid(entries: ReadonlyArray<ReportEntry>, period: Pick<ReportPeriod, 'from' | 'to'>, currency: ReportCurrency): number[] {
+    const prices: number[] = [];
+    for (const entry of entries) {
+        if (!inPeriod(entry, period) || entry.kind !== 'buy' || (entry.currency || 'USDT') !== currency || !entry.quantity || entry.dzdCents === null)
+            continue;
+        prices.push(averagePrice(purchaseCents(entry), entry.quantity));
+    }
+    return prices;
+}
+
+const roundToCent = (value: number) => Math.round(value * 100) / 100;
+
+function priceRange(entries: ReadonlyArray<ReportEntry>, period: ReportPeriod, currency: ReportCurrency): PriceRange | null {
+    const prices = dzdPricesPaid(entries, period, currency);
+    if (prices.length < 2)
+        return null;
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    return roundToCent(min) === roundToCent(max) ? null : { min, max };
+}
+
+function previousPrice(entries: ReadonlyArray<ReportEntry>, period: ReportPeriod, currency: ReportCurrency, current: CurrencySummary): ReportCurrencyCard['previousPrice'] {
+    if (current.dzdQuantity <= 0)
+        return null;
+    const before = previousPeriod(period);
+    const summary = periodTotals(entries, before).currencies[currency];
+    return summary.dzdQuantity > 0 ? { period: before, averagePrice: averagePrice(summary.dzdCents, summary.dzdQuantity) } : null;
+}
+
+/** A small amount is shown lighter, never hidden: under 100 DZD and under 0.1% of what the period's purchases come to. */
+export const SMALL_AMOUNT_MAX_CENTS = 10000;
+export const isSmallAmount = (cents: number, periodPurchasesCents: number): boolean => {
+    const amount = Math.abs(cents);
+    return amount > 0 && amount < SMALL_AMOUNT_MAX_CENTS && amount * 1000 < periodPurchasesCents;
+};
+
 const dayStamp = (timestamp: number) => dayKey(timestamp).replace(/-/g, '');
 
 function reportReference(period: ReportPeriod, clientId: string): string {
@@ -647,7 +691,12 @@ export function buildClientActivityReport(input: BuildClientActivityReportInput)
     const isLive = period.to >= now;
     const currencyCards: ReportCurrencyCard[] = (['USDT', 'EUR'] as ReportCurrency[])
         .filter((currency) => totals.currencies[currency].purchases > 0)
-        .map((currency) => ({ ...totals.currencies[currency], trend: priceTrend(entries, period, currency) }));
+        .map((currency) => ({
+            ...totals.currencies[currency],
+            trend: priceTrend(entries, period, currency),
+            priceRange: priceRange(entries, period, currency),
+            previousPrice: previousPrice(entries, period, currency, totals.currencies[currency]),
+        }));
 
     // A year is summed up by its best month; the others are compared with the same length just before, once over.
     const previous = kind === 'year' || isLive ? null : previousPeriod(period);

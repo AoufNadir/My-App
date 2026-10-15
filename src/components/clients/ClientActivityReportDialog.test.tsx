@@ -45,7 +45,7 @@ for (const lang of ['ar', 'fr'] as const) {
         assert.ok(html.includes(word), `${lang}: ${word}`);
     assert.doesNotMatch(html, /<select/, `${lang}: no list of weeks, months, years any more`);
     const sheets = [...html.matchAll(/<article dir="(rtl|ltr)" lang="(ar|fr)"/g)];
-    assert.equal(sheets.length, 2, `${lang}: the preview and the A4 sheet the PDF is made from`);
+    assert.equal(sheets.length, 2, `${lang}: the preview and the phone-size sheet the PDF is made from`);
     assert.ok(sheets.every((sheet) => sheet[2] === 'ar'), `${lang}: the report is in Arabic by default, whatever the app's language (V8-1b)`);
     assert.match(html, /تقرير النشاط الشهري/, `${lang}: a whole month is a monthly report`);
     assert.match(html, /<input type="checkbox" id="client-report-balance"[^>]*checked=""/, `${lang}: the balance is shown by default`);
@@ -60,7 +60,7 @@ const fromAnalytics = render('fr', rows, { start: '2026-08-15', end: '2026-10-02
 storage.delete('client_report_lang_c1');
 assert.deepEqual(dates(fromAnalytics), ['start=15/08/2026', 'end=02/10/2026']);
 assert.match(fromAnalytics, /Rapport d’activité</, 'Any two dates: a report of that span');
-assert.match(fromAnalytics, /Période · 49 jours/);
+assert.match(fromAnalytics, /du <bdi[^>]*>15\/08\/2026<\/bdi> au <bdi[^>]*>02\/10\/2026<\/bdi>/, 'the phone page says the two dates it covers');
 
 // Dates the wrong way round: a message, no report, nothing to send.
 const inverted = render('ar', rows, { start: '2026-10-02', end: '2026-08-15' });

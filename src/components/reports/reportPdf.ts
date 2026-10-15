@@ -1,13 +1,31 @@
-import { buildImagePdf, type PdfImagePage } from '../../utils/imagePdf';
+import { A4_HEIGHT_PT, A4_WIDTH_PT, buildImagePdf, type PdfImagePage } from '../../utils/imagePdf';
 
 // The PDF of every report: a print sheet laid out off screen (794px wide), cut into A4 pages
-// between blocks and table rows, one image per page, then shared from the phone.
+// between blocks and table rows, one image per page, then shared from the phone. The client
+// report is the exception: its sheet is a phone page (420px wide) and its pages are phone-size.
 
 /** A4 at 96 CSS px per inch: the print sheet is this wide, a page this tall. */
 export const PDF_PAGE_WIDTH_PX = 794;
 export const PDF_PAGE_HEIGHT_PX = 1123;
 /** White space at the bottom of every page and at the top of the next ones (the sheet has its own top padding). */
 export const PDF_PAGE_MARGIN_PX = 36;
+
+/** The size of the pages a sheet is cut into, in CSS px of the sheet and in PDF points. */
+export type PdfPageSpec = {
+    widthPx: number;
+    heightPx: number;
+    marginPx: number;
+    widthPt: number;
+    heightPt: number;
+    /** Size of the line under every page, in CSS px of the sheet */
+    footerPx: number;
+    /** The line is written under a report of one page too (a phone page always carries its reference) */
+    footerAlways: boolean;
+};
+
+export const A4_PAGE: PdfPageSpec = { widthPx: PDF_PAGE_WIDTH_PX, heightPx: PDF_PAGE_HEIGHT_PX, marginPx: PDF_PAGE_MARGIN_PX, widthPt: A4_WIDTH_PT, heightPt: A4_HEIGHT_PT, footerPx: 10, footerAlways: false };
+/** The phone report: 420 CSS px wide, as tall as a modern phone screen (about 9:20), shown at the width of the screen. */
+export const PHONE_PAGE: PdfPageSpec = { widthPx: 420, heightPx: 960, marginPx: 32, widthPt: 315, heightPt: 720, footerPx: 12, footerAlways: true };
 
 export type PdfSlice = { top: number; bottom: number };
 
@@ -16,7 +34,7 @@ export type PdfSlice = { top: number; bottom: number };
  * block or of a table row), so no line of text is cut in two. A block taller than a page is cut
  * where the page ends.
  */
-export function planPdfPages(height: number, breaks: ReadonlyArray<number>, pageHeight = PDF_PAGE_HEIGHT_PX, margin = PDF_PAGE_MARGIN_PX): PdfSlice[] {
+export function planPdfPages(height: number, breaks: ReadonlyArray<number>, pageHeight = PDF_PAGE_HEIGHT_PX, margin = PDF_PAGE_MARGIN_PX, firstPageEnd: number | null = null): PdfSlice[] {
     const sorted = [...breaks].sort((a, b) => a - b);
     const slices: PdfSlice[] = [];
     let top = 0;
@@ -27,6 +45,13 @@ export function planPdfPages(height: number, breaks: ReadonlyArray<number>, page
             break;
         }
         const limit = top + capacity;
+        // The first page ends where the sheet says (the phone report's summary) when that much fits in it;
+        // a summary longer than the page flows on like any other content.
+        if (slices.length === 0 && firstPageEnd !== null && firstPageEnd > top + 0.5 && firstPageEnd <= limit) {
+            slices.push({ top, bottom: firstPageEnd });
+            top = firstPageEnd;
+            continue;
+        }
         // Not too early either: a page holds at least a quarter of its height.
         const fitting = sorted.filter((point) => point > top + capacity / 4 && point <= limit);
         const bottom = fitting.length ? fitting[fitting.length - 1] : limit;
@@ -42,6 +67,15 @@ export function pdfBreakPoints(sheet: HTMLElement): number[] {
     return Array.from(sheet.querySelectorAll<HTMLElement>('[data-pdf-break]'))
         .map((element) => Math.round((element.getBoundingClientRect().top - origin) * 100) / 100)
         .filter((point) => point > 0);
+}
+
+/** Where the first page must end: the top of the element marked data-pdf-newpage, if any. */
+export function pdfFirstPageEnd(sheet: HTMLElement): number | null {
+    const element = sheet.querySelector<HTMLElement>('[data-pdf-newpage]');
+    if (!element)
+        return null;
+    const point = element.getBoundingClientRect().top - sheet.getBoundingClientRect().top;
+    return point > 0 ? Math.round(point * 100) / 100 : null;
 }
 
 export type PdfRowBox = { top: number; bottom: number };
@@ -175,7 +209,7 @@ export type PdfPageFooter = {
  * copies every element's laid-out height, so the list must really be that short), so a long report
  * needs no canvas taller than a page and each page costs about the same. Runs in the browser only.
  */
-export async function renderReportPdf(sheet: HTMLElement, title: string, footer?: PdfPageFooter, onProgress?: (done: number, count: number) => void): Promise<Blob> {
+export async function renderReportPdf(sheet: HTMLElement, title: string, footer?: PdfPageFooter, onProgress?: (done: number, count: number) => void, page: PdfPageSpec = A4_PAGE): Promise<Blob> {
     if (document.fonts?.ready)
         await document.fonts.ready;
     const { toCanvas, getFontEmbedCSS } = await import('html-to-image');
@@ -183,7 +217,7 @@ export async function renderReportPdf(sheet: HTMLElement, title: string, footer?
     const unrelease = releaseTableScroll(sheet);
     let away = rowsAway([]);
     try {
-        const { width, slices, rows } = planSheetPages(sheet);
+        const { width, slices, rows } = planSheetPages(sheet, page);
         away = rowsAway(rows);
         // The fonts are read once for all the pages.
         let fontEmbedCSS: string | undefined;
@@ -195,10 +229,10 @@ export async function renderReportPdf(sheet: HTMLElement, title: string, footer?
         }
         const pages: PdfImagePage[] = [];
         for (let index = 0; index < slices.length; index++) {
-            pages.push(await renderPage(toCanvas, sheet, { width, rows, slice: slices[index], index, count: slices.length, fontEmbedCSS, footer, away }));
+            pages.push(await renderPage(toCanvas, sheet, { width, rows, slice: slices[index], index, count: slices.length, fontEmbedCSS, footer, away, page }));
             onProgress?.(index + 1, slices.length);
         }
-        return new Blob([buildImagePdf(pages, { title })], { type: 'application/pdf' });
+        return new Blob([buildImagePdf(pages, { title, pageWidthPt: page.widthPt, pageHeightPt: page.heightPt })], { type: 'application/pdf' });
     }
     finally {
         away.restore();
@@ -241,23 +275,23 @@ export function rowsAway(rows: ReadonlyArray<{ element: HTMLElement }>) {
  * The pages of the sheet as laid out now, and its list rows. The sheet's own bottom padding is
  * white space: the last page may end with the footer rather than start a page for it.
  */
-export function planSheetPages(sheet: HTMLElement): { width: number; slices: PdfSlice[]; rows: Array<PdfRowBox & { element: HTMLElement }> } {
+export function planSheetPages(sheet: HTMLElement, page: PdfPageSpec = A4_PAGE): { width: number; slices: PdfSlice[]; rows: Array<PdfRowBox & { element: HTMLElement }> } {
     const origin = sheet.getBoundingClientRect().top;
     const full = sheet.scrollHeight || sheet.offsetHeight;
     const contentBottom = Math.max(0, ...Array.from(sheet.children).map((child) => child.getBoundingClientRect().bottom - origin));
     const height = contentBottom > 0 ? Math.min(full, Math.ceil(contentBottom)) : full;
-    return { width: sheet.offsetWidth || PDF_PAGE_WIDTH_PX, slices: planPdfPages(height, pdfBreakPoints(sheet)), rows: pdfRowBoxes(sheet) };
+    return { width: sheet.offsetWidth || page.widthPx, slices: planPdfPages(height, pdfBreakPoints(sheet), page.heightPx, page.marginPx, pdfFirstPageEnd(sheet)), rows: pdfRowBoxes(sheet) };
 }
 
-type PageJob = { width: number; rows: ReadonlyArray<PdfRowBox & { element: HTMLElement }>; slice: PdfSlice; index: number; count: number; fontEmbedCSS?: string; footer?: PdfPageFooter; away: ReturnType<typeof rowsAway> };
+type PageJob = { width: number; rows: ReadonlyArray<PdfRowBox & { element: HTMLElement }>; slice: PdfSlice; index: number; count: number; fontEmbedCSS?: string; footer?: PdfPageFooter; away: ReturnType<typeof rowsAway>; page: PdfPageSpec };
 
 /** What is written under a page: its number, and with the report's words its issue date and reference. */
 export function pdfPageFooterText(index: number, count: number, footer?: PdfPageFooter): string {
     return footer ? footer.text(index + 1, count) : `${index + 1} / ${count}`;
 }
 
-/** One A4 page: its part of the sheet, drawn under the top margin (from page 2), with its number. */
-async function renderPage(toCanvas: ToCanvas, sheet: HTMLElement, { width, rows, slice, index, count, fontEmbedCSS, footer, away }: PageJob): Promise<PdfImagePage> {
+/** One page: its part of the sheet, drawn under the top margin (from page 2), with its number. */
+async function renderPage(toCanvas: ToCanvas, sheet: HTMLElement, { width, rows, slice, index, count, fontEmbedCSS, footer, away, page: spec }: PageJob): Promise<PdfImagePage> {
     const { skip, shift } = pageRowWindow(rows, slice);
     const skipped = away.set(skip);
     const shot = await capture(toCanvas, sheet, {
@@ -273,7 +307,7 @@ async function renderPage(toCanvas: ToCanvas, sheet: HTMLElement, { width, rows,
     });
     const scale = shot.width / width;
     const pageWidth = shot.width;
-    const pageHeight = Math.round((pageWidth * PDF_PAGE_HEIGHT_PX) / PDF_PAGE_WIDTH_PX);
+    const pageHeight = Math.round((pageWidth * spec.heightPx) / spec.widthPx);
     const page = document.createElement('canvas');
     page.width = pageWidth;
     page.height = pageHeight;
@@ -282,15 +316,15 @@ async function renderPage(toCanvas: ToCanvas, sheet: HTMLElement, { width, rows,
         throw new Error('Canvas unavailable');
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, pageWidth, pageHeight);
-    const targetTop = index === 0 ? 0 : Math.round(PDF_PAGE_MARGIN_PX * scale);
+    const targetTop = index === 0 ? 0 : Math.round(spec.marginPx * scale);
     context.drawImage(shot, 0, 0, shot.width, shot.height, 0, targetTop, pageWidth, shot.height);
-    if (count > 1) {
+    if (count > 1 || spec.footerAlways) {
         context.fillStyle = '#6B7280';
         // The sheet's own fonts: Cairo for Arabic, Inter for the numbers and French.
-        context.font = `${Math.round(10 * scale)}px ${footer?.lang === 'ar' ? 'Cairo, ' : ''}Inter, system-ui, sans-serif`;
+        context.font = `${Math.round(spec.footerPx * scale)}px ${footer?.lang === 'ar' ? 'Cairo, ' : ''}Inter, system-ui, sans-serif`;
         context.direction = footer?.lang === 'ar' ? 'rtl' : 'ltr';
         context.textAlign = 'center';
-        context.fillText(pdfPageFooterText(index, count, footer), pageWidth / 2, pageHeight - Math.round(14 * scale));
+        context.fillText(pdfPageFooterText(index, count, footer), pageWidth / 2, pageHeight - Math.round((spec.footerPx + 4) * scale));
     }
     const jpeg = await canvasToJpeg(page, 0.92);
     const result = { jpeg: new Uint8Array(await jpeg.arrayBuffer()), widthPx: pageWidth, heightPx: pageHeight };
