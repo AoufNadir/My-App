@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { monthPeriod, monthWeeks, parseDayKey, rangePeriod, yearPeriod } from '../../utils/clientActivityReport';
-import { CAPTURE_STYLE_PROPERTIES, PDF_PAGE_HEIGHT_PX, PDF_PAGE_MARGIN_PX, pageRowWindow, planPdfPages, rowsAway } from '../reports/reportPdf';
+import { A4_PAGE, CAPTURE_STYLE_PROPERTIES, PDF_PAGE_HEIGHT_PX, PDF_PAGE_MARGIN_PX, PHONE_PAGE, pageRowWindow, planPdfPages, rowsAway } from '../reports/reportPdf';
 import { reportFileName } from './clientActivityReportPdf';
 
 // The PDF is the report cut into A4 pages: at the top of a block or of a table row, never
@@ -131,6 +131,36 @@ assert.deepEqual(pageRowWindow([], { top: 0, bottom: 1000 }), { skip: new Set(),
     for (const needed of ['display', 'width', 'height', 'padding-top', 'padding-right', 'border-bottom-color', 'border-collapse', 'table-layout', 'color', 'background-color', 'font-family', 'font-size', 'font-weight', 'line-height', 'text-align', 'direction', 'unicode-bidi', 'white-space', 'word-break', 'overflow-x', 'overflow-y', 'flex-direction', 'gap', 'grid-template-columns', 'vertical-align', 'border-top-left-radius', 'font-variant-numeric'])
         assert.ok(CAPTURE_STYLE_PROPERTIES.includes(needed), `${needed} is copied`);
     assert.ok(CAPTURE_STYLE_PROPERTIES.length < 200, 'Far fewer than the 350 of a default capture');
+}
+
+// V8-2: the phone report's pages. 420x960 CSS px (a modern phone screen), cut like any other sheet,
+// and its first page ends where the summary ends when the summary fits in it.
+{
+    assert.equal(A4_PAGE.widthPx, 794);
+    assert.equal(A4_PAGE.heightPx, PDF_PAGE_HEIGHT_PX, 'A4 is what every other report has always been');
+    assert.equal(PHONE_PAGE.widthPx, 420);
+    assert.ok(Math.abs(PHONE_PAGE.widthPt / PHONE_PAGE.heightPt - PHONE_PAGE.widthPx / PHONE_PAGE.heightPx) < 1e-9, 'The PDF page has the proportions of the captured page');
+    assert.ok(Math.abs(PHONE_PAGE.widthPt - PHONE_PAGE.widthPx * 0.75) < 1e-9, '420 CSS px at 96 per inch are 315 points');
+    assert.equal(A4_PAGE.footerAlways, false);
+    assert.equal(PHONE_PAGE.footerAlways, true, 'A phone page always carries its reference and issue date');
+    const first = PHONE_PAGE.heightPx - PHONE_PAGE.marginPx;
+    const next = PHONE_PAGE.heightPx - 2 * PHONE_PAGE.marginPx;
+    // The summary (807 px) goes alone on page 1, the details (795 px) follow on page 2, whatever blocks lie between.
+    const summaryThenDetails = planPdfPages(1602, [120, 300, 500, 807, 860, 1000, 1200, 1400], PHONE_PAGE.heightPx, PHONE_PAGE.marginPx, 807);
+    assert.deepEqual(summaryThenDetails.map((slice) => [slice.top, slice.bottom]), [[0, 807], [807, 1602]], 'Page 1 is the summary, page 2 the details');
+    // Without the marker, blocks of the details would be pulled onto page 1.
+    assert.notDeepEqual(planPdfPages(1602, [120, 300, 500, 807, 860, 1000, 1200, 1400], PHONE_PAGE.heightPx, PHONE_PAGE.marginPx).map((slice) => slice.bottom), [807, 1602]);
+    // A sheet that fits one page stays one page: nothing is cut for the sake of it.
+    assert.equal(planPdfPages(first, [500], PHONE_PAGE.heightPx, PHONE_PAGE.marginPx, 500).length, 1);
+    // A summary longer than the page flows on: no nearly empty second page for the end of the summary.
+    const long = planPdfPages(2600, [100, 400, 700, 1000, 1208, 1500, 1800], PHONE_PAGE.heightPx, PHONE_PAGE.marginPx, 1208);
+    assert.deepEqual(long.map((slice) => slice.bottom), [700, 1500, 1800, 2600], 'The summary flows on page after page, cut at the last block that fits');
+    long.forEach((slice, index) => assert.ok(slice.bottom - slice.top <= (index === 0 ? first : next) + 1e-9, `Page ${index + 1} fits`));
+    assert.equal(long[0].top, 0);
+    assert.equal(long[long.length - 1].bottom, 2600, 'Nothing lost');
+    // A marker after the first page's end is not a page end.
+    const far = planPdfPages(3000, [500, 900], PHONE_PAGE.heightPx, PHONE_PAGE.marginPx, 2000);
+    assert.ok(far[0].bottom <= first, 'A first-page end beyond the first page changes nothing');
 }
 
 console.log('client activity report PDF pages tests passed');

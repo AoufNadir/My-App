@@ -10,7 +10,7 @@ import { SegmentedControl } from '../ui/SegmentedControl';
 import { createPdfPreparer, sheetFingerprint } from './pdfPreparer';
 import { saveReportLanguage, savedReportLanguage } from './reportLanguage';
 import type { ReportSheetLang } from './ReportSheet';
-import { renderReportPdf, shareOrDownloadPdf, type PdfPageFooter, type ShareOutcome } from './reportPdf';
+import { renderReportPdf, shareOrDownloadPdf, type PdfPageFooter, type PdfPageSpec, type ShareOutcome } from './reportPdf';
 
 // The parts every report window shares: the dates, the report's language, the preview, the
 // send button with what happened to the PDF, and the hidden A4 sheet the PDF is made from.
@@ -32,7 +32,7 @@ export function useReportLanguage(storageKey: string, fallbackLang: string): [Re
 export type ReportSendState = 'idle' | 'busy' | 'ready' | 'downloaded' | 'error';
 export type ReportSendProgress = { done: number; count: number };
 
-export type ReportPdfJob = { fileName: string; title: string; footer?: PdfPageFooter };
+export type ReportPdfJob = { fileName: string; title: string; footer?: PdfPageFooter; /** A4 when omitted */ page?: PdfPageSpec };
 
 /**
  * How long the report must stay as it is before its PDF is made in the background: a moment when
@@ -73,7 +73,7 @@ export function useReportSender(job: ReportPdfJob | null = null) {
     };
     const render = (sheet: HTMLElement, current: ReportPdfJob) => async () => {
         try {
-            return await renderReportPdf(sheet, current.title, current.footer, reportProgress);
+            return await renderReportPdf(sheet, current.title, current.footer, reportProgress, current.page);
         }
         finally {
             setProgress(null);
