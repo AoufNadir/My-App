@@ -1,8 +1,8 @@
 import { Fragment, type ReactNode } from 'react';
-import type { BalanceLineKey, ClientActivityReport, ComparisonRow, ReportCurrency, ReportCurrencyCard, ReportEntry, ReportLang, ReportPeriod } from '../../utils/clientActivityReport';
+import type { BalanceLineKey, ClientActivityReport, ComparisonRow, OperationRow, ReportCurrency, ReportCurrencyCard, ReportEntry, ReportLang, ReportPeriod } from '../../utils/clientActivityReport';
 import { averagePrice, isSmallAmount } from '../../utils/clientActivityReport';
 import { DOT, ReportSheet, isolate, num } from '../reports/ReportSheet';
-import { PHONE_WORDS, type PriceDirection } from './clientActivityPhoneText';
+import { PHONE_WORDS, type AccountState } from './clientActivityPhoneText';
 import { REPORT_WORDS, currencyUnit, formatDate, formatDayMonth, formatDzdCents, formatEur, formatEurPrice, formatPrice, formatQuantity } from './clientActivityReportText';
 
 export type ClientActivityPhoneSheetProps = {
@@ -11,25 +11,23 @@ export type ClientActivityPhoneSheetProps = {
     clientName: string;
     /** Off: no balance, no debt, no account status, no balance after each operation (payments stay) */
     showBalance: boolean;
-    /** Off: the average price is not compared with the period before */
-    showPriceComparison: boolean;
     /** « phone »: the 420px sheet the PDF pages are cut from; « screen »: the preview in the window */
     variant: 'screen' | 'phone';
 };
 
 // Lines after purchases and payments, in this order; the opening balance entered during the period comes first.
 const OTHER_BALANCE_LINES: BalanceLineKey[] = ['saleToUs', 'withdrawal', 'transfer', 'writeOff', 'adjustment'];
-const roundToCent = (value: number) => Math.round(value * 100) / 100;
-const direction = (current: number, before: number): PriceDirection => (current > before ? 'up' : current < before ? 'down' : 'same');
 const pad = (value: number) => String(value).padStart(2, '0');
 
 /**
  * The client report written for a phone (V8-2): a sheet 420px wide whose smallest text is 12.5px,
- * cut into 420x840 PDF pages. Page 1 is the summary (what was bought and at what price, the state
+ * cut into 420x960 PDF pages. Page 1 is the summary (what was bought and at what price, the state
  * of the account, how it adds up); the details start page 2 (week by week, every operation). The
- * numbers are the A4 report's, from the same model; only their place and weight change.
+ * numbers are the A4 report's, from the same model; only their place and weight change. V8-3: the
+ * price is the period's own (nothing is compared with another month), and every operation is a
+ * sentence from the client's side, without + or − signs, with the account's state after it.
  */
-export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance, showPriceComparison, variant }: ClientActivityPhoneSheetProps) {
+export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance, variant }: ClientActivityPhoneSheetProps) {
     const w = REPORT_WORDS[lang];
     const p = PHONE_WORDS[lang];
     const { period, totals, balance, showCents } = report;
@@ -48,8 +46,6 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
     const bigLines = quantityCards.length > 0
         ? quantityCards.map((card) => ({ key: card.currency, value: formatQuantity(card.quantity), unit: currencyUnit(card.currency) }))
         : hasSpent ? [{ key: 'dzd', value: dzdShort(totals.spentCents), unit: 'DZD' }] : [];
-    const previousSpend = report.comparedWith && report.comparedWith.spentCents > 0 && hasSpent ? report.comparedWith : null;
-    const spendChange = previousSpend ? Math.round(((totals.spentCents - previousSpend.spentCents) / previousSpend.spentCents) * 100) : null;
     const hero = bigLines.length === 0
         ? (<div data-pdf-break="" className="rounded-2xl bg-surface-muted px-4 py-4 text-[15px] font-semibold text-neutral-700">{w.leadNone}</div>)
         : (<div data-pdf-break="" className="rounded-[18px] bg-primary px-4 pb-3.5 pt-4 text-white">
@@ -62,9 +58,6 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
             {quantityCards.length > 0 && hasSpent && <span>{p.heroAmount(isolate(dzd(totals.spentCents)))}</span>}
             <span>{p.purchaseCount(totals.purchaseCount)}</span>
           </p>
-          {previousSpend && spendChange !== null && (<span className="mt-2.5 inline-flex rounded-full bg-white/20 px-3 py-0.5 text-[13px] leading-snug">
-              {p.spendChip(spendChange > 0 ? 'up' : spendChange < 0 ? 'down' : 'same', isolate(`${Math.abs(spendChange)}%`), previousSpend.period)}
-            </span>)}
         </div>);
 
     // ---- the price of each currency
@@ -77,14 +70,6 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
     const priceBox = (card: ReportCurrencyCard) => {
         const paidInDzd = card.dzdQuantity > 0;
         const average = paidInDzd ? averagePrice(card.dzdCents, card.dzdQuantity) : 0;
-        const before = card.previousPrice;
-        const vs = showPriceComparison && paidInDzd && before
-            ? (() => {
-                const [now, then] = [roundToCent(average), roundToCent(before.averagePrice)];
-                const way = direction(now, then);
-                return { way, text: PHONE_WORDS[lang].priceVs(way, isolate(formatPrice(roundToCent(Math.abs(now - then)))), isolate(formatPrice(then)), before.period) };
-            })()
-            : null;
         const stats: ReactNode[] = [];
         if (paidInDzd && (multipleKinds || card.dzdCents !== totals.spentCents))
             stats.push(statRow(w.amount, dzd(card.dzdCents)));
@@ -104,7 +89,6 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
               <span className="text-[27px] font-extrabold leading-tight">{num(`${formatEurPrice(card.eurAmount / card.eurQuantity)} €`)}</span>
               <small className="text-[13px] font-medium text-neutral-500">{lang === 'ar' ? 'لكل USDT' : 'par USDT'}</small>
             </p>)}
-          {vs && <p className={`mt-0.5 text-[14px] font-semibold leading-snug ${vs.way === 'down' ? 'text-green-700' : vs.way === 'up' ? 'text-amber-700' : 'text-neutral-600'}`}>{vs.text}</p>}
           {card.priceRange && (<div className="mt-2 flex gap-2">
               {([['lowestPrice', card.priceRange.min], ['highestPrice', card.priceRange.max]] as const).map(([key, value]) => (<div key={key} className="min-w-0 flex-1 rounded-[10px] bg-surface-muted px-2.5 py-1.5 text-[13px] leading-snug text-neutral-600">
                   {p[key]}<b className="block font-latin text-[15px] text-neutral-900">{num(formatPrice(value))}</b>
@@ -170,13 +154,13 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
           <span className={`min-w-0 leading-snug ${options.dim ? 'text-[13.5px]' : 'text-[14.5px]'}`}>{label}{options.sub && <span className="block text-[12.5px] text-neutral-500">{options.sub}</span>}</span>
           <span className={`shrink-0 font-latin ${options.dim ? 'text-[13.5px] font-medium' : 'text-[15px] font-semibold text-neutral-900'}`}>{num(value)}</span>
         </div>);
-        // A small debt from before the period that a write-off cancels is one quiet line, not two.
+        // A small debt from before the period that a write-off cancels is one quiet line (a balance of 0 and why), not two.
         const remitted = openingCents < 0 && lines.writeOff === -openingCents && small(openingCents);
         const sideWord = (cents: number) => (cents === 0 ? '' : cents < 0 ? ` (${w.owes})` : ` (${w.credit})`);
         const note = (key: BalanceLineKey) => (key === 'writeOff' ? p.smallNote.writeOff : key === 'adjustment' ? p.smallNote.adjustment : undefined);
         const rows: ReactNode[] = [];
         if (remitted)
-            rows.push(line('remitted', p.startedOwing(isolate(dzdShort(openingCents)), report.kind), `${dzdShort(openingCents)} − ${dzdShort(openingCents)} = 0`, { dim: true, sub: p.remitted }));
+            rows.push(line('remitted', w.balanceStart[report.kind], '0', { dim: true, sub: p.remittedNote(isolate(`${dzdShort(openingCents)} DZD`), report.kind) }));
         else if (openingCents !== 0)
             rows.push(line('start', <>{w.balanceStart[report.kind]}{sideWord(openingCents)}</>, `${openingCents * side < 0 ? '−' : ''}${dzdShort(openingCents)}`, { dim: small(openingCents) }));
         if (lines.opening !== 0)
@@ -236,54 +220,48 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
         </div>);
     };
 
-    // ---- page 2: every operation, as a card
-    const operationAmount = (entry: ReportEntry, quiet: boolean): { text: string; tone: string } => {
-        if (entry.dzdCents === null)
-            return { text: entry.eurAmount ? `${formatEur(entry.eurAmount)} €` : '—', tone: '' };
-        const amount = dzdShort(entry.dzdCents);
-        if (quiet || !entry.affectsBalance || entry.kind === 'buy' || entry.kind === 'service')
-            return { text: amount, tone: '' };
-        return entry.balanceCents >= 0 ? { text: `+${amount}`, tone: 'text-green-700' } : { text: `−${amount}`, tone: '' };
+    // ---- page 2: every operation, as a card: what happened (a sentence), how it was paid, where the account stands after it
+    const o = p.operation;
+    const operationAmount = (entry: ReportEntry): { value: string; unit: string } | null => {
+        if (entry.dzdCents !== null)
+            return { value: dzdShort(entry.dzdCents), unit: 'DZD' };
+        return entry.eurAmount ? { value: formatEur(entry.eurAmount), unit: '€' } : null;
     };
-    const operationDetail = (entry: ReportEntry): string => {
-        const detail: string[] = [];
-        if ((entry.kind === 'buy' || entry.kind === 'saleToUs') && entry.quantity && entry.currency) {
-            const symbol = currencyUnit(entry.currency);
-            if (entry.dzdCents !== null && !(entry.eurAmount && !entry.affectsBalance))
-                detail.push(isolate(`${formatQuantity(entry.quantity)} ${symbol} × ${formatPrice(entry.dzdCents / 100 / entry.quantity)}`));
-            else if (entry.eurAmount)
-                detail.push(isolate(`${formatQuantity(entry.quantity)} ${symbol} × ${formatEurPrice(entry.eurAmount / entry.quantity)} €`));
-            else
-                detail.push(isolate(`${formatQuantity(entry.quantity)} ${symbol}`));
-        }
-        if ((entry.kind === 'buy' || entry.kind === 'service') && entry.affectsBalance) {
-            if (showBalance)
-                detail.push(w.onAccount);
-        }
-        else if ((entry.kind === 'buy' || entry.kind === 'service' || entry.kind === 'saleToUs' || entry.kind === 'withdrawal') && entry.method && entry.method !== 'other')
-            detail.push(w.method[entry.method]);
-        return detail.join(DOT);
+    const operationPrice = (entry: ReportEntry): string | null => {
+        if ((entry.kind !== 'buy' && entry.kind !== 'saleToUs') || !entry.quantity || !entry.currency)
+            return null;
+        if (entry.dzdCents !== null && !(entry.eurAmount && !entry.affectsBalance))
+            return o.unitPrice(isolate(`${formatPrice(entry.dzdCents / 100 / entry.quantity)} DZD`));
+        return entry.eurAmount ? o.unitPrice(isolate(`${formatEurPrice(entry.eurAmount / entry.quantity)} €`)) : null;
     };
-    const balanceCell = (cents: number) => (Math.abs(cents) < 1 ? { text: '0', tone: 'text-neutral-600' } : cents < 0 ? { text: `−${dzdShort(cents)}`, tone: 'text-amber-700' } : { text: `+${dzdShort(cents)}`, tone: 'text-green-700' });
+    const accountState = (cents: number): AccountState => (Math.abs(cents) < 1 ? 'settled' : cents < 0 ? 'owes' : 'credit');
+    const AFTER_LOOK: Record<AccountState, string> = { owes: 'bg-amber-50 text-amber-700', credit: 'bg-blue-50 text-primary', settled: 'bg-green-50 text-green-700' };
     // A client who always pays on the spot has a balance of 0 on every row: nothing to say after each one.
     const showBalanceAfter = showBalance && report.operations.some((row) => Math.abs(row.balanceAfterCents) >= 1);
     const dateColumn = spansYears ? 'grid-cols-[96px_minmax(0,1fr)_auto]' : 'grid-cols-[58px_minmax(0,1fr)_auto]';
-    const operationCard = (row: ComparisonRowLike, index: number) => {
+    const operationCard = (row: OperationRow, index: number) => {
         const { entry } = row;
         const quiet = entry.dzdCents !== null && small(entry.dzdCents);
-        const amount = operationAmount(entry, quiet);
-        const detail = operationDetail(entry);
-        const note = quiet ? (entry.kind === 'writeOff' ? p.smallNote.writeOff : entry.kind === 'adjustment' ? p.smallNote.adjustment : '') : '';
-        const after = balanceCell(row.balanceAfterCents);
+        const amount = operationAmount(entry);
+        const title = o.title(entry, entry.quantity && entry.currency ? o.quantity(entry.currency, formatQuantity(entry.quantity)) : null, quiet);
+        const detail = [operationPrice(entry), o.how(entry, showBalance)].filter((line): line is string => Boolean(line));
+        if (quiet && entry.kind === 'adjustment')
+            detail.push(p.smallNote.adjustment);
+        // A purchase paid on the spot never touched the account: nothing to say about it after.
+        const after = showBalanceAfter && entry.affectsBalance ? accountState(row.balanceAfterCents) : null;
         return (<div key={entry.id} data-pdf-row="" data-pdf-break={index > 0 ? '' : undefined} className={`grid ${dateColumn} items-start gap-x-2.5 border-b border-border py-2.5 ${quiet ? 'text-neutral-500' : ''}`}>
           <span className="mt-0.5 justify-self-start rounded-lg bg-surface-muted px-2 py-0.5 font-latin text-[13px] font-semibold leading-snug text-neutral-900">{num(spansYears ? formatDate(entry.timestamp) : formatDayMonth(entry.timestamp))}</span>
           <div className="min-w-0">
-            <b className={`block leading-snug ${quiet ? 'text-[14px] font-semibold' : 'text-[15px] text-neutral-900'}`}>{w.operation(entry)}</b>
-            {detail && <small className="block text-[13px] leading-snug text-neutral-500">{detail}</small>}
-            {note && <small className="block text-[13px] leading-snug text-neutral-500">{note}</small>}
-            {showBalanceAfter && <small className="block text-[13px] leading-snug text-neutral-500">{p.balanceAfter} <span className={`font-semibold ${after.tone}`}>{num(after.text)}</span></small>}
+            <b className={`block leading-snug ${quiet ? 'text-[14px] font-semibold' : 'text-[15px] text-neutral-900'}`}>{title}</b>
+            {detail.map((line) => (<small key={line} className="block text-[13px] leading-snug text-neutral-500">{line}</small>))}
+            {after && <b className={`mt-1 inline-block rounded-lg px-2 py-0.5 text-[13px] font-semibold leading-snug ${AFTER_LOOK[after]}`}>{o.after(after, isolate(`${dzdShort(row.balanceAfterCents)} DZD`))}</b>}
           </div>
-          <span className={`font-latin leading-snug ${quiet ? 'text-[14px] font-medium' : 'text-[15px] font-bold'} ${amount.tone}`}>{num(amount.text)}</span>
+          <span className="text-end font-latin leading-snug">
+            {amount && (<>
+                <b className={quiet ? 'text-[14px] font-medium' : 'text-[15px] font-bold'}>{num(amount.value)}</b>
+                <small className="block text-[12.5px] font-medium text-neutral-500">{amount.unit}</small>
+              </>)}
+          </span>
         </div>);
     };
 
@@ -348,7 +326,8 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
           </section>)}
 
         <section className="flex flex-col">
-          <p data-pdf-break="" className="pb-1 text-[15.5px] font-extrabold leading-snug">{p.operationsTitle}</p>
+          <p data-pdf-break="" className="text-[15.5px] font-extrabold leading-snug">{p.operationsTitle}</p>
+          {showBalanceAfter && <p data-pdf-break="" className="pb-1 text-[13px] leading-snug text-neutral-500">{o.hint}</p>}
           {report.operations.length === 0
             ? (<p className="text-[13.5px] text-neutral-500">{w.leadNone}</p>)
             : (<div>{report.operations.map(operationCard)}</div>)}
@@ -363,5 +342,3 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
       </div>
     </ReportSheet>);
 }
-
-type ComparisonRowLike = ClientActivityReport['operations'][number];
