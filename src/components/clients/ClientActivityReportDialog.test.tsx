@@ -8,7 +8,7 @@ import { ClientActivityReportDialog } from './ClientActivityReportDialog';
 
 // The report window works like the investor report window: this month, this year, the whole
 // history, or two dates. It opens on the report the owner usually sends (the last finished month
-// with an operation), in the app's language, balance shown, shows the page the client will
+// with an operation), in Arabic (the client's remembered language otherwise), balance shown, shows the page the client will
 // receive, and writes nothing.
 
 const storage = new Map<string, string>();
@@ -21,6 +21,8 @@ const storage = new Map<string, string>();
     matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }),
 };
 
+// The remembered client language is read from the global localStorage, like the app does.
+Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: (globalThis as unknown as { window: { localStorage: unknown } }).window.localStorage });
 const at = (month: number, day: number, hour = 12) => new Date(2026, month, day, hour).getTime();
 const NOW = at(9, 3, 18);
 const sale = (id: string, timestamp: number, quantity: number, sell: number): Tx => ({ id, type: 'sell', currency: 'USDT', quantity, sell, total: quantity * sell, price: 243.17, profit: 6891.55, date: '', time: '', timestamp } as Tx);
@@ -44,15 +46,18 @@ for (const lang of ['ar', 'fr'] as const) {
     assert.doesNotMatch(html, /<select/, `${lang}: no list of weeks, months, years any more`);
     const sheets = [...html.matchAll(/<article dir="(rtl|ltr)" lang="(ar|fr)"/g)];
     assert.equal(sheets.length, 2, `${lang}: the preview and the A4 sheet the PDF is made from`);
-    assert.ok(sheets.every((sheet) => sheet[2] === lang), `${lang}: the report is in the app's language by default`);
-    assert.match(html, lang === 'ar' ? /تقرير النشاط الشهري/ : /Rapport d’activité mensuel/, `${lang}: a whole month is a monthly report`);
+    assert.ok(sheets.every((sheet) => sheet[2] === 'ar'), `${lang}: the report is in Arabic by default, whatever the app's language (V8-1b)`);
+    assert.match(html, /تقرير النشاط الشهري/, `${lang}: a whole month is a monthly report`);
     assert.match(html, /<input type="checkbox" id="client-report-balance"[^>]*checked=""/, `${lang}: the balance is shown by default`);
     assert.match(html, lang === 'ar' ? /إرسال PDF/ : /Envoyer le PDF/);
     assert.doesNotMatch(html, /243[.,]17|6[\s\u00A0\u202F]?891|NOTE-SECRET/, `${lang}: nothing of ours in the window either`);
 }
 
 // Opened from Analyse on a month, or on any two dates.
+// This client reads French (remembered), the app is in French too.
+storage.set('client_report_lang_c1', 'fr');
 const fromAnalytics = render('fr', rows, { start: '2026-08-15', end: '2026-10-02' });
+storage.delete('client_report_lang_c1');
 assert.deepEqual(dates(fromAnalytics), ['start=15/08/2026', 'end=02/10/2026']);
 assert.match(fromAnalytics, /Rapport d’activité</, 'Any two dates: a report of that span');
 assert.match(fromAnalytics, /Période · 49 jours/);
@@ -64,6 +69,13 @@ assert.doesNotMatch(inverted, /<article/);
 assert.match(inverted, /<button[^>]*disabled=""[^>]*>[\s\S]*?إرسال PDF/, 'Send is disabled');
 const missing = render('fr', rows, { start: '', end: '2026-09-30' });
 assert.match(missing, /role="alert"[^>]*>Veuillez sélectionner les deux dates/);
+
+// V8-1b: a remembered language wins over the default, whatever the app's language.
+storage.set('client_report_lang_c1', 'fr');
+const remembered = render('ar', rows);
+storage.delete('client_report_lang_c1');
+assert.ok([...remembered.matchAll(/<article dir="(rtl|ltr)" lang="(ar|fr)"/g)].every((sheet) => sheet[2] === 'fr'), 'a client who reads French gets French, even from an Arabic app');
+assert.match(remembered, /<button type="button" aria-pressed="true"[^>]*>(?:<span[^>]*>)?Français/, 'and the picker shows Français chosen');
 
 const empty = render('ar', []);
 assert.match(empty, /لا توجد أي عملية لهذا العميل/, 'A client without operations: a message, no report');

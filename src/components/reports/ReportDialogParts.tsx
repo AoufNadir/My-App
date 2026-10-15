@@ -17,10 +17,11 @@ import { renderReportPdf, shareOrDownloadPdf, type PdfPageFooter, type ShareOutc
 
 /**
  * The language of the report, remembered per person (`storageKey`): some read French, others
- * Arabic, whatever the app's language. The app's language until a choice is made.
+ * Arabic, whatever the app's language. `fallbackLang` (the app's language for the owner's own
+ * reports, Arabic for a client's) until a choice is made.
  */
-export function useReportLanguage(storageKey: string, appLang: string): [ReportSheetLang, (lang: ReportSheetLang) => void] {
-    const [lang, setLang] = useState<ReportSheetLang>(() => savedReportLanguage(storageKey) ?? (appLang === 'ar' ? 'ar' : 'fr'));
+export function useReportLanguage(storageKey: string, fallbackLang: string): [ReportSheetLang, (lang: ReportSheetLang) => void] {
+    const [lang, setLang] = useState<ReportSheetLang>(() => savedReportLanguage(storageKey) ?? (fallbackLang === 'ar' ? 'ar' : 'fr'));
     const choose = (next: ReportSheetLang) => {
         setLang(next);
         saveReportLanguage(storageKey, next);
@@ -177,12 +178,13 @@ export function ReportRangePicker({ idPrefix, start, end, onChange, onThisMonth,
       </>);
 }
 
-/** Arabic or French, whatever the app's language. */
-export function ReportLanguagePicker({ value, onChange }: { value: ReportSheetLang; onChange: (lang: ReportSheetLang) => void }) {
+/** Arabic or French, whatever the app's language. `label` replaces « Langue du rapport » (the WhatsApp window says « du message »). */
+export function ReportLanguagePicker({ value, onChange, label }: { value: ReportSheetLang; onChange: (lang: ReportSheetLang) => void; label?: string }) {
     const { t } = useLanguage();
+    const text = label ?? t('clients.activityReportLanguage') as string;
     return (<div className="flex flex-col gap-1.5">
-        <p className="text-sm font-semibold leading-snug text-neutral-700">{t('clients.activityReportLanguage')}</p>
-        <SegmentedControl<ReportSheetLang> size="md" ariaLabel={t('clients.activityReportLanguage') as string} value={value} onChange={onChange} options={[
+        <p className="text-sm font-semibold leading-snug text-neutral-700">{text}</p>
+        <SegmentedControl<ReportSheetLang> size="md" ariaLabel={text} value={value} onChange={onChange} options={[
             { id: 'ar', label: <span lang="ar" className="font-arabic">العربية</span> },
             { id: 'fr', label: <span lang="fr" className="font-latin">Français</span> },
         ]}/>

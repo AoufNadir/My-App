@@ -1,5 +1,5 @@
 import { formatDate, formatDzdCents } from '../components/reports/reportFormat';
-import { clientReportLanguageKey, savedReportLanguage } from '../components/reports/reportLanguage';
+import { clientReportLanguage } from '../components/reports/reportLanguage';
 import type { ReportSheetLang } from '../components/reports/ReportSheet';
 import { formatWaNumber, openWhatsAppChooser, openWhatsAppMessenger } from './whatsapp';
 
@@ -7,7 +7,7 @@ import { formatWaNumber, openWhatsAppChooser, openWhatsAppMessenger } from './wh
  * The WhatsApp message to a client: a warm greeting first, then the state of their account in a
  * gentle tone (a friendly reminder when they owe, a plain note when the balance is theirs or
  * settled). It says only the client's own balance. It is written in the language remembered for
- * that client (the one of their reports), the app's language until one was chosen.
+ * that client (the one of their reports), Arabic until one was chosen, whatever the app's language.
  */
 
 type BalanceKind = 'owes' | 'credit' | 'zero';
@@ -84,14 +84,11 @@ export type ClientWhatsAppTarget = {
     clientId: string;
     name: string;
     balance: number;
-    /** The app's language: the message's language until the client has a remembered one */
-    appLang: string;
 };
 
 /** The message for this client, in the language they read. */
 export function clientWhatsAppMessageFor(target: ClientWhatsAppTarget, now?: Date): string {
-    const lang = savedReportLanguage(clientReportLanguageKey(target.clientId)) ?? (target.appLang === 'ar' ? 'ar' : 'fr');
-    return clientWhatsAppMessage({ name: target.name, balance: target.balance, lang, now });
+    return clientWhatsAppMessage({ name: target.name, balance: target.balance, lang: clientReportLanguage(target.clientId), now });
 }
 
 /**

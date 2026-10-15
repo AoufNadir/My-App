@@ -73,7 +73,7 @@ const TIER_ORDER: TierKey[] = ['vip', 'regular', 'petit', 'new', 'inactive', 'fo
 type QuickFilter = ClientSortMode | 'overdue';
 const formatCount = (value: number) => formatNumber(value, { min: 0, max: 0 });
 export function ClientsListView({ openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, searchedClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, setSelectedClientId, overdueDebtClients, clientLoyaltyMap, clientPrevMonthVolume, clientLastSellDate, handleZeroOutBalance, onImportClients }: ClientsListViewProps) {
-    const { t, lang } = useLanguage();
+    const { t } = useLanguage();
     const headerActionsSlot = useHeaderActionsSlot();
     const INITIAL_VISIBLE_CLIENTS = 50;
     const LOAD_MORE_CLIENTS = 50;
@@ -293,7 +293,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                           {/* A greeting and the state of the account, ready in the client's chat. */}
                           <button type="button" onClick={e => {
                                 e.stopPropagation();
-                                openClientWhatsApp({ clientId: client.id, name: fullName, balance, appLang: lang, phone: client.phone });
+                                openClientWhatsApp({ clientId: client.id, name: fullName, balance, phone: client.phone });
                             }} aria-label={`${t('clients.writeOnWhatsApp')} · ${fullName}`} title={t('clients.writeOnWhatsApp') as string} className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#25D366]/10 text-[#25D366] transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-[#25D366]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
                             <WhatsAppIcon className="h-4 w-4"/>
                           </button>

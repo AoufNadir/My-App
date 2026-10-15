@@ -24,7 +24,7 @@ import { getClientOperationLabel, getClientTransferDetails, getManualClientNote,
 import { getNameInitials } from '../../utils/nameUtils';
 import { readClientWallets } from '../../utils/clientWallets';
 import { openWhatsAppMessenger } from '../../utils/whatsapp';
-import { clientWhatsAppMessageFor } from '../../utils/clientWhatsApp';
+import { ClientWhatsAppDialog } from './ClientWhatsAppDialog';
 import { ClientConfirmationEntry, type ClientTransferRequest } from './ClientConfirmation';
 // Loaded on the first tap on « Rapport d’activité » or « PDF »: the clients page stays as light as before.
 const ClientActivityReportDialog = lazy(() => import('./ClientActivityReportDialog').then((module) => ({ default: module.ClientActivityReportDialog })));
@@ -121,11 +121,12 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone, isAddress }: C
     </div>);
 }
 export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, reportClientRows, clientsDzd, setSelectedClientId, getClientFullName, openClientSummary, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal, userDocRef, clientBalances, onRecordClientTransfer, setAlert}: ClientDetailsViewProps) {
-    const { t, lang } = useLanguage();
+    const { t } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 60;
     const LOAD_MORE_TRANSACTIONS = 60;
     const [visibleTransactionCount, setVisibleTransactionCount] = useState(INITIAL_VISIBLE_TRANSACTIONS);
     const [isActivityReportOpen, setIsActivityReportOpen] = useState(false);
+    const [isReminderOpen, setIsReminderOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'history' | 'dossier'>('history');
     const dates = Object.keys(groupedHistory);
     const linkedTransactionsById = useMemo(() => new Map(transactions.map((tx) => [tx.id, tx])), [transactions]);
@@ -295,16 +296,6 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
     const hasDebt = selectedClientBalance < -0.01;
     const hasPhone = Boolean(selectedClient.phone);
 
-    const handleSendReminder = () => {
-        const msg = clientWhatsAppMessageFor({ clientId: selectedClient.id, name: getClientFullName(selectedClient), balance: selectedClientBalance, appLang: lang });
-        if (selectedClient.phone) {
-            openWhatsAppMessenger(selectedClient.phone, msg);
-        } else if (typeof navigator.share === 'function') {
-            navigator.share({ text: msg }).catch(() => {});
-        } else {
-            navigator.clipboard.writeText(msg);
-        }
-    };
     const clientName = getClientFullName(selectedClient);
     const statusPillClass = selectedClientBalance > 0.01
         ? 'bg-financial-profit-bg text-financial-profit'
@@ -315,7 +306,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
         { id: 'collect', label: t('clients.actionCollect') as string, icon: <ArrowDownLeftIcon className="h-5 w-5"/>, tone: 'bg-financial-profit-bg text-financial-profit', onClick: () => openClientTxModal(null, 'Règlement Reçu', selectedClientId) },
         { id: 'pay', label: t('clients.actionPay') as string, icon: <ArrowUpRightIcon className="h-5 w-5"/>, tone: 'bg-financial-loss-bg text-financial-loss', onClick: () => openClientTxModal(null, 'Paiement Effectué', selectedClientId) },
         { id: 'transfer', label: t('clients.actionTransfer') as string, icon: <UsersIcon className="h-5 w-5"/>, tone: 'bg-primary/10 text-primary dark:text-primary-light', onClick: () => openClientToClientTransferModal(selectedClient), testId: 'client-transfer-button' },
-        ...(hasDebt ? [{ id: 'remind', label: (hasPhone ? t('clients.actionWhatsAppReminder') : t('clients.actionCopyReminder')) as string, icon: <WhatsAppIcon />, tone: 'bg-[#25D366]/10 text-[#25D366]', onClick: handleSendReminder }] : []),
+        ...(hasDebt ? [{ id: 'remind', label: (hasPhone ? t('clients.actionWhatsAppReminder') : t('clients.actionCopyReminder')) as string, icon: <WhatsAppIcon />, tone: 'bg-[#25D366]/10 text-[#25D366]', onClick: () => setIsReminderOpen(true) }] : []),
     ];
     const creditLimitAlert = (() => {
         const limit = selectedClient.creditLimit;
@@ -440,6 +431,8 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             <CurrencyAmount value={selectedClient.creditLimit} currency="DZD" semantic="plain" size="md" decimals={0}/>
           </div>)}
       </div>
+
+      {isReminderOpen && (<ClientWhatsAppDialog onClose={() => setIsReminderOpen(false)} clientId={selectedClient.id} clientName={clientName} balance={selectedClientBalance} phone={selectedClient.phone}/>)}
 
       {isActivityReportOpen && (<Suspense fallback={null}>
           <ClientActivityReportDialog onClose={() => setIsActivityReportOpen(false)} clientId={selectedClientId} clientName={clientName} clientRows={reportClientRows ?? clientTransactionsDzd} transactions={transactions}/>
