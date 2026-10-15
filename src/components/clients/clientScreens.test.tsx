@@ -183,4 +183,15 @@ for (const lang of ['fr', 'ar'] as const) {
     }
 }
 
+// ---- V8-1: a WhatsApp button on every client row; the Solder button stays where it was ----
+for (const lang of ['fr', 'ar'] as const) {
+    const html = renderList(lang);
+    const label = lang === 'fr' ? 'Écrire sur WhatsApp' : 'مراسلة على واتساب';
+    const buttons = [...html.matchAll(/<button[^>]*aria-label="([^"]*)"[^>]*>/g)].map((match) => match[1]).filter((name) => name.startsWith(label));
+    assert.deepEqual(buttons, clients.map((client) => `${label} · ${client.fullName}`), `${lang}: one WhatsApp button per client, named after the client, in list order`);
+    const solder = lang === 'fr' ? 'Solder' : 'تصفية';
+    const solderCount = html.split(`>${solder}<`).length - 1;
+    assert.equal(solderCount, 5, `${lang}: Solder is still on the five clients with a balance (not on the settled one)`);
+}
+
 console.log('clientScreens.test: the Clients list and the client page show the same numbers as before, in French and Arabic');

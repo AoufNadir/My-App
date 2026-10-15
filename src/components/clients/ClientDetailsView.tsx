@@ -15,7 +15,8 @@ import { FileSpreadsheetIcon } from '../icons/FileSpreadsheetIcon';
 import { ArrowDownLeftIcon } from '../icons/ArrowDownLeftIcon';
 import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { UsersIcon } from '../icons/UsersIcon';
-import { formatDzd, formatLongDate, formatNumber, getRelativeFrDateLabel } from '../../pages/shared/pageFormat';
+import { WhatsAppIcon } from '../icons/WhatsAppIcon';
+import { formatDzd, formatNumber, getRelativeFrDateLabel } from '../../pages/shared/pageFormat';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { TransactionDisplayList } from '../transactions/TransactionDisplayList';
 import type { DisplayTx } from '../transactions/transactionsTypes';
@@ -23,6 +24,7 @@ import { getClientOperationLabel, getClientTransferDetails, getManualClientNote,
 import { getNameInitials } from '../../utils/nameUtils';
 import { readClientWallets } from '../../utils/clientWallets';
 import { openWhatsAppMessenger } from '../../utils/whatsapp';
+import { clientWhatsAppMessageFor } from '../../utils/clientWhatsApp';
 import { ClientConfirmationEntry, type ClientTransferRequest } from './ClientConfirmation';
 // Loaded on the first tap on « Rapport d’activité » or « PDF »: the clients page stays as light as before.
 const ClientActivityReportDialog = lazy(() => import('./ClientActivityReportDialog').then((module) => ({ default: module.ClientActivityReportDialog })));
@@ -98,13 +100,6 @@ function withoutGeneratedRelation(note: string, relationDetail: string, relation
         .filter((part) => part && !generatedParts.has(part))
         .join(' - ');
 }
-/** WhatsApp's own glyph, in its green. */
-function WhatsAppGlyph({ className = 'h-5 w-5' }: { className?: string }) {
-    return (<svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-      <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.122 1.532 5.852L.054 23.5l5.782-1.519A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.9a9.877 9.877 0 01-5.031-1.375l-.361-.214-3.737.981 1.001-3.648-.235-.374A9.855 9.855 0 012.1 12c0-5.467 4.433-9.9 9.9-9.9 5.467 0 9.9 4.433 9.9 9.9s-4.433 9.9-9.9 9.9z"/>
-    </svg>);
-}
 function ContactRow({ label, value, copiedValue, onCopy, isPhone, isAddress }: ContactRowProps) {
     const { t } = useLanguage();
     if (!value)
@@ -117,7 +112,7 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone, isAddress }: C
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {isPhone && (<button type="button" onClick={() => openWhatsAppMessenger(value)} className="flex h-touch w-touch items-center justify-center rounded-button bg-[#25D366]/10 text-[#25D366] transition-colors hover:bg-[#25D366]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label="WhatsApp" title="WhatsApp">
-            <WhatsAppGlyph />
+            <WhatsAppIcon />
           </button>)}
         <button type="button" onClick={() => onCopy(value)} className={`flex h-touch w-touch items-center justify-center rounded-button transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${isCopied ? 'bg-financial-profit-bg text-financial-profit' : 'bg-surface-muted text-neutral-600 hover:text-neutral-900'}`} aria-label={`${t('common.copy')} ${label}`}>
           {isCopied ? <CheckIcon aria-hidden="true" className="h-4 w-4"/> : <CopyIcon aria-hidden="true" className="h-4 w-4"/>}
@@ -301,11 +296,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
     const hasPhone = Boolean(selectedClient.phone);
 
     const handleSendReminder = () => {
-        const name = getClientFullName(selectedClient);
-        const amount = Math.abs(selectedClientBalance);
-        const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
-        const today = formatLongDate(new Date(), lang, t);
-        const msg = `📋 ${t('clients.reminderTitle')}\n\n${t('clients.clientWord')} : ${name}\n${t('clients.amountDue')} : ${fmt(amount)} DZD\n${t('common.dateWord')} : ${today}\n\n${t('clients.reminderFooter')}`;
+        const msg = clientWhatsAppMessageFor({ clientId: selectedClient.id, name: getClientFullName(selectedClient), balance: selectedClientBalance, appLang: lang });
         if (selectedClient.phone) {
             openWhatsAppMessenger(selectedClient.phone, msg);
         } else if (typeof navigator.share === 'function') {
@@ -324,7 +315,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
         { id: 'collect', label: t('clients.actionCollect') as string, icon: <ArrowDownLeftIcon className="h-5 w-5"/>, tone: 'bg-financial-profit-bg text-financial-profit', onClick: () => openClientTxModal(null, 'Règlement Reçu', selectedClientId) },
         { id: 'pay', label: t('clients.actionPay') as string, icon: <ArrowUpRightIcon className="h-5 w-5"/>, tone: 'bg-financial-loss-bg text-financial-loss', onClick: () => openClientTxModal(null, 'Paiement Effectué', selectedClientId) },
         { id: 'transfer', label: t('clients.actionTransfer') as string, icon: <UsersIcon className="h-5 w-5"/>, tone: 'bg-primary/10 text-primary dark:text-primary-light', onClick: () => openClientToClientTransferModal(selectedClient), testId: 'client-transfer-button' },
-        ...(hasDebt ? [{ id: 'remind', label: (hasPhone ? t('clients.actionWhatsAppReminder') : t('clients.actionCopyReminder')) as string, icon: <WhatsAppGlyph />, tone: 'bg-[#25D366]/10 text-[#25D366]', onClick: handleSendReminder }] : []),
+        ...(hasDebt ? [{ id: 'remind', label: (hasPhone ? t('clients.actionWhatsAppReminder') : t('clients.actionCopyReminder')) as string, icon: <WhatsAppIcon />, tone: 'bg-[#25D366]/10 text-[#25D366]', onClick: handleSendReminder }] : []),
     ];
     const creditLimitAlert = (() => {
         const limit = selectedClient.creditLimit;

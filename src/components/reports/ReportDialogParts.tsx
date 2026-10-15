@@ -8,39 +8,22 @@ import { Label } from '../ui/Label';
 import { OperationFooter } from '../ui/OperationFooter';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { createPdfPreparer, sheetFingerprint } from './pdfPreparer';
+import { saveReportLanguage, savedReportLanguage } from './reportLanguage';
 import type { ReportSheetLang } from './ReportSheet';
 import { renderReportPdf, shareOrDownloadPdf, type PdfPageFooter, type ShareOutcome } from './reportPdf';
 
 // The parts every report window shares: the dates, the report's language, the preview, the
 // send button with what happened to the PDF, and the hidden A4 sheet the PDF is made from.
 
-function savedLanguage(storageKey: string): ReportSheetLang | null {
-    try {
-        const value = localStorage.getItem(storageKey);
-        return value === 'ar' || value === 'fr' ? value : null;
-    }
-    catch {
-        return null;
-    }
-}
-function saveLanguage(storageKey: string, lang: ReportSheetLang) {
-    try {
-        localStorage.setItem(storageKey, lang);
-    }
-    catch {
-        // Private browsing: the choice is simply not remembered.
-    }
-}
-
 /**
  * The language of the report, remembered per person (`storageKey`): some read French, others
  * Arabic, whatever the app's language. The app's language until a choice is made.
  */
 export function useReportLanguage(storageKey: string, appLang: string): [ReportSheetLang, (lang: ReportSheetLang) => void] {
-    const [lang, setLang] = useState<ReportSheetLang>(() => savedLanguage(storageKey) ?? (appLang === 'ar' ? 'ar' : 'fr'));
+    const [lang, setLang] = useState<ReportSheetLang>(() => savedReportLanguage(storageKey) ?? (appLang === 'ar' ? 'ar' : 'fr'));
     const choose = (next: ReportSheetLang) => {
         setLang(next);
-        saveLanguage(storageKey, next);
+        saveReportLanguage(storageKey, next);
     };
     return [lang, choose];
 }

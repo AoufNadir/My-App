@@ -23,21 +23,28 @@ export function buildWhatsAppWebUrl(phone: string, text?: string): string {
     return `https://wa.me/${phone}${encodedText}`;
 }
 function buildWhatsAppMessengerUrl(phone: string, text?: string): string {
-    const query = `phone=${phone}${text ? `&text=${encodeURIComponent(text)}` : ''}`;
+    const query = [phone && `phone=${phone}`, text && `text=${encodeURIComponent(text)}`].filter(Boolean).join('&');
     if (isAndroidDevice()) {
         return `intent://send?${query}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
     }
     return `whatsapp://send?${query}`;
 }
+/** `intlNumber` empty: WhatsApp asks which contact the text goes to. */
+function openWhatsApp(intlNumber: string, text?: string): void {
+    if (isAndroidDevice() || isAppleMobileDevice()) {
+        window.location.href = buildWhatsAppMessengerUrl(intlNumber, text);
+        return;
+    }
+
+    window.open(buildWhatsAppWebUrl(intlNumber, text), '_blank', 'noopener');
+}
 /** The client's chat in the WhatsApp app on a phone, WhatsApp Web elsewhere. */
 export function openWhatsAppMessenger(phone: string, text?: string): void {
     const intl = formatWaNumber(phone);
     if (!intl) return;
-
-    if (isAndroidDevice() || isAppleMobileDevice()) {
-        window.location.href = buildWhatsAppMessengerUrl(intl, text);
-        return;
-    }
-
-    window.open(buildWhatsAppWebUrl(intl, text), '_blank', 'noopener');
+    openWhatsApp(intl, text);
+}
+/** The text ready in WhatsApp, for a client who has no phone number saved: the sender picks the contact. */
+export function openWhatsAppChooser(text: string): void {
+    openWhatsApp('', text);
 }
