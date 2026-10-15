@@ -8,7 +8,7 @@ import { reportPageFooter } from '../reports/reportPageFooter';
 import { ClientActivityReportSheet } from './ClientActivityReportSheet';
 import { reportFileName } from './clientActivityReportPdf';
 import { REPORT_WORDS } from './clientActivityReportText';
-import { clientReportLanguageKey } from '../reports/reportLanguage';
+import { CLIENT_DEFAULT_LANGUAGE, clientReportLanguageKey } from '../reports/reportLanguage';
 
 export type ClientActivityReportDialogProps = {
     onClose: () => void;
@@ -28,7 +28,7 @@ export type ClientActivityReportDialogProps = {
  * history), preview, send as a PDF from the phone. Read-only: nothing is written anywhere.
  */
 export function ClientActivityReportDialog({ onClose, clientId, clientName, clientRows, transactions, initialRange, now: fixedNow }: ClientActivityReportDialogProps) {
-    const { t, lang: appLang } = useLanguage();
+    const { t } = useLanguage();
     // Fixed while the window is open, so « today » and the PDF agree.
     const [now] = useState(() => fixedNow ?? Date.now());
     const ownRows = useMemo(() => clientRows.filter((row) => row.clientId === clientId), [clientRows, clientId]);
@@ -44,8 +44,8 @@ export function ClientActivityReportDialog({ onClose, clientId, clientName, clie
     const to = parseDayKey(range.end, true);
     const dateError = from === null || to === null ? t('clients.reportPickBothDates') : from > to ? t('clients.reportStartAfterEnd') : null;
     const period = useMemo(() => (from !== null && to !== null && from <= to ? reportPeriodForDates(from, to, now) : null), [from, to, now]);
-    // Some clients read French, others Arabic: remembered per client.
-    const [reportLang, setReportLang] = useReportLanguage(clientReportLanguageKey(clientId), appLang);
+    // Arabic until a client's language is chosen (some read French): remembered per client.
+    const [reportLang, setReportLang] = useReportLanguage(clientReportLanguageKey(clientId), CLIENT_DEFAULT_LANGUAGE);
     const [showBalance, setShowBalance] = useState(true);
 
     const report = useMemo(() => (period ? buildClientActivityReport({ clientId, clientRows: ownRows, transactions, period, now }) : null), [clientId, ownRows, transactions, period, now]);

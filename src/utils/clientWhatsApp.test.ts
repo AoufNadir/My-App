@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 
+import { clientReportLanguage } from '../components/reports/reportLanguage';
 import { clientWhatsAppMessage, clientWhatsAppMessageFor, openClientWhatsApp } from './clientWhatsApp';
 import { openWhatsAppChooser, openWhatsAppMessenger } from './whatsapp';
 
@@ -108,23 +109,27 @@ for (const lang of ['ar', 'fr'] as const) {
     assert.equal(text.split('\n').filter((line) => /DZD/.test(line)).length, 1, 'one amount, the balance');
 }
 
-// ---- The message's language: the one remembered for the client, else the app's ----
+// ---- The message's language: the one remembered for the client, else Arabic (whatever the app's language) ----
 const store = new Map<string, string>();
 Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
     value: { getItem: (key: string) => (store.has(key) ? store.get(key)! : null), setItem: (key: string, value: string) => { store.set(key, value); } },
 });
 const target = { clientId: 'c1', name: 'Amine Kaci', balance: -85_000 };
-assert.match(clientWhatsAppMessageFor({ ...target, appLang: 'ar' }, morning), /^السلام عليكم/, 'no choice yet: the app language (Arabic)');
-assert.match(clientWhatsAppMessageFor({ ...target, appLang: 'fr' }, morning), /^Bonjour/, 'no choice yet: the app language (French)');
+assert.match(clientWhatsAppMessageFor(target, morning), /^السلام عليكم/, 'no choice yet: Arabic');
+assert.equal(clientReportLanguage('c1'), 'ar', 'the default language of a client is Arabic');
 store.set('client_report_lang_c1', 'fr');
-assert.match(clientWhatsAppMessageFor({ ...target, appLang: 'ar' }, morning), /^Bonjour/, 'the client reads French: French, whatever the app language');
+assert.match(clientWhatsAppMessageFor(target, morning), /^Bonjour/, 'the client reads French: French');
+assert.equal(clientReportLanguage('c1'), 'fr');
 store.set('client_report_lang_c1', 'ar');
-assert.match(clientWhatsAppMessageFor({ ...target, appLang: 'fr' }, morning), /^السلام عليكم/, 'the client reads Arabic: Arabic, whatever the app language');
-assert.match(clientWhatsAppMessageFor({ ...target, clientId: 'c2', appLang: 'fr' }, morning), /^Bonjour/, 'the choice is per client');
+assert.match(clientWhatsAppMessageFor(target, morning), /^السلام عليكم/, 'the client reads Arabic: Arabic');
+assert.match(clientWhatsAppMessageFor({ ...target, clientId: 'c2' }, morning), /^السلام عليكم/, 'the choice is per client: another client is still in Arabic');
+store.set('client_report_lang_c2', 'fr');
+assert.match(clientWhatsAppMessageFor({ ...target, clientId: 'c2' }, morning), /^Bonjour/, 'and c2 can read French on his own');
 store.set('client_report_lang_c1', 'xx');
-assert.match(clientWhatsAppMessageFor({ ...target, appLang: 'fr' }, morning), /^Bonjour/, 'an unknown saved value is ignored');
+assert.match(clientWhatsAppMessageFor(target, morning), /^السلام عليكم/, 'an unknown saved value is ignored: Arabic');
 store.delete('client_report_lang_c1');
+store.delete('client_report_lang_c2');
 
 // ---- The links that open ----
 function withDevice(userAgent: string, run: (opened: string[], navigated: () => string) => void) {
@@ -137,39 +142,39 @@ function withDevice(userAgent: string, run: (opened: string[], navigated: () => 
 const DESKTOP = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120';
 const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/120 Mobile';
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Safari/604.1';
-const text = clientWhatsAppMessageFor({ ...target, appLang: 'fr' }, morning);
+const text = clientWhatsAppMessageFor({ ...target }, morning);
 const encoded = encodeURIComponent(text);
 
 withDevice(DESKTOP, (opened) => {
-    openClientWhatsApp({ ...target, appLang: 'fr', phone: '0555 00 11 22' }, morning);
+    openClientWhatsApp({ ...target, phone: '0555 00 11 22' }, morning);
     assert.deepEqual(opened, [`https://wa.me/213555001122?text=${encoded}`], 'desktop: the client\'s chat on WhatsApp Web, number in international form');
 });
 withDevice(DESKTOP, (opened) => {
-    openClientWhatsApp({ ...target, appLang: 'fr', phone: '+213 661 22 33 44' }, morning);
+    openClientWhatsApp({ ...target, phone: '+213 661 22 33 44' }, morning);
     assert.deepEqual(opened, [`https://wa.me/213661223344?text=${encoded}`], 'an international number keeps its digits');
 });
 withDevice(ANDROID, (opened, navigated) => {
-    openClientWhatsApp({ ...target, appLang: 'fr', phone: '0555001122' }, morning);
+    openClientWhatsApp({ ...target, phone: '0555001122' }, morning);
     assert.equal(navigated(), `intent://send?phone=213555001122&text=${encoded}#Intent;scheme=whatsapp;package=com.whatsapp;end`);
     assert.deepEqual(opened, []);
 });
 withDevice(IPHONE, (_opened, navigated) => {
-    openClientWhatsApp({ ...target, appLang: 'fr', phone: '0555001122' }, morning);
+    openClientWhatsApp({ ...target, phone: '0555001122' }, morning);
     assert.equal(navigated(), `whatsapp://send?phone=213555001122&text=${encoded}`);
 });
 // No phone saved (or digits-free): WhatsApp asks which contact, the text is ready.
 for (const phone of [undefined, '', '   ', 'N/A']) {
     withDevice(DESKTOP, (opened) => {
-        openClientWhatsApp({ ...target, appLang: 'fr', phone }, morning);
+        openClientWhatsApp({ ...target, phone }, morning);
         assert.deepEqual(opened, [`https://wa.me/?text=${encoded}`], `no usable number (${String(phone)}): contact chooser on the web`);
     });
 }
 withDevice(ANDROID, (_opened, navigated) => {
-    openClientWhatsApp({ ...target, appLang: 'fr' }, morning);
+    openClientWhatsApp({ ...target }, morning);
     assert.equal(navigated(), `intent://send?text=${encoded}#Intent;scheme=whatsapp;package=com.whatsapp;end`);
 });
 withDevice(IPHONE, (_opened, navigated) => {
-    openClientWhatsApp({ ...target, appLang: 'fr' }, morning);
+    openClientWhatsApp({ ...target }, morning);
     assert.equal(navigated(), `whatsapp://send?text=${encoded}`);
 });
 // The older entry points keep working as before (the phone line of the client page, the summary).

@@ -22,3 +22,9 @@ export function saveReportLanguage(storageKey: string, lang: ReportSheetLang) {
 }
 /** One key per client, shared by the summary image, the activity report and the WhatsApp messages. */
 export const clientReportLanguageKey = (clientId: string) => `client_report_lang_${clientId}`;
+/**
+ * What is sent to a client is in Arabic until that client has a remembered language, whatever
+ * the language of the app: the owner may work in French while most clients read Arabic.
+ */
+export const CLIENT_DEFAULT_LANGUAGE: ReportSheetLang = 'ar';
+export const clientReportLanguage = (clientId: string): ReportSheetLang => savedReportLanguage(clientReportLanguageKey(clientId)) ?? CLIENT_DEFAULT_LANGUAGE;

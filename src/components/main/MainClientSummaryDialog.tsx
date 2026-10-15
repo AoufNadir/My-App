@@ -2,22 +2,20 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { ShareIcon } from '../icons/ShareIcon';
-import { useLanguage } from '../../contexts/LanguageContext';
 import { buildClientSummary } from '../../utils/clientSummary';
 import { openWhatsAppMessenger } from '../../utils/whatsapp';
 import { ClientSummarySheet, clientSummaryMessage, CLIENT_SUMMARY_WORDS } from '../clients/ClientSummarySheet';
 import { ReportLanguagePicker, ReportPreview, ReportPrintHolder, useReportLanguage } from '../reports/ReportDialogParts';
-import { clientReportLanguageKey } from '../reports/reportLanguage';
+import { CLIENT_DEFAULT_LANGUAGE, clientReportLanguageKey } from '../reports/reportLanguage';
 import { renderSheetImage, shareOrDownloadFile } from '../reports/reportPdf';
 type MainClientSummaryDialogProps = Record<string, any>;
 export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, clientBalances, clientTransactionsDzd, reportClientRows, clientsDzd, transactions, setAlert, getClientFullName }: MainClientSummaryDialogProps) {
-    const { lang } = useLanguage();
     // V4-4: the picture the client receives, in the client's own report language, on the shared
     // report sheet. It is made as soon as the window opens, so « Partager » opens the phone's share
     // sheet at once (a share started long after the tap is refused by the browser).
     const clientName = summaryClient ? getClientFullName(summaryClient) : '';
     const [now] = useState(() => Date.now());
-    const [reportLang, setReportLang] = useReportLanguage(clientReportLanguageKey(summaryClient?.id || ''), lang);
+    const [reportLang, setReportLang] = useReportLanguage(clientReportLanguageKey(summaryClient?.id || ''), CLIENT_DEFAULT_LANGUAGE);
     const summary = useMemo(() => (summaryClient ? buildClientSummary({ clientId: summaryClient.id, clientRows: reportClientRows ?? clientTransactionsDzd, transactions, now }) : null), [summaryClient, reportClientRows, clientTransactionsDzd, transactions, now]);
     const imageHolder = useRef<HTMLDivElement | null>(null);
     const [image, setImage] = useState<{ blob: Blob; key: string } | null>(null);

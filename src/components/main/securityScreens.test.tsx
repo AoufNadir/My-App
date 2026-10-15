@@ -36,6 +36,8 @@ const storage = new Map<string, string>();
     addEventListener: () => undefined,
     removeEventListener: () => undefined,
 };
+// The remembered client language is read from the global localStorage, like the app does.
+Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: (globalThis as unknown as { window: { localStorage: unknown } }).window.localStorage });
 type Lang = 'fr' | 'ar';
 type T = (key: string) => string;
 function render(node: React.ReactElement, lang: Lang) {
@@ -276,10 +278,13 @@ for (const lang of ['fr', 'ar'] as const) {
 
 // ---- Client summary: the window follows the app's language, the picture the client's own ----
 {
-    const fr = summaryScreen('c1')('fr');
+    // V8-1b: the picture is the shared report sheet, in the client's report language: Arabic until
+    // one is chosen for this client, whatever the app's language.
     const ar = summaryScreen('c1')('ar');
-    // V4-4: the picture is the shared report sheet, in the client's report language (the app's
-    // language until one is chosen for this client).
+    assert.ok(/<article dir="rtl" lang="ar"/.test(summaryScreen('c1')('fr')), 'a French app still makes an Arabic picture until a language is chosen for the client');
+    storage.set('client_report_lang_c1', 'fr');
+    const fr = summaryScreen('c1')('fr');
+    storage.delete('client_report_lang_c1');
     for (const text of ['Relevé de compte', 'Reste à payer', 'dernières opérations', 'Situation au'])
         assert.ok(textOf(fr).includes(text), `French picture: ${text}`);
     assert.ok(/<article dir="rtl" lang="ar"/.test(ar), 'the Arabic picture is written right to left');
