@@ -34,16 +34,16 @@ function transactionListRows(groupedTransactions: Record<string, DisplayTx[]>, g
             const qty = tx.quantity ?? 0;
             const price = tx.price ?? tx.sell ?? 0;
             const total = tx.total ?? (qty * price);
-            return { category: 'portfolio', date: dtx.date, time: dtx.time, type: dtx.typeLabel, currency: tx.currency, quantity: qty, price, totalDzd: Math.round(total), client: getClientName(tx.linkedClientId), notes: tx.notes ?? '', tags, side: tx.type === 'buy' ? 'buy' : tx.type === 'sell' ? 'sell' : undefined };
+            return { category: 'portfolio', date: dtx.date, time: dtx.time, type: dtx.typeLabel, currency: tx.currency, quantity: qty, price, totalDzd: Math.round(total), client: getClientName(tx.linkedClientId), notes: tx.notes ?? '', tags, side: tx.type === 'buy' ? 'buy' : tx.type === 'sell' ? 'sell' : undefined, timestamp: tx.timestamp };
         } else if (dtx.category === 'client') {
             const tx = raw as ClientTransactionDzd;
-            return { category: 'client', date: dtx.date, time: dtx.time, type: dtx.typeLabel, currency: 'DZD', quantity: null, price: null, totalDzd: Math.round(Math.abs(Number(tx.montant ?? 0))), client: getClientName(tx.clientId), notes: tx.notes ?? '', tags };
+            return { category: 'client', date: dtx.date, time: dtx.time, type: dtx.typeLabel, currency: 'DZD', quantity: null, price: null, totalDzd: Math.round(Math.abs(Number(tx.montant ?? 0))), client: getClientName(tx.clientId), notes: tx.notes ?? '', tags, timestamp: tx.timestamp };
         } else if (dtx.category === 'digital_service') {
             const tx = raw as DigitalServiceTransaction;
-            return { category: 'digital_service', date: dtx.date, time: dtx.time, type: dtx.typeLabel, currency: tx.saleCurrency, quantity: tx.saleAmount, price: null, totalDzd: Math.round(tx.saleAmountDzd), client: getClientName(tx.clientId), notes: tx.notes ?? '', tags };
+            return { category: 'digital_service', date: dtx.date, time: dtx.time, type: dtx.typeLabel, currency: tx.saleCurrency, quantity: tx.saleAmount, price: null, totalDzd: Math.round(tx.saleAmountDzd), client: getClientName(tx.clientId), notes: tx.notes ?? '', tags, timestamp: tx.timestamp };
         } else {
             const tx = raw as TreasuryTx;
-            return { category: 'treasury', date: dtx.date, time: dtx.time, type: dtx.typeLabel, currency: 'DZD', quantity: null, price: null, totalDzd: Math.round(Number(tx.amountDzd ?? tx.amount ?? 0)), client: '', notes: tx.notes ?? '', tags };
+            return { category: 'treasury', date: dtx.date, time: dtx.time, type: dtx.typeLabel, currency: 'DZD', quantity: null, price: null, totalDzd: Math.round(Number(tx.amountDzd ?? tx.amount ?? 0)), client: '', notes: tx.notes ?? '', tags, timestamp: tx.timestamp };
         }
     });
 }

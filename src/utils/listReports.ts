@@ -158,6 +158,8 @@ export type TransactionListInput = {
     tags: string[];
     /** A portfolio operation is a purchase or a sale */
     side?: 'buy' | 'sell';
+    /** When it happened (ms): lets the window keep only the dates asked for */
+    timestamp?: number;
 };
 
 export type TransactionListReport = {

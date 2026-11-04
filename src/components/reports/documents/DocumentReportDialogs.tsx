@@ -7,6 +7,7 @@ import { buildMonthlyReport, monthlyReportFileName, type MonthlyReportInput } fr
 import { buildTreasuryReport, treasuryReportFileName, type TreasuryMovementInput } from '../../../utils/treasuryReport';
 import { CLIENT_LIST_WORDS, EXPENSES_REPORT_WORDS, INVESTOR_LIST_WORDS, MONTHLY_REPORT_WORDS, TRANSACTION_LIST_WORDS, TREASURY_REPORT_WORDS, monthNames } from '../documentWords';
 import { ReportDocumentDialog } from '../ReportDocumentDialog';
+import { useReportPeriod } from '../ReportPeriodFilter';
 import { ClientListSheet } from './ClientListSheet';
 import { ExpensesReportSheet, expensesPeriodLabel } from './ExpensesReportSheet';
 import { InvestorListSheet } from './InvestorListSheet';
@@ -37,8 +38,12 @@ export function ExpensesReportDialog({ onClose, periodKey, expenses, managerProf
 export function TreasuryReportDialog({ onClose, rows, balances, now: fixedNow }: { onClose: () => void; rows: ReadonlyArray<TreasuryMovementInput>; balances: { caisse: number; baridi: number }; now?: number }) {
     const { t } = useLanguage();
     const [now] = useState(() => fixedNow ?? Date.now());
-    const report = useMemo(() => buildTreasuryReport({ rows, balances, issuedAt: now }), [rows, balances, now]);
-    return (<ReportDocumentDialog onClose={onClose} title={t('reports.treasuryReport') as string} languageKey="treasury_report_lang" fileName={treasuryReportFileName(now)} pdfTitle={(lang) => TREASURY_REPORT_WORDS[lang].title} issuedAt={now} reference={report.reference} renderSheet={(lang, variant) => <TreasuryReportSheet report={report} lang={lang} variant={variant}/>}/>);
+    // Opens on this month: a whole history is a heavy PDF. The balances stay today's.
+    const period = useReportPeriod(rows, now);
+    const report = useMemo(() => buildTreasuryReport({ rows: period.rows, balances, issuedAt: now }), [period.rows, balances, now]);
+    return (<ReportDocumentDialog onClose={onClose} title={t('reports.treasuryReport') as string} languageKey="treasury_report_lang" fileName={treasuryReportFileName(now)} pdfTitle={(lang) => TREASURY_REPORT_WORDS[lang].title} issuedAt={now} reference={report.reference} empty={period.invalid} renderSheet={(lang, variant) => <TreasuryReportSheet report={report} lang={lang} variant={variant}/>}>
+        {period.picker}
+      </ReportDocumentDialog>);
 }
 
 export function ClientListDialog({ onClose, rows, now: fixedNow }: { onClose: () => void; rows: ReadonlyArray<ClientListInput>; now?: number }) {
@@ -58,6 +63,10 @@ export function InvestorListDialog({ onClose, rows, now: fixedNow }: { onClose: 
 export function TransactionListDialog({ onClose, rows, now: fixedNow }: { onClose: () => void; rows: ReadonlyArray<TransactionListInput>; now?: number }) {
     const { t } = useLanguage();
     const [now] = useState(() => fixedNow ?? Date.now());
-    const report = useMemo(() => buildTransactionListReport({ rows, issuedAt: now }), [rows, now]);
-    return (<ReportDocumentDialog onClose={onClose} title={t('reports.transactionList') as string} languageKey="transaction_list_report_lang" fileName={transactionListFileName(now)} pdfTitle={(lang) => TRANSACTION_LIST_WORDS[lang].title} issuedAt={now} reference={report.reference} empty={rows.length === 0} renderSheet={(lang, variant) => <TransactionListSheet report={report} lang={lang} variant={variant}/>}/>);
+    // Opens on this month: thousands of operations make a heavy PDF.
+    const period = useReportPeriod(rows, now);
+    const report = useMemo(() => buildTransactionListReport({ rows: period.rows, issuedAt: now }), [period.rows, now]);
+    return (<ReportDocumentDialog onClose={onClose} title={t('reports.transactionList') as string} languageKey="transaction_list_report_lang" fileName={transactionListFileName(now)} pdfTitle={(lang) => TRANSACTION_LIST_WORDS[lang].title} issuedAt={now} reference={report.reference} empty={period.invalid || period.rows.length === 0} renderSheet={(lang, variant) => <TransactionListSheet report={report} lang={lang} variant={variant}/>}>
+        {period.picker}
+      </ReportDocumentDialog>);
 }

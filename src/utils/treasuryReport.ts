@@ -10,6 +10,8 @@ export type TreasuryMovementInput = {
     amount: number;
     notes: string;
     origin?: string;
+    /** When it happened (ms): lets the window keep only the dates asked for */
+    timestamp?: number;
 };
 
 export type TreasuryDirection = 'in' | 'out' | 'neutral';

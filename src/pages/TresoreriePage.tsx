@@ -44,6 +44,7 @@ export function treasuryPdfRows(treasuryTransactions: TreasuryTx[]) {
             amount: Number(tx.amount || 0),
             notes: tx.notes ?? '',
             origin: tx.origin,
+            timestamp: tx.timestamp,
         }));
 }
 
