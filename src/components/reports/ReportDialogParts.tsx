@@ -153,16 +153,48 @@ type ReportRangePickerProps = {
     onThisYear: () => void;
     onAllHistory: () => void;
     error?: string | null;
+    /** The time the window opened (so « this month » is known); the clock otherwise */
+    now?: number;
+    /** When « all history » means a first date rather than empty fields (the client report) */
+    allHistoryStart?: string;
 };
 
-/** This month, this year, the whole history, or two dates. */
-export function ReportRangePicker({ idPrefix, start, end, onChange, onThisMonth, onThisYear, onAllHistory, error }: ReportRangePickerProps) {
+type RangePreset = 'month' | 'year' | 'all' | 'custom';
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const dayText = (key: string) => { const [y, m, d] = key.split('-'); return `${d}/${m}/${y}`; };
+
+/** Which shortcut the two dates are on, if any: it is lit, so the buttons read as a choice, not as actions. */
+function presetOf(start: string, end: string, now: number, allHistoryStart?: string): RangePreset {
+    const d = new Date(now);
+    const today = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    if (!start && !end) return 'all';
+    if (allHistoryStart && start === allHistoryStart && end === `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`) return 'all';
+    if (end === today && start === `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-01`) return 'month';
+    if (end === today && start === `${d.getFullYear()}-01-01`) return 'year';
+    return 'custom';
+}
+
+/** Choose the period (month, year, everything) or type two dates; one line says which dates the report covers. */
+export function ReportRangePicker({ idPrefix, start, end, onChange, onThisMonth, onThisYear, onAllHistory, error, now, allHistoryStart }: ReportRangePickerProps) {
     const { t } = useLanguage();
+    const active = presetOf(start, end, now ?? Date.now(), allHistoryStart);
+    const label = t('clients.reportPeriodLabel') as string;
+    const fill = (key: string, values: Record<string, string>) => Object.entries(values).reduce((text, [name, value]) => text.split(`{${name}}`).join(value), t(key) as string);
+    // Isolated, so the dates read left to right inside an Arabic sentence.
+    const summary = active === 'all' ? (t('clients.reportPeriodAll') as string)
+        : start && end ? fill('clients.reportPeriodRange', { start: dayText(start), end: dayText(end) })
+        : end ? fill('clients.reportPeriodSince', { end: dayText(end) })
+        : start ? fill('clients.reportPeriodRange', { start: dayText(start), end: '…' }) : (t('clients.reportPeriodAll') as string);
     return (<>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <Button onClick={onThisMonth} variant="outline" className="font-bold">{t('clients.reportThisMonth')}</Button>
-          <Button onClick={onThisYear} variant="outline" className="font-bold">{t('clients.reportThisYear')}</Button>
-          <Button onClick={onAllHistory} variant="outline" className="col-span-2 font-bold sm:col-span-1">{t('clients.reportAllHistory')}</Button>
+        <div className="flex flex-col gap-1.5">
+          <p className="text-sm font-semibold leading-snug text-neutral-700">{label}</p>
+          <SegmentedControl<RangePreset> size="md" ariaLabel={label} value={active} onChange={(id) => { if (id === 'month') onThisMonth(); else if (id === 'year') onThisYear(); else if (id === 'all') onAllHistory(); }} options={[
+            { id: 'month', label: t('clients.reportThisMonth') },
+            { id: 'year', label: t('clients.reportThisYear') },
+            { id: 'all', label: t('clients.reportAllHistory') },
+          ]}/>
+          <p className="text-[13px] leading-snug text-neutral-500">{summary}{active === 'custom' && <span className="text-neutral-400"> · {t('clients.reportPeriodCustom')}</span>}</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

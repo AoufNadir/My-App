@@ -30,6 +30,8 @@ type InvestorDetailsContentProps = {
     onWithdrawCapital: () => void;
     onWithdrawProfit: () => void;
     onReinvestProfit: () => void;
+    /** Opens the investor report window (the old header PDF button lives in the Actions list now). */
+    onOpenReport?: () => void;
     onDeleteTransaction: (tx: InvestorTransaction) => void;
     personalExpenses?: TreasuryTx[];
 };
@@ -57,7 +59,7 @@ function diffDaysSince(entryDate: string): number {
     if (!Number.isFinite(start)) return 0;
     return Math.max(0, Math.floor((Date.now() - start) / (1000 * 60 * 60 * 24)));
 }
-export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfitBreakdown, orderedTransactions, activeTab, setActiveTab, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onDeleteTransaction, personalExpenses = [] }: InvestorDetailsContentProps) {
+export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfitBreakdown, orderedTransactions, activeTab, setActiveTab, onAddCapital, onWithdrawCapital, onWithdrawProfit, onReinvestProfit, onOpenReport, onDeleteTransaction, personalExpenses = [] }: InvestorDetailsContentProps) {
     const { t } = useLanguage();
     const currentTotalProfit = investor.totalProfit || 0;
     const currentAvailable = Number(investor.availableProfit || 0);
@@ -180,6 +182,7 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
         {showInvestorOnlyActions && (canReinvest
             ? <ListRow icon={<RefreshCwIcon className="h-5 w-5"/>} tone="dzd" title={t('investors.reinvestProfits')} subtitle={t('investors.reinvestHint')} onClick={onReinvestProfit}/>
             : <ListRow icon={<RefreshCwIcon className="h-5 w-5"/>} tone="neutral" title={t('investors.reinvestProfits')} subtitle={t('investors.noProfitAvailable')} trailing={<span aria-hidden="true" className="text-xs font-bold text-neutral-400">—</span>} disabled/>)}
+        {onOpenReport && <ListRow icon={<FileSpreadsheetIcon className="h-5 w-5"/>} tone="primary" title={t('investors.reportAction')} subtitle={t('investors.reportActionHint')} onClick={onOpenReport}/>}
       </SectionCard>
 
       <Tabs variant="pills" tabs={[

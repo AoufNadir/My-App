@@ -83,7 +83,7 @@ export function ClientActivityReportDialog({ onClose, clientId, clientName, clie
       <ModalContent className="flex flex-col gap-4 px-4 py-4 sm:px-5">
         {!hasOperations ? (<p className="rounded-card bg-surface-muted px-4 py-6 text-center text-sm text-neutral-600">{t('clients.activityReportNoOperation')}</p>) : (<>
             {/* Like the investor report window: this month, this year, the whole history, or two dates. */}
-            <ReportRangePicker idPrefix="client-report" start={range.start} end={range.end} onChange={choose} onThisMonth={thisMonth} onThisYear={thisYear} onAllHistory={allHistory} error={dateError}/>
+            <ReportRangePicker now={now} allHistoryStart={dayKey(firstOperationAt ?? now)} idPrefix="client-report" start={range.start} end={range.end} onChange={choose} onThisMonth={thisMonth} onThisYear={thisYear} onAllHistory={allHistory} error={dateError}/>
             <ReportLanguagePicker value={reportLang} onChange={(id) => { setReportLang(id); changed(); }}/>
             <label htmlFor="client-report-balance" className="flex min-h-touch cursor-pointer items-center gap-3 rounded-xl bg-surface-muted p-3 transition-colors hover:bg-neutral-100">
               <input type="checkbox" id="client-report-balance" checked={showBalance} onChange={(event) => { setShowBalance(event.target.checked); changed(); }} className="h-5 w-5 shrink-0 rounded accent-primary"/>

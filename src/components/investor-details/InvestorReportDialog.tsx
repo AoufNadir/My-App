@@ -76,7 +76,7 @@ export function InvestorReportDialog({ onClose, investorId, investorName, prepar
         <p className="truncate text-[13px] text-neutral-500">{investorName}</p>
       </ModalHeader>
       <ModalContent className="flex flex-col gap-4 px-4 py-4 sm:px-5">
-        <ReportRangePicker idPrefix="investor-report" start={range.start} end={range.end} onChange={choose} onThisMonth={() => choose(firstOfMonth, today)} onThisYear={() => choose(`${new Date(now).getFullYear()}-01-01`, today)} onAllHistory={() => choose('', '')} error={dateError}/>
+        <ReportRangePicker now={now} idPrefix="investor-report" start={range.start} end={range.end} onChange={choose} onThisMonth={() => choose(firstOfMonth, today)} onThisYear={() => choose(`${new Date(now).getFullYear()}-01-01`, today)} onAllHistory={() => choose('', '')} error={dateError}/>
         <ReportLanguagePicker value={reportLang} onChange={(id) => { setReportLang(id); changed(); }}/>
         {notFound && <p role="alert" className="text-sm font-semibold text-danger">{notFound}</p>}
         {report && (<ReportPreview label={t('investors.reportPreview') as string}>

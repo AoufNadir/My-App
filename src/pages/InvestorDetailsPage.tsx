@@ -1,7 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Button } from '../components/ui/Button';
 import { ChevronLeftIcon } from '../components/icons/ChevronLeftIcon';
-import { FileSpreadsheetIcon } from '../components/icons/FileSpreadsheetIcon';
 import { InvestorTransaction, TreasuryTx } from '../types';
 import { InvestorDetailsContent } from '../components/investor-details/InvestorDetailsContent';
 import { useInvestorReportDialog } from '../components/investor-details/useInvestorReportDialog';
@@ -42,15 +40,11 @@ export const InvestorDetailsPage: React.FC<InvestorDetailsPageProps> = ({ invest
           <ChevronLeftIcon aria-hidden="true" className="h-6 w-6 rtl:-scale-x-100"/>
         </button>
         <h2 className="min-w-0 flex-1 truncate text-lg font-bold text-neutral-900">{investor.name}</h2>
-        <Button onClick={report.open} variant="primary" size="sm" className="ms-1 shrink-0">
-          <FileSpreadsheetIcon className="h-4 w-4"/>
-          PDF
-        </Button>
       </div>
 
       {term && term.investorId === investor.id && (<InvestorTermAlert term={term} showName={false} onReinvest={onReinvestProfit} onWithdraw={onWithdrawProfit}/>)}
 
-      <InvestorDetailsContent investor={investor} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} orderedTransactions={orderedTransactions} activeTab={activeTab} setActiveTab={setActiveTab} onAddCapital={onAddCapital} onWithdrawCapital={onWithdrawCapital} onWithdrawProfit={onWithdrawProfit} onReinvestProfit={onReinvestProfit} onDeleteTransaction={onDeleteTransaction} personalExpenses={personalExpenses}/>
+      <InvestorDetailsContent investor={investor} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} orderedTransactions={orderedTransactions} activeTab={activeTab} setActiveTab={setActiveTab} onAddCapital={onAddCapital} onWithdrawCapital={onWithdrawCapital} onWithdrawProfit={onWithdrawProfit} onReinvestProfit={onReinvestProfit} onOpenReport={report.open} onDeleteTransaction={onDeleteTransaction} personalExpenses={personalExpenses}/>
 
       {report.dialog}
     </div>);
