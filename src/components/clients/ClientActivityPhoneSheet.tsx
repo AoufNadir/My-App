@@ -90,6 +90,7 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
               <span className="text-[27px] font-extrabold leading-tight">{num(`${formatEurPrice(card.eurAmount / card.eurQuantity)} €`)}</span>
               <small className="text-[13px] font-medium text-neutral-500">{lang === 'ar' ? 'لكل USDT' : 'par USDT'}</small>
             </p>)}
+          {paidInDzd && <p className="mt-1 text-[14px] font-semibold leading-snug text-neutral-700">{p.per100(card.currency, isolate(`${formatPrice(average * 100)} DZD`))}</p>}
           {card.priceRange && (<div className="mt-2 flex gap-2">
               {([['lowestPrice', card.priceRange.min], ['highestPrice', card.priceRange.max]] as const).map(([key, value]) => (<div key={key} className="min-w-0 flex-1 rounded-[10px] bg-surface-muted px-2.5 py-1.5 text-[13px] leading-snug text-neutral-600">
                   {p[key]}<b className="block font-latin text-[15px] text-neutral-900">{num(formatPrice(value))}</b>
@@ -244,52 +245,44 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
     const AFTER_LOOK: Record<AccountState, string> = { owes: 'bg-amber-50 text-amber-700', credit: 'bg-blue-50 text-primary', settled: 'bg-green-50 text-green-700' };
     // A client who always pays on the spot has a balance of 0 on every row: nothing to say after each one.
     const showBalanceAfter = showBalance && report.operations.some((row) => Math.abs(row.balanceAfterCents) >= 1);
-    const dateColumn = spansYears ? 'grid-cols-[96px_minmax(0,1fr)_auto]' : 'grid-cols-[58px_minmax(0,1fr)_auto]';
-    const operationCard = (row: OperationRow, index: number) => {
+    // V9-3: the operations are a table a trader can check against his books: date, quantity, price, amount.
+    const tableColumns = spansYears ? 'grid-cols-[88px_minmax(0,1fr)_74px_88px]' : 'grid-cols-[48px_minmax(0,1fr)_74px_88px]';
+    const unitPriceText = (entry: ReportEntry): string | null => {
+        if ((entry.kind !== 'buy' && entry.kind !== 'saleToUs') || !entry.quantity || !entry.currency)
+            return null;
+        if (entry.dzdCents !== null && !(entry.eurAmount && !entry.affectsBalance))
+            return formatPrice(entry.dzdCents / 100 / entry.quantity);
+        return entry.eurAmount ? `${formatEurPrice(entry.eurAmount / entry.quantity)} €` : null;
+    };
+    const operationRow = (row: OperationRow, index: number) => {
         const { entry } = row;
         const quiet = entry.dzdCents !== null && small(entry.dzdCents);
         const amount = operationAmount(entry);
-        const title = o.title(entry, entry.quantity && entry.currency ? o.quantity(entry.currency, formatQuantity(entry.quantity)) : null, quiet);
-        const detail = [operationPrice(entry), o.how(entry, showBalance)].filter((line): line is string => Boolean(line));
-        if (quiet && entry.kind === 'adjustment')
-            detail.push(p.smallNote.adjustment);
-        // A purchase paid on the spot never touched the account: nothing to say about it after.
+        const isTrade = (entry.kind === 'buy' || entry.kind === 'saleToUs') && entry.quantity && entry.currency;
+        const title = o.title(entry, null, quiet);
+        const how = o.how(entry, showBalance);
         const after = showBalanceAfter && entry.affectsBalance ? accountState(row.balanceAfterCents) : null;
-        return (<div key={entry.id} data-pdf-row="" data-pdf-break={index > 0 ? '' : undefined} className={`grid ${dateColumn} items-start gap-x-2.5 border-b border-border py-2.5 ${quiet ? 'text-neutral-500' : ''}`}>
-          <span className="mt-0.5 justify-self-start rounded-lg bg-surface-muted px-2 py-0.5 font-latin text-[13px] font-semibold leading-snug text-neutral-900">{num(spansYears ? formatDate(entry.timestamp) : formatDayMonth(entry.timestamp))}</span>
-          <div className="min-w-0">
-            <b className={`block leading-snug ${quiet ? 'text-[14px] font-semibold' : 'text-[15px] text-neutral-900'}`}>{title}</b>
-            {detail.map((line) => (<small key={line} className="block text-[13px] leading-snug text-neutral-500">{line}</small>))}
-            {after && <b className={`mt-1 inline-block rounded-lg px-2 py-0.5 text-[13px] font-semibold leading-snug ${AFTER_LOOK[after]}`}>{o.after(after, isolate(`${dzdShort(row.balanceAfterCents)} DZD`))}</b>}
+        const price = unitPriceText(entry);
+        return (<div key={entry.id} data-pdf-row="" data-pdf-break={index > 0 ? '' : undefined} className={`border-b border-border py-2 ${quiet ? 'text-neutral-500' : ''}`}>
+          <div className={`grid ${tableColumns} items-baseline gap-x-2`}>
+            <span className="font-latin text-[13px] font-semibold leading-snug text-neutral-900">{num(spansYears ? formatDate(entry.timestamp) : formatDayMonth(entry.timestamp))}</span>
+            {isTrade
+              ? (<>
+                  <b className="font-latin text-[14.5px] leading-snug">{num(`${formatQuantity(entry.quantity!)} ${currencyUnit(entry.currency!)}`)}<small className="block font-sans text-[12.5px] font-medium text-neutral-500">{entry.kind === 'saleToUs' ? w.balanceLine.saleToUs : ''}</small></b>
+                  <span className="font-latin text-[14px] leading-snug">{price ? num(price) : ''}</span>
+                </>)
+              : (<b className={`col-span-2 leading-snug ${quiet ? 'text-[13.5px] font-semibold' : 'text-[14.5px] text-neutral-900'}`}>{title}</b>)}
+            <span className="text-end font-latin leading-snug">
+              {amount && (<b className={quiet ? 'text-[13.5px] font-medium' : 'text-[14.5px] font-bold'}>{num(amount.value)}<small className="ms-1 text-[12.5px] font-medium text-neutral-500">{amount.unit}</small></b>)}
+            </span>
           </div>
-          <span className="text-end font-latin leading-snug">
-            {amount && (<>
-                <b className={quiet ? 'text-[14px] font-medium' : 'text-[15px] font-bold'}>{num(amount.value)}</b>
-                <small className="block text-[12.5px] font-medium text-neutral-500">{amount.unit}</small>
-              </>)}
-          </span>
+          {(how || after || quiet) && (<p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-snug text-neutral-500">
+              {how}
+              {quiet && entry.kind === 'adjustment' && <span>{p.smallNote.adjustment}</span>}
+              {after && <b className={`rounded-lg px-2 py-0.5 text-[13px] font-semibold ${AFTER_LOOK[after]}`}>{o.after(after, isolate(`${dzdShort(row.balanceAfterCents)} DZD`))}</b>}
+            </p>)}
         </div>);
     };
-
-    // ---- page 2: two facts, and the note
-    const facts: ReactNode[] = [];
-    if (report.kind === 'month') {
-        const since = report.sinceJanuary;
-        if (since && (since.quantities.USDT > 0 || since.quantities.EUR > 0)) {
-            const quantities = (['USDT', 'EUR'] as const).filter((currency) => since.quantities[currency] > 0).map((currency) => `${formatQuantity(since.quantities[currency])} ${currencyUnit(currency)}`).join(DOT);
-            facts.push(<div key="since" data-pdf-break="" className="rounded-xl bg-surface-muted px-3 py-2.5">
-              <small className="block text-[12.5px] leading-snug text-neutral-500">{w.sinceJanuary(period.year)}</small>
-              <b className="text-[14.5px] leading-snug">{num(quantities)}{since.spentCents > 0 && <>{DOT}{num(dzd(since.spentCents))}</>}</b>
-            </div>);
-        }
-        const biggest = report.biggestPurchase;
-        if (biggest && biggest.quantity && biggest.currency) {
-            facts.push(<div key="biggest" data-pdf-break="" className="rounded-xl bg-surface-muted px-3 py-2.5">
-              <small className="block text-[12.5px] leading-snug text-neutral-500">{w.biggest(period.month)}</small>
-              <b className="text-[14.5px] leading-snug">{num(`${formatQuantity(biggest.quantity)} ${currencyUnit(biggest.currency)}`)}{DOT}{w.onDay} {num(formatDayMonth(biggest.timestamp))}{DOT}{num(dzd(biggest.dzdCents ?? 0))}</b>
-            </div>);
-        }
-    }
 
     const screen = variant === 'screen';
     return (<ReportSheet lang={lang} variant={screen ? 'screen' : 'image'}>
@@ -336,10 +329,13 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
           {showBalanceAfter && <p data-pdf-break="" className="pb-1 text-[13px] leading-snug text-neutral-500">{o.hint}</p>}
           {report.operations.length === 0
             ? (<p className="text-[13.5px] text-neutral-500">{w.leadNone}</p>)
-            : (<div>{report.operations.map(operationCard)}</div>)}
+            : (<div>
+              <div data-pdf-break="" className={`grid ${tableColumns} gap-x-2 border-b border-neutral-900 pb-1 text-[12.5px] font-bold leading-snug text-neutral-500`}>
+                <span>{p.table.date}</span><span>{p.table.quantity}</span><span>{p.table.price}</span><span className="text-end">{p.table.amount}</span>
+              </div>
+              {report.operations.map(operationRow)}
+            </div>)}
         </section>
-
-        {facts}
 
         <footer data-pdf-break="" className="border-t border-border pt-2 text-[12.5px] leading-snug text-neutral-500">
           <p>{w.footer}</p>

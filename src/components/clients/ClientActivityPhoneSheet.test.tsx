@@ -151,10 +151,7 @@ const expectedNumbers = (report: ClientActivityReport, lang: ReportLang, showBal
         if (showBalance && entry.affectsBalance && report.operations.some((item) => Math.abs(item.balanceAfterCents) >= 1))
             list.push([formatDzdCents(operation.balanceAfterCents, report.showCents), `${entry.id} balance after`]);
     }
-    if (report.sinceJanuary)
-        list.push([formatQuantity(report.sinceJanuary.quantities.USDT), 'since January']);
-    if (report.biggestPurchase?.quantity)
-        list.push([formatQuantity(report.biggestPurchase.quantity), 'the biggest purchase']);
+    // V9-3: « since January » and « the biggest purchase » are no longer on the phone report: the operations table says it all.
     return list;
 };
 for (const period of [monthPeriod(2026, 7), monthPeriod(2026, 8), monthPeriod(2026, 9), yearPeriod(2026), ...RANGES])
@@ -279,13 +276,14 @@ for (const lang of ['ar', 'fr'] as const) {
     const operations = page.slice(page.indexOf(PHONE_WORDS.ar.operationsTitle));
     assert.doesNotMatch(operations, /[+−]/, 'No plus or minus sign in the operations');
     for (const sentence of [
-        'اشتريتَ 800 USDT', 'اشتريتَ 600 USDT', 'اشتريتَ 500 USDT', 'بعتَ لنا 300 USDT',
+        '800 USDT', '600 USDT', '500 USDT', '300 USDT', REPORT_WORDS.ar.balanceLine.saleToUs,
         'استلمتَ مبلغًا من عميل آخر', 'اشتريتَ خدمة رقمية',
         'سُجّلت على حسابك، لم تدفعها بعد', 'دفعتَ ثمنها باليورو', 'استلمتَ ثمنها باليورو', 'دفعتَ ثمنها بـ USDT',
     ])
         assert.ok(operations.includes(sentence), `ar: « ${sentence} » is on the operations`);
-    assert.ok(operations.includes(`بسعر ${formatPrice(249.5)} DZD للواحد`), 'ar: the price of a purchase is said in words');
-    assert.ok(operations.includes(`بسعر ${formatEurPrice(470 / 500)} € للواحد`), 'ar: …in euros when it was paid in euros');
+    // V9-3: the operations are a table: the price is a column, not a sentence.
+    assert.ok(operations.includes(PHONE_WORDS.ar.table.price) && operations.includes(formatPrice(249.5)), 'ar: the price of a purchase is in its column');
+    assert.ok(operations.includes(`${formatEurPrice(470 / 500)} €`), 'ar: …in euros when it was paid in euros');
     // After every operation that moved the account (and only those), where the account stands.
     const moved = report.operations.filter((row) => row.entry.affectsBalance).length;
     assert.equal((operations.match(/بعدها (?:عليك|لك|حسابك مسوّى)/g) || []).length, moved, 'One sentence after each operation that moved the account');
@@ -300,7 +298,7 @@ for (const lang of ['ar', 'fr'] as const) {
     const fr = plain(render(monthPeriod(2026, 8), 'fr', true, 'phone'));
     const frOperations = fr.slice(fr.indexOf(PHONE_WORDS.fr.operationsTitle));
     assert.doesNotMatch(frOperations, /[+−]/, 'fr: no plus or minus sign in the operations');
-    for (const sentence of ['Vous avez acheté 800 USDT', 'Vous nous avez vendu 300 USDT', 'Vous avez reçu d’un autre client', 'Vous avez acheté un service numérique', 'Inscrit sur votre compte, pas encore payé', 'Payé en euros', 'Vous avez reçu le montant en euros', 'Ensuite vous devez'])
+    for (const sentence of ['800 USDT', '300 USDT', REPORT_WORDS.fr.balanceLine.saleToUs, 'Vous avez reçu d’un autre client', 'Vous avez acheté un service numérique', 'Inscrit sur votre compte, pas encore payé', 'Payé en euros', 'Vous avez reçu le montant en euros', 'Ensuite vous devez'])
         assert.ok(frOperations.includes(sentence), `fr: « ${sentence} » is on the operations`);
     assert.ok(plain(render(monthPeriod(2026, 8), 'fr', true, 'phone', 'z')).includes('Ensuite votre compte est réglé'), 'fr: settled');
     assert.ok(plain(render(monthPeriod(2026, 8), 'fr', true, 'phone', 'c')).includes('Ensuite en votre faveur'), 'fr: in credit');

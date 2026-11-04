@@ -72,6 +72,10 @@ export type PhoneWords = {
     /** V9-3: the header title, the ledger's own words, and the sentence that closes it */
     title: Record<ReportKind, string>;
     ledger: LedgerWords;
+    /** V9-3: « كل 100 USDT كلّفتك 24 850 DZD » under the average price */
+    per100: (currency: ReportCurrency, amount: string) => string;
+    /** The operations table's column titles */
+    table: { date: string; quantity: string; price: string; amount: string };
     operation: OperationWords;
     issuedLine: (issued: string, reference: string) => string;
 };
@@ -151,9 +155,11 @@ const AR: PhoneWords = {
     calcTitle: 'حسابك خطوة بخطوة',
     remittedNote: (amount, kind) => `كان عليك ${amount} في ${kind === 'month' ? 'بداية الشهر' : kind === 'year' ? 'بداية السنة' : 'بداية الفترة'} فأسقطناها عنك`,
     smallNote: { writeOff: 'مبلغ صغير أسقطناه عنك', adjustment: 'تسوية مبلغ صغير' },
-    partsTitle: (unit) => (unit === 'week' ? 'مشترياتك أسبوعاً بأسبوع' : unit === 'month' ? 'مشترياتك شهراً بشهر' : 'مشترياتك سنة بسنة'),
+    partsTitle: (unit) => (unit === 'week' ? 'إيقاع مشترياتك أسبوعاً بأسبوع' : unit === 'month' ? 'مشترياتك شهراً بشهر' : 'مشترياتك سنة بسنة'),
     noPurchase: 'لا شراء',
     operationsTitle: 'عملياتك',
+    per100: (currency, amount) => `كل 100 ${currency === 'EUR' ? 'يورو' : 'USDT'} كلّفتك ${amount}`,
+    table: { date: 'التاريخ', quantity: 'الكمية', price: 'السعر', amount: 'المبلغ' },
     title: { range: 'كشف حسابك', month: 'كشف حسابك الشهري', year: 'كشف حسابك السنوي' },
     ledger: {
         label: { purchases: 'مشترياتك', payments: 'دفعاتك', saleToUs: 'ما بعتَه لنا', withdrawal: 'ما سحبتَه من رصيدك', transfer: 'تحويلات مع عملاء آخرين' },
@@ -240,6 +246,8 @@ const FR: PhoneWords = {
     partsTitle: (unit) => (unit === 'week' ? 'Vos achats semaine par semaine' : unit === 'month' ? 'Vos achats mois par mois' : 'Vos achats année par année'),
     noPurchase: 'Aucun achat',
     operationsTitle: 'Vos opérations',
+    per100: (currency, amount) => `Chaque tranche de 100 ${currency === 'EUR' ? 'EUR' : 'USDT'} vous a coûté ${amount}`,
+    table: { date: 'Date', quantity: 'Quantité', price: 'Prix', amount: 'Montant' },
     title: { range: 'Relevé de votre compte', month: 'Relevé mensuel de votre compte', year: 'Relevé annuel de votre compte' },
     ledger: {
         label: { purchases: 'Vos achats', payments: 'Vos versements', saleToUs: 'Vos ventes à ProDigital', withdrawal: 'Retraits sur votre solde', transfer: 'Transferts avec d’autres clients' },
