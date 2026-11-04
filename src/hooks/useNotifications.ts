@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { FirestoreDocumentReference } from '../firebase';
 import { investorTermWhenText, type InvestorTerm } from '../utils/investorTerms';
 import { inventoryReminderText, type InventoryReminder } from '../utils/inventoryReminder';
+import { isNotificationEnabled } from '../utils/notificationPrefs';
 
 const PERM_ASKED_KEY = 'app_notification_perm_asked';
 const NOTIF_LAST_OVERDUE_KEY = 'app_notif_last_overdue';
@@ -89,21 +90,27 @@ export function useNotifications(userDocRef?: FirestoreDocumentReference, t?: Tr
         options?: { icon?: string; tag?: string; requireInteraction?: boolean }
     ) => {
         if (!isSupported || Notification.permission !== 'granted') return;
-        try {
-            new Notification(title, {
-                body,
-                icon: '/pwa-icon.png',
-                badge: '/pwa-icon.png',
-                ...options,
-            });
-        } catch {
-            // Some browsers restrict Notification outside secure contexts or SW
+        const full = { body, icon: '/pwa-icon.png', badge: '/pwa-icon.png', ...options };
+        // Phones (Android, installed iPhone app) only show a notification through the service worker, like WhatsApp does:
+        // `new Notification` is refused there. It stays the fallback for a desktop without one.
+        const direct = () => {
+            try {
+                new Notification(title, full);
+            }
+            catch {
+                // Some browsers restrict Notification outside secure contexts or SW
+            }
+        };
+        if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+            direct();
+            return;
         }
+        navigator.serviceWorker.ready.then((registration) => registration.showNotification(title, full)).catch(direct);
     }, [isSupported]);
 
     // Auto-check overdue clients (once per day)
     const notifyOverdueClients = useCallback((overdueCount: number, overdueNames: string[]) => {
-        if (!isSupported || Notification.permission !== 'granted' || overdueCount === 0) return;
+        if (!isSupported || Notification.permission !== 'granted' || overdueCount === 0 || !isNotificationEnabled('overdue')) return;
         const today = dayKey();
         if (localStorage.getItem(NOTIF_LAST_OVERDUE_KEY) === today) return;
         localStorage.setItem(NOTIF_LAST_OVERDUE_KEY, today);
@@ -121,7 +128,7 @@ export function useNotifications(userDocRef?: FirestoreDocumentReference, t?: Tr
 
     // Auto-check investor profit distribution (once per day)
     const notifyInvestorProfit = useCallback((totalAvailable: number) => {
-        if (!isSupported || Notification.permission !== 'granted' || totalAvailable < 10000) return;
+        if (!isSupported || Notification.permission !== 'granted' || totalAvailable < 10000 || !isNotificationEnabled('profit')) return;
         const today = dayKey();
         if (localStorage.getItem(NOTIF_LAST_DISTRIB_KEY) === today) return;
         localStorage.setItem(NOTIF_LAST_DISTRIB_KEY, today);
@@ -135,7 +142,7 @@ export function useNotifications(userDocRef?: FirestoreDocumentReference, t?: Tr
 
     // Investors' quarterly terms (once per day): one investor with the day of the term, several by name.
     const notifyInvestorTerms = useCallback((terms: ReadonlyArray<Pick<InvestorTerm, 'investorName' | 'daysLeft' | 'state' | 'termTs'>>) => {
-        if (!isSupported || Notification.permission !== 'granted' || terms.length === 0) return;
+        if (!isSupported || Notification.permission !== 'granted' || terms.length === 0 || !isNotificationEnabled('terms')) return;
         const today = dayKey();
         if (localStorage.getItem(NOTIF_LAST_INVESTOR_TERMS_KEY) === today) return;
         localStorage.setItem(NOTIF_LAST_INVESTOR_TERMS_KEY, today);
@@ -161,7 +168,7 @@ export function useNotifications(userDocRef?: FirestoreDocumentReference, t?: Tr
 
     // The reminder to count the cash (once per day): the date of the last count only, never a balance.
     const notifyInventoryReminder = useCallback((reminder: Pick<InventoryReminder, 'daysSince'> | null) => {
-        if (!isSupported || Notification.permission !== 'granted' || !reminder) return;
+        if (!isSupported || Notification.permission !== 'granted' || !reminder || !isNotificationEnabled('inventory')) return;
         const today = dayKey();
         if (localStorage.getItem(NOTIF_LAST_INVENTORY_KEY) === today) return;
         localStorage.setItem(NOTIF_LAST_INVENTORY_KEY, today);

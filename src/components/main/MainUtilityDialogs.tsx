@@ -9,6 +9,7 @@ import { useAuthLock } from '../../hooks/useAuthLock';
 import { CheckIcon } from '../icons/CheckIcon';
 import { LockIcon } from '../icons/LockIcon';
 import { FormCard } from '../ui/FormCard';
+import { NotificationSettings } from './NotificationSettings';
 
 type MainUtilityDialogsProps = Record<string, any>;
 
@@ -149,6 +150,8 @@ function MainUtilityDialogsComponent({
                 </ModalHeader>
                 <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
                     <PinSettings t={t} />
+
+                    <NotificationSettings />
 
                     <FormCard title={t('settings.backupTitle')} description={t('settings.backupDescription')}>
                         <Button

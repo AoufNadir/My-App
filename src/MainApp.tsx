@@ -33,6 +33,7 @@ import { fromDateInputValue, toDateInputValue } from './utils/dateInput';
 import { OfflineBanner } from './components/ui/OfflineBanner';
 import { useMonthlyRecap } from './hooks/useMonthlyRecap';
 import { useNotifications } from './hooks/useNotifications';
+import { setAppBadgeCount } from './utils/notificationPrefs';
 import { useWeeklyRecap } from './hooks/useWeeklyRecap';
 import { useInvestorTerms } from './hooks/useInvestorTerms';
 import { useInventoryReminder } from './hooks/useInventoryReminder';
@@ -2689,6 +2690,11 @@ export default function MainApp({ user }: {
             notifications.notifyInvestorProfit(totalAvailable);
         }
     }, [notifications.permission, overdueDebtClients, derivedInvestors]);
+    // The number on the app's icon: what is waiting (late clients, terms, the count), where the phone allows it.
+    React.useEffect(() => {
+        if (notifications.permission !== 'granted') return;
+        setAppBadgeCount(overdueDebtClients.length + investorTerms.reminders.length + (inventoryReminder.reminder ? 1 : 0));
+    }, [notifications.permission, overdueDebtClients.length, investorTerms.reminders.length, inventoryReminder.reminder]);
     // Investors' quarterly terms on the phone: once a day, without the ones put off with « remind me
     // in 3 days », and only after the server answered so a decision saved on another phone counts.
     React.useEffect(() => {
