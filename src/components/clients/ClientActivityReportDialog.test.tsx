@@ -47,7 +47,7 @@ for (const lang of ['ar', 'fr'] as const) {
     const sheets = [...html.matchAll(/<article dir="(rtl|ltr)" lang="(ar|fr)"/g)];
     assert.equal(sheets.length, 2, `${lang}: the preview and the phone-size sheet the PDF is made from`);
     assert.ok(sheets.every((sheet) => sheet[2] === 'ar'), `${lang}: the report is in Arabic by default, whatever the app's language (V8-1b)`);
-    assert.match(html, /تقرير النشاط الشهري/, `${lang}: a whole month is a monthly report`);
+    assert.match(html, /كشف حسابك الشهري/, `${lang}: a whole month is a monthly report`);
     assert.match(html, /<input type="checkbox" id="client-report-balance"[^>]*checked=""/, `${lang}: the balance is shown by default`);
     assert.match(html, lang === 'ar' ? /إرسال PDF/ : /Envoyer le PDF/);
     assert.doesNotMatch(html, /243[.,]17|6[\s\u00A0\u202F]?891|NOTE-SECRET/, `${lang}: nothing of ours in the window either`);

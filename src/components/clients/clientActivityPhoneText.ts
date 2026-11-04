@@ -38,6 +38,15 @@ export type OperationWords = {
     hint: string;
 };
 
+/** The account's lines in plain words: no + or − sign, what each line does to the account is said under it. */
+export type LedgerWords = {
+    label: { purchases: string; payments: string; saleToUs: string; withdrawal: string; transfer: string };
+    /** « زاد رصيدك », « نقص دَينك »: what the line did, from the side the account ends on */
+    effect: (owingSide: boolean, increases: boolean) => string;
+    /** Under the total: what the final amount means */
+    meaning: (state: AccountState, amount: string) => string;
+};
+
 export type PhoneWords = {
     /** « اشتريتَ في سبتمبر » */
     heroLabel: (kind: ReportKind, period: ReportPeriod, live: boolean) => string;
@@ -60,6 +69,9 @@ export type PhoneWords = {
     partsTitle: (unit: BreakdownUnit) => string;
     noPurchase: string;
     operationsTitle: string;
+    /** V9-3: the header title, the ledger's own words, and the sentence that closes it */
+    title: Record<ReportKind, string>;
+    ledger: LedgerWords;
     operation: OperationWords;
     issuedLine: (issued: string, reference: string) => string;
 };
@@ -142,6 +154,12 @@ const AR: PhoneWords = {
     partsTitle: (unit) => (unit === 'week' ? 'مشترياتك أسبوعاً بأسبوع' : unit === 'month' ? 'مشترياتك شهراً بشهر' : 'مشترياتك سنة بسنة'),
     noPurchase: 'لا شراء',
     operationsTitle: 'عملياتك',
+    title: { range: 'كشف حسابك', month: 'كشف حسابك الشهري', year: 'كشف حسابك السنوي' },
+    ledger: {
+        label: { purchases: 'مشترياتك', payments: 'دفعاتك', saleToUs: 'ما بعتَه لنا', withdrawal: 'ما سحبتَه من رصيدك', transfer: 'تحويلات مع عملاء آخرين' },
+        effect: (owingSide, increases) => (owingSide ? (increases ? 'زاد دَينك' : 'نقص دَينك') : (increases ? 'زاد رصيدك' : 'نقص رصيدك')),
+        meaning: (state, amount) => (state === 'owes' ? `معنى هذا: عليك ${amount}` : state === 'credit' ? `معنى هذا: لك عندنا ${amount}` : 'معنى هذا: حسابك مسوّى، لا شيء لك ولا عليك'),
+    },
     operation: AR_OPERATION,
     issuedLine: (issued, reference) => `صدر في ${issued} · رقم ${reference}`,
 };
@@ -222,6 +240,12 @@ const FR: PhoneWords = {
     partsTitle: (unit) => (unit === 'week' ? 'Vos achats semaine par semaine' : unit === 'month' ? 'Vos achats mois par mois' : 'Vos achats année par année'),
     noPurchase: 'Aucun achat',
     operationsTitle: 'Vos opérations',
+    title: { range: 'Relevé de votre compte', month: 'Relevé mensuel de votre compte', year: 'Relevé annuel de votre compte' },
+    ledger: {
+        label: { purchases: 'Vos achats', payments: 'Vos versements', saleToUs: 'Vos ventes à ProDigital', withdrawal: 'Retraits sur votre solde', transfer: 'Transferts avec d’autres clients' },
+        effect: (owingSide, increases) => (owingSide ? (increases ? 'Votre dette augmente' : 'Votre dette diminue') : (increases ? 'Votre solde augmente' : 'Votre solde diminue')),
+        meaning: (state, amount) => (state === 'owes' ? `En clair : vous devez ${amount}` : state === 'credit' ? `En clair : nous vous devons ${amount}` : 'En clair : votre compte est réglé, rien à payer de part ni d’autre'),
+    },
     operation: FR_OPERATION,
     issuedLine: (issued, reference) => `Émis le ${issued} · N° ${reference}`,
 };

@@ -46,8 +46,9 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
     const bigLines = quantityCards.length > 0
         ? quantityCards.map((card) => ({ key: card.currency, value: formatQuantity(card.quantity), unit: currencyUnit(card.currency) }))
         : hasSpent ? [{ key: 'dzd', value: dzdShort(totals.spentCents), unit: 'DZD' }] : [];
+    // Nothing bought: no empty box when the account below already tells the story.
     const hero = bigLines.length === 0
-        ? (<div data-pdf-break="" className="rounded-2xl bg-surface-muted px-4 py-4 text-[15px] font-semibold text-neutral-700">{w.leadNone}</div>)
+        ? (showBalance ? null : <div data-pdf-break="" className="rounded-2xl bg-surface-muted px-4 py-4 text-[15px] font-semibold text-neutral-700">{w.leadNone}</div>)
         : (<div data-pdf-break="" className="rounded-[18px] bg-primary px-4 pb-3.5 pt-4 text-white">
           <p className="text-[14px] leading-snug opacity-90">{p.heroLabel(report.kind, period, report.isLive)}</p>
           {bigLines.map((line) => (<p key={line.key} className="mt-0.5 flex items-baseline gap-2 font-latin leading-tight">
@@ -149,10 +150,13 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
         // Written from the side the client ends on (owing, or in credit).
         const owingSide = closingCents < 0 || (closingCents === 0 && openingCents <= 0);
         const side = owingSide ? -1 : 1;
-        const signed = (cents: number) => `${cents > 0 ? '+' : cents < 0 ? '−' : ''} ${dzdShort(cents)}`.trim();
+        // No + or − sign: the line says in words what it did to the account (V9-3).
+        const L = p.ledger;
+        const amountOf = (cents: number) => dzdShort(Math.abs(cents));
+        const effectOf = (cents: number) => (cents === 0 ? undefined : L.effect(owingSide, cents > 0));
         const line = (key: string, label: ReactNode, value: string, options: { sub?: ReactNode; dim?: boolean } = {}) => (<div key={key} className={`flex items-baseline justify-between gap-3 border-b border-dashed border-border py-1.5 ${options.dim ? 'text-neutral-500' : ''}`}>
           <span className={`min-w-0 leading-snug ${options.dim ? 'text-[13.5px]' : 'text-[14.5px]'}`}>{label}{options.sub && <span className="block text-[12.5px] text-neutral-500">{options.sub}</span>}</span>
-          <span className={`shrink-0 font-latin ${options.dim ? 'text-[13.5px] font-medium' : 'text-[15px] font-semibold text-neutral-900'}`}>{num(value)}</span>
+          <span className={`shrink-0 font-latin ${options.dim ? 'text-[13.5px] font-medium' : 'text-[15px] font-semibold text-neutral-900'}`}>{num(`${value} DZD`)}</span>
         </div>);
         // A small debt from before the period that a write-off cancels is one quiet line (a balance of 0 and why), not two.
         const remitted = openingCents < 0 && lines.writeOff === -openingCents && small(openingCents);
@@ -162,18 +166,18 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
         if (remitted)
             rows.push(line('remitted', w.balanceStart[report.kind], '0', { dim: true, sub: p.remittedNote(isolate(`${dzdShort(openingCents)} DZD`), report.kind) }));
         else if (openingCents !== 0)
-            rows.push(line('start', <>{w.balanceStart[report.kind]}{sideWord(openingCents)}</>, `${openingCents * side < 0 ? '−' : ''}${dzdShort(openingCents)}`, { dim: small(openingCents) }));
+            rows.push(line('start', <>{w.balanceStart[report.kind]}{sideWord(openingCents)}</>, amountOf(openingCents), { dim: small(openingCents) }));
         if (lines.opening !== 0)
-            rows.push(line('opening', w.balanceLine.opening, signed(lines.opening * side), { dim: small(lines.opening) }));
+            rows.push(line('opening', w.balanceLine.opening, amountOf(lines.opening), { dim: small(lines.opening), sub: effectOf(lines.opening * side) }));
         if (lines.purchases !== 0)
-            rows.push(line('purchases', w.balanceLine.purchases, signed(-lines.purchases * side)));
+            rows.push(line('purchases', L.label.purchases, amountOf(lines.purchases), { sub: effectOf(-lines.purchases * side) }));
         if (lines.payments !== 0)
-            rows.push(line('payments', w.balanceLine.payments, signed(lines.payments * side), { sub: methods.length > 0 ? methodsText : undefined }));
+            rows.push(line('payments', L.label.payments, amountOf(lines.payments), { sub: <>{methods.length > 0 && <>{methodsText}{DOT}</>}{effectOf(lines.payments * side)}</> }));
         for (const key of otherLines) {
             if (remitted && key === 'writeOff')
                 continue;
             const isSmall = small(lines[key]);
-            rows.push(line(key, w.balanceLine[key], signed(lines[key] * side), { dim: isSmall, sub: isSmall ? note(key) : undefined }));
+            rows.push(line(key, key in L.label ? L.label[key as keyof typeof L.label] : w.balanceLine[key], amountOf(lines[key]), { dim: isSmall, sub: <>{isSmall && note(key) && <>{note(key)}{DOT}</>}{effectOf(lines[key] * side)}</> }));
         }
         const closing = closingCents * side;
         return (<section data-pdf-break="" className="rounded-[14px] border border-border px-3.5 py-3">
@@ -183,13 +187,15 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
             <span className="text-[16px] leading-snug">{closing === 0 ? w.balanceNow : owingSide ? w.remainingOwed : w.remainingCredit}</span>
             <span className={`font-latin text-[18px] ${closing === 0 ? 'text-neutral-700' : owingSide ? 'text-amber-700' : 'text-primary'}`}>{num(dzd(closingCents))}</span>
           </div>
+          <p className="mt-1.5 text-[13.5px] font-semibold leading-snug text-neutral-600">{L.meaning(closing === 0 ? 'settled' : owingSide ? 'owes' : 'credit', isolate(dzd(Math.abs(closingCents))))}</p>
         </section>);
     })();
 
     // ---- page 2: week by week (or month by month, year by year)
     const unit = report.breakdownUnit;
     const parts = report.comparison;
-    const showParts = parts.length > (report.kind === 'range' ? 1 : 0);
+    // Five weeks of « no purchase » say nothing: the section is for periods that have some.
+    const showParts = totals.spentCents > 0 && parts.length > (report.kind === 'range' ? 1 : 0);
     const maxSpent = Math.max(1, ...parts.map((row) => row.totals.spentCents));
     const spansYears = new Date(period.from).getFullYear() !== new Date(period.to).getFullYear();
     const partDays = (part: ReportPeriod) => {
@@ -293,7 +299,7 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
             <img src="/logo.png" alt="" className="h-9 w-9 rounded-md border border-border object-cover"/>
             <b className="font-latin text-[18px] tracking-wide text-primary">ProDigital</b>
           </div>
-          <strong className="min-w-0 text-end text-[14px] leading-snug text-neutral-900">{w.title[report.kind]}</strong>
+          <strong className="min-w-0 text-end text-[14px] leading-snug text-neutral-900">{p.title[report.kind]}</strong>
         </header>
 
         <div data-pdf-break="" className="flex justify-between gap-x-3 rounded-xl bg-surface-muted px-3 py-2">
