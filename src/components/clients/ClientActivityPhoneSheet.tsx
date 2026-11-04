@@ -96,6 +96,7 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
                   {p[key]}<b className="block font-latin text-[15px] text-neutral-900">{num(formatPrice(value))}</b>
                 </div>))}
             </div>)}
+          {card.priceRange && <p className="mt-1.5 text-[12.5px] leading-snug text-neutral-500">{p.rangeCaption(report.kind === 'range' ? `${isolate(formatDate(period.from))} – ${isolate(formatDate(report.shownTo))}` : w.periodName(period))}</p>}
           {stats.length > 0 && <div className="mt-2 flex flex-col gap-0.5">{stats}</div>}
         </div>);
     };

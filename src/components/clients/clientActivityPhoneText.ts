@@ -74,6 +74,8 @@ export type PhoneWords = {
     ledger: LedgerWords;
     /** V9-3: « كل 100 USDT كلّفتك 24 850 DZD » under the average price */
     per100: (currency: ReportCurrency, amount: string) => string;
+    /** Under the lowest and highest price: the prices are the period's own */
+    rangeCaption: (period: string) => string;
     /** The operations table's column titles */
     table: { date: string; quantity: string; price: string; amount: string };
     operation: OperationWords;
@@ -159,6 +161,7 @@ const AR: PhoneWords = {
     noPurchase: 'لا شراء',
     operationsTitle: 'عملياتك',
     per100: (currency, amount) => `كل 100 ${currency === 'EUR' ? 'يورو' : 'USDT'} كلّفتك ${amount}`,
+    rangeCaption: (period) => `أسعار شرائك خلال ${period}`,
     table: { date: 'التاريخ', quantity: 'الكمية', price: 'السعر', amount: 'المبلغ' },
     title: { range: 'كشف حسابك', month: 'كشف حسابك الشهري', year: 'كشف حسابك السنوي' },
     ledger: {
@@ -247,6 +250,7 @@ const FR: PhoneWords = {
     noPurchase: 'Aucun achat',
     operationsTitle: 'Vos opérations',
     per100: (currency, amount) => `Chaque tranche de 100 ${currency === 'EUR' ? 'EUR' : 'USDT'} vous a coûté ${amount}`,
+    rangeCaption: (period) => `Vos prix d’achat sur ${period}`,
     table: { date: 'Date', quantity: 'Quantité', price: 'Prix', amount: 'Montant' },
     title: { range: 'Relevé de votre compte', month: 'Relevé mensuel de votre compte', year: 'Relevé annuel de votre compte' },
     ledger: {
