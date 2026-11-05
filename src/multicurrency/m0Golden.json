@@ -1,0 +1,330 @@
+{
+ "portfolio": {
+  "usdt": {
+   "purchasedQty": 0,
+   "costBasis": 0,
+   "avgBuy": 0,
+   "totalProfit": 31104.26,
+   "available": -784.5,
+   "locked": 500,
+   "lockedBatches": [
+    {
+     "txId": "m0-09",
+     "quantity": 500,
+     "lockedUntil": 1794178800000
+    }
+   ]
+  },
+  "eur": {
+   "purchasedQty": 400,
+   "costBasis": 102542.9,
+   "avgBuy": 256.36,
+   "totalProfit": 5538.46,
+   "available": 400,
+   "locked": 0,
+   "lockedBatches": []
+  }
+ },
+ "totals": {
+  "derivedProfit": 36642.72,
+  "storedProfit": 0,
+  "difference": -36642.72,
+  "byCurrency": {
+   "USDT": {
+    "derivedProfit": 31104.26,
+    "storedProfit": 0,
+    "difference": -31104.26
+   },
+   "EUR": {
+    "derivedProfit": 5538.46,
+    "storedProfit": 0,
+    "difference": -5538.46
+   }
+  }
+ },
+ "rows": [
+  {
+   "id": "m0-01",
+   "currency": "USDT",
+   "type": "Ajout Manuel",
+   "after": {
+    "purchasedQty": 1000,
+    "costBasis": 240000,
+    "avgBuy": 240,
+    "totalProfit": 0,
+    "available": 1000
+   },
+   "costBasisChange": 240000,
+   "warnings": []
+  },
+  {
+   "id": "m0-02",
+   "currency": "EUR",
+   "type": "Ajout Manuel",
+   "after": {
+    "purchasedQty": 500,
+    "costBasis": 125000,
+    "avgBuy": 250,
+    "totalProfit": 0,
+    "available": 500
+   },
+   "costBasisChange": 125000,
+   "warnings": []
+  },
+  {
+   "id": "m0-03",
+   "currency": "USDT",
+   "type": "buy",
+   "after": {
+    "purchasedQty": 3000,
+    "costBasis": 730000,
+    "avgBuy": 243.33,
+    "totalProfit": 0,
+    "available": 3000
+   },
+   "costBasisChange": 490000,
+   "warnings": []
+  },
+  {
+   "id": "m0-04",
+   "currency": "USDT",
+   "type": "sell",
+   "after": {
+    "purchasedQty": 1800,
+    "costBasis": 438000,
+    "avgBuy": 243.33,
+    "totalProfit": 8000,
+    "available": 1800
+   },
+   "costBasisChange": -292000,
+   "warnings": [
+    "stored_mismatch"
+   ]
+  },
+  {
+   "id": "m0-05",
+   "currency": "EUR",
+   "type": "buy",
+   "after": {
+    "purchasedQty": 1500,
+    "costBasis": 377500,
+    "avgBuy": 251.67,
+    "totalProfit": 0,
+    "available": 1500
+   },
+   "costBasisChange": 252500,
+   "warnings": []
+  },
+  {
+   "id": "m0-06",
+   "currency": "EUR",
+   "type": "sell",
+   "after": {
+    "purchasedQty": 1200,
+    "costBasis": 302000,
+    "avgBuy": 251.67,
+    "totalProfit": 1900,
+    "available": 1200
+   },
+   "costBasisChange": -75500,
+   "warnings": [
+    "stored_mismatch"
+   ]
+  },
+  {
+   "id": "m0-07",
+   "currency": "USDT",
+   "type": "Ajout Manuel",
+   "after": {
+    "purchasedQty": 1800,
+    "costBasis": 438000,
+    "avgBuy": 243.33,
+    "totalProfit": 8000,
+    "available": 1815.5
+   },
+   "costBasisChange": 0,
+   "warnings": [
+    "quantity_only_adjustment"
+   ]
+  },
+  {
+   "id": "m0-08",
+   "currency": "USDT",
+   "type": "Retrait Manuel",
+   "after": {
+    "purchasedQty": 1700,
+    "costBasis": 413666.67,
+    "avgBuy": 243.33,
+    "totalProfit": 8000,
+    "available": 1715.5
+   },
+   "costBasisChange": -24333.33,
+   "warnings": []
+  },
+  {
+   "id": "m0-09",
+   "currency": "USDT",
+   "type": "buy",
+   "after": {
+    "purchasedQty": 2200,
+    "costBasis": 537541.67,
+    "avgBuy": 244.34,
+    "totalProfit": 8000,
+    "available": 1715.5
+   },
+   "costBasisChange": 123875,
+   "warnings": []
+  },
+  {
+   "id": "m0-10",
+   "currency": "USDT",
+   "type": "sell",
+   "after": {
+    "purchasedQty": 1800,
+    "costBasis": 439806.82,
+    "avgBuy": 244.34,
+    "totalProfit": 10745.15,
+    "available": 1315.5
+   },
+   "costBasisChange": -97734.85,
+   "warnings": [
+    "stored_mismatch"
+   ]
+  },
+  {
+   "id": "m0-11",
+   "currency": "EUR",
+   "type": "Ajout Manuel",
+   "after": {
+    "purchasedQty": 1570,
+    "costBasis": 402480.9,
+    "avgBuy": 256.36,
+    "totalProfit": 1900,
+    "available": 1570
+   },
+   "costBasisChange": 100480.9,
+   "warnings": []
+  },
+  {
+   "id": "m0-12",
+   "currency": "USDT",
+   "type": "buy",
+   "after": {
+    "purchasedQty": 2100,
+    "costBasis": 509023.28,
+    "avgBuy": 242.39,
+    "totalProfit": 10745.15,
+    "available": 1615.5
+   },
+   "costBasisChange": 69216.46,
+   "warnings": [
+    "eur_conversion_related"
+   ]
+  },
+  {
+   "id": "m0-13",
+   "currency": "EUR",
+   "type": "Retrait Manuel",
+   "after": {
+    "purchasedQty": 1300,
+    "costBasis": 333264.44,
+    "avgBuy": 256.36,
+    "totalProfit": 1900,
+    "available": 1300
+   },
+   "costBasisChange": -69216.46,
+   "warnings": [
+    "eur_conversion_related"
+   ]
+  },
+  {
+   "id": "m0-14",
+   "currency": "USDT",
+   "type": "sell",
+   "after": {
+    "purchasedQty": 600,
+    "costBasis": 145435.22,
+    "avgBuy": 242.39,
+    "totalProfit": 25157.09,
+    "available": 115.5
+   },
+   "costBasisChange": -363588.06,
+   "warnings": [
+    "eur_conversion_related",
+    "stored_mismatch"
+   ]
+  },
+  {
+   "id": "m0-15",
+   "currency": "EUR",
+   "type": "sell",
+   "after": {
+    "purchasedQty": 400,
+    "costBasis": 102542.9,
+    "avgBuy": 256.36,
+    "totalProfit": 5538.46,
+    "available": 400
+   },
+   "costBasisChange": -230721.54,
+   "warnings": [
+    "stored_mismatch"
+   ]
+  },
+  {
+   "id": "m0-16",
+   "currency": "USDT",
+   "type": "sell",
+   "after": {
+    "purchasedQty": 0,
+    "costBasis": 0,
+    "avgBuy": 0,
+    "totalProfit": 31104.26,
+    "available": -784.5
+   },
+   "costBasisChange": -145435.22,
+   "warnings": [
+    "eur_conversion_related",
+    "oversell",
+    "uncosted_quantity_sold",
+    "stored_mismatch"
+   ]
+  }
+ ],
+ "profits": {
+  "m0-04": 8000,
+  "m0-06": 1900,
+  "m0-10": 2745.15,
+  "m0-14": 14411.94,
+  "m0-15": 3638.46,
+  "m0-16": 5947.17
+ },
+ "eurFundedBuys": [
+  {
+   "buyTxId": "m0-12",
+   "withdrawalTxId": "m0-13",
+   "timestamp": 1791500412000,
+   "eurQuantity": 270,
+   "eurAvgBuy": 256.3573,
+   "storedTotal": 72000,
+   "ledgerCost": 69216.46,
+   "applied": true
+  }
+ ],
+ "capital": {
+  "caisseBalance": 812345.67,
+  "baridiBalance": 156000.5,
+  "cashTotal": 968346.17,
+  "stockValue": 102544,
+  "treasuryCardsTotal": 0,
+  "receivables": 95000,
+  "clientAdvances": 12500.25,
+  "netClientPosition": 82499.75,
+  "serviceReceivables": 0,
+  "serviceClientAdvances": 0,
+  "servicesCapitalImpact": 0,
+  "managerPendingAdvances": 3000,
+  "totalCapital": 1156389.92,
+  "investorLiability": 400000,
+  "netOwnedCapital": 756389.9199999999
+ }
+}
