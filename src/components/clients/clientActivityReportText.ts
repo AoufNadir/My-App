@@ -12,16 +12,6 @@ const MONTHS: Record<ReportLang, string[]> = {
 
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 const frMonthOf = (month: number) => (/^[aeiou]/.test(MONTHS.fr[month]) ? `d’${MONTHS.fr[month]}` : `de ${MONTHS.fr[month]}`);
-const pad = (value: number) => String(value).padStart(2, '0');
-const dayMonth = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
-};
-// Isolated, so a date keeps its order inside an Arabic sentence.
-const fullDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return `\u2066${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}\u2069`;
-};
 /** 3 أيام, 11 يوماً, 100 يوم: the noun after an Arabic number. */
 function arDays(count: number): string {
     if (count === 1)
@@ -47,9 +37,6 @@ export type ReportWords = {
     monthName: (month: number) => string;
     weekLabel: (week: number) => string;
     periodName: (period: ReportPeriod) => string;
-    /** Short name used in the price trend */
-    periodShort: (period: ReportPeriod) => string;
-    currencyTitle: Record<ReportCurrency, string>;
     averagePrice: string;
     yourAveragePrice: string;
     amount: string;
@@ -61,7 +48,6 @@ export type ReportWords = {
     paid: string;
     allPaidBy: Record<ReportPaymentMethod, string>;
     method: Record<ReportPaymentMethod, string>;
-    balanceTitle: string;
     balanceStart: Record<ReportKind, string>;
     balanceLine: Record<BalanceLineKey, string>;
     remainingOwed: string;
@@ -72,21 +58,9 @@ export type ReportWords = {
     allPaid: (amount: string) => string;
     balanceZero: string;
     leadNone: string;
-    leadQuantities: (quantities: string) => string;
-    leadRange: (amount: string, change: string | null, previous: ReportPeriod | null) => string;
-    leadRangeLive: (amount: string) => string;
-    leadMonth: (amount: string, month: number, change: string | null, previousMonth: number) => string;
-    leadMonthLive: (amount: string, month: number) => string;
-    leadYear: (amount: string, year: number, bestMonth: number | null, bestAmount: string, isLive: boolean) => string;
     sinceJanuary: (year: number) => string;
     biggest: (month: number) => string;
     onDay: string;
-    comparisonTitle: (period: ReportPeriod, unit: BreakdownUnit) => string;
-    colWeek: string;
-    colMonth: string;
-    colYear: string;
-    colSpent: string;
-    colChange: string;
     /** Under a row that is still running */
     running: string;
     total: string;
@@ -115,8 +89,6 @@ const AR: ReportWords = {
     periodName: (period) => (period.kind === 'week'
         ? `الأسبوع ${period.week} من ${MONTHS.ar[period.month]} ${period.year}`
         : period.kind === 'month' ? `${MONTHS.ar[period.month]} ${period.year}` : period.kind === 'year' ? `سنة ${period.year}` : arDays(periodDays(period))),
-    periodShort: (period) => (period.kind === 'week' ? `الأسبوع ${period.week}` : period.kind === 'month' ? MONTHS.ar[period.month] : period.kind === 'year' ? String(period.year) : `${dayMonth(period.from)}–${dayMonth(period.to)}`),
-    currencyTitle: { USDT: 'USDT التي اشتريتها', EUR: 'اليورو الذي اشتريته' },
     averagePrice: 'متوسط السعر',
     yourAveragePrice: 'متوسط سعرك',
     amount: 'المبلغ',
@@ -128,7 +100,6 @@ const AR: ReportWords = {
     paid: 'ما دفعته',
     allPaidBy: { cash: 'كلها نقداً', baridi: 'كلها عبر BaridiMob', usdt: 'كلها بـ USDT', eur: 'كلها باليورو', other: 'كلها مدفوعة' },
     method: { cash: 'نقداً', baridi: 'BaridiMob', usdt: 'USDT', eur: 'باليورو', other: 'دفعات أخرى' },
-    balanceTitle: 'حساب رصيدك',
     balanceStart: { range: 'رصيدك في بداية الفترة', month: 'رصيدك في بداية الشهر', year: 'رصيدك في بداية السنة' },
     balanceLine: {
         purchases: 'مشترياتك',
@@ -148,25 +119,9 @@ const AR: ReportWords = {
     allPaid: (amount) => `دفعت كل ما اشتريته في هذه الفترة (${amount}). رصيدك صفر.`,
     balanceZero: 'رصيدك صفر في بداية الفترة ونهايتها.',
     leadNone: 'لم تشترِ في هذه الفترة.',
-    leadQuantities: (quantities) => `اشتريت في هذه الفترة ${quantities}.`,
-    leadRange: (amount, change, previous) => `أنفقت في هذه الفترة ${amount}${change && previous ? `، أي ${change} مقارنة بالفترة السابقة بنفس المدة (من ${fullDate(previous.from)} إلى ${fullDate(previous.to)}).` : '.'}`,
-    leadRangeLive: (amount) => `أنفقت في هذه الفترة حتى اليوم ${amount}.`,
-    leadMonth: (amount, month, change, previousMonth) => `أنفقت في ${MONTHS.ar[month]} ${amount}${change ? `، أي ${change} مقارنة بـ${MONTHS.ar[previousMonth]}.` : '.'}`,
-    leadMonthLive: (amount, month) => `أنفقت في ${MONTHS.ar[month]} حتى اليوم ${amount}.`,
-    leadYear: (amount, year, bestMonth, bestAmount, isLive) => `أنفقت في ${year}${isLive ? ' حتى اليوم' : ''} ${amount}.${bestMonth !== null ? ` أكثر شهر: ${MONTHS.ar[bestMonth]} (${bestAmount}).` : ''}`,
     sinceJanuary: (year) => `منذ بداية ${year}`,
     biggest: (month) => `أكبر عملية في ${MONTHS.ar[month]}`,
     onDay: 'يوم',
-    comparisonTitle: (period, unit) => (period.kind === 'year'
-        ? `أشهر ${period.year}: ما أنفقته في كل شهر`
-        : period.kind === 'month'
-            ? `أسابيع ${MONTHS.ar[period.month]} ${period.year}: ما أنفقته في كل أسبوع`
-            : `ما أنفقته في كل ${unit === 'week' ? 'أسبوع' : unit === 'month' ? 'شهر' : 'سنة'} من الفترة`),
-    colWeek: 'الأسبوع',
-    colMonth: 'الشهر',
-    colYear: 'السنة',
-    colSpent: 'ما أنفقته (DZD)',
-    colChange: 'مقارنة بما قبله',
     running: 'حتى اليوم',
     total: 'المجموع',
     operationsTitle: 'عملياتك في هذه الفترة',
@@ -213,8 +168,6 @@ const FR: ReportWords = {
         const days = periodDays(period);
         return days === 1 ? '1 jour' : `${days} jours`;
     },
-    periodShort: (period) => (period.kind === 'week' ? `Semaine ${period.week}` : period.kind === 'month' ? capitalize(MONTHS.fr[period.month]) : period.kind === 'year' ? String(period.year) : `${dayMonth(period.from)}–${dayMonth(period.to)}`),
-    currencyTitle: { USDT: 'USDT achetés', EUR: 'EUR achetés' },
     averagePrice: 'Prix moyen',
     yourAveragePrice: 'Votre prix moyen',
     amount: 'Montant',
@@ -226,7 +179,6 @@ const FR: ReportWords = {
     paid: 'Total payé',
     allPaidBy: { cash: 'Tout en espèces', baridi: 'Tout par BaridiMob', usdt: 'Tout en USDT', eur: 'Tout en euros', other: 'Tout réglé' },
     method: { cash: 'Espèces', baridi: 'BaridiMob', usdt: 'USDT', eur: 'Euros', other: 'Autres règlements' },
-    balanceTitle: 'Le calcul de votre solde',
     balanceStart: { range: 'Solde au début de la période', month: 'Solde au début du mois', year: 'Solde au début de l’année' },
     balanceLine: {
         purchases: 'Vos achats',
@@ -246,25 +198,9 @@ const FR: ReportWords = {
     allPaid: (amount) => `Vous avez tout réglé sur la période (${amount}). Solde à zéro.`,
     balanceZero: 'Solde à zéro au début et à la fin de la période.',
     leadNone: 'Aucun achat sur cette période.',
-    leadQuantities: (quantities) => `Achats de la période : ${quantities}.`,
-    leadRange: (amount, change, previous) => `Sur la période : ${amount} dépensés${change && previous ? `, soit ${change} par rapport à la période précédente de même durée (du ${fullDate(previous.from)} au ${fullDate(previous.to)}).` : '.'}`,
-    leadRangeLive: (amount) => `Sur la période, à ce jour : ${amount} dépensés.`,
-    leadMonth: (amount, month, change, previousMonth) => `En ${MONTHS.fr[month]} : ${amount} dépensés${change ? `, soit ${change} par rapport à ${MONTHS.fr[previousMonth]}.` : '.'}`,
-    leadMonthLive: (amount, month) => `En ${MONTHS.fr[month]} à ce jour : ${amount} dépensés.`,
-    leadYear: (amount, year, bestMonth, bestAmount, isLive) => `En ${year}${isLive ? ' à ce jour' : ''} : ${amount} dépensés.${bestMonth !== null ? ` Mois le plus fort : ${MONTHS.fr[bestMonth]} (${bestAmount}).` : ''}`,
     sinceJanuary: (year) => `Depuis le 1er janvier ${year}`,
     biggest: (month) => `Plus gros achat ${frMonthOf(month)}`,
     onDay: 'le',
-    comparisonTitle: (period, unit) => (period.kind === 'year'
-        ? `Mois de ${period.year} : vos dépenses mois par mois`
-        : period.kind === 'month'
-            ? `Semaines ${frMonthOf(period.month)} ${period.year} : vos dépenses semaine par semaine`
-            : `Vos dépenses ${unit === 'week' ? 'semaine par semaine' : unit === 'month' ? 'mois par mois' : 'année par année'}`),
-    colWeek: 'Semaine',
-    colMonth: 'Mois',
-    colYear: 'Année',
-    colSpent: 'Dépensé (DZD)',
-    colChange: 'vs précédent',
     running: 'en cours',
     total: 'Total',
     operationsTitle: 'Vos opérations sur la période',
