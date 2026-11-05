@@ -6,6 +6,8 @@ import { Alert, AlertDescription } from './ui/Alert';
 import { GlobeIcon } from './icons/GlobeIcon';
 import { useLanguage } from '../contexts/LanguageContext';
 import { GoogleAuthProvider, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, } from 'firebase/auth';
+/** New accounts can be created from the sign-in page (off: owner only, V11-9). */
+export const SIGN_UP_OPEN = false;
 import { auth } from '../firebaseAuth';
 // Minimal Eye Icons
 const EyeIcon = ({ className }: {
@@ -185,10 +187,11 @@ export function Auth() {
           </section>
 
           <div className="flex flex-col items-center gap-1 text-sm">
-            <button onClick={() => { setIsLogin(!isLogin); setError(''); setMessage(''); }} className="min-h-touch px-2 text-neutral-500 transition-colors hover:text-primary">
+            {/* V11-9: sign-up is closed while the app is for its owner only; reopen when it is offered to others. */}
+            {SIGN_UP_OPEN && (<button onClick={() => { setIsLogin(!isLogin); setError(''); setMessage(''); }} className="min-h-touch px-2 text-neutral-500 transition-colors hover:text-primary">
               {isLogin ? t('auth.newHere') : t('auth.alreadyMember')}{' '}
               <span className="font-semibold text-primary">{isLogin ? t('auth.createAccount') : t('auth.signIn')}</span>
-            </button>
+            </button>)}
 
             {isLogin && (<button onClick={handlePasswordReset} className="min-h-touch px-2 text-xs font-semibold text-neutral-500 transition-colors hover:text-neutral-700">
                 {t('auth.forgotPassword')}
