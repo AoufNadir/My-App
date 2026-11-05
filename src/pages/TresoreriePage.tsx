@@ -13,9 +13,9 @@ import type { InvestigatorAction } from '../utils/inventoryInvestigator';
 import { ListRow, SectionCard } from '../components/cards';
 import { CurrencyAmount } from '../components/financial/CurrencyAmount';
 import { ArrowDownLeftIcon } from '../components/icons/ArrowDownLeftIcon';
+import { ReportButton } from '../components/reports/ReportButton';
 import { ArrowUpRightIcon } from '../components/icons/ArrowUpRightIcon';
 import { BanknotesIcon } from '../components/icons/BanknotesIcon';
-import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useLanguage } from '../contexts/LanguageContext';
 import type { CapitalSnapshot } from '../utils/capitalSnapshot';
@@ -186,9 +186,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
 
       <TreasuryCollectionsSection treasuryCards={treasuryCards} openTreasuryCardModal={openTreasuryCardModal} setTreasuryCardToDelete={setTreasuryCardToDelete}/>
 
-      <SectionCard title={t('treasury.recentMovements')} flush actions={recentTxs.length > 0 ? (<button type="button" onClick={exportPdf} aria-label={t('treasury.exportPdf') as string} title={t('treasury.exportPdf') as string} className="flex h-touch w-touch items-center justify-center rounded-full text-neutral-600 transition-colors hover:bg-surface-muted hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-            <DownloadCloudIcon className="h-5 w-5"/>
-          </button>) : undefined}>
+      <SectionCard title={t('treasury.recentMovements')} flush actions={recentTxs.length > 0 ? <ReportButton variant="section" onClick={exportPdf}/> : undefined}>
         {recentTxs.length === 0 ? (<EmptyState icon={<BanknotesIcon className="w-5 h-5"/>} title={t('emptyStates.mouvement.title')} subtitle={t('emptyStates.mouvement.subtitle')}/>) : recentTxs.map((tx) => {
             const isIn = isMoneyIn(tx);
             const amount = Number(tx.amount || 0);

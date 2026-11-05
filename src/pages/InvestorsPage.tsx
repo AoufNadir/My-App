@@ -2,7 +2,7 @@ import React, { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCard, HeroCard, StatTile, StatTileGrid } from '../components/cards';
 import { BanknotesIcon } from '../components/icons/BanknotesIcon';
-import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
+import { ReportButton } from '../components/reports/ReportButton';
 import { UserPlusIcon } from '../components/icons/UserPlusIcon';
 import { Investor } from '../types';
 import { InvestorsDetailsCard } from '../components/investors/InvestorsDetailsCard';
@@ -89,7 +89,6 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
     const [listReport, setListReport] = useState<InvestorListInput[] | null>(null);
     const exportPdf = () => setListReport(investorListRows(investors, capitalSnapshot, managerProfitBreakdown));
     const addLabel = t('investorDialog.newInvestor') as string;
-    const pdfLabel = t('treasury.exportPdf') as string;
     const headerIconClass = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-700 transition-colors hover:bg-neutral-100 active:scale-95';
     return (<div className="anim-page-in flex flex-col gap-3">
       {/* Phones get these two in the header. */}
@@ -98,18 +97,13 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
           <UserPlusIcon className="h-4 w-4"/>
           <span>{addLabel}</span>
         </Button>
-        {investors.length > 0 && (<Button onClick={exportPdf} variant="outline" size="md" className="font-semibold">
-            <DownloadCloudIcon className="h-4 w-4"/>
-            <span>{pdfLabel}</span>
-          </Button>)}
+        {investors.length > 0 && <ReportButton onClick={exportPdf}/>}
       </div>
       {headerActionsSlot && createPortal(<>
           <button type="button" onClick={onAddInvestor} className={headerIconClass} title={addLabel} aria-label={addLabel}>
             <UserPlusIcon className="h-[22px] w-[22px]"/>
           </button>
-          {investors.length > 0 && (<button type="button" onClick={exportPdf} className={headerIconClass} title={pdfLabel} aria-label={pdfLabel}>
-              <DownloadCloudIcon className="h-[22px] w-[22px]"/>
-            </button>)}
+          {investors.length > 0 && <ReportButton variant="header" onClick={exportPdf}/>}
         </>, headerActionsSlot)}
 
       {/* Distribution reminder when available profits are significant */}

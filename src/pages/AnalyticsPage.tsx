@@ -8,9 +8,9 @@ import { IconButton } from '../components/ui/IconButton';
 import { Select } from '../components/ui/Select';
 import { Tabs, type Tab } from '../components/ui/Tabs';
 import { CalendarIcon } from '../components/icons/CalendarIcon';
+import { ReportButton } from '../components/reports/ReportButton';
 import { ChevronLeftIcon } from '../components/icons/ChevronLeftIcon';
 import { ChevronRightIcon } from '../components/icons/ChevronRightIcon';
-import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
 import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
 import { UsersIcon } from '../components/icons/UsersIcon';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -137,7 +137,6 @@ export function AnalyticsPage({ initialTab = 'month', ...props }: AnalyticsPageP
         if (target.year !== year) props.setUsdtReportYear(target.year);
         props.setUsdtReportMonth(target.month);
     };
-    const exportLabel = t('treasury.exportPdf') as string;
     const picker = (<div className="flex items-center gap-1.5">
         <IconButton label={t('portfolio.prevMonth') as string} variant="ghost" onClick={() => goTo(prevTarget)} disabled={!prevTarget}>
           <ChevronLeftIcon className="rtl:-scale-x-100"/>
@@ -156,10 +155,7 @@ export function AnalyticsPage({ initialTab = 'month', ...props }: AnalyticsPageP
           <ChevronRightIcon className="rtl:-scale-x-100"/>
         </IconButton>
         <div className="ms-auto hidden shrink-0 sm:block">
-          <Button type="button" variant="outline" size="sm" onClick={() => setIsExportOpen(true)} className="gap-1.5 font-semibold" title={exportLabel}>
-            <DownloadCloudIcon className="h-4 w-4"/>
-            PDF
-          </Button>
+          <ReportButton onClick={() => setIsExportOpen(true)}/>
         </div>
       </div>);
 
@@ -391,9 +387,7 @@ export function AnalyticsPage({ initialTab = 'month', ...props }: AnalyticsPageP
     };
     const reportedClient = clientReport ? props.clientsDzd.find((client) => client.id === clientReport.clientId) : undefined;
     return (<div className="anim-page-in flex flex-col gap-3">
-      {headerActionsSlot && createPortal(<button type="button" onClick={() => setIsExportOpen(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-700 transition-colors hover:bg-neutral-100 active:scale-95" title={exportLabel} aria-label={exportLabel}>
-          <DownloadCloudIcon className="h-[22px] w-[22px]"/>
-        </button>, headerActionsSlot)}
+      {headerActionsSlot && createPortal(<ReportButton variant="header" onClick={() => setIsExportOpen(true)}/>, headerActionsSlot)}
 
       <HeroCard top={picker} label={`${t('portfolio.realizedProfit')} · ${selectedMonthLabel}`} value={calculatedStats.realizedProfit} semantic="auto" showSign note={heroNote} footer={volumes.length > 0 ? <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-neutral-500">{volumes}</p> : undefined}/>
 

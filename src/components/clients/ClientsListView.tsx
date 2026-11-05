@@ -9,9 +9,9 @@ import { SearchField } from '../ui/SearchField';
 import { AlertCard, SectionCard } from '../cards';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { UserPlusIcon } from '../icons/UserPlusIcon';
+import { ReportButton } from '../reports/ReportButton';
 import { UsersIcon } from '../icons/UsersIcon';
 import { UploadCloudIcon } from '../icons/UploadCloudIcon';
-import { DownloadCloudIcon } from '../icons/DownloadCloudIcon';
 import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
 import { WhatsAppIcon } from '../icons/WhatsAppIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
@@ -180,10 +180,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
           <UserPlusIcon className="h-4 w-4"/>
           <span>{t('transactions.newClient')}</span>
         </Button>
-        <Button onClick={exportPdf} variant="outline" size="md" className="font-semibold">
-          <DownloadCloudIcon className="h-4 w-4"/>
-          <span>{t('clients.exportPdfList')}</span>
-        </Button>
+        <ReportButton onClick={exportPdf}/>
         {onImportClients && (<Button onClick={() => setImportOpen(true)} variant="outline" size="md" className="font-semibold">
           <UploadCloudIcon className="h-4 w-4"/>
           <span>{t('clients.importCsv')}</span>
@@ -193,9 +190,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
           <button type="button" onClick={() => openClientModal(null)} className={headerIconClass} title={t('transactions.newClient') as string} aria-label={t('transactions.newClient') as string}>
             <UserPlusIcon className="h-[22px] w-[22px]"/>
           </button>
-          <button type="button" onClick={exportPdf} className={headerIconClass} title={t('clients.exportPdfList') as string} aria-label={t('clients.exportPdfList') as string}>
-            <DownloadCloudIcon className="h-[22px] w-[22px]"/>
-          </button>
+          <ReportButton variant="header" onClick={exportPdf}/>
           {onImportClients && (<button type="button" onClick={() => setImportOpen(true)} className={headerIconClass} title={t('clients.importCsv') as string} aria-label={t('clients.importCsv') as string}>
               <UploadCloudIcon className="h-[22px] w-[22px]"/>
             </button>)}

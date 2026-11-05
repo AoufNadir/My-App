@@ -8,10 +8,10 @@ import { IconButton } from '../components/ui/IconButton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Tabs, type Tab } from '../components/ui/Tabs';
 import { BanknotesIcon } from '../components/icons/BanknotesIcon';
+import { ReportButton } from '../components/reports/ReportButton';
 import { FileSpreadsheetIcon } from '../components/icons/FileSpreadsheetIcon';
 import { AlertTriangleIcon } from '../components/icons/AlertTriangleIcon';
 import { RefreshCwIcon } from '../components/icons/RefreshCwIcon';
-import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
 import { PencilIcon } from '../components/icons/PencilIcon';
 import { Trash2Icon } from '../components/icons/Trash2Icon';
 import { useHeaderActionsSlot } from '../components/main/headerActionsSlot';
@@ -309,7 +309,6 @@ export function PersonalExpensesPage({
                 : 'text-neutral-500';
 
     const headerActionsSlot = useHeaderActionsSlot();
-    const pdfLabel = t('treasury.exportPdf') as string;
     const months = (Array.isArray(t('common.months')) ? t('common.months') : []) as string[];
     const sourceLabel = (source?: string) => source === 'Caisse'
         ? t('transactions.cash') as string
@@ -323,16 +322,11 @@ export function PersonalExpensesPage({
             {/* Phones get the PDF in the header. */}
             {onExportReport && (
                 <div className="hidden gap-2 sm:flex">
-                    <Button type="button" variant="outline" size="md" onClick={() => onExportReport(period)} className="font-semibold">
-                        <DownloadCloudIcon className="h-4 w-4" />
-                        <span>{pdfLabel}</span>
-                    </Button>
+                    <ReportButton onClick={() => onExportReport(period)} />
                 </div>
             )}
             {onExportReport && headerActionsSlot && createPortal(
-                <button type="button" onClick={() => onExportReport(period)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-700 transition-colors hover:bg-neutral-100 active:scale-95" title={pdfLabel} aria-label={pdfLabel}>
-                    <DownloadCloudIcon className="h-[22px] w-[22px]" />
-                </button>,
+                <ReportButton variant="header" onClick={() => onExportReport(period)} />,
                 headerActionsSlot,
             )}
 

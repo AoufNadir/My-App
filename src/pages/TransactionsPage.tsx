@@ -2,8 +2,8 @@ import { lazy, Suspense, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../components/ui/Button';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, DigitalServiceTransaction } from '../types';
+import { ReportButton } from '../components/reports/ReportButton';
 import { PlusIcon } from '../components/icons/PlusIcon';
-import { DownloadCloudIcon } from '../components/icons/DownloadCloudIcon';
 import { useLanguage } from '../contexts/LanguageContext';
 import { TransactionsHistoryCard } from '../components/transactions/TransactionsHistoryCard';
 import { useHeaderActionsSlot } from '../components/main/headerActionsSlot';
@@ -160,30 +160,9 @@ export function TransactionsPage({
           <PlusIcon className="w-4 h-4" />
           {t('transactions.newTransaction')}
         </Button>
-        <Button
-          variant="outline"
-          size="md"
-          onClick={exportPdf}
-          className="font-semibold"
-          title={t('transactions.exportPdf') as string}
-          aria-label={t('transactions.exportPdf') as string}
-        >
-          <DownloadCloudIcon className="w-4 h-4" />
-          <span>{t('transactions.exportPdf')}</span>
-        </Button>
+        <ReportButton onClick={exportPdf}/>
       </div>
-      {headerActionsSlot && createPortal(
-        <button
-          type="button"
-          onClick={exportPdf}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-700 transition-colors hover:bg-neutral-100 active:scale-95"
-          title={t('transactions.exportPdf') as string}
-          aria-label={t('transactions.exportPdf') as string}
-        >
-          <DownloadCloudIcon className="h-[22px] w-[22px]" />
-        </button>,
-        headerActionsSlot,
-      )}
+      {headerActionsSlot && createPortal(<ReportButton variant="header" onClick={exportPdf}/>, headerActionsSlot)}
 
       <TransactionsHistoryCard
         t={t as (key: string) => string}
