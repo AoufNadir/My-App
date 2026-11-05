@@ -83,7 +83,9 @@ self.addEventListener('fetch', (event) => {
     url.hostname === 'securetoken.googleapis.com' ||
     url.hostname === 'firebaseinstallations.googleapis.com'
   ) {
-    event.respondWith(fetch(event.request));
+    // Not intercepted: the browser sends these itself. Proxying Firestore's long Listen channel through
+    // respondWith(fetch()) turned every cancelled request (tab switch, network change) into
+    // « Failed to fetch » in the console, and added a hop to a live stream for nothing.
     return;
   }
 
