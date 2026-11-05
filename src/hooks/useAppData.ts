@@ -140,7 +140,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             }),
             (docs) => setTransactions(docs as Tx[])
         );
-        const unsubClients = manualRevenueOnly ? (() => { }) : subscribeToCollection(
+        const unsubClients = subscribeToCollection(
             'clients',
             userDocRef.collection('dzd_clients').orderBy('fullName', 'asc'),
             (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
@@ -216,7 +216,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
             (docs) => setManualAssets(docs as ManualAsset[])
         );
-        const unsubClients = subscribeToCollection(
+        const unsubClients = manualRevenueOnly ? (() => { }) : subscribeToCollection(
             'manualAssetClients',
             userDocRef.collection('manual_asset_clients').orderBy('fullName', 'asc'),
             (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
