@@ -1,5 +1,11 @@
 import type { LockedBatch, PortfolioStats, Tx } from '../types';
 export type PamCurrency = 'USDT' | 'EUR';
+/**
+ * Any currency code the ledger keeps a stock of (multi-currency, M1). USDT and EUR are always there;
+ * others (GBP, CNY…) come from `options.currencies`. All amounts are in the base currency (DZD by default).
+ */
+export type LedgerCurrency = PamCurrency | (string & {});
+const LEGACY_CURRENCIES: PamCurrency[] = ['USDT', 'EUR'];
 export type PamLedgerWarningCode = 'stored_mismatch' | 'oversell' | 'manual_total_present' | 'quantity_only_adjustment' | 'uncosted_quantity_sold' | 'legacy_fallback' | 'eur_conversion_related' | 'missing_buy_total';
 export type PamLedgerWarningSeverity = 'info' | 'warning' | 'high';
 export interface PamLedgerOptions {
@@ -14,6 +20,12 @@ export interface PamLedgerOptions {
      * entry. Defaults to EUR_FUNDED_COST_RULE_FROM_TS.
      */
     eurFundedCostFromTs?: number;
+    /** Extra currency codes kept apart (M1), e.g. ['GBP', 'CNY']. USDT and EUR are always kept. */
+    currencies?: string[];
+    /** The currency every price, total and profit is in. A label for now: DZD by default. */
+    baseCurrency?: string;
+    /** @internal currencies left out of a sub-ledger, to stop a conversion loop. */
+    excludedCurrencies?: string[];
 }
 /**
  * 27/09/2026 00:00 in Algiers (UTC+1). The owner chose to apply the rule from the day the
@@ -52,7 +64,7 @@ export interface PamLedgerStats {
 }
 export interface PamLedgerWarning {
     txId: string;
-    currency: PamCurrency;
+    currency: LedgerCurrency;
     code: PamLedgerWarningCode;
     severity: PamLedgerWarningSeverity;
     message: string;
@@ -62,7 +74,7 @@ export interface PamLedgerOperationRow {
     tx: Tx;
     index: number;
     type: Tx['type'];
-    currency: PamCurrency;
+    currency: LedgerCurrency;
     date: string;
     time: string;
     timestamp: number;
@@ -102,7 +114,7 @@ export interface PamLedgerResult {
         derivedProfit: number;
         storedProfit: number;
         difference: number;
-        byCurrency: Record<PamCurrency, {
+        byCurrency: Record<LedgerCurrency, {
             derivedProfit: number;
             storedProfit: number;
             difference: number;
@@ -111,6 +123,25 @@ export interface PamLedgerResult {
     warnings: PamLedgerWarning[];
     /** USDT purchases paid with EUR through a linked EUR withdrawal. */
     eurFundedBuys: PamLedgerEurFundedBuy[];
+    /** Stock and PAM of every currency kept, USDT and EUR included (M1). */
+    holdings: Record<string, PamLedgerStats & { locked: number }>;
+    /** Purchases paid with another currency (conversions), the legacy EUR to USDT ones included. */
+    conversions: PamLedgerConversion[];
+    baseCurrency: string;
+}
+/** A purchase paid by a withdrawal of another currency: its cost is what left that currency, no profit. */
+export interface PamLedgerConversion {
+    buyTxId: string;
+    withdrawalTxId: string;
+    fromCurrency: string;
+    toCurrency: string;
+    timestamp: number;
+    fromQuantity: number;
+    /** PAM of the source currency just before it left the stock. */
+    fromAvgBuy: number;
+    storedTotal: number;
+    ledgerCost: number;
+    applied: boolean;
 }
 type WorkingStats = {
     purchasedQty: number;
@@ -126,7 +157,6 @@ type InternalTx = Tx & {
 const DEFAULT_TOLERANCE_DZD = 1;
 const DEFAULT_ZERO_EPSILON = 0.005;
 const DEFAULT_CONVERSION_WINDOW_MS = 60000;
-const CURRENCIES: PamCurrency[] = ['USDT', 'EUR'];
 function round2(value: number): number {
     return Number(Number(value || 0).toFixed(2));
 }
@@ -159,9 +189,13 @@ function toLedgerStats(stats: WorkingStats, zeroEpsilon: number): PamLedgerStats
         available: normalizeZero(stats.available, zeroEpsilon),
     };
 }
-function normalizeCurrency(currency: unknown): PamCurrency {
+function normalizeCurrency(currency: unknown, known: ReadonlySet<string> = LEGACY_SET): LedgerCurrency {
+    if (typeof currency === 'string' && currency !== 'USDT' && currency !== 'EUR' && known.has(currency))
+        return currency;
+    // Anything else keeps the old reading: EUR is EUR, everything else is USDT.
     return currency === 'EUR' ? 'EUR' : 'USDT';
 }
+const LEGACY_SET: ReadonlySet<string> = new Set(LEGACY_CURRENCIES);
 function getTxId(tx: Tx, index: number): string {
     return tx.id || `(row-${index + 1})`;
 }
@@ -172,9 +206,9 @@ function getTxQuantity(tx: Tx): number {
     // for the jGd0 reference (derivedProfit = 849).
     return round2(Math.abs(asNumber(tx.quantity, 0)));
 }
-function sortTransactions(transactions: Tx[]): InternalTx[] {
+function sortTransactions(transactions: Tx[], known: ReadonlySet<string> = LEGACY_SET): InternalTx[] {
     return transactions
-        .map((tx, index) => ({ ...tx, currency: normalizeCurrency(tx.currency), __ledgerIndex: index }))
+        .map((tx, index) => ({ ...tx, currency: normalizeCurrency(tx.currency, known), __ledgerIndex: index }))
         .sort((a, b) => {
         const timestampDiff = asNumber(a.timestamp, 0) - asNumber(b.timestamp, 0);
         if (timestampDiff !== 0)
@@ -193,7 +227,7 @@ function createFlags(): PamLedgerFlags {
         eurConversionRelated: false,
     };
 }
-function makeWarning(txId: string, currency: PamCurrency, code: PamLedgerWarningCode, severity: PamLedgerWarningSeverity, message: string): PamLedgerWarning {
+function makeWarning(txId: string, currency: LedgerCurrency, code: PamLedgerWarningCode, severity: PamLedgerWarningSeverity, message: string): PamLedgerWarning {
     return { txId, currency, code, severity, message };
 }
 function hasConversionNote(tx: Tx): boolean {
@@ -221,57 +255,88 @@ function findEurConversionRelatedTxIds(transactions: InternalTx[], conversionWin
     return relatedIds;
 }
 /**
- * USDT buys paid with EUR (a linked EUR "Retrait Manuel" carries the buy id) and the EUR
- * PAM at the moment that EUR left the stock. The EUR stock never depends on USDT rows, so
- * a ledger of the EUR rows alone gives that PAM even when an old edit moved the EUR row
- * after the buy.
+ * Purchases paid with another currency (M1 generalises the old « USDT bought with EUR »).
+ * - Legacy pair: an EUR "Retrait Manuel" whose linkedTxId is a USDT buy, from `fromTs` on (as before).
+ * - Any other pair: a "Retrait Manuel" marked `conversionLeg: 'out'` whose linkedTxId is a buy of another currency.
+ * The purchase costs what left the source stock: its quantity times the source PAM at that moment, so a
+ * conversion makes no profit and no loss. The source PAM comes from a ledger without the bought currency,
+ * so a chain (GBP to EUR to USDT) carries the cost along; a loop falls back to the saved total.
  */
-function findEurFundedBuys(transactions: InternalTx[], options: PamLedgerOptions, fromTs: number): Map<string, PamLedgerEurFundedBuy> {
-    const result = new Map<string, PamLedgerEurFundedBuy>();
-    const usdtBuysById = new Map<string, InternalTx>();
+function findConversions(transactions: InternalTx[], options: PamLedgerOptions, fromTs: number, known: ReadonlySet<string>): Map<string, PamLedgerConversion> {
+    const result = new Map<string, PamLedgerConversion>();
+    const buysById = new Map<string, InternalTx>();
     for (const tx of transactions) {
-        if (tx.type === 'buy' && normalizeCurrency(tx.currency) === 'USDT' && tx.id)
-            usdtBuysById.set(tx.id, tx);
+        if (tx.type === 'buy' && tx.id)
+            buysById.set(tx.id, tx);
     }
+    const excluded = new Set(options.excludedCurrencies || []);
     const withdrawalsByBuyId = new Map<string, InternalTx[]>();
     for (const tx of transactions) {
-        if (tx.type !== 'Retrait Manuel' || normalizeCurrency(tx.currency) !== 'EUR' || !tx.linkedTxId || !usdtBuysById.has(tx.linkedTxId))
+        if (tx.type !== 'Retrait Manuel' || !tx.linkedTxId)
+            continue;
+        const buy = buysById.get(tx.linkedTxId);
+        if (!buy || buy.currency === tx.currency)
+            continue;
+        const legacy = tx.currency === 'EUR' && buy.currency === 'USDT';
+        if (!legacy && tx.conversionLeg !== 'out')
             continue;
         withdrawalsByBuyId.set(tx.linkedTxId, [...(withdrawalsByBuyId.get(tx.linkedTxId) || []), tx]);
     }
     if (withdrawalsByBuyId.size === 0)
         return result;
-    const eurRows = transactions.filter((tx) => normalizeCurrency(tx.currency) === 'EUR');
-    const eurLedger = computePamLedger(eurRows, { ...options, eurFundedCostFromTs: Number.POSITIVE_INFINITY });
-    const eurRowById = new Map(eurLedger.operationRows.map((row) => [row.txId, row]));
+    // One ledger per bought currency, without it: what the source currencies cost before they left.
+    const subLedgers = new Map<string, Map<string, PamLedgerOperationRow>>();
+    const sourceRowsFor = (toCurrency: string) => {
+        if (!subLedgers.has(toCurrency)) {
+            const rows = transactions.filter((tx) => tx.currency !== toCurrency);
+            const ledger = excluded.has(toCurrency)
+                ? null
+                : computePamLedger(rows, { ...options, eurFundedCostFromTs: fromTs, excludedCurrencies: [...excluded, toCurrency], currencies: [...known] });
+            subLedgers.set(toCurrency, new Map((ledger?.operationRows || []).map((row) => [row.txId, row])));
+        }
+        return subLedgers.get(toCurrency)!;
+    };
     for (const [buyId, withdrawals] of withdrawalsByBuyId) {
-        // One EUR row per conversion; anything else keeps the saved total.
+        // One source row per conversion; anything else keeps the saved total.
         if (withdrawals.length !== 1)
             continue;
         const withdrawal = withdrawals[0];
-        const buy = usdtBuysById.get(buyId)!;
-        const eurRow = eurRowById.get(getTxId(withdrawal, withdrawal.__ledgerIndex));
-        if (!eurRow)
+        const buy = buysById.get(buyId)!;
+        const legacy = withdrawal.currency === 'EUR' && buy.currency === 'USDT';
+        const sourceRow = sourceRowsFor(buy.currency).get(getTxId(withdrawal, withdrawal.__ledgerIndex));
+        if (!sourceRow)
             continue;
-        const { costBasis, purchasedQty } = eurRow.statsBefore;
-        const eurAvgBuy = purchasedQty > 0 ? costBasis / purchasedQty : 0;
+        const { costBasis, purchasedQty } = sourceRow.statsBefore;
+        const fromAvgBuy = purchasedQty > 0 ? costBasis / purchasedQty : 0;
         const storedTotal = round2(asNumber(buy.total, 0));
         const timestamp = asNumber(buy.timestamp, 0);
-        const applied = timestamp >= fromTs && eurAvgBuy > 0;
+        const applied = (legacy ? timestamp >= fromTs : true) && fromAvgBuy > 0;
         result.set(buyId, {
             buyTxId: buyId,
-            withdrawalTxId: eurRow.txId,
+            withdrawalTxId: sourceRow.txId,
+            fromCurrency: withdrawal.currency,
+            toCurrency: buy.currency,
             timestamp,
-            eurQuantity: eurRow.quantity,
-            eurAvgBuy: round4(eurAvgBuy),
+            fromQuantity: sourceRow.quantity,
+            fromAvgBuy: round4(fromAvgBuy),
             storedTotal,
-            ledgerCost: applied ? round2(eurRow.quantity * eurAvgBuy) : storedTotal,
+            ledgerCost: applied ? round2(sourceRow.quantity * fromAvgBuy) : storedTotal,
             applied,
         });
     }
     return result;
 }
-function buildPortfolioStats(statsByCurrency: Record<PamCurrency, WorkingStats>, zeroEpsilon: number): PortfolioStats {
+const toEurFundedBuy = (conversion: PamLedgerConversion): PamLedgerEurFundedBuy => ({
+    buyTxId: conversion.buyTxId,
+    withdrawalTxId: conversion.withdrawalTxId,
+    timestamp: conversion.timestamp,
+    eurQuantity: conversion.fromQuantity,
+    eurAvgBuy: conversion.fromAvgBuy,
+    storedTotal: conversion.storedTotal,
+    ledgerCost: conversion.ledgerCost,
+    applied: conversion.applied,
+});
+function buildPortfolioStats(statsByCurrency: Record<string, WorkingStats>, zeroEpsilon: number): PortfolioStats {
     const usdt = toLedgerStats(statsByCurrency.USDT, zeroEpsilon);
     const eur = toLedgerStats(statsByCurrency.EUR, zeroEpsilon);
     return {
@@ -284,21 +349,20 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
     const zeroEpsilon = options.zeroEpsilon ?? DEFAULT_ZERO_EPSILON;
     const conversionWindowMs = options.conversionWindowMs ?? DEFAULT_CONVERSION_WINDOW_MS;
     const nowMs = options.nowMs ?? Date.now();
-    const orderedTransactions = sortTransactions(transactions);
+    const currencyList: LedgerCurrency[] = [...LEGACY_CURRENCIES, ...(options.currencies || []).filter((code) => !LEGACY_SET.has(code))];
+    const known: ReadonlySet<string> = new Set(currencyList);
+    const orderedTransactions = sortTransactions(transactions, known);
     const eurConversionRelatedIds = findEurConversionRelatedTxIds(orderedTransactions, conversionWindowMs);
-    const eurFundedBuys = findEurFundedBuys(orderedTransactions, { ...options, nowMs }, options.eurFundedCostFromTs ?? EUR_FUNDED_COST_RULE_FROM_TS);
-    const statsByCurrency: Record<PamCurrency, WorkingStats> = {
-        USDT: createWorkingStats(),
-        EUR: createWorkingStats(),
-    };
+    const conversions = findConversions(orderedTransactions, { ...options, nowMs }, options.eurFundedCostFromTs ?? EUR_FUNDED_COST_RULE_FROM_TS, known);
+    const statsByCurrency: Record<string, WorkingStats> = Object.fromEntries(currencyList.map((code) => [code, createWorkingStats()]));
     const operationRows: PamLedgerOperationRow[] = [];
     const sellProfitRows: PamLedgerSellProfitRow[] = [];
     const profitByTxId: Record<string, PamLedgerSellProfitRow> = {};
     const warnings: PamLedgerWarning[] = [];
-    const seenEurConversionBuy: Record<PamCurrency, boolean> = { USDT: false, EUR: false };
+    const seenEurConversionBuy: Record<string, boolean> = { USDT: false, EUR: false };
     for (const tx of orderedTransactions) {
         const txId = getTxId(tx, tx.__ledgerIndex);
-        const currency = normalizeCurrency(tx.currency);
+        const currency = tx.currency as LedgerCurrency;
         const stats = statsByCurrency[currency];
         const quantity = getTxQuantity(tx);
         if (quantity <= 0)
@@ -404,8 +468,8 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
             costBasisChange = total;
         }
         else if (tx.type === 'buy') {
-            const eurFundedBuy = currency === 'USDT' ? eurFundedBuys.get(txId) : undefined;
-            const total = eurFundedBuy ? eurFundedBuy.ledgerCost : round2(asNumber(tx.total, 0));
+            const conversion = conversions.get(txId);
+            const total = conversion ? conversion.ledgerCost : round2(asNumber(tx.total, 0));
             stats.purchasedQty = round2(stats.purchasedQty + quantity);
             stats.costBasis = round2(stats.costBasis + total);
             costBasisChange = total;
@@ -466,7 +530,7 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
             seenEurConversionBuy.USDT = true;
         }
     }
-    for (const currency of CURRENCIES) {
+    for (const currency of currencyList) {
         const stats = statsByCurrency[currency];
         stats.available = normalizeZero(stats.available, zeroEpsilon);
         stats.locked = normalizeZero(stats.locked, zeroEpsilon);
@@ -478,7 +542,7 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
         stats.costBasis = stats.purchasedQty === 0 ? 0 : normalizeZero(stats.costBasis, zeroEpsilon);
         stats.totalProfit = normalizeZero(stats.totalProfit, zeroEpsilon);
     }
-    const byCurrency = CURRENCIES.reduce((acc, currency) => {
+    const byCurrency = currencyList.reduce((acc, currency) => {
         const rows = sellProfitRows.filter((row) => row.currency === currency);
         const derivedProfit = round2(rows.reduce((sum, row) => sum + row.derivedProfit, 0));
         const storedProfit = round2(rows.reduce((sum, row) => sum + (row.storedProfit || 0), 0));
@@ -489,8 +553,8 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
         };
         return acc;
     }, {} as PamLedgerResult['totals']['byCurrency']);
-    const derivedProfit = round2(CURRENCIES.reduce((sum, currency) => sum + byCurrency[currency].derivedProfit, 0));
-    const storedProfit = round2(CURRENCIES.reduce((sum, currency) => sum + byCurrency[currency].storedProfit, 0));
+    const derivedProfit = round2(currencyList.reduce((sum, currency) => sum + byCurrency[currency].derivedProfit, 0));
+    const storedProfit = round2(currencyList.reduce((sum, currency) => sum + byCurrency[currency].storedProfit, 0));
     return {
         portfolioStats: buildPortfolioStats(statsByCurrency, zeroEpsilon),
         operationRows,
@@ -503,7 +567,10 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
             byCurrency,
         },
         warnings,
-        eurFundedBuys: [...eurFundedBuys.values()],
+        eurFundedBuys: [...conversions.values()].filter((c) => c.fromCurrency === 'EUR' && c.toCurrency === 'USDT').map(toEurFundedBuy),
+        holdings: Object.fromEntries(currencyList.map((code) => [code, { ...toLedgerStats(statsByCurrency[code], zeroEpsilon), locked: normalizeZero(statsByCurrency[code].locked, zeroEpsilon) }])),
+        conversions: [...conversions.values()],
+        baseCurrency: options.baseCurrency || 'DZD',
     };
 }
 export interface EurFundedCostImpact {
