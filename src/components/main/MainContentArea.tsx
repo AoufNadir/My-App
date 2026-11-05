@@ -133,15 +133,6 @@ const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainCont
                 && prev.treasuryTransactions === next.treasuryTransactions
                 && prev.clientTransactionsDzd === next.clientTransactionsDzd
                 && prev.inventoryReady === next.inventoryReady);
-        case 'services':
-            return (prev.selectedAssetClientId === next.selectedAssetClientId
-                && prev.manualAssetClients === next.manualAssetClients
-                && prev.manualAssetTransactions === next.manualAssetTransactions
-                && prev.assetClientBalances === next.assetClientBalances
-                && prev.selectedAssetId === next.selectedAssetId
-                && prev.fieldBase === next.fieldBase
-                && prev.manualAssets === next.manualAssets
-                && prev.assetBalances === next.assetBalances);
         case 'investors':
             return (prev.selectedInvestorId === next.selectedInvestorId
                 && prev.derivedInvestors === next.derivedInvestors
@@ -168,7 +159,6 @@ function MainContentAreaComponent({ t, dailyOverview, userDocRef, setAlert, isFi
         ? derivedInvestors.find((investor: any) => investor.id === selectedInvestorId) || null
         : null;
     const hasSelection = (view === 'investors' && Boolean(selectedInvestorId))
-        || (view === 'services' && Boolean(selectedAssetId || selectedAssetClientId))
         || (view === 'dzd' && Boolean(clientsPageProps?.selectedClientId));
     const pageSkeleton = <PageSkeleton kind={getPageSkeletonKind(view, hasSelection)}/>;
     if (!isFinancialDataReady) {
@@ -178,7 +168,7 @@ function MainContentAreaComponent({ t, dailyOverview, userDocRef, setAlert, isFi
     }
     return (<main className="py-4 sm:py-6">
                     <Suspense fallback={pageSkeleton}>
-                    <ErrorBoundary key={`${view}-${selectedInvestorId || ''}-${selectedAssetId || ''}-${selectedAssetClientId || ''}`}>
+                    <ErrorBoundary key={`${view}-${selectedInvestorId || ''}`}>
                     {view === 'dashboard' && <DashboardPage {...dashboardPageProps}/>}
 
                     {view === 'transactions' && <TransactionsPage openAdjustmentModal={openAdjustmentModal} openForm={openForm} filterMode={filterMode} setFilterMode={setFilterMode} transactions={transactions} digitalServiceTransactions={digitalServiceTransactions} profitByTxId={profitByTxId} getRelativeDateLabel={getRelativeDateLabel} clientTransactionsDzd={clientTransactionsDzd} clientsDzd={clientsDzd} getClientFullName={getClientFullName} setTxToDelete={setTxToDelete} openDateFilterModal={openDateFilterModal} dateRange={dateRange} setDateRange={setDateRange} onOpenNewOperation={openNewOperationMenu} treasuryTransactions={treasuryTransactions} handleEditPortfolioTx={handleEditPortfolioTx} handleEditClientTx={handleEditClientTx} handleEditTreasuryTx={handleEditTreasuryTx} handleEditDigitalServiceTx={openDigitalServiceModal} handleDeleteDigitalServiceTx={handleDeleteDigitalService} handleDeleteClientTxClick={handleDeleteClientTxClick} setTreasuryTxToDelete={setTreasuryTxToDelete}/>}
@@ -213,7 +203,6 @@ function MainContentAreaComponent({ t, dailyOverview, userDocRef, setAlert, isFi
             onInvestigate: openInventoryAction,
             clientTransactionsDzd,
             onLinkMovementToClient: openMovementForClient,
-            onOpenServices: openServicesView,
             onApplyLock24hToRecentBuys: handleApplyLock24hToRecentBuys,
             hasUnmigratedRecentBuys: (() => {
                 const nowMs = Date.now();
@@ -223,12 +212,6 @@ function MainContentAreaComponent({ t, dailyOverview, userDocRef, setAlert, isFi
                 );
             })()
         }}/>)}
-
-                    {view === 'services' && (selectedAssetClientId ? (<ManualClientPage client={manualAssetClients.find(c => c.id === selectedAssetClientId)!} transactions={manualAssetTransactions.filter(tx => tx.clientId === selectedAssetClientId)} balance={assetClientBalances.get(`${selectedAssetId}_${selectedAssetClientId}`) || 0} onBack={() => setSelectedAssetClientId(null)} onAddTransaction={handleCreateAssetTransaction} onUpdateTransaction={handleUpdateAssetTransaction} onDeleteTransaction={handleDeleteAssetTransaction}/>) : selectedAssetId ? (<ManualAssetPage asset={manualAssets.find(a => a.id === selectedAssetId)!} clients={manualAssetClients.filter(c => c.assetId === selectedAssetId)} assetTransactions={manualAssetTransactions.filter(tx => tx.actifId === selectedAssetId)} clientBalances={assetClientBalances} onBack={() => setSelectedAssetId(null)} onSelectClient={(client) => setSelectedAssetClientId(client.id)} onCreateClient={(fullName, phone, email, notes) => {
-                handleCreateAssetClient(selectedAssetId, { fullName, phone, email, notes });
-            }} onUpdateClient={(clientId, data) => {
-                handleUpdateAssetClient(clientId, data);
-            }} onDeleteClient={handleDeleteAssetClient}/>) : (<ServicesPage manualAssets={manualAssets} manualAssetClients={manualAssetClients} manualAssetTransactions={manualAssetTransactions} assetClientBalances={assetClientBalances} onOpenManualAsset={(asset: ManualAsset) => setSelectedAssetId(asset.id)} onOpenCreateManualAsset={() => setIsCreateAssetModalOpen(true)} onDeleteManualAsset={(id: string) => handleDeleteAsset(id, manualAssetTransactions.filter(tx => tx.actifId === id).length)}/>))}
 
                     {view === 'investors' && (selectedInvestorId && selectedInvestor ? (<InvestorDetailsPage investor={selectedInvestor} transactions={investorTransactions.filter(tx => tx.investorId === selectedInvestorId)} personalExpenses={personalExpenses} onBack={() => setSelectedInvestorId(null)} onAddCapital={() => { setInvestorTxType('deposit_capital'); setIsInvestorTxModalOpen(true); }} onWithdrawCapital={() => { setInvestorTxType('withdraw_capital'); setIsInvestorTxModalOpen(true); }} onWithdrawProfit={() => { setInvestorTxType('withdraw_profit'); setIsInvestorTxModalOpen(true); }} onReinvestProfit={() => {
                 const inv = derivedInvestors.find(i => i.id === selectedInvestorId);

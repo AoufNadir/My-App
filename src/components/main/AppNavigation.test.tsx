@@ -9,7 +9,7 @@ import { HEADER_ACTIONS_SLOT_ID } from './headerActionsSlot';
 const noop = () => {};
 const labels = {
     dashboard: 'Accueil', transactions: 'Opérations', portfolio: 'Portefeuille', analytics: 'Analyse', reports: 'Rapports',
-    clients: 'Clients', treasury: 'Trésorerie', services: 'Services', investors: 'Investisseurs', more: 'Plus',
+    clients: 'Clients', treasury: 'Trésorerie', investors: 'Investisseurs', more: 'Plus',
     settings: 'Paramètres', money: 'Argent', followUp: 'Suivi', documents: 'Documents', expenses: 'Mes dépenses',
     logout: 'Déconnexion', newOperation: 'Nouvelle opération',
 };

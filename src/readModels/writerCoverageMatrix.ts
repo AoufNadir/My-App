@@ -282,18 +282,6 @@ export const WRITER_COVERAGE_MATRIX: readonly WriterCoverageRow[] = [
         tests: ['cash digital service updates service profit and cash', 'credit digital service updates receivable without cash'],
     },
     {
-        id: 'services.manual-assets',
-        writer: 'Manual asset/service transactions',
-        files: ['src/hooks/useAssetHandlers.ts', 'src/MainApp.tsx'],
-        legacyWrites: ['actifTransactions', 'optional treasury_txs'],
-        domainSummaries: [DASHBOARD_SUMMARY, 'services_summary', 'treasury_summary', FINANCIAL_SUMMARY],
-        dashboardFields: ['services', 'money.serviceReceivables', 'money.serviceAdvances', 'money.caisseBalance', 'money.baridiBalance', 'money.totalCapital', 'money.netOwnedCapital', 'recentOperations'],
-        incrementalDelta: 'asset-client balance transition plus optional payment wallet delta',
-        atomicMechanism: 'single_firestore_transaction',
-        idempotencyPath: READ_MODEL_APPLIED_OPS_PATH,
-        tests: ['manual service increases service receivable/revenue', 'payment received lowers receivable and adds cash'],
-    },
-    {
         id: 'orders.complete-order',
         writer: 'PO order completion that delivers USDT/EUR',
         files: ['src/hooks/usePoOrderHandlers.ts'],
@@ -322,7 +310,7 @@ export const WRITER_COVERAGE_MATRIX: readonly WriterCoverageRow[] = [
     {
         id: 'entity.archive-only',
         writer: 'Client/Investor/Asset deletion after read-model mode',
-        files: ['src/hooks/useClientHandlers.ts', 'src/hooks/useInvestorHandlers.ts', 'src/hooks/useAssetHandlers.ts'],
+        files: ['src/hooks/useClientHandlers.ts', 'src/hooks/useInvestorHandlers.ts'],
         legacyWrites: ['currently deletes entities and sometimes linked history'],
         domainSummaries: [DASHBOARD_SUMMARY, 'clients_summary', 'investors_summary', 'services_summary'],
         dashboardFields: ['clients.topOverdueClients', 'investors.investorBreakdown', 'services'],

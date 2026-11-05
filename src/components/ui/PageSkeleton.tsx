@@ -8,7 +8,7 @@ export function getPageSkeletonKind(view: string, hasSelection = false): PageSke
         return 'dashboard';
     if (hasSelection)
         return 'detail';
-    if (view === 'transactions' || view === 'dzd' || view === 'services')
+    if (view === 'transactions' || view === 'dzd')
         return 'list';
     return 'stats';
 }

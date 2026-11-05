@@ -51,11 +51,11 @@ const dailyOverview = {
 };
 const TRADING = { today: 8_100, week: 29_050, month: 121_346, year: 998_765 };
 const SERVICES = {
-    today: { manual: 3_000, digital: 520 },
-    week: { manual: 12_500, digital: 1_875 },
-    month: { manual: 31_400, digital: 6_240 },
-    year: { manual: 187_250, digital: 42_030 },
-    allTime: { manual: 250_900, digital: 55_060 },
+    today: { manual: 0, digital: 520 },
+    week: { manual: 0, digital: 1_875 },
+    month: { manual: 0, digital: 6_240 },
+    year: { manual: 0, digital: 42_030 },
+    allTime: { manual: 0, digital: 55_060 },
 };
 const split = (services = SERVICES, trading = TRADING): OwnerProfitSplit => ({ trading: { ...trading }, services: JSON.parse(JSON.stringify(services)) });
 const withSplit = (value?: OwnerProfitSplit) => {
@@ -156,8 +156,8 @@ for (const period of PERIODS) {
         assert.ok(!card!.includes(periodCaption(fr, other)), `${period}: and not ${other}`);
     const cardAmounts = amountsIn(card!);
     const { manual, digital } = SERVICES[period];
-    assert.deepEqual(cardAmounts, [amountText(manual + digital), amountText(manual), amountText(digital)], `${period}: total, services and digital services`);
-    assert.ok(card!.includes(escapeHtml(fr.dashboard.otherProfitsServices)) && card!.includes(escapeHtml(fr.digitalServices.short)), `${period}: both lines are named`);
+    assert.deepEqual(cardAmounts, [amountText(manual + digital), amountText(digital)], `${period}: total and the digital services line`);
+    assert.ok(card!.includes(escapeHtml(fr.digitalServices.short)) && !card!.includes(escapeHtml(fr.dashboard.otherProfitsServices)), `${period}: only the digital services line is named (V9-5: no manual services line)`);
     assert.ok(card!.includes(escapeHtml(fr.dashboard.otherProfitsHint)), `${period}: the card says it is apart from the sales`);
     // Nothing is lost: what « mon profit » and the card show add up to what the page showed before.
     assert.equal(TRADING[period] + (manual + digital), oldTotal, `${period}: sales + other businesses = the old total`);
@@ -172,11 +172,6 @@ for (const period of PERIODS) {
 
 // ---- 2. Only the businesses that have earned something get a line ----
 {
-    const onlyManual = split({ ...SERVICES, allTime: { manual: 250_900, digital: 0 }, month: { manual: 31_400, digital: 0 } });
-    const html = render({ dailyOverview: withSplit(onlyManual) });
-    const card = sectionWith(html, cardTitle(fr))!;
-    assert.deepEqual(amountsIn(card), [amountText(31_400), amountText(31_400)], 'services only: the total and one line');
-    assert.ok(card.includes(escapeHtml(fr.dashboard.otherProfitsServices)) && !card.includes(escapeHtml(fr.digitalServices.short)), 'no digital line');
     const onlyDigital = split({ ...SERVICES, allTime: { manual: 0, digital: 55_060 }, month: { manual: 0, digital: 6_240 } });
     const card2 = sectionWith(render({ dailyOverview: withSplit(onlyDigital) }), cardTitle(fr))!;
     assert.deepEqual(amountsIn(card2), [amountText(6_240), amountText(6_240)], 'digital only: the total and one line');
@@ -195,25 +190,23 @@ for (const period of PERIODS) {
 {
     const quiet = split({ ...SERVICES, today: { manual: 0, digital: 0 } });
     const card = sectionWith(render({ dailyOverview: withSplit(quiet) }, { period: 'today' }), cardTitle(fr))!;
-    assert.deepEqual(amountsIn(card), [amountText(0), amountText(0), amountText(0)], 'zero today, lines still there');
+    assert.deepEqual(amountsIn(card), [amountText(0), amountText(0)], 'zero today, the line still there');
     assert.ok(card.includes(periodCaption(fr, 'today')), 'it says today');
     assert.ok(!card.includes('text-financial-loss') && !card.includes('text-financial-profit'), 'zero is neither a profit nor a loss');
 }
 
 // ---- 5. A digital service sold at a loss is shown as a loss ----
 {
-    const losing = split({ ...SERVICES, month: { manual: 1_000, digital: -4_500 }, allTime: { manual: 250_900, digital: -4_500 } });
+    const losing = split({ ...SERVICES, month: { manual: 0, digital: -4_500 }, allTime: { manual: 0, digital: -4_500 } });
     const card = sectionWith(render({ dailyOverview: withSplit(losing) }), cardTitle(fr))!;
-    assert.deepEqual(amountsIn(card), [amountText(-3_500), amountText(1_000), amountText(-4_500)], 'total and lines, with the loss');
-    assert.ok(card.includes('text-financial-loss') && card.includes('text-financial-profit'), 'the loss is red and the profit green');
+    assert.deepEqual(amountsIn(card), [amountText(-4_500), amountText(-4_500)], 'total and line, with the loss');
+    assert.ok(card.includes('text-financial-loss'), 'the loss is red');
 }
 
-// ---- 6. The card opens the Services page, when the page can ----
+// ---- 6. The Services page is gone (V9-5): the card has no button ----
 {
-    const withLink = sectionWith(render({ onOpenServices: noop }), cardTitle(fr))!;
-    assert.ok(linkIn(withLink, fr.dashboard.otherProfitsOpen), 'a button to the services');
-    const without = sectionWith(render(), cardTitle(fr))!;
-    assert.ok(!without.includes('<button'), 'no button without the link');
+    const card = sectionWith(render(), cardTitle(fr))!;
+    assert.ok(!card.includes('<button'), 'no button to a page that no longer exists');
 }
 
 // ---- 7. Without the split (the stored summary has only the total), the page is what it was ----
@@ -229,13 +222,13 @@ for (const period of PERIODS) {
 // ---- 8. Arabic: the same amounts, in Arabic ----
 {
     for (const period of PERIODS) {
-        const htmlAr = render({ onOpenServices: noop }, { period, lang: 'ar' });
-        const htmlFr = render({ onOpenServices: noop }, { period, lang: 'fr' });
+        const htmlAr = render({}, { period, lang: 'ar' });
+        const htmlFr = render({}, { period, lang: 'fr' });
         const cardAr = sectionWith(htmlAr, cardTitle(ar));
         assert.ok(cardAr, `${period}: the Arabic card is there`);
         assert.deepEqual(amountsIn(cardAr!), amountsIn(sectionWith(htmlFr, cardTitle(fr))!), `${period}: same amounts in both languages`);
         assert.ok(cardAr!.includes(periodCaption(ar, period)), `${period}: the period in Arabic`);
-        assert.ok(cardAr!.includes(ar.dashboard.otherProfitsServices) && cardAr!.includes(ar.digitalServices.short) && cardAr!.includes(ar.dashboard.otherProfitsHint) && linkIn(cardAr!, ar.dashboard.otherProfitsOpen), `${period}: lines, hint and button in Arabic`);
+        assert.ok(cardAr!.includes(ar.digitalServices.short) && cardAr!.includes(ar.dashboard.otherProfitsHint), `${period}: line and hint in Arabic`);
         const text = cardAr!.replace(/<[^>]*>/g, ' ');
         assert.ok(!/[A-Za-zÀ-ÿ]{4,}/.test(text.replace(/\bDZD\b/g, '')), `${period}: no French left in the Arabic card (${text.replace(/\s+/g, ' ').trim()})`);
         const heroAr = sectionWith(htmlAr, ar.dashboard.profitSummary)!;

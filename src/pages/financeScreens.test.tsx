@@ -128,7 +128,7 @@ const treasuryCards: TreasuryCard[] = [
 ];
 const capitalSnapshot = computeCapitalSnapshot({
     caisseBalance: 1_250_000, baridiBalance: 480_000, portfolioStats, totalDettes: 310_000, totalAvances: 45_000,
-    treasuryCards, investorLiability: 520_000, services: { amountToReceive: 18_000, clientAdvances: 3_500 },
+    treasuryCards, investorLiability: 520_000,
 });
 
 function renderTreasury(lang: Lang) {
@@ -184,7 +184,8 @@ if (process.env.SCREEN_CAPTURE) {
 // Portefeuille: with the locked batches unfolded. Analyse: Synthèse and Clients tabs, and the PDF sheet.
 const fromShown = (tokens: string[]) => tokens.map((token) => token.replace(/⍽/g, '\u202f'));
 const BEFORE = {
-    treasury: fromShown(['+12⍽000', '+18⍽000', '+1⍽500', '+245⍽000', '+40⍽000', '+72⍽000', '+96⍽400', '-1⍽200', '-2⍽500', '-50⍽000', '-7⍽000', '-800', '10/09/2026', '14⍽500', '15', '15/09/2026', '18/09/2026', '1⍽250⍽000', '20/09/2026', '22/09/2026', '24/09/2026', '26/09/2026', '27/09/2026', '28/09/2026', '29/09/2026', '30/09/2026', '300⍽000,00', '310⍽000', '3⍽406⍽024', '3⍽926⍽024', '414⍽900', '45⍽000', '480⍽000', '520⍽000', '7', '75⍽000,00', '87⍽000']),
+    // V9-5: the Services page is gone, so the capital no longer counts its 14⍽500 net position: 3⍽926⍽024 → 3⍽911⍽524 and 3⍽406⍽024 → 3⍽391⍽524.
+    treasury: fromShown(['+12⍽000', '+18⍽000', '+1⍽500', '+245⍽000', '+40⍽000', '+72⍽000', '+96⍽400', '-1⍽200', '-2⍽500', '-50⍽000', '-7⍽000', '-800', '10/09/2026', '15', '15/09/2026', '18/09/2026', '1⍽250⍽000', '20/09/2026', '22/09/2026', '24/09/2026', '26/09/2026', '27/09/2026', '28/09/2026', '29/09/2026', '30/09/2026', '300⍽000,00', '310⍽000', '3⍽391⍽524', '3⍽911⍽524', '414⍽900', '45⍽000', '480⍽000', '520⍽000', '7', '75⍽000,00', '87⍽000']),
     portfolio: fromShown(['+0,32', '+2⍽251', '0', '05', '08:30', '1', '165⍽548', '17', '1⍽000,00', '1⍽375⍽976', '1⍽500,00', '1⍽541⍽524', '2', '20:30', '245,63', '245,71', '246,50', '250,83', '2⍽500,00', '30', '3⍽100,00', '450', '5⍽600,00', '660,00']),
     simulator: fromShown(['+0,32', '+2⍽251', '245,71', '246,50']),
     analytics: fromShown(['+14⍽954', '+18⍽031', '+2.33', '+21⍽746', '+2⍽423', '+2⍽977', '+3', '+3.46', '+3⍽600', '+4.62', '+4.96', '+4⍽369', '+5.46', '+5.77', '+6⍽000', '+6⍽138', '+7', '+8', '+8⍽915', '-09', '-523', '0', '0.8', '1', '10', '11', '12', '13', '14', '15', '16', '17', '18', '18⍽031', '19', '2', '20', '200.5', '2024', '2025', '2026', '21', '22', '23', '24', '248.08', '25', '25.1', '26', '27', '28', '29', '2⍽000', '2⍽100', '2⍽500', '3', '30', '300', '33⍽800', '36⍽800', '3⍽077', '3⍽600', '4', '400', '4⍽508', '5', '50.0', '50.3', '6', '6⍽400', '7', '75', '8', '80', '800', '8⍽031', '9']),
@@ -245,9 +246,9 @@ for (const lang of ['fr', 'ar'] as const) {
     // « How is this computed » opens the lines of the snapshot: they add up to the figures of the card.
     const breakdown = textOf(render(<BreakdownInLanguage/>, lang)).match(/-?\d[\d\u202f]*/g)!.map(amount);
     const total = breakdown.indexOf(Math.round(capitalSnapshot.totalCapital));
-    assert.deepEqual(breakdown.slice(0, total), [1_250_000, 480_000, 1_541_524, 375_000, 310_000, -45_000, 14_500], `treasury.${lang}: Caisse, BaridiMob, stock, cards, receivables, advances, services`);
+    assert.deepEqual(breakdown.slice(0, total), [1_250_000, 480_000, 1_541_524, 375_000, 310_000, -45_000], `treasury.${lang}: Caisse, BaridiMob, stock, cards, receivables, advances`);
     assert.equal(breakdown.slice(0, total).reduce((sum, value) => sum + value, 0), breakdown[total], `treasury.${lang}: lines add up to the net value`);
-    assert.deepEqual(breakdown.slice(total), [3_926_024, -520_000, 3_406_024], `treasury.${lang}: net value, investors, own capital`);
+    assert.deepEqual(breakdown.slice(total), [3_911_524, -520_000, 3_391_524], `treasury.${lang}: net value, investors, own capital`);
 
     // ---- Portefeuille: the page and its PAM simulator window ----
     const portfolioHtml = renderPortfolio(lang);

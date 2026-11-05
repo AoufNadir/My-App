@@ -19,11 +19,11 @@ const storage = new Map<string, string>();
 };
 
 assert.equal(getPageSkeletonKind('dashboard'), 'dashboard');
-for (const view of ['transactions', 'dzd', 'services'])
+for (const view of ['transactions', 'dzd'])
     assert.equal(getPageSkeletonKind(view), 'list', view);
 for (const view of ['tresorerie', 'statistiques', 'analytics', 'expenses', 'investors'])
     assert.equal(getPageSkeletonKind(view), 'stats', view);
-for (const view of ['dzd', 'services', 'investors'])
+for (const view of ['dzd', 'investors'])
     assert.equal(getPageSkeletonKind(view, true), 'detail', `${view} with a client, service or investor open`);
 
 const rows = (html: string) => (html.match(/min-h-14 items-center gap-3 border-t/g) || []).length;

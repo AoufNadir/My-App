@@ -10,19 +10,14 @@ import { distinctScreenNumbers, screenText, showSpaces } from '../testing/screen
 import { InvestorsPage } from './InvestorsPage';
 import { InvestorDetailsPage } from './InvestorDetailsPage';
 import { InvestorDashboardPage } from './InvestorDashboardPage';
-import { ServicesPage } from './ServicesPage';
-import { ManualAssetPage } from './ManualAssetPage';
-import { ManualClientPage } from './ManualClientPage';
 import { PersonalExpensesPage } from './PersonalExpensesPage';
 import { InvestorDetailsContent } from '../components/investor-details/InvestorDetailsContent';
 import { ProfitDistributionSheet } from '../components/investors/ProfitDistributionSheet';
 import { CommissionEditorModal } from '../components/investors/CommissionEditorModal';
-import { ManualAssetReportsSection } from '../components/manual-asset/ManualAssetReportsSection';
-import { ManualClientTransactionDialog } from '../components/manual-client/ManualClientTransactionDialog';
 import { calculateWithdrawableProfit } from '../utils/profitDistribution';
 import { translations } from '../translations';
 
-// V2-7 redrew Investisseurs, Services, Mes dépenses and the investor portal. Same fake data,
+// V2-7 redrew Investisseurs, Mes dépenses (the Services page was removed in V9-5) and the investor portal. Same fake data,
 // French and Arabic, clock fixed on 30/09/2026 15:00: every number of the previous screens
 // (V2-6) is still shown, written the same way, and no new one appears.
 
@@ -129,46 +124,6 @@ const personalExpenses: TreasuryTx[] = [
     expense('r1', 3_800, at(2026, 9, 15, 18), 'Retour avance carburant', { type: 'Ajout', origin: 'personal_expense_return' }),
 ];
 
-// ---- Services: two with clients, one empty, one archived ----
-const asset = (id: string, name: string, description?: string, archived = false): ManualAsset => ({ id, name, description, createdAt: at(2025, 6, 1), updatedAt: at(2026, 9, 1), archived });
-const manualAssets = [
-    asset('svc-design', 'Conception graphique', 'Logos, flyers et cartes'),
-    asset('svc-print', 'Impression'),
-    asset('svc-web', 'Sites web', 'Vitrines et boutiques'),
-    asset('svc-old', 'Photocopie', undefined, true),
-];
-const serviceClient = (id: string, assetId: string, fullName: string, phone?: string): ManualAssetClient => ({ id, assetId, fullName, phone, createdAt: at(2025, 7, 1), updatedAt: at(2026, 9, 1) });
-const manualAssetClients = [
-    serviceClient('c-d1', 'svc-design', 'Agence Nour', '0555 12 34 56'),
-    serviceClient('c-d2', 'svc-design', 'Studio Atlas'),
-    serviceClient('c-d3', 'svc-design', 'Café Medina', '0661 22 33 44'),
-    serviceClient('c-p1', 'svc-print', 'Librairie Ibn Khaldoun'),
-    serviceClient('c-p2', 'svc-print', 'École Les Pins', '0770 45 67 89'),
-];
-const stx = (id: string, actifId: string, clientId: string, type: ManualAssetTransaction['type'], amount: number, ts: number, extra: Partial<ManualAssetTransaction> = {}): ManualAssetTransaction => ({
-    id, actifId, clientId, type, amount, date: dayOf(ts), time: timeOf(ts), timestamp: ts, ...extra,
-});
-const manualAssetTransactions = [
-    stx('d1', 'svc-design', 'c-d1', 'service', -18_000, at(2026, 7, 4, 10), { serviceType: 'Logo' }),
-    stx('d2', 'svc-design', 'c-d1', 'payment_received', 10_000, at(2026, 7, 20, 15), { paymentMethod: 'cash' }),
-    stx('d3', 'svc-design', 'c-d1', 'service', -6_500, at(2026, 9, 3, 11), { serviceType: 'Flyers', notes: '500 exemplaires' }),
-    stx('d4', 'svc-design', 'c-d2', 'service', -4_000, at(2026, 9, 10, 9), { serviceType: 'Cartes de visite' }),
-    stx('d5', 'svc-design', 'c-d2', 'payment_received', 7_500, at(2026, 9, 12, 16), { paymentMethod: 'baridi' }),
-    stx('d6', 'svc-design', 'c-d3', 'service', -9_000, at(2026, 9, 18, 14), { serviceType: 'Menu' }),
-    stx('d7', 'svc-design', 'c-d3', 'payment_received', 9_000, at(2026, 9, 25, 12), { paymentMethod: 'cash' }),
-    stx('d8', 'svc-design', 'c-d1', 'adjustment', 500, at(2026, 9, 26, 10), { notes: 'Arrondi' }),
-    stx('p1', 'svc-print', 'c-p1', 'service', -12_000, at(2026, 8, 8, 10), { serviceType: 'Affiches' }),
-    stx('p2', 'svc-print', 'c-p1', 'payment_received', 12_000, at(2026, 8, 30, 17), { paymentMethod: 'cash' }),
-    stx('p3', 'svc-print', 'c-p2', 'service', -7_000, at(2026, 9, 21, 9), { serviceType: 'Brochures' }),
-    stx('p4', 'svc-print', 'c-p2', 'payment_received', 3_000, at(2026, 9, 28, 11), { paymentMethod: 'baridi' }),
-];
-const assetClientBalances = new Map<string, number>();
-for (const tx of manualAssetTransactions)
-    assetClientBalances.set(`${tx.actifId}_${tx.clientId}`, (assetClientBalances.get(`${tx.actifId}_${tx.clientId}`) || 0) + tx.amount);
-const designClients = manualAssetClients.filter((client) => client.assetId === 'svc-design');
-const designTxs = manualAssetTransactions.filter((tx) => tx.actifId === 'svc-design');
-const nourTxs = manualAssetTransactions.filter((tx) => tx.clientId === 'c-d1');
-
 // ---- Screens ----
 function renderInvestors(lang: Lang, totals = totalsWithCosts) {
     return render(<InvestorsPage investors={investors} capitalSnapshot={capitalSnapshot} investorBreakdown={investorBreakdown} onOpenInvestor={noop} onAddInvestor={noop} onEditInvestor={noop} onDeleteInvestor={noop} investorEconomicsTotals={totals} managerFeePercentage="30" saveManagerFeePercentage={asyncNoop} userDocRef={userDocRef} setAlert={noop} treasuryStats={treasuryStats} managerProfitBreakdown={managerProfitBreakdown} periodLock={periodLock}/>, lang);
@@ -190,22 +145,6 @@ function renderInvestorHistory(lang: Lang, who: DerivedInvestor, txs: InvestorTr
 function renderPortal(lang: Lang, who: DerivedInvestor, txs: InvestorTransaction[]) {
     return render(<InvestorDashboardPage investor={who} transactions={txs} globalNetProfit={241_870} managerFeePercentage={30} totalCapital={1_720_000}/>, lang);
 }
-function renderServices(lang: Lang) {
-    return render(<ServicesPage manualAssets={manualAssets} manualAssetClients={manualAssetClients} manualAssetTransactions={manualAssetTransactions} assetClientBalances={assetClientBalances} onOpenManualAsset={noop} onOpenCreateManualAsset={noop} onDeleteManualAsset={noop}/>, lang);
-}
-function renderServiceDetail(lang: Lang) {
-    return render(<ManualAssetPage asset={manualAssets[0]} clients={designClients} assetTransactions={designTxs} clientBalances={assetClientBalances} onBack={noop} onSelectClient={noop} onCreateClient={noop} onUpdateClient={noop} onDeleteClient={noop}/>, lang);
-}
-function renderServiceYear(lang: Lang) {
-    const props = { assetId: 'svc-design', assetName: manualAssets[0].name, clients: designClients, assetTransactions: designTxs, clientBalances: assetClientBalances, initialView: 'annual' as const };
-    return render(<ManualAssetReportsSection {...props}/>, lang);
-}
-function renderServiceClient(lang: Lang) {
-    return render(<ManualClientPage client={manualAssetClients[0]} transactions={nourTxs} balance={assetClientBalances.get('svc-design_c-d1') || 0} onBack={noop} onAddTransaction={noop} onUpdateTransaction={noop} onDeleteTransaction={noop}/>, lang);
-}
-function renderServiceTxDialog(lang: Lang) {
-    return render(<ManualClientTransactionDialog isTxModalOpen editingTx={null} txType="service" setTxType={noop} amount="2500" setAmount={noop} serviceType="Flyers" setServiceType={noop} notes="" setNotes={noop} paymentMethod="cash" setPaymentMethod={noop} currentBalance={assetClientBalances.get('svc-design_c-d1') || 0} onClose={noop} onSave={noop}/>, lang);
-}
 type Period = 'day' | 'week' | 'month' | 'year';
 function renderExpenses(lang: Lang, period: Period = 'month') {
     const props = { personalExpenses, managerAvailableProfit: 122_420, managerExists: true, onOpenReconcile: noop, onEditExpense: noop, onDeleteExpense: noop, onExportReport: noop, initialPeriod: period };
@@ -224,11 +163,6 @@ const SCREENS = {
     managerHistory: (lang: Lang) => renderInvestorHistory(lang, manager, managerTxs),
     portal: (lang: Lang) => renderPortal(lang, sofiane, sofianeTxs),
     portalManager: (lang: Lang) => renderPortal(lang, manager, managerTxs),
-    services: renderServices,
-    serviceDetail: renderServiceDetail,
-    serviceYear: renderServiceYear,
-    serviceClient: renderServiceClient,
-    serviceTxDialog: renderServiceTxDialog,
     expenses: (lang: Lang) => renderExpenses(lang),
     expensesDay: (lang: Lang) => renderExpenses(lang, 'day'),
     expensesWeek: (lang: Lang) => renderExpenses(lang, 'week'),
@@ -248,8 +182,9 @@ if (process.env.SCREEN_CAPTURE) {
 // The numbers each screen showed before V2-7 (recorded on V2-6, 44ae829, same data; ⍽ is the
 // narrow space between thousands). French and Arabic showed the same ones.
 const BEFORE: Record<keyof typeof SCREENS, string[]> = {
-    investors: ['+15.6', '+1⍽850', '+38⍽251', '+4.8', '0', '02/09/2026', '120⍽000', '14⍽500', '15⍽000', '1⍽200', '1⍽541⍽524', '1⍽730⍽000', '2024', '2025', '2026', '236⍽170', '265⍽000', '3', '30', '31/08/2026', '36⍽901', '375⍽000', '38⍽250', '3⍽200', '3⍽384⍽124', '3⍽941⍽024', '400⍽000', '4⍽500', '520⍽000', '55⍽926'],
-    investorsNoCosts: ['+15.6', '+1⍽850', '+38⍽251', '+4.8', '0', '02/09/2026', '12,50', '120⍽000', '14⍽500', '15⍽000', '1⍽541⍽524', '1⍽730⍽000', '2024', '2025', '2026', '265⍽000', '275⍽971', '3', '30', '31/08/2026', '36⍽901', '375⍽000', '38⍽250', '3⍽200', '3⍽384⍽124', '3⍽941⍽024', '400⍽000', '520⍽000', '55⍽926'],
+    // V9-5: the « Services » row (14⍽500) is gone from the capital detail.
+    investors: ['+15.6', '+1⍽850', '+38⍽251', '+4.8', '0', '02/09/2026', '120⍽000', '15⍽000', '1⍽200', '1⍽541⍽524', '1⍽730⍽000', '2024', '2025', '2026', '236⍽170', '265⍽000', '3', '30', '31/08/2026', '36⍽901', '375⍽000', '38⍽250', '3⍽200', '3⍽384⍽124', '3⍽941⍽024', '400⍽000', '4⍽500', '520⍽000', '55⍽926'],
+    investorsNoCosts: ['+15.6', '+1⍽850', '+38⍽251', '+4.8', '0', '02/09/2026', '12,50', '120⍽000', '15⍽000', '1⍽541⍽524', '1⍽730⍽000', '2024', '2025', '2026', '265⍽000', '275⍽971', '3', '30', '31/08/2026', '36⍽901', '375⍽000', '38⍽250', '3⍽200', '3⍽384⍽124', '3⍽941⍽024', '400⍽000', '520⍽000', '55⍽926'],
     distribution: ['100.0', '1⍽250⍽000', '38⍽250', '38⍽250,5', '480⍽000'],
     commission: ['55⍽926,00'],
     investorDetail: ['+15,61', '01/03/2025', '1', '20⍽000', '23,26', '38⍽251', '400⍽000', '578', '6', '62⍽451'],
@@ -260,11 +195,6 @@ const BEFORE: Record<keyof typeof SCREENS, string[]> = {
     managerHistory: ['+1⍽000⍽000', '+200⍽000', '-12⍽000', '-5⍽000', '0', '09:00', '10/05/2026', '122⍽420', '13:00', '13⍽900', '15/01/2025', '16:00', '172⍽520', '17:00', '186⍽420', '1⍽000⍽000', '1⍽200', '20/09/2026', '241⍽870', '25/09/2026', '26⍽000', '30', '38⍽000', '3⍽377⍽400', '3⍽384⍽124', '4', '4⍽500', '55⍽450', '64⍽000', '6⍽724', '72⍽561', '99⍽959'],
     portal: ['+100⍽000', '+15,61', '+18⍽200', '+300⍽000', '+44⍽251', '+4⍽200', '+62⍽451', '-20⍽000', '01/03/2025', '01/07/2026', '05/01/2026', '09:30', '10:00', '11:00', '15/04/2026', '18:00', '19:00', '2026', '31/08/2026', '31/12/2025', '400⍽000', '438⍽251', '579'],
     portalManager: ['+15,53', '+186⍽420', '+1⍽000⍽000', '+200⍽000', '-12⍽000', '-5⍽000', '09:00', '10/05/2026', '13:00', '15/01/2025', '16:00', '17:00', '1⍽200⍽000', '20/09/2026', '2026', '25/09/2026', '624'],
-    services: ['+10⍽500', '+4⍽000', '0', '14⍽500', '18⍽000', '2', '3', '4', '41⍽500', '5'],
-    serviceDetail: ['0', '0,00', '0555 12 34 56', '0661 22 33 44', '1', '10⍽500,00', '14⍽000', '14⍽000,00', '16⍽500,00', '19⍽500,00', '2', '2026', '3', '3⍽500', '3⍽500,00', '4⍽000,00', '6⍽500,00', '7⍽500,00', '9⍽000,00'],
-    serviceYear: ['0,00', '1', '10⍽000,00', '14⍽000,00', '2', '2026', '24⍽500,00', '26⍽500,00', '3', '37⍽500,00', '3⍽500,00', '4⍽000,00', '7⍽500,00', '9⍽000,00'],
-    serviceClient: ['03/09/2026', '04/07/2026', '0555 12 34 56', '10:00', '10⍽000', '11:00', '14⍽000,00', '15:00', '18⍽000', '20/07/2026', '26/09/2026', '500', '6⍽500'],
-    serviceTxDialog: ['14⍽000,00', '16⍽500,00'],
     expenses: ['+40,5', '-11⍽200', '-2⍽500', '-4⍽300', '-8⍽000', '03/09/2026', '08:00', '09:00', '10⍽000', '10⍽500', '11⍽200', '13:10', '14:00', '15/09/2026', '15⍽000', '17,5', '17:20', '18:45', '2', '2026', '22/09/2026', '26⍽000', '28/09/2026', '29/09/2026', '2⍽500', '30/09/2026', '4', '5⍽000', '64⍽500', '73⍽500', '867'],
     expensesDay: ['-2⍽500', '09:00', '1', '10⍽000', '10⍽500', '13:10', '14:00', '15⍽000', '2', '2,0', '2026', '22/09/2026', '26⍽000', '29/09/2026', '2⍽500', '30', '30/09/2026', '5⍽000', '64⍽500', '73⍽500'],
     expensesWeek: ['-2⍽500', '-8⍽000', '09:00', '10⍽000', '10⍽500', '13:10', '14:00', '15⍽000', '18:45', '1⍽500', '2', '22/09/2026', '26⍽000', '28', '28/09/2026', '29/09/2026', '2⍽500', '30/09/2026', '5⍽000', '64⍽500', '7,9', '73⍽500', '8⍽000'],
@@ -306,7 +236,7 @@ for (const lang of ['fr', 'ar'] as const) {
         ['investors.capitalInvested', '520 000'], ['investors.capitalProject', '3 941 024'], ['investors.capitalOwned', '3 384 124'],
         ['investors.profitsToPay', '36 901'], ['investors.managerShare', '55 926'],
         ['finance.liquidity', '1 730 000'], ['finance.stock', '1 541 524'], ['finance.netPosition', '265 000'], ['finance.treasuryCards', '375 000'],
-        ['finance.servicesNetPosition', '14 500'], ['personalExpenses.personalAdvance', '15 000'], ['investors.managerCommissionRate', '30'],
+        ['personalExpenses.personalAdvance', '15 000'], ['investors.managerCommissionRate', '30'],
         ['investors.deliveryExpenses', '4 500'], ['investors.debtWriteOffs', '1 200'], ['investors.netDistributableProfit', '236 170'],
     ]);
     assert.ok(textOf(SCREENS.investors(lang)).includes(`${label(lang, 'profitDistribution.availableToWithdraw')} :|${n('38 250')}`), `investors.${lang}: amount the plan can pay`);
@@ -331,10 +261,6 @@ for (const lang of ['fr', 'ar'] as const) {
     // Investor portal: for the manager it keeps showing the capital he put in under « capital propre » (open question, unchanged).
     assertPairs('portal', lang, [['investorDashboard.currentValueEstimate', '438 251'], ['investors.capitalInvested', '400 000'], ['investors.totalProfitCumulative', '+62 451']]);
     assertPairs('portalManager', lang, [['investors.managerOwnedCapital', '1 200 000']]);
-    assertPairs('services', lang, [['services.toReceive', '18 000'], ['services.capitalImpact', '14 500'], ['transactions.paymentReceived', '41 500'], ['services.clients', '5']]);
-    assertOrder('services', lang, ['Conception graphique', '+10 500', 'Impression', '+4 000', 'Sites web', '0']);
-    assertPairs('serviceDetail', lang, [['services.toReceive', '14 000,00'], ['services.clientAdvances', '3 500,00'], ['services.capitalImpact', '10 500,00'], ['services.servicesBilled', '19 500,00'], ['services.collected', '16 500,00']]);
-    assertPairs('serviceYear', lang, [['services.servicesBilled', '37 500,00'], ['services.collected', '26 500,00']]);
     assertPairs('expenses', lang, [
         ['personalExpenses.totalThisMonth', '26 000'], ['personalExpenses.today', '2 500'], ['personalExpenses.thisWeek', '10 500'],
         ['personalExpenses.thisYear', '64 500'], ['personalExpenses.sinceStart', '73 500'], ['personalExpenses.pending', '15 000'],
@@ -346,4 +272,4 @@ for (const lang of ['fr', 'ar'] as const) {
 }
 
 assert.ok(FIXED_NOW > 0);
-console.log('investorScreens.test: Investisseurs, Services, Mes dépenses and the investor portal show the same numbers as before, in French and Arabic');
+console.log('investorScreens.test: Investisseurs, Mes dépenses and the investor portal show the same numbers as before, in French and Arabic');

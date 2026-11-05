@@ -113,13 +113,6 @@ function MainUtilityDialogsComponent({
     isResetModalOpen,
     handleGlobalReset,
     handleExportBackup,
-    isCreateAssetModalOpen,
-    setIsCreateAssetModalOpen,
-    newAssetName,
-    setNewAssetName,
-    newAssetDescription,
-    setNewAssetDescription,
-    handleCreateAsset,
     isTreasuryCardModalOpen,
     setIsTreasuryCardModalOpen,
     editingTreasuryCard,
@@ -139,7 +132,6 @@ function MainUtilityDialogsComponent({
     handleDeleteTreasuryTxConfirm,
 }: MainUtilityDialogsProps) {
     const closeSettings = () => setIsSettingsModalOpen(false);
-    const closeCreateAsset = () => setIsCreateAssetModalOpen(false);
     const closeTreasuryCard = () => setIsTreasuryCardModalOpen(false);
 
     return (
@@ -183,33 +175,6 @@ function MainUtilityDialogsComponent({
                 cancelLabel={t('common.cancel')}
                 variant="danger"
             />
-
-            <Modal isOpen={isCreateAssetModalOpen} onClose={closeCreateAsset} className="max-w-md bg-surface text-neutral-900">
-                <ModalHeader onClose={closeCreateAsset}>
-                    <ModalTitle className="text-base sm:text-lg">{t('transactions.newManualAsset')}</ModalTitle>
-                </ModalHeader>
-                <ModalContent className="space-y-4 px-4 py-4 sm:px-5">
-                    <Input
-                        label={t('transactions.assetName')}
-                        value={newAssetName}
-                        onChange={(event) => setNewAssetName(event.target.value)}
-                        placeholder={t('services.servicePlaceholder') as string}
-                    />
-                    <Input
-                        label={t('transactions.descriptionOptional')}
-                        value={newAssetDescription}
-                        onChange={(event) => setNewAssetDescription(event.target.value)}
-                    />
-                </ModalContent>
-                <ModalFooter>
-                    <Button type="button" variant="outline" onClick={closeCreateAsset}>
-                        {t('common.cancel')}
-                    </Button>
-                    <Button type="button" onClick={handleCreateAsset}>
-                        {t('transactions.create')}
-                    </Button>
-                </ModalFooter>
-            </Modal>
 
             <Modal isOpen={isTreasuryCardModalOpen} onClose={closeTreasuryCard} className="max-w-md bg-surface text-neutral-900">
                 <ModalHeader onClose={closeTreasuryCard}>
@@ -282,19 +247,10 @@ const areMainUtilityDialogsPropsEqual = (prev: MainUtilityDialogsProps, next: Ma
     const nextTreasuryTxDeleteOpen = next.treasuryTxToDelete !== null;
     if (prev.isSettingsModalOpen !== next.isSettingsModalOpen
         || prev.isResetModalOpen !== next.isResetModalOpen
-        || prev.isCreateAssetModalOpen !== next.isCreateAssetModalOpen
         || prev.isTreasuryCardModalOpen !== next.isTreasuryCardModalOpen
         || prevTreasuryCardDeleteOpen !== nextTreasuryCardDeleteOpen
         || prevTreasuryTxDeleteOpen !== nextTreasuryTxDeleteOpen) {
         return false;
-    }
-    if (next.isCreateAssetModalOpen) {
-        const sameCreateAsset = prev.newAssetName === next.newAssetName
-            && prev.newAssetDescription === next.newAssetDescription
-            && true;
-        if (!sameCreateAsset) {
-            return false;
-        }
     }
     if (next.isTreasuryCardModalOpen) {
         const sameCardModal = prev.editingTreasuryCard === next.editingTreasuryCard

@@ -69,7 +69,6 @@ type TresoreriePageProps = {
     openTreasuryBalanceEditModal: (asset: 'Caisse' | 'BaridiMob') => void;
     openDeliveryExpenseModal?: () => void;
     treasuryTransactions?: TreasuryTx[];
-    onOpenServices?: () => void;
     /** Inventory (V5-2): the user document, to save counts. Without it the section is not shown. */
     userDocRef?: any;
     setAlert?: (message: string) => void;
@@ -87,7 +86,7 @@ type TresoreriePageProps = {
     onLinkMovementToClient?: (tx: TreasuryTx) => void;
     [key: string]: any;
 };
-export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown, capitalSnapshot, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, treasuryTransactions = [], onOpenServices, userDocRef, setAlert, portfolioStats, transactions = [], inventoryReady = true, onCorrectInventory, onInvestigate, clientTransactionsDzd = [], onLinkMovementToClient }: TresoreriePageProps) {
+export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown, capitalSnapshot, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, treasuryTransactions = [], userDocRef, setAlert, portfolioStats, transactions = [], inventoryReady = true, onCorrectInventory, onInvestigate, clientTransactionsDzd = [], onLinkMovementToClient }: TresoreriePageProps) {
     const { t } = useLanguage();
     const weekdays = t('common.weekdaysNarrow') as unknown as string[];
 
@@ -153,7 +152,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
     return (<div className="anim-page-in flex flex-col gap-3">
       <CapitalOverviewCard t={t} capitalSnapshot={capitalSnapshot} investorBreakdown={investorBreakdown} showBreakdown/>
 
-      <TreasurySummarySection caisseBalance={caisseBalance} baridiBalance={baridiBalance} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} servicesCapitalImpact={capitalSnapshot.servicesCapitalImpact} openTreasuryBalanceEditModal={openTreasuryBalanceEditModal} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string} onOpenServices={onOpenServices}/>
+      <TreasurySummarySection caisseBalance={caisseBalance} baridiBalance={baridiBalance} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} openTreasuryBalanceEditModal={openTreasuryBalanceEditModal} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string}/>
 
       {inventoryEnabled && (<InventorySection expected={inventoryExpectedNow} checks={inventoryChecks} corrections={balanceCorrections} ready={inventoryReady} onSave={(data) => { saveInventoryCheck(data); }} onDelete={deleteInventoryCheck} onCorrect={(row) => onCorrectInventory?.(row)} treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} onInvestigate={onInvestigate}/>)}
 

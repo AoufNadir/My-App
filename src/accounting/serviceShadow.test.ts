@@ -16,7 +16,7 @@ import {
 } from './index';
 
 assert.equal(SERVICES_V2_READINESS, 'shadow', 'Services Shadow must not activate a V2 writer or closure.');
-assert.ok(SERVICE_SHADOW_WRITERS.length >= 4, 'The service writer inventory must be explicit.');
+assert.ok(SERVICE_SHADOW_WRITERS.length >= 3, 'The service writer inventory must be explicit.');
 for (const writer of SERVICE_SHADOW_WRITERS.filter((writer) => writer.v2Policy === 'shadow_observed')) {
     const source = readFileSync(new URL(`../${writer.file.replace(/^src\//, '')}`, import.meta.url), 'utf8');
     assert.match(source, /recordServiceShadow/, `${writer.id} must observe Legacy with the service Shadow builder.`);

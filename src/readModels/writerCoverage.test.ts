@@ -142,7 +142,6 @@ const requiredWriterIds = [
     'investors.personal-expenses',
     'project.delivery-expense',
     'services.digital',
-    'services.manual-assets',
     'orders.complete-order',
     'legacy.edit-delete',
     'entity.archive-only',

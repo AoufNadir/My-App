@@ -83,7 +83,6 @@ type DashboardPageProps = {
     onOpenClient: (clientId: string) => void;
     onOpenClientDebts: () => void;
     onOpenTreasury: () => void;
-    onOpenServices?: () => void;
     onOpenAnalytics: () => void;
     onOpenPersonalWithdrawal?: () => void;
     transactions: Tx[];
@@ -266,7 +265,6 @@ function DashboardContent({
     overdueDebtClientCount,
     onOpenClientDebts,
     onOpenTreasury,
-    onOpenServices,
     transactions,
     clientTransactionsDzd,
     clientsDzd,
@@ -385,7 +383,7 @@ function DashboardContent({
         month: dailyOverview.ownerProfitMonth,
         year: dailyOverview.ownerProfitYear,
     };
-    const serviceProfitCard = profitSplit && !hasNoServiceActivity(profitSplit.services) ? (<ServiceProfitCard periodTitle={t(PROFIT_PERIOD_LABEL_KEYS[profitPeriod].title) as string} parts={profitSplit.services[profitPeriod]} inUse={{ manual: profitSplit.services.allTime.manual !== 0, digital: profitSplit.services.allTime.digital !== 0 }} onOpen={onOpenServices}/>) : null;
+    const serviceProfitCard = profitSplit && !hasNoServiceActivity(profitSplit.services) ? (<ServiceProfitCard periodTitle={t(PROFIT_PERIOD_LABEL_KEYS[profitPeriod].title) as string} parts={profitSplit.services[profitPeriod]} inUse={{ digital: profitSplit.services.allTime.digital !== 0 }}/>) : null;
     const salesProfit = salesProfitByPeriod[profitPeriod];
 
     // Most urgent first; the stack shows two and folds the rest.

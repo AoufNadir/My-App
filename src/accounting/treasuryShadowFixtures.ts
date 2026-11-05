@@ -137,20 +137,6 @@ export const TREASURY_SHADOW_EXPECTED_FIXTURES: readonly TreasuryShadowFixture[]
         expectedPostings: [{ account: 'asset.cash.baridimob', side: 'debit', amountDzd: 116 }, { account: 'income.digital_service_sale', side: 'credit', amountDzd: 116 }],
     },
     {
-        label: 'Manual-asset customer receipt',
-        intent: { operationId: 'fixture:manual_asset_receipt_cash', actorUid: ACTOR_UID, effectiveAt: EFFECTIVE_AT, kind: 'manual_asset_receipt_cash', wallet: 'Caisse', clientId: 'asset-client-1', amountDzd: 117 },
-        legacyRows: [{ type: 'Ajout', source: 'Caisse', amount: 117 }],
-        expectedKind: 'manual_asset_transaction',
-        expectedPostings: [{ account: 'asset.cash.caisse', side: 'debit', amountDzd: 117 }, { account: 'asset.receivable.manual_asset', side: 'credit', amountDzd: 117 }],
-    },
-    {
-        label: 'Manual-asset payout',
-        intent: { operationId: 'fixture:manual_asset_payout_cash', actorUid: ACTOR_UID, effectiveAt: EFFECTIVE_AT, kind: 'manual_asset_payout_cash', wallet: 'BaridiMob', clientId: 'asset-client-1', amountDzd: 118 },
-        legacyRows: [{ type: 'Retrait', source: 'BaridiMob', amount: 118 }],
-        expectedKind: 'manual_asset_transaction',
-        expectedPostings: [{ account: 'asset.cash.baridimob', side: 'credit', amountDzd: 118 }, { account: 'asset.manual_asset', side: 'debit', amountDzd: 118 }],
-    },
-    {
         label: 'Prepaid purchase-order customer sale receipt',
         intent: { operationId: 'fixture:po_order_sale_receipt_cash', actorUid: ACTOR_UID, effectiveAt: EFFECTIVE_AT, kind: 'po_order_sale_receipt_cash', wallet: 'Caisse', clientId: 'client-po-1', amountDzd: 119 },
         legacyRows: [{ type: 'Ajout', source: 'Caisse', amount: 119 }],

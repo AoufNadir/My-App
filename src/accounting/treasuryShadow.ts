@@ -21,8 +21,6 @@ export type TreasuryShadowKind =
     | 'personal_advance_return_cash'
     | 'digital_service_purchase_cash'
     | 'digital_service_sale_cash'
-    | 'manual_asset_receipt_cash'
-    | 'manual_asset_payout_cash'
     | 'po_order_sale_receipt_cash';
 
 type TreasuryShadowBase = {
@@ -115,9 +113,6 @@ function operationKind(intent: TreasuryShadowIntent): FinancialOperationKind {
         case 'digital_service_purchase_cash':
         case 'digital_service_sale_cash':
             return 'digital_service_sale';
-        case 'manual_asset_receipt_cash':
-        case 'manual_asset_payout_cash':
-            return 'manual_asset_transaction';
         case 'po_order_sale_receipt_cash':
             return 'order_completion';
     }
@@ -140,8 +135,6 @@ function counterpart(intent: TreasuryShadowIntent): { account: LedgerAccount; si
         case 'personal_advance_return_cash': return { account: 'asset.manager_advance', side: 'credit' };
         case 'digital_service_purchase_cash': return { account: 'asset.service_inventory', side: 'debit' };
         case 'digital_service_sale_cash': return { account: 'income.digital_service_sale', side: 'credit' };
-        case 'manual_asset_receipt_cash': return { account: 'asset.receivable.manual_asset', side: 'credit' };
-        case 'manual_asset_payout_cash': return { account: 'asset.manual_asset', side: 'debit' };
         case 'po_order_sale_receipt_cash': return { account: 'income.purchase_order_sale', side: 'credit' };
         case 'treasury_transfer': throw new Error('Treasury transfers do not have a non-cash counterpart.');
     }
@@ -157,7 +150,6 @@ function cashSide(intent: Exclude<TreasuryShadowIntent, { kind: 'treasury_transf
         || intent.kind === 'personal_advance_cash'
         || intent.kind === 'personal_expense_cash'
         || intent.kind === 'digital_service_purchase_cash'
-        || intent.kind === 'manual_asset_payout_cash'
         ? 'credit'
         : 'debit';
 }

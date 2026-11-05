@@ -100,14 +100,6 @@ function sourceSlice(file: string, marker: string, endMarker: string): string {
     assert.match(investorDelete, /archived: true/, 'Investor delete must archive the investor doc');
     assert.match(investorDelete, /isActive: false/, 'Investor archive must mark investor inactive');
     assert.doesNotMatch(investorDelete, /batch\.delete|\.delete\(/, 'Investor delete must not delete financial history');
-
-    const assetDelete = sourceSlice('src/hooks/useAssetHandlers.ts', 'const handleDeleteAsset = async', '    const handleCreateAssetTransaction');
-    assert.match(assetDelete, /archived: true/, 'Asset delete must archive the asset doc');
-    assert.doesNotMatch(assetDelete, /\.delete\(/, 'Asset delete must not delete the asset doc');
-
-    const assetClientDelete = sourceSlice('src/hooks/useAssetHandlers.ts', 'const handleDeleteAssetClient = async', '    const openAssetClientModal');
-    assert.match(assetClientDelete, /archived: true/, 'Asset client delete must archive the client doc');
-    assert.doesNotMatch(assetClientDelete, /batch\.delete|\.delete\(/, 'Asset client delete must not delete financial history');
 }
 
 {

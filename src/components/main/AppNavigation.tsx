@@ -2,7 +2,6 @@ import React, { memo, useCallback, useState } from 'react';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Dropdown, DropdownItem } from '../ui/Dropdown';
 import { MainNavLink } from './MainNavLink';
-import { BriefcaseIcon } from '../icons/BriefcaseIcon';
 import { ArrowRightLeftIcon } from '../icons/ArrowRightLeftIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { ArrowUpIcon } from '../icons/ArrowUpIcon';
@@ -29,7 +28,6 @@ type NavLabels = {
     reports: string;
     clients: string;
     treasury: string;
-    services: string;
     investors: string;
     more: string;
     settings: string;
@@ -68,7 +66,6 @@ function AppDesktopNavComponent({ view, onSelect, labels }: NavSharedProps) {
         <div className={sectionLabelClass}>{labels.money}</div>
         <DropdownItem onClick={() => onSelect('statistiques')} isActive={view === 'statistiques'} icon={<WalletIcon className="h-4 w-4 text-financial-asset"/>}>{labels.portfolio}</DropdownItem>
         <DropdownItem onClick={() => onSelect('tresorerie')} isActive={view === 'tresorerie'} icon={<LandmarkIcon className="h-4 w-4 text-success"/>}>{labels.treasury}</DropdownItem>
-        <DropdownItem onClick={() => onSelect('services')} isActive={view === 'services'} icon={<BriefcaseIcon className="h-4 w-4 text-secondary"/>}>{labels.services}</DropdownItem>
         <div className={sectionLabelClass}>{labels.followUp}</div>
         <DropdownItem onClick={() => onSelect('investors')} isActive={view === 'investors'} icon={<UserIcon className="h-4 w-4 text-secondary"/>}>{labels.investors}</DropdownItem>
         <DropdownItem onClick={() => onSelect('analytics')} isActive={view === 'analytics'} icon={<ArrowUpIcon className="h-4 w-4 text-warning"/>}>{labels.analytics}</DropdownItem>
@@ -76,12 +73,11 @@ function AppDesktopNavComponent({ view, onSelect, labels }: NavSharedProps) {
       </Dropdown>
     </div>);
 }
-const SECONDARY_VIEWS = ['statistiques', 'analytics', 'tresorerie', 'services', 'investors', 'expenses'] as const;
+const SECONDARY_VIEWS = ['statistiques', 'analytics', 'tresorerie', 'investors', 'expenses'] as const;
 const MORE_SHEET_GROUPS = [
     { key: 'money', items: [
         { view: 'statistiques', label: 'portfolio', icon: WalletIcon, tone: 'bg-financial-asset-bg text-financial-asset' },
         { view: 'tresorerie', label: 'treasury', icon: LandmarkIcon, tone: 'bg-financial-profit-bg text-financial-profit' },
-        { view: 'services', label: 'services', icon: BriefcaseIcon, tone: 'bg-secondary/10 text-secondary dark:bg-secondary-light/10 dark:text-secondary-light' },
     ] },
     { key: 'followUp', items: [
         { view: 'investors', label: 'investors', icon: UserIcon, tone: 'bg-secondary/10 text-secondary dark:bg-secondary-light/10 dark:text-secondary-light' },

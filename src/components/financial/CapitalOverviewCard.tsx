@@ -31,7 +31,6 @@ function CapitalBreakdown({ t, capitalSnapshot, id }: { t: (key: string) => stri
         { label: t('finance.treasuryCards'), value: capitalSnapshot.treasuryCardsTotal },
         { label: t('finance.toReceive'), value: capitalSnapshot.receivables },
         { label: t('finance.clientAdvance'), value: -capitalSnapshot.clientAdvances },
-        { label: t('finance.servicesNetPosition'), value: capitalSnapshot.servicesCapitalImpact },
         { label: t('personalExpenses.personalAdvance'), value: capitalSnapshot.managerPendingAdvances },
     ];
     const row = (label: string, value: number, strong = false) => (<div key={label} className="flex items-baseline justify-between gap-3 py-1">

@@ -20,7 +20,6 @@ const PAGE_TITLE_LABELS: Record<string, string> = {
     analytics: 'analytics',
     expenses: 'expenses',
     tresorerie: 'treasury',
-    services: 'services',
     investors: 'investors',
 };
 function MainHeaderBarComponent({ view, setView, globalSearchTitle, handleOpenGlobalSearch, onOpenSettings, onSignOut, labels }: MainHeaderBarProps) {
