@@ -76,8 +76,6 @@ export type PhoneWords = {
     per100: (currency: ReportCurrency, amount: string) => string;
     /** Under the lowest and highest price: the prices are the period's own */
     rangeCaption: (period: string) => string;
-    /** The operations table's column titles */
-    table: { date: string; quantity: string; price: string; amount: string };
     operation: OperationWords;
     issuedLine: (issued: string, reference: string) => string;
 };
@@ -162,7 +160,6 @@ const AR: PhoneWords = {
     operationsTitle: 'عملياتك',
     per100: (currency, amount) => `كل 100 ${currency === 'EUR' ? 'يورو' : 'USDT'} كلّفتك ${amount}`,
     rangeCaption: (period) => `أسعار شرائك خلال ${period}`,
-    table: { date: 'التاريخ', quantity: 'الكمية', price: 'السعر', amount: 'المبلغ' },
     title: { range: 'كشف حسابك', month: 'كشف حسابك الشهري', year: 'كشف حسابك السنوي' },
     ledger: {
         label: { purchases: 'مشترياتك', payments: 'دفعاتك', saleToUs: 'ما بعتَه لنا', withdrawal: 'ما سحبتَه من رصيدك', transfer: 'تحويلات مع عملاء آخرين' },
@@ -251,7 +248,6 @@ const FR: PhoneWords = {
     operationsTitle: 'Vos opérations',
     per100: (currency, amount) => `Chaque tranche de 100 ${currency === 'EUR' ? 'EUR' : 'USDT'} vous a coûté ${amount}`,
     rangeCaption: (period) => `Vos prix d’achat sur ${period}`,
-    table: { date: 'Date', quantity: 'Quantité', price: 'Prix', amount: 'Montant' },
     title: { range: 'Relevé de votre compte', month: 'Relevé mensuel de votre compte', year: 'Relevé annuel de votre compte' },
     ledger: {
         label: { purchases: 'Vos achats', payments: 'Vos versements', saleToUs: 'Vos ventes à ProDigital', withdrawal: 'Retraits sur votre solde', transfer: 'Transferts avec d’autres clients' },

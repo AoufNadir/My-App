@@ -281,9 +281,8 @@ for (const lang of ['ar', 'fr'] as const) {
         'سُجّلت على حسابك، لم تدفعها بعد', 'دفعتَ ثمنها باليورو', 'استلمتَ ثمنها باليورو', 'دفعتَ ثمنها بـ USDT',
     ])
         assert.ok(operations.includes(sentence), `ar: « ${sentence} » is on the operations`);
-    // V9-3: the operations are a table: the price is a column, not a sentence.
-    assert.ok(operations.includes(PHONE_WORDS.ar.table.price) && operations.includes(formatPrice(249.5)), 'ar: the price of a purchase is in its column');
-    assert.ok(operations.includes(`${formatEurPrice(470 / 500)} €`), 'ar: …in euros when it was paid in euros');
+    assert.ok(operations.includes(`بسعر ${formatPrice(249.5)} DZD للواحد`), 'ar: the price of a purchase is said in words, under its quantity (V9-9)');
+    assert.ok(operations.includes(`بسعر ${formatEurPrice(470 / 500)} € للواحد`), 'ar: …in euros when it was paid in euros');
     // After every operation that moved the account (and only those), where the account stands.
     const moved = report.operations.filter((row) => row.entry.affectsBalance).length;
     assert.equal((operations.match(/بعدها (?:عليك|لك|حسابك مسوّى)/g) || []).length, moved, 'One sentence after each operation that moved the account');

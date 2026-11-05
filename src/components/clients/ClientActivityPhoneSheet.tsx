@@ -246,13 +246,14 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
     const AFTER_LOOK: Record<AccountState, string> = { owes: 'bg-amber-50 text-amber-700', credit: 'bg-blue-50 text-primary', settled: 'bg-green-50 text-green-700' };
     // A client who always pays on the spot has a balance of 0 on every row: nothing to say after each one.
     const showBalanceAfter = showBalance && report.operations.some((row) => Math.abs(row.balanceAfterCents) >= 1);
-    // V9-3: the operations are a table a trader can check against his books: date, quantity, price, amount.
-    const tableColumns = spansYears ? 'grid-cols-[88px_minmax(0,1fr)_74px_88px]' : 'grid-cols-[48px_minmax(0,1fr)_74px_88px]';
+    // V9-9: each operation is two columns (what happened, the amount), the date above the words: three columns left too
+    // little room for the sentence on a narrow phone. The unit price sits under the quantity, how it was paid and where the
+    // account stands after it under both.
     const unitPriceText = (entry: ReportEntry): string | null => {
         if ((entry.kind !== 'buy' && entry.kind !== 'saleToUs') || !entry.quantity || !entry.currency)
             return null;
         if (entry.dzdCents !== null && !(entry.eurAmount && !entry.affectsBalance))
-            return formatPrice(entry.dzdCents / 100 / entry.quantity);
+            return `${formatPrice(entry.dzdCents / 100 / entry.quantity)} DZD`;
         return entry.eurAmount ? `${formatEurPrice(entry.eurAmount / entry.quantity)} €` : null;
     };
     const operationRow = (row: OperationRow, index: number) => {
@@ -264,24 +265,27 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
         const how = o.how(entry, showBalance);
         const after = showBalanceAfter && entry.affectsBalance ? accountState(row.balanceAfterCents) : null;
         const price = unitPriceText(entry);
-        return (<div key={entry.id} data-pdf-row="" data-pdf-break={index > 0 ? '' : undefined} className={`border-b border-border py-2 ${quiet ? 'text-neutral-500' : ''}`}>
-          <div className={`grid ${tableColumns} items-baseline gap-x-2`}>
-            <span className="font-latin text-[13px] font-semibold leading-snug text-neutral-900">{num(spansYears ? formatDate(entry.timestamp) : formatDayMonth(entry.timestamp))}</span>
-            {isTrade
-              ? (<>
-                  <b className="font-latin text-[14.5px] leading-snug">{num(`${formatQuantity(entry.quantity!)} ${currencyUnit(entry.currency!)}`)}<small className="block font-sans text-[12.5px] font-medium text-neutral-500">{entry.kind === 'saleToUs' ? w.balanceLine.saleToUs : ''}</small></b>
-                  <span className="font-latin text-[14px] leading-snug">{price ? num(price) : ''}</span>
-                </>)
-              : (<b className={`col-span-2 leading-snug ${quiet ? 'text-[13.5px] font-semibold' : 'text-[14.5px] text-neutral-900'}`}>{title}</b>)}
-            <span className="text-end font-latin leading-snug">
-              {amount && (<b className={quiet ? 'text-[13.5px] font-medium' : 'text-[14.5px] font-bold'}>{num(amount.value)}<small className="ms-1 text-[12.5px] font-medium text-neutral-500">{amount.unit}</small></b>)}
-            </span>
+        return (<div key={entry.id} data-pdf-row="" data-pdf-break={index > 0 ? '' : undefined} className={`border-b border-border py-2.5 ${quiet ? 'text-neutral-500' : ''}`}>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
+            <div className="min-w-0">
+              <small className="block font-latin text-[12.5px] font-semibold leading-snug text-neutral-500">{num(spansYears ? formatDate(entry.timestamp) : formatDayMonth(entry.timestamp))}</small>
+              {isTrade
+                ? (<>
+                    <b className="block font-latin text-[15px] leading-snug text-neutral-900">{num(`${formatQuantity(entry.quantity!)} ${currencyUnit(entry.currency!)}`)}{entry.kind === 'saleToUs' && <span className="font-sans text-[13px] font-medium text-neutral-500"> · {w.balanceLine.saleToUs}</span>}</b>
+                    {price && <small className="block text-[13px] leading-snug text-neutral-500">{o.unitPrice(isolate(price))}</small>}
+                  </>)
+                : (<b className={`block leading-snug ${quiet ? 'text-[14px] font-semibold' : 'text-[15px] text-neutral-900'}`}>{title}</b>)}
+            </div>
+            {amount && (<span className="text-end font-latin leading-snug">
+                <b className={quiet ? 'text-[14px] font-medium' : 'text-[15px] font-bold'}>{num(amount.value)}</b>
+                <small className="block text-[12.5px] font-medium text-neutral-500">{amount.unit}</small>
+              </span>)}
           </div>
-          {(how || after || quiet) && (<p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-snug text-neutral-500">
-              {how}
-              {quiet && entry.kind === 'adjustment' && <span>{p.smallNote.adjustment}</span>}
-              {after && <b className={`rounded-lg px-2 py-0.5 text-[13px] font-semibold ${AFTER_LOOK[after]}`}>{o.after(after, isolate(`${dzdShort(row.balanceAfterCents)} DZD`))}</b>}
-            </p>)}
+          {(how || after || quiet) && (<div className="mt-1 flex flex-col items-start gap-1">
+              {how && <small className="text-[13px] leading-snug text-neutral-500">{how}</small>}
+              {quiet && entry.kind === 'adjustment' && <small className="text-[13px] leading-snug text-neutral-500">{p.smallNote.adjustment}</small>}
+              {after && <b className={`rounded-lg px-2 py-0.5 text-[13px] font-semibold leading-snug ${AFTER_LOOK[after]}`}>{o.after(after, isolate(`${dzdShort(row.balanceAfterCents)} DZD`))}</b>}
+            </div>)}
         </div>);
     };
 
@@ -331,9 +335,6 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
           {report.operations.length === 0
             ? (<p className="text-[13.5px] text-neutral-500">{w.leadNone}</p>)
             : (<div>
-              <div data-pdf-break="" className={`grid ${tableColumns} gap-x-2 border-b border-neutral-900 pb-1 text-[12.5px] font-bold leading-snug text-neutral-500`}>
-                <span>{p.table.date}</span><span>{p.table.quantity}</span><span>{p.table.price}</span><span className="text-end">{p.table.amount}</span>
-              </div>
               {report.operations.map(operationRow)}
             </div>)}
         </section>
