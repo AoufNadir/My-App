@@ -521,5 +521,58 @@ for (const lang of ['fr', 'ar'] as const) {
     }
 }
 
+// ---- V11-1: the client comes first, the assistant tells the last price with him, the tags input is gone ----
+{
+    const extraTx: Tx[] = [
+        ...transactions,
+        trade('s5', 'sell', 'EUR', 200, 263, at(2026, 9, 28, 10)),
+        trade('b3', 'buy', 'USDT', 3_000, 244, at(2026, 9, 29, 10)),
+    ];
+    const extraRows: ClientTransactionDzd[] = [
+        ...clientTransactionsDzd,
+        ctx('k7', 'c3', -52_600, 'Vente EUR', at(2026, 9, 28, 10), { linkedTxId: 's5', linkRole: 'primary', paymentMethod: 'Crédit' }),
+        ctx('k8', 'c4', 732_000, 'Paiement Effectué', at(2026, 9, 29, 10), { linkedTxId: 'b3', linkRole: 'primary', paymentMethod: 'Espèces', affectsBalance: false }),
+    ];
+    const withHistory = { transactions: extraTx, clientTransactionsDzd: extraRows, profitByTxId: computePamLedger(extraTx, { nowMs: FIXED_NOW }).profitByTxId };
+    for (const lang of ['fr', 'ar'] as const) {
+        const eur = (key: string) => esc(label(lang, key));
+        const price = (value: string) => value; // 263,00 is written the same in both languages
+        // A sale to a client who has one: his last price, in the window, before the amounts.
+        const known = transactionWindow(lang, { ...withHistory, mode: 'sell_eur', linkedClientId: 'c3', sellAmount: '200', sellPrice: '', sellTotal: '' });
+        assert.ok(known.includes(price('263,00')) && known.includes(esc(label(lang, 'transactions.assistLastSale').replace('{name}', 'Amine Bouzid'))), `${lang}: the last sale to Amine Bouzid`);
+        assert.ok(known.includes(esc(label(lang, 'transactions.assistPayCredit'))), `${lang}: how that sale was settled`);
+        assert.ok(known.includes(esc(label(lang, 'transactions.assistUse').replace('{price}', '263,00'))), `${lang}: a button to use that price`);
+        // The client (« Pour qui ? ») comes before the amounts (« Combien ? »), and the assistant between them.
+        const who = known.indexOf(eur('transactions.stepWhoSell'));
+        const assistant = known.indexOf(esc(label(lang, 'transactions.assistLastSale').replace('{name}', 'Amine Bouzid')));
+        const amounts = known.indexOf(eur('transactions.stepHowMuch'));
+        assert.ok(who > -1 && assistant > who && amounts > assistant, `${lang}: client, then assistant, then amounts`);
+        assert.ok(!known.includes(eur('transactions.clientAndSettlement')) && !known.includes(eur('transactions.stepAmounts')), `${lang}: the old two cards are gone`);
+        // The price already in the field: nothing to apply, the card says so.
+        const applied = transactionWindow(lang, { ...withHistory, mode: 'sell_eur', linkedClientId: 'c3', sellAmount: '200', sellPrice: '263.00', sellTotal: '52600' });
+        assert.ok(applied.includes(esc(label(lang, 'transactions.assistApplied'))) && !applied.includes(esc(label(lang, 'transactions.assistUse').replace('{price}', '263,00'))), `${lang}: the price is already applied`);
+        // A client with no sale yet: « first sale », and the last price to someone else as the reference.
+        const fresh = transactionWindow(lang, { ...withHistory, mode: 'sell_eur', linkedClientId: 'c2' });
+        assert.ok(fresh.includes(esc(label(lang, 'transactions.assistFirstSale').replace('{name}', 'Nadia Ferhat'))), `${lang}: first sale to a new client`);
+        assert.ok(fresh.includes(esc(label(lang, 'transactions.assistReferenceSale').replace('{price}', '263,00').replace('{when}', label(lang, 'transactions.assistDaysAgo').replace('{days}', '2')))) || fresh.includes('263,00'), `${lang}: the last price to another client as the reference`);
+        // A purchase: the last price paid to another client (the supplier of 29/09), no margin line.
+        const buy = transactionWindow(lang, { ...withHistory, ...buyWithDzd, linkedClientId: 'c2' });
+        assert.ok(buy.includes(esc(label(lang, 'transactions.assistFirstBuy').replace('{name}', 'Nadia Ferhat'))) && buy.includes('244,00'), `${lang}: a purchase from a new client shows the last purchase price`);
+        assert.ok(buy.includes(eur('transactions.stepWhoBuy')), `${lang}: « from whom? » for a purchase`);
+        const supplier = transactionWindow(lang, { ...withHistory, ...buyWithDzd, linkedClientId: 'c4' });
+        assert.ok(supplier.includes(esc(label(lang, 'transactions.assistLastBuy').replace('{name}', 'Salima Hadj'))) && !supplier.includes(esc(label(lang, 'transactions.assistMargin').split('{margin}')[0])), `${lang}: the last purchase from the supplier, without a margin`);
+        // No client, or an edit: no assistant at all.
+        assert.ok(!transactionWindow(lang, { ...withHistory, mode: 'sell_eur', linkedClientId: 'none' }).includes('✦'), `${lang}: no client, no assistant`);
+        assert.ok(!transactionWindow(lang, { ...withHistory, mode: 'sell_eur', linkedClientId: 'c3', editingTx: extraTx[extraTx.length - 2] }).includes('✦'), `${lang}: no assistant when editing an operation`);
+        // The recent clients are one tap away (most recent first), with « no client »; the tags input is gone.
+        const chips = transactionWindow(lang, { ...withHistory, mode: 'sell_eur', linkedClientId: 'none' });
+        assert.ok(chips.includes('aria-pressed') && chips.includes(esc(label(lang, 'transactions.assistNoClient'))), `${lang}: « no client » chip`);
+        for (const name of ['Salima Hadj', 'Amine Bouzid', 'Nadia Ferhat'])
+            assert.ok(chips.includes(`>${name}</button>`), `${lang}: recent client ${name}`);
+        assert.ok(!chips.includes('Karim Belkacem</button>'), `${lang}: only the three most recent`);
+        assert.ok(!chips.includes(eur('transactions.tags')) && !chips.includes(esc(label(lang, 'transactions.addTagPlaceholder'))), `${lang}: no tags input`);
+    }
+}
+
 assert.ok(FIXED_NOW > 0);
 console.log('operationWindows.test: the buy, sell, transfer and expense windows show the same numbers as before, in French and Arabic, with their totals at the bottom; four windows have their notes field and buying EUR on credit its due date');

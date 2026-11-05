@@ -24,13 +24,15 @@ type ClientLinkerProps = {
     allowBaridiDzdLink?: boolean;
     hidePaymentStatus?: boolean;
     hideLinkedDzdClient?: boolean;
+    /** The clients of the latest operations: one tap picks them (V11-1) */
+    recentClients?: ClientDzd[];
 };
 const getClientName = (client: ClientDzd) => {
     if (client.fullName && client.fullName.trim())
         return client.fullName;
     return client.nom || '';
 };
-function ClientLinkerComponent({ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus, errorMessage, hasError, errorMessageDzd, hasErrorDzd, allowBaridiDzdLink = false, hidePaymentStatus = false, hideLinkedDzdClient = false }: ClientLinkerProps) {
+function ClientLinkerComponent({ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus, errorMessage, hasError, errorMessageDzd, hasErrorDzd, allowBaridiDzdLink = false, hidePaymentStatus = false, hideLinkedDzdClient = false, recentClients }: ClientLinkerProps) {
     const { t } = useLanguage();
     const hasPrimaryClient = Boolean(linkedClientId && linkedClientId !== 'none');
     const showLinkedDzdClient = !hideLinkedDzdClient && hasPrimaryClient && (clientPaymentStatus === 'cash' || (allowBaridiDzdLink && clientPaymentStatus === 'baridi'));
@@ -52,6 +54,10 @@ function ClientLinkerComponent({ linkedClientId, setLinkedClientId, linkedClient
                     </button>
                 </div>
                 {errorMessage && <p className="mt-1 text-xs font-medium text-danger">{errorMessage}</p>}
+                {recentClients && (<div role="group" aria-label={t('transactions.assistRecent') as string} className="mt-2 flex flex-wrap gap-1.5">
+                        {recentClients.map((client) => (<button key={client.id} type="button" aria-pressed={linkedClientId === client.id} onClick={() => setLinkedClientId(client.id)} className={`min-h-9 max-w-[11rem] truncate rounded-full border px-3 text-[13.5px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${linkedClientId === client.id ? 'border-primary bg-primary text-white' : 'border-border-strong bg-surface text-neutral-700 hover:bg-surface-muted'}`}>{getClientName(client)}</button>))}
+                        <button type="button" aria-pressed={!hasPrimaryClient} onClick={() => setLinkedClientId('none')} className={`min-h-9 rounded-full border border-dashed px-3 text-[13.5px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${!hasPrimaryClient ? 'border-primary bg-primary/10 text-primary' : 'border-border-strong text-neutral-600 hover:bg-surface-muted'}`}>{t('transactions.assistNoClient')}</button>
+                    </div>)}
             </div>
 
             {hasPrimaryClient && !hidePaymentStatus && (<div>
@@ -85,5 +91,6 @@ const areClientLinkerPropsEqual = (prev: ClientLinkerProps, next: ClientLinkerPr
     && prev.hasErrorDzd === next.hasErrorDzd
     && prev.allowBaridiDzdLink === next.allowBaridiDzdLink
     && prev.hidePaymentStatus === next.hidePaymentStatus
-    && prev.hideLinkedDzdClient === next.hideLinkedDzdClient);
+    && prev.hideLinkedDzdClient === next.hideLinkedDzdClient
+    && prev.recentClients === next.recentClients);
 export const ClientLinker = memo(ClientLinkerComponent, areClientLinkerPropsEqual);

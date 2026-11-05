@@ -20,63 +20,14 @@ import { formatNumber } from '../../pages/shared/pageFormat';
 import { translateFormMessage } from '../../utils/formMessages';
 import { tradeChannel } from '../../utils/channelSummary';
 import { saleStatusAfterClientPick, usualChannelDiffers, usualChannelOf } from '../../utils/usualChannel';
-import { getTransactionTagLabel } from '../../utils/transactionTerminology';
-
-const QUICK_TAGS = [
-    { value: 'OTC', labelKey: 'transactions.quickTagOtc' },
-    { value: 'Urgent', labelKey: 'transactions.quickTagUrgent' },
-    { value: 'Gros compte', labelKey: 'transactions.quickTagLargeAccount' },
-    { value: 'Livraison', labelKey: 'transactions.quickTagDelivery' },
-    // Keep the old stored value for existing filters and historical records.
-    { value: 'Crédit', labelKey: 'transactions.quickTagDeferredPayment' }
-] as const;
-
-function TagInput({ tags, setTags, t }: { tags: string[]; setTags: (t: string[]) => void; t: (key: string) => string }) {
-    const [input, setInput] = React.useState('');
-    const addTag = (raw: string) => {
-        const tag = raw.trim();
-        if (!tag || tags.includes(tag)) return;
-        setTags([...tags, tag]);
-        setInput('');
-    };
-    const removeTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
-    return (
-        <div className="space-y-2">
-            <p className="text-sm font-medium text-neutral-700">{t('transactions.tags')}</p>
-            {tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                    {tags.map((tag) => (
-                        <span key={tag} className="inline-flex min-h-8 items-center gap-1 rounded-full bg-primary/10 pe-1 ps-3 text-xs font-bold text-primary dark:text-primary-light">
-                            {getTransactionTagLabel(tag, t)}
-                            <button type="button" onClick={() => removeTag(tag)} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-base leading-none text-primary/70 hover:bg-primary/10 hover:text-primary" aria-label={`${t('transactions.removeTag')} ${getTransactionTagLabel(tag, t)}`}>×</button>
-                        </span>
-                    ))}
-                </div>
-            )}
-            <div className="flex flex-wrap gap-1.5">
-                {QUICK_TAGS.filter(({ value }) => !tags.includes(value)).map(({ value, labelKey }) => (
-                    <button key={value} type="button" onClick={() => addTag(value)} className="inline-flex min-h-8 items-center rounded-full border border-dashed border-border-strong px-3 text-xs font-semibold text-neutral-600 transition-colors hover:border-primary hover:text-primary">
-                        + {t(labelKey)}
-                    </button>
-                ))}
-            </div>
-            <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(input); } }}
-                placeholder={t('transactions.addTagPlaceholder')}
-                aria-label={t('transactions.addTagPlaceholder')}
-                className="min-h-10 w-full rounded-button border border-border-strong bg-surface px-3 text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-        </div>
-    );
-}
+import { ClientTradeAssistant } from './ClientTradeAssistant';
+import { lastTradeWithAnyone, lastTradeWithClient, recentClientIds } from '../../utils/clientLastTrade';
+import { selectableClients } from '../../utils/clientRegistry';
 
 type MainTransactionDialogProps = Record<string, any>;
 type LastEditedSellField = 'eurReceived' | 'quantity' | 'total' | 'price';
 type SellCalculationBasis = Exclude<LastEditedSellField, 'price'>;
-export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, sellTime, setSellTime, saleDatePlan, smartPricingByCurrency, smartQuoteRef }: MainTransactionDialogProps) {
+export function MainTransactionDialog({ transactions, clientTransactionsDzd, profitByTxId, mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, sellTime, setSellTime, saleDatePlan, smartPricingByCurrency, smartQuoteRef }: MainTransactionDialogProps) {
     const [sellUsdtSourceSelected, setSellUsdtSourceSelected] = React.useState(false);
     const [saleDateOpen, setSaleDateOpen] = React.useState(false);
     const [lastEditedSellField, setLastEditedSellField] = React.useState<LastEditedSellField>('quantity');
@@ -128,6 +79,22 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
         latestSale.current.setClientPaymentStatus(status);
     }, []);
     const activeCurrency = mode === 'buy_eur' || mode === 'sell_eur' ? 'EUR' : 'USDT';
+    // V11-1: the client comes first; once chosen, the assistant shows the last price with him. One pass over
+    // the operations per client and currency (not per keystroke); nothing here is written anywhere.
+    const assistNow = React.useMemo(() => Date.now(), []);
+    const assistSide: 'sell' | 'buy' = mode === 'sell_usdt' || mode === 'sell_eur' ? 'sell' : 'buy';
+    const assistClientId = linkedClientId && linkedClientId !== 'none' ? linkedClientId : null;
+    const tradeSource = React.useMemo(() => ({ transactions: transactions ?? [], clientTransactions: clientTransactionsDzd ?? [], profitByTxId: profitByTxId ?? {} }), [transactions, clientTransactionsDzd, profitByTxId]);
+    const assist = React.useMemo(() => {
+        if (!assistClientId || editingTx)
+            return null;
+        const trade = lastTradeWithClient(tradeSource, { clientId: assistClientId, side: assistSide, currency: activeCurrency });
+        return { trade, reference: trade ? null : lastTradeWithAnyone(tradeSource, { side: assistSide, currency: activeCurrency, exceptClientId: assistClientId }) };
+    }, [assistClientId, editingTx, tradeSource, assistSide, activeCurrency]);
+    const recentClients = React.useMemo(() => {
+        const byId = new Map(selectableClients(clientsDzd || [], [linkedClientId]).map((client: any) => [client.id, client] as const));
+        return recentClientIds(clientTransactionsDzd ?? [], 3).map((id) => byId.get(id)).filter(Boolean) as any[];
+    }, [clientTransactionsDzd, clientsDzd, linkedClientId]);
     const activeStats = activeCurrency === 'EUR' ? portfolioStats.eur : portfolioStats.usdt;
     const isUsdtSellSettledInEur = mode === 'sell_usdt' && sellSettlementCurrency === 'EUR';
     const sellEurToDzdRateValue = parseAndEvaluate(sellEurToDzdRate);
@@ -417,6 +384,36 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
         </div>
     );
     const activeSmartPricing = smartPricingByCurrency?.[activeCurrency as 'USDT' | 'EUR'];
+    // The price of the assistant goes through the same steps as typing it (the total follows).
+    const applyBuyUsdtPrice = (val: string) => {
+        setBuyUsdtPrice(val);
+        const qty = parseAndEvaluate(buyUsdtAmount);
+        const price = parseAndEvaluate(val);
+        setIsTotalManual(false);
+        if (qty > 0 && price > 0)
+            setBuyUsdtTotal((qty * price).toFixed(0));
+        else if (price === 0 || val === '')
+            setBuyUsdtTotal('');
+    };
+    const applyBuyEurPrice = (val: string) => {
+        setBuyEurPrice(val);
+        const qty = parseAndEvaluate(buyEurAmount);
+        const price = parseAndEvaluate(val);
+        setIsTotalManual(false);
+        if (qty > 0 && price > 0)
+            setBuyEurTotal((qty * price).toFixed(0));
+        else if (price === 0 || val === '')
+            setBuyEurTotal('');
+    };
+    const applySellPriceFromAssistant = (price: number) => {
+        markSellFieldEdited('price');
+        setSellPrice(price.toFixed(2));
+        updateSellPriceMargin(price);
+        updateSellLinkedFieldsAfterPriceChange(price);
+    };
+    const renderAssistant = (applyPrice: (price: number) => void, currentPrice: number) => (assist && assistClientId
+        ? <ClientTradeAssistant side={assistSide} currency={activeCurrency as 'USDT' | 'EUR'} clientName={clientNameOf(assistClientId)} trade={assist.trade} reference={assist.reference} currentPrice={currentPrice} onUsePrice={applyPrice} now={assistNow}/>
+        : null);
     // Learned repayment behavior of the linked client (DZD ledger, currency-independent).
     const linkedDebtState = hasPrimaryClient ? activeSmartPricing?.debtByClientId?.get(linkedClientId) : undefined;
     const learnedSettleDays = linkedDebtState && linkedDebtState.avgSettleDays !== null && linkedDebtState.settledLotCount > 0
@@ -572,7 +569,11 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
 
                         {/* Buy USDT with DZD */}
                         {buyUsdtMode === 'with_dzd' && (<>
-                                <FormCard title={t('transactions.stepAmounts')}>
+                                <FormCard title={t('transactions.stepWhoBuy')}>
+                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} {...clientLinkerErrors} recentClients={recentClients}/>
+                                </FormCard>
+                                {renderAssistant((price) => applyBuyUsdtPrice(price.toFixed(2)), parseAndEvaluate(buyUsdtPrice))}
+                                <FormCard title={t('transactions.stepHowMuch')}>
                                 <MoneyField label={t('transactions.quantity')} value={buyUsdtAmount} onChange={(val) => {
                     setBuyUsdtAmount(val);
                     const qty = parseAndEvaluate(val);
@@ -587,16 +588,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                     if (!isNaN(qty) && qty > 0)
                         setBuyUsdtAmount(qty.toFixed(2));
                 }} currency="USDT" error={fieldError('buyUsdtAmount')}/>
-                                <MoneyField label={t('transactions.buyPrice')} value={buyUsdtPrice} onChange={(val) => {
-                    setBuyUsdtPrice(val);
-                    const qty = parseAndEvaluate(buyUsdtAmount);
-                    const price = parseAndEvaluate(val);
-                    setIsTotalManual(false);
-                    if (qty > 0 && price > 0)
-                        setBuyUsdtTotal((qty * price).toFixed(0));
-                    else if (price === 0 || val === '')
-                        setBuyUsdtTotal('');
-                }} currency="DZD" error={fieldError('buyUsdtPrice')}/>
+                                <MoneyField label={t('transactions.buyPrice')} value={buyUsdtPrice} onChange={applyBuyUsdtPrice} currency="DZD" error={fieldError('buyUsdtPrice')}/>
                                 <MoneyField label={t('transactions.totalAmount')} value={buyUsdtTotal} onChange={(val) => {
                     setBuyUsdtTotal(val);
                     if (val) {
@@ -618,9 +610,6 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                     if (!isNaN(total) && total > 0)
                         setBuyUsdtTotal(Math.round(total).toString());
                 }} currency="DZD" onMax={applyClientMaxToBuyTotal} maxDisabled={!hasPrimaryClient || selectedClientTotal <= 0} error={fieldError('buyUsdtTotal')} hint={t('transactions.autoCalc')}/>
-                                </FormCard>
-                                <FormCard title={t('transactions.clientAndSettlement')}>
-                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} {...clientLinkerErrors}/>
                                 </FormCard>
                                 {renderStockAvailability()}
                             </>)}
@@ -667,7 +656,12 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
 
                         {/* Sell USDT/EUR */}
                         {isSellMode && (mode !== 'sell_usdt' || sellUsdtSourceSelected || !!editingTx) && (<>
-                                <FormCard title={t('transactions.stepAmounts')}>
+                                <FormCard title={t('transactions.stepWhoSell')}>
+                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} setLinkedClientId={pickSaleClient} setClientPaymentStatus={pickSaleStatus} allowBaridiDzdLink hidePaymentStatus={isUsdtSellSettledInEur} hideLinkedDzdClient={isUsdtSellSettledInEur} {...clientLinkerErrors} recentClients={recentClients}/>
+                                {!isUsdtSellSettledInEur && clientPaymentStatus === 'credit' && renderCreditDueDateField(true)}
+                                </FormCard>
+                                {!isUsdtSellSettledInEur && renderAssistant(applySellPriceFromAssistant, parseAndEvaluate(sellPrice))}
+                                <FormCard title={t('transactions.stepHowMuch')}>
                                 {mode === 'sell_usdt' && (<div>
                                         <p className="mb-1.5 text-sm font-medium text-neutral-700">{t('transactions.settlementCurrency')}</p>
                                         <SegmentedControl size="md" ariaLabel={t('transactions.settlementCurrency') as string} value={sellSettlementCurrency === 'EUR' ? 'EUR' : 'DZD'} onChange={(currency) => (currency === 'EUR' ? chooseSellWithEur() : chooseSellWithDzd())} options={[
@@ -687,11 +681,6 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                     {renderSellTotalField()}
                                 </>)}
                                 </FormCard>
-
-                                <FormCard title={t('transactions.clientAndSettlement')}>
-                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} setLinkedClientId={pickSaleClient} setClientPaymentStatus={pickSaleStatus} allowBaridiDzdLink hidePaymentStatus={isUsdtSellSettledInEur} hideLinkedDzdClient={isUsdtSellSettledInEur} {...clientLinkerErrors}/>
-                                {!isUsdtSellSettledInEur && clientPaymentStatus === 'credit' && renderCreditDueDateField(true)}
-                                </FormCard>
                                 {!isUsdtSellSettledInEur && !editingTx && renderSaleDate()}
                                 {!isUsdtSellSettledInEur && activeSmartPricing && (
                                     <SmartPricePanel
@@ -704,12 +693,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                         available={activeStats.available}
                                         currentPrice={parseAndEvaluate(sellPrice)}
                                         isEditing={!!editingTx}
-                                        onApplyPrice={(p: number) => {
-                                            markSellFieldEdited('price');
-                                            setSellPrice(p.toFixed(2));
-                                            updateSellPriceMargin(p);
-                                            updateSellLinkedFieldsAfterPriceChange(p);
-                                        }}
+                                        onApplyPrice={applySellPriceFromAssistant}
                                         smartQuoteRef={smartQuoteRef}
                                     />
                                 )}
@@ -717,7 +701,12 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
 
                         {/* Buy EUR */}
                         {mode === 'buy_eur' && (<>
-                                <FormCard title={t('transactions.stepAmounts')}>
+                                <FormCard title={t('transactions.stepWhoBuy')}>
+                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} {...clientLinkerErrors} recentClients={recentClients}/>
+                                {clientPaymentStatus === 'credit' && renderCreditDueDateField(false)}
+                                </FormCard>
+                                {renderAssistant((price) => applyBuyEurPrice(price.toFixed(2)), parseAndEvaluate(buyEurPrice))}
+                                <FormCard title={t('transactions.stepHowMuch')}>
                                 <MoneyField label={t('transactions.quantity')} value={buyEurAmount} onChange={(val) => {
                     setBuyEurAmount(val);
                     const qty = parseAndEvaluate(val);
@@ -728,16 +717,7 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                     else if (qty === 0 || val === '')
                         setBuyEurTotal('');
                 }} currency="EUR" error={fieldError('buyEurAmount')}/>
-                                <MoneyField label={t('portfolio.buyPriceEur')} value={buyEurPrice} onChange={(val) => {
-                    setBuyEurPrice(val);
-                    const qty = parseAndEvaluate(buyEurAmount);
-                    const price = parseAndEvaluate(val);
-                    setIsTotalManual(false);
-                    if (qty > 0 && price > 0)
-                        setBuyEurTotal((qty * price).toFixed(0));
-                    else if (price === 0 || val === '')
-                        setBuyEurTotal('');
-                }} currency="DZD" error={fieldError('buyEurPrice')} hint={t('transactions.basedOnPamEur')}/>
+                                <MoneyField label={t('portfolio.buyPriceEur')} value={buyEurPrice} onChange={applyBuyEurPrice} currency="DZD" error={fieldError('buyEurPrice')} hint={t('transactions.basedOnPamEur')}/>
                                 <MoneyField label={t('transactions.totalAmount')} value={buyEurTotal} onChange={(val) => {
                     setBuyEurTotal(val);
                     if (val) {
@@ -760,13 +740,9 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                         setBuyEurTotal(Math.round(total).toString());
                 }} currency="DZD" error={fieldError('buyEurTotal')} hint={t('transactions.autoCalc')}/>
                                 </FormCard>
-                                <FormCard title={t('transactions.clientAndSettlement')}>
-                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} {...clientLinkerErrors}/>
-                                {clientPaymentStatus === 'credit' && renderCreditDueDateField(false)}
-                                </FormCard>
                             </>)}
 
-                        {/* Notes + Tags (optional) */}
+                        {/* Notes (optional). The tags input is gone (V11-1): the tags already on operations stay. */}
                         {!isChoosingSource && (<FormCard>
                             <Textarea
                                 label={t('common.notesOptional') as string}
@@ -776,13 +752,6 @@ export function MainTransactionDialog({ mode, editingTx, closeForm, openForm, t,
                                 placeholder={t('transactions.notesPlaceholder') as string}
                                 className="resize-none text-sm"
                             />
-                            {setTxTags && (
-                                <TagInput
-                                    tags={Array.isArray(txTags) ? txTags : []}
-                                    setTags={(newTags) => setTxTags(newTags)}
-                                    t={t}
-                                />
-                            )}
                         </FormCard>)}
                     </>)}
             </ModalContent>

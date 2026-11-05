@@ -2889,6 +2889,7 @@ export default function MainApp({ user }: {
 
             {hasOpenMainAppDialog && (<Suspense fallback={null}>
             <MainAppDialogs {...{
+        profitByTxId: pamLedger.profitByTxId,
         isWalletTransferModalOpen, walletTransferDialogProps,
         isClientOperationsOpen,
         isClientTxModalOpen, setIsClientTxModalOpen,
