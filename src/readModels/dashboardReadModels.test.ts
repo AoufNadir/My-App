@@ -260,11 +260,12 @@ assert.equal(shadow.clients.totalAdvances, 200);
 assert.equal(shadow.clients.netClientPosition, 800);
 assert.equal(shadow.clients.activeClientsToday, 2);
 
-assert.equal(shadow.services.amountToReceive, 2000);
+// V9-5: the old services clients no longer count (the asset-client transactions of the fixture would have made it 2000).
+assert.equal(shadow.services.amountToReceive, 0);
 assert.equal(shadow.services.manualServiceRevenue, 3000);
 assert.equal(shadow.services.digitalServiceProfit, 700);
 assert.equal(shadow.services.serviceRevenue, 3700);
-assert.equal(shadow.services.netCapitalImpact, 2000);
+assert.equal(shadow.services.netCapitalImpact, 0);
 
 assert.equal(shadow.investors.globalNetProfit, 400);
 assert.equal(shadow.investors.externalInvestorCapital, 100000);
@@ -284,7 +285,7 @@ assert.equal(shadow.dashboard.money.caisseBalance, 9900);
 assert.equal(shadow.dashboard.money.baridiBalance, 5000);
 assert.equal(shadow.dashboard.money.clientReceivables, 1000);
 assert.equal(shadow.dashboard.money.clientAdvances, 200);
-assert.equal(shadow.dashboard.money.serviceReceivables, 2000);
+assert.equal(shadow.dashboard.money.serviceReceivables, 0);
 assert.equal(shadow.dashboard.money.serviceAdvances, 0);
 assert.equal(shadow.dashboard.money.investorCapital, 100000);
 assert.equal(shadow.dashboard.money.investorProfits, 140);

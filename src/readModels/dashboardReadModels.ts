@@ -582,15 +582,6 @@ function buildClientTotals(clientBalances: Map<string, number>): { totalDettes: 
     return { totalDettes, totalAvances };
 }
 
-function buildAssetClientBalances(transactions: readonly ManualAssetTransaction[]): Map<string, number> {
-    const balances = new Map<string, number>();
-    transactions.forEach((tx) => {
-        const key = `${tx.actifId}_${tx.clientId}`;
-        balances.set(key, money((balances.get(key) || 0) + Number(tx.amount || 0)));
-    });
-    return balances;
-}
-
 function buildOverdueClients(input: {
     clients: readonly ClientDzd[];
     clientTransactions: readonly ClientTransactionDzd[];
@@ -779,16 +770,10 @@ export function buildServicesReadModel(input: {
     manualAssetClients?: ManualAssetClient[];
     manualAssetTransactions: ManualAssetTransaction[];
     digitalServiceTransactions: DigitalServiceTransaction[];
-    assetClientBalances: Map<string, number>;
 }): ServicesReadModel {
-    let amountToReceive = 0;
-    let clientAdvances = 0;
-    input.assetClientBalances.forEach((balance) => {
-        if (balance < -ZERO_EPSILON)
-            amountToReceive = money(amountToReceive + Math.abs(balance));
-        else if (balance > ZERO_EPSILON)
-            clientAdvances = money(clientAdvances + balance);
-    });
+    // V9-5: what the old services clients owed or paid in advance no longer counts in the capital: zero, as in the app.
+    const amountToReceive = 0;
+    const clientAdvances = 0;
     const cashReceived = money(input.manualAssetTransactions.reduce((sum, tx) => sum + (tx.type === 'payment_received' ? Math.abs(finite(tx.amount)) : 0), 0));
     const manualServiceRevenue = money(input.manualAssetTransactions.reduce((sum, tx) => sum + ((tx.type === 'service' || tx.type === 'invoice') ? Math.abs(finite(tx.amount)) : 0), 0));
     const digitalServiceProfit = money(input.digitalServiceTransactions.reduce((sum, tx) => sum + finite(tx.profitDzd), 0));
@@ -1044,7 +1029,6 @@ export function buildDashboardReadModelShadowFromLegacy(input: BuildDashboardRea
         clientBalances,
         getClientFullName: input.getClientFullName,
     });
-    const assetClientBalances = buildAssetClientBalances(input.manualAssetTransactions);
     const services = buildServicesReadModel({
         meta,
         revision: resolveSummaryRevision(input.summaryRevisions, 'services_summary'),
@@ -1052,7 +1036,6 @@ export function buildDashboardReadModelShadowFromLegacy(input: BuildDashboardRea
         manualAssetClients: input.manualAssetClients,
         manualAssetTransactions: input.manualAssetTransactions,
         digitalServiceTransactions: input.digitalServiceTransactions,
-        assetClientBalances,
     });
     const deliveryExpenses = input.treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense');
     const debtWriteOffs = collectDebtWriteOffs(input.clientTransactionsDzd);
