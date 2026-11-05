@@ -91,6 +91,9 @@ const MonthPlanSheet = React.lazy(() => import('./components/calculator/MonthPla
 const MonthlyReportDialog = React.lazy(() => import('./components/reports/documents/DocumentReportDialogs').then((module) => ({ default: module.MonthlyReportDialog })));
 const ExpensesReportDialog = React.lazy(() => import('./components/reports/documents/DocumentReportDialogs').then((module) => ({ default: module.ExpensesReportDialog })));
 const EMPTY_TRANSACTIONS: Tx[] = [];
+// The old Services page's assets and their clients are no longer read; the read-model builders still take them.
+const NO_MANUAL_ASSETS: ManualAsset[] = [];
+const NO_MANUAL_ASSET_CLIENTS: ManualAssetClient[] = [];
 const EMPTY_CLIENTS_DZD: ClientDzd[] = [];
 const EMPTY_CLIENT_TRANSACTIONS_DZD: ClientTransactionDzd[] = [];
 const EMPTY_TREASURY_TRANSACTIONS: TreasuryTx[] = [];
@@ -183,15 +186,14 @@ export default function MainApp({ user }: {
     const shouldRequireInvestors = view === 'investors' || view === 'expenses' || view === 'tresorerie' || isInvestorRoute;
     const shouldRequireTreasuryCards = view === 'tresorerie';
     // 1.1 App Data (Provides userDocRef)
-    const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, digitalServiceTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
+    const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, digitalServiceTransactions, treasuryCards, manualAssetTransactions, treasuryStats, clientBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
         subscribeCoreFinancial: !shouldUseDashboardReadModel,
         // The Services page is gone: the assets and their clients are no longer read, but the operations still are, so the
         // revenue of the old manual services stays in the owner's profit (a profit already earned, spent or reinvested).
-        subscribeManualAssets: false,
-        manualRevenueOnly: !shouldUseDashboardReadModel,
+        subscribeManualServices: !shouldUseDashboardReadModel,
         subscribeInvestors: !shouldUseDashboardReadModel && keepInvestorsSubscribed,
         subscribeTreasuryCards: !shouldUseDashboardReadModel && keepTreasuryCardsSubscribed,
-        requireManualAssets: !shouldUseDashboardReadModel,
+        requireManualServices: !shouldUseDashboardReadModel,
         requireInvestors: shouldRequireInvestors,
         requireTreasuryCards: shouldRequireTreasuryCards
     });
@@ -1008,11 +1010,9 @@ export default function MainApp({ user }: {
             serviceRevenue,
             manualServiceRevenue,
             digitalServiceProfit,
-            netCapitalImpact: servicesCapitalImpact,
-            servicesCount: manualAssets.length,
-            clientsCount: manualAssetClients.length
+            netCapitalImpact: servicesCapitalImpact
         };
-    }, [manualAssetTransactions, digitalServiceTransactions, manualAssets.length, manualAssetClients.length]);
+    }, [manualAssetTransactions, digitalServiceTransactions]);
     const managerPendingAdvances = useMemo(
         () => personalExpenses
             .filter((tx) => tx.advanceState === 'pending')
@@ -1061,8 +1061,8 @@ export default function MainApp({ user }: {
             clientTransactionsDzd,
             treasuryTransactions,
             treasuryCards,
-            manualAssets,
-            manualAssetClients,
+            manualAssets: NO_MANUAL_ASSETS,
+            manualAssetClients: NO_MANUAL_ASSET_CLIENTS,
             manualAssetTransactions,
             digitalServiceTransactions,
             investors,
@@ -1096,8 +1096,6 @@ export default function MainApp({ user }: {
         clientTransactionsDzd,
         treasuryTransactions,
         treasuryCards,
-        manualAssets,
-        manualAssetClients,
         manualAssetTransactions,
         digitalServiceTransactions,
         investors,
@@ -2676,7 +2674,7 @@ export default function MainApp({ user }: {
             return;
         return open(item);
     };
-    const mainContentProps = { t, dailyOverview, userDocRef, setAlert, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete: unlessClosedMonth<Tx | TreasuryTx | null>(setTxToDelete), openDateFilterModal, dateRange, setDateRange, openNewOperationMenu, openDeliveryExpenseModal, openDigitalServiceModal: unlessClosedMonth<DigitalServiceTransaction | null>(openDigitalServiceModal), handleDeleteDigitalService: unlessClosedMonth<DigitalServiceTransaction>(handleDeleteDigitalService), treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete: unlessClosedMonth<TreasuryTx | null>(setTreasuryTxToDelete), PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal: unlessClosedMonth<TreasuryTx>(openReconcileAdvanceModal), openEditPersonalExpense: unlessClosedMonth<TreasuryTx>(openEditPersonalExpense), setPersonalExpenseToDelete: unlessClosedMonth<TreasuryTx | null>(setPersonalExpenseToDelete), handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, openClientToClientTransferModal, fieldBase, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, servicesSummary, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete: unlessClosedMonth<InvestorTransaction | null>(setInvestorTxToDelete), managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, prepareInvestorReport, handleApplyLock24hToRecentBuys, periodLock: periodLockProps, investorTermsByInvestorId: investorTerms.byInvestorId, inventoryReady: isFinancialDataReady && !isAwaitingServerSync, openInventoryAction, openInventoryCorrection, openMovementForClient };
+    const mainContentProps = { t, dailyOverview, userDocRef, setAlert, isFinancialDataReady, view, DashboardPage, dashboardPageProps, TransactionsPage, openAdjustmentModal, openForm, filterMode, setFilterMode, transactions, digitalServiceTransactions, profitByTxId: pamLedger.profitByTxId, getRelativeDateLabel, clientTransactionsDzd, clientsDzd, getClientFullName, setTxToDelete: unlessClosedMonth<Tx | TreasuryTx | null>(setTxToDelete), openDateFilterModal, dateRange, setDateRange, openNewOperationMenu, openDeliveryExpenseModal, openDigitalServiceModal: unlessClosedMonth<DigitalServiceTransaction | null>(openDigitalServiceModal), handleDeleteDigitalService: unlessClosedMonth<DigitalServiceTransaction>(handleDeleteDigitalService), treasuryTransactions, handleEditPortfolioTx, handleEditClientTx: handleEditLinkedClientTx, handleEditTreasuryTx, handleDeleteClientTxClick: handleDeleteLinkedClientTxClick, setTreasuryTxToDelete: unlessClosedMonth<TreasuryTx | null>(setTreasuryTxToDelete), PortfolioPage, portfolioPageProps, AnalyticsPage, PersonalExpensesPage, personalExpenses, managerAvailableProfit, managerExists, openReconcileAdvanceModal: unlessClosedMonth<TreasuryTx>(openReconcileAdvanceModal), openEditPersonalExpense: unlessClosedMonth<TreasuryTx>(openEditPersonalExpense), setPersonalExpenseToDelete: unlessClosedMonth<TreasuryTx | null>(setPersonalExpenseToDelete), handleExportPersonalExpensesReport, ClientsPage, clientsPageProps, openClientToClientTransferModal, fieldBase, TresoreriePage, treasuryStats, totals, portfolioStats, investorLiability, investorBreakdown, capitalSnapshot, globalNetProfit, managerProfitBreakdown, financialAudit, openTreasuryCardModal, treasuryCards, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openPortfolioBalanceEditModal, selectedInvestorId, setSelectedInvestorId, InvestorDetailsPage, derivedInvestors, investorTransactions, investorEconomicsTotals: investorEconomics.totals, setInvestorTxType, setIsInvestorTxModalOpen, setReinvestInput, setIsReinvestModalOpen, setInvestorTxToDelete: unlessClosedMonth<InvestorTransaction | null>(setInvestorTxToDelete), managerFeePercentage, InvestorsPage, openInvestorModal, setInvestorToDelete, saveManagerFeePercentage, prepareInvestorReport, handleApplyLock24hToRecentBuys, periodLock: periodLockProps, investorTermsByInvestorId: investorTerms.byInvestorId, inventoryReady: isFinancialDataReady && !isAwaitingServerSync, openInventoryAction, openInventoryCorrection, openMovementForClient };
     const walletTransferDialogProps = useMemo(() => ({
         isOpen: isWalletTransferModalOpen, onClose: closeWalletTransferModal, fieldBase,
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSourceAndSync,
@@ -2817,8 +2815,8 @@ export default function MainApp({ user }: {
                     investors: derivedInvestors,
                     investorTransactions,
                     treasuryCards,
-                    manualAssets,
-                    manualAssetClients,
+                    manualAssets: NO_MANUAL_ASSETS,
+                    manualAssetClients: NO_MANUAL_ASSET_CLIENTS,
                     manualAssetTransactions,
                     pricing: {
                         policy: pricingPlanSync.policy,
@@ -2841,7 +2839,7 @@ export default function MainApp({ user }: {
         } catch {
             setAlert('❌ Erreur lors de la sauvegarde.');
         }
-    }, [transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, derivedInvestors, investorTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, pricingPlanSync.policy, pricingPlanSync.plan, pricingPlanSync.overrides]);
+    }, [transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, derivedInvestors, investorTransactions, treasuryCards, manualAssetTransactions, pricingPlanSync.policy, pricingPlanSync.plan, pricingPlanSync.overrides]);
     return (<div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
             <OfflineBanner />
             <div className="mx-auto max-w-4xl px-page-x pb-24 sm:px-4">

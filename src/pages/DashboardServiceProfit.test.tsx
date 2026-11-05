@@ -157,7 +157,7 @@ for (const period of PERIODS) {
     const cardAmounts = amountsIn(card!);
     const { manual, digital } = SERVICES[period];
     assert.deepEqual(cardAmounts, [amountText(manual + digital), amountText(digital)], `${period}: total and the digital services line`);
-    assert.ok(card!.includes(escapeHtml(fr.digitalServices.short)) && !card!.includes(escapeHtml(fr.dashboard.otherProfitsServices)), `${period}: only the digital services line is named (V9-5: no manual services line)`);
+    assert.ok(card!.includes(escapeHtml(fr.digitalServices.short)) && !card!.includes(escapeHtml('Services et factures')), `${period}: only the digital services line is named (V9-5: no manual services line)`);
     assert.ok(card!.includes(escapeHtml(fr.dashboard.otherProfitsHint)), `${period}: the card says it is apart from the sales`);
     // Nothing is lost: what « mon profit » and the card show add up to what the page showed before.
     assert.equal(TRADING[period] + (manual + digital), oldTotal, `${period}: sales + other businesses = the old total`);
@@ -175,7 +175,7 @@ for (const period of PERIODS) {
     const onlyDigital = split({ ...SERVICES, allTime: { manual: 0, digital: 55_060 }, month: { manual: 0, digital: 6_240 } });
     const card2 = sectionWith(render({ dailyOverview: withSplit(onlyDigital) }), cardTitle(fr))!;
     assert.deepEqual(amountsIn(card2), [amountText(6_240), amountText(6_240)], 'digital only: the total and one line');
-    assert.ok(card2.includes(escapeHtml(fr.digitalServices.short)) && !card2.includes(escapeHtml(fr.dashboard.otherProfitsServices)), 'no services line');
+    assert.ok(card2.includes(escapeHtml(fr.digitalServices.short)) && !card2.includes(escapeHtml('Services et factures')), 'no services line');
 }
 
 // ---- 3. No other business yet: no card, and « mon profit » is still the sales alone ----

@@ -2,19 +2,18 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../firebase';
 import type { AppUser } from '../firebaseAuth';
 import { fromCents, toCents } from '../utils/money';
-import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from '../types';
+import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from '../types';
 type UseAppDataOptions = {
     subscribeCoreFinancial?: boolean;
-    subscribeManualAssets?: boolean;
+    /** The operations of the old manual services: only their revenue is read (it stays in the owner's profit) */
+    subscribeManualServices?: boolean;
     subscribeInvestors?: boolean;
     subscribeTreasuryCards?: boolean;
-    requireManualAssets?: boolean;
-    /** Read only the manual-service operations (their revenue still counts in the owner's profit), not the assets or their clients */
-    manualRevenueOnly?: boolean;
+    requireManualServices?: boolean;
     requireInvestors?: boolean;
     requireTreasuryCards?: boolean;
 };
-type AppDataCollectionKey = 'transactions' | 'clients' | 'clientTransactions' | 'treasuryTransactions' | 'digitalServiceTransactions' | 'treasuryCards' | 'manualAssets' | 'manualAssetClients' | 'manualAssetTransactions' | 'investors' | 'investorTransactions';
+type AppDataCollectionKey = 'transactions' | 'clients' | 'clientTransactions' | 'treasuryTransactions' | 'digitalServiceTransactions' | 'treasuryCards' | 'manualAssetTransactions' | 'investors' | 'investorTransactions';
 type CollectionLoadState = {
     received: boolean;
     fromCache: boolean;
@@ -27,8 +26,6 @@ const COLLECTION_KEYS: AppDataCollectionKey[] = [
     'treasuryTransactions',
     'digitalServiceTransactions',
     'treasuryCards',
-    'manualAssets',
-    'manualAssetClients',
     'manualAssetTransactions',
     'investors',
     'investorTransactions'
@@ -46,11 +43,10 @@ function createInitialCollectionState() {
 export function useAppData(user: AppUser, refreshKey: number, options: UseAppDataOptions = {}) {
     const userDocRef = useMemo(() => db.collection('users').doc(user.uid), [user.uid]);
     const subscribeCoreFinancial = options.subscribeCoreFinancial ?? true;
-    const subscribeManualAssets = options.subscribeManualAssets ?? true;
+    const subscribeManualServices = options.subscribeManualServices ?? true;
     const subscribeInvestors = options.subscribeInvestors ?? true;
     const subscribeTreasuryCards = options.subscribeTreasuryCards ?? true;
-    const manualRevenueOnly = options.manualRevenueOnly ?? false;
-    const requireManualAssets = options.requireManualAssets ?? subscribeManualAssets;
+    const requireManualServices = options.requireManualServices ?? subscribeManualServices;
     const requireInvestors = options.requireInvestors ?? subscribeInvestors;
     const requireTreasuryCards = options.requireTreasuryCards ?? subscribeTreasuryCards;
     // Data State
@@ -60,8 +56,6 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     const [treasuryTransactions, setTreasuryTransactions] = useState<TreasuryTx[]>([]);
     const [digitalServiceTransactions, setDigitalServiceTransactions] = useState<DigitalServiceTransaction[]>([]);
     const [treasuryCards, setTreasuryCards] = useState<TreasuryCard[]>([]);
-    const [manualAssets, setManualAssets] = useState<ManualAsset[]>([]);
-    const [manualAssetClients, setManualAssetClients] = useState<ManualAssetClient[]>([]);
     const [manualAssetTransactions, setManualAssetTransactions] = useState<ManualAssetTransaction[]>([]);
     const [investors, setInvestors] = useState<Investor[]>([]);
     const [investorTransactions, setInvestorTransactions] = useState<InvestorTransaction[]>([]);
@@ -72,12 +66,12 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             : [];
         if (requireTreasuryCards)
             keys.push('treasuryCards');
-        if (requireManualAssets)
-            keys.push(...(manualRevenueOnly ? ['manualAssetTransactions' as const] : ['manualAssets' as const, 'manualAssetClients' as const, 'manualAssetTransactions' as const]));
+        if (requireManualServices)
+            keys.push('manualAssetTransactions');
         if (requireInvestors)
             keys.push('investors', 'investorTransactions');
         return keys;
-    }, [subscribeCoreFinancial, requireTreasuryCards, requireManualAssets, manualRevenueOnly, requireInvestors]);
+    }, [subscribeCoreFinancial, requireTreasuryCards, requireManualServices, requireInvestors]);
     const subscribeToCollection = useCallback((
         key: AppDataCollectionKey,
         query: { onSnapshot: (callback: (snapshot: any) => void, options?: { includeMetadataChanges?: boolean }) => () => void },
@@ -197,43 +191,22 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         );
     }, [subscribeTreasuryCards, userDocRef, refreshKey, subscribeToCollection]);
     useEffect(() => {
-        if (!subscribeManualAssets && !manualRevenueOnly) {
-            setManualAssets([]);
-            setManualAssetClients([]);
+        if (!subscribeManualServices) {
             setManualAssetTransactions([]);
             setCollectionState((current) => ({
                 ...current,
-                manualAssets: { received: false, fromCache: false, serverSynced: false },
-                manualAssetClients: { received: false, fromCache: false, serverSynced: false },
                 manualAssetTransactions: { received: false, fromCache: false, serverSynced: false },
             }));
             return;
         }
-        // Revenue only: the operations are read, the assets and their clients are not (their page is gone).
-        const unsubAssets = manualRevenueOnly ? (() => { }) : subscribeToCollection(
-            'manualAssets',
-            userDocRef.collection('manual_assets').orderBy('createdAt', 'desc'),
-            (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
-            (docs) => setManualAssets(docs as ManualAsset[])
-        );
-        const unsubClients = manualRevenueOnly ? (() => { }) : subscribeToCollection(
-            'manualAssetClients',
-            userDocRef.collection('manual_asset_clients').orderBy('fullName', 'asc'),
-            (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
-            (docs) => setManualAssetClients(docs as ManualAssetClient[])
-        );
-        const unsubTransactions = subscribeToCollection(
+        // Only the operations: the assets and their clients are no longer read (their page is gone).
+        return subscribeToCollection(
             'manualAssetTransactions',
             userDocRef.collection('actifTransactions').orderBy('timestamp', 'desc'),
             (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
             (docs) => setManualAssetTransactions(docs as ManualAssetTransaction[])
         );
-        return () => {
-            unsubAssets();
-            unsubClients();
-            unsubTransactions();
-        };
-    }, [subscribeManualAssets, manualRevenueOnly, userDocRef, refreshKey, subscribeToCollection]);
+    }, [subscribeManualServices, userDocRef, refreshKey, subscribeToCollection]);
     useEffect(() => {
         if (!subscribeInvestors) {
             setInvestors([]);
@@ -334,21 +307,6 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         balances.forEach((cents, clientId) => balances.set(clientId, fromCents(cents)));
         return balances;
     }, [clientsDzd, clientTransactionsDzd]);
-    const assetClientBalances = useMemo(() => {
-        const map = new Map<string, number>();
-        manualAssetTransactions.forEach(tx => {
-            const key = `${tx.actifId}_${tx.clientId}`;
-            map.set(key, (map.get(key) || 0) + tx.amount);
-        });
-        return map;
-    }, [manualAssetTransactions]);
-    const assetBalances = useMemo(() => {
-        const map = new Map<string, number>();
-        manualAssetTransactions.forEach(tx => {
-            map.set(tx.actifId, (map.get(tx.actifId) || 0) + tx.amount);
-        });
-        return map;
-    }, [manualAssetTransactions]);
     const totals = useMemo(() => {
         let totalDettes = 0, totalAvances = 0;
         clientBalances.forEach(b => { if (b < 0)
@@ -373,9 +331,9 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     return {
         userDocRef,
         transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, digitalServiceTransactions, treasuryCards,
-        manualAssets, manualAssetClients, manualAssetTransactions,
+        manualAssetTransactions,
         investors, investorTransactions,
-        treasuryStats, clientBalances, assetClientBalances, assetBalances, totals,
+        treasuryStats, clientBalances, totals,
         isDataLoaded, dataStatus
     };
 }
