@@ -84,7 +84,7 @@ const fiveDays: InventoryReminder = { daysSince: 5, lastTimestamp: 1 };
         transactions: [], clientTransactionsDzd: [], clientsDzd: [], treasuryTransactions: [], profitByTxId: {}, getRelativeDateLabel: (date: string) => date,
         getClientFullName: () => '', openForm: noop, openAdjustmentModal: noop, setTxToDelete: noop, weeklyRecap,
     };
-    const home = (props: Record<string, unknown>, lang: Lang = 'fr') => render(<DashboardPage {...baseProps} {...props}/>, lang);
+    const home = (props: Record<string, unknown>, lang: Lang = 'fr') => render(<DashboardPage {...baseProps} initialNotificationsOpen {...props}/>, lang);
     const labels = translations.fr.dashboard;
     const words = translations.fr.inventoryReminder;
     const before = home({});

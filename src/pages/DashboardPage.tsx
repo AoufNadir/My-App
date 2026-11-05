@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { CurrencyAmount, type AmountSemantic } from '../components/financial/CurrencyAmount';
-import { AlertCard, AlertStack, HeroCard, SectionCard, StatTile, StatTileGrid, type AlertStackItem } from '../components/cards';
+import { AlertCard, HeroCard, SectionCard, StatTile, StatTileGrid } from '../components/cards';
 import { SegmentedControl } from '../components/ui/SegmentedControl';
 import { Button } from '../components/ui/Button';
 import { BellIcon } from '../components/icons/BellIcon';
@@ -9,7 +9,8 @@ import { DollarSignIcon } from '../components/icons/DollarSignIcon';
 import { EuroIcon } from '../components/icons/EuroIcon';
 import { LandmarkIcon } from '../components/icons/LandmarkIcon';
 import { AlertTriangleIcon } from '../components/icons/AlertTriangleIcon';
-import { ActionCenter, type ActionItem } from '../components/dashboard/ActionCenter';
+import type { ActionItem } from '../components/dashboard/ActionCenter';
+import { NotificationCenter, type NotificationItem } from '../components/dashboard/NotificationCenter';
 import { percentChange, type ProfitPeriod } from '../utils/dashboardComparison';
 import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
@@ -107,12 +108,12 @@ type DashboardPageProps = {
     onOpenTransactions?: () => void;
     onQuickSell?: () => void;
     quickSellPreview?: { qty: number; price: number; pam: number } | null;
-    /** « Plus » of the quick actions: the full menu of operations. */
-    onOpenMoreOperations?: () => void;
     monthlyGoal?: number;
     /** The goal to suggest when none is set (the average monthly profit of the last 90 days). */
     suggestedGoal?: number;
     onSaveGoal?: (goal: number) => void;
+    /** Opens the bell's sheet at first draw (screens and tests that read what it holds). */
+    initialNotificationsOpen?: boolean;
     /** Avg monthly USDT volume (90d ÷ 3) — drives the required-margin chip. */
     // Recaps and the notification request are shown on this page only, among its alerts.
     weeklyRecap?: WeeklyRecap | null;
@@ -243,22 +244,6 @@ function QuickSituationCard({ toReceive, toPay, liquidityGap, onOpen }: {
         </button>)
         : <div className={cardClass}>{content}</div>;
 }
-/** The four things done most, one tap away. */
-function QuickActions({ onSell, onBuy, onCollect, onMore }: { onSell: () => void; onBuy: () => void; onCollect: () => void; onMore?: () => void }) {
-    const { t } = useLanguage();
-    const items: Array<{ id: string; label: string; onClick: () => void }> = [
-        { id: 'sell', label: t('dashboard.quickSell') as string, onClick: onSell },
-        { id: 'buy', label: t('dashboard.quickBuy') as string, onClick: onBuy },
-        { id: 'collect', label: t('dashboard.quickCollect') as string, onClick: onCollect },
-    ];
-    if (onMore)
-        items.push({ id: 'more', label: t('dashboard.quickMore') as string, onClick: onMore });
-    return (<div className="grid grid-cols-4 gap-2">
-      {items.map((item) => (<button key={item.id} type="button" onClick={item.onClick} className="min-h-12 rounded-card border border-border bg-surface px-1 py-2 text-[13px] font-bold text-neutral-800 transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-          {item.label}
-        </button>))}
-    </div>);
-}
 /** Progress toward the month's goal; without a goal, a line that invites to set one. */
 function GoalCard({ goal, profit, suggested, onSave }: { goal: number; profit: number; suggested: number; onSave?: (goal: number) => void }) {
     const { t } = useLanguage();
@@ -365,10 +350,10 @@ function DashboardContent({
     handleDeleteClientTxClick,
     setTreasuryTxToDelete,
     onOpenTransactions,
-    onOpenMoreOperations,
     monthlyGoal = 0,
     suggestedGoal = 0,
     onSaveGoal,
+    initialNotificationsOpen = false,
     weeklyRecap,
     onDismissWeeklyRecap,
     monthlyRecap,
@@ -495,31 +480,35 @@ function DashboardContent({
     if (lowStock) {
         actionItems.push({ id: 'low-stock', tone: 'debt', icon: <DollarSignIcon className="h-4 w-4"/>, title: t('dashboard.lowStock') as string, detail: t('dashboard.lowStockBody') as string });
     }
-    const alerts: AlertStackItem[] = [];
+    // Everything that needs attention goes to the bell (V11-4); the Home page keeps the figures.
+    const notificationItems: NotificationItem[] = [];
+    const addRow = (item: ActionItem, signature: string, urgent = false) => {
+        const { id, ...row } = item;
+        notificationItems.push({ entry: { id, signature, urgent }, row });
+    };
+    for (const item of actionItems)
+        addRow(item, item.id === 'overdue-debts' ? String(overdueCount) : 'on', item.id !== 'low-stock');
     if (onInvestorTermReinvest && onInvestorTermWithdraw) {
         for (const term of investorTerms) {
-            alerts.push({
-                id: `investor-term-${term.investorId}`,
-                element: (<InvestorTermAlert term={term} onReinvest={() => onInvestorTermReinvest(term.investorId)} onWithdraw={() => onInvestorTermWithdraw(term.investorId)} onSnooze={onInvestorTermSnooze ? () => onInvestorTermSnooze(term) : undefined}/>),
+            notificationItems.push({
+                entry: { id: `investor-term-${term.investorId}`, signature: `${term.investorId}` },
+                card: (<InvestorTermAlert term={term} onReinvest={() => onInvestorTermReinvest(term.investorId)} onWithdraw={() => onInvestorTermWithdraw(term.investorId)} onSnooze={onInvestorTermSnooze ? () => onInvestorTermSnooze(term) : undefined}/>),
             });
         }
     }
     if (inventoryReminder && onOpenTreasury && onInventoryReminderSnooze) {
-        alerts.push({ id: 'inventory-reminder', element: <InventoryReminderAlert reminder={inventoryReminder} onOpen={onOpenTreasury} onSnooze={onInventoryReminderSnooze}/> });
+        notificationItems.push({ entry: { id: 'inventory-reminder', signature: 'on' }, card: <InventoryReminderAlert reminder={inventoryReminder} onOpen={onOpenTreasury} onSnooze={onInventoryReminderSnooze}/> });
     }
-    // Information, not tasks: after the figures, at the bottom.
-    const notices: AlertStackItem[] = [];
     if (weeklyRecap)
-        notices.push({ id: 'weekly-recap', element: <WeeklyRecapAlert recap={weeklyRecap} onDismiss={onDismissWeeklyRecap}/> });
+        notificationItems.push({ entry: { id: 'weekly-recap', signature: weeklyRecap.weekKey }, card: <WeeklyRecapAlert recap={weeklyRecap} onDismiss={onDismissWeeklyRecap}/> });
     if (monthlyRecap)
-        notices.push({ id: 'monthly-recap', element: <MonthlyRecapAlert recap={monthlyRecap} onDismiss={onDismissMonthlyRecap}/> });
+        notificationItems.push({ entry: { id: 'monthly-recap', signature: monthlyRecap.monthKey }, card: <MonthlyRecapAlert recap={monthlyRecap} onDismiss={onDismissMonthlyRecap}/> });
     if (showNotificationPrompt && onEnableNotifications && onDismissNotificationPrompt)
-        notices.push({ id: 'notifications', element: <NotificationPromptAlert onEnable={onEnableNotifications} onLater={onDismissNotificationPrompt}/> });
+        notificationItems.push({ entry: { id: 'notifications', signature: 'on' }, card: <NotificationPromptAlert onEnable={onEnableNotifications} onLater={onDismissNotificationPrompt}/> });
     const previousProfit = dailyOverview.previousProfit?.[profitPeriod];
 
     return (<div className="anim-page-in flex flex-col gap-3">
-      <ActionCenter title={t('dashboard.actionCenter') as string} items={actionItems}/>
-      <AlertStack items={alerts} moreLabel={(count) => String(t('dashboard.moreAlerts')).replace('{count}', String(count))} lessLabel={t('dashboard.fewerAlerts') as string}/>
+      <NotificationCenter items={notificationItems} initialOpen={initialNotificationsOpen}/>
 
       <HeroCard top={<SegmentedControl options={PROFIT_PERIODS.map((period) => ({ id: period, label: t(PROFIT_PERIOD_LABEL_KEYS[period].option) as string }))} value={profitPeriod} onChange={selectProfitPeriod} ariaLabel={t('dashboard.periodPicker') as string}/>} label={`${t('dashboard.profitSummary')} · ${t(PROFIT_PERIOD_LABEL_KEYS[profitPeriod].title)}`} value={salesProfit} semantic={salesProfit < 0 ? 'loss' : 'plain'} note={previousProfit === undefined ? undefined : <ProfitChange current={salesProfit} previous={previousProfit} period={profitPeriod}/>} secondary={{
             label: t('dashboard.ownerProfitSummary') as string,
@@ -529,8 +518,6 @@ function DashboardContent({
         }}/>
 
       <GoalCard goal={monthlyGoal} profit={dailyOverview.monthToDateProfit} suggested={suggestedGoal} onSave={onSaveGoal}/>
-
-      <QuickActions onSell={() => openForm('sell_usdt')} onBuy={() => openForm('buy_usdt')} onCollect={() => openAdjustmentModal('add')} onMore={onOpenMoreOperations}/>
 
       {serviceProfitCard}
 
@@ -559,6 +546,5 @@ function DashboardContent({
         </SectionCard>
       )}
 
-      <AlertStack items={notices} moreLabel={(count) => String(t('dashboard.moreAlerts')).replace('{count}', String(count))} lessLabel={t('dashboard.fewerAlerts') as string}/>
     </div>);
 }

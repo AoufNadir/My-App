@@ -12,6 +12,8 @@ export type ActionItem = {
     title: ReactNode;
     detail?: ReactNode;
     onOpen?: () => void;
+    /** Read: shown, but quieter. */
+    read?: boolean;
 };
 
 export function ActionCenter({ title, items }: { title: string; items: ReadonlyArray<ActionItem> }) {
@@ -33,7 +35,7 @@ export function ActionCenter({ title, items }: { title: string; items: ReadonlyA
               {item.onOpen && <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100"/>}
             </>);
             const rowClass = 'flex min-h-12 w-full items-center gap-3 border-t border-border px-4 py-2.5 text-start';
-            return (<li key={item.id}>
+            return (<li key={item.id} className={item.read ? 'opacity-60' : undefined}>
               {item.onOpen
                     ? <button type="button" onClick={item.onOpen} className={`${rowClass} transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary`}>{content}</button>
                     : <div className={rowClass}>{content}</div>}

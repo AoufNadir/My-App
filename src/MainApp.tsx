@@ -2655,7 +2655,6 @@ export default function MainApp({ user }: {
             price: smartTargetPrices.usdt > 0 ? smartTargetPrices.usdt : dashboardPortfolioStats.usdt.avgBuy,
             pam: dashboardPortfolioStats.usdt.avgBuy,
         } : null,
-        onOpenMoreOperations: isFinancialDataReady ? openNewOperationMenu : undefined,
         suggestedGoal: Math.round(salesHistory90.avgMonthlyProfit),
         onSaveGoal: (goal: number) => pricingPlanSync.savePlan({ monthlyGoal: goal }),
         monthlyGoal: monthlyGoalState,

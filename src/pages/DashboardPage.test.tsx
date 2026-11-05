@@ -779,7 +779,7 @@ function renderNew(props: Partial<NewProps> = {}, options: { period?: string | n
     if (options.period)
         storage.set(PERIOD_STORAGE_KEY, options.period);
     storage.set('app_lang', options.lang ?? 'fr');
-    return renderToStaticMarkup(<LanguageProvider><DashboardPage {...baseProps} {...props}/></LanguageProvider>);
+    return renderToStaticMarkup(<LanguageProvider><DashboardPage {...baseProps} initialNotificationsOpen {...props}/></LanguageProvider>);
 }
 const fr = translations.fr as unknown as { dashboard: Record<string, string>; common: Record<string, string>; smartPricing: Record<string, string>; finance: Record<string, string> };
 const ar = translations.ar as unknown as typeof fr;
@@ -851,9 +851,9 @@ const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/'/g, '
     assert.ok(!monthHtml.includes(escapeHtml(fr.smartPricing.subtitle)), 'no pricing assistant entry on the Home page');
     const withGoal = renderNew({ monthlyGoal: 150_000 });
     assert.ok(withGoal.includes(escapeHtml(fr.dashboard.goalTitle)) && withGoal.includes('role="progressbar"'), 'goal progress with a goal');
-    // The four quick actions.
-    for (const key of ['quickSell', 'quickBuy', 'quickCollect'])
-        assert.ok(monthHtml.includes(`>${escapeHtml(fr.dashboard[key])}<`), `quick action ${key}`);
+    // The quick actions row is gone (the + button of the bottom bar does that), and so is the alert card: the bell holds them.
+    assert.ok(!monthHtml.includes('>Encaisser<'), 'no quick actions row');
+    assert.ok(monthHtml.includes(escapeHtml(fr.dashboard.notificationsMarkRead)), 'the sheet offers to mark everything read');
 }
 
 // ---- 2. The chosen period is remembered, and a missing or broken storage falls back to the month ----
@@ -913,7 +913,7 @@ const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/'/g, '
     for (const count of [18, 5, 64])
         assert.ok(html.includes(`<bdi dir="ltr" class="tabular-nums">${count}</bdi>`), `recap count ${count}`);
     assert.ok(html.includes('Client Beta'), 'top client');
-    assert.equal(html.split(`aria-label="${escapeHtml(fr.common.close)}"`).length - 1, 2, 'each recap can be closed');
+    assert.equal(html.split(`aria-label="${escapeHtml(fr.common.close)}"`).length - 1, 3, 'each recap can be closed, and the sheet itself');
     assert.equal(dismissed, '', 'nothing closed while rendering');
 
     const arabic = renderNew(props, { lang: 'ar' });

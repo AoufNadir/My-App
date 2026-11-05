@@ -184,7 +184,7 @@ assert.equal(linaTerm.daysLeft, -1);
         getClientFullName: () => '', openForm: noop, openAdjustmentModal: noop, setTxToDelete: noop, weeklyRecap,
     };
     const termProps = { investorTerms: [samiTerm, karimTerm], onInvestorTermReinvest: noop, onInvestorTermWithdraw: noop, onInvestorTermSnooze: noop };
-    const home = (props: Record<string, unknown>) => render(<DashboardPage {...baseProps} {...props}/>);
+    const home = (props: Record<string, unknown>) => render(<DashboardPage {...baseProps} initialNotificationsOpen {...props}/>);
     const labels = translations.fr.dashboard;
     const before = home({});
     assert.ok(before.includes(labels.weeklyRecapTitle), 'before: the weekly recap shows');
