@@ -10,6 +10,7 @@ import { CheckIcon } from '../icons/CheckIcon';
 import { LockIcon } from '../icons/LockIcon';
 import { FormCard } from '../ui/FormCard';
 import { NotificationSettings } from './NotificationSettings';
+import { BusinessSettingsSection } from '../../multicurrency/BusinessSettingsCard';
 
 type MainUtilityDialogsProps = Record<string, any>;
 
@@ -144,6 +145,8 @@ function MainUtilityDialogsComponent({
                     <PinSettings t={t} />
 
                     <NotificationSettings />
+
+                    {userDocRef && <BusinessSettingsSection userDocRef={userDocRef} />}
 
                     <FormCard title={t('settings.backupTitle')} description={t('settings.backupDescription')}>
                         <Button

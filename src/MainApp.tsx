@@ -1,4 +1,7 @@
 import { previousProfits } from './utils/dashboardComparison';
+import { useBusinessSettings } from './multicurrency/useBusinessSettings';
+import { needsSetup } from './multicurrency/businessSettings';
+import { SetupWizard } from './multicurrency/SetupWizard';
 import React, { Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from './types';
 import { useLanguage } from './contexts/LanguageContext';
@@ -233,6 +236,7 @@ export default function MainApp({ user }: {
         isLoaded: periodLock.isLoaded,
         saveLockedThrough: periodLock.saveLockedThrough,
     }), [periodLock.lockedThrough, periodLock.reason, periodLock.updatedAt, periodLock.isLoaded, periodLock.saveLockedThrough]);
+    const business = useBusinessSettings(userDocRef as never);
     const pricingPlanSync = useSmartPricingPlan(userDocRef);
     // Open instantly from the IndexedDB cache when it holds a previous session's
     // data. An empty cache (first open on this device) still waits for the
@@ -2838,6 +2842,11 @@ export default function MainApp({ user }: {
             setAlert('❌ Erreur lors de la sauvegarde.');
         }
     }, [transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, derivedInvestors, investorTransactions, treasuryCards, manualAssetTransactions, pricingPlanSync.policy, pricingPlanSync.plan, pricingPlanSync.overrides]);
+    // M2: a business with nothing recorded and no settings yet starts with the first-time setup. Only once the
+    // server has answered, so a slow load never shows it to a business that has data.
+    if (isFinancialDataReady && !isAwaitingServerSync && business.loaded
+        && needsSetup({ businessRaw: business.raw, hasAnyData: transactions.length > 0 || clientsDzd.length > 0 || treasuryTransactions.length > 0 || clientTransactionsDzd.length > 0 }))
+        return <SetupWizard onSave={business.saveSetup}/>;
     return (<div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
             <OfflineBanner />
             <div className="mx-auto max-w-4xl px-page-x pb-24 sm:px-4">
