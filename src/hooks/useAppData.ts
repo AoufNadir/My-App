@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { computeAccountBalances } from '../multicurrency/accountBalances';
 import { db } from '../firebase';
 import type { AppUser } from '../firebaseAuth';
 import { fromCents, toCents } from '../utils/money';
@@ -236,64 +237,10 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         };
     }, [subscribeInvestors, userDocRef, refreshKey, subscribeToCollection]);
     // Derived Calculations
+    // M3: the cash box and BaridiMob through the shared account balances (same numbers, see accountBalances.test.ts).
     const treasuryStats = useMemo(() => {
-        const normalizeZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : Number(value.toFixed(2)));
-        const resolveWallet = (raw: any): 'Caisse' | 'BaridiMob' | null => {
-            if (!raw)
-                return null;
-            const normalized = String(raw).toLowerCase();
-            if (normalized.includes('caisse'))
-                return 'Caisse';
-            if (normalized.includes('baridi'))
-                return 'BaridiMob';
-            return null;
-        };
-        const parseLegacyTransfer = (rawAsset?: string): {
-            from: 'Caisse' | 'BaridiMob' | null;
-            to: 'Caisse' | 'BaridiMob' | null;
-        } => {
-            if (!rawAsset)
-                return { from: null, to: null };
-            const match = /from\s+(.+?)\s+to\s+(.+)/i.exec(rawAsset);
-            if (!match)
-                return { from: null, to: null };
-            return { from: resolveWallet(match[1]), to: resolveWallet(match[2]) };
-        };
-        let caisse = 0, baridi = 0;
-        treasuryTransactions.forEach(tx => {
-            const txData = tx as any;
-            const amount = Number(tx.amount || 0);
-            if (!Number.isFinite(amount) || amount <= 0)
-                return;
-            if (tx.type === 'Transfer') {
-                const legacy = parseLegacyTransfer(txData.asset);
-                const from = resolveWallet(txData.source) || legacy.from;
-                const to = resolveWallet(txData.destination) || legacy.to;
-                if (!from || !to || from === to)
-                    return;
-                if (from === 'Caisse')
-                    caisse -= amount;
-                if (from === 'BaridiMob')
-                    baridi -= amount;
-                if (to === 'Caisse')
-                    caisse += amount;
-                if (to === 'BaridiMob')
-                    baridi += amount;
-                return;
-            }
-            let factor = 0;
-            if (tx.type === 'Ajout' || tx.type === 'Adjustment (+)')
-                factor = 1;
-            else if (tx.type === 'Retrait' || tx.type === 'Adjustment (-)')
-                factor = -1;
-            const source = resolveWallet(txData.source)
-                || (txData.asset === 'DZD-Caisse' ? 'Caisse' : txData.asset === 'DZD-Baridi' ? 'BaridiMob' : null);
-            if (source === 'Caisse')
-                caisse += (amount * factor);
-            if (source === 'BaridiMob')
-                baridi += (amount * factor);
-        });
-        return { caisse: normalizeZero(caisse), baridi: normalizeZero(baridi) };
+        const { caisse, baridi } = computeAccountBalances(treasuryTransactions);
+        return { caisse, baridi };
     }, [treasuryTransactions]);
     const clientBalances = useMemo(() => {
         const balances = new Map<string, number>();

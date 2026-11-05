@@ -1,5 +1,6 @@
 import { previousProfits } from './utils/dashboardComparison';
 import { useBusinessSettings } from './multicurrency/useBusinessSettings';
+import { computeAccountBalances, otherAccountsTotal } from './multicurrency/accountBalances';
 import { needsSetup } from './multicurrency/businessSettings';
 import { SetupWizard } from './multicurrency/SetupWizard';
 import React, { Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -320,7 +321,16 @@ export default function MainApp({ user }: {
     // the clock when it recomputes, so schedule a recompute at the next unlock;
     // otherwise the stock stays "locked" until some unrelated transaction arrives.
     const [lockReleaseTick, setLockReleaseTick] = useState(0);
-    const pamLedger = useMemo(() => computePamLedger(ledgerTransactions), [ledgerTransactions, lockReleaseTick]);
+    const tradedCurrencies = business.settings.currencies.join(',');
+    const pamLedger = useMemo(() => computePamLedger(ledgerTransactions, { currencies: tradedCurrencies ? tradedCurrencies.split(',') : [] }), [ledgerTransactions, lockReleaseTick, tradedCurrencies]);
+    // M3: the accounts created besides the cash box and BaridiMob, and the stock of the currencies besides USDT and EUR.
+    const accountBalances = useMemo(() => computeAccountBalances(treasuryTransactions, business.accounts), [treasuryTransactions, business.accounts]);
+    const extraHoldings = useMemo(() => Object.entries(pamLedger.holdings as Record<string, { available: number; locked: number; avgBuy: number }>)
+        .filter(([code]) => code !== 'USDT' && code !== 'EUR')
+        .map(([code, holding]: [string, { available: number; locked: number; avgBuy: number }]) => ({ code, quantity: holding.available + holding.locked, value: (holding.available + holding.locked) * holding.avgBuy })), [pamLedger.holdings]);
+    const extraAccounts = useMemo(() => business.accounts
+        .filter((account) => account.id !== 'Caisse' && account.id !== 'BaridiMob')
+        .map((account) => ({ id: account.id, name: account.name, balance: accountBalances.byAccount[account.id] ?? 0 })), [business.accounts, accountBalances]);
     useEffect(() => {
         const nowMs = Date.now();
         const nextUnlock = [...pamLedger.portfolioStats.usdt.lockedBatches, ...pamLedger.portfolioStats.eur.lockedBatches]
@@ -1033,8 +1043,10 @@ export default function MainApp({ user }: {
         treasuryCards,
         investorLiability,
         services: servicesSummary,
-        managerPendingAdvances
-    }), [treasuryStats, portfolioStats, totals, treasuryCards, investorLiability, servicesSummary, managerPendingAdvances]);
+        managerPendingAdvances,
+        otherAccountsBalance: otherAccountsTotal(accountBalances),
+        otherHoldingsValue: extraHoldings.reduce((sum, holding) => sum + holding.value, 0),
+    }), [treasuryStats, portfolioStats, totals, treasuryCards, investorLiability, servicesSummary, managerPendingAdvances, accountBalances, extraHoldings]);
     const managerProfitBreakdown = useMemo(() => reconcileManagerProfitBreakdown({
         breakdown: baseManagerProfitBreakdown,
         openingCapital: OWNER_OPENING_CAPITAL,
@@ -2621,6 +2633,8 @@ export default function MainApp({ user }: {
         investorLiability: dashboardInvestorLiability,
         investorBreakdown: dashboardInvestorBreakdown,
         capitalSnapshot: dashboardCapitalSnapshot,
+        extraAccounts,
+        extraHoldings,
         servicesSummary: dashboardServicesSummary,
         globalNetProfit,
         overdueDebtClients: effectiveDashboardDebtClients,

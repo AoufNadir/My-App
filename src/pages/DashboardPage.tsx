@@ -112,6 +112,9 @@ type DashboardPageProps = {
     /** The goal to suggest when none is set (the average monthly profit of the last 90 days). */
     suggestedGoal?: number;
     onSaveGoal?: (goal: number) => void;
+    /** M3: accounts created besides the cash box and BaridiMob, and stock of other currencies (empty for the owner today). */
+    extraAccounts?: Array<{ id: string; name: string; balance: number }>;
+    extraHoldings?: Array<{ code: string; quantity: number }>;
     /** Opens the bell's sheet at first draw (screens and tests that read what it holds). */
     initialNotificationsOpen?: boolean;
     /** Avg monthly USDT volume (90d ÷ 3) — drives the required-margin chip. */
@@ -354,6 +357,8 @@ function DashboardContent({
     suggestedGoal = 0,
     onSaveGoal,
     initialNotificationsOpen = false,
+    extraAccounts = [],
+    extraHoldings = [],
     weeklyRecap,
     onDismissWeeklyRecap,
     monthlyRecap,
@@ -526,6 +531,8 @@ function DashboardContent({
         <StatTile label={t('common.baridiBalance') as string} value={capitalSnapshot.baridiBalance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd"/>
         <StatTile label={t('dashboard.usdtInStock') as string} value={usdtInStock} currency="USDT" decimals={2} icon={<DollarSignIcon className="h-3.5 w-3.5"/>} tone="usdt"/>
         <StatTile label={t('dashboard.eurInStock') as string} value={eurInStock} currency="EUR" decimals={2} icon={<EuroIcon className="h-3.5 w-3.5"/>} tone="eur"/>
+        {extraAccounts.map((account) => (<Fragment key={account.id}><StatTile label={account.name} value={account.balance} icon={<WalletIcon className="h-3.5 w-3.5"/>} tone="dzd"/></Fragment>))}
+        {extraHoldings.map((holding) => (<Fragment key={holding.code}><StatTile label={holding.code} value={holding.quantity} currency={null} decimals={2} icon={<DollarSignIcon className="h-3.5 w-3.5"/>} tone="usdt"/></Fragment>))}
       </StatTileGrid>
 
       <QuickSituationCard toReceive={totalDebt} toPay={quickPayable} liquidityGap={liquidityGap} onOpen={onOpenTreasury}/>

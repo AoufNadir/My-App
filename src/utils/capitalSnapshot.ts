@@ -54,6 +54,10 @@ type CapitalSnapshotInput = {
     /** Sum of pending personal advances (manager has taken cash but not yet reconciled).
      *  Treated as a receivable so totalCapital stays neutral during the pending period. */
     managerPendingAdvances?: number;
+    /** M3: accounts other than the cash box and BaridiMob, in the base currency (0 before any is created). */
+    otherAccountsBalance?: number;
+    /** M3: stock of the currencies other than USDT and EUR, at their PAM (0 before any is traded). */
+    otherHoldingsValue?: number;
 };
 
 export type CapitalSnapshot = {
@@ -118,11 +122,11 @@ export function calculateServicesCapitalImpact(services?: ServicesCapitalInput):
     };
 }
 
-export function computeCapitalSnapshot({ caisseBalance, baridiBalance, portfolioValue, portfolioStats, totalDettes, totalAvances, treasuryCards = [], investorLiability = 0, services, managerPendingAdvances = 0 }: CapitalSnapshotInput): CapitalSnapshot {
+export function computeCapitalSnapshot({ caisseBalance, baridiBalance, portfolioValue, portfolioStats, totalDettes, totalAvances, treasuryCards = [], investorLiability = 0, services, managerPendingAdvances = 0, otherAccountsBalance = 0, otherHoldingsValue = 0 }: CapitalSnapshotInput): CapitalSnapshot {
     const normalizedCaisse = toFiniteNumber(caisseBalance);
     const normalizedBaridi = toFiniteNumber(baridiBalance);
-    const cashTotal = normalizedCaisse + normalizedBaridi;
-    const stockValue = portfolioValue === undefined ? calculateStockValue(portfolioStats) : toFiniteNumber(portfolioValue);
+    const cashTotal = normalizedCaisse + normalizedBaridi + toFiniteNumber(otherAccountsBalance);
+    const stockValue = (portfolioValue === undefined ? calculateStockValue(portfolioStats) : toFiniteNumber(portfolioValue)) + toFiniteNumber(otherHoldingsValue);
     const treasuryCardsTotal = treasuryCards.reduce((sum, card) => sum + toFiniteNumber(card.value), 0);
     const receivables = toAbsoluteAmount(totalDettes);
     const clientAdvances = toAbsoluteAmount(totalAvances);
