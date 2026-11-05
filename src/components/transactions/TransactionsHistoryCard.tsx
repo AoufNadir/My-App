@@ -47,6 +47,8 @@ type TransactionsHistoryCardProps = {
   profitByTxId?: Record<string, { derivedProfit: number }>;
   /** Opens the new-operation menu from an empty list; left out while the data loads. */
   onOpenNewOperation?: () => void;
+  /** Puts the type and the dates back to « all »: shown only while one of them narrows the list */
+  onClearFilters?: () => void;
 };
 
 const formatCount = (value: number) => formatNumber(value, { min: 0, max: 0 });
@@ -80,6 +82,7 @@ export function TransactionsHistoryCard({
   formatDzdAmount,
   profitByTxId,
   onOpenNewOperation,
+  onClearFilters,
 }: TransactionsHistoryCardProps) {
   const INITIAL_VISIBLE = 60;
   const LOAD_MORE_COUNT = 60;
@@ -447,6 +450,16 @@ export function TransactionsHistoryCard({
               </div>
             ))}
           </Dropdown>
+        )}
+
+        {onClearFilters && (hasDateRange || filterMode !== 'all') && (
+          <button
+            type="button"
+            onClick={onClearFilters}
+            className="inline-flex min-h-9 items-center rounded-full px-3 text-sm font-semibold text-danger transition-colors hover:bg-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
+          >
+            {t('transactions.clearFilters')}
+          </button>
         )}
       </div>
 

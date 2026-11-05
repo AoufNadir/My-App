@@ -183,6 +183,7 @@ export function TransactionsPage({
         formatDzdAmount={formatDzdAmount}
         profitByTxId={profitByTxId}
         onOpenNewOperation={onOpenNewOperation}
+        onClearFilters={() => { setFilterMode('all'); setDateRange({ start: null, end: null }); }}
       />
 
       {listReport && (<Suspense fallback={null}>

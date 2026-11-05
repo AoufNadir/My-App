@@ -1,4 +1,5 @@
 import React from 'react';
+import { DATE_PRESET_IDS, activeDatePreset, datePresetRange, type DatePresetId } from '../../utils/datePresets';
 import { Modal, ModalContent, ModalDescription, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
@@ -316,12 +317,34 @@ type DateFilterDialogProps = {
     clearLabel: string;
     applyLabel: string;
 };
+const DATE_PRESET_KEYS: Record<DatePresetId, string> = {
+    today: 'transactions.datePresetToday',
+    last7: 'transactions.datePresetLast7',
+    thisMonth: 'transactions.datePresetThisMonth',
+    lastMonth: 'transactions.datePresetLastMonth',
+    thisYear: 'transactions.datePresetThisYear',
+};
 export function DateFilterDialog({ isOpen, onClose, startDate, setStartDate, endDate, setEndDate, onClear, onApply, title, startLabel, endLabel, clearLabel, applyLabel }: DateFilterDialogProps) {
+    const { t } = useLanguage();
+    const now = new Date();
+    const active = activeDatePreset(startDate, endDate, now);
+    const choosePreset = (id: DatePresetId) => {
+        const range = datePresetRange(id, now);
+        setStartDate(range.start);
+        setEndDate(range.end);
+    };
+    const complete = Boolean(startDate && endDate);
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
       <ModalHeader onClose={onClose}>
         <ModalTitle>{title}</ModalTitle>
       </ModalHeader>
       <ModalContent className="px-6 pb-6 space-y-4">
+        <div className="flex flex-col gap-1.5">
+          <p className="text-sm font-semibold leading-snug text-neutral-700">{t('transactions.datePresetsLabel')}</p>
+          <div className="flex flex-wrap gap-2">
+            {DATE_PRESET_IDS.map((id) => (<button key={id} type="button" aria-pressed={active === id} onClick={() => choosePreset(id)} className={`min-h-9 rounded-full border px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${active === id ? 'border-primary bg-primary text-white' : 'border-border bg-surface text-neutral-700 hover:bg-surface-muted'}`}>{t(DATE_PRESET_KEYS[id])}</button>))}
+          </div>
+        </div>
         <div>
           <Label>{startLabel}</Label>
           <DatePicker value={startDate} onChange={setStartDate} className="mt-1"/>
@@ -333,7 +356,7 @@ export function DateFilterDialog({ isOpen, onClose, startDate, setStartDate, end
       </ModalContent>
       <ModalFooter>
         <Button onClick={onClear} variant="outline" className="w-full">{clearLabel}</Button>
-        <Button onClick={onApply} className="w-full">{applyLabel}</Button>
+        <Button onClick={onApply} disabled={!complete} className="w-full">{applyLabel}</Button>
       </ModalFooter>
     </Modal>);
 }
