@@ -4,7 +4,7 @@ import { BellIcon } from '../icons/BellIcon';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Button } from '../ui/Button';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { useHeaderActionsSlot } from '../main/headerActionsSlot';
+import { useHeaderActionSlots } from '../main/headerActionsSlot';
 import { ActionCenter, type ActionItem } from './ActionCenter';
 import { badgeTone, isUnread, markAllRead, readStoredReadMap, storeReadMap, unreadCount, type NotificationEntry, type ReadMap } from '../../utils/notificationCenter';
 
@@ -47,10 +47,10 @@ export function NotificationPanel({ items, read, onMarkAllRead }: { items: Reado
     </div>);
 }
 
-/** The bell in the phone header and its sheet. Without a header slot (desktop, tests) the bell is not drawn. */
+/** The bell in the phone header and its sheet. In the phone and the desktop header; without a header slot (tests) the bell is not drawn. */
 export function NotificationCenter({ items, initialOpen = false }: { items: ReadonlyArray<NotificationItem>; initialOpen?: boolean }) {
     const { t } = useLanguage();
-    const slot = useHeaderActionsSlot();
+    const slots = useHeaderActionSlots();
     const [open, setOpen] = useState(initialOpen);
     const [read, setRead] = useState<ReadMap>(readStoredReadMap);
     const entries = items.map((item) => item.entry);
@@ -60,7 +60,7 @@ export function NotificationCenter({ items, initialOpen = false }: { items: Read
         storeReadMap(next);
     };
     return (<>
-      {slot && createPortal(<NotificationBell count={unreadCount(entries, read)} tone={badgeTone(entries, read)} onClick={() => setOpen(true)}/>, slot)}
+      {slots.map((slot) => createPortal(<NotificationBell count={unreadCount(entries, read)} tone={badgeTone(entries, read)} onClick={() => setOpen(true)}/>, slot, slot.id))}
       <BottomSheet isOpen={open} onClose={() => setOpen(false)} title={t('dashboard.notificationsPanel') as string}>
         <NotificationPanel items={items} read={read} onMarkAllRead={markRead}/>
       </BottomSheet>

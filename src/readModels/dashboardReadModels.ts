@@ -388,8 +388,9 @@ export type BuildDashboardReadModelsInput = {
     clientTransactionsDzd: ClientTransactionDzd[];
     treasuryTransactions: TreasuryTx[];
     treasuryCards: TreasuryCard[];
-    manualAssets: ManualAsset[];
-    manualAssetClients: ManualAssetClient[];
+    /** Not read by the app any more (V10-3): left out, the counts are 0. Kept for the stored summary's two counts. */
+    manualAssets?: ManualAsset[];
+    manualAssetClients?: ManualAssetClient[];
     manualAssetTransactions: ManualAssetTransaction[];
     digitalServiceTransactions: DigitalServiceTransaction[];
     investors: Investor[];
@@ -773,8 +774,9 @@ export function buildClientsReadModel(input: {
 export function buildServicesReadModel(input: {
     meta: ReadModelSnapshotMeta;
     revision: number;
-    manualAssets: ManualAsset[];
-    manualAssetClients: ManualAssetClient[];
+    /** Not read by the app any more (V10-3): left out, the counts are 0. Kept for the stored summary's two counts. */
+    manualAssets?: ManualAsset[];
+    manualAssetClients?: ManualAssetClient[];
     manualAssetTransactions: ManualAssetTransaction[];
     digitalServiceTransactions: DigitalServiceTransaction[];
     assetClientBalances: Map<string, number>;
@@ -803,8 +805,8 @@ export function buildServicesReadModel(input: {
         digitalServiceProfit,
         serviceRevenue,
         netCapitalImpact: money(servicesCapitalImpact),
-        servicesCount: input.manualAssets.length,
-        clientsCount: input.manualAssetClients.length,
+        servicesCount: input.manualAssets?.length ?? 0,
+        clientsCount: input.manualAssetClients?.length ?? 0,
     };
 }
 

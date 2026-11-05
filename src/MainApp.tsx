@@ -1,6 +1,6 @@
 import { previousProfits } from './utils/dashboardComparison';
 import React, { Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from './types';
+import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from './types';
 import { useLanguage } from './contexts/LanguageContext';
 import { signOut } from 'firebase/auth';
 import { auth, type AppUser } from './firebaseAuth';
@@ -93,8 +93,6 @@ const MonthlyReportDialog = React.lazy(() => import('./components/reports/docume
 const ExpensesReportDialog = React.lazy(() => import('./components/reports/documents/DocumentReportDialogs').then((module) => ({ default: module.ExpensesReportDialog })));
 const EMPTY_TRANSACTIONS: Tx[] = [];
 // The old Services page's assets and their clients are no longer read; the read-model builders still take them.
-const NO_MANUAL_ASSETS: ManualAsset[] = [];
-const NO_MANUAL_ASSET_CLIENTS: ManualAssetClient[] = [];
 const EMPTY_CLIENTS_DZD: ClientDzd[] = [];
 const EMPTY_CLIENT_TRANSACTIONS_DZD: ClientTransactionDzd[] = [];
 const EMPTY_TREASURY_TRANSACTIONS: TreasuryTx[] = [];
@@ -1064,8 +1062,6 @@ export default function MainApp({ user }: {
             clientTransactionsDzd,
             treasuryTransactions,
             treasuryCards,
-            manualAssets: NO_MANUAL_ASSETS,
-            manualAssetClients: NO_MANUAL_ASSET_CLIENTS,
             manualAssetTransactions,
             digitalServiceTransactions,
             investors,
@@ -2819,8 +2815,6 @@ export default function MainApp({ user }: {
                     investors: derivedInvestors,
                     investorTransactions,
                     treasuryCards,
-                    manualAssets: NO_MANUAL_ASSETS,
-                    manualAssetClients: NO_MANUAL_ASSET_CLIENTS,
                     manualAssetTransactions,
                     pricing: {
                         policy: pricingPlanSync.policy,

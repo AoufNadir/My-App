@@ -11,3 +11,17 @@ export function useHeaderActionsSlot(): HTMLElement | null {
     }, []);
     return slot;
 }
+
+/** The same place in the desktop header (the phone and desktop headers are both in the page, one hidden by CSS). */
+export const HEADER_ACTIONS_DESKTOP_SLOT_ID = 'app-header-actions-desktop';
+
+/** Both header slots, for a button that belongs in either header; the hidden one is not seen. */
+export function useHeaderActionSlots(): HTMLElement[] {
+    const [slots, setSlots] = useState<HTMLElement[]>([]);
+    useEffect(() => {
+        setSlots([HEADER_ACTIONS_SLOT_ID, HEADER_ACTIONS_DESKTOP_SLOT_ID]
+            .map((id) => document.getElementById(id))
+            .filter((slot): slot is HTMLElement => !!slot));
+    }, []);
+    return slots;
+}

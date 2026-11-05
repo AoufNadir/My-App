@@ -6,7 +6,7 @@ import { SunIcon } from '../icons/SunIcon';
 import { MoonIcon } from '../icons/MoonIcon';
 import { SettingsIcon } from '../icons/SettingsIcon';
 import { AppDesktopNav } from './AppNavigation';
-import { HEADER_ACTIONS_SLOT_ID } from './headerActionsSlot';
+import { HEADER_ACTIONS_DESKTOP_SLOT_ID, HEADER_ACTIONS_SLOT_ID } from './headerActionsSlot';
 import { Dropdown, DropdownItem } from '../ui/Dropdown';
 import { useLanguage, type Lang } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -65,6 +65,7 @@ function MainHeaderBarComponent({ view, setView, globalSearchTitle, handleOpenGl
                 <AppDesktopNav view={view} onSelect={setView} labels={labels}/>
 
                 <div className="flex items-center gap-1.5">
+                    <div id={HEADER_ACTIONS_DESKTOP_SLOT_ID} className="flex items-center gap-0.5"/>
                     <button onClick={handleOpenGlobalSearch} type="button" className="flex h-icon-button w-icon-button shrink-0 cursor-pointer items-center justify-center rounded-full text-neutral-600 transition-all duration-200 hover:bg-neutral-100 active:scale-95" title={`${globalSearchTitle} (Ctrl+K)`} aria-label={globalSearchTitle}>
                         <MagnifyingGlassIcon className="h-[22px] w-[22px]"/>
                     </button>
