@@ -195,13 +195,13 @@ assert.equal(linaTerm.daysLeft, -1);
     const sIndex = terms.indexOf('Sami Test');
     const kIndex = terms.indexOf('Karim Test');
     assert.ok(sIndex > 0 && kIndex > sIndex, 'the late term first, then the coming one');
-    assert.ok(!terms.includes(labels.weeklyRecapTitle) && terms.includes(labels.moreAlerts.replace('{count}', '1')), 'the weekly recap folds behind them');
+    assert.ok(terms.indexOf(labels.weeklyRecapTitle) > kIndex, 'the weekly recap, which is only information, comes after them');
     assert.equal((terms.match(/>Me le rappeler dans 3 jours</g) || []).length, 2, 'each home card can be put off');
 
     const withDebts = home({ ...termProps, overdueDebtClients: [overdue], overdueDebtClientCount: 1 });
     assert.ok(withDebts.includes(labels.overdueClientsOne), 'the late clients alert stays');
     assert.ok(withDebts.indexOf(labels.overdueClientsOne) < withDebts.indexOf('Sami Test'), 'late clients first');
-    assert.ok(!withDebts.includes('Karim Test') && withDebts.includes(labels.moreAlerts.replace('{count}', '2')), 'the second term folds');
+    assert.ok(withDebts.includes('Karim Test'), 'the late clients line does not take a term card\'s place');
     assert.deepEqual(amountsIn(home({ ...termProps, investorTerms: [] })), amountsIn(before), 'the home amounts are the same as before');
 }
 

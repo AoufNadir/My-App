@@ -1,3 +1,4 @@
+import { previousProfits } from './utils/dashboardComparison';
 import React, { Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAsset, ManualAssetClient, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from './types';
 import { useLanguage } from './contexts/LanguageContext';
@@ -943,6 +944,8 @@ export default function MainApp({ user }: {
             // Owner profit of the USDT and EUR sales alone, and the other businesses' profit, for the Home page.
             ownerProfitSplit: { trading: tradingOwnerProfit, services: serviceProfit },
             last7DaysProfit,
+            // The same sums over the matching part of the previous period (V11-2): the Home page's comparison.
+            previousProfit: previousProfits(pamLedger.sellProfitRows.filter((row) => row.timestamp <= nowTs), nowTs),
         };
     }, [pamLedger, clientTransactionsDzd, treasuryStats, investors, investorTransactions, transactions, managerFeePercentage, managerFeeHistory, deliveryExpenses, debtWriteOffs, treasuryTransactions, manualAssetTransactions, digitalServiceTransactions, baseManagerProfitBreakdown]);
     const pricingMtdProfit = useMemo(() => {
@@ -2652,7 +2655,9 @@ export default function MainApp({ user }: {
             price: smartTargetPrices.usdt > 0 ? smartTargetPrices.usdt : dashboardPortfolioStats.usdt.avgBuy,
             pam: dashboardPortfolioStats.usdt.avgBuy,
         } : null,
-        onOpenMonthPlan: () => setIsMonthPlanOpen(true),
+        onOpenMoreOperations: isFinancialDataReady ? openNewOperationMenu : undefined,
+        suggestedGoal: Math.round(salesHistory90.avgMonthlyProfit),
+        onSaveGoal: (goal: number) => pricingPlanSync.savePlan({ monthlyGoal: goal }),
         monthlyGoal: monthlyGoalState,
         weeklyRecap,
         onDismissWeeklyRecap: dismissWeeklyRecap,

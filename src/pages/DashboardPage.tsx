@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { CurrencyAmount, type AmountSemantic } from '../components/financial/CurrencyAmount';
-import { AlertCard, AlertStack, HeroCard, ListRow, SectionCard, StatTile, StatTileGrid, type AlertStackItem } from '../components/cards';
+import { AlertCard, AlertStack, HeroCard, SectionCard, StatTile, StatTileGrid, type AlertStackItem } from '../components/cards';
 import { SegmentedControl } from '../components/ui/SegmentedControl';
 import { Button } from '../components/ui/Button';
 import { BellIcon } from '../components/icons/BellIcon';
@@ -8,7 +8,9 @@ import { ChevronRightIcon } from '../components/icons/ChevronRightIcon';
 import { DollarSignIcon } from '../components/icons/DollarSignIcon';
 import { EuroIcon } from '../components/icons/EuroIcon';
 import { LandmarkIcon } from '../components/icons/LandmarkIcon';
-import { SparklesIcon } from '../components/icons/SparklesIcon';
+import { AlertTriangleIcon } from '../components/icons/AlertTriangleIcon';
+import { ActionCenter, type ActionItem } from '../components/dashboard/ActionCenter';
+import { percentChange, type ProfitPeriod } from '../utils/dashboardComparison';
 import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
 import { WalletIcon } from '../components/icons/WalletIcon';
 import { TransactionDisplayList } from '../components/transactions/TransactionDisplayList';
@@ -62,6 +64,8 @@ type DashboardPageProps = {
         /** Absent when the dashboard comes from the stored summary, which only has the total. */
         ownerProfitSplit?: OwnerProfitSplit;
         last7DaysProfit?: number[];
+        /** The same sums over the matching part of the period before; absent from the stored summary. */
+        previousProfit?: Record<ProfitPeriod, number>;
     };
     portfolioStats: any;
     treasuryStats: any;
@@ -103,8 +107,12 @@ type DashboardPageProps = {
     onOpenTransactions?: () => void;
     onQuickSell?: () => void;
     quickSellPreview?: { qty: number; price: number; pam: number } | null;
-    onOpenMonthPlan?: () => void;
+    /** « Plus » of the quick actions: the full menu of operations. */
+    onOpenMoreOperations?: () => void;
     monthlyGoal?: number;
+    /** The goal to suggest when none is set (the average monthly profit of the last 90 days). */
+    suggestedGoal?: number;
+    onSaveGoal?: (goal: number) => void;
     /** Avg monthly USDT volume (90d ÷ 3) — drives the required-margin chip. */
     // Recaps and the notification request are shown on this page only, among its alerts.
     weeklyRecap?: WeeklyRecap | null;
@@ -123,7 +131,6 @@ type DashboardPageProps = {
     inventoryReminder?: InventoryReminder | null;
     onInventoryReminderSnooze?: () => void;
 };
-type ProfitPeriod = 'today' | 'week' | 'month' | 'year';
 const PROFIT_PERIODS: ProfitPeriod[] = ['today', 'week', 'month', 'year'];
 const PROFIT_PERIOD_LABEL_KEYS: Record<ProfitPeriod, { option: string; title: string }> = {
     today: { option: 'dashboard.periodDay', title: 'dashboard.ownerProfitToday' },
@@ -236,6 +243,83 @@ function QuickSituationCard({ toReceive, toPay, liquidityGap, onOpen }: {
         </button>)
         : <div className={cardClass}>{content}</div>;
 }
+/** The four things done most, one tap away. */
+function QuickActions({ onSell, onBuy, onCollect, onMore }: { onSell: () => void; onBuy: () => void; onCollect: () => void; onMore?: () => void }) {
+    const { t } = useLanguage();
+    const items: Array<{ id: string; label: string; onClick: () => void }> = [
+        { id: 'sell', label: t('dashboard.quickSell') as string, onClick: onSell },
+        { id: 'buy', label: t('dashboard.quickBuy') as string, onClick: onBuy },
+        { id: 'collect', label: t('dashboard.quickCollect') as string, onClick: onCollect },
+    ];
+    if (onMore)
+        items.push({ id: 'more', label: t('dashboard.quickMore') as string, onClick: onMore });
+    return (<div className="grid grid-cols-4 gap-2">
+      {items.map((item) => (<button key={item.id} type="button" onClick={item.onClick} className="min-h-12 rounded-card border border-border bg-surface px-1 py-2 text-[13px] font-bold text-neutral-800 transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          {item.label}
+        </button>))}
+    </div>);
+}
+/** Progress toward the month's goal; without a goal, a line that invites to set one. */
+function GoalCard({ goal, profit, suggested, onSave }: { goal: number; profit: number; suggested: number; onSave?: (goal: number) => void }) {
+    const { t } = useLanguage();
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState('');
+    if (!onSave)
+        return null;
+    const startEditing = () => {
+        setDraft(String(goal > 0 ? goal : suggested > 0 ? suggested : ''));
+        setEditing(true);
+    };
+    const save = () => {
+        const value = Math.round(Number(draft));
+        if (Number.isFinite(value) && value > 0) {
+            onSave(value);
+            setEditing(false);
+        }
+    };
+    if (editing) {
+        return (<div className="flex items-center gap-2 rounded-card border border-border bg-surface px-4 py-3">
+        <input type="number" inputMode="numeric" min={1} value={draft} onChange={(event) => setDraft(event.target.value)} aria-label={t('dashboard.goalTitle') as string} className="min-w-0 flex-1 rounded-input border border-border bg-surface px-3 py-2 text-sm tabular-nums"/>
+        <Button type="button" size="sm" onClick={save} className="font-bold">{t('common.save')}</Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>{t('common.cancel')}</Button>
+      </div>);
+    }
+    if (goal <= 0) {
+        return (<button type="button" onClick={startEditing} className="flex w-full items-center justify-between gap-3 rounded-card border border-dashed border-border bg-surface px-4 py-3 text-start text-sm font-semibold text-primary">
+        <span>{t('dashboard.goalSet')}</span>
+        <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 rtl:-scale-x-100"/>
+      </button>);
+    }
+    const percent = Math.max(0, Math.min(100, Math.round((profit / goal) * 100)));
+    return (<button type="button" onClick={startEditing} className="flex w-full flex-col gap-2 rounded-card border border-border bg-surface px-4 py-3 text-start">
+      <span className="flex items-baseline justify-between gap-3">
+        <span className="text-xs font-semibold text-neutral-500">{t('dashboard.goalTitle')}</span>
+        <span className="text-sm font-bold tabular-nums text-neutral-900"><bdi dir="ltr">{profit >= goal ? '✓ ' : ''}{percent}%</bdi></span>
+      </span>
+      <span role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
+        <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }}/>
+      </span>
+      <span className="flex items-center justify-between gap-3 text-xs text-neutral-500">
+        <CurrencyAmount value={profit} currency="DZD" size="sm" decimals={0}/>
+        <CurrencyAmount value={goal} currency="DZD" size="sm" decimals={0}/>
+      </span>
+    </button>);
+}
+/** « +12 % vs hier » under the main number; nothing when the period before had no profit to compare with. */
+function ProfitChange({ current, previous, period }: { current: number; previous: number; period: ProfitPeriod }) {
+    const { t } = useLanguage();
+    if (!(previous > 0))
+        return null;
+    const change = percentChange(current, previous);
+    if (change === null || change === undefined)
+        return null;
+    const rounded = Math.round(change);
+    const tone = rounded > 0 ? 'text-financial-profit' : rounded < 0 ? 'text-financial-loss' : 'text-neutral-500';
+    return (<p className={`text-xs font-semibold ${tone}`}>
+      <bdi dir="ltr" className="tabular-nums">{rounded > 0 ? '+' : ''}{rounded}%</bdi>{' '}
+      <span className="font-normal text-neutral-500">{t(`dashboard.versus_${period}`)}</span>
+    </p>);
+}
 function DashboardLoadingState() {
     const { t } = useLanguage();
     return (<div className="anim-page-in flex flex-col gap-3" aria-busy="true" aria-label={t('dashboard.loadingAria') as string}>
@@ -281,8 +365,10 @@ function DashboardContent({
     handleDeleteClientTxClick,
     setTreasuryTxToDelete,
     onOpenTransactions,
-    onOpenMonthPlan,
+    onOpenMoreOperations,
     monthlyGoal = 0,
+    suggestedGoal = 0,
+    onSaveGoal,
     weeklyRecap,
     onDismissWeeklyRecap,
     monthlyRecap,
@@ -386,30 +472,30 @@ function DashboardContent({
     const serviceProfitCard = profitSplit && !hasNoServiceActivity(profitSplit.services) ? (<ServiceProfitCard periodTitle={t(PROFIT_PERIOD_LABEL_KEYS[profitPeriod].title) as string} parts={{ ...profitSplit.services[profitPeriod], manual: 0 }} inUse={{ digital: profitSplit.services.allTime.digital !== 0 }}/>) : null;
     const salesProfit = salesProfitByPeriod[profitPeriod];
 
-    // Most urgent first; the stack shows two and folds the rest.
-    const alerts: AlertStackItem[] = [];
-    // The read model sends only the first overdue clients: their count comes separately,
-    // and their total is shown only when every overdue client is in the list.
+    // « À traiter »: short lines for what needs a decision. The cards with their own buttons (investors, cash count) stay as cards.
     const overdueCount = Math.max(overdueDebtClientCount ?? 0, overdueDebtClients.length);
+    const actionItems: ActionItem[] = [];
     if (overdueCount > 0) {
         const overdueDebtTotal = overdueDebtClients.reduce((sum, client) => sum + getClientDebtAmount(client), 0);
         const hasEveryOverdueClient = overdueDebtClients.length >= overdueCount;
-        alerts.push({
-            id: 'overdue-debts',
-            element: (<AlertCard tone="danger" title={overdueCount === 1
-                    ? t('dashboard.overdueClientsOne') as string
-                    : fillTemplate(t('dashboard.overdueClientsMany') as string, { count: <CountText value={overdueCount}/> })} detail={hasEveryOverdueClient
-                    ? fillTemplate(t('dashboard.overdueClientsDebt') as string, { amount: <CurrencyAmount value={overdueDebtTotal} currency="DZD" decimals={2} size="sm" className="font-bold"/> })
-                    : undefined} onAction={onOpenClientDebts} actionLabel={t('dashboard.viewAction') as string}/>),
+        actionItems.push({
+            id: 'overdue-debts', tone: 'loss', icon: <AlertTriangleIcon className="h-4 w-4"/>,
+            title: overdueCount === 1
+                ? t('dashboard.overdueClientsOne') as string
+                : fillTemplate(t('dashboard.overdueClientsMany') as string, { count: <CountText value={overdueCount}/> }),
+            detail: hasEveryOverdueClient
+                ? fillTemplate(t('dashboard.overdueClientsDebt') as string, { amount: <CurrencyAmount value={overdueDebtTotal} currency="DZD" decimals={2} size="sm" className="font-bold"/> })
+                : undefined,
+            onOpen: onOpenClientDebts,
         });
     }
     if (cashTotal < totalAdvances && totalAdvances > 0) {
-        alerts.push({
-            id: 'uncovered-advances',
-            element: (<AlertCard tone="warning" title={t('dashboard.uncoveredAdvances') as string} detail={t('dashboard.uncoveredAdvancesBody') as string} onAction={onOpenTreasury} actionLabel={t('dashboard.viewAction') as string}/>),
-        });
+        actionItems.push({ id: 'uncovered-advances', tone: 'debt', icon: <WalletIcon className="h-4 w-4"/>, title: t('dashboard.uncoveredAdvances') as string, detail: t('dashboard.uncoveredAdvancesBody') as string, onOpen: onOpenTreasury });
     }
-    // One card per investor whose three months come up: the buttons open that investor's page with the window on top.
+    if (lowStock) {
+        actionItems.push({ id: 'low-stock', tone: 'debt', icon: <DollarSignIcon className="h-4 w-4"/>, title: t('dashboard.lowStock') as string, detail: t('dashboard.lowStockBody') as string });
+    }
+    const alerts: AlertStackItem[] = [];
     if (onInvestorTermReinvest && onInvestorTermWithdraw) {
         for (const term of investorTerms) {
             alerts.push({
@@ -418,35 +504,33 @@ function DashboardContent({
             });
         }
     }
-    // The daily count of the cash: the button opens the treasury page, where the inventory is.
     if (inventoryReminder && onOpenTreasury && onInventoryReminderSnooze) {
         alerts.push({ id: 'inventory-reminder', element: <InventoryReminderAlert reminder={inventoryReminder} onOpen={onOpenTreasury} onSnooze={onInventoryReminderSnooze}/> });
     }
-    if (weeklyRecap) {
-        alerts.push({ id: 'weekly-recap', element: <WeeklyRecapAlert recap={weeklyRecap} onDismiss={onDismissWeeklyRecap}/> });
-    }
-    if (monthlyRecap) {
-        alerts.push({ id: 'monthly-recap', element: <MonthlyRecapAlert recap={monthlyRecap} onDismiss={onDismissMonthlyRecap}/> });
-    }
-    if (lowStock) {
-        alerts.push({
-            id: 'low-stock',
-            element: <AlertCard tone="warning" title={t('dashboard.lowStock') as string} detail={t('dashboard.lowStockBody') as string}/>,
-        });
-    }
-    if (showNotificationPrompt && onEnableNotifications && onDismissNotificationPrompt) {
-        alerts.push({ id: 'notifications', element: <NotificationPromptAlert onEnable={onEnableNotifications} onLater={onDismissNotificationPrompt}/> });
-    }
+    // Information, not tasks: after the figures, at the bottom.
+    const notices: AlertStackItem[] = [];
+    if (weeklyRecap)
+        notices.push({ id: 'weekly-recap', element: <WeeklyRecapAlert recap={weeklyRecap} onDismiss={onDismissWeeklyRecap}/> });
+    if (monthlyRecap)
+        notices.push({ id: 'monthly-recap', element: <MonthlyRecapAlert recap={monthlyRecap} onDismiss={onDismissMonthlyRecap}/> });
+    if (showNotificationPrompt && onEnableNotifications && onDismissNotificationPrompt)
+        notices.push({ id: 'notifications', element: <NotificationPromptAlert onEnable={onEnableNotifications} onLater={onDismissNotificationPrompt}/> });
+    const previousProfit = dailyOverview.previousProfit?.[profitPeriod];
 
     return (<div className="anim-page-in flex flex-col gap-3">
+      <ActionCenter title={t('dashboard.actionCenter') as string} items={actionItems}/>
       <AlertStack items={alerts} moreLabel={(count) => String(t('dashboard.moreAlerts')).replace('{count}', String(count))} lessLabel={t('dashboard.fewerAlerts') as string}/>
 
-      <HeroCard top={<SegmentedControl options={PROFIT_PERIODS.map((period) => ({ id: period, label: t(PROFIT_PERIOD_LABEL_KEYS[period].option) as string }))} value={profitPeriod} onChange={selectProfitPeriod} ariaLabel={t('dashboard.periodPicker') as string}/>} label={`${t('dashboard.profitSummary')} · ${t(PROFIT_PERIOD_LABEL_KEYS[profitPeriod].title)}`} value={salesProfit} semantic={salesProfit < 0 ? 'loss' : 'plain'} secondary={{
+      <HeroCard top={<SegmentedControl options={PROFIT_PERIODS.map((period) => ({ id: period, label: t(PROFIT_PERIOD_LABEL_KEYS[period].option) as string }))} value={profitPeriod} onChange={selectProfitPeriod} ariaLabel={t('dashboard.periodPicker') as string}/>} label={`${t('dashboard.profitSummary')} · ${t(PROFIT_PERIOD_LABEL_KEYS[profitPeriod].title)}`} value={salesProfit} semantic={salesProfit < 0 ? 'loss' : 'plain'} note={previousProfit === undefined ? undefined : <ProfitChange current={salesProfit} previous={previousProfit} period={profitPeriod}/>} secondary={{
             label: t('dashboard.ownerProfitSummary') as string,
             hint: t(profitSplit ? 'dashboard.ownerProfitSummaryTradingHint' : 'dashboard.ownerProfitSummaryHint') as string,
             value: ownerProfitByPeriod[profitPeriod],
             semantic: 'auto',
         }}/>
+
+      <GoalCard goal={monthlyGoal} profit={dailyOverview.monthToDateProfit} suggested={suggestedGoal} onSave={onSaveGoal}/>
+
+      <QuickActions onSell={() => openForm('sell_usdt')} onBuy={() => openForm('buy_usdt')} onCollect={() => openAdjustmentModal('add')} onMore={onOpenMoreOperations}/>
 
       {serviceProfitCard}
 
@@ -475,9 +559,6 @@ function DashboardContent({
         </SectionCard>
       )}
 
-      {/* Month plan — entry to the smart pricing hub; without a goal it invites to set one. */}
-      {onOpenMonthPlan && (
-        <ListRow standalone icon={<SparklesIcon className="h-5 w-5"/>} tone="primary" title={t(monthlyGoal > 0 ? 'smartPricing.monthPlan' : 'smartPricing.title') as string} subtitle={t(monthlyGoal > 0 ? 'smartPricing.title' : 'smartPricing.subtitle') as string} onClick={onOpenMonthPlan}/>
-      )}
+      <AlertStack items={notices} moreLabel={(count) => String(t('dashboard.moreAlerts')).replace('{count}', String(count))} lessLabel={t('dashboard.fewerAlerts') as string}/>
     </div>);
 }

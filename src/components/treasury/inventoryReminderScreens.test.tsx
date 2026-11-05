@@ -96,10 +96,10 @@ const fiveDays: InventoryReminder = { daysSince: 5, lastTimestamp: 1 };
     assert.ok(withReminder.includes(words.title), 'the reminder shows');
     assert.deepEqual(amountsIn(withReminder), amountsIn(before), 'the same amounts as before: the card adds none');
     assert.ok(withReminder.indexOf(words.title) < withReminder.indexOf(labels.weeklyRecapTitle) || !withReminder.includes(labels.weeklyRecapTitle), 'the reminder comes before the weekly recap');
-    // Two cards show, the rest folds: late clients first, then the reminder, the recap folds.
+    // The late clients are a line of « À traiter », above the reminder card; the recap, which is information, comes last.
     const withDebts = home({ inventoryReminder: fiveDays, onInventoryReminderSnooze: noop, overdueDebtClients: [overdue], overdueDebtClientCount: 1 });
     assert.ok(withDebts.indexOf(labels.overdueClientsOne) < withDebts.indexOf(words.title), 'late clients first');
-    assert.ok(!withDebts.includes(labels.weeklyRecapTitle) && withDebts.includes(labels.moreAlerts.replace('{count}', '1')), 'the weekly recap folds behind them');
+    assert.ok(withDebts.indexOf(words.title) < withDebts.indexOf(labels.weeklyRecapTitle), 'the weekly recap comes after them');
     // Arabic.
     const ar = home({ inventoryReminder: never, onInventoryReminderSnooze: noop }, 'ar');
     assert.ok(ar.includes(translations.ar.inventoryReminder.title) && ar.includes(translations.ar.inventoryReminder.never), 'Arabic card');

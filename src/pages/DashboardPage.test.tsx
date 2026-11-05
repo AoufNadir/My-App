@@ -737,6 +737,8 @@ const baseProps = {
     setTxToDelete: noop,
     onOpenTransactions: noop,
     onOpenMonthPlan: noop,
+    onSaveGoal: noop,
+    onOpenMoreOperations: noop,
     monthlyGoal: 0,
 };
 type NewProps = Parameters<typeof DashboardPage>[0];
@@ -839,14 +841,19 @@ const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/'/g, '
     assert.ok(monthHtml.includes(escapeHtml(fr.dashboard.overdueClientsMany).replace('{count}', '<bdi dir="ltr" class="tabular-nums">4</bdi>')), 'four late clients');
     assertContainsEach(monthHtml, [amountText(total, 'DZD', 2)], 'total of the overdue debts');
     const alertButton = monthHtml.match(/<button[^>]*>(?:(?!<\/button>).)*<\/button>/g)?.find((button) => button.includes('clients en retard'));
-    assert.ok(alertButton?.includes(`>${fr.dashboard.viewAction}<`), 'the whole alert is one button that opens the clients');
+    assert.ok(alertButton, 'the whole line is one button that opens the clients');
+    assert.ok(monthHtml.includes(escapeHtml(fr.dashboard.actionCenter)), 'the lines sit under « À traiter »');
     // The reminders that only said all is well are gone.
     for (const key of ['stable', 'calmDay', 'attentionNeeded'])
         assert.ok(!monthHtml.includes(escapeHtml(fr.dashboard[key])), `no "${fr.dashboard[key]}"`);
-    // The month plan entry keeps its two wordings.
-    assert.ok(monthHtml.includes(escapeHtml(fr.smartPricing.title)) && monthHtml.includes(escapeHtml(fr.smartPricing.subtitle)), 'month plan without a goal');
+    // The goal: an invitation without one, a progress bar with one; the old « Assistant de vente » entry is gone.
+    assert.ok(monthHtml.includes(escapeHtml(fr.dashboard.goalSet)), 'goal invitation without a goal');
+    assert.ok(!monthHtml.includes(escapeHtml(fr.smartPricing.subtitle)), 'no pricing assistant entry on the Home page');
     const withGoal = renderNew({ monthlyGoal: 150_000 });
-    assert.ok(withGoal.includes(escapeHtml(fr.smartPricing.monthPlan)), 'month plan with a goal');
+    assert.ok(withGoal.includes(escapeHtml(fr.dashboard.goalTitle)) && withGoal.includes('role="progressbar"'), 'goal progress with a goal');
+    // The four quick actions.
+    for (const key of ['quickSell', 'quickBuy', 'quickCollect'])
+        assert.ok(monthHtml.includes(`>${escapeHtml(fr.dashboard[key])}<`), `quick action ${key}`);
 }
 
 // ---- 2. The chosen period is remembered, and a missing or broken storage falls back to the month ----
@@ -875,17 +882,16 @@ const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/'/g, '
     assert.ok(!none.includes('en retard'), 'no overdue alert');
 }
 
-// ---- 4. Warnings no longer hide behind the debts, and the stack folds after two alerts ----
+// ---- 4. Every warning is a line of « À traiter »: nothing is folded away, and the card is absent when there is nothing to do ----
 {
     const lowCash = { ...capitalSnapshot, cashTotal: 40_000 };
     const emptyStock = { usdt: { available: 10, locked: 0 }, eur: { available: 5, locked: 0 } };
     const html = renderNew({ capitalSnapshot: lowCash, portfolioStats: emptyStock });
-    assert.ok(html.includes(escapeHtml(fr.dashboard.uncoveredAdvances)), 'uncovered advances shown next to the debts');
-    assert.ok(!html.includes(escapeHtml(fr.dashboard.lowStock)), 'third alert folded');
-    assert.ok(html.includes(escapeHtml(fr.dashboard.moreAlerts.replace('{count}', '1'))), 'one more alert');
-    const withoutDebts = renderNew({ capitalSnapshot: lowCash, portfolioStats: emptyStock, overdueDebtClients: [], overdueDebtClientCount: 0 });
-    assert.ok(withoutDebts.includes(escapeHtml(fr.dashboard.uncoveredAdvances)) && withoutDebts.includes(escapeHtml(fr.dashboard.lowStock)), 'both warnings');
-    assert.ok(!withoutDebts.includes(escapeHtml(fr.dashboard.moreAlerts.split('(')[0])), 'nothing folded');
+    for (const key of ['uncoveredAdvances', 'lowStock'])
+        assert.ok(html.includes(escapeHtml(fr.dashboard[key])), `${key} shown next to the debts`);
+    assert.ok(html.includes(escapeHtml(fr.dashboard.overdueClientsMany.split('{')[0])), 'late clients shown too');
+    const quiet = renderNew({ overdueDebtClients: [], overdueDebtClientCount: 0 });
+    assert.ok(!quiet.includes(escapeHtml(fr.dashboard.actionCenter)), 'no « À traiter » when there is nothing to do');
 }
 
 // ---- 5. The weekly and monthly recaps show the same figures as the banners they replace ----
