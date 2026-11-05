@@ -185,11 +185,13 @@ export default function MainApp({ user }: {
     // 1.1 App Data (Provides userDocRef)
     const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, digitalServiceTransactions, treasuryCards, manualAssets, manualAssetClients, manualAssetTransactions, treasuryStats, clientBalances, assetClientBalances, assetBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
         subscribeCoreFinancial: !shouldUseDashboardReadModel,
-        // The Services page is gone: its collections are no longer read, so every figure that counted them now counts nothing.
+        // The Services page is gone: the assets and their clients are no longer read, but the operations still are, so the
+        // revenue of the old manual services stays in the owner's profit (a profit already earned, spent or reinvested).
         subscribeManualAssets: false,
+        manualRevenueOnly: !shouldUseDashboardReadModel,
         subscribeInvestors: !shouldUseDashboardReadModel && keepInvestorsSubscribed,
         subscribeTreasuryCards: !shouldUseDashboardReadModel && keepTreasuryCardsSubscribed,
-        requireManualAssets: false,
+        requireManualAssets: !shouldUseDashboardReadModel,
         requireInvestors: shouldRequireInvestors,
         requireTreasuryCards: shouldRequireTreasuryCards
     });
@@ -988,14 +990,9 @@ export default function MainApp({ user }: {
     }), [transactions, clientsDzd, clientTransactionsDzd, portfolioStats.usdt.avgBuy, portfolioStats.usdt.available, portfolioStats.eur.avgBuy, portfolioStats.eur.available, pricingPlanSync.plan, pricingPlanSync.policy, pricingPlanSync.overrides, pricingMtdProfit, derivedProfitLookup]);
     const smartPricingCtx = smartPricingByCurrency.USDT;
     const servicesSummary = useMemo(() => {
-        let amountToReceive = 0;
-        let clientAdvances = 0;
-        assetClientBalances.forEach((balance) => {
-            if (balance < -0.005)
-                amountToReceive += Math.abs(balance);
-            else if (balance > 0.005)
-                clientAdvances += balance;
-        });
+        // V9-5: what the old services clients owed or paid in advance no longer counts in the capital (the Services page is gone).
+        const amountToReceive = 0;
+        const clientAdvances = 0;
         const cashReceived = manualAssetTransactions.reduce((sum, tx) => sum + (tx.type === 'payment_received' ? Math.abs(Number(tx.amount || 0)) : 0), 0);
         const manualServiceRevenue = manualAssetTransactions.reduce((sum, tx) => sum + ((tx.type === 'service' || tx.type === 'invoice') ? Math.abs(Number(tx.amount || 0)) : 0), 0);
         const digitalServiceProfit = digitalServiceTransactions.reduce((sum, tx) => {
@@ -1015,7 +1012,7 @@ export default function MainApp({ user }: {
             servicesCount: manualAssets.length,
             clientsCount: manualAssetClients.length
         };
-    }, [assetClientBalances, manualAssetTransactions, digitalServiceTransactions, manualAssets.length, manualAssetClients.length]);
+    }, [manualAssetTransactions, digitalServiceTransactions, manualAssets.length, manualAssetClients.length]);
     const managerPendingAdvances = useMemo(
         () => personalExpenses
             .filter((tx) => tx.advanceState === 'pending')

@@ -9,6 +9,8 @@ type UseAppDataOptions = {
     subscribeInvestors?: boolean;
     subscribeTreasuryCards?: boolean;
     requireManualAssets?: boolean;
+    /** Read only the manual-service operations (their revenue still counts in the owner's profit), not the assets or their clients */
+    manualRevenueOnly?: boolean;
     requireInvestors?: boolean;
     requireTreasuryCards?: boolean;
 };
@@ -47,6 +49,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
     const subscribeManualAssets = options.subscribeManualAssets ?? true;
     const subscribeInvestors = options.subscribeInvestors ?? true;
     const subscribeTreasuryCards = options.subscribeTreasuryCards ?? true;
+    const manualRevenueOnly = options.manualRevenueOnly ?? false;
     const requireManualAssets = options.requireManualAssets ?? subscribeManualAssets;
     const requireInvestors = options.requireInvestors ?? subscribeInvestors;
     const requireTreasuryCards = options.requireTreasuryCards ?? subscribeTreasuryCards;
@@ -70,11 +73,11 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         if (requireTreasuryCards)
             keys.push('treasuryCards');
         if (requireManualAssets)
-            keys.push('manualAssets', 'manualAssetClients', 'manualAssetTransactions');
+            keys.push(...(manualRevenueOnly ? ['manualAssetTransactions' as const] : ['manualAssets' as const, 'manualAssetClients' as const, 'manualAssetTransactions' as const]));
         if (requireInvestors)
             keys.push('investors', 'investorTransactions');
         return keys;
-    }, [subscribeCoreFinancial, requireTreasuryCards, requireManualAssets, requireInvestors]);
+    }, [subscribeCoreFinancial, requireTreasuryCards, requireManualAssets, manualRevenueOnly, requireInvestors]);
     const subscribeToCollection = useCallback((
         key: AppDataCollectionKey,
         query: { onSnapshot: (callback: (snapshot: any) => void, options?: { includeMetadataChanges?: boolean }) => () => void },
@@ -137,7 +140,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             }),
             (docs) => setTransactions(docs as Tx[])
         );
-        const unsubClients = subscribeToCollection(
+        const unsubClients = manualRevenueOnly ? (() => { }) : subscribeToCollection(
             'clients',
             userDocRef.collection('dzd_clients').orderBy('fullName', 'asc'),
             (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
@@ -194,7 +197,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         );
     }, [subscribeTreasuryCards, userDocRef, refreshKey, subscribeToCollection]);
     useEffect(() => {
-        if (!subscribeManualAssets) {
+        if (!subscribeManualAssets && !manualRevenueOnly) {
             setManualAssets([]);
             setManualAssetClients([]);
             setManualAssetTransactions([]);
@@ -206,7 +209,8 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             }));
             return;
         }
-        const unsubAssets = subscribeToCollection(
+        // Revenue only: the operations are read, the assets and their clients are not (their page is gone).
+        const unsubAssets = manualRevenueOnly ? (() => { }) : subscribeToCollection(
             'manualAssets',
             userDocRef.collection('manual_assets').orderBy('createdAt', 'desc'),
             (docs) => docs.map(doc => ({ id: doc.id, ...doc.data() })),
@@ -229,7 +233,7 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
             unsubClients();
             unsubTransactions();
         };
-    }, [subscribeManualAssets, userDocRef, refreshKey, subscribeToCollection]);
+    }, [subscribeManualAssets, manualRevenueOnly, userDocRef, refreshKey, subscribeToCollection]);
     useEffect(() => {
         if (!subscribeInvestors) {
             setInvestors([]);

@@ -383,7 +383,7 @@ function DashboardContent({
         month: dailyOverview.ownerProfitMonth,
         year: dailyOverview.ownerProfitYear,
     };
-    const serviceProfitCard = profitSplit && !hasNoServiceActivity(profitSplit.services) ? (<ServiceProfitCard periodTitle={t(PROFIT_PERIOD_LABEL_KEYS[profitPeriod].title) as string} parts={profitSplit.services[profitPeriod]} inUse={{ digital: profitSplit.services.allTime.digital !== 0 }}/>) : null;
+    const serviceProfitCard = profitSplit && !hasNoServiceActivity(profitSplit.services) ? (<ServiceProfitCard periodTitle={t(PROFIT_PERIOD_LABEL_KEYS[profitPeriod].title) as string} parts={{ ...profitSplit.services[profitPeriod], manual: 0 }} inUse={{ digital: profitSplit.services.allTime.digital !== 0 }}/>) : null;
     const salesProfit = salesProfitByPeriod[profitPeriod];
 
     // Most urgent first; the stack shows two and folds the rest.
