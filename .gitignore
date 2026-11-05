@@ -45,3 +45,7 @@ tsc_output.txt
 .firebase
 .env*
 .kilo/
+
+# Firestore backup: secret key and copies stay on the owner computer
+serviceAccount.json
+backups/
