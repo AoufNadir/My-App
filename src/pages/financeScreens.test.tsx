@@ -6,10 +6,13 @@ import { LanguageProvider, useLanguage } from '../contexts/LanguageContext';
 import type { ClientDzd, ClientTransactionDzd, TreasuryCard, TreasuryTx, Tx } from '../types';
 import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
 import { computePamLedger } from '../utils/pamLedger';
+import { translations } from '../translations';
+import { analyticsWindow, rankClients } from '../utils/analyticsPeriod';
 import { distinctScreenNumbers, screenText, showSpaces } from '../testing/screenNumbers';
 import { TresoreriePage } from './TresoreriePage';
 import { PortfolioPage } from './PortfolioPage';
-import { AnalyticsPage, type AnalyticsTab } from './AnalyticsPage';
+import { AnalyticsPage } from './AnalyticsPage';
+import type { AnalyticsPeriodKind } from '../utils/analyticsPeriod';
 import { AnalyticsExportSheet } from '../components/analytics/AnalyticsExportSheet';
 import { PamSimulator } from '../components/portfolio/PamSimulator';
 import { CapitalBreakdown } from '../components/financial/CapitalOverviewCard';
@@ -154,7 +157,7 @@ const pageProps = {
 };
 const renderPortfolio = (lang: Lang) => render(<PortfolioPage {...pageProps}/>, lang);
 const renderSimulator = (lang: Lang) => render(<PamSimulator portfolioStats={portfolioStats} smartTargetUsdt={246.5} parseAndEvaluate={parseAndEvaluate}/>, lang);
-const renderAnalytics = (lang: Lang, tab: AnalyticsTab = 'month') => render(<AnalyticsPage {...pageProps} initialTab={tab}/>, lang);
+const renderAnalytics = (lang: Lang, kind: AnalyticsPeriodKind = 'month') => render(<AnalyticsPage {...pageProps} initialKind={kind}/>, lang);
 const renderExportSheet = (lang: Lang) => render(<AnalyticsExportSheet isOpen onClose={noop} monthLabel="Septembre" year={2026} realizedProfit={18_031} monthlyHasData
     onExportMonthly={noop} reportClient="" reportMonth={8} reportYear={2026} reportMonths={pageProps.reportMonths} reportYears={pageProps.reportYears}
     clientsDzd={clients} getClientFullName={fullName} onExportClient={noop}/>, lang);
@@ -165,8 +168,7 @@ const SCREENS = {
     simulator: renderSimulator,
     analytics: (lang: Lang) => renderAnalytics(lang),
     analyticsYear: (lang: Lang) => renderAnalytics(lang, 'year'),
-    analyticsAllTime: (lang: Lang) => renderAnalytics(lang, 'alltime'),
-    analyticsClients: (lang: Lang) => renderAnalytics(lang, 'clients'),
+    analyticsAll: (lang: Lang) => renderAnalytics(lang, 'all'),
     analyticsExport: renderExportSheet,
 };
 
@@ -181,14 +183,13 @@ if (process.env.SCREEN_CAPTURE) {
 }
 
 // ---- Numbers of the V2-5 screens, recorded with the mode above before any change ----
-// Portefeuille: with the locked batches unfolded. Analyse: Synthèse and Clients tabs, and the PDF sheet.
+// Portefeuille: with the locked batches unfolded. (Analyse was redrawn in V10-1: its numbers are checked below, one by one.)
 const fromShown = (tokens: string[]) => tokens.map((token) => token.replace(/⍽/g, '\u202f'));
 const BEFORE = {
     // V9-5: the Services page is gone, so the capital no longer counts its 14⍽500 net position: 3⍽926⍽024 → 3⍽911⍽524 and 3⍽406⍽024 → 3⍽391⍽524.
     treasury: fromShown(['+12⍽000', '+18⍽000', '+1⍽500', '+245⍽000', '+40⍽000', '+72⍽000', '+96⍽400', '-1⍽200', '-2⍽500', '-50⍽000', '-7⍽000', '-800', '10/09/2026', '15', '15/09/2026', '18/09/2026', '1⍽250⍽000', '20/09/2026', '22/09/2026', '24/09/2026', '26/09/2026', '27/09/2026', '28/09/2026', '29/09/2026', '30/09/2026', '300⍽000,00', '310⍽000', '3⍽391⍽524', '3⍽911⍽524', '414⍽900', '45⍽000', '480⍽000', '520⍽000', '7', '75⍽000,00', '87⍽000']),
     portfolio: fromShown(['+0,32', '+2⍽251', '0', '05', '08:30', '1', '165⍽548', '17', '1⍽000,00', '1⍽375⍽976', '1⍽500,00', '1⍽541⍽524', '2', '20:30', '245,63', '245,71', '246,50', '250,83', '2⍽500,00', '30', '3⍽100,00', '450', '5⍽600,00', '660,00']),
     simulator: fromShown(['+0,32', '+2⍽251', '245,71', '246,50']),
-    analytics: fromShown(['+14⍽954', '+18⍽031', '+2.33', '+21⍽746', '+2⍽423', '+2⍽977', '+3', '+3.46', '+3⍽600', '+4.62', '+4.96', '+4⍽369', '+5.46', '+5.77', '+6⍽000', '+6⍽138', '+7', '+8', '+8⍽915', '-09', '-523', '0', '0.8', '1', '10', '11', '12', '13', '14', '15', '16', '17', '18', '18⍽031', '19', '2', '20', '200.5', '2024', '2025', '2026', '21', '22', '23', '24', '248.08', '25', '25.1', '26', '27', '28', '29', '2⍽000', '2⍽100', '2⍽500', '3', '30', '300', '33⍽800', '36⍽800', '3⍽077', '3⍽600', '4', '400', '4⍽508', '5', '50.0', '50.3', '6', '6⍽400', '7', '75', '8', '80', '800', '8⍽031', '9']),
 };
 const numbersOf = (...htmls: string[]) => showSpaces([...new Set(htmls.flatMap((html) => distinctScreenNumbers(html)))].sort());
 function assertSameNumbers(actual: string[], before: string[], screen: string) {
@@ -264,22 +265,41 @@ for (const lang of ['fr', 'ar'] as const) {
     assert.ok(usdtCard.includes(`${words.in} 05h 30min`) && usdtCard.includes(`${words.tomorrow} | ${words.in} 17h 30min`), `portfolio.${lang}: countdown of each batch`);
     assert.ok(!segment(portfolio, words.eurCard).includes(words.available.split(' | ')[0]), `portfolio.${lang}: no lock on EUR`);
 
-    // ---- Analyse: every tab and the PDF window ----
-    const analytics = {
-        month: renderAnalytics(lang), year: renderAnalytics(lang, 'year'), alltime: renderAnalytics(lang, 'alltime'), clients: renderAnalytics(lang, 'clients'),
-    };
-    assertSameNumbers(numbersOf(...Object.values(analytics), renderExportSheet(lang)), BEFORE.analytics, `analytics.${lang}`);
-    const month = textOf(analytics.month);
-    assert.ok(month.includes(`+18\u202f031 | DZD | ▲ 200.5% | ${words.vsAug}`), `analytics.${lang}: month profit compared with August`);
-    assert.ok(month.includes(`${words.winRate} | 75% | ▲ 50.0%`) && month.includes(`${words.avgProfit} | 4\u202f508 | DZD | ▲ 50.3%`), `analytics.${lang}: month tiles`);
-    assert.ok(month.includes(`${words.bestSale} | 8\u202f031 | DZD | ${words.thisMonth}`) && month.includes(`${words.winningDays} | 3`), `analytics.${lang}: best sale and winning days`);
-    assert.ok(month.includes(`${words.activeDays} | +18\u202f031`) && month.includes(words.calendarDays), `analytics.${lang}: calendar header`);
-    assert.ok(month.includes('7 | +8k') && month.includes('14 | +3k') && month.includes('22 | +7k'), `analytics.${lang}: profit days in the calendar`);
-    assert.ok(month.includes(`${words.bestDay} | 7 | / | 8\u202f031`) && month.includes(`${words.worstDay} | 14 | / | 3\u202f077`), `analytics.${lang}: best and weakest day`);
-    assert.ok(textOf(analytics.year).includes(`33\u202f800 | DZD | ${words.janToSep}`), `analytics.${lang}: profit since January`);
-    assert.ok(textOf(analytics.alltime).includes('18\u202f031 | DZD | 2026-09') && textOf(analytics.alltime).includes('6\u202f400 USDT | 300 EUR'), `analytics.${lang}: all time`);
-    const topFive = segment(textOf(analytics.clients), words.topFive).match(/[+-]\d[\d\u202f]*/g);
-    assert.deepEqual(topFive?.map(amount), [14_954, 3_600, -523], `analytics.${lang}: clients of the month by profit`);
+    // ---- Analyse (V10-1): one template for the month, the year and everything. Every figure is one the old page
+    // showed, written the same way or signed (+) now; the ones that left sit behind « Plus de détails » or the toggle. ----
+    const pt = (key: string) => (translations[lang].portfolio as unknown as Record<string, string>)[key];
+    const analytics = { month: textOf(renderAnalytics(lang)), year: textOf(renderAnalytics(lang, 'year')), all: textOf(renderAnalytics(lang, 'all')) };
+    const nbsp = '\u202f';
+    // The month: profit 18 031, against August (6 000 until the same day): ▲ 201 %
+    assert.ok(analytics.month.includes(`+18${nbsp}031 | DZD | ▲ 201 %`), `analytics.${lang}: profit of the month, with its change`);
+    // Why it moved: the three lines add up to the change (18 031 − 6 000 = 12 031), in whole dinars.
+    const effects = analytics.month.match(new RegExp(`${pt('anEffectVolume')} \\| \\+(\\d[\\d${nbsp}]*) \\| DZD \\| ${pt('anEffectMargin')} \\| \\+(\\d[\\d${nbsp}]*) \\| DZD \\| ${pt('anEffectOther')} \\| \\+(\\d[\\d${nbsp}]*)`));
+    assert.ok(effects, `analytics.${lang}: the effects of volume, margin and the rest`);
+    assert.deepEqual(effects!.slice(1).map(amount), [5_538, 2_893, 3_600], `analytics.${lang}: effects`);
+    assert.equal(amount(effects![1]) + amount(effects![2]) + amount(effects![3]), 12_031, `analytics.${lang}: they add up to the change of the profit`);
+    assert.ok(analytics.month.includes('462') && analytics.month.includes('577'), `analytics.${lang}: margin per 100 USDT before and now`);
+    // Volumes and margin against August: 2 500 USDT sold against 1 300, 300 EUR against none.
+    assert.ok(analytics.month.includes(`2${nbsp}500 | 1${nbsp}300 | ▲ 92 %`) && analytics.month.includes('577 | 462 | ▲ 25 %'), `analytics.${lang}: volumes and margin table`);
+    assert.ok(/ 300 \| 0 \| —/.test(analytics.month), `analytics.${lang}: EUR sold, none in August`);
+    // The calendar: three days with profit, the best and the weakest, the same as the old calendar.
+    assert.ok(analytics.month.includes('7 | +8k') && analytics.month.includes('14 | +3k') && analytics.month.includes('22 | +7k'), `analytics.${lang}: profit days in the calendar`);
+    assert.ok(analytics.month.includes(`07/09 | +8${nbsp}031`) && analytics.month.includes(`14/09 | +3${nbsp}077`), `analytics.${lang}: best and weakest day`);
+    // The clients of the month by USDT sold, and the details the old tiles showed.
+    assert.ok(analytics.month.includes(`2${nbsp}100 USDT`) && analytics.month.includes('400 USDT'), `analytics.${lang}: clients by volume`);
+    assert.ok(analytics.month.includes(`75 % | `) && analytics.month.includes(`+4${nbsp}508`) && analytics.month.includes(`+8${nbsp}031`) && analytics.month.includes('248,08'), `analytics.${lang}: win rate, average profit, best sale and price`);
+    // The year: the profit since January and a ring on the month we are in; no previous year to compare with until the same day.
+    assert.ok(analytics.year.includes(`+33${nbsp}800 | DZD`) && analytics.year.includes('+18k') && analytics.year.includes(`+2${nbsp}423`), `analytics.${lang}: the year`);
+    assert.ok(!analytics.year.includes(pt('anGap')), `analytics.${lang}: nothing in 2025 until 30/09, so no comparison`);
+    // Everything: the old « all time » figures, and the years in a calendar.
+    assert.ok(analytics.all.includes(`+36${nbsp}800 | DZD`) && analytics.all.includes(`6${nbsp}400`) && analytics.all.includes('+3k') && analytics.all.includes('+34k'), `analytics.${lang}: everything`);
+    assert.ok(!analytics.all.includes(pt('anGap')) && !analytics.all.includes(pt('anSummaryUp')), `analytics.${lang}: nothing before to compare with`);
+    // The best clients of the month by profit, as the old « Top 5 » (behind the toggle now).
+    const septWindow = analyticsWindow('month', 2026, 8, FIXED_NOW).current;
+    const nameById = new Map(clients.map((client) => [client.id, fullName(client)] as const));
+    const ranking = rankClients({ transactions, clientTransactions: clientTransactionsDzd, ledger: computePamLedger(transactions), clientNameById: nameById, unknownName: '?', range: septWindow });
+    assert.deepEqual(ranking.byProfit.map((row) => Math.round(row.realizedProfit)), [14_954, 3_600, -523], `analytics.${lang}: clients of the month by profit`);
+    // The PDF window keeps its figures.
+    assert.deepEqual(numbersOf(renderExportSheet(lang)), showSpaces(['+18⍽031', '2024', '2025', '2026']), `analytics.${lang}: export window`);
 }
 
 console.log('financeScreens.test: Trésorerie, Portefeuille and Analyse show the same numbers as before, in French and Arabic');

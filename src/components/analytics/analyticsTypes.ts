@@ -37,29 +37,3 @@ export type AnalyticsPageProps = {
     handleExportUsdtReport: () => void;
     openPortfolioBalanceEditModal?: (asset: 'USDT' | 'EUR') => void;
 };
-export type MonthlyClientRank = {
-    clientId: string;
-    clientName: string;
-    buyVolumeUsdt: number;
-    sellVolumeUsdt: number;
-    totalVolumeUsdt: number;
-    realizedProfit: number;
-    txCount: number;
-    sellCount: number;
-};
-export type MonthlyClientRanking = {
-    rankedRows: MonthlyClientRank[];
-    topTradedClient: MonthlyClientRank | null;
-    topProfitableClient: MonthlyClientRank | null;
-};
-export type CalculatedStats = {
-    volUsdtBought: number;
-    volUsdtSold: number;
-    volEurBought: number;
-    volEurSold: number;
-    realizedProfit: number;
-    sellCount: number;
-    winRate: number | null;
-    avgProfitPerSell: number | null;
-    bestSellProfit: number;
-};
