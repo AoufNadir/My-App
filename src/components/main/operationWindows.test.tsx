@@ -251,10 +251,10 @@ const BEFORE: Record<keyof typeof SCREENS, string[]> = {
     buyEur: ['1⍽200,00', '251.00'],
     buyEurCredit: ['1⍽200,00', '251.00'],
     sellSource: ['243.92', '5⍽900,00'],
-    // V11-3: the pricing assistant's corridor (opening, target, floor), its expected profit and its coverage no longer show.
-    sellEur: ['+11.00', '+3⍽300', '1⍽200,00', '251.00'],
-    sellEurOver: ['+16⍽500', '1⍽200,00', '251.00'],
-    editSell: ['+4⍽572', '+5.08', '243.92', '5⍽900,00', '900'],
+    // V11-8: the corridor (opening, target, floor) shows again as three buttons under the quantity; the expected profit and the coverage stay gone.
+    sellEur: ['+11.00', '+3⍽300', '1⍽200,00', '251.00', '253', '253,50', '254'],
+    sellEurOver: ['+16⍽500', '1⍽200,00', '251.00', '252,50', '253', '253,50'],
+    editSell: ['+4⍽572', '+5.08', '243.92', '5⍽900,00', '900', '248', '249,50', '250'],
     editSellForEur: ['+35⍽784', '243.92', '251.00', '5⍽900,00', '800'],
     walletTransfer: ['1⍽100⍽000,00', '1⍽250⍽000,00', '480⍽000,00', '630⍽000,00'],
     walletTransferOver: ['-120⍽000,00', '1⍽250⍽000,00', '1⍽850⍽000,00', '480⍽000,00'],
@@ -441,46 +441,11 @@ for (const lang of ['fr', 'ar'] as const) {
     assert.ok(!transactionWindow(lang, { ...buyEur, clientPaymentStatus: 'credit', creditDueDate: '2026-10-15', smartPricingByCurrency: learnedDelay }).includes(hint), `${lang}: buying on credit does not`);
 }
 
-// V5-3: « when did the sale really happen? ». A new sale in dinars has a Date card; closed it says
-// the sale is stamped now (no figure at all, so the numbers of the window are the same as before),
-// open it has the day and time fields, the profit that day's stock gives, and why a day is refused.
-const SALE_DATE_FIELDS = '<input id="sale_date" type="date"';
+// V11-8: the « Date de la vente » card is gone: every sale is stamped when it is saved.
 for (const lang of ['fr', 'ar'] as const) {
     const sale = { mode: 'sell_eur', sellAmount: '300', sellPrice: '262', sellTotal: '78600', linkedClientId: 'c3' };
-    const closed = transactionWindow(lang, sale);
-    assert.ok(closed.includes(esc(label(lang, 'transactions.saleDateTitle'))), `${lang}: the sale has its Date card`);
-    assert.ok(closed.includes(esc(label(lang, 'transactions.saleDateToday'))), `${lang}: closed, the sale is stamped when saved`);
-    assert.ok(closed.includes(`>${esc(label(lang, 'transactions.saleDateChange'))}</button>`), `${lang}: a button to pick another day`);
-    assert.ok(!closed.includes(SALE_DATE_FIELDS), `${lang}: no field until asked`);
-    // Not in a purchase, not when an existing sale is edited, not when the sale is settled in EUR.
-    assert.ok(!transactionWindow(lang, buyWithDzd).includes(esc(label(lang, 'transactions.saleDateTitle'))), `${lang}: a purchase has no sale date`);
-    assert.ok(!transactionWindow(lang, { ...sale, editingTx: trade('s3', 'sell', 'EUR', 300, 262, at(2026, 9, 26, 12)) }).includes(esc(label(lang, 'transactions.saleDateTitle'))), `${lang}: an edited sale keeps its date`);
-    assert.ok(!transactionWindow(lang, { ...sale, mode: 'sell_usdt', sellSettlementCurrency: 'EUR', editingTx: eurSale }).includes(esc(label(lang, 'transactions.saleDateTitle'))), `${lang}: a sale settled in EUR is stamped now`);
-
-    const moment = { kind: 'at', timestamp: at(2026, 9, 28, 12), date: '28/09/2026', time: '12:00' };
-    const dated = transactionWindow(lang, { ...sale, sellDate: '2026-09-28', saleDatePlan: { moment, plan: { ok: true, avgAtSale: 243.5, profit: 650, soldCost: 73050, laterSales: { count: 2, shift: -120 } } } });
-    // The server renderer writes an input's value after its other attributes.
-    const input = dated.match(/<input id="sale_date" type="date" max="([^"]*)"[^>]*value="([^"]*)"/);
-    assert.equal(input?.[2], '2026-09-28', `${lang}: the day typed is shown back`);
-    assert.equal(input?.[1], '2026-09-30', `${lang}: no day after today (the clock of this test)`);
-    assert.ok(dated.includes('<input id="sale_time" type="time"'), `${lang}: the optional time`);
-    const out = screenText(dated).replace(/[⁦⁩]/g, '');
-    assert.ok(out.includes(label(lang, 'transactions.saleDateProfit').replace('{profit}', '+650').replace('{pam}', '243,50').replace(/\s+/g, ' ')) || out.includes(label(lang, 'transactions.saleDateProfit').replace('{profit}', '+650').replace('{pam}', '243.50')), `${lang}: the profit of that day, with that day's PAM`);
-    assert.ok(out.includes(label(lang, 'transactions.saleDateLater').replace('{count}', '2').replace('{shift}', '-120')), `${lang}: the later sales that are recalculated`);
-    assert.ok(dated.includes(`>${esc(label(lang, 'transactions.saleDateReset'))}</button>`), `${lang}: back to today`);
-    // The bar at the bottom shows that day's profit too, not the one today's PAM would give.
-    const [, datedBar] = splitAtBar(dated);
-    assert.ok(textOf(datedBar.slice(0, datedBar.indexOf('<button'))).includes(n('+650 DZD')), `${lang}: the bar shows the profit of that day`);
-    assert.ok(!textOf(splitAtBar(closed)[1].slice(0, splitAtBar(closed)[1].indexOf('<button'))).includes(n('+650 DZD')), `${lang}: a sale typed now keeps its own estimate`);
-    // A sale that changes nothing for the sales after it does not mention them.
-    const calm = transactionWindow(lang, { ...sale, sellDate: '2026-09-28', saleDatePlan: { moment, plan: { ok: true, avgAtSale: 243.5, profit: 650, soldCost: 73050, laterSales: { count: 0, shift: 0 } } } });
-    assert.ok(!screenText(calm).includes(label(lang, 'transactions.saleDateLater').split('{count}')[1].trim().split('{shift}')[0].trim()), `${lang}: nothing about later sales when none moves`);
-    // Each refusal reads in the reader's language, in red, under the fields.
-    for (const [message, key] of [['Date de vente invalide', 'saleDateInvalid'], ['La date de la vente ne peut pas être dans le futur', 'saleDateFuture'], ['Ce mois est clôturé : la vente ne peut pas y être ajoutée', 'saleDateClosedMonth'], ['Stock insuffisant à cette date', 'saleDateNoStock']] as const) {
-        const refused = transactionWindow(lang, { ...sale, sellDate: '2026-09-28', saleDatePlan: { moment, plan: null }, formValidation: invalid({ sellDate: message }) });
-        assert.ok(refused.includes(`<span role="alert" class="block text-xs font-medium text-financial-loss">${esc(label(lang, `formErrors.${key}`))}</span>`), `${lang}: "${message}"`);
-        assert.ok(refused.includes('aria-invalid="true"'), `${lang}: the day field is marked`);
-    }
+    const html = transactionWindow(lang, sale);
+    assert.ok(!html.includes(esc(label(lang, 'transactions.saleDateTitle'))) && !html.includes('sale_date'), `${lang}: no Date card in a sale`);
 }
 
 // V5-4: the channel strip names the wallet in the colour of its channel, and a client who usually pays
@@ -541,8 +506,7 @@ for (const lang of ['fr', 'ar'] as const) {
         // A sale to a client who has one: his last price, in the window, before the amounts.
         const known = transactionWindow(lang, { ...withHistory, mode: 'sell_eur', linkedClientId: 'c3', sellAmount: '200', sellPrice: '', sellTotal: '' });
         assert.ok(known.includes(price('263,00')) && known.includes(esc(label(lang, 'transactions.assistLastSale').replace('{name}', 'Amine Bouzid'))), `${lang}: the last sale to Amine Bouzid`);
-        assert.ok(known.includes(esc(label(lang, 'transactions.assistPayCredit'))), `${lang}: how that sale was settled`);
-        assert.ok(known.includes(esc(label(lang, 'transactions.assistUse').replace('{price}', '263,00'))), `${lang}: a button to use that price`);
+        assert.ok(known.includes(`>${esc(label(lang, 'transactions.assistUseShort'))}</button>`), `${lang}: a button to use that price`);
         // The client (« Pour qui ? ») comes before the amounts (« Combien ? »), and the assistant between them.
         const who = known.indexOf(eur('transactions.stepWhoSell'));
         const assistant = known.indexOf(esc(label(lang, 'transactions.assistLastSale').replace('{name}', 'Amine Bouzid')));
@@ -551,7 +515,7 @@ for (const lang of ['fr', 'ar'] as const) {
         assert.ok(!known.includes(eur('transactions.clientAndSettlement')) && !known.includes(eur('transactions.stepAmounts')), `${lang}: the old two cards are gone`);
         // The price already in the field: nothing to apply, the card says so.
         const applied = transactionWindow(lang, { ...withHistory, mode: 'sell_eur', linkedClientId: 'c3', sellAmount: '200', sellPrice: '263.00', sellTotal: '52600' });
-        assert.ok(applied.includes(esc(label(lang, 'transactions.assistApplied'))) && !applied.includes(esc(label(lang, 'transactions.assistUse').replace('{price}', '263,00'))), `${lang}: the price is already applied`);
+        assert.ok(applied.includes(esc(label(lang, 'transactions.assistApplied'))) && !applied.includes(`>${esc(label(lang, 'transactions.assistUseShort'))}</button>`), `${lang}: the price is already applied`);
         // A client with no sale yet: « first sale », and the last price to someone else as the reference.
         const fresh = transactionWindow(lang, { ...withHistory, mode: 'sell_eur', linkedClientId: 'c2' });
         assert.ok(fresh.includes(esc(label(lang, 'transactions.assistFirstSale').replace('{name}', 'Nadia Ferhat'))), `${lang}: first sale to a new client`);
@@ -565,12 +529,9 @@ for (const lang of ['fr', 'ar'] as const) {
         // No client, or an edit: no assistant at all.
         assert.ok(!transactionWindow(lang, { ...withHistory, mode: 'sell_eur', linkedClientId: 'none' }).includes('✦'), `${lang}: no client, no assistant`);
         assert.ok(!transactionWindow(lang, { ...withHistory, mode: 'sell_eur', linkedClientId: 'c3', editingTx: extraTx[extraTx.length - 2] }).includes('✦'), `${lang}: no assistant when editing an operation`);
-        // The recent clients are one tap away (most recent first), with « no client »; the tags input is gone.
+        // V11-8: no recent-client chips under the name field; the tags input is gone.
         const chips = transactionWindow(lang, { ...withHistory, mode: 'sell_eur', linkedClientId: 'none' });
-        assert.ok(chips.includes('aria-pressed') && chips.includes(esc(label(lang, 'transactions.assistNoClient'))), `${lang}: « no client » chip`);
-        for (const name of ['Salima Hadj', 'Amine Bouzid', 'Nadia Ferhat'])
-            assert.ok(chips.includes(`>${name}</button>`), `${lang}: recent client ${name}`);
-        assert.ok(!chips.includes('Karim Belkacem</button>'), `${lang}: only the three most recent`);
+        assert.ok(!chips.includes(esc(label(lang, 'transactions.assistNoClient'))) && !chips.includes('>Salima Hadj</button>'), `${lang}: no recent-client chips`);
         assert.ok(!chips.includes(eur('transactions.tags')) && !chips.includes(esc(label(lang, 'transactions.addTagPlaceholder'))), `${lang}: no tags input`);
     }
 }

@@ -94,22 +94,41 @@ export function SmartPricePanel({
         return () => { smartQuoteRef.current = null; };
     }, [quote, isEditing, smartQuoteRef]);
 
-    // V11-3: the panel no longer advises a price or fills the field. It still computes the quote that the sale keeps
-    // (credit-risk confirmation, stored snapshot) and says, in short lines, when the price loses money or sits under the floor.
+    // V11-8: right under the quantity, three small buttons (opening, target, floor) that write the price in the field when tapped.
+    // Nothing is filled by itself; the price stays typed by hand if preferred. Below them, only short warnings.
     if (!smartPricing || !quote) return null;
     if (smartPricing.pam <= 0) {
         return <p className="rounded-xl bg-warning-bg px-3 py-2 text-xs font-semibold text-warning">{t('smartPricing.noPam')}</p>;
     }
     const importantReasons = quote.reasonCodes.filter((reason) => IMPORTANT_REASONS.has(reason));
-    const hasWarning = quote.actual.belowPam || quote.actual.belowFloor || importantReasons.length > 0;
-    if (!hasWarning) return null;
+    const corridor = [
+        { source: 'opening' as const, label: t('smartPricing.opening'), price: quote.corridor.openingPrice },
+        { source: 'target' as const, label: t('smartPricing.target'), price: quote.corridor.targetPrice },
+        { source: 'floor' as const, label: t('smartPricing.floor'), price: quote.corridor.floorPrice },
+    ];
+    // The button that matches the price now in the field is lit; a hand-typed price lights none.
+    const selectedSource = currentPrice > 0 ? corridor.find((item) => Math.abs(currentPrice - item.price) < 0.001)?.source ?? null : null;
     return (
-        <div role="alert" aria-live="polite" className="space-y-1 rounded-card border border-border bg-surface px-3 py-2 text-xs">
-            {quote.actual.belowPam && <p className="font-bold text-financial-loss">⛔ {t('smartPricing.belowPam')}</p>}
-            {!quote.actual.belowPam && quote.actual.belowFloor && <p className="font-bold text-financial-loss">⚠ {t('smartPricing.belowFloor')}</p>}
-            {importantReasons.map((reason) => (
-                <p key={reason} className="font-semibold text-warning">⚠ {t(`smartPricing.reasons.${reason}`)}</p>
-            ))}
+        <div className="space-y-2">
+            <div role="group" aria-label={t('smartPricing.title')} className="grid grid-cols-3 gap-2">
+                {corridor.map((item) => {
+                    const selected = item.source === selectedSource;
+                    return (
+                        <button key={item.source} type="button" aria-pressed={selected} onClick={() => onApplyPrice(item.price, item.source)}
+                            className={`min-h-touch rounded-xl border px-1 py-1.5 text-center transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${selected ? 'border-primary bg-primary text-white' : 'border-border bg-surface text-neutral-700 hover:bg-neutral-50'}`}>
+                            <span className={`block text-[11px] font-semibold ${selected ? 'text-white/80' : 'text-neutral-400'}`}>{item.label}</span>
+                            <span dir="ltr" className="block text-[15px] font-black tabular-nums">{fmtPrice(item.price)}</span>
+                        </button>
+                    );
+                })}
+            </div>
+            {(quote.actual.belowPam || quote.actual.belowFloor || importantReasons.length > 0) && (
+                <div role="alert" className="space-y-0.5 text-xs">
+                    {quote.actual.belowPam && <p className="font-bold text-financial-loss">⛔ {t('smartPricing.belowPam')}</p>}
+                    {!quote.actual.belowPam && quote.actual.belowFloor && <p className="font-bold text-financial-loss">⚠ {t('smartPricing.belowFloor')}</p>}
+                    {importantReasons.map((reason) => (<p key={reason} className="font-semibold text-warning">⚠ {t(`smartPricing.reasons.${reason}`)}</p>))}
+                </div>
+            )}
         </div>
     );
 }

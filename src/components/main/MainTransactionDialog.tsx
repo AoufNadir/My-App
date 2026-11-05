@@ -91,10 +91,6 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
         const trade = lastTradeWithClient(tradeSource, { clientId: assistClientId, side: assistSide, currency: activeCurrency });
         return { trade, reference: trade ? null : lastTradeWithAnyone(tradeSource, { side: assistSide, currency: activeCurrency, exceptClientId: assistClientId }) };
     }, [assistClientId, editingTx, tradeSource, assistSide, activeCurrency]);
-    const recentClients = React.useMemo(() => {
-        const byId = new Map(selectableClients(clientsDzd || [], [linkedClientId]).map((client: any) => [client.id, client] as const));
-        return recentClientIds(clientTransactionsDzd ?? [], 3).map((id) => byId.get(id)).filter(Boolean) as any[];
-    }, [clientTransactionsDzd, clientsDzd, linkedClientId]);
     const activeStats = activeCurrency === 'EUR' ? portfolioStats.eur : portfolioStats.usdt;
     const isUsdtSellSettledInEur = mode === 'sell_usdt' && sellSettlementCurrency === 'EUR';
     const sellEurToDzdRateValue = parseAndEvaluate(sellEurToDzdRate);
@@ -428,47 +424,6 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
         if (learnedSettleDays === null) return;
         setCreditDueDate(new Date(Date.now() + learnedSettleDays * 86_400_000).toISOString().slice(0, 10));
     }, [isSellMode, isUsdtSellSettledInEur, editingTx, clientPaymentStatus, linkedClientId, creditDueDate, learnedSettleDays, setCreditDueDate]);
-    // « When did the sale really happen? » — a new sale in dinars only. Empty means now, as always.
-    // A past day is calculated as if the sale had been typed then; what that gives is shown here.
-    const saleDateError = translateFormMessage(formValidation.errors.sellDate, t);
-    const renderSaleDate = () => {
-        const picked = !!sellDate || !!sellTime;
-        const todayParts = new Date();
-        const pad = (value: number) => String(value).padStart(2, '0');
-        const todayIso = `${todayParts.getFullYear()}-${pad(todayParts.getMonth() + 1)}-${pad(todayParts.getDate())}`;
-        const plan = saleDatePlan?.moment?.kind === 'at' ? saleDatePlan.plan : null;
-        const ltr = (value: string) => `\u2066${value}\u2069`;
-        const signed = (value: number) => `${value > 0 ? '+' : ''}${formatNumber(value, { min: 0, max: 0 })}`;
-        const words = (key: string, values: Record<string, string>) => Object.entries(values)
-            .reduce((out, [name, value]) => out.replace(`{${name}}`, value), String(t(key)));
-        const inputClass = (invalid: boolean) => `min-h-input w-full rounded-button border bg-surface px-3 text-sm tabular-nums text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary/40 ${invalid ? 'border-danger ring-1 ring-danger' : 'border-border-strong'}`;
-        return (<FormCard title={t('transactions.saleDateTitle')}>
-            {!(saleDateOpen || picked)
-                ? (<div className="flex items-center justify-between gap-3">
-                    <p className="min-w-0 text-sm text-neutral-700">{t('transactions.saleDateToday')}</p>
-                    <Button type="button" size="sm" variant="outline" onClick={() => setSaleDateOpen(true)}>{t('transactions.saleDateChange')}</Button>
-                  </div>)
-                : (<div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="min-w-0">
-                        <label htmlFor="sale_date" className="mb-1.5 block text-sm font-medium text-neutral-700">{t('transactions.saleDateLabel')}</label>
-                        <input id="sale_date" type="date" value={sellDate || ''} max={todayIso} onChange={(event) => setSellDate(event.target.value)} className={inputClass(!!saleDateError)} aria-invalid={!!saleDateError}/>
-                      </div>
-                      <div className="min-w-0">
-                        <label htmlFor="sale_time" className="mb-1.5 block text-sm font-medium text-neutral-700">{t('transactions.saleTimeLabel')}</label>
-                        <input id="sale_time" type="time" value={sellTime || ''} onChange={(event) => setSellTime(event.target.value)} className={inputClass(false)}/>
-                      </div>
-                    </div>
-                    {saleDateError && (<span role="alert" className="block text-xs font-medium text-financial-loss">{saleDateError}</span>)}
-                    {plan && plan.ok && (<div className="space-y-1 rounded-button bg-surface-muted px-3 py-2.5 text-xs text-neutral-700">
-                        <p className="font-semibold">{words('transactions.saleDateProfit', { profit: ltr(signed(plan.profit)), pam: ltr(formatNumber(plan.avgAtSale, { min: 2, max: 2 })) })}</p>
-                        {plan.laterSales.count > 0 && (<p>{words('transactions.saleDateLater', { count: String(plan.laterSales.count), shift: ltr(signed(plan.laterSales.shift)) })}</p>)}
-                      </div>)}
-                    <p className="text-xs text-neutral-500">{t('transactions.saleDateHint')}</p>
-                    <button type="button" onClick={() => { setSellDate(''); setSellTime(''); setSaleDateOpen(false); }} className="min-h-touch text-xs font-semibold text-primary">{t('transactions.saleDateReset')}</button>
-                  </div>)}
-        </FormCard>);
-    };
     const renderSourceChoice = (onClick: () => void, icon: React.ReactNode, title: string, detail: string) => (
         <button type="button" onClick={onClick} className="flex min-h-touch w-full items-center gap-3 rounded-button px-2 py-2.5 text-start transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-financial-asset-bg text-financial-asset">{icon}</span>
@@ -570,7 +525,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                         {/* Buy USDT with DZD */}
                         {buyUsdtMode === 'with_dzd' && (<>
                                 <FormCard title={t('transactions.stepWhoBuy')}>
-                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} {...clientLinkerErrors} recentClients={recentClients}/>
+                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} {...clientLinkerErrors}/>
                                 </FormCard>
                                 {renderAssistant((price) => applyBuyUsdtPrice(price.toFixed(2)), parseAndEvaluate(buyUsdtPrice))}
                                 <FormCard title={t('transactions.stepHowMuch')}>
@@ -657,7 +612,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                         {/* Sell USDT/EUR */}
                         {isSellMode && (mode !== 'sell_usdt' || sellUsdtSourceSelected || !!editingTx) && (<>
                                 <FormCard title={t('transactions.stepWhoSell')}>
-                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} setLinkedClientId={pickSaleClient} setClientPaymentStatus={pickSaleStatus} allowBaridiDzdLink hidePaymentStatus={isUsdtSellSettledInEur} hideLinkedDzdClient={isUsdtSellSettledInEur} {...clientLinkerErrors} recentClients={recentClients}/>
+                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} setLinkedClientId={pickSaleClient} setClientPaymentStatus={pickSaleStatus} allowBaridiDzdLink hidePaymentStatus={isUsdtSellSettledInEur} hideLinkedDzdClient={isUsdtSellSettledInEur} {...clientLinkerErrors}/>
                                 {!isUsdtSellSettledInEur && clientPaymentStatus === 'credit' && renderCreditDueDateField(true)}
                                 </FormCard>
                                 {!isUsdtSellSettledInEur && renderAssistant(applySellPriceFromAssistant, parseAndEvaluate(sellPrice))}
@@ -677,12 +632,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                                     {renderReadonlyEurRateField()}
                                 </>) : (<>
                                     {renderSellQuantityField()}
-                                    {renderSellPriceField()}
-                                    {renderSellTotalField()}
-                                </>)}
-                                </FormCard>
-                                {!isUsdtSellSettledInEur && !editingTx && renderSaleDate()}
-                                {!isUsdtSellSettledInEur && activeSmartPricing && (
+                                    {activeSmartPricing && (
                                     <SmartPricePanel
                                         smartPricing={activeSmartPricing}
                                         currency={activeCurrency as 'USDT' | 'EUR'}
@@ -697,12 +647,16 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                                         smartQuoteRef={smartQuoteRef}
                                     />
                                 )}
+                                    {renderSellPriceField()}
+                                    {renderSellTotalField()}
+                                </>)}
+                                </FormCard>
                             </>)}
 
                         {/* Buy EUR */}
                         {mode === 'buy_eur' && (<>
                                 <FormCard title={t('transactions.stepWhoBuy')}>
-                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} {...clientLinkerErrors} recentClients={recentClients}/>
+                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} {...clientLinkerErrors}/>
                                 {clientPaymentStatus === 'credit' && renderCreditDueDateField(false)}
                                 </FormCard>
                                 {renderAssistant((price) => applyBuyEurPrice(price.toFixed(2)), parseAndEvaluate(buyEurPrice))}

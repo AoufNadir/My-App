@@ -38,20 +38,14 @@ export function ClientTradeAssistant({ side, currency, clientName, trade, refere
     const payment = trade?.payment === 'cash' ? tr('assistPayCash') : trade?.payment === 'baridi' ? tr('assistPayBaridi') : trade?.payment === 'credit' ? tr('assistPayCredit') : null;
 
     if (trade) {
-        return (<section aria-label={tr(side === 'sell' ? 'assistLastSale' : 'assistLastBuy', { name: clientName })} className="rounded-card border border-primary/25 bg-primary/5 p-3">
-          <p className="text-[12.5px] font-bold text-primary">✦ {tr(side === 'sell' ? 'assistLastSale' : 'assistLastBuy', { name: clientName })}</p>
-          <p className="mt-1 flex flex-wrap items-baseline gap-x-1.5 leading-tight">
-            <span dir="ltr" className="text-2xl font-extrabold tabular-nums text-neutral-900">{price2(trade.price)}</span>
-            <small className="text-[13px] font-semibold text-neutral-600">{tr('assistPerUnit', { currency })}</small>
-          </p>
-          <p className="mt-1 text-[13px] leading-snug text-neutral-600">
-            <bdi>{tr('assistWhen', { quantity: qty0(trade.quantity), currency, when: when(trade.timestamp) })}</bdi>
-            {(trade.marginPerUnit !== null || payment) && <br/>}
-            {trade.marginPerUnit !== null && <span>{tr('assistMargin', { margin: `${trade.marginPerUnit >= 0 ? '+' : ''}${price2(trade.marginPerUnit)}`, currency })}</span>}
-            {trade.marginPerUnit !== null && payment && ' · '}
-            {payment}
-          </p>
-          {useButton(trade.price)}
+        return (<section aria-label={tr(side === 'sell' ? 'assistLastSale' : 'assistLastBuy', { name: clientName })} className="flex items-center justify-between gap-3 rounded-card border border-primary/25 bg-primary/5 px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-neutral-600">{tr(side === 'sell' ? 'assistLastSaleShort' : 'assistLastBuyShort', { when: when(trade.timestamp) })}</p>
+            <p className="mt-0.5 leading-tight"><span dir="ltr" className="text-lg font-extrabold tabular-nums text-neutral-900">{price2(trade.price)}</span> <small className="text-xs text-neutral-600"><bdi>{currency} · {qty0(trade.quantity)}</bdi></small></p>
+          </div>
+          {Math.abs(currentPrice - trade.price) < 0.005
+            ? <span className="shrink-0 text-[13px] font-bold text-financial-profit">✓ {tr('assistApplied')}</span>
+            : <button type="button" onClick={() => onUsePrice(trade.price)} className="inline-flex min-h-9 shrink-0 items-center rounded-button border border-primary bg-surface px-3 text-[13.5px] font-bold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">{tr('assistUseShort')}</button>}
         </section>);
     }
     return (<section aria-label={tr(side === 'sell' ? 'assistFirstSale' : 'assistFirstBuy', { name: clientName })} className="rounded-card border border-border bg-surface-muted p-3">
