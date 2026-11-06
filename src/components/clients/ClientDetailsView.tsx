@@ -125,7 +125,7 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone, isAddress }: C
 /** V12-2: the USDT/EUR sold to this client and not sent yet, with their own reading of the `deliveries` collection. */
 function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transactions, setAlert }: { userDocRef: any; clientId: string; clientName: string; phone?: string; transactions?: ReadonlyArray<{ id?: string; type?: string }>; setAlert?: (message: string) => void }) {
     const { docs, record, remove } = useDeliveries(userDocRef, Boolean(userDocRef), () => setAlert?.('❌ Erreur lors de la sauvegarde.'));
-    const saleIds = useMemo(() => new Set((transactions ?? []).filter((tx) => tx.type === 'sell' && tx.id).map((tx) => tx.id as string)), [transactions]);
+    const saleIds = useMemo(() => new Map((transactions ?? []).filter((tx) => tx.type === 'sell' && tx.id).map((tx) => [tx.id as string, Number((tx as { quantity?: number }).quantity) || 0] as const)), [transactions]);
     // This client's sales in USDT/EUR paid in dinars, newest first: the ones that can still be « not sent yet ».
     const sales = useMemo(() => (transactions ?? [])
         .filter((tx: any) => tx.type === 'sell' && tx.id && tx.linkedClientId === clientId && (tx.currency === 'USDT' || tx.currency === 'EUR') && tx.settlementCurrency !== 'EUR')

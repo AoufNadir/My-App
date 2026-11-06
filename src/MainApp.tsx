@@ -1,7 +1,7 @@
 import { previousProfits } from './utils/dashboardComparison';
 import { useMovementReasons } from './hooks/useMovementReasons';
 import { useDeliveries } from './hooks/useDeliveries';
-import { deliveryStates, reservedForClients } from './utils/deferredDelivery';
+import { deliveryStates, isLate, reservedForClients } from './utils/deferredDelivery';
 import { buildMovementReview } from './utils/movementReason';
 import React, { Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from './types';
@@ -324,9 +324,10 @@ export default function MainApp({ user }: {
     // V12-2: USDT/EUR sold and not sent yet, for the bell, the portfolio and the client pages.
     const homeDeliveries = useDeliveries(userDocRef as never, isFinancialDataReady);
     const pendingDeliveries = useMemo(() => {
-        const saleIds = new Set<string>(transactions.filter((tx) => tx.type === 'sell' && tx.id).map((tx) => String(tx.id)));
+        const saleIds = new Map<string, number>(transactions.filter((tx) => tx.type === 'sell' && tx.id).map((tx) => [String(tx.id), Number(tx.quantity) || 0]));
         const open = deliveryStates(homeDeliveries.docs, saleIds).filter((state) => state.remaining > 0);
-        return { clients: new Set(open.map((state) => state.clientId)).size, ...reservedForClients(open) };
+        const nowMs = Date.now();
+        return { clients: new Set(open.map((state) => state.clientId)).size, late: new Set(open.filter((state) => isLate(state, nowMs)).map((state) => state.clientId)).size, ...reservedForClients(open) };
     }, [homeDeliveries.docs, transactions]);
     useEffect(() => {
         const nowMs = Date.now();

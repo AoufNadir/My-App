@@ -24,7 +24,7 @@ export function useDeliveries(userDocRef: UserDocRefLike | null | undefined, ena
             setLoaded(true);
         });
     }, [userDocRef, enabled]);
-    const record = useCallback((kind: DeliveryDoc['kind'], clientId: string, currency: DeliveryCurrency, quantity: number, saleTxId?: string) => {
+    const record = useCallback((kind: DeliveryDoc['kind'], clientId: string, currency: DeliveryCurrency, quantity: number, saleTxId?: string, saleTimestamp?: number) => {
         if (!userDocRef)
             return;
         const now = new Date();
@@ -33,6 +33,7 @@ export function useDeliveries(userDocRef: UserDocRefLike | null | undefined, ena
             kind, direction: 'to_client', clientId, currency, quantity: Math.round(quantity * 100) / 100,
             timestamp: now.getTime(), date: `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`, time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
             ...(saleTxId ? { saleTxId } : {}),
+            ...(saleTimestamp ? { saleTimestamp } : {}),
         }).catch((error) => onError?.(error));
     }, [userDocRef, onError]);
     /** Removes a line typed by mistake (the screen checks it may go). */

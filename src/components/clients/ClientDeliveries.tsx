@@ -7,7 +7,7 @@ import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { Trash2Icon } from '../icons/Trash2Icon';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { formatNumber } from '../../pages/shared/pageFormat';
-import { canRemove, checkDelivery, deliveryStates, type ClientDeliveryState, type DeliveryCurrency, type DeliveryDoc } from '../../utils/deferredDelivery';
+import { canRemove, checkDelivery, deliveryStates, type SaleLookup, type ClientDeliveryState, type DeliveryCurrency, type DeliveryDoc } from '../../utils/deferredDelivery';
 import { formatWaNumber, openWhatsAppChooser, openWhatsAppMessenger } from '../../utils/whatsapp';
 import { clientReportLanguage } from '../reports/reportLanguage';
 
@@ -23,6 +23,7 @@ const W = {
         addOldHint: 'La quantité vendue à ce client et pas encore envoyée. Sa vente reste comme elle est.', add: 'Ajouter',
         addMore: '+ Ajouter une autre quantité à envoyer', done: 'Tout est envoyé.', cancel: 'Annuler',
         lineSold: 'À envoyer', lineSent: 'Envoyé', remove: 'Supprimer',
+        statement: 'Envoyer le relevé sur WhatsApp',
         pickSale: 'Quelle vente n’est pas encore envoyée ?', saleOf: 'Vente du', otherQty: 'Autre quantité', noSale: 'Aucune vente récente à ce client.',
         removeTitle: 'Supprimer cette ligne ?', removeBody: (what: string) => `${what}. Aucun solde ni bénéfice ne change.`,
         cannotRemove: 'Impossible : une partie a déjà été envoyée. Supprimez d’abord les envois.',
@@ -35,6 +36,7 @@ const W = {
         addOldHint: 'الكمية التي بعتها لهذا العميل ولم ترسلها بعد. بيعه يبقى كما هو.', add: 'إضافة',
         addMore: '+ إضافة كمية أخرى للإرسال', done: 'أُرسل كل شيء.', cancel: 'إلغاء',
         lineSold: 'للإرسال', lineSent: 'أُرسل', remove: 'حذف',
+        statement: 'أرسل له الكشف على واتساب',
         pickSale: 'أي بيع لم تُرسله بعد؟', saleOf: 'بيع يوم', otherQty: 'كمية أخرى', noSale: 'لا بيع حديث لهذا العميل.',
         removeTitle: 'حذف هذا السطر؟', removeBody: (what: string) => `${what}. لا يتغيّر أي رصيد ولا ربح.`,
         cannotRemove: 'غير ممكن: أُرسل جزء منه. احذف الإرسالات أولاً.',
@@ -42,6 +44,24 @@ const W = {
 };
 
 const qtyText = (value: number, currency: string) => `⁦${formatNumber(value, { min: 2, max: 2 })} ${currency}⁩`;
+
+/**
+ * The statement the client can get at any time: right after the sale (« held for you »), or later (sent so far, left).
+ */
+export function statementMessage(lang: Lang, name: string, state: Pick<ClientDeliveryState, 'committed' | 'delivered' | 'remaining' | 'currency'>): string {
+    const c = state.currency;
+    if (state.delivered <= 0)
+        return lang === 'ar'
+            ? `مرحباً ${name}،\nتمّ بيعك ${qtyText(state.committed, c)} بسعر يوم البيع، وهي محفوظة لك. نرسلها حين تطلب، مرة واحدة أو على دفعات.`
+            : `Bonjour ${name},\nVotre achat de ${qtyText(state.committed, c)} est enregistré au prix du jour et vous est réservé. Nous l’envoyons quand vous le demandez, en une ou plusieurs fois.`;
+    if (state.remaining <= 0)
+        return lang === 'ar'
+            ? `مرحباً ${name}،\nأُرسل لك كامل ${qtyText(state.committed, c)}. لا شيء باقٍ لك عندنا.`
+            : `Bonjour ${name},\nLa totalité de ${qtyText(state.committed, c)} vous a été envoyée. Plus rien n’est en attente.`;
+    return lang === 'ar'
+        ? `مرحباً ${name}،\nأُرسل لك حتى الآن ${qtyText(state.delivered, c)} من ${qtyText(state.committed, c)}، والباقي لك عندنا ${qtyText(state.remaining, c)}.`
+        : `Bonjour ${name},\nVous avez reçu à ce jour ${qtyText(state.delivered, c)} sur ${qtyText(state.committed, c)}. Il vous reste ${qtyText(state.remaining, c)} chez nous.`;
+}
 
 /** The message sent after a delivery, in the client's language. */
 export function deliveryMessage(lang: Lang, name: string, state: Pick<ClientDeliveryState, 'committed' | 'delivered' | 'remaining' | 'currency'>, sent: number): string {
@@ -58,8 +78,8 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
     clientName: string;
     phone?: string;
     docs: ReadonlyArray<DeliveryDoc>;
-    saleIds: ReadonlySet<string>;
-    onRecord: (kind: DeliveryDoc['kind'], clientId: string, currency: DeliveryCurrency, quantity: number, saleTxId?: string) => void;
+    saleIds: SaleLookup;
+    onRecord: (kind: DeliveryDoc['kind'], clientId: string, currency: DeliveryCurrency, quantity: number, saleTxId?: string, saleTimestamp?: number) => void;
     /** This client's recent sales: one tap says « this one is not sent yet », no figure to type */
     sales?: ReadonlyArray<ClientSale>;
     /** Removes a line typed by mistake */
@@ -94,7 +114,9 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
         setLastSent({ ...lastSent, [key]: quantity });
     };
     const tell = (state: ClientDeliveryState) => {
-        const text = deliveryMessage(clientReportLanguage(clientId), clientName, state, lastSent[state.currency] ?? 0);
+        const lang = clientReportLanguage(clientId);
+        const sent = lastSent[state.currency];
+        const text = sent !== undefined ? deliveryMessage(lang, clientName, state, sent) : statementMessage(lang, clientName, state);
         const number = phone ? formatWaNumber(phone) : '';
         if (number.length >= 9)
             openWhatsAppMessenger(number, text);
@@ -125,7 +147,7 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
         <p className="text-xs font-semibold text-neutral-700">{w.pickSale}</p>
         {freeSales.length > 0
             ? (<div className="space-y-1.5">
-                {freeSales.map((sale) => (<button key={sale.id} type="button" onClick={() => { onRecord('commitment', clientId, sale.currency, sale.quantity, sale.id); setOldOpen(false); setManual(false); }} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-button border border-border bg-surface px-3 py-2 text-start text-sm transition-colors hover:border-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                {freeSales.map((sale) => (<button key={sale.id} type="button" onClick={() => { onRecord('commitment', clientId, sale.currency, sale.quantity, sale.id, sale.timestamp); setOldOpen(false); setManual(false); }} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-button border border-border bg-surface px-3 py-2 text-start text-sm transition-colors hover:border-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
                     <span className="text-neutral-600">{w.saleOf} {new Date(sale.timestamp).toLocaleDateString('fr-FR')}</span>
                     <span className="font-bold tabular-nums text-neutral-900">{qtyText(sale.quantity, sale.currency)}</span>
                   </button>))}
@@ -180,7 +202,7 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
                     <Button type="button" size="md" className="w-full font-bold" onClick={() => deliver(state)}>{w.deliver}</Button>
                   </div>)
                 : <p className="text-sm font-semibold text-financial-profit">✓ {w.done}</p>}
-          {lastSent[state.currency] !== undefined && <Button type="button" variant="outline" size="md" className="w-full" onClick={() => tell(state)}>{w.whatsapp}</Button>}
+          {!oldOpen && <Button type="button" variant="outline" size="md" className="w-full" onClick={() => tell(state)}>{lastSent[state.currency] !== undefined ? w.whatsapp : w.statement}</Button>}
           <details>
               <summary className="min-h-touch cursor-pointer py-1 text-xs font-semibold text-neutral-600">{w.history} ({state.commitments.length + state.deliveries.length})</summary>
               <ul className="space-y-1 text-xs text-neutral-700">

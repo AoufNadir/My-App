@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { LanguageProvider } from '../../contexts/LanguageContext';
-import { ClientDeliveries, deliveryMessage } from './ClientDeliveries';
+import { ClientDeliveries, deliveryMessage, statementMessage } from './ClientDeliveries';
 import type { DeliveryDoc } from '../../utils/deferredDelivery';
 
 // V12-2 on the client's page: sold, delivered and left, and the WhatsApp message after a delivery.
@@ -43,5 +43,15 @@ assert.ok(deliveryMessage('ar', 'Client Test', { committed: 10, delivered: 10, r
     assert.ok(html.replace(/\u202f|\u00a0/g, ' ').includes('3 906,25 USDT'), 'the sale not followed yet is offered');
     assert.ok(!html.replace(/\u202f|\u00a0/g, ' ').includes('5 088,06 USDT'), 'the sale already followed is not offered again');
     assert.ok(!html.includes('Quantité envoyée'), 'one action at a time: no send field while adding');
+}
+// The statement at any time: just sold, part sent, all sent.
+{
+    const clean = (text: string) => text.replace(/\u202f|\u00a0|\u2066|\u2069/g, ' ').replace(/ +/g, ' ');
+    assert.ok(clean(statementMessage('fr', 'X', { committed: 3_906.25, delivered: 0, remaining: 3_906.25, currency: 'USDT' })).includes('réservé'), 'just sold: held for the client');
+    const part = clean(statementMessage('ar', 'X', { committed: 3_906.25, delivered: 500, remaining: 3_406.25, currency: 'USDT' }));
+    assert.ok(part.includes('500,00') && part.includes('3 406,25'), 'part sent: sent and left');
+    assert.ok(clean(statementMessage('fr', 'X', { committed: 10, delivered: 10, remaining: 0, currency: 'EUR' })).includes('Plus rien'), 'all sent');
+    const html = render('fr', <ClientDeliveries clientId="c1" clientName="X" docs={docs} saleIds={new Set(['s1'])} onRecord={() => undefined}/>);
+    assert.ok(html.includes('Envoyer le relevé sur WhatsApp'), 'the statement button is always there');
 }
 console.log('ClientDeliveries tests passed');

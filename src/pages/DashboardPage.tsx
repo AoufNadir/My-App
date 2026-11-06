@@ -116,7 +116,7 @@ type DashboardPageProps = {
     /** V12-1: money movements nothing explains (no client, no link, no reason), and the way to the list. */
     unexplainedMovementCount?: number;
     /** V12-2: clients still owed USDT/EUR they bought, and how much */
-    pendingDeliveries?: { clients: number; USDT: number; EUR: number };
+    pendingDeliveries?: { clients: number; USDT: number; EUR: number; late?: number };
     onReviewMovements?: () => void;
     /** Opens the bell's sheet at first draw (screens and tests that read what it holds). */
     initialNotificationsOpen?: boolean;
@@ -492,7 +492,8 @@ function DashboardContent({
     }
     if (pendingDeliveries && pendingDeliveries.clients > 0) {
         const parts = [pendingDeliveries.USDT > 0 ? `${pendingDeliveries.USDT.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} USDT` : '', pendingDeliveries.EUR > 0 ? `${pendingDeliveries.EUR.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} EUR` : ''].filter(Boolean).join(' · ');
-        actionItems.push({ id: 'pending-deliveries', tone: 'primary', icon: <DollarSignIcon className="h-4 w-4"/>, title: fillTemplate(t('dashboard.pendingDeliveries') as string, { count: <CountText value={pendingDeliveries.clients}/> }), detail: <bdi dir="ltr">{parts}</bdi>, onOpen: onOpenClients });
+        const late = pendingDeliveries.late ?? 0;
+        actionItems.push({ id: 'pending-deliveries', tone: late > 0 ? 'loss' : 'primary', icon: <DollarSignIcon className="h-4 w-4"/>, title: fillTemplate(t(late > 0 ? 'dashboard.pendingDeliveriesLate' : 'dashboard.pendingDeliveries') as string, { count: <CountText value={late > 0 ? late : pendingDeliveries.clients}/> }), detail: <bdi dir="ltr">{parts}</bdi>, onOpen: onOpenClients });
     }
     if (lowStock) {
         actionItems.push({ id: 'low-stock', tone: 'debt', icon: <DollarSignIcon className="h-4 w-4"/>, title: t('dashboard.lowStock') as string, detail: t('dashboard.lowStockBody') as string });
@@ -504,7 +505,7 @@ function DashboardContent({
         notificationItems.push({ entry: { id, signature, urgent }, row });
     };
     for (const item of actionItems)
-        addRow(item, item.id === 'overdue-debts' ? String(overdueCount) : item.id === 'unexplained-movements' ? String(unexplainedMovementCount) : item.id === 'pending-deliveries' ? `${pendingDeliveries?.USDT}|${pendingDeliveries?.EUR}` : 'on', item.id === 'overdue-debts' || item.id === 'uncovered-advances');
+        addRow(item, item.id === 'overdue-debts' ? String(overdueCount) : item.id === 'unexplained-movements' ? String(unexplainedMovementCount) : item.id === 'pending-deliveries' ? `${pendingDeliveries?.USDT}|${pendingDeliveries?.EUR}|${pendingDeliveries?.late ?? 0}` : 'on', item.id === 'overdue-debts' || item.id === 'uncovered-advances' || (item.id === 'pending-deliveries' && (pendingDeliveries?.late ?? 0) > 0));
     if (onInvestorTermReinvest && onInvestorTermWithdraw) {
         for (const term of investorTerms) {
             notificationItems.push({

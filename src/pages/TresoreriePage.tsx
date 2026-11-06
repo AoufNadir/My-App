@@ -131,7 +131,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
     // V12-2: USDT/EUR sold and not sent yet are still in the wallet: the count expects them too.
     const { docs: deliveryDocs } = useDeliveries(userDocRef, inventoryEnabled);
     const reserved = useMemo(() => {
-        const saleIds = new Set((transactions ?? []).filter((tx) => tx.type === 'sell' && tx.id).map((tx) => tx.id as string));
+        const saleIds = new Map((transactions ?? []).filter((tx) => tx.type === 'sell' && tx.id).map((tx) => [tx.id as string, Number(tx.quantity) || 0] as const));
         return reservedForClients(deliveryStates(deliveryDocs, saleIds));
     }, [deliveryDocs, transactions]);
     const inventoryExpectedNow = useMemo(() => inventoryExpected({

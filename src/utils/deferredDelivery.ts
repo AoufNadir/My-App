@@ -14,6 +14,8 @@ export type DeliveryDoc = {
     quantity: number;
     timestamp: number;
     saleTxId?: string;
+    /** When the sale itself happened (a rest added later for an older sale) */
+    saleTimestamp?: number;
     note?: string;
 };
 export type ClientDeliveryState = { clientId: string; currency: DeliveryCurrency; committed: number; delivered: number; remaining: number; since: number; deliveries: DeliveryDoc[]; commitments: DeliveryDoc[] };
@@ -34,19 +36,30 @@ export function parseDelivery(id: string, raw: unknown): DeliveryDoc | null {
     return {
         id, kind, currency, quantity: fromCents(cents(quantity)), timestamp, clientId: data.clientId,
         ...(typeof data.saleTxId === 'string' ? { saleTxId: data.saleTxId } : {}),
+        ...(Number.isFinite(Number(data.saleTimestamp)) && Number(data.saleTimestamp) > 0 ? { saleTimestamp: Number(data.saleTimestamp) } : {}),
         ...(typeof data.note === 'string' && data.note.trim() ? { note: data.note.trim() } : {}),
     };
 }
 
 /** What each client is still owed, per currency; only the ones with something promised. */
-export function deliveryStates(docs: ReadonlyArray<DeliveryDoc>, saleIds?: ReadonlySet<string>): ClientDeliveryState[] {
+/**
+ * The sales still in the books: their ids, or their ids and quantities. With the quantities, a sale edited after the
+ * fact (another quantity) sets what is owed; a sale deleted is no longer owed.
+ */
+export type SaleLookup = ReadonlySet<string> | ReadonlyMap<string, number>;
+
+export function deliveryStates(docs: ReadonlyArray<DeliveryDoc>, sales?: SaleLookup): ClientDeliveryState[] {
     const byKey = new Map<string, ClientDeliveryState>();
-    for (const doc of [...docs].sort((a, b) => a.timestamp - b.timestamp)) {
+    for (let doc of [...docs].sort((a, b) => a.timestamp - b.timestamp)) {
         // A commitment written with a sale that was deleted afterwards no longer counts.
-        if (doc.kind === 'commitment' && doc.saleTxId && saleIds && !saleIds.has(doc.saleTxId))
+        if (doc.kind === 'commitment' && doc.saleTxId && sales && !sales.has(doc.saleTxId))
             continue;
+        // Linked to a sale that is still there: the quantity of the sale as it is now.
+        const saleQuantity = doc.kind === 'commitment' && doc.saleTxId && sales instanceof Map ? Number(sales.get(doc.saleTxId)) : NaN;
+        if (Number.isFinite(saleQuantity) && saleQuantity > 0)
+            doc = { ...doc, quantity: fromCents(cents(saleQuantity)) };
         const key = `${doc.clientId}|${doc.currency}`;
-        const state = byKey.get(key) ?? { clientId: doc.clientId, currency: doc.currency, committed: 0, delivered: 0, remaining: 0, since: doc.timestamp, deliveries: [], commitments: [] };
+        const state = byKey.get(key) ?? { clientId: doc.clientId, currency: doc.currency, committed: 0, delivered: 0, remaining: 0, since: doc.saleTimestamp ?? doc.timestamp, deliveries: [], commitments: [] };
         if (doc.kind === 'commitment') {
             state.committed = fromCents(cents(state.committed) + cents(doc.quantity));
             state.commitments.push(doc);
@@ -87,4 +100,10 @@ export function canRemove(state: Pick<ClientDeliveryState, 'committed' | 'delive
     if (doc.kind === 'delivery')
         return true;
     return cents(state.committed) - cents(doc.quantity) >= cents(state.delivered);
+}
+
+/** Days a client has been waiting, from the oldest sale still owed; the ones waiting longer than `days` are late. */
+export const DELIVERY_LATE_DAYS = 7;
+export function isLate(state: Pick<ClientDeliveryState, 'remaining' | 'since'>, now: number, days = DELIVERY_LATE_DAYS): boolean {
+    return state.remaining > 0 && now - state.since > days * 86_400_000;
 }

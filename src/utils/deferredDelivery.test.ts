@@ -30,4 +30,20 @@ assert.equal(canRemove({ committed: 3_906.25, delivered: 500 }, { kind: 'commitm
 assert.equal(canRemove({ committed: 4_106.25, delivered: 500 }, { kind: 'commitment', quantity: 200 }), true);
 assert.equal(canRemove({ committed: 100, delivered: 100 }, { kind: 'delivery', quantity: 100 }), true);
 assert.equal(state.commitments.length, 1, 'the amounts to send are listed too');
+// A sale edited after the fact: what is owed follows the sale as it is now.
+{
+    const edited = deliveryStates(docs, new Map([['s1', 4_000]]));
+    assert.deepEqual([edited[0].committed, edited[0].remaining], [4_000, 3_500], 'the edited quantity, minus what was sent');
+    assert.deepEqual(deliveryStates(docs, new Map([['other', 10]])), [], 'sale deleted: nothing owed');
+}
+// Late: owed for more than 7 days, counted from the sale itself when the rest was added afterwards.
+import { isLate } from './deferredDelivery';
+{
+    const day = 86_400_000;
+    assert.equal(isLate({ remaining: 10, since: 0 }, 8 * day), true);
+    assert.equal(isLate({ remaining: 10, since: 0 }, 6 * day), false);
+    assert.equal(isLate({ remaining: 0, since: 0 }, 30 * day), false, 'all sent: never late');
+    const [fromSale] = deliveryStates([doc('z', 'commitment', 100, 9, { saleTimestamp: 2 * day })]);
+    assert.equal(fromSale.since, 2 * day, 'the day of the sale, not the day the rest was added');
+}
 console.log('deferredDelivery tests passed');
