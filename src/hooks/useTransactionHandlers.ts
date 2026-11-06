@@ -171,6 +171,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [deliveryExpenseMethod, setDeliveryExpenseMethod] = useState<DeliveryExpenseMethod>('Caisse');
     const [deliveryExpenseDate, setDeliveryExpenseDate] = useState<string>('');
     const [deliveryExpenseNote, setDeliveryExpenseNote] = useState('');
+    /** V12-12: who was paid (the supplier): no project expense without it */
+    const [deliveryExpensePayee, setDeliveryExpensePayee] = useState('');
     const projectExpenseRates = useMemo(() => ({
         usdtPma: Number(portfolioStats.usdt.avgBuy || 0),
         eurPma: Number(portfolioStats.eur.avgBuy || 0),
@@ -1644,6 +1646,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setDeliveryExpenseMethod('Caisse');
         setDeliveryExpenseDate(isoToday);
         setDeliveryExpenseNote('');
+        setDeliveryExpensePayee('');
         setIsDeliveryExpenseModalOpen(true);
     };
     const closeDeliveryExpenseModal = () => {
@@ -1655,6 +1658,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             setAlert('⚠️ Montant invalide.');
             return;
         }
+        const payee = deliveryExpensePayee.trim();
+        if (payee.length < 2)
+            return;
         if (isAssetWallet(deliveryExpenseMethod)) {
             const rate = deliveryExpenseMethod === 'USDT' ? projectExpenseRates.usdtPma : projectExpenseRates.eurPma;
             if (rate <= 0) {
@@ -1723,6 +1729,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 ...(isCashWallet(deliveryExpenseMethod) ? { source: deliveryExpenseMethod } : {}),
                 amount: preview.amountDzd,
                 notes: deliveryExpenseNote.trim() || 'Frais du projet',
+                payee,
                 origin: 'delivery_expense',
                 expenseWallet: deliveryExpenseMethod,
                 expenseCurrency: preview.currency,
@@ -1741,6 +1748,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     price: preview.rateToDzd,
                     total: preview.amountDzd,
                     notes: deliveryExpenseNote.trim() || 'Frais du projet',
+                    payee,
                     linkedTxId: expenseRef.id,
                     linkedProjectExpenseTxId: expenseRef.id,
                     origin: 'delivery_expense',
@@ -2094,7 +2102,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         deliveryExpenseAmount, setDeliveryExpenseAmount,
         deliveryExpenseMethod, setDeliveryExpenseMethod,
         deliveryExpenseDate, setDeliveryExpenseDate,
-        deliveryExpenseNote, setDeliveryExpenseNote,
+        deliveryExpenseNote, setDeliveryExpenseNote, deliveryExpensePayee, setDeliveryExpensePayee,
         deliveryExpensePreview,
         openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense,
         txToDelete, setTxToDelete, handleConfirmDeleteTx,

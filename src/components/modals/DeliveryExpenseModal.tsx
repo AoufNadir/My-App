@@ -1,4 +1,5 @@
 import { Modal, ModalContent, ModalDescription, ModalHeader, ModalTitle } from '../ui/Modal';
+import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Label } from '../ui/Label';
 import { MoneyField } from '../ui/MoneyField';
@@ -28,6 +29,9 @@ interface DeliveryExpenseModalProps {
     setDate: (v: string) => void;
     note: string;
     setNote: (v: string) => void;
+    /** V12-12: who was paid; required */
+    payee?: string;
+    setPayee?: (v: string) => void;
     treasuryStats: {
         caisse: number;
         baridi: number;
@@ -49,6 +53,8 @@ export function DeliveryExpenseModal({
     setDate,
     note,
     setNote,
+    payee = '',
+    setPayee,
     treasuryStats,
     portfolioStats,
     preview,
@@ -84,6 +90,10 @@ export function DeliveryExpenseModal({
             </ModalHeader>
 
             <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
+                {setPayee && (<FormCard>
+                    <Input label={t('delivery.payee') as string} value={payee} onChange={(event) => setPayee(event.target.value)} placeholder={t('delivery.payeePlaceholder') as string} autoComplete="off"/>
+                    <p className="text-xs text-neutral-500">{t('delivery.payeeHint')}</p>
+                </FormCard>)}
                 <FormCard>
                 <MoneyField
                     label={t('delivery.amount')}
@@ -148,7 +158,7 @@ export function DeliveryExpenseModal({
                 <Button type="button" variant="outline" onClick={onClose}>
                     {t('common.cancel')}
                 </Button>
-                <Button type="button" onClick={onSave} loading={isSaving}>
+                <Button type="button" onClick={onSave} loading={isSaving} disabled={Boolean(setPayee) && payee.trim().length < 2}>
                     {isSaving ? t('common.processing') : t('common.save')}
                 </Button>
             </OperationFooter>
