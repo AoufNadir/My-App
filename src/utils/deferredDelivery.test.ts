@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { checkDelivery, deliveryStates, parseDelivery, reservedForClients, type DeliveryDoc } from './deferredDelivery';
+import { checkDelivery, deliveryStates, operationQuantities, parseDelivery, reservedForClients, type DeliveryDoc } from './deferredDelivery';
 
 // V12-2: a client buys 3 906,25 USDT today and asks for them in several times: 200, then 300.
 const doc = (id: string, kind: DeliveryDoc['kind'], quantity: number, day: number, extra: Partial<DeliveryDoc> = {}): DeliveryDoc => ({ id, kind, clientId: 'c1', currency: 'USDT', quantity, timestamp: day * 86_400_000, ...extra });
@@ -59,5 +59,11 @@ import { awaitedFromSuppliers } from './deferredDelivery';
 {
     const [linked] = deliveryStates([doc('w', 'commitment', 100, 9, { saleTxId: 'sx' })], new Map([['sx', 100]]), new Map([['sx', 2 * 86_400_000]]));
     assert.equal(linked.since, 2 * 86_400_000);
+}
+// The operation itself deleted from the history: its follow-up goes with it, for a purchase as for a sale.
+{
+    const followed = [doc('p1', 'commitment', 200, 6, { clientId: 'sup', direction: 'from_supplier', saleTxId: 'buy1' })];
+    assert.equal(deliveryStates(followed, operationQuantities([{ id: 'buy1', type: 'buy', quantity: 200 }])).length, 1, 'purchase still there: followed');
+    assert.deepEqual(deliveryStates(followed, operationQuantities([])), [], 'purchase deleted: nothing awaited any more');
 }
 console.log('deferredDelivery tests passed');

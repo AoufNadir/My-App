@@ -44,7 +44,7 @@ const W = {
         lineSold: 'À envoyer', lineSent: 'Envoyé', remove: 'Supprimer',
         statement: 'Envoyer le relevé sur WhatsApp',
         pickSale: 'Quelle vente n’est pas encore envoyée ?', saleOf: 'Vente du', otherQty: 'Autre quantité', noSale: 'Aucune vente récente à ce client.',
-        removeTitle: 'Supprimer cette ligne ?', removeBody: (what: string) => `${what}. Aucun solde ni bénéfice ne change.`,
+        removeTitle: 'Retirer ce suivi ?', removeBody: (what: string) => `${what}. Seul le suivi « à envoyer / à recevoir » est retiré : l’achat ou la vente reste dans l’historique, avec son solde et son bénéfice. Pour annuler l’opération elle-même, supprimez-la dans l’historique ; son suivi disparaît alors tout seul.`,
         cannotRemove: 'Impossible : une partie a déjà été envoyée. Supprimez d’abord les envois.',
     },
     ar: {
@@ -57,7 +57,7 @@ const W = {
         lineSold: 'للإرسال', lineSent: 'أُرسل', remove: 'حذف',
         statement: 'أرسل له الكشف على واتساب',
         pickSale: 'أي بيع لم تُرسله بعد؟', saleOf: 'بيع يوم', otherQty: 'كمية أخرى', noSale: 'لا بيع حديث لهذا العميل.',
-        removeTitle: 'حذف هذا السطر؟', removeBody: (what: string) => `${what}. لا يتغيّر أي رصيد ولا ربح.`,
+        removeTitle: 'إلغاء هذه المتابعة؟', removeBody: (what: string) => `${what}. تُلغى متابعة «للإرسال / للاستلام» فقط: الشراء أو البيع يبقى في السجل برصيده وربحه. لإلغاء العملية نفسها احذفها من السجل، وتختفي متابعتها وحدها.`,
         cannotRemove: 'غير ممكن: أُرسل جزء منه. احذف الإرسالات أولاً.',
     },
 };
