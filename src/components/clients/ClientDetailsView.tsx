@@ -162,7 +162,7 @@ export function mergeDeliveryLines(groups: ReadonlyArray<[string, DisplayTx[]]>,
 }
 
 /** V12-2: the USDT/EUR sold to this client and not sent yet, with their own reading of the `deliveries` collection. */
-function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transactions, clientRows, setAlert }: { userDocRef: any; clientId: string; clientName: string; phone?: string; transactions?: ReadonlyArray<{ id?: string; type?: string }>; clientRows?: ReadonlyArray<{ clientId?: string; linkedTxId?: string }>; setAlert?: (message: string) => void }) {
+function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transactions, clientRows, setAlert, onAddPhone }: { onAddPhone?: () => void; userDocRef: any; clientId: string; clientName: string; phone?: string; transactions?: ReadonlyArray<{ id?: string; type?: string }>; clientRows?: ReadonlyArray<{ clientId?: string; linkedTxId?: string }>; setAlert?: (message: string) => void }) {
     const { docs, record, remove } = useDeliveries(userDocRef, Boolean(userDocRef), () => setAlert?.('❌ Erreur lors de la sauvegarde.'));
     const saleIds = useMemo(() => operationQuantities((transactions ?? []) as ReadonlyArray<{ id?: string; type?: string; quantity?: number }>), [transactions]);
     // This client's sales in USDT/EUR paid in dinars, newest first: the ones that can still be « not sent yet ».
@@ -183,7 +183,7 @@ function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transa
     const hasSupplierLines = docs.some((doc) => doc.clientId === clientId && doc.direction === 'from_supplier');
     const hasClientLines = docs.some((doc) => doc.clientId === clientId && doc.direction !== 'from_supplier');
     return (<>
-      {(sales.length > 0 || purchases.length === 0 || hasClientLines) && <ClientDeliveries clientId={clientId} clientName={clientName} phone={phone} docs={docs} saleIds={saleIds} onRecord={record} onRemove={remove} sales={sales}/>}
+      {(sales.length > 0 || purchases.length === 0 || hasClientLines) && <ClientDeliveries clientId={clientId} clientName={clientName} phone={phone} docs={docs} saleIds={saleIds} onRecord={record} onRemove={remove} sales={sales} onAddPhone={onAddPhone}/>}
       {(purchases.length > 0 || hasSupplierLines) && <ClientDeliveries direction="from_supplier" clientId={clientId} clientName={clientName} phone={phone} docs={docs} saleIds={saleIds} onRecord={record} onRemove={remove} sales={purchases}/>}
     </>);
 }
@@ -439,7 +439,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             </button>))}
         </div>
         {/* V12-2: what is still owed to this client comes first, so it is seen as soon as the page opens */}
-        {selectedClient && <ClientDeliveriesEntry userDocRef={userDocRef} clientId={selectedClient.id} clientName={getClientFullName(selectedClient)} phone={selectedClient.phone} transactions={transactions} clientRows={clientTransactionsDzd} setAlert={setAlert}/>}
+        {selectedClient && <ClientDeliveriesEntry userDocRef={userDocRef} clientId={selectedClient.id} clientName={getClientFullName(selectedClient)} phone={selectedClient.phone} transactions={transactions} clientRows={clientTransactionsDzd} setAlert={setAlert} onAddPhone={() => openClientModal(selectedClient)}/>}
         <button type="button" onClick={() => setIsActivityReportOpen(true)} data-testid="client-activity-report-button" className="mt-2 flex min-h-touch w-full items-center gap-3 rounded-button border border-border bg-surface px-3 py-2 text-start transition-colors hover:bg-surface-muted active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
           <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary dark:text-primary-light">
             <FileSpreadsheetIcon className="h-5 w-5"/>

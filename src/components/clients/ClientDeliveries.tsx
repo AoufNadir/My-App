@@ -8,7 +8,7 @@ import { Trash2Icon } from '../icons/Trash2Icon';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { formatNumber } from '../../pages/shared/pageFormat';
 import { canRemove, checkDelivery, deliveryStates, type SaleLookup, type ClientDeliveryState, type DeliveryCurrency, type DeliveryDoc } from '../../utils/deferredDelivery';
-import { formatWaNumber, openWhatsAppChooser, openWhatsAppMessenger } from '../../utils/whatsapp';
+import { formatWaNumber, openWhatsAppMessenger } from '../../utils/whatsapp';
 import { clientReportLanguage } from '../reports/reportLanguage';
 
 // V12-2, on the client's page: the USDT/EUR sold and not sent yet. « J'ai livré » records what was sent, never more
@@ -43,6 +43,7 @@ const W = {
         addMore: '+ Ajouter une autre quantité à envoyer', done: 'Tout est envoyé.', cancel: 'Annuler',
         lineSold: 'À envoyer', lineSent: 'Envoyé', remove: 'Supprimer',
         statement: 'Envoyer le relevé sur WhatsApp',
+        noPhone: 'Aucun numéro WhatsApp pour ce client.', addPhone: 'Ajouter son numéro',
         pickSale: 'Quelle vente n’est pas encore envoyée ?', saleOf: 'Vente du', otherQty: 'Autre quantité', noSale: 'Aucune vente récente à ce client.',
         removeTitle: 'Retirer ce suivi ?', removeBody: (what: string) => `${what}. Seul le suivi « à envoyer / à recevoir » est retiré : l’achat ou la vente reste dans l’historique, avec son solde et son bénéfice. Pour annuler l’opération elle-même, supprimez-la dans l’historique ; son suivi disparaît alors tout seul.`,
         cannotRemove: 'Impossible : une partie a déjà été envoyée. Supprimez d’abord les envois.',
@@ -56,6 +57,7 @@ const W = {
         addMore: '+ إضافة كمية أخرى للإرسال', done: 'أُرسل كل شيء.', cancel: 'إلغاء',
         lineSold: 'للإرسال', lineSent: 'أُرسل', remove: 'حذف',
         statement: 'أرسل له الكشف على واتساب',
+        noPhone: 'لا رقم واتساب لهذا العميل.', addPhone: 'أضف رقمه',
         pickSale: 'أي بيع لم تُرسله بعد؟', saleOf: 'بيع يوم', otherQty: 'كمية أخرى', noSale: 'لا بيع حديث لهذا العميل.',
         removeTitle: 'إلغاء هذه المتابعة؟', removeBody: (what: string) => `${what}. تُلغى متابعة «للإرسال / للاستلام» فقط: الشراء أو البيع يبقى في السجل برصيده وربحه. لإلغاء العملية نفسها احذفها من السجل، وتختفي متابعتها وحدها.`,
         cannotRemove: 'غير ممكن: أُرسل جزء منه. احذف الإرسالات أولاً.',
@@ -71,28 +73,28 @@ export function statementMessage(lang: Lang, name: string, state: Pick<ClientDel
     const c = state.currency;
     if (state.delivered <= 0)
         return lang === 'ar'
-            ? `مرحباً ${name}،\nتمّ بيعك ${qtyText(state.committed, c)} بسعر يوم البيع، وهي محفوظة لك. نرسلها حين تطلب، مرة واحدة أو على دفعات.`
-            : `Bonjour ${name},\nVotre achat de ${qtyText(state.committed, c)} est enregistré au prix du jour et vous est réservé. Nous l’envoyons quand vous le demandez, en une ou plusieurs fois.`;
+            ? `السلام عليكم ${name}،\n\nنؤكد لكم تسجيل طلبكم: ${qtyText(state.committed, c)} بالسعر المتفق عليه.\nالكمية محفوظة لكم، ونرسلها فور طلبكم، دفعة واحدة أو على دفعات.\n\nمع التحية،\nProDigital`
+            : `Bonjour ${name},\n\nNous confirmons votre commande de ${qtyText(state.committed, c)} au prix convenu.\nElle vous est réservée : nous l’envoyons dès que vous le demandez, en une ou plusieurs fois.\n\nCordialement,\nProDigital`;
     if (state.remaining <= 0)
         return lang === 'ar'
-            ? `مرحباً ${name}،\nأُرسل لك كامل ${qtyText(state.committed, c)}. لا شيء باقٍ لك عندنا.`
-            : `Bonjour ${name},\nLa totalité de ${qtyText(state.committed, c)} vous a été envoyée. Plus rien n’est en attente.`;
+            ? `السلام عليكم ${name}،\n\nتم إرسال كامل طلبكم: ${qtyText(state.committed, c)}.\nلا شيء باقٍ لكم عندنا. شكراً لثقتكم.\n\nمع التحية،\nProDigital`
+            : `Bonjour ${name},\n\nLa totalité de votre commande (${qtyText(state.committed, c)}) vous a été envoyée.\nPlus rien n’est en attente. Merci de votre confiance.\n\nCordialement,\nProDigital`;
     return lang === 'ar'
-        ? `مرحباً ${name}،\nأُرسل لك حتى الآن ${qtyText(state.delivered, c)} من ${qtyText(state.committed, c)}، والباقي لك عندنا ${qtyText(state.remaining, c)}.`
-        : `Bonjour ${name},\nVous avez reçu à ce jour ${qtyText(state.delivered, c)} sur ${qtyText(state.committed, c)}. Il vous reste ${qtyText(state.remaining, c)} chez nous.`;
+        ? `السلام عليكم ${name}،\n\nإليكم وضع طلبكم (${qtyText(state.committed, c)}):\n• أُرسل لكم: ${qtyText(state.delivered, c)}\n• الباقي لكم عندنا: ${qtyText(state.remaining, c)}\n\nالباقي محفوظ لكم بالسعر المتفق عليه، ونرسله فور طلبكم.\n\nمع التحية،\nProDigital`
+        : `Bonjour ${name},\n\nVoici le point sur votre commande (${qtyText(state.committed, c)}) :\n• Déjà envoyé : ${qtyText(state.delivered, c)}\n• Reste à vous envoyer : ${qtyText(state.remaining, c)}\n\nLe reste vous est réservé au prix convenu ; nous l’envoyons dès que vous le demandez.\n\nCordialement,\nProDigital`;
 }
 
 /** The message sent after a delivery, in the client's language. */
 export function deliveryMessage(lang: Lang, name: string, state: Pick<ClientDeliveryState, 'committed' | 'delivered' | 'remaining' | 'currency'>, sent: number): string {
     const c = state.currency;
     return lang === 'ar'
-        ? `مرحباً ${name}،\nأرسلنا لك اليوم ${qtyText(sent, c)}.\nالمجموع المُسلَّم ${qtyText(state.delivered, c)} من ${qtyText(state.committed, c)}، والباقي ${qtyText(state.remaining, c)}.`
-        : `Bonjour ${name},\nNous vous avons envoyé aujourd’hui ${qtyText(sent, c)}.\nTotal livré : ${qtyText(state.delivered, c)} sur ${qtyText(state.committed, c)}, reste ${qtyText(state.remaining, c)}.`;
+        ? `السلام عليكم ${name}،\n\nأرسلنا لكم الآن ${qtyText(sent, c)}.\n\nوضع طلبكم (${qtyText(state.committed, c)}):\n• أُرسل لكم إجمالاً: ${qtyText(state.delivered, c)}\n• الباقي لكم عندنا: ${qtyText(state.remaining, c)}\n\nنرجو تأكيد الاستلام.\n\nمع التحية،\nProDigital`
+        : `Bonjour ${name},\n\nNous venons de vous envoyer ${qtyText(sent, c)}.\n\nPoint de votre commande (${qtyText(state.committed, c)}) :\n• Envoyé au total : ${qtyText(state.delivered, c)}\n• Reste à vous envoyer : ${qtyText(state.remaining, c)}\n\nMerci de nous confirmer la bonne réception.\n\nCordialement,\nProDigital`;
 }
 
 export type ClientSale = { id: string; currency: DeliveryCurrency; quantity: number; timestamp: number };
 
-export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, onRecord, onRemove, sales = [], defaultOpen = false, direction = 'to_client' }: {
+export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, onRecord, onRemove, sales = [], defaultOpen = false, direction = 'to_client', onAddPhone }: {
     clientId: string;
     clientName: string;
     phone?: string;
@@ -107,6 +109,8 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
     defaultOpen?: boolean;
     /** V12-8: « from_supplier »: paid and not received yet, with the words of a purchase */
     direction?: 'to_client' | 'from_supplier';
+    /** Opens the client's form to add his phone number */
+    onAddPhone?: () => void;
 }) {
     const { lang } = useLanguage();
     const supplier = direction === 'from_supplier';
@@ -117,6 +121,7 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
     const [lastSent, setLastSent] = useState<Record<string, number>>({});
     const [oldOpen, setOldOpen] = useState(defaultOpen);
     const [manual, setManual] = useState(false);
+    const [noPhone, setNoPhone] = useState(false);
     const [toRemove, setToRemove] = useState<{ doc: DeliveryDoc; state: ClientDeliveryState } | null>(null);
     const [removeError, setRemoveError] = useState('');
     const [old, setOld] = useState<{ qty: string; currency: DeliveryCurrency }>({ qty: '', currency: 'USDT' });
@@ -139,11 +144,12 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
         const lang = clientReportLanguage(clientId);
         const sent = lastSent[state.currency];
         const text = sent !== undefined ? deliveryMessage(lang, clientName, state, sent) : statementMessage(lang, clientName, state);
+        // Straight to the client's chat; without a usable number, say so instead of opening WhatsApp's contact list.
         const number = phone ? formatWaNumber(phone) : '';
         if (number.length >= 9)
             openWhatsAppMessenger(number, text);
         else
-            openWhatsAppChooser(text);
+            setNoPhone(true);
     };
 
     // In the style of the « Rapport d'activité » row just above: an icon, a title, a line of explanation.
@@ -224,6 +230,9 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
                     <Button type="button" size="md" className="w-full font-bold" onClick={() => deliver(state)}>{w.deliver}</Button>
                   </div>)
                 : <p className="text-sm font-semibold text-financial-profit">✓ {w.done}</p>}
+          {noPhone && !supplier && (<p role="alert" className="rounded-button bg-warning-bg px-3 py-2 text-xs font-semibold text-warning">
+              {w.noPhone}{onAddPhone && <> <button type="button" onClick={onAddPhone} className="underline">{w.addPhone}</button></>}
+            </p>)}
           {!oldOpen && !supplier && <Button type="button" variant="outline" size="md" className="w-full" onClick={() => tell(state)}>{lastSent[state.currency] !== undefined ? w.whatsapp : w.statement}</Button>}
           <details>
               <summary className="min-h-touch cursor-pointer py-1 text-xs font-semibold text-neutral-600">{w.history} ({state.commitments.length + state.deliveries.length})</summary>
