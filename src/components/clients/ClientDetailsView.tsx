@@ -126,7 +126,13 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone, isAddress }: C
 function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transactions, setAlert }: { userDocRef: any; clientId: string; clientName: string; phone?: string; transactions?: ReadonlyArray<{ id?: string; type?: string }>; setAlert?: (message: string) => void }) {
     const { docs, record, remove } = useDeliveries(userDocRef, Boolean(userDocRef), () => setAlert?.('❌ Erreur lors de la sauvegarde.'));
     const saleIds = useMemo(() => new Set((transactions ?? []).filter((tx) => tx.type === 'sell' && tx.id).map((tx) => tx.id as string)), [transactions]);
-    return <ClientDeliveries clientId={clientId} clientName={clientName} phone={phone} docs={docs} saleIds={saleIds} onRecord={record} onRemove={remove}/>;
+    // This client's sales in USDT/EUR paid in dinars, newest first: the ones that can still be « not sent yet ».
+    const sales = useMemo(() => (transactions ?? [])
+        .filter((tx: any) => tx.type === 'sell' && tx.id && tx.linkedClientId === clientId && (tx.currency === 'USDT' || tx.currency === 'EUR') && tx.settlementCurrency !== 'EUR')
+        .map((tx: any) => ({ id: tx.id as string, currency: tx.currency as 'USDT' | 'EUR', quantity: Number(tx.quantity) || 0, timestamp: Number(tx.timestamp) || 0 }))
+        .filter((sale) => sale.quantity > 0)
+        .sort((a, b) => b.timestamp - a.timestamp), [transactions, clientId]);
+    return <ClientDeliveries clientId={clientId} clientName={clientName} phone={phone} docs={docs} saleIds={saleIds} onRecord={record} onRemove={remove} sales={sales}/>;
 }
 
 export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, reportClientRows, clientsDzd, setSelectedClientId, getClientFullName, openClientSummary, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal, userDocRef, clientBalances, onRecordClientTransfer, setAlert}: ClientDetailsViewProps) {

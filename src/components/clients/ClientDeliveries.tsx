@@ -23,6 +23,7 @@ const W = {
         addOldHint: 'La quantité vendue à ce client et pas encore envoyée. Sa vente reste comme elle est.', add: 'Ajouter',
         addMore: '+ Ajouter une autre quantité à envoyer', done: 'Tout est envoyé.', cancel: 'Annuler',
         lineSold: 'À envoyer', lineSent: 'Envoyé', remove: 'Supprimer',
+        pickSale: 'Quelle vente n’est pas encore envoyée ?', saleOf: 'Vente du', otherQty: 'Autre quantité', noSale: 'Aucune vente récente à ce client.',
         removeTitle: 'Supprimer cette ligne ?', removeBody: (what: string) => `${what}. Aucun solde ni bénéfice ne change.`,
         cannotRemove: 'Impossible : une partie a déjà été envoyée. Supprimez d’abord les envois.',
     },
@@ -34,6 +35,7 @@ const W = {
         addOldHint: 'الكمية التي بعتها لهذا العميل ولم ترسلها بعد. بيعه يبقى كما هو.', add: 'إضافة',
         addMore: '+ إضافة كمية أخرى للإرسال', done: 'أُرسل كل شيء.', cancel: 'إلغاء',
         lineSold: 'للإرسال', lineSent: 'أُرسل', remove: 'حذف',
+        pickSale: 'أي بيع لم تُرسله بعد؟', saleOf: 'بيع يوم', otherQty: 'كمية أخرى', noSale: 'لا بيع حديث لهذا العميل.',
         removeTitle: 'حذف هذا السطر؟', removeBody: (what: string) => `${what}. لا يتغيّر أي رصيد ولا ربح.`,
         cannotRemove: 'غير ممكن: أُرسل جزء منه. احذف الإرسالات أولاً.',
     },
@@ -49,15 +51,21 @@ export function deliveryMessage(lang: Lang, name: string, state: Pick<ClientDeli
         : `Bonjour ${name},\nNous vous avons envoyé aujourd’hui ${qtyText(sent, c)}.\nTotal livré : ${qtyText(state.delivered, c)} sur ${qtyText(state.committed, c)}, reste ${qtyText(state.remaining, c)}.`;
 }
 
-export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, onRecord, onRemove }: {
+export type ClientSale = { id: string; currency: DeliveryCurrency; quantity: number; timestamp: number };
+
+export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, onRecord, onRemove, sales = [], defaultOpen = false }: {
     clientId: string;
     clientName: string;
     phone?: string;
     docs: ReadonlyArray<DeliveryDoc>;
     saleIds: ReadonlySet<string>;
-    onRecord: (kind: DeliveryDoc['kind'], clientId: string, currency: DeliveryCurrency, quantity: number) => void;
+    onRecord: (kind: DeliveryDoc['kind'], clientId: string, currency: DeliveryCurrency, quantity: number, saleTxId?: string) => void;
+    /** This client's recent sales: one tap says « this one is not sent yet », no figure to type */
+    sales?: ReadonlyArray<ClientSale>;
     /** Removes a line typed by mistake */
     onRemove?: (id: string) => void;
+    /** Opens the « add » part at once (screens and tests) */
+    defaultOpen?: boolean;
 }) {
     const { lang } = useLanguage();
     const w = W[lang];
@@ -65,7 +73,8 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
     const [draft, setDraft] = useState<Record<string, string>>({});
     const [error, setError] = useState<Record<string, string>>({});
     const [lastSent, setLastSent] = useState<Record<string, number>>({});
-    const [oldOpen, setOldOpen] = useState(false);
+    const [oldOpen, setOldOpen] = useState(defaultOpen);
+    const [manual, setManual] = useState(false);
     const [toRemove, setToRemove] = useState<{ doc: DeliveryDoc; state: ClientDeliveryState } | null>(null);
     const [removeError, setRemoveError] = useState('');
     const [old, setOld] = useState<{ qty: string; currency: DeliveryCurrency }>({ qty: '', currency: 'USDT' });
@@ -110,7 +119,24 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
             : <div className="flex min-h-touch items-center gap-3 px-3 py-2">{inner}</div>;
     };
     const box = 'mt-2 overflow-hidden rounded-button border border-border bg-surface';
+    const linkedSales = new Set(docs.filter((doc) => doc.kind === 'commitment' && doc.saleTxId).map((doc) => doc.saleTxId));
+    const freeSales = sales.filter((sale) => !linkedSales.has(sale.id)).slice(0, 5);
     const oldForm = (<div className="space-y-3 border-t border-border p-3">
+        <p className="text-xs font-semibold text-neutral-700">{w.pickSale}</p>
+        {freeSales.length > 0
+            ? (<div className="space-y-1.5">
+                {freeSales.map((sale) => (<button key={sale.id} type="button" onClick={() => { onRecord('commitment', clientId, sale.currency, sale.quantity, sale.id); setOldOpen(false); setManual(false); }} className="flex min-h-touch w-full items-center justify-between gap-3 rounded-button border border-border bg-surface px-3 py-2 text-start text-sm transition-colors hover:border-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                    <span className="text-neutral-600">{w.saleOf} {new Date(sale.timestamp).toLocaleDateString('fr-FR')}</span>
+                    <span className="font-bold tabular-nums text-neutral-900">{qtyText(sale.quantity, sale.currency)}</span>
+                  </button>))}
+              </div>)
+            : <p className="text-xs text-neutral-500">{w.noSale}</p>}
+        {!manual
+            ? (<div className="flex items-center justify-between gap-3">
+                <button type="button" onClick={() => setManual(true)} className="min-h-touch text-xs font-semibold text-primary">{w.otherQty}</button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setOldOpen(false)}>{w.cancel}</Button>
+              </div>)
+            : (<div className="space-y-3">
         <p className="text-xs text-neutral-500">{w.addOldHint}</p>
         <SegmentedControl size="sm" ariaLabel={w.left} value={old.currency} onChange={(currency) => setOld({ ...old, currency })} options={[{ id: 'USDT', label: 'USDT', tone: 'primary' }, { id: 'EUR', label: 'EUR', tone: 'primary' }]}/>
         <div className="relative">
@@ -118,13 +144,15 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
           <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4 text-sm font-semibold text-neutral-500">{old.currency}</span>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <Button type="button" variant="ghost" size="md" onClick={() => { setOldOpen(false); setOld({ qty: '', currency: old.currency }); }}>{w.cancel}</Button>
+          <Button type="button" variant="ghost" size="md" onClick={() => { setOldOpen(false); setManual(false); setOld({ qty: '', currency: old.currency }); }}>{w.cancel}</Button>
           <Button type="button" size="md" className="font-bold" disabled={!(Number(old.qty.replace(',', '.')) > 0)} onClick={() => {
             onRecord('commitment', clientId, old.currency, Number(old.qty.replace(',', '.')));
             setOld({ qty: '', currency: old.currency });
             setOldOpen(false);
+            setManual(false);
         }}>{w.add}</Button>
         </div>
+              </div>)}
       </div>);
     if (states.length === 0)
         return (<div className={box}>
@@ -142,7 +170,7 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
                 <p className="text-[11px] font-semibold text-neutral-500">{state.currency}</p>
               </div>))}
           </div>
-          {state.remaining > 0
+          {state.remaining > 0 && oldOpen ? null : state.remaining > 0
                 ? (<div className="space-y-2">
                     <div className="relative">
                       <input inputMode="decimal" value={draft[state.currency] ?? ''} onChange={(event) => setDraft({ ...draft, [state.currency]: event.target.value })} placeholder={w.qty} aria-label={w.qty} dir="ltr" className={`${field} pr-16 text-base font-semibold`}/>

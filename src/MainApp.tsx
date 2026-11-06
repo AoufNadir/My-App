@@ -321,6 +321,13 @@ export default function MainApp({ user }: {
     // otherwise the stock stays "locked" until some unrelated transaction arrives.
     const [lockReleaseTick, setLockReleaseTick] = useState(0);
     const pamLedger = useMemo(() => computePamLedger(ledgerTransactions), [ledgerTransactions, lockReleaseTick]);
+    // V12-2: USDT/EUR sold and not sent yet, for the bell, the portfolio and the client pages.
+    const homeDeliveries = useDeliveries(userDocRef as never, isFinancialDataReady);
+    const pendingDeliveries = useMemo(() => {
+        const saleIds = new Set<string>(transactions.filter((tx) => tx.type === 'sell' && tx.id).map((tx) => String(tx.id)));
+        const open = deliveryStates(homeDeliveries.docs, saleIds).filter((state) => state.remaining > 0);
+        return { clients: new Set(open.map((state) => state.clientId)).size, ...reservedForClients(open) };
+    }, [homeDeliveries.docs, transactions]);
     useEffect(() => {
         const nowMs = Date.now();
         const nextUnlock = [...pamLedger.portfolioStats.usdt.lockedBatches, ...pamLedger.portfolioStats.eur.lockedBatches]
@@ -2256,6 +2263,7 @@ export default function MainApp({ user }: {
         setStatsView,
         setIsSettingsModalOpen,
         portfolioStats,
+        pendingDeliveries,
         totalPortfolioValue: ((portfolioStats.usdt.available + (portfolioStats.usdt.locked || 0)) * portfolioStats.usdt.avgBuy + (portfolioStats.eur.available + (portfolioStats.eur.locked || 0)) * portfolioStats.eur.avgBuy),
         smartTargetUsdt: smartTargetPrices.usdt,
         smartTargetEur: smartTargetPrices.eur,
@@ -2290,7 +2298,7 @@ export default function MainApp({ user }: {
         usdtReportMonth, usdtReportYear, transactions, clientTransactionsDzd, reportClientRows, selectedHeatmapDay,
         fieldBase,
         reportClient, clientsDzd, reportMonth, reportYear, reportMonthNames,
-        getClientFullName, handleExportUsdtReport, openPortfolioBalanceEditModal
+        getClientFullName, handleExportUsdtReport, openPortfolioBalanceEditModal, pendingDeliveries
     ]);
     // Bulk-import clients from CSV. Skips duplicates by name or phone, creates
     // an initial-balance ledger entry when an `initialBalance` column is mapped.
@@ -2543,13 +2551,6 @@ export default function MainApp({ user }: {
     const homeMovementReasons = useMovementReasons(userDocRef as never, isFinancialDataReady, () => undefined);
     const unexplainedMovementCount = useMemo(() => buildMovementReview({ treasury: treasuryTransactions, crypto: transactions, clientRows: clientTransactionsDzd, reasons: homeMovementReasons.reasons }).unexplained.length, [treasuryTransactions, transactions, clientTransactionsDzd, homeMovementReasons.reasons]);
     const movementsCounted = isFinancialDataReady && !isAwaitingServerSync;
-    // V12-2: USDT/EUR sold and not sent yet, for the bell.
-    const homeDeliveries = useDeliveries(userDocRef as never, isFinancialDataReady);
-    const pendingDeliveries = useMemo(() => {
-        const saleIds = new Set<string>(transactions.filter((tx) => tx.type === 'sell' && tx.id).map((tx) => String(tx.id)));
-        const open = deliveryStates(homeDeliveries.docs, saleIds).filter((state) => state.remaining > 0);
-        return { clients: new Set(open.map((state) => state.clientId)).size, ...reservedForClients(open) };
-    }, [homeDeliveries.docs, transactions]);
     React.useEffect(() => {
         if (movementsCounted)
             notifications.notifyUnexplainedMovements(unexplainedMovementCount);

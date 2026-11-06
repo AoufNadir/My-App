@@ -32,4 +32,16 @@ assert.ok(deliveryMessage('ar', 'Client Test', { committed: 10, delivered: 10, r
         assert.ok(html.includes(label), label);
     assert.ok(html.includes('+ Ajouter une autre quantité à envoyer'), 'more can be added');
 }
+// Adding: the client's sales are offered, newest first, without the one already followed; the send field is hidden meanwhile.
+{
+    const sales = [
+        { id: 's9', currency: 'USDT' as const, quantity: 3_906.25, timestamp: Date.UTC(2026, 10, 2) },
+        { id: 's1', currency: 'USDT' as const, quantity: 5_088.06, timestamp: Date.UTC(2026, 9, 27) },
+    ];
+    const html = render('fr', <ClientDeliveries clientId="c1" clientName="X" docs={docs} saleIds={new Set(['s1', 's9'])} onRecord={() => undefined} sales={sales} defaultOpen/>);
+    assert.ok(html.includes('Quelle vente n’est pas encore envoyée ?'));
+    assert.ok(html.replace(/\u202f|\u00a0/g, ' ').includes('3 906,25 USDT'), 'the sale not followed yet is offered');
+    assert.ok(!html.replace(/\u202f|\u00a0/g, ' ').includes('5 088,06 USDT'), 'the sale already followed is not offered again');
+    assert.ok(!html.includes('Quantité envoyée'), 'one action at a time: no send field while adding');
+}
 console.log('ClientDeliveries tests passed');
