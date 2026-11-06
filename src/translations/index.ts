@@ -1490,6 +1490,9 @@ export const translations = {
             reportPickBothDates: 'Veuillez sélectionner les deux dates.',
             reportStartAfterEnd: 'La date de début doit être avant la date de fin.',
             activityReport: 'Rapport d’activité',
+            historySent: 'Envoyé au client',
+            historyReceived: 'Reçu du fournisseur',
+            historyNoBalance: 'Livraison, sans effet sur le solde',
             activityReportHint: 'PDF client, d’une date à une autre',
             confirm: {
                 button: 'Confirmer le solde avec le client',
@@ -3434,6 +3437,9 @@ export const translations = {
             reportPickBothDates: 'اختر تاريخ البداية وتاريخ النهاية.',
             reportStartAfterEnd: 'يجب أن يكون تاريخ البداية قبل تاريخ النهاية.',
             activityReport: 'تقرير النشاط',
+            historySent: 'أُرسل للعميل',
+            historyReceived: 'استُلم من المورد',
+            historyNoBalance: 'تسليم، لا يمس الرصيد',
             activityReportHint: 'PDF للعميل، من تاريخ إلى تاريخ',
             confirm: {
                 button: 'أكّد العميل رصيده',

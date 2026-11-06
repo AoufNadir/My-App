@@ -1,6 +1,6 @@
 import { Fragment, lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useDeliveries } from '../../hooks/useDeliveries';
-import { deliveryStates, operationQuantities } from '../../utils/deferredDelivery';
+import { deliveryStates, operationQuantities, type DeliveryDoc } from '../../utils/deferredDelivery';
 const isActivityReportOpenForDeliveries = (clientId: string | null | undefined) => Boolean(clientId);
 import { ClientDeliveries } from './ClientDeliveries';
 import { Button } from '../ui/Button';
@@ -124,6 +124,43 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone, isAddress }: C
       </div>
     </div>);
 }
+/**
+ * V12-2/V12-8: what was sent to (or received from) a client, as quiet lines in his history: no amount in dinars,
+ * nothing to open or edit, never in the balance; only within the days the history already shows.
+ */
+export function mergeDeliveryLines(groups: ReadonlyArray<[string, DisplayTx[]]>, docs: ReadonlyArray<DeliveryDoc>, words: { sent: string; received: string; noBalance: string }): Array<[string, DisplayTx[]]> {
+    const lines = docs.filter((doc) => doc.kind === 'delivery');
+    if (lines.length === 0 || groups.length === 0)
+        return groups as Array<[string, DisplayTx[]]>;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const dayOf = (ts: number) => { const d = new Date(ts); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`; };
+    const dayStart = (key: string) => { const [d, m, y] = key.split('/').map(Number); return new Date(y, m - 1, d).getTime(); };
+    const oldestShown = Math.min(...groups.map(([key]) => dayStart(key)).filter(Number.isFinite));
+    const merged = new Map<string, DisplayTx[]>(groups.map(([key, rows]) => [key, [...rows]]));
+    for (const doc of lines) {
+        const key = dayOf(doc.timestamp);
+        if (!merged.has(key) && dayStart(key) < oldestShown)
+            continue;
+        const supplier = doc.direction === 'from_supplier';
+        const row: DisplayTx = {
+            id: `delivery:${doc.id}`, originalId: `delivery:${doc.id}`, timestamp: doc.timestamp, date: key,
+            time: new Date(doc.timestamp).toTimeString().slice(0, 5),
+            typeLabel: supplier ? words.received : words.sent,
+            amountLabel: `${formatNumber(doc.quantity, { min: 2, max: 2 })} ${doc.currency}`,
+            amountColor: 'text-neutral-500',
+            icon: (<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-muted text-neutral-400">
+                {supplier ? <ArrowDownLeftIcon className="h-5 w-5"/> : <ArrowUpRightIcon className="h-5 w-5"/>}
+              </div>),
+            details: words.noBalance,
+            category: 'client',
+            rawTx: { id: `delivery:${doc.id}`, notes: '' } as unknown as ClientTransactionDzd,
+            sourceType: 'client_tx',
+        };
+        merged.set(key, [...(merged.get(key) ?? []), row].sort((x, y) => y.timestamp - x.timestamp));
+    }
+    return [...merged.entries()].sort((x, y) => dayStart(y[0]) - dayStart(x[0]));
+}
+
 /** V12-2: the USDT/EUR sold to this client and not sent yet, with their own reading of the `deliveries` collection. */
 function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transactions, clientRows, setAlert }: { userDocRef: any; clientId: string; clientName: string; phone?: string; transactions?: ReadonlyArray<{ id?: string; type?: string }>; clientRows?: ReadonlyArray<{ clientId?: string; linkedTxId?: string }>; setAlert?: (message: string) => void }) {
     const { docs, record, remove } = useDeliveries(userDocRef, Boolean(userDocRef), () => setAlert?.('❌ Erreur lors de la sauvegarde.'));
@@ -304,6 +341,12 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             }),
         ]);
     }, [clientTransactionsDzd, clientsById, getClientFullName, linkedTransactionsById, t, visibleDateGroups]);
+    // V12-2/V12-8: what was sent to (or received from) this client, as quiet lines in the history: no amount in dinars,
+    // nothing to open or edit, and never in the balance. Only within the days the history already shows.
+    const historyGroups = useMemo(() => mergeDeliveryLines(visibleDisplayDateGroups, reportDeliveryDocs.filter((doc) => doc.clientId === selectedClientId), {
+        sent: t('clients.historySent') as string, received: t('clients.historyReceived') as string, noBalance: t('clients.historyNoBalance') as string,
+    }), [visibleDisplayDateGroups, reportDeliveryDocs, selectedClientId, t]);
+    const isDeliveryLine = (tx: DisplayTx) => tx.id.startsWith('delivery:');
     const clientStats = useMemo(() => {
         const allTxs = Object.values(groupedHistory).flat();
         let lastTs = 0;
@@ -420,12 +463,12 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
       <div role="tabpanel" aria-label={t('clients.history') as string} hidden={activeTab !== 'history'} className="overflow-hidden rounded-card border border-border bg-surface">
         {dates.length > 0 ? (<div className="pb-2">
             <TransactionDisplayList
-              dateGroups={visibleDisplayDateGroups}
+              dateGroups={historyGroups}
               t={t}
               getRelativeDateLabel={(date) => getRelativeFrDateLabel(date, t)}
-              onEditDisplayTx={(displayTx) => handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
-              onDeleteDisplayTx={(displayTx) => handleDeleteClientTxClick((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
-              onOpenDisplayTx={(displayTx) => handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
+              onEditDisplayTx={(displayTx) => { if (!isDeliveryLine(displayTx)) handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd); }}
+              onDeleteDisplayTx={(displayTx) => { if (!isDeliveryLine(displayTx)) handleDeleteClientTxClick((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd); }}
+              onOpenDisplayTx={(displayTx) => { if (!isDeliveryLine(displayTx)) handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd); }}
               formatDzdAmount={(value) => formatDzd(value, { min: 2, max: 2 })}
               profitByTxId={profitByTxId}
             />
