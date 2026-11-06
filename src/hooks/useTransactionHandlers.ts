@@ -662,7 +662,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 createLinkedEurConversionTx();
                 // V12-8: paid now, received later (in one or several times): what the supplier still has to send is kept
                 // apart, in the same batch, so the count does not expect it in the wallet yet.
-                if (receiptPending && linkedClientId !== 'none' && buyUsdtMode !== 'with_eur') {
+                if (receiptPending && linkedClientId !== 'none' && buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit') {
                     batch.set(userDocRef.collection('deliveries').doc(), {
                         kind: 'commitment', direction: 'from_supplier', clientId: linkedClientId, currency,
                         quantity, timestamp, date, time, saleTxId: mainTxRef.id,
@@ -1053,7 +1053,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 committedSellTxId = ref.id;
                 // V12-2: sold today at today's price, delivered later (in one or several times): the promise is kept apart,
                 // in the same batch, so the stock counted at the inventory includes what is still owed to the client.
-                if (deliveryPending && linkedClientId !== 'none' && !isUsdtSettledInEur) {
+                if (deliveryPending && linkedClientId !== 'none' && !isUsdtSettledInEur && clientPaymentStatus !== 'credit') {
                     batch.set(userDocRef.collection('deliveries').doc(), {
                         kind: 'commitment', direction: 'to_client', clientId: linkedClientId, currency: sellCurrency,
                         quantity, timestamp, date, time, saleTxId: ref.id,
