@@ -197,7 +197,7 @@ export default function MainApp({ user }: {
     const shouldRequireInvestors = view === 'investors' || view === 'expenses' || view === 'tresorerie' || isInvestorRoute;
     const shouldRequireTreasuryCards = view === 'tresorerie';
     // 1.1 App Data (Provides userDocRef)
-    const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, digitalServiceTransactions, treasuryCards, manualAssetTransactions, treasuryStats, clientBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
+    const { userDocRef, transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, digitalServiceTransactions, treasuryCards, manualAssetTransactions, treasuryStats: appTreasuryStats, clientBalances, totals, investorTransactions, investors, isDataLoaded, dataStatus } = useAppData(user, refreshKey, {
         subscribeCoreFinancial: !shouldUseDashboardReadModel,
         // The Services page is gone: the assets and their clients are no longer read, but the operations still are, so the
         // revenue of the old manual services stays in the owner's profit (a profit already earned, spent or reinvested).
@@ -333,6 +333,11 @@ export default function MainApp({ user }: {
     const pamLedger = useMemo(() => computePamLedger(ledgerTransactions, { currencies: tradedCurrencies ? tradedCurrencies.split(',') : [] }), [ledgerTransactions, lockReleaseTick, tradedCurrencies]);
     // M3: the accounts created besides the cash box and BaridiMob, and the stock of the currencies besides USDT and EUR.
     const accountBalances = useMemo(() => computeAccountBalances(treasuryTransactions, business.accounts), [treasuryTransactions, business.accounts]);
+    // M3: once accounts are created, the cash box and BaridiMob also count the transfers to and from them (a transfer
+    // to a created account would otherwise leave the cash box untouched). Without created accounts: the same object as before.
+    const treasuryStats = useMemo(() => (business.created.length > 0
+        ? { ...appTreasuryStats, caisse: accountBalances.caisse, baridi: accountBalances.baridi }
+        : appTreasuryStats), [appTreasuryStats, accountBalances, business.created.length]);
     const extraHoldings = useMemo(() => Object.entries(pamLedger.holdings as Record<string, { available: number; locked: number; avgBuy: number }>)
         .filter(([code]) => code !== 'USDT' && code !== 'EUR')
         .map(([code, holding]: [string, { available: number; locked: number; avgBuy: number }]) => ({ code, quantity: holding.available + holding.locked, value: (holding.available + holding.locked) * holding.avgBuy })), [pamLedger.holdings]);
