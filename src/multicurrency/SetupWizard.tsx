@@ -44,7 +44,7 @@ export function LogoPicker({ logo, onChange, pickLabel, removeLabel }: { logo: s
     </div>);
 }
 
-export function SetupWizard({ onSave }: { onSave: (draft: SetupDraft) => Promise<void> }) {
+export function SetupWizard({ onSave, initialStep = 1 }: { onSave: (draft: SetupDraft) => Promise<void>; initialStep?: number }) {
     const { lang, setLang } = useLanguage();
     // The setup opens in Arabic; the switch at the top changes the whole app's language.
     const startedInArabic = useRef(false);
@@ -55,7 +55,7 @@ export function SetupWizard({ onSave }: { onSave: (draft: SetupDraft) => Promise
         }
     }, [lang, setLang]);
     const w = SETUP_WORDS[lang];
-    const [step, setStep] = useState(1);
+    const [step, setStep] = useState(initialStep);
     const [draft, setDraft] = useState<SetupDraft>({ baseCurrency: 'DZD', currencies: ['USDT'], accounts: [{ name: SETUP_WORDS.ar.defaultCash, kind: 'cash' }], businessName: '', logo: null });
     const [error, setError] = useState('');
     const [saving, setSaving] = useState(false);
@@ -93,19 +93,35 @@ export function SetupWizard({ onSave }: { onSave: (draft: SetupDraft) => Promise
             {BASE_CURRENCY_CHOICES.map((code) => (<button key={code} type="button" aria-pressed={draft.baseCurrency === code} onClick={() => update({ baseCurrency: code, currencies: draft.currencies.filter((c) => c !== code) })} className={`min-h-touch rounded-card border px-4 text-start text-[15px] font-semibold ${draft.baseCurrency === code ? 'border-2 border-primary bg-primary/5' : 'border-border bg-surface'}`}>{code}</button>))}
           </div>) },
         2: { title: w.currenciesTitle, hint: w.currenciesHint, body: <CurrencyChips selected={draft.currencies} onToggle={toggle} choices={TRADED_CURRENCY_CHOICES} exclude={draft.baseCurrency} otherLabel={w.otherCode} addLabel={w.add}/> },
-        3: { title: w.accountsTitle(draft.baseCurrency), hint: w.accountsHint(draft.baseCurrency), body: (<div className="space-y-2">
+        3: { title: w.accountsTitle(draft.baseCurrency), hint: w.accountsHint(draft.baseCurrency), body: (<div className="space-y-3">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-neutral-600">{w.suggestionsTitle}</p>
+              <div className="flex flex-wrap gap-2">
+                {w.suggestions.map((s) => {
+                    const added = draft.accounts.some((a) => a.name.trim().toLowerCase() === s.name.toLowerCase());
+                    return <button key={s.name} type="button" aria-pressed={added} onClick={() => update({ accounts: added
+                        ? draft.accounts.filter((a) => a.name.trim().toLowerCase() !== s.name.toLowerCase())
+                        : [...draft.accounts.filter((a) => a.name.trim()), { name: s.name, kind: s.kind }] })} className={chip(added)}>{added ? '✓ ' : '+ '}{s.name}</button>;
+                })}
+              </div>
+            </div>
             {draft.accounts.map((account, index) => (<div key={index} className="space-y-2 rounded-card border border-border bg-surface p-3">
                 <div className="flex items-center justify-between gap-2">
                   <label htmlFor={`account-${index}`} className="text-sm font-bold text-neutral-900">{w.accountNumber(index + 1)}</label>
                   {draft.accounts.length > 1 && <button type="button" onClick={() => update({ accounts: draft.accounts.filter((_, i) => i !== index) })} className="text-xs font-semibold text-financial-loss">{w.removeLogo}</button>}
                 </div>
                 <input id={`account-${index}`} value={account.name} onChange={(event) => setAccount(index, { name: event.target.value })} placeholder={w.accountName} className={field}/>
+                <p className="text-xs font-semibold text-neutral-600">{w.kindQuestion}</p>
                 <div className="flex flex-wrap gap-2" role="group" aria-label={w.accountKind}>
                   {(['cash', 'bank', 'online'] as const).map((kind) => <button key={kind} type="button" aria-pressed={account.kind === kind} onClick={() => setAccount(index, { kind })} className={chip(account.kind === kind)}>{w.kind[kind]}</button>)}
                 </div>
+                <p className="text-xs text-neutral-500">{w.kindHint[account.kind]}</p>
               </div>))}
             <Button type="button" variant="outline" size="md" className="w-full" onClick={() => update({ accounts: [...draft.accounts, { name: '', kind: 'bank' }] })}>+ {w.addAccount}</Button>
-            <p className="text-xs text-neutral-500">{w.openingLater}</p>
+            <div className="space-y-1 rounded-button bg-surface-muted px-3 py-2 text-xs text-neutral-600">
+              <p>{w.accountsNote}</p>
+              <p>{w.openingLater}</p>
+            </div>
           </div>) },
         4: { title: w.identityTitle, hint: w.identityHint, body: (<div className="space-y-3">
             <input value={draft.businessName} onChange={(event) => update({ businessName: event.target.value })} placeholder={w.businessName} aria-label={w.businessName} className={field}/>
