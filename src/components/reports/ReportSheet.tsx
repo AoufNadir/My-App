@@ -1,3 +1,4 @@
+import { reportIdentity } from './reportIdentity';
 import type { ReactNode } from 'react';
 
 // The frame every report sheet is built from (client activity, investor…): the same header,
@@ -62,9 +63,9 @@ type ReportHeaderProps = {
 export function ReportHeader({ tagline, title, referenceLabel, reference, issuedLabel, issued, narrow = false }: ReportHeaderProps) {
     return (<header data-pdf-break="" className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-primary pb-3">
         <div className="flex items-center gap-2.5">
-          <img src="/logo.png" alt="" className="h-10 w-10 rounded-md border border-border object-cover"/>
+          <img src={reportIdentity().logo} alt="" className="h-10 w-10 rounded-md border border-border object-cover"/>
           <div className="flex flex-col leading-tight">
-            <b className="font-latin text-xl tracking-wide text-primary">ProDigital</b>
+            <b className="font-latin text-xl tracking-wide text-primary">{reportIdentity().name}</b>
             <span className="text-xs text-neutral-500">{tagline}</span>
           </div>
         </div>

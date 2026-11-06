@@ -1,3 +1,4 @@
+import { setReportIdentity } from './components/reports/reportIdentity';
 import { previousProfits } from './utils/dashboardComparison';
 import { useBusinessSettings } from './multicurrency/useBusinessSettings';
 import { computeAccountBalances, otherAccountsTotal } from './multicurrency/accountBalances';
@@ -246,6 +247,8 @@ export default function MainApp({ user }: {
         saveLockedThrough: periodLock.saveLockedThrough,
     }), [periodLock.lockedThrough, periodLock.reason, periodLock.updatedAt, periodLock.isLoaded, periodLock.saveLockedThrough]);
     const business = useBusinessSettings(userDocRef as never);
+    // M5: reports carry the business name and logo once set in the settings.
+    setReportIdentity(business.settings);
     const pricingPlanSync = useSmartPricingPlan(userDocRef);
     // Open instantly from the IndexedDB cache when it holds a previous session's
     // data. An empty cache (first open on this device) still waits for the
