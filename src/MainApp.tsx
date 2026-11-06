@@ -1318,14 +1318,6 @@ export default function MainApp({ user }: {
     const openInventoryCorrection = (row: InventoryRow) => {
         const reason = `Écart d'inventaire ${now().date}`;
         const entry = correctionEntryFor(row);
-        // V12-1: less money than the books say in the cash box or BaridiMob is spent without being recorded:
-        // the personal withdrawal window opens with the difference, so the movement belongs to someone.
-        if ((row.account === 'caisse' || row.account === 'baridi') && row.gap < 0) {
-            openPersonalWithdrawalModal();
-            setPersonalWithdrawalMethod(row.account === 'caisse' ? 'Caisse' : 'BaridiMob');
-            setPersonalWithdrawalAmount(String(Math.round(Math.abs(row.gap))));
-            return;
-        }
         if (row.account === 'caisse' || row.account === 'baridi') {
             openTreasuryBalanceEditModal(row.account === 'caisse' ? 'Caisse' : 'BaridiMob');
             setTreasuryBalanceEditValue(entry);
