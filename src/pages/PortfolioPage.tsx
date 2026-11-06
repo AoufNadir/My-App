@@ -108,16 +108,17 @@ function ClientFundsCard({ owed, mine, onOpenClient }: { owed: NonNullable<Portf
         <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-financial-debt-bg text-financial-debt"><ArrowUpRightIcon className="h-5 w-5"/></span>
         <div className="min-w-0">
           <h2 className="text-sm font-bold text-neutral-900">{t('portfolio.clientFundsTitle')}</h2>
-          <p className="mt-0.5 text-xs text-neutral-500">{String(t('portfolio.clientFundsHint')).replace('{count}', String(owed.clients))}</p>
+          <p className="mt-0.5 text-xs text-neutral-500">{t('portfolio.clientFundsHint')}</p>
         </div>
       </div>
-      {(['USDT', 'EUR'] as const).filter((code) => owed[code] > 0).map((code) => (<div key={code} className="mt-3 space-y-1.5 rounded-button bg-surface-muted p-3 text-sm">
+      {(['USDT', 'EUR'] as const).filter((code) => owed[code] > 0 || (owed.awaited?.[code] ?? 0) > 0).map((code) => (<div key={code} className="mt-3 space-y-1.5 rounded-button bg-surface-muted p-3 text-sm">
           <div className="flex justify-between gap-3"><span className="text-neutral-600">{t('portfolio.clientFundsYours')}</span><bdi dir="ltr" className="font-semibold tabular-nums">{n(mine[code])} {code}</bdi></div>
           <div className="flex justify-between gap-3"><span className="text-neutral-600">{t('portfolio.clientFundsTheirs')}</span><bdi dir="ltr" className="font-semibold tabular-nums text-financial-debt">{n(owed[code])} {code}</bdi></div>
           {(owed.awaited?.[code] ?? 0) > 0 && <div className="flex justify-between gap-3"><span className="text-neutral-600">{t('portfolio.supplierAwaitedTitle')}</span><bdi dir="ltr" className="font-semibold tabular-nums text-primary">−{n(owed.awaited![code])} {code}</bdi></div>}
           <div className="flex justify-between gap-3 border-t border-border pt-1.5"><span className="font-semibold text-neutral-800">{t('portfolio.clientFundsReal')}</span><bdi dir="ltr" className="font-bold tabular-nums">{n(mine[code] + owed[code] - (owed.awaited?.[code] ?? 0))} {code}</bdi></div>
         </div>))}
-      {owed.list && owed.list.length > 0 && (<ul className="mt-3 divide-y divide-border overflow-hidden rounded-button border border-border">
+      {owed.list && owed.list.length > 0 && <p className="mt-3 text-xs font-semibold text-neutral-600">{t('portfolio.clientFundsTheirs')}</p>}
+      {owed.list && owed.list.length > 0 && (<ul className="mt-1.5 divide-y divide-border overflow-hidden rounded-button border border-border">
           {owed.list.map((item) => {
             const days = Math.max(0, Math.floor((Date.now() - item.since) / 86_400_000));
             const row = (<>
@@ -208,7 +209,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
 
       <AssetCard symbol="EUR" icon={<EuroIcon className="h-5 w-5"/>} tone="eur" quantity={eurAvail} value={eurValue} metrics={priceMetrics(portfolioStats.eur.avgBuy, smartTargetEur)} onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('EUR') : undefined} editLabel={t('common.edit') as string}/>
 
-      {pendingDeliveries && (pendingDeliveries.USDT > 0 || pendingDeliveries.EUR > 0) && (<ClientFundsCard owed={pendingDeliveries} mine={{ USDT: usdtAvail, EUR: eurAvail }} onOpenClient={onOpenClient}/>)}
+      {pendingDeliveries && (pendingDeliveries.USDT > 0 || pendingDeliveries.EUR > 0 || (pendingDeliveries.awaited?.USDT ?? 0) > 0 || (pendingDeliveries.awaited?.EUR ?? 0) > 0) && (<ClientFundsCard owed={pendingDeliveries} mine={{ USDT: usdtAvail, EUR: eurAvail }} onOpenClient={onOpenClient}/>)}
       {pendingDeliveries?.supplierList && pendingDeliveries.supplierList.length > 0 && (<SupplierAwaitedCard list={pendingDeliveries.supplierList} onOpenClient={onOpenClient}/>)}
 
       <EurFundedCostImpactCard transactions={transactions}/>

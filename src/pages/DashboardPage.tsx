@@ -10,6 +10,7 @@ import { EuroIcon } from '../components/icons/EuroIcon';
 import { LandmarkIcon } from '../components/icons/LandmarkIcon';
 import { AlertTriangleIcon } from '../components/icons/AlertTriangleIcon';
 import { ArrowUpRightIcon } from '../components/icons/ArrowUpRightIcon';
+import { ArrowDownLeftIcon } from '../components/icons/ArrowDownLeftIcon';
 import type { ActionItem } from '../components/dashboard/ActionCenter';
 import { NotificationCenter, type NotificationItem } from '../components/dashboard/NotificationCenter';
 import { percentChange, type ProfitPeriod } from '../utils/dashboardComparison';
@@ -116,7 +117,7 @@ type DashboardPageProps = {
     /** V12-1: money movements nothing explains (no client, no link, no reason), and the way to the list. */
     unexplainedMovementCount?: number;
     /** V12-2: clients still owed USDT/EUR they bought, and how much */
-    pendingDeliveries?: { clients: number; USDT: number; EUR: number; late?: number; supplierList?: ReadonlyArray<{ clientId: string; remaining: number; currency: string }> };
+    pendingDeliveries?: { clients: number; USDT: number; EUR: number; late?: number; awaited?: { USDT: number; EUR: number }; supplierList?: ReadonlyArray<{ clientId: string; remaining: number; currency: string }> };
     onReviewMovements?: () => void;
     /** Opens the bell's sheet at first draw (screens and tests that read what it holds). */
     initialNotificationsOpen?: boolean;
@@ -560,6 +561,9 @@ function DashboardContent({
         {/* V12-2: sold and not sent yet: still in the wallet, but not yours (not in the capital). */}
         {pendingDeliveries && pendingDeliveries.USDT > 0 && (<StatTile label={t('dashboard.clientsUsdt') as string} value={pendingDeliveries.USDT} currency="USDT" decimals={2} icon={<ArrowUpRightIcon className="h-3.5 w-3.5"/>} tone="debt"/>)}
         {pendingDeliveries && pendingDeliveries.EUR > 0 && (<StatTile label={t('dashboard.clientsEur') as string} value={pendingDeliveries.EUR} currency="EUR" decimals={2} icon={<ArrowUpRightIcon className="h-3.5 w-3.5"/>} tone="debt"/>)}
+        {/* V12-8: paid and not received yet, the other way */}
+        {(pendingDeliveries?.awaited?.USDT ?? 0) > 0 && (<StatTile label={t('dashboard.suppliersUsdt') as string} value={pendingDeliveries!.awaited!.USDT} currency="USDT" decimals={2} icon={<ArrowDownLeftIcon className="h-3.5 w-3.5"/>} tone="primary"/>)}
+        {(pendingDeliveries?.awaited?.EUR ?? 0) > 0 && (<StatTile label={t('dashboard.suppliersEur') as string} value={pendingDeliveries!.awaited!.EUR} currency="EUR" decimals={2} icon={<ArrowDownLeftIcon className="h-3.5 w-3.5"/>} tone="primary"/>)}
       </StatTileGrid>
 
       <QuickSituationCard toReceive={totalDebt} toPay={quickPayable} liquidityGap={liquidityGap} onOpen={onOpenTreasury}/>

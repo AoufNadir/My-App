@@ -1,7 +1,7 @@
 import { previousProfits } from './utils/dashboardComparison';
 import { useMovementReasons } from './hooks/useMovementReasons';
 import { useDeliveries } from './hooks/useDeliveries';
-import { awaitedFromSuppliers, deliveryStates, isLate, operationQuantities, reservedForClients } from './utils/deferredDelivery';
+import { awaitedFromSuppliers, deliveryStates, isLate, operationQuantities, operationTimes, reservedForClients } from './utils/deferredDelivery';
 import { buildMovementReview } from './utils/movementReason';
 import React, { Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from './types';
@@ -325,7 +325,7 @@ export default function MainApp({ user }: {
     const homeDeliveries = useDeliveries(userDocRef as never, isFinancialDataReady);
     const pendingDeliveries = useMemo(() => {
         const saleIds = operationQuantities((transactions ?? []) as ReadonlyArray<{ id?: string; type?: string; quantity?: number }>);
-        const allOpen = deliveryStates(homeDeliveries.docs, saleIds).filter((state) => state.remaining > 0);
+        const allOpen = deliveryStates(homeDeliveries.docs, saleIds, operationTimes(transactions as ReadonlyArray<{ id?: string; type?: string; timestamp?: number }>)).filter((state) => state.remaining > 0);
         const open = allOpen.filter((state) => state.direction === 'to_client');
         const nowMs = Date.now();
         const nameOf = (id: string) => {

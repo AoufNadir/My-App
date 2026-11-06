@@ -52,7 +52,7 @@ export function parseDelivery(id: string, raw: unknown): DeliveryDoc | null {
  */
 export type SaleLookup = ReadonlySet<string> | ReadonlyMap<string, number>;
 
-export function deliveryStates(docs: ReadonlyArray<DeliveryDoc>, sales?: SaleLookup): ClientDeliveryState[] {
+export function deliveryStates(docs: ReadonlyArray<DeliveryDoc>, sales?: SaleLookup, saleTimes?: ReadonlyMap<string, number>): ClientDeliveryState[] {
     const byKey = new Map<string, ClientDeliveryState>();
     for (let doc of [...docs].sort((a, b) => a.timestamp - b.timestamp)) {
         // A commitment written with a sale that was deleted afterwards no longer counts.
@@ -64,7 +64,8 @@ export function deliveryStates(docs: ReadonlyArray<DeliveryDoc>, sales?: SaleLoo
             doc = { ...doc, quantity: fromCents(cents(saleQuantity)) };
         const direction: DeliveryDirection = doc.direction === 'from_supplier' ? 'from_supplier' : 'to_client';
         const key = `${direction}|${doc.clientId}|${doc.currency}`;
-        const state = byKey.get(key) ?? { clientId: doc.clientId, direction, currency: doc.currency, committed: 0, delivered: 0, remaining: 0, since: doc.saleTimestamp ?? doc.timestamp, deliveries: [], commitments: [] };
+        const linkedTime = doc.saleTxId ? saleTimes?.get(doc.saleTxId) : undefined;
+        const state = byKey.get(key) ?? { clientId: doc.clientId, direction, currency: doc.currency, committed: 0, delivered: 0, remaining: 0, since: doc.saleTimestamp ?? linkedTime ?? doc.timestamp, deliveries: [], commitments: [] };
         if (doc.kind === 'commitment') {
             state.committed = fromCents(cents(state.committed) + cents(doc.quantity));
             state.commitments.push(doc);
@@ -127,4 +128,11 @@ export function operationQuantities(transactions: ReadonlyArray<{ id?: string; t
     return new Map(transactions
         .filter((tx) => (tx.type === 'sell' || tx.type === 'buy') && tx.id)
         .map((tx) => [tx.id as string, Number(tx.quantity) || 0] as const));
+}
+
+/** When each sale and purchase happened: the waiting time counts from it. */
+export function operationTimes(transactions: ReadonlyArray<{ id?: string; type?: string; timestamp?: number }>): Map<string, number> {
+    return new Map(transactions
+        .filter((tx) => (tx.type === 'sell' || tx.type === 'buy') && tx.id && Number(tx.timestamp) > 0)
+        .map((tx) => [tx.id as string, Number(tx.timestamp)] as const));
 }

@@ -960,4 +960,10 @@ const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/'/g, '
     const none = renderNew({ pendingDeliveries: { clients: 0, USDT: 0, EUR: 0 } });
     assert.ok(!none.includes(escapeHtml(words.clientsUsdt)), 'nothing owed: no tile');
 }
+// ---- V12-8: USDT paid and not received yet: a tile of their own on the Home page ----
+{
+    const words = (translations.fr as unknown as { dashboard: Record<string, string> }).dashboard;
+    assert.ok(renderNew({ pendingDeliveries: { clients: 0, USDT: 0, EUR: 0, awaited: { USDT: 39.22, EUR: 0 } } }).includes(escapeHtml(words.suppliersUsdt)), 'a tile for what suppliers still owe');
+    assert.ok(!renderNew({ pendingDeliveries: { clients: 0, USDT: 0, EUR: 0, awaited: { USDT: 0, EUR: 0 } } }).includes(escapeHtml(words.suppliersUsdt)), 'nothing awaited: no tile');
+}
 console.log('DashboardPage tests passed');

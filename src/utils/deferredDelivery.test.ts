@@ -55,4 +55,9 @@ import { awaitedFromSuppliers } from './deferredDelivery';
     assert.deepEqual(reservedForClients(both), { USDT: 3_406.25, EUR: 0 }, 'owed to clients unchanged');
     assert.equal(parseDelivery('x', { kind: 'delivery', clientId: 'c', currency: 'USDT', quantity: 1, timestamp: 1 })!.direction, 'to_client', 'old lines are client lines');
 }
+// Waiting time from the sale itself, also for a line written before the sale's date was kept with it.
+{
+    const [linked] = deliveryStates([doc('w', 'commitment', 100, 9, { saleTxId: 'sx' })], new Map([['sx', 100]]), new Map([['sx', 2 * 86_400_000]]));
+    assert.equal(linked.since, 2 * 86_400_000);
+}
 console.log('deferredDelivery tests passed');
