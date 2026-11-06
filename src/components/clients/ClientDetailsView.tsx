@@ -124,9 +124,9 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone, isAddress }: C
 }
 /** V12-2: the USDT/EUR sold to this client and not sent yet, with their own reading of the `deliveries` collection. */
 function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transactions, setAlert }: { userDocRef: any; clientId: string; clientName: string; phone?: string; transactions?: ReadonlyArray<{ id?: string; type?: string }>; setAlert?: (message: string) => void }) {
-    const { docs, record } = useDeliveries(userDocRef, Boolean(userDocRef), () => setAlert?.('❌ Erreur lors de la sauvegarde.'));
+    const { docs, record, remove } = useDeliveries(userDocRef, Boolean(userDocRef), () => setAlert?.('❌ Erreur lors de la sauvegarde.'));
     const saleIds = useMemo(() => new Set((transactions ?? []).filter((tx) => tx.type === 'sell' && tx.id).map((tx) => tx.id as string)), [transactions]);
-    return <ClientDeliveries clientId={clientId} clientName={clientName} phone={phone} docs={docs} saleIds={saleIds} onRecord={record}/>;
+    return <ClientDeliveries clientId={clientId} clientName={clientName} phone={phone} docs={docs} saleIds={saleIds} onRecord={record} onRemove={remove}/>;
 }
 
 export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, reportClientRows, clientsDzd, setSelectedClientId, getClientFullName, openClientSummary, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal, userDocRef, clientBalances, onRecordClientTransfer, setAlert}: ClientDetailsViewProps) {

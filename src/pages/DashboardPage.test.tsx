@@ -951,4 +951,13 @@ const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/'/g, '
     const none = renderNew({ unexplainedMovementCount: 0, onReviewMovements: noop });
     assert.ok(!none.includes(escapeHtml(words.homeBody)), 'nothing when every movement has a reason');
 }
+// ---- V12-2: USDT sold and not sent yet: a tile of their own (in the wallet, not yours), and nothing when none ----
+{
+    const words = (translations.fr as unknown as { dashboard: Record<string, string> }).dashboard;
+    const some = renderNew({ pendingDeliveries: { clients: 1, USDT: 3_906.25, EUR: 0 } });
+    assert.ok(some.includes(escapeHtml(words.clientsUsdt)), 'a tile for the USDT owed to clients');
+    assert.ok(!some.includes(escapeHtml(words.clientsEur)), 'no EUR tile without EUR owed');
+    const none = renderNew({ pendingDeliveries: { clients: 0, USDT: 0, EUR: 0 } });
+    assert.ok(!none.includes(escapeHtml(words.clientsUsdt)), 'nothing owed: no tile');
+}
 console.log('DashboardPage tests passed');

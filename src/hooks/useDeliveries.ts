@@ -6,7 +6,7 @@ import { parseDelivery, type DeliveryCurrency, type DeliveryDoc } from '../utils
 
 type UserDocRefLike = {
     collection: (name: string) => {
-        doc: (id?: string) => { id: string; set: (data: Record<string, unknown>) => Promise<unknown> };
+        doc: (id?: string) => { id: string; set: (data: Record<string, unknown>) => Promise<unknown>; delete: () => Promise<unknown> };
         onSnapshot: (callback: (snapshot: { docs: Array<{ id: string; data: () => unknown }> }) => void) => () => void;
     };
 };
@@ -35,5 +35,9 @@ export function useDeliveries(userDocRef: UserDocRefLike | null | undefined, ena
             ...(note.trim() ? { note: note.trim() } : {}),
         }).catch((error) => onError?.(error));
     }, [userDocRef, onError]);
-    return { docs, loaded, record };
+    /** Removes a line typed by mistake (the screen checks it may go). */
+    const remove = useCallback((id: string) => {
+        userDocRef?.collection('deliveries').doc(id).delete().catch((error) => onError?.(error));
+    }, [userDocRef, onError]);
+    return { docs, loaded, record, remove };
 }

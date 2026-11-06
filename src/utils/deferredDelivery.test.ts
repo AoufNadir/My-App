@@ -23,4 +23,11 @@ assert.equal(two.find((s) => s.clientId === 'c2')!.remaining, 0);
 assert.equal(parseDelivery('x', { kind: 'delivery', clientId: 'c1', currency: 'USDT', quantity: 200, timestamp: 5 })!.quantity, 200);
 for (const bad of [null, { kind: 'gift', clientId: 'c1', currency: 'USDT', quantity: 1, timestamp: 1 }, { kind: 'delivery', clientId: 'c1', currency: 'BTC', quantity: 1, timestamp: 1 }, { kind: 'delivery', clientId: 'c1', currency: 'USDT', quantity: -2, timestamp: 1 }])
     assert.equal(parseDelivery('x', bad), null);
+// A line typed by mistake: a delivery can go; an amount to send only if what was sent still fits.
+import { canRemove } from './deferredDelivery';
+assert.equal(canRemove({ committed: 200, delivered: 0 }, { kind: 'commitment', quantity: 200 }), true, 'nothing sent yet: the 200 typed by mistake can go');
+assert.equal(canRemove({ committed: 3_906.25, delivered: 500 }, { kind: 'commitment', quantity: 3_906.25 }), false, 'already sent 500: the amount cannot go below it');
+assert.equal(canRemove({ committed: 4_106.25, delivered: 500 }, { kind: 'commitment', quantity: 200 }), true);
+assert.equal(canRemove({ committed: 100, delivered: 100 }, { kind: 'delivery', quantity: 100 }), true);
+assert.equal(state.commitments.length, 1, 'the amounts to send are listed too');
 console.log('deferredDelivery tests passed');

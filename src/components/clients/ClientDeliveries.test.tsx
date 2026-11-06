@@ -24,4 +24,12 @@ for (const lang of ['fr', 'ar'] as const) {
 const fr = deliveryMessage('fr', 'Client Test', { committed: 3_906.25, delivered: 500, remaining: 3_406.25, currency: 'USDT' }, 300).replace(/ | /g, ' ');
 assert.ok(fr.includes('300,00 USDT') && fr.includes('500,00 USDT') && fr.includes('3 406,25 USDT'), 'the message says what was sent, in total, and what is left');
 assert.ok(deliveryMessage('ar', 'Client Test', { committed: 10, delivered: 10, remaining: 0, currency: 'EUR' }, 10).includes('الباقي'));
+// Each line can be removed (a trash button per line), the labels say « to send / sent / left ».
+{
+    const html = render('fr', <ClientDeliveries clientId="c1" clientName="X" docs={docs} saleIds={new Set(['s1'])} onRecord={() => undefined} onRemove={() => undefined}/>);
+    assert.equal((html.match(/aria-label="Supprimer"/g) || []).length, 2, 'one trash button per line');
+    for (const label of ['À envoyer au total', 'Envoyé', 'Reste à envoyer'])
+        assert.ok(html.includes(label), label);
+    assert.ok(html.includes('+ Ajouter une autre quantité à envoyer'), 'more can be added');
+}
 console.log('ClientDeliveries tests passed');

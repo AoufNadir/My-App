@@ -16,7 +16,7 @@ export type DeliveryDoc = {
     saleTxId?: string;
     note?: string;
 };
-export type ClientDeliveryState = { clientId: string; currency: DeliveryCurrency; committed: number; delivered: number; remaining: number; since: number; deliveries: DeliveryDoc[] };
+export type ClientDeliveryState = { clientId: string; currency: DeliveryCurrency; committed: number; delivered: number; remaining: number; since: number; deliveries: DeliveryDoc[]; commitments: DeliveryDoc[] };
 
 const cents = (value: number) => Math.round(value * 100);
 const fromCents = (value: number) => value / 100;
@@ -46,9 +46,11 @@ export function deliveryStates(docs: ReadonlyArray<DeliveryDoc>, saleIds?: Reado
         if (doc.kind === 'commitment' && doc.saleTxId && saleIds && !saleIds.has(doc.saleTxId))
             continue;
         const key = `${doc.clientId}|${doc.currency}`;
-        const state = byKey.get(key) ?? { clientId: doc.clientId, currency: doc.currency, committed: 0, delivered: 0, remaining: 0, since: doc.timestamp, deliveries: [] };
-        if (doc.kind === 'commitment')
+        const state = byKey.get(key) ?? { clientId: doc.clientId, currency: doc.currency, committed: 0, delivered: 0, remaining: 0, since: doc.timestamp, deliveries: [], commitments: [] };
+        if (doc.kind === 'commitment') {
             state.committed = fromCents(cents(state.committed) + cents(doc.quantity));
+            state.commitments.push(doc);
+        }
         else {
             state.delivered = fromCents(cents(state.delivered) + cents(doc.quantity));
             state.deliveries.push(doc);
@@ -75,4 +77,14 @@ export function checkDelivery(remaining: number, quantity: number): DeliveryChec
     if (cents(quantity) > cents(remaining))
         return { ok: false, reason: 'too_much', remaining };
     return { ok: true };
+}
+
+/**
+ * A line typed by mistake can be removed: a delivery always; an amount to send only if what was already sent still
+ * fits in what is left, so the rest never goes below zero.
+ */
+export function canRemove(state: Pick<ClientDeliveryState, 'committed' | 'delivered'>, doc: Pick<DeliveryDoc, 'kind' | 'quantity'>): boolean {
+    if (doc.kind === 'delivery')
+        return true;
+    return cents(state.committed) - cents(doc.quantity) >= cents(state.delivered);
 }
