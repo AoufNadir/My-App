@@ -11,6 +11,8 @@ type MainContentAreaProps = Record<string, any> & {
     openClientToClientTransferModal: ClientsPageProps['openClientToClientTransferModal'];
 };
 const getDateTimestamp = (value: Date | null | undefined) => value?.getTime?.() ?? null;
+/** Small values that are rebuilt on every render (a few numbers): equal when they hold the same numbers. */
+const sameJson = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
 const areDailyOverviewsEqual = (prev: any, next: any) => (prev?.caisse === next?.caisse
     && prev?.baridi === next?.baridi
     && prev?.activeClients === next?.activeClients
@@ -25,6 +27,7 @@ const areDailyOverviewsEqual = (prev: any, next: any) => (prev?.caisse === next?
     && prev?.ownerProfitYear === next?.ownerProfitYear
     && prev?.ownerProfitAllTime === next?.ownerProfitAllTime
     && areOwnerProfitSplitsEqual(prev?.ownerProfitSplit, next?.ownerProfitSplit)
+    && sameJson(prev?.previousProfit, next?.previousProfit)
     && prev?.todayUsdtSold === next?.todayUsdtSold
     && prev?.todayEurSold === next?.todayEurSold
     && prev?.monthToDateUsdtSold === next?.monthToDateUsdtSold
@@ -34,6 +37,7 @@ const areDailyOverviewsEqual = (prev: any, next: any) => (prev?.caisse === next?
     && prev?.allTimeUsdtSold === next?.allTimeUsdtSold
     && prev?.allTimeEurSold === next?.allTimeEurSold);
 const arePortfolioPagePropsEqual = (prev: any, next: any) => (prev?.statsView === next?.statsView
+    && sameJson(prev?.pendingDeliveries, next?.pendingDeliveries)
     && true
     && prev?.portfolioStats === next?.portfolioStats
     && prev?.totalPortfolioValue === next?.totalPortfolioValue
@@ -50,6 +54,7 @@ const arePortfolioPagePropsEqual = (prev: any, next: any) => (prev?.statsView ==
     && prev?.reportMonth === next?.reportMonth
     && prev?.reportYear === next?.reportYear);
 const areClientsPagePropsEqual = (prev: any, next: any) => (prev?.selectedClientId === next?.selectedClientId
+    && sameJson(prev?.pendingDeliveryList, next?.pendingDeliveryList)
     && prev?.clientSearchQuery === next?.clientSearchQuery
     && prev?.clientSortMode === next?.clientSortMode
     && prev?.clientsDzd === next?.clientsDzd
@@ -88,6 +93,14 @@ const areDashboardPagePropsEqual = (prev: any, next: any) => (prev?.portfolioSta
     && prev?.treasuryTransactions === next?.treasuryTransactions
     && prev?.isDataReady === next?.isDataReady
     && prev?.profitByTxId === next?.profitByTxId
+    && prev?.suggestedGoal === next?.suggestedGoal
+    // V12-1 and V12-2: the movements without a reason and the USDT/EUR owed to clients arrive after the page.
+    && prev?.unexplainedMovementCount === next?.unexplainedMovementCount
+    && sameJson(prev?.pendingDeliveries, next?.pendingDeliveries)
+    && sameJson(prev?.habits, next?.habits)
+    // Multi-currency (M3): accounts created and other currencies arrive after the page.
+    && sameJson(prev?.extraAccounts, next?.extraAccounts)
+    && sameJson(prev?.extraHoldings, next?.extraHoldings)
     && areDailyOverviewsEqual(prev?.dailyOverview, next?.dailyOverview));
 const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainContentAreaProps) => {
     if (prev.t !== next.t

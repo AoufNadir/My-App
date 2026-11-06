@@ -7,6 +7,8 @@ import { InventorySection } from '../components/treasury/InventorySection';
 import { useInventoryChecks } from '../hooks/useInventoryChecks';
 import { MovementReviewSection } from '../components/treasury/MovementReviewSection';
 import { useMovementReasons } from '../hooks/useMovementReasons';
+import { useDeliveries } from '../hooks/useDeliveries';
+import { awaitedFromSuppliers, deliveryStates, operationQuantities, reservedForClients } from '../utils/deferredDelivery';
 import type { ReviewRow } from '../utils/movementReason';
 import { inventoryExpected, listBalanceCorrections, type InventoryRow } from '../utils/inventoryCheck';
 import type { InvestigatorAction } from '../utils/inventoryInvestigator';
@@ -126,14 +128,24 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
     const inventoryEnabled = Boolean(userDocRef && onCorrectInventory);
     const { checks: inventoryChecks, saveCheck: saveInventoryCheck, deleteCheck: deleteInventoryCheck } = useInventoryChecks(
         userDocRef, inventoryEnabled, () => setAlert?.(t('inventory.saveFailed') as string));
+    // V12-2: USDT/EUR sold and not sent yet are still in the wallet: the count expects them too.
+    const { docs: deliveryDocs } = useDeliveries(userDocRef, inventoryEnabled);
+    const reserved = useMemo(() => {
+        const ids = operationQuantities(transactions ?? []);
+        const states = deliveryStates(deliveryDocs, ids);
+        const owed = reservedForClients(states);
+        const awaited = awaitedFromSuppliers(states);
+        // Owed to clients is still in the wallet (+); awaited from suppliers is in the books, not yet in the wallet (−).
+        return { USDT: owed.USDT - awaited.USDT, EUR: owed.EUR - awaited.EUR };
+    }, [deliveryDocs, transactions]);
     const inventoryExpectedNow = useMemo(() => inventoryExpected({
         caisse: caisseBalance,
         baridi: baridiBalance,
-        usdtAvailable: portfolioStats?.usdt?.available ?? 0,
+        usdtAvailable: (portfolioStats?.usdt?.available ?? 0) + reserved.USDT,
         usdtLocked: portfolioStats?.usdt?.locked ?? 0,
-        eurAvailable: portfolioStats?.eur?.available ?? 0,
+        eurAvailable: (portfolioStats?.eur?.available ?? 0) + reserved.EUR,
         eurLocked: portfolioStats?.eur?.locked ?? 0,
-    }), [caisseBalance, baridiBalance, portfolioStats]);
+    }), [caisseBalance, baridiBalance, portfolioStats, reserved]);
     // Money movements typed by hand that nothing explains (V7-2).
     const movementReviewEnabled = Boolean(userDocRef && onLinkMovementToClient);
     const { reasons: movementReasons, saveReason: saveMovementReason } = useMovementReasons(
@@ -152,11 +164,11 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
     return (<div className="anim-page-in flex flex-col gap-3">
       <CapitalOverviewCard t={t} capitalSnapshot={capitalSnapshot} investorBreakdown={investorBreakdown} showBreakdown/>
 
-      <TreasurySummarySection caisseBalance={caisseBalance} baridiBalance={baridiBalance} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} openTreasuryBalanceEditModal={openTreasuryBalanceEditModal} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string}/>
+      <TreasurySummarySection caisseBalance={caisseBalance} baridiBalance={baridiBalance} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string}/>
 
-      {inventoryEnabled && (<InventorySection expected={inventoryExpectedNow} checks={inventoryChecks} corrections={balanceCorrections} ready={inventoryReady} onSave={(data) => { saveInventoryCheck(data); }} onDelete={deleteInventoryCheck} onCorrect={(row) => onCorrectInventory?.(row)} treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} onInvestigate={onInvestigate}/>)}
+      {inventoryEnabled && (<div id="inventory" className="scroll-mt-20"><InventorySection expected={inventoryExpectedNow} checks={inventoryChecks} corrections={balanceCorrections} ready={inventoryReady} onSave={(data) => { saveInventoryCheck(data); }} onDelete={deleteInventoryCheck} onCorrect={(row) => onCorrectInventory?.(row)} treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} onInvestigate={onInvestigate}/></div>)}
 
-      {movementReviewEnabled && (<MovementReviewSection treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} clientRows={clientTransactionsDzd} reasons={movementReasons} ready={inventoryReady} onWriteReason={saveMovementReason} onLinkClient={linkMovementToClient}/>)}
+      {movementReviewEnabled && (<div id="movement-review" className="scroll-mt-20"><MovementReviewSection treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} clientRows={clientTransactionsDzd} reasons={movementReasons} ready={inventoryReady} onWriteReason={saveMovementReason} onLinkClient={linkMovementToClient}/></div>)}
 
       {weeklyFlow.days.some((d) => d.cashIn > 0 || d.cashOut > 0) && (<SectionCard title={t('treasury.flow7Days')}>
           <div aria-hidden="true" className="flex h-20 items-end gap-1">

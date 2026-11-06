@@ -11,7 +11,7 @@ import { NOTIFICATION_KINDS, NOTIFICATION_PREFS_KEY, isNotificationEnabled, read
 const store = () => { const map = new Map<string, string>(); return { getItem: (k: string) => map.get(k) ?? null, setItem: (k: string, v: string) => { map.set(k, v); } }; };
 
 const fresh = store();
-assert.deepEqual(readNotificationPrefs(fresh), { overdue: true, profit: true, terms: true, inventory: true });
+assert.deepEqual(readNotificationPrefs(fresh), { overdue: true, profit: true, terms: true, inventory: true, movements: true });
 const after = writeNotificationPref('profit', false, fresh);
 assert.equal(after.profit, false);
 assert.equal(isNotificationEnabled('profit', fresh), false);
@@ -27,7 +27,7 @@ assert.equal(isNotificationEnabled('terms', null), true, 'no storage at all: on'
 const render = (permission: 'default' | 'granted' | 'denied' | 'unsupported') => renderToStaticMarkup(<LanguageProvider><NotificationSettings initialPermission={permission}/></LanguageProvider>);
 assert.ok(render('default').includes('Activer les notifications'), 'to ask: one button');
 const granted = render('granted');
-assert.equal((granted.match(/role="switch"/g) || []).length, 4, 'granted: one switch per kind');
+assert.equal((granted.match(/role="switch"/g) || []).length, 5, 'granted: one switch per kind');
 assert.ok(!granted.includes('Activer les notifications'));
 assert.ok(render('denied').includes('bloquées'), 'blocked: says how to unblock');
 assert.ok(render('unsupported').includes('écran d’accueil'), 'unsupported: iPhone hint');

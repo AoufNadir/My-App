@@ -158,3 +158,15 @@ const correctionRows = () => listBalanceCorrections(
 }
 
 console.log('inventory check tests passed');
+
+// V12-11: the fix of a gap always has someone behind it; a large shortfall is looked into first.
+{
+    const { inventoryFixFor } = await import('./inventoryCheck');
+    assert.equal(inventoryFixFor({ account: 'caisse', gap: -5_000, status: 'short' }), 'personal_expense', '5 000 DZD short: personal expense after looking');
+    assert.equal(inventoryFixFor({ account: 'caisse', gap: -5_000.5, status: 'short' }), 'investigate', 'more than 5 000 DZD: look first');
+    assert.equal(inventoryFixFor({ account: 'usdt', gap: -20, status: 'short' }), 'personal_expense');
+    assert.equal(inventoryFixFor({ account: 'eur', gap: -21, status: 'short' }), 'investigate');
+    assert.equal(inventoryFixFor({ account: 'baridi', gap: 3_000, status: 'over' }), 'forgotten_entry', 'more than the books: a forgotten entry');
+    assert.equal(inventoryFixFor({ account: 'usdt', gap: 0, status: 'match' }), null);
+    console.log('inventory fix tests passed');
+}

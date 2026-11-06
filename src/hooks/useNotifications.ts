@@ -9,6 +9,7 @@ const NOTIF_LAST_OVERDUE_KEY = 'app_notif_last_overdue';
 const NOTIF_LAST_DISTRIB_KEY = 'app_notif_last_distrib';
 const NOTIF_LAST_INVESTOR_TERMS_KEY = 'app_notif_last_investor_terms';
 const NOTIF_LAST_INVENTORY_KEY = 'app_notif_last_inventory';
+const NOTIF_LAST_MOVEMENTS_KEY = 'app_notif_last_unexplained_count';
 
 export type NotifPermission = 'default' | 'granted' | 'denied' | 'unsupported';
 
@@ -180,8 +181,27 @@ export function useNotifications(userDocRef?: FirestoreDocumentReference, t?: Tr
         );
     }, [isSupported, showNotification, t]);
 
+    // V12-1: a new money movement without a client or a reason, as soon as it appears (the count grew since the last one).
+    const notifyUnexplainedMovements = useCallback((count: number) => {
+        let last = Number.NaN;
+        try {
+            const saved = localStorage.getItem(NOTIF_LAST_MOVEMENTS_KEY);
+            last = saved === null ? Number.NaN : Number(saved);
+            localStorage.setItem(NOTIF_LAST_MOVEMENTS_KEY, String(count));
+        }
+        catch {
+            return;
+        }
+        // The first reading only remembers the count: the old movements are on the Home page, not news.
+        if (!Number.isFinite(last) || count <= last)
+            return;
+        if (!isSupported || Notification.permission !== 'granted' || !isNotificationEnabled('movements')) return;
+        showNotification(fill(t, 'movementReview.notifTitle'), fill(t, 'movementReview.notifBody', { count }), { tag: 'unexplained-movements' });
+    }, [isSupported, showNotification, t]);
+
     return {
         isSupported,
+        notifyUnexplainedMovements,
         permission,
         permAsked,
         requestPermission,

@@ -11,6 +11,7 @@ import { LockIcon } from '../icons/LockIcon';
 import { FormCard } from '../ui/FormCard';
 import { NotificationSettings } from './NotificationSettings';
 import { BusinessSettingsSection } from '../../multicurrency/BusinessSettingsCard';
+import { HabitsSettings } from './HabitsSettings';
 
 type MainUtilityDialogsProps = Record<string, any>;
 
@@ -147,6 +148,7 @@ function MainUtilityDialogsComponent({
                     <NotificationSettings />
 
                     {userDocRef && <BusinessSettingsSection userDocRef={userDocRef} />}
+                    {userDocRef && <HabitsSettings userDocRef={userDocRef} />}
 
                     <FormCard title={t('settings.backupTitle')} description={t('settings.backupDescription')}>
                         <Button

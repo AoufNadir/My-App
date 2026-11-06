@@ -13,6 +13,8 @@ export type ClientActivityPhoneSheetProps = {
     showBalance: boolean;
     /** « phone »: the 420px sheet the PDF pages are cut from; « screen »: the preview in the window */
     variant: 'screen' | 'phone';
+    /** V12-2: USDT/EUR the client bought and has not received yet (shown whatever the period: it is today's state) */
+    waiting?: ReadonlyArray<{ currency: 'USDT' | 'EUR'; committed: number; delivered: number; remaining: number }>;
 };
 
 // Lines after purchases and payments, in this order; the opening balance entered during the period comes first.
@@ -27,7 +29,12 @@ const pad = (value: number) => String(value).padStart(2, '0');
  * price is the period's own (nothing is compared with another month), and every operation is a
  * sentence from the client's side, without + or − signs, with the account's state after it.
  */
-export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance, variant }: ClientActivityPhoneSheetProps) {
+const WAITING_WORDS = {
+    fr: { title: 'Encore chez nous, à vous envoyer', bought: 'Acheté', sent: 'Déjà reçu', left: 'Reste à recevoir' },
+    ar: { title: 'ما زال لك عندنا، للإرسال', bought: 'اشتريت', sent: 'استلمت', left: 'الباقي لك' },
+};
+
+export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance, variant, waiting = [] }: ClientActivityPhoneSheetProps) {
     const w = REPORT_WORDS[lang];
     const p = PHONE_WORDS[lang];
     const { period, totals, balance, showCents } = report;
@@ -317,6 +324,18 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
         {paidBox}
         {status}
         {calculation}
+        {waiting.filter((item) => item.remaining > 0).map((item) => {
+            const ww = WAITING_WORDS[lang];
+            const q = (value: number) => num(`${formatQuantity(value)} ${item.currency}`);
+            return (<div key={item.currency} data-pdf-break="" className="rounded-[14px] border border-amber-200 bg-amber-50 px-3.5 py-3 text-amber-800">
+              <b className="block text-[15px] leading-snug">{ww.title}</b>
+              <div className="mt-1.5 space-y-1 text-[14px]">
+                <div className="flex justify-between gap-3"><span>{ww.bought}</span><span className="font-latin font-semibold">{q(item.committed)}</span></div>
+                <div className="flex justify-between gap-3"><span>{ww.sent}</span><span className="font-latin font-semibold">{q(item.delivered)}</span></div>
+                <div className="flex justify-between gap-3 border-t border-amber-200 pt-1"><b>{ww.left}</b><b className="font-latin text-[16px]">{q(item.remaining)}</b></div>
+              </div>
+            </div>);
+        })}
 
         {/* Page 2 starts here: the PDF cuts the pages at this line, whatever is left of page 1. */}
         <div data-pdf-break="" data-pdf-newpage="" className={`flex items-baseline justify-between gap-3 border-b border-border pb-2 text-[13px] leading-snug text-neutral-500 ${screen ? 'mt-3 border-t border-dashed pt-4' : ''}`}>

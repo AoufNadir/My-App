@@ -11,7 +11,8 @@ type TreasurySummarySectionProps = {
     baridiBalance: number;
     dettesAbs: number;
     totalAvances: number;
-    openTreasuryBalanceEditModal: (asset: 'Caisse' | 'BaridiMob') => void;
+    /** V12-11: no longer passed: a balance is never set by hand without someone behind the movement */
+    openTreasuryBalanceEditModal?: (asset: 'Caisse' | 'BaridiMob') => void;
     openDeliveryExpenseModal?: () => void;
     deliveryExpenseLabel?: string;
 };
@@ -26,8 +27,8 @@ export function TreasurySummarySection({ caisseBalance, baridiBalance, dettesAbs
     const showAdvances = shouldShowAmount(totalAvances);
     return (<>
       <div className="grid grid-cols-2 gap-2">
-        <StatTile label={t('common.caisseBalance') as string} value={caisseBalance} icon={<WalletIcon className="h-3.5 w-3.5"/>} tone="dzd" onEdit={() => openTreasuryBalanceEditModal('Caisse')} editLabel={t('common.edit') as string}/>
-        <StatTile label={t('common.baridiBalance') as string} value={baridiBalance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd" onEdit={() => openTreasuryBalanceEditModal('BaridiMob')} editLabel={t('common.edit') as string}/>
+        <StatTile label={t('common.caisseBalance') as string} value={caisseBalance} icon={<WalletIcon className="h-3.5 w-3.5"/>} tone="dzd" onEdit={openTreasuryBalanceEditModal ? () => openTreasuryBalanceEditModal('Caisse') : undefined} editLabel={t('common.edit') as string}/>
+        <StatTile label={t('common.baridiBalance') as string} value={baridiBalance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd" onEdit={openTreasuryBalanceEditModal ? () => openTreasuryBalanceEditModal('BaridiMob') : undefined} editLabel={t('common.edit') as string}/>
       </div>
 
       {(showReceivables || showAdvances) && (<SectionCard title={t('treasury.clientPositions')} flush>

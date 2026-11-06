@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 import { Dropdown, DropdownItem } from '../ui/Dropdown';
@@ -37,6 +38,7 @@ const CLIENT_IMPORT_FIELDS: Array<Omit<CsvFieldSpec, 'label'> & { labelKey: stri
 ];
 type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
 type ClientsListViewProps = {
+    pendingDeliveryList?: ReadonlyArray<{ clientId: string; currency: 'USDT' | 'EUR'; remaining: number; late: boolean }>;
     openClientModal: (client: ClientDzd | null) => void;
     clientSearchQuery: string;
     setClientSearchQuery: (query: string) => void;
@@ -72,7 +74,7 @@ const LOYALTY_CONFIG: Record<TierKey, { label: string; dot: string }> = {
 const TIER_ORDER: TierKey[] = ['vip', 'regular', 'petit', 'new', 'inactive', 'fournisseur'];
 type QuickFilter = ClientSortMode | 'overdue';
 const formatCount = (value: number) => formatNumber(value, { min: 0, max: 0 });
-export function ClientsListView({ openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, searchedClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, setSelectedClientId, overdueDebtClients, clientLoyaltyMap, clientPrevMonthVolume, clientLastSellDate, handleZeroOutBalance, onImportClients }: ClientsListViewProps) {
+export function ClientsListView({ openClientModal, clientSearchQuery, setClientSearchQuery, clientSortMode, setClientSortMode, filteredClientsDzd, searchedClientsDzd, clientBalances, getClientFullName, handleTouchStart, handleTouchEnd, setClientToDelete, setSelectedClientId, overdueDebtClients, clientLoyaltyMap, clientPrevMonthVolume, clientLastSellDate, handleZeroOutBalance, onImportClients, pendingDeliveryList = [] }: ClientsListViewProps) {
     const { t } = useLanguage();
     const headerActionsSlot = useHeaderActionsSlot();
     const INITIAL_VISIBLE_CLIENTS = 50;
@@ -261,6 +263,12 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                                 {overdue.daysOverdue}{t('common.dayShort')}
                               </span>)}
                             {overLimit && <AlertTriangleIcon aria-label={t('clients.creditLimitExceeded') as string} className="h-3.5 w-3.5 shrink-0 text-warning"/>}
+                            {client.isP2P && <span className="shrink-0 rounded-full bg-primary/10 px-1.5 text-xs font-bold text-primary">{t('clients.p2pBadge')}</span>}
+                            {/* V12-2: USDT/EUR this client bought and has not received yet */}
+                            {pendingDeliveryList.filter((item) => item.clientId === client.id).map((item) => (<span key={item.currency} className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 text-xs font-bold ${item.late ? 'bg-financial-loss-bg text-financial-loss' : 'bg-financial-debt-bg text-financial-debt'}`}>
+                                <ArrowUpRightIcon aria-hidden="true" className="h-3 w-3"/>
+                                <bdi dir="ltr" className="tabular-nums">{item.remaining.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} {item.currency}</bdi>
+                              </span>))}
                           </span>
                           <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-neutral-500">
                             {tierCfg && <span className="font-semibold text-neutral-600">{t(tierCfg.label)}</span>}

@@ -288,3 +288,21 @@ export function correctionEntryFor(row: Pick<InventoryRow, 'account' | 'counted'
     const abs = (Math.abs(cents) / 100).toFixed(2);
     return cents < 0 ? `-${abs}` : `+${abs}`;
 }
+
+/**
+ * V12-11: what the « fix » of an inventory gap does, so no movement is recorded without someone behind it.
+ * - Less than the books, small (up to 5 000 DZD, or 20 USDT/EUR): after looking, « not found » records it as a personal
+ *   expense (often a small daily spending that was not typed).
+ * - Less than the books, larger: no button; look first (the investigator below, the operations of the period).
+ * - More than the books: an operation was forgotten (a client paid, a purchase): the window that records it opens.
+ */
+export const SMALL_GAP_LIMIT = { dzd: 5_000, unit: 20 } as const;
+export type InventoryFix = 'personal_expense' | 'investigate' | 'forgotten_entry' | null;
+export function inventoryFixFor(row: Pick<InventoryRow, 'account' | 'gap' | 'status'>): InventoryFix {
+    if (row.status === 'match')
+        return null;
+    if (row.gap > 0)
+        return 'forgotten_entry';
+    const limit = isDzdAccount(row.account) ? SMALL_GAP_LIMIT.dzd : SMALL_GAP_LIMIT.unit;
+    return Math.abs(row.gap) <= limit ? 'personal_expense' : 'investigate';
+}

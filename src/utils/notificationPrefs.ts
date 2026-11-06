@@ -1,7 +1,7 @@
 // Which phone notifications the owner wants (V9-4). Kept on the phone only: nothing is written to the
 // database and no number is touched. Everything is on until switched off.
 
-export const NOTIFICATION_KINDS = ['overdue', 'profit', 'terms', 'inventory'] as const;
+export const NOTIFICATION_KINDS = ['overdue', 'profit', 'terms', 'inventory', 'movements'] as const;
 export type NotificationKind = typeof NOTIFICATION_KINDS[number];
 export const NOTIFICATION_PREFS_KEY = 'app_notif_prefs';
 

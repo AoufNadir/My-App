@@ -1,4 +1,8 @@
 import { Fragment, lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { useDeliveries } from '../../hooks/useDeliveries';
+import { deliveryStates, operationQuantities, type DeliveryDoc } from '../../utils/deferredDelivery';
+const isActivityReportOpenForDeliveries = (clientId: string | null | undefined) => Boolean(clientId);
+import { ClientDeliveries } from './ClientDeliveries';
 import { Button } from '../ui/Button';
 import { Tabs } from '../ui/Tabs';
 import { EmptyState } from '../ui/EmptyState';
@@ -120,7 +124,77 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone, isAddress }: C
       </div>
     </div>);
 }
+/**
+ * V12-2/V12-8: what was sent to (or received from) a client, as quiet lines in his history: no amount in dinars,
+ * nothing to open or edit, never in the balance; only within the days the history already shows.
+ */
+export function mergeDeliveryLines(groups: ReadonlyArray<[string, DisplayTx[]]>, docs: ReadonlyArray<DeliveryDoc>, words: { sent: string; received: string; noBalance: string }): Array<[string, DisplayTx[]]> {
+    const lines = docs.filter((doc) => doc.kind === 'delivery');
+    if (lines.length === 0 || groups.length === 0)
+        return groups as Array<[string, DisplayTx[]]>;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const dayOf = (ts: number) => { const d = new Date(ts); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`; };
+    const dayStart = (key: string) => { const [d, m, y] = key.split('/').map(Number); return new Date(y, m - 1, d).getTime(); };
+    const oldestShown = Math.min(...groups.map(([key]) => dayStart(key)).filter(Number.isFinite));
+    const merged = new Map<string, DisplayTx[]>(groups.map(([key, rows]) => [key, [...rows]]));
+    for (const doc of lines) {
+        const key = dayOf(doc.timestamp);
+        if (!merged.has(key) && dayStart(key) < oldestShown)
+            continue;
+        const supplier = doc.direction === 'from_supplier';
+        const row: DisplayTx = {
+            id: `delivery:${doc.id}`, originalId: `delivery:${doc.id}`, timestamp: doc.timestamp, date: key,
+            time: new Date(doc.timestamp).toTimeString().slice(0, 5),
+            typeLabel: supplier ? words.received : words.sent,
+            amountLabel: `${formatNumber(doc.quantity, { min: 2, max: 2 })} ${doc.currency}`,
+            amountColor: 'text-neutral-500',
+            icon: (<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-muted text-neutral-400">
+                {supplier ? <ArrowDownLeftIcon className="h-5 w-5"/> : <ArrowUpRightIcon className="h-5 w-5"/>}
+              </div>),
+            details: words.noBalance,
+            category: 'client',
+            rawTx: { id: `delivery:${doc.id}`, notes: '' } as unknown as ClientTransactionDzd,
+            sourceType: 'client_tx',
+        };
+        merged.set(key, [...(merged.get(key) ?? []), row].sort((x, y) => y.timestamp - x.timestamp));
+    }
+    return [...merged.entries()].sort((x, y) => dayStart(y[0]) - dayStart(x[0]));
+}
+
+/** V12-2: the USDT/EUR sold to this client and not sent yet, with their own reading of the `deliveries` collection. */
+function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transactions, clientRows, setAlert, onAddPhone }: { onAddPhone?: () => void; userDocRef: any; clientId: string; clientName: string; phone?: string; transactions?: ReadonlyArray<{ id?: string; type?: string }>; clientRows?: ReadonlyArray<{ clientId?: string; linkedTxId?: string }>; setAlert?: (message: string) => void }) {
+    const { docs, record, remove } = useDeliveries(userDocRef, Boolean(userDocRef), () => setAlert?.('❌ Erreur lors de la sauvegarde.'));
+    const saleIds = useMemo(() => operationQuantities((transactions ?? []) as ReadonlyArray<{ id?: string; type?: string; quantity?: number }>), [transactions]);
+    // This client's sales in USDT/EUR paid in dinars, newest first: the ones that can still be « not sent yet ».
+    const sales = useMemo(() => (transactions ?? [])
+        .filter((tx: any) => tx.type === 'sell' && tx.id && tx.linkedClientId === clientId && (tx.currency === 'USDT' || tx.currency === 'EUR') && tx.settlementCurrency !== 'EUR')
+        .map((tx: any) => ({ id: tx.id as string, currency: tx.currency as 'USDT' | 'EUR', quantity: Number(tx.quantity) || 0, timestamp: Number(tx.timestamp) || 0 }))
+        .filter((sale) => sale.quantity > 0)
+        .sort((a, b) => b.timestamp - a.timestamp), [transactions, clientId]);
+    // V12-8: this client's purchases (he is the supplier): found through his account rows linked to a purchase.
+    const purchases = useMemo(() => {
+        const linked = new Set((clientRows ?? []).filter((row) => row.clientId === clientId && row.linkedTxId).map((row) => row.linkedTxId as string));
+        return (transactions ?? [])
+            .filter((tx: any) => tx.type === 'buy' && tx.id && linked.has(tx.id) && (tx.currency === 'USDT' || tx.currency === 'EUR') && tx.purchaseFundingCurrency !== 'EUR')
+            .map((tx: any) => ({ id: tx.id as string, currency: tx.currency as 'USDT' | 'EUR', quantity: Number(tx.quantity) || 0, timestamp: Number(tx.timestamp) || 0 }))
+            .filter((buy) => buy.quantity > 0)
+            .sort((a, b) => b.timestamp - a.timestamp);
+    }, [transactions, clientRows, clientId]);
+    const hasSupplierLines = docs.some((doc) => doc.clientId === clientId && doc.direction === 'from_supplier');
+    const hasClientLines = docs.some((doc) => doc.clientId === clientId && doc.direction !== 'from_supplier');
+    return (<>
+      {(sales.length > 0 || purchases.length === 0 || hasClientLines) && <ClientDeliveries clientId={clientId} clientName={clientName} phone={phone} docs={docs} saleIds={saleIds} onRecord={record} onRemove={remove} sales={sales} onAddPhone={onAddPhone}/>}
+      {(purchases.length > 0 || hasSupplierLines) && <ClientDeliveries direction="from_supplier" clientId={clientId} clientName={clientName} phone={phone} docs={docs} saleIds={saleIds} onRecord={record} onRemove={remove} sales={purchases}/>}
+    </>);
+}
+
 export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, reportClientRows, clientsDzd, setSelectedClientId, getClientFullName, openClientSummary, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal, userDocRef, clientBalances, onRecordClientTransfer, setAlert}: ClientDetailsViewProps) {
+    // V12-2: what this client bought and has not received yet, for his activity report (read while it is open).
+    const { docs: reportDeliveryDocs } = useDeliveries(userDocRef, Boolean(userDocRef && isActivityReportOpenForDeliveries(selectedClientId)));
+    const reportWaiting = useMemo(() => {
+        const sales = operationQuantities((transactions ?? []) as ReadonlyArray<{ id?: string; type?: string; quantity?: number }>);
+        return deliveryStates(reportDeliveryDocs.filter((doc) => doc.clientId === selectedClientId), sales).filter((state) => state.direction === 'to_client');
+    }, [reportDeliveryDocs, transactions, selectedClientId]);
     const { t } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 60;
     const LOAD_MORE_TRANSACTIONS = 60;
@@ -267,6 +341,12 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             }),
         ]);
     }, [clientTransactionsDzd, clientsById, getClientFullName, linkedTransactionsById, t, visibleDateGroups]);
+    // V12-2/V12-8: what was sent to (or received from) this client, as quiet lines in the history: no amount in dinars,
+    // nothing to open or edit, and never in the balance. Only within the days the history already shows.
+    const historyGroups = useMemo(() => mergeDeliveryLines(visibleDisplayDateGroups, reportDeliveryDocs.filter((doc) => doc.clientId === selectedClientId), {
+        sent: t('clients.historySent') as string, received: t('clients.historyReceived') as string, noBalance: t('clients.historyNoBalance') as string,
+    }), [visibleDisplayDateGroups, reportDeliveryDocs, selectedClientId, t]);
+    const isDeliveryLine = (tx: DisplayTx) => tx.id.startsWith('delivery:');
     const clientStats = useMemo(() => {
         const allTxs = Object.values(groupedHistory).flat();
         let lastTs = 0;
@@ -358,6 +438,8 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
               <span className="max-w-full">{action.label}</span>
             </button>))}
         </div>
+        {/* V12-2: what is still owed to this client comes first, so it is seen as soon as the page opens */}
+        {selectedClient && <ClientDeliveriesEntry userDocRef={userDocRef} clientId={selectedClient.id} clientName={getClientFullName(selectedClient)} phone={selectedClient.phone} transactions={transactions} clientRows={clientTransactionsDzd} setAlert={setAlert} onAddPhone={() => openClientModal(selectedClient)}/>}
         <button type="button" onClick={() => setIsActivityReportOpen(true)} data-testid="client-activity-report-button" className="mt-2 flex min-h-touch w-full items-center gap-3 rounded-button border border-border bg-surface px-3 py-2 text-start transition-colors hover:bg-surface-muted active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
           <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary dark:text-primary-light">
             <FileSpreadsheetIcon className="h-5 w-5"/>
@@ -381,12 +463,12 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
       <div role="tabpanel" aria-label={t('clients.history') as string} hidden={activeTab !== 'history'} className="overflow-hidden rounded-card border border-border bg-surface">
         {dates.length > 0 ? (<div className="pb-2">
             <TransactionDisplayList
-              dateGroups={visibleDisplayDateGroups}
+              dateGroups={historyGroups}
               t={t}
               getRelativeDateLabel={(date) => getRelativeFrDateLabel(date, t)}
-              onEditDisplayTx={(displayTx) => handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
-              onDeleteDisplayTx={(displayTx) => handleDeleteClientTxClick((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
-              onOpenDisplayTx={(displayTx) => handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd)}
+              onEditDisplayTx={(displayTx) => { if (!isDeliveryLine(displayTx)) handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd); }}
+              onDeleteDisplayTx={(displayTx) => { if (!isDeliveryLine(displayTx)) handleDeleteClientTxClick((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd); }}
+              onOpenDisplayTx={(displayTx) => { if (!isDeliveryLine(displayTx)) handleEditClientTx((displayTx.actionRawTx || displayTx.rawTx) as ClientTransactionDzd); }}
               formatDzdAmount={(value) => formatDzd(value, { min: 2, max: 2 })}
               profitByTxId={profitByTxId}
             />
@@ -435,7 +517,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
       {isReminderOpen && (<ClientWhatsAppDialog onClose={() => setIsReminderOpen(false)} clientId={selectedClient.id} clientName={clientName} balance={selectedClientBalance} phone={selectedClient.phone}/>)}
 
       {isActivityReportOpen && (<Suspense fallback={null}>
-          <ClientActivityReportDialog onClose={() => setIsActivityReportOpen(false)} clientId={selectedClientId} clientName={clientName} clientRows={reportClientRows ?? clientTransactionsDzd} transactions={transactions}/>
+          <ClientActivityReportDialog onClose={() => setIsActivityReportOpen(false)} clientId={selectedClientId} clientName={clientName} clientRows={reportClientRows ?? clientTransactionsDzd} transactions={transactions} waiting={reportWaiting}/>
         </Suspense>)}
 
     </div>);

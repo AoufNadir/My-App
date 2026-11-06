@@ -19,15 +19,15 @@ import {
 
 // 1. The reasons offered per wallet and direction.
 {
-    assert.deepEqual(adjustmentReasonsFor('DZD-Caisse', 'add'), ['client', 'wallet_transfer', 'other']);
-    assert.deepEqual(adjustmentReasonsFor('DZD-Baridi', 'subtract'), ['client', 'personal_withdrawal', 'project_expense', 'wallet_transfer', 'other']);
-    assert.deepEqual(adjustmentReasonsFor('USDT', 'add'), ['buy', 'other']);
-    assert.deepEqual(adjustmentReasonsFor('EUR', 'subtract'), ['sell', 'personal_withdrawal', 'project_expense', 'other']);
+    assert.deepEqual(adjustmentReasonsFor('DZD-Caisse', 'add'), ['client', 'wallet_transfer']);
+    assert.deepEqual(adjustmentReasonsFor('DZD-Baridi', 'subtract'), ['client', 'personal_withdrawal', 'project_expense', 'wallet_transfer']);
+    assert.deepEqual(adjustmentReasonsFor('USDT', 'add'), ['buy']);
+    assert.deepEqual(adjustmentReasonsFor('EUR', 'subtract'), ['sell', 'personal_withdrawal', 'project_expense']);
     for (const asset of ['DZD-Caisse', 'DZD-Baridi', 'USDT', 'EUR'] as const) {
         for (const direction of ['add', 'subtract'] as const) {
             const reasons = adjustmentReasonsFor(asset, direction);
-            assert.ok(reasons.includes('other'), `${asset} ${direction}: a correction or other reason is always possible`);
-            assert.ok(reasons.length >= 2, `${asset} ${direction}: there is a real choice`);
+            // V12-1: every movement belongs to someone; « other reason in words » is no longer offered.
+            assert.ok(!reasons.includes('other'), `${asset} ${direction}: no reason without an owner`);
         }
     }
     // A client reason only exists for the cash wallets, where the client row carries the effect.
@@ -41,7 +41,7 @@ import {
     assert.equal(isAdjustmentReasonAllowed('DZD-Baridi', 'subtract', 'client'), true);
     assert.equal(isAdjustmentReasonAllowed('USDT', 'add', 'client'), false, 'a client reason has no meaning for USDT');
     assert.equal(isAdjustmentReasonAllowed('DZD-Caisse', 'add', 'personal_withdrawal'), false, 'money cannot enter as a withdrawal');
-    assert.equal(isAdjustmentReasonAllowed('EUR', 'subtract', 'other'), true);
+    assert.equal(isAdjustmentReasonAllowed('EUR', 'subtract', 'other'), false, 'V12-1: no « other » reason any more');
     assert.equal(isAdjustmentReasonAllowed('DZD-Caisse', 'add', ''), false);
     assert.equal(isAdjustmentReasonAllowed('Bitcoin', 'add', 'other'), false, 'an unknown wallet');
 }

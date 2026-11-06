@@ -51,7 +51,7 @@ for (const lang of ['fr', 'ar'] as const) {
         assert.match(out, /482 500/);
         assert.match(out, /1 500,50/);
         assert.match(out, /120 000,40/, 'cents shown as two decimals');
-        assert.equal(count(html, fr ? '>Corriger le solde</button>' : '>صحّح الرصيد</button>'), 0, `${lang}: no fix button without a gap`);
+        assert.equal(count(html, fr ? '>Pas trouvé : dépense personnelle</button>' : '>لم أجده: مصروف شخصي</button>'), 0, `${lang}: no fix button without a gap`);
         assert.match(html, /<button[^>]*\sdisabled=""[^>]*>[^<]*(Enregistrer l’inventaire|احفظ الجرد)/, `${lang}: save is off until something is typed`);
     }
 
@@ -62,7 +62,13 @@ for (const lang of ['fr', 'ar'] as const) {
         assert.match(out, fr ? /Il manque 2 500 DZD/ : /ينقص 2 500 DZD/, `${lang}: cash short`);
         assert.match(out, fr ? /Il y a 20,00 USDT en trop/ : /يزيد 20,00 USDT/, `${lang}: USDT over`);
         assert.equal(count(out, fr ? 'Conforme' : 'مطابق'), 1, `${lang}: only EUR matches`);
-        assert.equal(count(html, fr ? '>Corriger le solde</button>' : '>صحّح الرصيد</button>'), 2, `${lang}: a fix button for each of the two gaps`);
+        // V12-11: 2 500 DZD short is small: « not found: personal expense »; 20 USDT over: record the forgotten operation.
+        assert.equal(count(html, fr ? '>Pas trouvé : dépense personnelle</button>' : '>لم أجده: مصروف شخصي</button>'), 1, `${lang}: small shortfall`);
+        assert.equal(count(html, fr ? '>Enregistrer l’opération oubliée</button>' : '>سجّل العملية المنسية</button>'), 1, `${lang}: surplus`);
+        assert.equal(count(html, fr ? '>Corriger le solde</button>' : '>صحّح الرصيد</button>'), 0, `${lang}: no correction without someone behind it`);
+        const big = render(lang, { defaultOpen: true, initialDraft: { caisse: '470000' } });
+        assert.ok(text(big).includes(fr ? 'Écart important' : 'فرق كبير'), `${lang}: a large shortfall is looked into first`);
+        assert.equal(count(big, fr ? '>Pas trouvé : dépense personnelle</button>' : '>لم أجده: مصروف شخصي</button>'), 0, `${lang}: no expense button for a large gap`);
         assert.doesNotMatch(html, /<button[^>]*\sdisabled=""[^>]*>[^<]*(Enregistrer l’inventaire|احفظ الجرد)/, `${lang}: save is on`);
     }
 
@@ -80,8 +86,8 @@ for (const lang of ['fr', 'ar'] as const) {
         assert.match(text(html), fr ? /Synchronisation en cours/ : /المزامنة جارية/);
         assert.match(html, /<button[^>]*\sdisabled=""[^>]*>[^<]*(Enregistrer l’inventaire|احفظ الجرد)/);
         // A gap measured against cached figures is not a gap to correct yet.
-        const stale = render(lang, { defaultOpen: true, ready: false, initialDraft: { caisse: '1000' } });
-        assert.match(stale, /<button[^>]*\sdisabled=""[^>]*>(Corriger le solde|صحّح الرصيد)/, `${lang}: fix is off while syncing`);
+        const stale = render(lang, { defaultOpen: true, ready: false, initialDraft: { caisse: '480000' } });
+        assert.match(stale, /<button[^>]*\sdisabled=""[^>]*>(Pas trouvé : dépense personnelle|لم أجده: مصروف شخصي)/, `${lang}: fix is off while syncing`);
     }
 
     // 6. With history: last check, last clean check, gaps, the month, and its corrections.

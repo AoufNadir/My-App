@@ -375,7 +375,8 @@ for (const lang of ['fr', 'ar'] as const) {
     assertBar('clientPayout', lang, { stats: [['transactions.clientBalanceImpact', '10 000,00 DZD']], strip: ['channelStrip.outBaridi', '10 000,00 DZD'] });
     assertBar('clientEditBalance', lang, { stats: [['transactions.clientBalanceImpact', '5 000,00 DZD']] });
     assertBar('adjustDzd', lang, { stats: [['transactions.amount', '30 000,00 DZD']] });
-    assertBar('adjustUsdt', lang, { stats: [['transactions.quantity', '120,00 USDT'], ['transactions.equivalentDzd', '29 270,40 DZD']] });
+    // V12-1: « other reason » is no longer offered, so this USDT exit waits for a real reason.
+    assertBar('adjustUsdt', lang, { stats: [['transactions.quantity', '120,00 USDT'], ['transactions.equivalentDzd', '29 270,40 DZD']], reason: label(lang, 'movementReason.blocked.reason'), tone: 'fix' });
     // Delivery cost, service sale, personal withdrawal: the amount, and its DZD value from the preview.
     assertBar('deliveryDzd', lang, { stats: [['delivery.amount', '2 500 DZD']] });
     assertBar('deliveryUsdt', lang, { stats: [['delivery.amount', '15,00 USDT'], ['delivery.valueDzd', '3 659 DZD']] });
@@ -538,3 +539,12 @@ for (const lang of ['fr', 'ar'] as const) {
 
 assert.ok(FIXED_NOW > 0);
 console.log('operationWindows.test: the buy, sell, transfer and expense windows show the same numbers as before, in French and Arabic, with their totals at the bottom; four windows have their notes field and buying EUR on credit its due date');
+
+// V12-17: « paid now, sent later » is offered only when the client pays now (cash or BaridiMob), never on credit.
+for (const lang of ['fr', 'ar'] as const) {
+    const label = (translations[lang] as unknown as { transactions: Record<string, string> }).transactions.deliveryPending;
+    const sale = { mode: 'sell_eur', sellAmount: '300', sellPrice: '262', sellTotal: '78600', linkedClientId: 'c3', setDeliveryPending: () => undefined };
+    assert.ok(transactionWindow(lang, { ...sale, clientPaymentStatus: 'cash' }).includes(esc(label)), `${lang}: paid in cash: offered`);
+    assert.ok(transactionWindow(lang, { ...sale, clientPaymentStatus: 'baridi' }).includes(esc(label)), `${lang}: paid by BaridiMob: offered`);
+    assert.ok(!transactionWindow(lang, { ...sale, clientPaymentStatus: 'credit' }).includes(esc(label)), `${lang}: on credit: not offered`);
+}

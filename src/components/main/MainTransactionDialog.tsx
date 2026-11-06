@@ -27,7 +27,7 @@ import { selectableClients } from '../../utils/clientRegistry';
 type MainTransactionDialogProps = Record<string, any>;
 type LastEditedSellField = 'eurReceived' | 'quantity' | 'total' | 'price';
 type SellCalculationBasis = Exclude<LastEditedSellField, 'price'>;
-export function MainTransactionDialog({ transactions, clientTransactionsDzd, profitByTxId, mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, sellTime, setSellTime, saleDatePlan, smartPricingByCurrency, smartQuoteRef }: MainTransactionDialogProps) {
+export function MainTransactionDialog({ transactions, clientTransactionsDzd, profitByTxId, mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, deliveryPending, setDeliveryPending, receiptPending, setReceiptPending, sellTime, setSellTime, saleDatePlan, smartPricingByCurrency, smartQuoteRef }: MainTransactionDialogProps) {
     const [sellUsdtSourceSelected, setSellUsdtSourceSelected] = React.useState(false);
     const [saleDateOpen, setSaleDateOpen] = React.useState(false);
     const [lastEditedSellField, setLastEditedSellField] = React.useState<LastEditedSellField>('quantity');
@@ -424,6 +424,30 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
         if (learnedSettleDays === null) return;
         setCreditDueDate(new Date(Date.now() + learnedSettleDays * 86_400_000).toISOString().slice(0, 10));
     }, [isSellMode, isUsdtSellSettledInEur, editingTx, clientPaymentStatus, linkedClientId, creditDueDate, learnedSettleDays, setCreditDueDate]);
+    // V12-17: « paid now, sent (or received) later » only makes sense when the money moves now, in cash or by BaridiMob;
+    // on credit nothing is paid yet, so the switch is not offered.
+    const renderPendingSwitch = (kind: 'delivery' | 'receipt') => {
+        const paidNow = clientPaymentStatus === 'cash' || clientPaymentStatus === 'baridi';
+        const allowed = !editingTx && hasPrimaryClient && paidNow
+            && (kind === 'delivery' ? !isUsdtSellSettledInEur && Boolean(setDeliveryPending) : buyUsdtMode !== 'with_eur' && Boolean(setReceiptPending));
+        if (!allowed)
+            return null;
+        const on = kind === 'delivery' ? !!deliveryPending : !!receiptPending;
+        const toggle = () => (kind === 'delivery' ? setDeliveryPending(!on) : setReceiptPending(!on));
+        const title = t(kind === 'delivery' ? 'transactions.deliveryPending' : 'transactions.receiptPending');
+        return (<button type="button" role="switch" aria-checked={on} onClick={toggle} className={`flex w-full items-center gap-3 rounded-card border px-4 py-3 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${on ? 'border-financial-debt/40 bg-financial-debt-bg' : 'border-border bg-surface hover:bg-surface-muted'}`}>
+            <span aria-hidden="true" className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${on ? 'bg-surface text-financial-debt' : 'bg-surface-muted text-neutral-500'}`}>
+                {kind === 'delivery' ? <ArrowUpRightIcon className="h-5 w-5"/> : <ArrowDownLeftIcon className="h-5 w-5"/>}
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-neutral-900">{title}</span>
+                <span className="mt-0.5 block text-xs text-neutral-500">{t(kind === 'delivery' ? 'transactions.deliveryPendingHint' : 'transactions.receiptPendingHint')}</span>
+            </span>
+            <span aria-hidden="true" className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${on ? 'bg-financial-debt' : 'bg-neutral-300'}`}>
+                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? 'start-[22px]' : 'start-0.5'}`}/>
+            </span>
+        </button>);
+    };
     const renderSourceChoice = (onClick: () => void, icon: React.ReactNode, title: string, detail: string) => (
         <button type="button" onClick={onClick} className="flex min-h-touch w-full items-center gap-3 rounded-button px-2 py-2.5 text-start transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-financial-asset-bg text-financial-asset">{icon}</span>
@@ -566,6 +590,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                         setBuyUsdtTotal(Math.round(total).toString());
                 }} currency="DZD" onMax={applyClientMaxToBuyTotal} maxDisabled={!hasPrimaryClient || selectedClientTotal <= 0} error={fieldError('buyUsdtTotal')} hint={t('transactions.autoCalc')}/>
                                 </FormCard>
+                                {renderPendingSwitch('receipt')}
                                 {renderStockAvailability()}
                             </>)}
 
@@ -606,6 +631,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                                         </div>);
                 })()}
                                 </FormCard>
+                                {renderPendingSwitch('receipt')}
                                 {renderStockAvailability()}
                             </>)}
 
@@ -651,6 +677,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                                     {renderSellTotalField()}
                                 </>)}
                                 </FormCard>
+                                {renderPendingSwitch('delivery')}
                             </>)}
 
                         {/* Buy EUR */}

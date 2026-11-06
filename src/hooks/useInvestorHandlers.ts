@@ -462,6 +462,8 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 amountDzd: preview.amountDzd,
                 profitAmountDzd: funding.profitAmount,
                 capitalAmountDzd: funding.capitalAmount,
+                // V12-13: when it was typed (a new expense only): an expense typed days after it happened is counted as late.
+                ...(editingPersonalExpenseTx ? {} : { recordedAt: Date.now() }),
             };
             if (fundingLinks.linkedInvestorTxId) {
                 treasuryPayload.linkedInvestorTxId = fundingLinks.linkedInvestorTxId;

@@ -92,3 +92,26 @@ assert.ok(html.indexOf('Encaisser') < transferIndex && html.indexOf('Payer') < t
 assert.match(html, /Rappel WhatsApp/, 'a client in debt gets the reminder button');
 
 console.log('ClientDetailsView UI tests passed');
+
+// V12-2/V12-8: the deliveries appear in the history as quiet lines, on their day, newest first; never before the
+// oldest day shown, and nothing changes when there are none.
+{
+    const { mergeDeliveryLines } = await import('./ClientDetailsView');
+    const row = (id: string, date: string, ts: number) => ({ id, originalId: id, timestamp: ts, date, time: '10:00', typeLabel: 'Vente', amountLabel: '1', amountColor: '', icon: null, details: '', category: 'client', rawTx: {}, sourceType: 'client_tx' }) as never;
+    const groups: Array<[string, never[]]> = [['05/11/2026', [row('a', '05/11/2026', new Date(2026, 10, 5, 9).getTime())]], ['02/11/2026', [row('b', '02/11/2026', new Date(2026, 10, 2, 9).getTime())]]];
+    const words = { sent: 'Envoyé au client', received: 'Reçu du fournisseur', noBalance: 'sans effet' };
+    const docs = [
+        { id: 'd1', kind: 'delivery' as const, clientId: 'c', currency: 'USDT' as const, quantity: 200, timestamp: new Date(2026, 10, 5, 12).getTime() },
+        { id: 'd2', kind: 'delivery' as const, clientId: 'c', currency: 'USDT' as const, quantity: 50, timestamp: new Date(2026, 10, 6, 8).getTime() },
+        { id: 'd3', kind: 'delivery' as const, clientId: 'c', currency: 'USDT' as const, quantity: 9, timestamp: new Date(2026, 9, 1, 8).getTime() },
+        { id: 'k1', kind: 'commitment' as const, clientId: 'c', currency: 'USDT' as const, quantity: 3_906.25, timestamp: new Date(2026, 10, 5, 8).getTime() },
+    ];
+    const merged = mergeDeliveryLines(groups, docs, words);
+    assert.deepEqual(merged.map(([key]) => key), ['06/11/2026', '05/11/2026', '02/11/2026'], 'a new day for a delivery after the newest one');
+    assert.deepEqual(merged[1][1].map((tx) => tx.id), ['delivery:d1', 'a'], 'on its day, newest first');
+    assert.equal(merged[1][1][0].typeLabel, 'Envoyé au client');
+    assert.ok(!merged.flatMap(([, rows]) => rows).some((tx) => tx.id === 'delivery:d3'), 'nothing before the oldest day shown');
+    assert.ok(!merged.flatMap(([, rows]) => rows).some((tx) => tx.id === 'delivery:k1'), 'the amount to send is not a history line');
+    assert.equal(mergeDeliveryLines(groups, [], words), groups, 'no delivery: the history is unchanged');
+    console.log('history delivery lines passed');
+}
