@@ -307,4 +307,17 @@ for (const lang of ['ar', 'fr'] as const) {
     assert.ok(spot.includes('دفعتَ ثمنها نقداً'));
 }
 
+// V12-2: what the client bought and has not received yet is on his report, in both languages; nothing when none.
+{
+    const period = { kind: 'month', year: 2026, month: 8 } as ReportPeriod;
+    for (const lang of ['fr', 'ar'] as const) {
+        const report = buildClientActivityReport({ clientId: 'c1', clientRows: rows, transactions, period, now: NOW });
+        const withWaiting = text(renderToStaticMarkup(<ClientActivityPhoneSheet report={report} lang={lang} clientName="Client Test" showBalance variant="phone" waiting={[{ currency: 'USDT', committed: 3_906.25, delivered: 500, remaining: 3_406.25 }]}/>)).replace(/[\u2066-\u2069\u202f\u00a0]/g, ' ').replace(/ +/g, ' ');
+        assert.ok(withWaiting.includes(lang === 'fr' ? 'Reste à recevoir' : 'الباقي لك'), `${lang}: the rest to receive`);
+        assert.ok(/3 ?406,25|3 ?406\.25/.test(withWaiting), `${lang}: the quantity left`);
+        const without = text(renderToStaticMarkup(<ClientActivityPhoneSheet report={report} lang={lang} clientName="Client Test" showBalance variant="phone" waiting={[{ currency: 'USDT', committed: 10, delivered: 10, remaining: 0 }]}/>));
+        assert.ok(!without.includes(lang === 'fr' ? 'Reste à recevoir' : 'الباقي لك'), `${lang}: all received: no block`);
+    }
+}
+
 console.log('client activity phone sheet tests passed');

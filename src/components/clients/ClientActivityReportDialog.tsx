@@ -22,13 +22,15 @@ export type ClientActivityReportDialogProps = {
     initialRange?: { start: string; end: string };
     /** For tests and screenshots; the time the window opened otherwise */
     now?: number;
+    /** V12-2: USDT/EUR bought and not received yet, shown on the report */
+    waiting?: ReadonlyArray<{ currency: 'USDT' | 'EUR'; committed: number; delivered: number; remaining: number }>;
 };
 
 /**
  * The client report, the only one sent to a client: two dates (or this month, this year, the whole
  * history), preview, send as a PDF from the phone. Read-only: nothing is written anywhere.
  */
-export function ClientActivityReportDialog({ onClose, clientId, clientName, clientRows, transactions, initialRange, now: fixedNow }: ClientActivityReportDialogProps) {
+export function ClientActivityReportDialog({ onClose, clientId, clientName, clientRows, transactions, initialRange, now: fixedNow, waiting }: ClientActivityReportDialogProps) {
     const { t } = useLanguage();
     // Fixed while the window is open, so « today » and the PDF agree.
     const [now] = useState(() => fixedNow ?? Date.now());
@@ -95,14 +97,14 @@ export function ClientActivityReportDialog({ onClose, clientId, clientName, clie
             {/* The page as it will look on the client's phone: as wide as the sheet. */}
             {report && (<ReportPreview label={t('clients.activityReportPreview') as string}>
                 <div className="mx-auto w-full max-w-[420px]">
-                  <ClientActivityPhoneSheet report={report} lang={reportLang} clientName={clientName} showBalance={showBalance} variant="screen"/>
+                  <ClientActivityPhoneSheet report={report} lang={reportLang} clientName={clientName} showBalance={showBalance} variant="screen" waiting={waiting}/>
                 </div>
               </ReportPreview>)}
           </>)}
       </ModalContent>
       <ReportSendFooter sendState={sendState} progress={progress} onClose={onClose} onSend={handleSend} showSend={hasOperations} canSend={Boolean(report)}/>
       {hasOperations && report && (<ReportPrintHolder holderRef={printHolder}>
-          <ClientActivityPhoneSheet report={report} lang={reportLang} clientName={clientName} showBalance={showBalance} variant="phone"/>
+          <ClientActivityPhoneSheet report={report} lang={reportLang} clientName={clientName} showBalance={showBalance} variant="phone" waiting={waiting}/>
         </ReportPrintHolder>)}
     </Modal>);
 }

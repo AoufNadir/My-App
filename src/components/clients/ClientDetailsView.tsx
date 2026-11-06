@@ -1,5 +1,7 @@
 import { Fragment, lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useDeliveries } from '../../hooks/useDeliveries';
+import { deliveryStates } from '../../utils/deferredDelivery';
+const isActivityReportOpenForDeliveries = (clientId: string | null | undefined) => Boolean(clientId);
 import { ClientDeliveries } from './ClientDeliveries';
 import { Button } from '../ui/Button';
 import { Tabs } from '../ui/Tabs';
@@ -136,6 +138,12 @@ function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transa
 }
 
 export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, reportClientRows, clientsDzd, setSelectedClientId, getClientFullName, openClientSummary, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal, userDocRef, clientBalances, onRecordClientTransfer, setAlert}: ClientDetailsViewProps) {
+    // V12-2: what this client bought and has not received yet, for his activity report (read while it is open).
+    const { docs: reportDeliveryDocs } = useDeliveries(userDocRef, Boolean(userDocRef && isActivityReportOpenForDeliveries(selectedClientId)));
+    const reportWaiting = useMemo(() => {
+        const sales = new Map((transactions ?? []).filter((tx) => tx.type === 'sell' && tx.id).map((tx) => [tx.id as string, Number(tx.quantity) || 0] as const));
+        return deliveryStates(reportDeliveryDocs.filter((doc) => doc.clientId === selectedClientId), sales);
+    }, [reportDeliveryDocs, transactions, selectedClientId]);
     const { t } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 60;
     const LOAD_MORE_TRANSACTIONS = 60;
@@ -451,7 +459,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
       {isReminderOpen && (<ClientWhatsAppDialog onClose={() => setIsReminderOpen(false)} clientId={selectedClient.id} clientName={clientName} balance={selectedClientBalance} phone={selectedClient.phone}/>)}
 
       {isActivityReportOpen && (<Suspense fallback={null}>
-          <ClientActivityReportDialog onClose={() => setIsActivityReportOpen(false)} clientId={selectedClientId} clientName={clientName} clientRows={reportClientRows ?? clientTransactionsDzd} transactions={transactions}/>
+          <ClientActivityReportDialog onClose={() => setIsActivityReportOpen(false)} clientId={selectedClientId} clientName={clientName} clientRows={reportClientRows ?? clientTransactionsDzd} transactions={transactions} waiting={reportWaiting}/>
         </Suspense>)}
 
     </div>);
