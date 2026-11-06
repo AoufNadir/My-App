@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { Button } from '../ui/Button';
 import { Modal, ModalContent, ModalHeader, ModalTitle } from '../ui/Modal';
 import { ListRow } from '../cards/ListRow';
@@ -21,10 +22,13 @@ type NewTransactionMenuDialogProps = {
   openDeliveryExpenseModal: () => void;
   openDigitalServiceModal?: () => void;
   openPersonalWithdrawalModal?: () => void;
+  /** Multi-currency: the currencies traded (from the settings). USDT and EUR open their own window, the others openOtherCurrency. */
+  currencies?: string[];
+  openOtherCurrency?: (kind: 'buy' | 'sell' | 'convert', currency: string) => void;
 };
 
 type PortfolioActionProps = {
-  currency: 'USDT' | 'EUR';
+  currency: string;
   direction: 'buy' | 'sell';
   verb: string;
   onClick: () => void;
@@ -64,7 +68,16 @@ export function NewTransactionMenuDialog({
   openDeliveryExpenseModal,
   openDigitalServiceModal,
   openPersonalWithdrawalModal,
+  currencies = ['USDT', 'EUR'],
+  openOtherCurrency,
 }: NewTransactionMenuDialogProps) {
+  const open = (direction: 'buy' | 'sell', currency: string) => {
+    if (currency === 'USDT' || currency === 'EUR')
+      return () => openForm(`${direction}_${currency.toLowerCase()}` as 'buy_usdt');
+    return () => openOtherCurrency?.(direction, currency);
+  };
+  const shown = currencies.filter((code) => code === 'USDT' || code === 'EUR' || openOtherCurrency);
+  const hasOthers = !!openOtherCurrency && shown.length > 1 && shown.some((code) => code !== 'USDT' && code !== 'EUR');
   const runAfterClose = (action: () => void) => {
     onClose();
     window.setTimeout(action, 0);
@@ -78,31 +91,19 @@ export function NewTransactionMenuDialog({
       <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
         <SectionCard title={t('nav.portfolio')}>
           <div className="grid grid-cols-2 gap-2.5">
-            <PortfolioActionButton
-              currency="USDT"
-              direction="buy"
-              verb={t('transactions.buyVerb')}
-              onClick={() => runAfterClose(() => openForm('buy_usdt'))}
-            />
-            <PortfolioActionButton
-              currency="USDT"
-              direction="sell"
-              verb={t('transactions.sellVerb')}
-              onClick={() => runAfterClose(() => openForm('sell_usdt'))}
-            />
-            <PortfolioActionButton
-              currency="EUR"
-              direction="buy"
-              verb={t('transactions.buyVerb')}
-              onClick={() => runAfterClose(() => openForm('buy_eur'))}
-            />
-            <PortfolioActionButton
-              currency="EUR"
-              direction="sell"
-              verb={t('transactions.sellVerb')}
-              onClick={() => runAfterClose(() => openForm('sell_eur'))}
-            />
+            {shown.map((code) => (
+              <Fragment key={code}>
+                <PortfolioActionButton currency={code} direction="buy" verb={t('transactions.buyVerb')} onClick={() => runAfterClose(open('buy', code))} />
+                <PortfolioActionButton currency={code} direction="sell" verb={t('transactions.sellVerb')} onClick={() => runAfterClose(open('sell', code))} />
+              </Fragment>
+            ))}
           </div>
+          {hasOthers && (
+            <Button type="button" variant="outline" size="md" className="mt-2.5 w-full gap-2 font-semibold" onClick={() => runAfterClose(() => openOtherCurrency!('convert', shown[0]))}>
+              <RefreshCwIcon className="h-4 w-4" />
+              {t('transactions.convertCurrencies')}
+            </Button>
+          )}
         </SectionCard>
 
         <SectionCard title={t('transactions.financialActions')} flush>

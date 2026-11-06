@@ -1,3 +1,4 @@
+import { CurrencyOperationDialog, type CurrencyAction } from './multicurrency/CurrencyOperationsSection';
 import { setReportIdentity } from './components/reports/reportIdentity';
 import { previousProfits } from './utils/dashboardComparison';
 import { useBusinessSettings } from './multicurrency/useBusinessSettings';
@@ -604,6 +605,7 @@ export default function MainApp({ user }: {
     isReconcileAdvanceModalOpen, reconcileAdvanceTx, reconcileActualAmount, setReconcileActualAmount, reconcileSpentDescription, setReconcileSpentDescription, openReconcileAdvanceModal, closeReconcileAdvanceModal, handleReconcilePersonalAdvance } = useInvestorHandlers(userDocRef, derivedInvestors, treasuryStats, portfolioStats, setAlert);
     // --- 3. LOCAL UI STATE ---
     const [isNewOperationMenuOpen, setIsNewOperationMenuOpen] = useState(false);
+    const [currencyAction, setCurrencyAction] = useState<CurrencyAction | null>(null);
     const [isMonthPlanOpen, setIsMonthPlanOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     // Stable, so the memoized header and bottom bar don't re-render with every page update.
@@ -2982,7 +2984,8 @@ export default function MainApp({ user }: {
 
                 <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onNewOperation={isFinancialDataReady ? openNewOperationMenu : undefined} onOpenSettings={openSettingsModal} onSignOut={handleSignOut} overdueCount={dashboardPageProps.overdueDebtClientCount}/>
 
-                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal}/>
+                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} currencies={business.settings.currencies} openOtherCurrency={(kind, currency) => setCurrencyAction({ kind, currency })}/>
+                <CurrencyOperationDialog action={currencyAction} onClose={() => setCurrencyAction(null)} userDocRef={userDocRef as never} transactions={transactions} treasuryTransactions={treasuryTransactions} setAlert={setAlert}/>
 
                 {alert && (<AppToast message={translateAlert(alert, lang, t)} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? t('common.undo') : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined}/>)}
 
