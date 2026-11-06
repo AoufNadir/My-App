@@ -112,6 +112,9 @@ type DashboardPageProps = {
     /** The goal to suggest when none is set (the average monthly profit of the last 90 days). */
     suggestedGoal?: number;
     onSaveGoal?: (goal: number) => void;
+    /** V12-1: money movements nothing explains (no client, no link, no reason), and the way to the list. */
+    unexplainedMovementCount?: number;
+    onReviewMovements?: () => void;
     /** Opens the bell's sheet at first draw (screens and tests that read what it holds). */
     initialNotificationsOpen?: boolean;
     /** Avg monthly USDT volume (90d ÷ 3) — drives the required-margin chip. */
@@ -354,6 +357,8 @@ function DashboardContent({
     suggestedGoal = 0,
     onSaveGoal,
     initialNotificationsOpen = false,
+    unexplainedMovementCount = 0,
+    onReviewMovements,
     weeklyRecap,
     onDismissWeeklyRecap,
     monthlyRecap,
@@ -477,6 +482,9 @@ function DashboardContent({
     if (cashTotal < totalAdvances && totalAdvances > 0) {
         actionItems.push({ id: 'uncovered-advances', tone: 'debt', icon: <WalletIcon className="h-4 w-4"/>, title: t('dashboard.uncoveredAdvances') as string, detail: t('dashboard.uncoveredAdvancesBody') as string, onOpen: onOpenTreasury });
     }
+    if (unexplainedMovementCount > 0) {
+        actionItems.push({ id: 'unexplained-movements', tone: 'debt', icon: <AlertTriangleIcon className="h-4 w-4"/>, title: fillTemplate(t('movementReview.homeTitle') as string, { count: <CountText value={unexplainedMovementCount}/> }), detail: t('movementReview.homeBody') as string, onOpen: onReviewMovements });
+    }
     if (lowStock) {
         actionItems.push({ id: 'low-stock', tone: 'debt', icon: <DollarSignIcon className="h-4 w-4"/>, title: t('dashboard.lowStock') as string, detail: t('dashboard.lowStockBody') as string });
     }
@@ -487,7 +495,7 @@ function DashboardContent({
         notificationItems.push({ entry: { id, signature, urgent }, row });
     };
     for (const item of actionItems)
-        addRow(item, item.id === 'overdue-debts' ? String(overdueCount) : 'on', item.id !== 'low-stock');
+        addRow(item, item.id === 'overdue-debts' ? String(overdueCount) : item.id === 'unexplained-movements' ? String(unexplainedMovementCount) : 'on', item.id !== 'low-stock' && item.id !== 'unexplained-movements');
     if (onInvestorTermReinvest && onInvestorTermWithdraw) {
         for (const term of investorTerms) {
             notificationItems.push({
@@ -516,6 +524,15 @@ function DashboardContent({
             value: ownerProfitByPeriod[profitPeriod],
             semantic: 'auto',
         }}/>
+
+      {unexplainedMovementCount > 0 && onReviewMovements && (<button type="button" onClick={onReviewMovements} className="flex w-full items-center gap-3 rounded-card border border-financial-debt/30 bg-financial-debt-bg px-4 py-3 text-start">
+          <AlertTriangleIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-financial-debt"/>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-neutral-900">{fillTemplate(t('movementReview.homeTitle') as string, { count: <CountText value={unexplainedMovementCount}/> })}</span>
+            <span className="mt-0.5 block text-xs text-neutral-600">{t('movementReview.homeBody')}</span>
+          </span>
+          <span className="shrink-0 text-sm font-bold text-financial-debt">{t('movementReview.homeAction')}</span>
+        </button>)}
 
       <GoalCard goal={monthlyGoal} profit={dailyOverview.monthToDateProfit} suggested={suggestedGoal} onSave={onSaveGoal}/>
 

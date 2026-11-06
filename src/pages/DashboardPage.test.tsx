@@ -941,4 +941,14 @@ const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/'/g, '
     assert.ok(html.includes(ar.finance.toReceive) && html.includes(ar.common.caisseBalance), 'Arabic balances');
 }
 
+// ---- V12-1: the movements without a reason: a card on the Home page and a line in the bell, only when there are some ----
+{
+    const words = (translations.fr as unknown as { movementReview: Record<string, string> }).movementReview;
+    const some = renderNew({ unexplainedMovementCount: 77, onReviewMovements: noop });
+    const title = escapeHtml(words.homeTitle).replace('{count}', '<bdi dir="ltr" class="tabular-nums">77</bdi>');
+    assert.equal(some.split(title).length - 1, 2, 'the card on the page and the line in the bell');
+    assert.ok(some.includes(`>${escapeHtml(words.homeAction)}<`), 'a button to deal with them');
+    const none = renderNew({ unexplainedMovementCount: 0, onReviewMovements: noop });
+    assert.ok(!none.includes(escapeHtml(words.homeBody)), 'nothing when every movement has a reason');
+}
 console.log('DashboardPage tests passed');

@@ -156,7 +156,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
 
       {inventoryEnabled && (<InventorySection expected={inventoryExpectedNow} checks={inventoryChecks} corrections={balanceCorrections} ready={inventoryReady} onSave={(data) => { saveInventoryCheck(data); }} onDelete={deleteInventoryCheck} onCorrect={(row) => onCorrectInventory?.(row)} treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} onInvestigate={onInvestigate}/>)}
 
-      {movementReviewEnabled && (<MovementReviewSection treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} clientRows={clientTransactionsDzd} reasons={movementReasons} ready={inventoryReady} onWriteReason={saveMovementReason} onLinkClient={linkMovementToClient}/>)}
+      {movementReviewEnabled && (<div id="movement-review" className="scroll-mt-20"><MovementReviewSection treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} clientRows={clientTransactionsDzd} reasons={movementReasons} ready={inventoryReady} onWriteReason={saveMovementReason} onLinkClient={linkMovementToClient}/></div>)}
 
       {weeklyFlow.days.some((d) => d.cashIn > 0 || d.cashOut > 0) && (<SectionCard title={t('treasury.flow7Days')}>
           <div aria-hidden="true" className="flex h-20 items-end gap-1">

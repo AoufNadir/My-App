@@ -375,7 +375,8 @@ for (const lang of ['fr', 'ar'] as const) {
     assertBar('clientPayout', lang, { stats: [['transactions.clientBalanceImpact', '10 000,00 DZD']], strip: ['channelStrip.outBaridi', '10 000,00 DZD'] });
     assertBar('clientEditBalance', lang, { stats: [['transactions.clientBalanceImpact', '5 000,00 DZD']] });
     assertBar('adjustDzd', lang, { stats: [['transactions.amount', '30 000,00 DZD']] });
-    assertBar('adjustUsdt', lang, { stats: [['transactions.quantity', '120,00 USDT'], ['transactions.equivalentDzd', '29 270,40 DZD']] });
+    // V12-1: « other reason » is no longer offered, so this USDT exit waits for a real reason.
+    assertBar('adjustUsdt', lang, { stats: [['transactions.quantity', '120,00 USDT'], ['transactions.equivalentDzd', '29 270,40 DZD']], reason: label(lang, 'movementReason.blocked.reason'), tone: 'fix' });
     // Delivery cost, service sale, personal withdrawal: the amount, and its DZD value from the preview.
     assertBar('deliveryDzd', lang, { stats: [['delivery.amount', '2 500 DZD']] });
     assertBar('deliveryUsdt', lang, { stats: [['delivery.amount', '15,00 USDT'], ['delivery.valueDzd', '3 659 DZD']] });

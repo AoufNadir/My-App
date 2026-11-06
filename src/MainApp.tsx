@@ -1,4 +1,6 @@
 import { previousProfits } from './utils/dashboardComparison';
+import { useMovementReasons } from './hooks/useMovementReasons';
+import { buildMovementReview } from './utils/movementReason';
 import React, { Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from './types';
 import { useLanguage } from './contexts/LanguageContext';
@@ -1316,6 +1318,14 @@ export default function MainApp({ user }: {
     const openInventoryCorrection = (row: InventoryRow) => {
         const reason = `Écart d'inventaire ${now().date}`;
         const entry = correctionEntryFor(row);
+        // V12-1: less money than the books say in the cash box or BaridiMob is spent without being recorded:
+        // the personal withdrawal window opens with the difference, so the movement belongs to someone.
+        if ((row.account === 'caisse' || row.account === 'baridi') && row.gap < 0) {
+            openPersonalWithdrawalModal();
+            setPersonalWithdrawalMethod(row.account === 'caisse' ? 'Caisse' : 'BaridiMob');
+            setPersonalWithdrawalAmount(String(Math.round(Math.abs(row.gap))));
+            return;
+        }
         if (row.account === 'caisse' || row.account === 'baridi') {
             openTreasuryBalanceEditModal(row.account === 'caisse' ? 'Caisse' : 'BaridiMob');
             setTreasuryBalanceEditValue(entry);
@@ -2534,6 +2544,15 @@ export default function MainApp({ user }: {
         if (notifications.permission !== 'granted' || !investorTermsSynced) return;
         notifications.notifyInvestorTerms(investorTerms.reminders);
     }, [notifications.permission, investorTermsSynced, investorTerms.reminders]);
+    // V12-1: money movements nothing explains, counted for the Home page and its bell, and a phone notification
+    // as soon as a new one appears. Only once the server has answered, so a cached list never counts.
+    const homeMovementReasons = useMovementReasons(userDocRef as never, isFinancialDataReady, () => undefined);
+    const unexplainedMovementCount = useMemo(() => buildMovementReview({ treasury: treasuryTransactions, crypto: transactions, clientRows: clientTransactionsDzd, reasons: homeMovementReasons.reasons }).unexplained.length, [treasuryTransactions, transactions, clientTransactionsDzd, homeMovementReasons.reasons]);
+    const movementsCounted = isFinancialDataReady && !isAwaitingServerSync;
+    React.useEffect(() => {
+        if (movementsCounted)
+            notifications.notifyUnexplainedMovements(unexplainedMovementCount);
+    }, [movementsCounted, unexplainedMovementCount]);
     // The same reminder on the phone, once a day; nothing while it is put off or the server has not answered.
     React.useEffect(() => {
         if (notifications.permission !== 'granted' || !inventoryReminder.reminder) return;
@@ -2627,6 +2646,11 @@ export default function MainApp({ user }: {
         onOpenClient: openDashboardClient,
         onOpenClientDebts: openClientsWithDebtFollowUp,
         onOpenTreasury: () => setView('tresorerie'),
+        unexplainedMovementCount: movementsCounted ? unexplainedMovementCount : 0,
+        onReviewMovements: () => {
+            setView('tresorerie');
+            window.setTimeout(() => document.getElementById('movement-review')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
+        },
         onOpenAnalytics: () => setView('analytics'),
         onOpenPersonalWithdrawal: openPersonalWithdrawalModal,
         transactions: dashboardSummary ? EMPTY_TRANSACTIONS : transactions,

@@ -20,10 +20,12 @@ export type AdjustmentDirection = 'add' | 'subtract';
  */
 export type AdjustmentReason = 'client' | 'personal_withdrawal' | 'project_expense' | 'wallet_transfer' | 'buy' | 'sell' | 'other';
 
-const DZD_ADD: readonly AdjustmentReason[] = ['client', 'wallet_transfer', 'other'];
-const DZD_SUBTRACT: readonly AdjustmentReason[] = ['client', 'personal_withdrawal', 'project_expense', 'wallet_transfer', 'other'];
-const CRYPTO_ADD: readonly AdjustmentReason[] = ['buy', 'other'];
-const CRYPTO_SUBTRACT: readonly AdjustmentReason[] = ['sell', 'personal_withdrawal', 'project_expense', 'other'];
+// V12-1: every movement belongs to someone (a client, me, the project, a wallet transfer, a purchase or a sale):
+// « other reason, written in words » is no longer offered. Old movements explained in words keep their reason.
+const DZD_ADD: readonly AdjustmentReason[] = ['client', 'wallet_transfer'];
+const DZD_SUBTRACT: readonly AdjustmentReason[] = ['client', 'personal_withdrawal', 'project_expense', 'wallet_transfer'];
+const CRYPTO_ADD: readonly AdjustmentReason[] = ['buy'];
+const CRYPTO_SUBTRACT: readonly AdjustmentReason[] = ['sell', 'personal_withdrawal', 'project_expense'];
 
 export const isDzdAdjustmentAsset = (asset: string) => asset === 'DZD-Caisse' || asset === 'DZD-Baridi';
 

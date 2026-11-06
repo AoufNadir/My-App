@@ -11,6 +11,7 @@ const KIND_KEYS: Record<NotificationKind, string> = {
     profit: 'settings.notifProfit',
     terms: 'settings.notifTerms',
     inventory: 'settings.notifInventory',
+    movements: 'settings.notifMovements',
 };
 
 export function NotificationSettings({ initialPermission }: { initialPermission?: NotificationPermission | 'unsupported' }) {

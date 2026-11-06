@@ -85,11 +85,11 @@ for (const lang of ['fr', 'ar'] as const) {
         const html = adjustmentWindow(lang, {});
         const out = text(html);
         assert.ok(out.includes(w.title), `${lang}: the question is asked`);
-        assert.equal(radios(html), 5, `${lang}: BaridiMob exit offers five reasons`);
+        assert.equal(radios(html), 4, `${lang}: BaridiMob exit offers four reasons`);
         assert.equal(count(html, 'aria-checked="true"'), 0, `${lang}: none is chosen for the user`);
         assert.ok(out.includes(w.pick), `${lang}: the bar says to choose a reason`);
         assert.equal(confirmOff(html, lang), true, `${lang}: Save is off without a reason`);
-        assert.ok(out.includes(w.clientOut) && out.includes(w.other));
+        assert.ok(out.includes(w.clientOut) && !out.includes(w.other), `${lang}: no « other reason »`);
         assert.equal(count(html, 'adjustment_reason_note'), 0, `${lang}: no reason box until « other » is chosen`);
     }
 
@@ -114,33 +114,26 @@ for (const lang of ['fr', 'ar'] as const) {
         assert.match(out, /-12 500,00/, `${lang}: balance before`);
         assert.match(out, /17 500,00/, `${lang}: balance after (-12 500 + 30 000)`);
         assert.ok(out.includes(w.clientIn));
-        assert.equal(radios(html), 3, `${lang}: money entering the Caisse offers three reasons`);
+        assert.equal(radios(html), 2, `${lang}: money entering the Caisse offers two reasons`);
     }
 
-    // 4. « Other » asks for the reason in words, in its own box; the optional note box goes away.
+    // 4. V12-1: « Other reason » is gone: every movement belongs to a client, me, the project or a transfer.
     {
-        const html = adjustmentWindow(lang, { adjustmentReason: 'other' });
-        assert.equal(count(html, 'id="adjustment_reason_note"'), 1);
-        assert.equal(count(html, 'id="adjustment_notes"'), 0, `${lang}: one note box, not two`);
-        assert.ok(text(html).includes(w.note), `${lang}: asks for the reason in words`);
-        assert.equal(confirmOff(html, lang), true);
-        const written = adjustmentWindow(lang, { adjustmentReason: 'other', adjustmentNote: 'erreur de saisie' });
-        assert.equal(confirmOff(written, lang), false, `${lang}: Save is on once the reason is written`);
-        const dflt = adjustmentWindow(lang, { adjustmentReason: 'other', adjustmentNote: 'Ajustement Trésorerie' });
-        assert.equal(confirmOff(dflt, lang), true, `${lang}: the default note is not a reason`);
+        const html = adjustmentWindow(lang, {});
+        assert.equal(count(html, 'id="adjustment_reason_note"'), 0, `${lang}: no written-reason box`);
+        const forced = adjustmentWindow(lang, { adjustmentReason: 'other', adjustmentNote: 'erreur de saisie' });
+        assert.equal(confirmOff(forced, lang), true, `${lang}: an « other » reason cannot be saved`);
     }
 
     // 5. USDT and EUR: a purchase or a sale, or « other »; never a client.
     {
         const usdtIn = adjustmentWindow(lang, { adjustmentAsset: 'USDT', adjustmentTab: 'add', adjustmentAmount: '10' });
-        assert.equal(radios(usdtIn), 2);
+        assert.equal(radios(usdtIn), 1);
         assert.equal(count(usdtIn, lang === 'fr' ? '>Un achat<' : '>شراء<'), 1, `${lang}: a purchase is offered`);
         const eurOut = adjustmentWindow(lang, { adjustmentAsset: 'EUR', adjustmentTab: 'subtract', adjustmentAmount: '10' });
-        assert.equal(radios(eurOut), 4);
+        assert.equal(radios(eurOut), 3);
         assert.ok(!text(eurOut).includes(w.clientOut), `${lang}: no client reason for EUR`);
         assert.equal(confirmOff(eurOut, lang), true);
-        const eurOther = adjustmentWindow(lang, { adjustmentAsset: 'EUR', adjustmentTab: 'subtract', adjustmentAmount: '10', adjustmentReason: 'other', adjustmentNote: 'don offert' });
-        assert.equal(confirmOff(eurOther, lang), false, `${lang}: EUR with a written reason can be saved`);
         const stale = adjustmentWindow(lang, { adjustmentAsset: 'USDT', adjustmentTab: 'add', adjustmentAmount: '10', adjustmentReason: 'client', adjustmentClientId: 'c4' });
         assert.equal(confirmOff(stale, lang), true, `${lang}: a reason the wallet does not offer cannot be saved`);
     }
@@ -148,7 +141,7 @@ for (const lang of ['fr', 'ar'] as const) {
     // 6. Editing a movement that exists: it stays an adjustment, so only the reasons that keep it one.
     {
         const edit = adjustmentWindow(lang, { editingTreasuryTx: { id: 't1', type: 'Retrait', source: 'BaridiMob', amount: 3000, timestamp: 1, date: '01/10/2026', time: '10:00' }, adjustmentReason: 'client', adjustmentClientId: 'c4' });
-        assert.equal(radios(edit), 2, `${lang}: client or other`);
+        assert.equal(radios(edit), 1, `${lang}: a client only`);
         assert.equal(confirmOff(edit, lang), false);
     }
 }
