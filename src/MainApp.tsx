@@ -1,5 +1,7 @@
 import { previousProfits } from './utils/dashboardComparison';
 import { useMovementReasons } from './hooks/useMovementReasons';
+import { useDeliveries } from './hooks/useDeliveries';
+import { deliveryStates, reservedForClients } from './utils/deferredDelivery';
 import { buildMovementReview } from './utils/movementReason';
 import React, { Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from './types';
@@ -534,7 +536,7 @@ export default function MainApp({ user }: {
     // Live smart-pricing quote of the open sell form — persisted on the Tx
     // by handleSell as the sp* snapshot (negotiation-loss tracking).
     const smartQuoteRef = React.useRef<SmartSaleSnapshot | null>(null);
-    const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, adjustmentReason, setAdjustmentReason, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, deliveryExpensePreview, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, transferDate, setTransferDate, transferTime, setTransferTime, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer, handleApplyLock24hToRecentBuys, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, sellTime, setSellTime, saleDatePlan } = useTransactionHandlers({
+    const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, adjustmentReason, setAdjustmentReason, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, deliveryExpensePreview, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, transferDate, setTransferDate, transferTime, setTransferTime, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer, handleApplyLock24hToRecentBuys, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, deliveryPending, setDeliveryPending, sellTime, setSellTime, saleDatePlan } = useTransactionHandlers({
         userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd,
         investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats,
         periodLockedThrough: periodLock.lockedThrough,
@@ -2541,6 +2543,13 @@ export default function MainApp({ user }: {
     const homeMovementReasons = useMovementReasons(userDocRef as never, isFinancialDataReady, () => undefined);
     const unexplainedMovementCount = useMemo(() => buildMovementReview({ treasury: treasuryTransactions, crypto: transactions, clientRows: clientTransactionsDzd, reasons: homeMovementReasons.reasons }).unexplained.length, [treasuryTransactions, transactions, clientTransactionsDzd, homeMovementReasons.reasons]);
     const movementsCounted = isFinancialDataReady && !isAwaitingServerSync;
+    // V12-2: USDT/EUR sold and not sent yet, for the bell.
+    const homeDeliveries = useDeliveries(userDocRef as never, isFinancialDataReady);
+    const pendingDeliveries = useMemo(() => {
+        const saleIds = new Set<string>(transactions.filter((tx) => tx.type === 'sell' && tx.id).map((tx) => String(tx.id)));
+        const open = deliveryStates(homeDeliveries.docs, saleIds).filter((state) => state.remaining > 0);
+        return { clients: new Set(open.map((state) => state.clientId)).size, ...reservedForClients(open) };
+    }, [homeDeliveries.docs, transactions]);
     React.useEffect(() => {
         if (movementsCounted)
             notifications.notifyUnexplainedMovements(unexplainedMovementCount);
@@ -2639,6 +2648,7 @@ export default function MainApp({ user }: {
         onOpenClientDebts: openClientsWithDebtFollowUp,
         onOpenTreasury: () => setView('tresorerie'),
         unexplainedMovementCount: movementsCounted ? unexplainedMovementCount : 0,
+        pendingDeliveries,
         onReviewMovements: () => {
             setView('tresorerie');
             window.setTimeout(() => document.getElementById('movement-review')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
@@ -3006,7 +3016,7 @@ export default function MainApp({ user }: {
         handleBuy, handleSell,
         buyRestriction, setBuyRestriction,
         realPurchaseTime, setRealPurchaseTime,
-        sellDate, setSellDate, sellTime, setSellTime, saleDatePlan,
+        sellDate, setSellDate, deliveryPending, setDeliveryPending, sellTime, setSellTime, saleDatePlan,
         smartPricingByCurrency, smartQuoteRef,
         isClientCrudDialogsOpen,
         txToDelete, setTxToDelete,

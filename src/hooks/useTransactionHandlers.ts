@@ -136,6 +136,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [sellEurToDzdRate, setSellEurToDzdRate] = useState('');
     // V5-3: the day (and optional time) the sale really happened; empty means « now », as always.
     const [sellDate, setSellDate] = useState('');
+    /** V12-2: the client paid but asked for the USDT/EUR later: the sale is recorded, its delivery is tracked apart. */
+    const [deliveryPending, setDeliveryPending] = useState(false);
     const [sellTime, setSellTime] = useState('');
     const [buyUsdtMode, setBuyUsdtMode] = useState<'with_dzd' | 'with_eur' | null>(null);
     const [buyEurForUsdtAmount, setBuyEurForUsdtAmount] = useState('');
@@ -504,7 +506,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             }
         }
     };
-    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setBuyRestriction('free'); setRealPurchaseTime(''); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setSellSettlementCurrency('DZD'); setSellEurToDzdRate(''); setSellDate(''); setSellTime(''); setLinkedClientDzdId('none'); setCreditDueDate(''); setPendingCreditRisk(null); setIsTotalManual(false); setTxTags([]); };
+    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setBuyRestriction('free'); setRealPurchaseTime(''); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setSellSettlementCurrency('DZD'); setSellEurToDzdRate(''); setSellDate(''); setSellTime(''); setDeliveryPending(false); setLinkedClientDzdId('none'); setCreditDueDate(''); setPendingCreditRisk(null); setIsTotalManual(false); setTxTags([]); };
     const computeLockedUntil = (baseTs: number): number => {
         const t = realPurchaseTime.trim();
         if (!t) return baseTs + 24 * 60 * 60 * 1000;
@@ -1037,6 +1039,14 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             else {
                 const ref = userDocRef.collection('usdt_txs').doc();
                 committedSellTxId = ref.id;
+                // V12-2: sold today at today's price, delivered later (in one or several times): the promise is kept apart,
+                // in the same batch, so the stock counted at the inventory includes what is still owed to the client.
+                if (deliveryPending && linkedClientId !== 'none' && !isUsdtSettledInEur) {
+                    batch.set(userDocRef.collection('deliveries').doc(), {
+                        kind: 'commitment', direction: 'to_client', clientId: linkedClientId, currency: sellCurrency,
+                        quantity, timestamp, date, time, saleTxId: ref.id,
+                    });
+                }
                 const mainSellCreate: any = {
                     timestamp, type: 'sell', quantity, sell, total: totalRevenue, profit,
                     date, time, notes: notes.trim(), currency: sellCurrency,
@@ -2056,7 +2066,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal,
         sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal,
         sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate,
-        sellDate, setSellDate, sellTime, setSellTime, saleDatePlan,
+        sellDate, setSellDate, deliveryPending, setDeliveryPending, sellTime, setSellTime, saleDatePlan,
         buyRestriction, setBuyRestriction,
         realPurchaseTime, setRealPurchaseTime,
         buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount,

@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import { checkDelivery, deliveryStates, parseDelivery, reservedForClients, type DeliveryDoc } from './deferredDelivery';
+
+// V12-2: a client buys 3 906,25 USDT today and asks for them in several times: 200, then 300.
+const doc = (id: string, kind: DeliveryDoc['kind'], quantity: number, day: number, extra: Partial<DeliveryDoc> = {}): DeliveryDoc => ({ id, kind, clientId: 'c1', currency: 'USDT', quantity, timestamp: day * 86_400_000, ...extra });
+const docs = [doc('a', 'commitment', 3_906.25, 1, { saleTxId: 's1' }), doc('b', 'delivery', 200, 8), doc('c', 'delivery', 300, 10)];
+const [state] = deliveryStates(docs);
+assert.deepEqual([state.committed, state.delivered, state.remaining], [3_906.25, 500, 3_406.25]);
+assert.equal(state.deliveries.length, 2);
+assert.deepEqual(reservedForClients([state]), { USDT: 3_406.25, EUR: 0 }, 'the inventory expects what is still owed');
+// Never more than what is left, to the cent.
+assert.deepEqual(checkDelivery(3_406.25, 3_406.25), { ok: true });
+assert.deepEqual(checkDelivery(3_406.25, 3_406.26), { ok: false, reason: 'too_much', remaining: 3_406.25 });
+assert.deepEqual(checkDelivery(500, 0), { ok: false, reason: 'empty', remaining: 500 });
+// A commitment whose sale was deleted no longer counts.
+assert.deepEqual(deliveryStates(docs, new Set(['other'])), [], 'sale deleted: nothing owed');
+assert.equal(deliveryStates(docs, new Set(['s1'])).length, 1);
+// Each client and currency apart; everything delivered stays listed at zero.
+const two = deliveryStates([...docs, doc('d', 'commitment', 100, 2, { clientId: 'c2', currency: 'EUR' }), doc('e', 'delivery', 100, 3, { clientId: 'c2', currency: 'EUR' })]);
+assert.equal(two.length, 2);
+assert.equal(two.find((s) => s.clientId === 'c2')!.remaining, 0);
+// Reading what is stored: anything broken is left out.
+assert.equal(parseDelivery('x', { kind: 'delivery', clientId: 'c1', currency: 'USDT', quantity: 200, timestamp: 5 })!.quantity, 200);
+for (const bad of [null, { kind: 'gift', clientId: 'c1', currency: 'USDT', quantity: 1, timestamp: 1 }, { kind: 'delivery', clientId: 'c1', currency: 'BTC', quantity: 1, timestamp: 1 }, { kind: 'delivery', clientId: 'c1', currency: 'USDT', quantity: -2, timestamp: 1 }])
+    assert.equal(parseDelivery('x', bad), null);
+console.log('deferredDelivery tests passed');
