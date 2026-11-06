@@ -8,7 +8,7 @@ import { useInventoryChecks } from '../hooks/useInventoryChecks';
 import { MovementReviewSection } from '../components/treasury/MovementReviewSection';
 import { useMovementReasons } from '../hooks/useMovementReasons';
 import { useDeliveries } from '../hooks/useDeliveries';
-import { deliveryStates, reservedForClients } from '../utils/deferredDelivery';
+import { awaitedFromSuppliers, deliveryStates, operationQuantities, reservedForClients } from '../utils/deferredDelivery';
 import type { ReviewRow } from '../utils/movementReason';
 import { inventoryExpected, listBalanceCorrections, type InventoryRow } from '../utils/inventoryCheck';
 import type { InvestigatorAction } from '../utils/inventoryInvestigator';
@@ -131,8 +131,12 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
     // V12-2: USDT/EUR sold and not sent yet are still in the wallet: the count expects them too.
     const { docs: deliveryDocs } = useDeliveries(userDocRef, inventoryEnabled);
     const reserved = useMemo(() => {
-        const saleIds = new Map((transactions ?? []).filter((tx) => tx.type === 'sell' && tx.id).map((tx) => [tx.id as string, Number(tx.quantity) || 0] as const));
-        return reservedForClients(deliveryStates(deliveryDocs, saleIds));
+        const ids = operationQuantities(transactions ?? []);
+        const states = deliveryStates(deliveryDocs, ids);
+        const owed = reservedForClients(states);
+        const awaited = awaitedFromSuppliers(states);
+        // Owed to clients is still in the wallet (+); awaited from suppliers is in the books, not yet in the wallet (−).
+        return { USDT: owed.USDT - awaited.USDT, EUR: owed.EUR - awaited.EUR };
     }, [deliveryDocs, transactions]);
     const inventoryExpectedNow = useMemo(() => inventoryExpected({
         caisse: caisseBalance,

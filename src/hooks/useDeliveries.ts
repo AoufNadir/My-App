@@ -24,13 +24,13 @@ export function useDeliveries(userDocRef: UserDocRefLike | null | undefined, ena
             setLoaded(true);
         });
     }, [userDocRef, enabled]);
-    const record = useCallback((kind: DeliveryDoc['kind'], clientId: string, currency: DeliveryCurrency, quantity: number, saleTxId?: string, saleTimestamp?: number) => {
+    const record = useCallback((kind: DeliveryDoc['kind'], clientId: string, currency: DeliveryCurrency, quantity: number, saleTxId?: string, saleTimestamp?: number, direction: 'to_client' | 'from_supplier' = 'to_client') => {
         if (!userDocRef)
             return;
         const now = new Date();
         const pad = (n: number) => String(n).padStart(2, '0');
         userDocRef.collection('deliveries').doc().set({
-            kind, direction: 'to_client', clientId, currency, quantity: Math.round(quantity * 100) / 100,
+            kind, direction, clientId, currency, quantity: Math.round(quantity * 100) / 100,
             timestamp: now.getTime(), date: `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`, time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
             ...(saleTxId ? { saleTxId } : {}),
             ...(saleTimestamp ? { saleTimestamp } : {}),

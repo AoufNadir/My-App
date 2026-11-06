@@ -54,6 +54,7 @@ const arePortfolioPagePropsEqual = (prev: any, next: any) => (prev?.statsView ==
     && prev?.reportMonth === next?.reportMonth
     && prev?.reportYear === next?.reportYear);
 const areClientsPagePropsEqual = (prev: any, next: any) => (prev?.selectedClientId === next?.selectedClientId
+    && sameJson(prev?.pendingDeliveryList, next?.pendingDeliveryList)
     && prev?.clientSearchQuery === next?.clientSearchQuery
     && prev?.clientSortMode === next?.clientSortMode
     && prev?.clientsDzd === next?.clientsDzd

@@ -138,6 +138,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [sellDate, setSellDate] = useState('');
     /** V12-2: the client paid but asked for the USDT/EUR later: the sale is recorded, its delivery is tracked apart. */
     const [deliveryPending, setDeliveryPending] = useState(false);
+    /** V12-8: bought and paid, but the supplier sends the USDT/EUR later: the purchase is recorded, its receipt is tracked apart. */
+    const [receiptPending, setReceiptPending] = useState(false);
     const [sellTime, setSellTime] = useState('');
     const [buyUsdtMode, setBuyUsdtMode] = useState<'with_dzd' | 'with_eur' | null>(null);
     const [buyEurForUsdtAmount, setBuyEurForUsdtAmount] = useState('');
@@ -506,7 +508,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             }
         }
     };
-    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setBuyRestriction('free'); setRealPurchaseTime(''); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setSellSettlementCurrency('DZD'); setSellEurToDzdRate(''); setSellDate(''); setSellTime(''); setDeliveryPending(false); setLinkedClientDzdId('none'); setCreditDueDate(''); setPendingCreditRisk(null); setIsTotalManual(false); setTxTags([]); };
+    const closeForm = () => { setMode(null); setEditingTx(null); setBuyUsdtMode(null); setBuyRestriction('free'); setRealPurchaseTime(''); setSellTotal(''); setBuyUsdtTotal(''); setBuyEurTotal(''); setSellSettlementCurrency('DZD'); setSellEurToDzdRate(''); setSellDate(''); setSellTime(''); setDeliveryPending(false); setReceiptPending(false); setLinkedClientDzdId('none'); setCreditDueDate(''); setPendingCreditRisk(null); setIsTotalManual(false); setTxTags([]); };
     const computeLockedUntil = (baseTs: number): number => {
         const t = realPurchaseTime.trim();
         if (!t) return baseTs + 24 * 60 * 60 * 1000;
@@ -656,6 +658,14 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     ...buyMetadata
                 });
                 createLinkedEurConversionTx();
+                // V12-8: paid now, received later (in one or several times): what the supplier still has to send is kept
+                // apart, in the same batch, so the count does not expect it in the wallet yet.
+                if (receiptPending && linkedClientId !== 'none' && buyUsdtMode !== 'with_eur') {
+                    batch.set(userDocRef.collection('deliveries').doc(), {
+                        kind: 'commitment', direction: 'from_supplier', clientId: linkedClientId, currency,
+                        quantity, timestamp, date, time, saleTxId: mainTxRef.id,
+                    });
+                }
                 if (buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit' && !shouldLinkCashToDzdClient) {
                     const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
@@ -2066,7 +2076,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal,
         sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal,
         sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate,
-        sellDate, setSellDate, deliveryPending, setDeliveryPending, sellTime, setSellTime, saleDatePlan,
+        sellDate, setSellDate, deliveryPending, setDeliveryPending, receiptPending, setReceiptPending, sellTime, setSellTime, saleDatePlan,
         buyRestriction, setBuyRestriction,
         realPurchaseTime, setRealPurchaseTime,
         buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount,

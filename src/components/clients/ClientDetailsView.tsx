@@ -1,6 +1,6 @@
 import { Fragment, lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useDeliveries } from '../../hooks/useDeliveries';
-import { deliveryStates } from '../../utils/deferredDelivery';
+import { deliveryStates, operationQuantities } from '../../utils/deferredDelivery';
 const isActivityReportOpenForDeliveries = (clientId: string | null | undefined) => Boolean(clientId);
 import { ClientDeliveries } from './ClientDeliveries';
 import { Button } from '../ui/Button';
@@ -125,24 +125,38 @@ function ContactRow({ label, value, copiedValue, onCopy, isPhone, isAddress }: C
     </div>);
 }
 /** V12-2: the USDT/EUR sold to this client and not sent yet, with their own reading of the `deliveries` collection. */
-function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transactions, setAlert }: { userDocRef: any; clientId: string; clientName: string; phone?: string; transactions?: ReadonlyArray<{ id?: string; type?: string }>; setAlert?: (message: string) => void }) {
+function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transactions, clientRows, setAlert }: { userDocRef: any; clientId: string; clientName: string; phone?: string; transactions?: ReadonlyArray<{ id?: string; type?: string }>; clientRows?: ReadonlyArray<{ clientId?: string; linkedTxId?: string }>; setAlert?: (message: string) => void }) {
     const { docs, record, remove } = useDeliveries(userDocRef, Boolean(userDocRef), () => setAlert?.('❌ Erreur lors de la sauvegarde.'));
-    const saleIds = useMemo(() => new Map((transactions ?? []).filter((tx) => tx.type === 'sell' && tx.id).map((tx) => [tx.id as string, Number((tx as { quantity?: number }).quantity) || 0] as const)), [transactions]);
+    const saleIds = useMemo(() => operationQuantities((transactions ?? []) as ReadonlyArray<{ id?: string; type?: string; quantity?: number }>), [transactions]);
     // This client's sales in USDT/EUR paid in dinars, newest first: the ones that can still be « not sent yet ».
     const sales = useMemo(() => (transactions ?? [])
         .filter((tx: any) => tx.type === 'sell' && tx.id && tx.linkedClientId === clientId && (tx.currency === 'USDT' || tx.currency === 'EUR') && tx.settlementCurrency !== 'EUR')
         .map((tx: any) => ({ id: tx.id as string, currency: tx.currency as 'USDT' | 'EUR', quantity: Number(tx.quantity) || 0, timestamp: Number(tx.timestamp) || 0 }))
         .filter((sale) => sale.quantity > 0)
         .sort((a, b) => b.timestamp - a.timestamp), [transactions, clientId]);
-    return <ClientDeliveries clientId={clientId} clientName={clientName} phone={phone} docs={docs} saleIds={saleIds} onRecord={record} onRemove={remove} sales={sales}/>;
+    // V12-8: this client's purchases (he is the supplier): found through his account rows linked to a purchase.
+    const purchases = useMemo(() => {
+        const linked = new Set((clientRows ?? []).filter((row) => row.clientId === clientId && row.linkedTxId).map((row) => row.linkedTxId as string));
+        return (transactions ?? [])
+            .filter((tx: any) => tx.type === 'buy' && tx.id && linked.has(tx.id) && (tx.currency === 'USDT' || tx.currency === 'EUR') && tx.purchaseFundingCurrency !== 'EUR')
+            .map((tx: any) => ({ id: tx.id as string, currency: tx.currency as 'USDT' | 'EUR', quantity: Number(tx.quantity) || 0, timestamp: Number(tx.timestamp) || 0 }))
+            .filter((buy) => buy.quantity > 0)
+            .sort((a, b) => b.timestamp - a.timestamp);
+    }, [transactions, clientRows, clientId]);
+    const hasSupplierLines = docs.some((doc) => doc.clientId === clientId && doc.direction === 'from_supplier');
+    const hasClientLines = docs.some((doc) => doc.clientId === clientId && doc.direction !== 'from_supplier');
+    return (<>
+      {(sales.length > 0 || purchases.length === 0 || hasClientLines) && <ClientDeliveries clientId={clientId} clientName={clientName} phone={phone} docs={docs} saleIds={saleIds} onRecord={record} onRemove={remove} sales={sales}/>}
+      {(purchases.length > 0 || hasSupplierLines) && <ClientDeliveries direction="from_supplier" clientId={clientId} clientName={clientName} phone={phone} docs={docs} saleIds={saleIds} onRecord={record} onRemove={remove} sales={purchases}/>}
+    </>);
 }
 
 export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, reportClientRows, clientsDzd, setSelectedClientId, getClientFullName, openClientSummary, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal, userDocRef, clientBalances, onRecordClientTransfer, setAlert}: ClientDetailsViewProps) {
     // V12-2: what this client bought and has not received yet, for his activity report (read while it is open).
     const { docs: reportDeliveryDocs } = useDeliveries(userDocRef, Boolean(userDocRef && isActivityReportOpenForDeliveries(selectedClientId)));
     const reportWaiting = useMemo(() => {
-        const sales = new Map((transactions ?? []).filter((tx) => tx.type === 'sell' && tx.id).map((tx) => [tx.id as string, Number(tx.quantity) || 0] as const));
-        return deliveryStates(reportDeliveryDocs.filter((doc) => doc.clientId === selectedClientId), sales);
+        const sales = operationQuantities((transactions ?? []) as ReadonlyArray<{ id?: string; type?: string; quantity?: number }>);
+        return deliveryStates(reportDeliveryDocs.filter((doc) => doc.clientId === selectedClientId), sales).filter((state) => state.direction === 'to_client');
     }, [reportDeliveryDocs, transactions, selectedClientId]);
     const { t } = useLanguage();
     const INITIAL_VISIBLE_TRANSACTIONS = 60;
@@ -381,6 +395,8 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
               <span className="max-w-full">{action.label}</span>
             </button>))}
         </div>
+        {/* V12-2: what is still owed to this client comes first, so it is seen as soon as the page opens */}
+        {selectedClient && <ClientDeliveriesEntry userDocRef={userDocRef} clientId={selectedClient.id} clientName={getClientFullName(selectedClient)} phone={selectedClient.phone} transactions={transactions} clientRows={clientTransactionsDzd} setAlert={setAlert}/>}
         <button type="button" onClick={() => setIsActivityReportOpen(true)} data-testid="client-activity-report-button" className="mt-2 flex min-h-touch w-full items-center gap-3 rounded-button border border-border bg-surface px-3 py-2 text-start transition-colors hover:bg-surface-muted active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
           <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary dark:text-primary-light">
             <FileSpreadsheetIcon className="h-5 w-5"/>
@@ -391,7 +407,6 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
           </span>
           <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100"/>
         </button>
-        {selectedClient && <ClientDeliveriesEntry userDocRef={userDocRef} clientId={selectedClient.id} clientName={getClientFullName(selectedClient)} phone={selectedClient.phone} transactions={transactions} setAlert={setAlert}/>}
         <ClientConfirmationEntry userDocRef={userDocRef} client={selectedClient} balance={selectedClientBalance} balances={clientBalances ?? new Map<string, number>()} clients={clientsDzd} getClientFullName={getClientFullName} clientTransactions={clientTransactionsDzd} onEditOperation={handleEditClientTx} onRecordTransfer={onRecordClientTransfer} setAlert={setAlert}/>
       </section>
 

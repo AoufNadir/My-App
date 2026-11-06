@@ -6,8 +6,11 @@
 // The inventory adds what is still owed to the stock the books expect, because it is still in the wallet.
 
 export type DeliveryCurrency = 'USDT' | 'EUR';
+/** to_client: sold, not sent yet (V12-2). from_supplier: bought and paid, not received yet (V12-8). */
+export type DeliveryDirection = 'to_client' | 'from_supplier';
 export type DeliveryDoc = {
     id: string;
+    direction?: DeliveryDirection;
     kind: 'commitment' | 'delivery';
     clientId: string;
     currency: DeliveryCurrency;
@@ -18,7 +21,7 @@ export type DeliveryDoc = {
     saleTimestamp?: number;
     note?: string;
 };
-export type ClientDeliveryState = { clientId: string; currency: DeliveryCurrency; committed: number; delivered: number; remaining: number; since: number; deliveries: DeliveryDoc[]; commitments: DeliveryDoc[] };
+export type ClientDeliveryState = { clientId: string; direction: DeliveryDirection; currency: DeliveryCurrency; committed: number; delivered: number; remaining: number; since: number; deliveries: DeliveryDoc[]; commitments: DeliveryDoc[] };
 
 const cents = (value: number) => Math.round(value * 100);
 const fromCents = (value: number) => value / 100;
@@ -35,6 +38,7 @@ export function parseDelivery(id: string, raw: unknown): DeliveryDoc | null {
         return null;
     return {
         id, kind, currency, quantity: fromCents(cents(quantity)), timestamp, clientId: data.clientId,
+        direction: data.direction === 'from_supplier' ? 'from_supplier' : 'to_client',
         ...(typeof data.saleTxId === 'string' ? { saleTxId: data.saleTxId } : {}),
         ...(Number.isFinite(Number(data.saleTimestamp)) && Number(data.saleTimestamp) > 0 ? { saleTimestamp: Number(data.saleTimestamp) } : {}),
         ...(typeof data.note === 'string' && data.note.trim() ? { note: data.note.trim() } : {}),
@@ -58,8 +62,9 @@ export function deliveryStates(docs: ReadonlyArray<DeliveryDoc>, sales?: SaleLoo
         const saleQuantity = doc.kind === 'commitment' && doc.saleTxId && sales instanceof Map ? Number(sales.get(doc.saleTxId)) : NaN;
         if (Number.isFinite(saleQuantity) && saleQuantity > 0)
             doc = { ...doc, quantity: fromCents(cents(saleQuantity)) };
-        const key = `${doc.clientId}|${doc.currency}`;
-        const state = byKey.get(key) ?? { clientId: doc.clientId, currency: doc.currency, committed: 0, delivered: 0, remaining: 0, since: doc.saleTimestamp ?? doc.timestamp, deliveries: [], commitments: [] };
+        const direction: DeliveryDirection = doc.direction === 'from_supplier' ? 'from_supplier' : 'to_client';
+        const key = `${direction}|${doc.clientId}|${doc.currency}`;
+        const state = byKey.get(key) ?? { clientId: doc.clientId, direction, currency: doc.currency, committed: 0, delivered: 0, remaining: 0, since: doc.saleTimestamp ?? doc.timestamp, deliveries: [], commitments: [] };
         if (doc.kind === 'commitment') {
             state.committed = fromCents(cents(state.committed) + cents(doc.quantity));
             state.commitments.push(doc);
@@ -76,8 +81,17 @@ export function deliveryStates(docs: ReadonlyArray<DeliveryDoc>, sales?: SaleLoo
 
 /** USDT and EUR sold but not sent yet: still in the wallet, so the inventory expects them. */
 export function reservedForClients(states: ReadonlyArray<ClientDeliveryState>): Record<DeliveryCurrency, number> {
+    return pendingTotals(states, 'to_client');
+}
+
+/** USDT and EUR bought and paid but not received yet: in the stock of the books, not in the wallet yet. */
+export function awaitedFromSuppliers(states: ReadonlyArray<ClientDeliveryState>): Record<DeliveryCurrency, number> {
+    return pendingTotals(states, 'from_supplier');
+}
+
+function pendingTotals(states: ReadonlyArray<ClientDeliveryState>, direction: DeliveryDirection): Record<DeliveryCurrency, number> {
     const total = { USDT: 0, EUR: 0 };
-    for (const state of states)
+    for (const state of states.filter((item) => item.direction === direction))
         total[state.currency] += cents(Math.max(0, state.remaining));
     return { USDT: fromCents(total.USDT), EUR: fromCents(total.EUR) };
 }
@@ -106,4 +120,11 @@ export function canRemove(state: Pick<ClientDeliveryState, 'committed' | 'delive
 export const DELIVERY_LATE_DAYS = 7;
 export function isLate(state: Pick<ClientDeliveryState, 'remaining' | 'since'>, now: number, days = DELIVERY_LATE_DAYS): boolean {
     return state.remaining > 0 && now - state.since > days * 86_400_000;
+}
+
+/** The sales and purchases still in the books, with their quantity: what a line linked to one of them follows. */
+export function operationQuantities(transactions: ReadonlyArray<{ id?: string; type?: string; quantity?: number }>): Map<string, number> {
+    return new Map(transactions
+        .filter((tx) => (tx.type === 'sell' || tx.type === 'buy') && tx.id)
+        .map((tx) => [tx.id as string, Number(tx.quantity) || 0] as const));
 }

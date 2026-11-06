@@ -46,4 +46,13 @@ import { isLate } from './deferredDelivery';
     const [fromSale] = deliveryStates([doc('z', 'commitment', 100, 9, { saleTimestamp: 2 * day })]);
     assert.equal(fromSale.since, 2 * day, 'the day of the sale, not the day the rest was added');
 }
+// V12-8: a supplier paid and not delivered yet is followed apart, never mixed with what is owed to clients.
+import { awaitedFromSuppliers } from './deferredDelivery';
+{
+    const both = deliveryStates([...docs, doc('f1', 'commitment', 1_000, 3, { clientId: 'sup', direction: 'from_supplier' }), doc('f2', 'delivery', 400, 5, { clientId: 'sup', direction: 'from_supplier' })]);
+    assert.equal(both.length, 2);
+    assert.deepEqual(awaitedFromSuppliers(both), { USDT: 600, EUR: 0 }, 'awaited from the supplier');
+    assert.deepEqual(reservedForClients(both), { USDT: 3_406.25, EUR: 0 }, 'owed to clients unchanged');
+    assert.equal(parseDelivery('x', { kind: 'delivery', clientId: 'c', currency: 'USDT', quantity: 1, timestamp: 1 })!.direction, 'to_client', 'old lines are client lines');
+}
 console.log('deferredDelivery tests passed');

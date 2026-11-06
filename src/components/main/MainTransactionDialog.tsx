@@ -27,7 +27,7 @@ import { selectableClients } from '../../utils/clientRegistry';
 type MainTransactionDialogProps = Record<string, any>;
 type LastEditedSellField = 'eurReceived' | 'quantity' | 'total' | 'price';
 type SellCalculationBasis = Exclude<LastEditedSellField, 'price'>;
-export function MainTransactionDialog({ transactions, clientTransactionsDzd, profitByTxId, mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, deliveryPending, setDeliveryPending, sellTime, setSellTime, saleDatePlan, smartPricingByCurrency, smartQuoteRef }: MainTransactionDialogProps) {
+export function MainTransactionDialog({ transactions, clientTransactionsDzd, profitByTxId, mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, deliveryPending, setDeliveryPending, receiptPending, setReceiptPending, sellTime, setSellTime, saleDatePlan, smartPricingByCurrency, smartQuoteRef }: MainTransactionDialogProps) {
     const [sellUsdtSourceSelected, setSellUsdtSourceSelected] = React.useState(false);
     const [saleDateOpen, setSaleDateOpen] = React.useState(false);
     const [lastEditedSellField, setLastEditedSellField] = React.useState<LastEditedSellField>('quantity');
@@ -566,6 +566,15 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                         setBuyUsdtTotal(Math.round(total).toString());
                 }} currency="DZD" onMax={applyClientMaxToBuyTotal} maxDisabled={!hasPrimaryClient || selectedClientTotal <= 0} error={fieldError('buyUsdtTotal')} hint={t('transactions.autoCalc')}/>
                                 </FormCard>
+                                {!editingTx && hasPrimaryClient && setReceiptPending && buyUsdtMode !== 'with_eur' && (
+                                    <label className="flex cursor-pointer items-start gap-3 rounded-card border border-border bg-surface px-4 py-3">
+                                        <input type="checkbox" checked={!!receiptPending} onChange={(event) => setReceiptPending(event.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-primary"/>
+                                        <span className="min-w-0">
+                                            <span className="block text-sm font-bold text-neutral-900">{t('transactions.receiptPending')}</span>
+                                            <span className="mt-0.5 block text-xs text-neutral-500">{t('transactions.receiptPendingHint')}</span>
+                                        </span>
+                                    </label>
+                                )}
                                 {renderStockAvailability()}
                             </>)}
 
@@ -606,6 +615,15 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                                         </div>);
                 })()}
                                 </FormCard>
+                                {!editingTx && hasPrimaryClient && setReceiptPending && buyUsdtMode !== 'with_eur' && (
+                                    <label className="flex cursor-pointer items-start gap-3 rounded-card border border-border bg-surface px-4 py-3">
+                                        <input type="checkbox" checked={!!receiptPending} onChange={(event) => setReceiptPending(event.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-primary"/>
+                                        <span className="min-w-0">
+                                            <span className="block text-sm font-bold text-neutral-900">{t('transactions.receiptPending')}</span>
+                                            <span className="mt-0.5 block text-xs text-neutral-500">{t('transactions.receiptPendingHint')}</span>
+                                        </span>
+                                    </label>
+                                )}
                                 {renderStockAvailability()}
                             </>)}
 

@@ -54,4 +54,18 @@ assert.ok(deliveryMessage('ar', 'Client Test', { committed: 10, delivered: 10, r
     const html = render('fr', <ClientDeliveries clientId="c1" clientName="X" docs={docs} saleIds={new Set(['s1'])} onRecord={() => undefined}/>);
     assert.ok(html.includes('Envoyer le relevé sur WhatsApp'), 'the statement button is always there');
 }
+// V12-8: the supplier side reads « to receive / received / left », offers purchases, and has no WhatsApp statement.
+{
+    const supplierDocs: DeliveryDoc[] = [
+        { id: 'f1', kind: 'commitment', direction: 'from_supplier', clientId: 'sup', currency: 'USDT', quantity: 1_000, timestamp: 1, saleTxId: 'b1' },
+        { id: 'f2', kind: 'delivery', direction: 'from_supplier', clientId: 'sup', currency: 'USDT', quantity: 400, timestamp: 2 },
+        { id: 'k1', kind: 'commitment', clientId: 'sup', currency: 'USDT', quantity: 50, timestamp: 1 },
+    ];
+    const html = render('fr', <ClientDeliveries direction="from_supplier" clientId="sup" clientName="X" docs={supplierDocs} saleIds={new Map([['b1', 1_000]])} onRecord={() => undefined}/>).replace(/\u202f|\u00a0/g, ' ');
+    for (const label of ['À recevoir du fournisseur', 'Reçu', 'Reste à recevoir', 'J’ai reçu'])
+        assert.ok(html.includes(label), label);
+    assert.ok(html.includes('600,00'), 'left to receive');
+    assert.ok(!html.includes('50,00'), 'a client line of the same person is not mixed in');
+    assert.ok(!html.includes('WhatsApp'), 'no WhatsApp statement for a supplier');
+}
 console.log('ClientDeliveries tests passed');

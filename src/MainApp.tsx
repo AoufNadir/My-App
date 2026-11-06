@@ -1,7 +1,7 @@
 import { previousProfits } from './utils/dashboardComparison';
 import { useMovementReasons } from './hooks/useMovementReasons';
 import { useDeliveries } from './hooks/useDeliveries';
-import { deliveryStates, isLate, reservedForClients } from './utils/deferredDelivery';
+import { awaitedFromSuppliers, deliveryStates, isLate, operationQuantities, reservedForClients } from './utils/deferredDelivery';
 import { buildMovementReview } from './utils/movementReason';
 import React, { Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, TreasuryCard, ManualAssetTransaction, Investor, InvestorTransaction, DigitalServiceTransaction } from './types';
@@ -324,11 +324,22 @@ export default function MainApp({ user }: {
     // V12-2: USDT/EUR sold and not sent yet, for the bell, the portfolio and the client pages.
     const homeDeliveries = useDeliveries(userDocRef as never, isFinancialDataReady);
     const pendingDeliveries = useMemo(() => {
-        const saleIds = new Map<string, number>(transactions.filter((tx) => tx.type === 'sell' && tx.id).map((tx) => [String(tx.id), Number(tx.quantity) || 0]));
-        const open = deliveryStates(homeDeliveries.docs, saleIds).filter((state) => state.remaining > 0);
+        const saleIds = operationQuantities((transactions ?? []) as ReadonlyArray<{ id?: string; type?: string; quantity?: number }>);
+        const allOpen = deliveryStates(homeDeliveries.docs, saleIds).filter((state) => state.remaining > 0);
+        const open = allOpen.filter((state) => state.direction === 'to_client');
         const nowMs = Date.now();
-        return { clients: new Set(open.map((state) => state.clientId)).size, late: new Set(open.filter((state) => isLate(state, nowMs)).map((state) => state.clientId)).size, ...reservedForClients(open) };
-    }, [homeDeliveries.docs, transactions]);
+        const nameOf = (id: string) => {
+            const client = clientsDzd.find((item) => item.id === id);
+            return client ? (client.fullName || client.nom || '').trim() || id : id;
+        };
+        // One line per client and currency, the longest waiting first: for the portfolio card and the clients list.
+        const list = open
+            .map((state) => ({ clientId: state.clientId, name: nameOf(state.clientId), currency: state.currency, remaining: state.remaining, since: state.since, late: isLate(state, nowMs) }))
+            .sort((a, b) => a.since - b.since);
+        const suppliers = allOpen.filter((state) => state.direction === 'from_supplier');
+        const supplierList = suppliers.map((state) => ({ clientId: state.clientId, name: nameOf(state.clientId), currency: state.currency, remaining: state.remaining, since: state.since, late: isLate(state, nowMs) })).sort((a, b) => a.since - b.since);
+        return { clients: new Set(open.map((state) => state.clientId)).size, late: new Set(open.filter((state) => isLate(state, nowMs)).map((state) => state.clientId)).size, ...reservedForClients(open), list, awaited: awaitedFromSuppliers(suppliers), supplierList };
+    }, [homeDeliveries.docs, transactions, clientsDzd]);
     useEffect(() => {
         const nowMs = Date.now();
         const nextUnlock = [...pamLedger.portfolioStats.usdt.lockedBatches, ...pamLedger.portfolioStats.eur.lockedBatches]
@@ -544,7 +555,7 @@ export default function MainApp({ user }: {
     // Live smart-pricing quote of the open sell form — persisted on the Tx
     // by handleSell as the sp* snapshot (negotiation-loss tracking).
     const smartQuoteRef = React.useRef<SmartSaleSnapshot | null>(null);
-    const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, adjustmentReason, setAdjustmentReason, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, deliveryExpensePreview, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, transferDate, setTransferDate, transferTime, setTransferTime, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer, handleApplyLock24hToRecentBuys, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, deliveryPending, setDeliveryPending, sellTime, setSellTime, saleDatePlan } = useTransactionHandlers({
+    const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, adjustmentReason, setAdjustmentReason, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, deliveryExpensePreview, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, transferDate, setTransferDate, transferTime, setTransferTime, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer, handleApplyLock24hToRecentBuys, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, deliveryPending, setDeliveryPending, receiptPending, setReceiptPending, sellTime, setSellTime, saleDatePlan } = useTransactionHandlers({
         userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd,
         investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats,
         periodLockedThrough: periodLock.lockedThrough,
@@ -2265,6 +2276,7 @@ export default function MainApp({ user }: {
         setIsSettingsModalOpen,
         portfolioStats,
         pendingDeliveries,
+        onOpenClient: (clientId: string) => { setSelectedClientId(clientId); setView('dzd'); },
         totalPortfolioValue: ((portfolioStats.usdt.available + (portfolioStats.usdt.locked || 0)) * portfolioStats.usdt.avgBuy + (portfolioStats.eur.available + (portfolioStats.eur.locked || 0)) * portfolioStats.eur.avgBuy),
         smartTargetUsdt: smartTargetPrices.usdt,
         smartTargetEur: smartTargetPrices.eur,
@@ -2432,12 +2444,13 @@ export default function MainApp({ user }: {
         userDocRef,
         setAlert,
         onRecordClientTransfer: openClientTransferPrefilled,
+        pendingDeliveryList: pendingDeliveries.list,
     }), [
         selectedClientId, clientSearchQuery, clientSortMode,
         clientsDzd, filteredClientsDzd, searchedClientsDzd, clientBalances, selectedClient, selectedClientTransactions, clientTransactionsDzd, reportClientRows, transactions, pamLedger.profitByTxId, copiedValue,
         openClientModal, handleTouchStart, handleTouchEnd, setSummaryClient, handleClientDeleteRequest, openClientTxModal,
         handleCopy, handleEditLinkedClientTx, handleDeleteLinkedClientTxClick, overdueDebtClients, clientLoyaltyMap,
-        earlyClientPrevMonthVolumeMap, earlyClientLastSellDateMap, handleZeroOutBalance, userDocRef, setAlert, openClientTransferPrefilled
+        earlyClientPrevMonthVolumeMap, earlyClientLastSellDateMap, handleZeroOutBalance, userDocRef, setAlert, openClientTransferPrefilled, pendingDeliveries.list
     ]);
     if (isInvestorRoute) {
         if (!isFinancialDataReady) {
@@ -3018,7 +3031,7 @@ export default function MainApp({ user }: {
         handleBuy, handleSell,
         buyRestriction, setBuyRestriction,
         realPurchaseTime, setRealPurchaseTime,
-        sellDate, setSellDate, deliveryPending, setDeliveryPending, sellTime, setSellTime, saleDatePlan,
+        sellDate, setSellDate, deliveryPending, setDeliveryPending, receiptPending, setReceiptPending, sellTime, setSellTime, saleDatePlan,
         smartPricingByCurrency, smartQuoteRef,
         isClientCrudDialogsOpen,
         txToDelete, setTxToDelete,
