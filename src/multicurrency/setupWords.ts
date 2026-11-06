@@ -2,10 +2,10 @@ import type { Lang } from '../contexts/LanguageContext';
 
 // Words of the first-time setup and of the « Business » settings card (M2), in Arabic and French.
 const AR = {
-    step: (n: number) => `الخطوة ${n} من 4`,
+    step: (n: number) => `الخطوة ${n} من 1`,
     next: 'التالي', back: 'رجوع', start: 'ابدأ العمل', skip: 'تخطَّ الآن', save: 'حفظ', saved: 'حُفظ',
     baseTitle: 'بأي عملة تحسب ربحك؟',
-    baseHint: 'كل الأسعار والأرباح ورأس المال تُكتب بها. لا تتغيّر بعد أول عملية.',
+    baseHint: 'كل الأسعار والأرباح ورأس المال تُحسب بها. لا تتغيّر بعد أول عملية. بعدها تضيف محافظك من صفحة «المحافظ»: لكل محفظة اسمها وعملتها وما فيها.',
     currenciesTitle: 'ماذا تشتري وتبيع؟',
     currenciesHint: 'اختر كل ما تتعامل به، ويمكن إضافة غيرها لاحقاً. التحويل بينها لا يُحسب ربحاً.',
     otherCode: 'رمز عملة أخرى (مثل CHF)', add: 'إضافة', addAccount: 'إضافة حساب آخر',
@@ -21,16 +21,17 @@ const AR = {
     identityTitle: 'هوية تقاريرك', identityHint: 'تظهر في تقارير PDF وصور الملخص التي ترسلها لعملائك. اختيارية.',
     businessName: 'اسم النشاط', logo: 'الشعار', pickLogo: 'اختر صورة الشعار', removeLogo: 'إزالة',
     errors: { no_currency: 'اختر عملة واحدة على الأقل غير عملة الأساس.', no_account: 'أضف حساباً واحداً على الأقل.', logo_too_big: 'الصورة كبيرة جداً.', bad_currency: 'رمز عملة غير صالح.' },
-    cardTitle: 'النشاط والعملات',
-    cardHint: 'عملة الأساس، والعملات التي تتعامل بها، وحساباتك، وهوية التقارير. لا يتغيّر أي رصيد عند الحفظ.',
+    cardTitle: 'النشاط',
+    cardHint: 'عملة الأساس وهوية التقارير. لا يتغيّر أي رصيد عند الحفظ.',
+    walletsWhere: 'محافظك (تُضاف وتُدار من صفحة «المحافظ»):',
     baseLocked: (base: string) => `عملة الأساس: ${base} (ثابتة)`,
     legacyAccounts: 'الحسابات الحالية',
 };
 const FR: typeof AR = {
-    step: (n) => `Étape ${n} sur 4`,
+    step: (n) => `Étape ${n} sur 1`,
     next: 'Suivant', back: 'Retour', start: 'Commencer', skip: 'Passer pour l’instant', save: 'Enregistrer', saved: 'Enregistré',
     baseTitle: 'Dans quelle devise comptez-vous vos bénéfices ?',
-    baseHint: 'Prix, bénéfices et capital s’écrivent dans cette devise. Elle ne change plus après la première opération.',
+    baseHint: 'Prix, bénéfices et capital se comptent dans cette devise. Elle ne change plus après la première opération. Ensuite, ajoutez vos portefeuilles (caisse, Binance, Wise…) depuis la page « Portefeuille », chacun avec sa devise et son contenu.',
     currenciesTitle: 'Qu’achetez-vous et vendez-vous ?',
     currenciesHint: 'Choisissez tout ce que vous traitez ; d’autres pourront être ajoutées. Une conversion entre elles n’est pas un bénéfice.',
     otherCode: 'Code d’une autre devise (ex. CHF)', add: 'Ajouter', addAccount: 'Ajouter un autre compte',
@@ -46,8 +47,9 @@ const FR: typeof AR = {
     identityTitle: 'Identité de vos rapports', identityHint: 'Visible sur les PDF et images envoyés à vos clients. Facultatif.',
     businessName: 'Nom de l’activité', logo: 'Logo', pickLogo: 'Choisir l’image du logo', removeLogo: 'Retirer',
     errors: { no_currency: 'Choisissez au moins une devise autre que la devise de base.', no_account: 'Ajoutez au moins un compte.', logo_too_big: 'Image trop lourde.', bad_currency: 'Code de devise invalide.' },
-    cardTitle: 'Activité et devises',
-    cardHint: 'Devise de base, devises traitées, comptes et identité des rapports. Aucun solde ne change à l’enregistrement.',
+    cardTitle: 'Activité',
+    cardHint: 'Devise de base et identité des rapports. Aucun solde ne change à l’enregistrement.',
+    walletsWhere: 'Vos portefeuilles (ajoutés et gérés depuis la page « Portefeuille ») :',
     baseLocked: (base) => `Devise de base : ${base} (fixe)`,
     legacyAccounts: 'Comptes actuels',
 };

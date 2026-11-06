@@ -3,7 +3,7 @@ import { setReportIdentity } from './components/reports/reportIdentity';
 import { previousProfits } from './utils/dashboardComparison';
 import { useBusinessSettings } from './multicurrency/useBusinessSettings';
 import { computeAccountBalances, otherAccountsTotal } from './multicurrency/accountBalances';
-import { needsSetup } from './multicurrency/businessSettings';
+import { baseAccounts, needsSetup } from './multicurrency/businessSettings';
 import { SetupWizard } from './multicurrency/SetupWizard';
 import { inventoryFixFor } from './utils/inventoryCheck';
 import { useMovementReasons } from './hooks/useMovementReasons';
@@ -333,10 +333,11 @@ export default function MainApp({ user }: {
     // the clock when it recomputes, so schedule a recompute at the next unlock;
     // otherwise the stock stays "locked" until some unrelated transaction arrives.
     const [lockReleaseTick, setLockReleaseTick] = useState(0);
-    const tradedCurrencies = business.settings.currencies.join(',');
+    const tradedCurrencies = business.traded.join(',');
     const pamLedger = useMemo(() => computePamLedger(ledgerTransactions, { currencies: tradedCurrencies ? tradedCurrencies.split(',') : [] }), [ledgerTransactions, lockReleaseTick, tradedCurrencies]);
     // M3: the accounts created besides the cash box and BaridiMob, and the stock of the currencies besides USDT and EUR.
-    const accountBalances = useMemo(() => computeAccountBalances(treasuryTransactions, business.accounts), [treasuryTransactions, business.accounts]);
+    const baseWallets = useMemo(() => baseAccounts(business.accounts, business.settings.baseCurrency), [business.accounts, business.settings.baseCurrency]);
+    const accountBalances = useMemo(() => computeAccountBalances(treasuryTransactions, baseWallets), [treasuryTransactions, baseWallets]);
     // M3: once accounts are created, the cash box and BaridiMob also count the transfers to and from them (a transfer
     // to a created account would otherwise leave the cash box untouched). Without created accounts: the same object as before.
     const treasuryStats = useMemo(() => (business.created.length > 0
@@ -345,9 +346,9 @@ export default function MainApp({ user }: {
     const extraHoldings = useMemo(() => Object.entries(pamLedger.holdings as Record<string, { available: number; locked: number; avgBuy: number }>)
         .filter(([code]) => code !== 'USDT' && code !== 'EUR')
         .map(([code, holding]: [string, { available: number; locked: number; avgBuy: number }]) => ({ code, quantity: holding.available + holding.locked, value: (holding.available + holding.locked) * holding.avgBuy })), [pamLedger.holdings]);
-    const extraAccounts = useMemo(() => business.accounts
+    const extraAccounts = useMemo(() => baseWallets
         .filter((account) => account.id !== 'Caisse' && account.id !== 'BaridiMob')
-        .map((account) => ({ id: account.id, name: account.name, balance: accountBalances.byAccount[account.id] ?? 0 })), [business.accounts, accountBalances]);
+        .map((account) => ({ id: account.id, name: account.name, balance: accountBalances.byAccount[account.id] ?? 0 })), [baseWallets, accountBalances]);
     // V12-2: USDT/EUR sold and not sent yet, for the bell, the portfolio and the client pages.
     const homeDeliveries = useDeliveries(userDocRef as never, isFinancialDataReady);
     const pendingDeliveries = useMemo(() => {
@@ -2305,6 +2306,10 @@ export default function MainApp({ user }: {
         return { usdt: target('USDT'), eur: target('EUR') };
     }, [smartPricingByCurrency]);
     const portfolioPageProps = useMemo(() => ({
+        walletsModel: business.walletsModel,
+        userDocRef,
+        treasuryTransactions,
+        setAlert,
         statsView,
         setStatsView,
         setIsSettingsModalOpen,
@@ -2341,7 +2346,7 @@ export default function MainApp({ user }: {
         setReportYear,
         // V12-11: no pencil on the stock: a quantity is never set by hand without someone behind the movement.
     }), [
-        statsView, portfolioStats, smartTargetPrices,
+        business.walletsModel, userDocRef, treasuryTransactions, setAlert, statsView, portfolioStats, smartTargetPrices,
         usdtReportMonth, usdtReportYear, transactions, clientTransactionsDzd, reportClientRows, selectedHeatmapDay,
         fieldBase,
         reportClient, clientsDzd, reportMonth, reportYear, reportMonthNames,
@@ -2984,7 +2989,7 @@ export default function MainApp({ user }: {
 
                 <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onNewOperation={isFinancialDataReady ? openNewOperationMenu : undefined} onOpenSettings={openSettingsModal} onSignOut={handleSignOut} overdueCount={dashboardPageProps.overdueDebtClientCount}/>
 
-                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} currencies={business.settings.currencies} openOtherCurrency={(kind, currency) => setCurrencyAction({ kind, currency })}/>
+                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} currencies={business.traded} walletsModel={business.walletsModel} openOtherCurrency={(kind, currency) => setCurrencyAction({ kind, currency })}/>
                 <CurrencyOperationDialog action={currencyAction} onClose={() => setCurrencyAction(null)} userDocRef={userDocRef as never} transactions={transactions} treasuryTransactions={treasuryTransactions} setAlert={setAlert}/>
 
                 {alert && (<AppToast message={translateAlert(alert, lang, t)} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? t('common.undo') : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined}/>)}

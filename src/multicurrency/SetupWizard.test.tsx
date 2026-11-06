@@ -26,15 +26,16 @@ const noop = async () => {};
 for (const lang of ['fr', 'ar'] as const) {
     const w = SETUP_WORDS[lang];
     const first = render(lang, <SetupWizard onSave={noop}/>);
-    assert.ok(first.includes(w.step(1)) && first.includes(w.baseTitle.replace(/'/g, '&#x27;')), `${lang}: step 1 asks for the base currency`);
+    assert.ok(first.includes(w.baseTitle.replace(/'/g, '&#x27;')), `${lang}: one question, the base currency`);
     for (const code of ['DZD', 'EUR', 'USD'])
-        assert.ok(first.includes(`>${code}</button>`), `${lang}: ${code} offered`);
+        assert.ok(first.includes(`>${code} · `), `${lang}: ${code} offered`);
+    assert.ok(first.includes(w.start), `${lang}: then start`);
     assert.ok(first.includes('aria-pressed="true"'), `${lang}: DZD chosen by default`);
 
-    const owner: BusinessSettingsState = { loaded: true, raw: undefined, settings: LEGACY_SETTINGS, created: [], accounts: LEGACY_ACCOUNTS, saveSetup: noop, saveBusiness: noop, addAccount: noop };
+    const owner: BusinessSettingsState = { loaded: true, raw: undefined, settings: LEGACY_SETTINGS, created: [], accounts: LEGACY_ACCOUNTS, saveSetup: noop, saveBusiness: noop, addAccount: async () => null, traded: ['USDT', 'EUR'], walletsModel: false };
     const card = render(lang, <BusinessSettingsCard business={owner}/>);
     assert.ok(card.includes(w.baseLocked('DZD').replace(/'/g, '&#x27;')), `${lang}: the base currency is shown fixed`);
     assert.ok(card.includes('Caisse') && card.includes('BaridiMob'), `${lang}: the owner keeps his two accounts`);
-    assert.ok(card.includes('>USDT</button>') && card.includes('>GBP</button>'), `${lang}: traded and offered currencies`);
+    assert.ok(card.includes('USDT') && card.includes('EUR'), `${lang}: his currencies listed`);
 }
 console.log('SetupWizard tests passed');

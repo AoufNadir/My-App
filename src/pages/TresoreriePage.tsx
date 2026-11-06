@@ -1,6 +1,5 @@
 import { Fragment, lazy, Suspense, useMemo, useState } from 'react';
 import { OtherAccountsSection } from '../multicurrency/OtherAccountsSection';
-import { CurrencyOperationsSection } from '../multicurrency/CurrencyOperationsSection';
 import { TreasuryCard, TreasuryTx } from '../types';
 import { TreasurySummarySection } from '../components/treasury/TreasurySummarySection';
 import { TreasuryCollectionsSection } from '../components/treasury/TreasuryCollectionsSection';
@@ -169,7 +168,6 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
       <TreasurySummarySection caisseBalance={caisseBalance} baridiBalance={baridiBalance} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string}/>
 
       {userDocRef && <OtherAccountsSection userDocRef={userDocRef as never} treasuryTransactions={treasuryTransactions} setAlert={setAlert}/>}
-      {userDocRef && <CurrencyOperationsSection userDocRef={userDocRef as never} transactions={transactions ?? []} treasuryTransactions={treasuryTransactions} setAlert={setAlert}/>}
 
       {inventoryEnabled && (<div id="inventory" className="scroll-mt-20"><InventorySection expected={inventoryExpectedNow} checks={inventoryChecks} corrections={balanceCorrections} ready={inventoryReady} onSave={(data) => { saveInventoryCheck(data); }} onDelete={deleteInventoryCheck} onCorrect={(row) => onCorrectInventory?.(row)} treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} onInvestigate={onInvestigate}/></div>)}
 

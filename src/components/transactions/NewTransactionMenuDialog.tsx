@@ -24,7 +24,9 @@ type NewTransactionMenuDialogProps = {
   openPersonalWithdrawalModal?: () => void;
   /** Multi-currency: the currencies traded (from the settings). USDT and EUR open their own window, the others openOtherCurrency. */
   currencies?: string[];
-  openOtherCurrency?: (kind: 'buy' | 'sell' | 'convert', currency: string) => void;
+  openOtherCurrency?: (kind: 'buy' | 'sell', currency: string) => void;
+  /** A business set up with wallets: every currency (USDT and EUR too) opens the wallets window */
+  walletsModel?: boolean;
 };
 
 type PortfolioActionProps = {
@@ -70,14 +72,14 @@ export function NewTransactionMenuDialog({
   openPersonalWithdrawalModal,
   currencies = ['USDT', 'EUR'],
   openOtherCurrency,
+  walletsModel = false,
 }: NewTransactionMenuDialogProps) {
   const open = (direction: 'buy' | 'sell', currency: string) => {
-    if (currency === 'USDT' || currency === 'EUR')
+    if (!walletsModel && (currency === 'USDT' || currency === 'EUR'))
       return () => openForm(`${direction}_${currency.toLowerCase()}` as 'buy_usdt');
     return () => openOtherCurrency?.(direction, currency);
   };
-  const shown = currencies.filter((code) => code === 'USDT' || code === 'EUR' || openOtherCurrency);
-  const hasOthers = !!openOtherCurrency && shown.length > 1 && shown.some((code) => code !== 'USDT' && code !== 'EUR');
+  const shown = currencies.filter((code) => ((code === 'USDT' || code === 'EUR') && !walletsModel) || openOtherCurrency);
   const runAfterClose = (action: () => void) => {
     onClose();
     window.setTimeout(action, 0);
@@ -90,6 +92,7 @@ export function NewTransactionMenuDialog({
       </ModalHeader>
       <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
         <SectionCard title={t('nav.portfolio')}>
+          {shown.length === 0 && <p className="text-sm text-neutral-600">{t('transactions.addWalletFirst')}</p>}
           <div className="grid grid-cols-2 gap-2.5">
             {shown.map((code) => (
               <Fragment key={code}>
@@ -98,12 +101,6 @@ export function NewTransactionMenuDialog({
               </Fragment>
             ))}
           </div>
-          {hasOthers && (
-            <Button type="button" variant="outline" size="md" className="mt-2.5 w-full gap-2 font-semibold" onClick={() => runAfterClose(() => openOtherCurrency!('convert', shown[0]))}>
-              <RefreshCwIcon className="h-4 w-4" />
-              {t('transactions.convertCurrencies')}
-            </Button>
-          )}
         </SectionCard>
 
         <SectionCard title={t('transactions.financialActions')} flush>

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Button } from '../components/ui/Button';
-import { BASE_CURRENCY_CHOICES, checkSetup, TRADED_CURRENCY_CHOICES, type AccountKind, type SetupDraft } from './businessSettings';
+import { BASE_CURRENCY_CHOICES, checkSetup, type SetupDraft } from './businessSettings';
+import { currencyLabel } from './currencyCatalog';
 import { compressLogo, SETUP_WORDS } from './setupWords';
 
 // M2: the first-time setup, four short steps, for a business with nothing recorded yet. It writes settings and
@@ -44,7 +45,7 @@ export function LogoPicker({ logo, onChange, pickLabel, removeLabel }: { logo: s
     </div>);
 }
 
-export function SetupWizard({ onSave, initialStep = 1 }: { onSave: (draft: SetupDraft) => Promise<void>; initialStep?: number }) {
+export function SetupWizard({ onSave }: { onSave: (draft: SetupDraft) => Promise<void> }) {
     const { lang, setLang } = useLanguage();
     // The setup opens in Arabic; the switch at the top changes the whole app's language.
     const startedInArabic = useRef(false);
@@ -55,21 +56,14 @@ export function SetupWizard({ onSave, initialStep = 1 }: { onSave: (draft: Setup
         }
     }, [lang, setLang]);
     const w = SETUP_WORDS[lang];
-    const [step, setStep] = useState(initialStep);
-    const [draft, setDraft] = useState<SetupDraft>({ baseCurrency: 'DZD', currencies: ['USDT'], accounts: [{ name: SETUP_WORDS.ar.defaultCash, kind: 'cash' }], businessName: '', logo: null });
-    const [error, setError] = useState('');
+    const [base, setBase] = useState('DZD');
     const [saving, setSaving] = useState(false);
-    const update = (patch: Partial<SetupDraft>) => {
-        setDraft((value) => ({ ...value, ...patch }));
-        setError('');
-    };
-    const toggle = (code: string) => update({ currencies: draft.currencies.includes(code) ? draft.currencies.filter((c) => c !== code) : [...draft.currencies, code] });
-    const setAccount = (index: number, patch: Partial<{ name: string; kind: AccountKind }>) => update({ accounts: draft.accounts.map((account, i) => (i === index ? { ...account, ...patch } : account)) });
+    const [error, setError] = useState('');
     const finish = async () => {
+        const draft: SetupDraft = { baseCurrency: base, currencies: [], accounts: [], businessName: '', logo: null };
         const check = checkSetup(draft);
         if (check.ok === false) {
             setError(w.errors[check.reason]);
-            setStep(check.reason === 'no_currency' || check.reason === 'bad_currency' ? 2 : check.reason === 'no_account' ? 3 : 4);
             return;
         }
         setSaving(true);
@@ -80,73 +74,19 @@ export function SetupWizard({ onSave, initialStep = 1 }: { onSave: (draft: Setup
             setSaving(false);
         }
     };
-    const next = () => {
-        if (step === 2 && !draft.currencies.some((code) => code !== draft.baseCurrency))
-            return setError(w.errors.no_currency);
-        if (step === 3 && !draft.accounts.some((account) => account.name.trim()))
-            return setError(w.errors.no_account);
-        setError('');
-        setStep(step + 1);
-    };
-    const screens: Record<number, { title: string; hint: string; body: ReactNode }> = {
-        1: { title: w.baseTitle, hint: w.baseHint, body: (<div className="flex flex-col gap-2">
-            {BASE_CURRENCY_CHOICES.map((code) => (<button key={code} type="button" aria-pressed={draft.baseCurrency === code} onClick={() => update({ baseCurrency: code, currencies: draft.currencies.filter((c) => c !== code) })} className={`min-h-touch rounded-card border px-4 text-start text-[15px] font-semibold ${draft.baseCurrency === code ? 'border-2 border-primary bg-primary/5' : 'border-border bg-surface'}`}>{code}</button>))}
-          </div>) },
-        2: { title: w.currenciesTitle, hint: w.currenciesHint, body: <CurrencyChips selected={draft.currencies} onToggle={toggle} choices={TRADED_CURRENCY_CHOICES} exclude={draft.baseCurrency} otherLabel={w.otherCode} addLabel={w.add}/> },
-        3: { title: w.accountsTitle(draft.baseCurrency), hint: w.accountsHint(draft.baseCurrency), body: (<div className="space-y-3">
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-neutral-600">{w.suggestionsTitle}</p>
-              <div className="flex flex-wrap gap-2">
-                {w.suggestions.map((s) => {
-                    const added = draft.accounts.some((a) => a.name.trim().toLowerCase() === s.name.toLowerCase());
-                    return <button key={s.name} type="button" aria-pressed={added} onClick={() => update({ accounts: added
-                        ? draft.accounts.filter((a) => a.name.trim().toLowerCase() !== s.name.toLowerCase())
-                        : [...draft.accounts.filter((a) => a.name.trim()), { name: s.name, kind: s.kind }] })} className={chip(added)}>{added ? '✓ ' : '+ '}{s.name}</button>;
-                })}
-              </div>
-            </div>
-            {draft.accounts.map((account, index) => (<div key={index} className="space-y-2 rounded-card border border-border bg-surface p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <label htmlFor={`account-${index}`} className="text-sm font-bold text-neutral-900">{w.accountNumber(index + 1)}</label>
-                  {draft.accounts.length > 1 && <button type="button" onClick={() => update({ accounts: draft.accounts.filter((_, i) => i !== index) })} className="text-xs font-semibold text-financial-loss">{w.removeLogo}</button>}
-                </div>
-                <input id={`account-${index}`} value={account.name} onChange={(event) => setAccount(index, { name: event.target.value })} placeholder={w.accountName} className={field}/>
-                <p className="text-xs font-semibold text-neutral-600">{w.kindQuestion}</p>
-                <div className="flex flex-wrap gap-2" role="group" aria-label={w.accountKind}>
-                  {(['cash', 'bank', 'online'] as const).map((kind) => <button key={kind} type="button" aria-pressed={account.kind === kind} onClick={() => setAccount(index, { kind })} className={chip(account.kind === kind)}>{w.kind[kind]}</button>)}
-                </div>
-                <p className="text-xs text-neutral-500">{w.kindHint[account.kind]}</p>
-              </div>))}
-            <Button type="button" variant="outline" size="md" className="w-full" onClick={() => update({ accounts: [...draft.accounts, { name: '', kind: 'bank' }] })}>+ {w.addAccount}</Button>
-            <div className="space-y-1 rounded-button bg-surface-muted px-3 py-2 text-xs text-neutral-600">
-              <p>{w.accountsNote}</p>
-              <p>{w.openingLater}</p>
-            </div>
-          </div>) },
-        4: { title: w.identityTitle, hint: w.identityHint, body: (<div className="space-y-3">
-            <input value={draft.businessName} onChange={(event) => update({ businessName: event.target.value })} placeholder={w.businessName} aria-label={w.businessName} className={field}/>
-            <LogoPicker logo={draft.logo} onChange={(logo) => update({ logo })} pickLabel={w.pickLogo} removeLabel={w.removeLogo}/>
-          </div>) },
-    };
-    const screen = screens[step];
     return (<main dir={lang === 'ar' ? 'rtl' : 'ltr'} className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 bg-app-bg px-4 py-6">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold text-neutral-500">{w.step(step)}</p>
-        <div className="flex gap-1">
-          <button type="button" aria-pressed={lang === 'ar'} onClick={() => setLang('ar')} className={chip(lang === 'ar')}>العربية</button>
-          <button type="button" aria-pressed={lang === 'fr'} onClick={() => setLang('fr')} className={chip(lang === 'fr')}>Français</button>
-        </div>
+      <div className="flex justify-end gap-1">
+        <button type="button" aria-pressed={lang === 'ar'} onClick={() => setLang('ar')} className={chip(lang === 'ar')}>العربية</button>
+        <button type="button" aria-pressed={lang === 'fr'} onClick={() => setLang('fr')} className={chip(lang === 'fr')}>Français</button>
       </div>
-      <div className="flex gap-1" aria-hidden="true">{[1, 2, 3, 4].map((i) => <span key={i} className={`h-1 flex-1 rounded-full ${i <= step ? 'bg-primary' : 'bg-neutral-300'}`}/>)}</div>
-      <h1 className="text-xl font-extrabold text-neutral-900">{screen.title}</h1>
-      <p className="text-sm text-neutral-600">{screen.hint}</p>
-      {screen.body}
+      <h1 className="text-xl font-extrabold text-neutral-900">{w.baseTitle}</h1>
+      <p className="text-sm text-neutral-600">{w.baseHint}</p>
+      <div className="flex flex-col gap-2">
+        {BASE_CURRENCY_CHOICES.map((code) => (<button key={code} type="button" aria-pressed={base === code} onClick={() => setBase(code)} className={`min-h-touch rounded-card border px-4 text-start text-[15px] font-semibold ${base === code ? 'border-2 border-primary bg-primary/5' : 'border-border bg-surface'}`}>{currencyLabel(code, lang)}</button>))}
+      </div>
       {error && <p role="alert" className="text-sm font-semibold text-financial-loss">{error}</p>}
-      <div className="mt-auto flex flex-col gap-2 pt-4">
-        {step < 4
-            ? <Button type="button" size="lg" className="w-full font-bold" onClick={next}>{w.next}</Button>
-            : <Button type="button" size="lg" className="w-full font-bold" disabled={saving} onClick={finish}>{w.start}</Button>}
-        {step > 1 && <Button type="button" variant="ghost" size="md" onClick={() => setStep(step - 1)}>{w.back}</Button>}
+      <div className="mt-auto pt-4">
+        <Button type="button" size="lg" className="w-full font-bold" disabled={saving} onClick={finish}>{w.start}</Button>
       </div>
     </main>);
 }

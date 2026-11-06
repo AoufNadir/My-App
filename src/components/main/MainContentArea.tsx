@@ -37,6 +37,9 @@ const areDailyOverviewsEqual = (prev: any, next: any) => (prev?.caisse === next?
     && prev?.allTimeUsdtSold === next?.allTimeUsdtSold
     && prev?.allTimeEurSold === next?.allTimeEurSold);
 const arePortfolioPagePropsEqual = (prev: any, next: any) => (prev?.statsView === next?.statsView
+    && prev?.walletsModel === next?.walletsModel
+    && prev?.userDocRef === next?.userDocRef
+    && prev?.treasuryTransactions === next?.treasuryTransactions
     && sameJson(prev?.pendingDeliveries, next?.pendingDeliveries)
     && true
     && prev?.portfolioStats === next?.portfolioStats

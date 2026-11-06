@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button';
 import { FormCard } from '../components/ui/FormCard';
 import type { TreasuryTx } from '../types';
 import { computeAccountBalances } from './accountBalances';
+import { baseAccounts } from './businessSettings';
 import { accountMovementRow, checkAccountMovement } from './accountMovements';
 import { useBusinessSettings } from './useBusinessSettings';
 
@@ -31,13 +32,13 @@ export function OtherAccountsSection({ userDocRef, treasuryTransactions, baseCur
     const { lang } = useLanguage();
     const w = W[lang];
     const business = useBusinessSettings(userDocRef);
-    const balances = useMemo(() => computeAccountBalances(treasuryTransactions, business.accounts).byAccount, [treasuryTransactions, business.accounts]);
+    const balances = useMemo(() => computeAccountBalances(treasuryTransactions, baseAccounts(business.accounts, business.settings.baseCurrency)).byAccount, [treasuryTransactions, business.accounts, business.settings.baseCurrency]);
     const [mode, setMode] = useState<null | { kind: 'opening'; accountId: string } | { kind: 'transfer' }>(null);
     const [form, setForm] = useState({ amount: '', from: 'Caisse', to: '' });
     const [error, setError] = useState('');
-    if (!business.loaded || business.created.filter((a) => a.id !== 'Caisse' && a.id !== 'BaridiMob').length === 0)
+    const accounts = baseAccounts(business.accounts, business.settings.baseCurrency);
+    if (!business.loaded || accounts.filter((a) => a.id !== 'Caisse' && a.id !== 'BaridiMob').length === 0)
         return null;
-    const accounts = business.accounts;
     const byId = new Map(accounts.map((a) => [a.id, a]));
     const n = (value: number) => value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const save = () => {
@@ -60,7 +61,7 @@ export function OtherAccountsSection({ userDocRef, treasuryTransactions, baseCur
       <ul className="space-y-1.5">
         {accounts.map((account) => (<li key={account.id} className="flex items-center gap-2 rounded-button bg-surface-muted px-3 py-2">
             <span className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-900">{account.name}</span>
-            <bdi dir="ltr" className="shrink-0 text-sm font-bold tabular-nums">{n(balances[account.id] ?? 0)} {baseCurrency}</bdi>
+            <bdi dir="ltr" className="shrink-0 text-sm font-bold tabular-nums">{n(balances[account.id] ?? 0)} {business.settings.baseCurrency}</bdi>
             {account.id !== 'Caisse' && account.id !== 'BaridiMob' && (<Button type="button" size="sm" variant="ghost" onClick={() => { setMode({ kind: 'opening', accountId: account.id }); setError(''); }}>{w.opening}</Button>)}
           </li>))}
       </ul>

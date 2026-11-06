@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { effectiveAccounts, LEGACY_ACCOUNTS, readAccounts, readBusinessSettings, setupDocuments, type AccountKind, type BusinessAccount, type BusinessSettings, type SetupDraft } from './businessSettings';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { effectiveAccounts, tradedCurrencies, LEGACY_ACCOUNTS, readAccounts, readBusinessSettings, setupDocuments, type AccountKind, type BusinessAccount, type BusinessSettings, type SetupDraft } from './businessSettings';
 
 // M2: reads and saves the business settings (user document field `business`) and its accounts (`accounts`).
 // Like the inventory checks, these hold no money: no balance changes when they are saved.
@@ -25,7 +25,12 @@ export type BusinessSettingsState = {
     accounts: BusinessAccount[];
     saveSetup: (draft: SetupDraft) => Promise<void>;
     saveBusiness: (patch: Partial<Pick<BusinessSettings, 'currencies' | 'businessName' | 'logo'>>) => Promise<void>;
-    addAccount: (name: string, kind: AccountKind) => Promise<void>;
+    /** Adds a wallet; returns its id. `currency` missing = the base currency. */
+    addAccount: (name: string, kind: AccountKind, currency?: string) => Promise<string | null>;
+    /** The currencies bought and sold (from the settings and the wallets) */
+    traded: string[];
+    /** Set up with the one-question setup: wallets only, no cash box or BaridiMob by default */
+    walletsModel: boolean;
 };
 
 export function useBusinessSettings(userDocRef: UserDocRefLike | null | undefined): BusinessSettingsState {
@@ -61,15 +66,20 @@ export function useBusinessSettings(userDocRef: UserDocRefLike | null | undefine
             return;
         await userDocRef.set({ business: { ...settings, ...patch, setupDone: true } }, { merge: true });
     }, [userDocRef, settings]);
-    const addAccount = useCallback(async (name: string, kind: AccountKind) => {
+    const addAccount = useCallback(async (name: string, kind: AccountKind, currency?: string) => {
         if (!userDocRef || !name.trim())
-            return;
+            return null;
         const accounts = userDocRef.collection('accounts');
         // The first account created next to the old two: the cash box and BaridiMob are written too, under the
         // names their treasury movements already carry, so they stay in the list with the same balances.
-        if (created.length === 0)
+        if (created.length === 0 && settings.model !== 'wallets')
             await Promise.all(LEGACY_ACCOUNTS.map((account) => accounts.doc(account.id).set({ name: account.name, kind: account.kind, archived: false })));
-        await accounts.doc().set({ name: name.trim().slice(0, 40), kind, archived: false });
-    }, [userDocRef, created.length]);
-    return { loaded: loaded.doc && loaded.accounts, raw, settings, created, accounts: effectiveAccounts(created), saveSetup, saveBusiness, addAccount };
+        const ref = accounts.doc();
+        await ref.set({ name: name.trim().slice(0, 40), kind, archived: false, currency: currency ?? settings.baseCurrency });
+        return ref.id;
+    }, [userDocRef, created.length, settings.model, settings.baseCurrency]);
+    const accounts = useMemo(() => effectiveAccounts(created, settings.model), [created, settings.model]);
+    const tradedKey = tradedCurrencies(settings, accounts).join(',');
+    const traded = useMemo(() => (tradedKey ? tradedKey.split(',') : []), [tradedKey]);
+    return { loaded: loaded.doc && loaded.accounts, raw, settings, created, accounts, saveSetup, saveBusiness, addAccount, traded, walletsModel: settings.model === 'wallets' };
 }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { checkSetup, effectiveAccounts, LEGACY_ACCOUNTS, LEGACY_SETTINGS, needsSetup, readAccounts, readBusinessSettings, setupDocuments } from './businessSettings';
+import { baseAccounts, tradedCurrencies, checkSetup, effectiveAccounts, LEGACY_ACCOUNTS, LEGACY_SETTINGS, needsSetup, readAccounts, readBusinessSettings, setupDocuments } from './businessSettings';
 
 // A business made before M2 reads exactly as the app has always worked.
 assert.deepEqual(readBusinessSettings(undefined), LEGACY_SETTINGS);
@@ -20,11 +20,20 @@ assert.equal(needsSetup({ businessRaw: { setupDone: true }, hasAnyData: false })
 // Checks before saving.
 const draft = { baseCurrency: 'EUR', currencies: ['USDT', 'EUR'], accounts: [{ name: 'Revolut', kind: 'online' as const }], businessName: 'Shop', logo: null };
 assert.deepEqual(checkSetup(draft), { ok: true });
-assert.deepEqual(checkSetup({ ...draft, currencies: ['EUR'] }), { ok: false, reason: 'no_currency' }, 'the base currency alone is not traded');
-assert.deepEqual(checkSetup({ ...draft, accounts: [{ name: ' ', kind: 'cash' }] }), { ok: false, reason: 'no_account' });
+assert.deepEqual(checkSetup({ ...draft, currencies: [], accounts: [] }), { ok: true }, 'the setup asks the base currency only: wallets come after');
 assert.deepEqual(checkSetup({ ...draft, logo: `data:image/png;base64,${'a'.repeat(200_000)}` }), { ok: false, reason: 'logo_too_big' });
 assert.deepEqual(setupDocuments(draft), {
-    business: { baseCurrency: 'EUR', currencies: ['USDT'], businessName: 'Shop', logo: null, setupDone: true },
+    business: { baseCurrency: 'EUR', currencies: ['USDT'], businessName: 'Shop', logo: null, setupDone: true, model: 'wallets' },
     accounts: [{ name: 'Revolut', kind: 'online', archived: false }],
 });
+// Wallets: each has its currency; the traded currencies come from them.
+{
+    const settings = readBusinessSettings({ baseCurrency: 'DZD', currencies: [], setupDone: true, model: 'wallets' });
+    assert.deepEqual(settings.currencies, [], 'a wallets business trades only what its wallets hold');
+    const wallets = readAccounts([{ id: 'w1', data: { name: 'Caisse', kind: 'cash', currency: 'DZD' } }, { id: 'w2', data: { name: 'Binance', kind: 'online', currency: 'usdt' } }, { id: 'w3', data: { name: 'Wise', kind: 'online', currency: 'GBP' } }]);
+    assert.deepEqual(tradedCurrencies(settings, wallets), ['USDT', 'GBP']);
+    assert.deepEqual(baseAccounts(wallets, 'DZD').map((a) => a.id), ['w1']);
+    assert.deepEqual(effectiveAccounts([], 'wallets'), [], 'no phantom cash box for a new business');
+    assert.deepEqual(tradedCurrencies(LEGACY_SETTINGS, LEGACY_ACCOUNTS), ['USDT', 'EUR'], 'the owner: USDT and EUR as always');
+}
 console.log('businessSettings tests passed');

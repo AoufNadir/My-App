@@ -1,3 +1,4 @@
+import { WalletsSection } from '../multicurrency/CurrencyOperationsSection';
 import { useState, type ReactNode } from 'react';
 import { ChevronRightIcon } from '../components/icons/ChevronRightIcon';
 import { ArrowUpRightIcon } from '../components/icons/ArrowUpRightIcon';
@@ -13,7 +14,7 @@ import { PamSimulator } from '../components/portfolio/PamSimulator';
 import { EurFundedCostImpactCard } from '../components/portfolio/EurFundedCostImpactCard';
 import { UsdtLockDetails, usdtLockState } from '../components/portfolio/UsdtLockDetails';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Tx, ClientDzd, ClientTransactionDzd } from '../types';
+import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx } from '../types';
 
 type PortfolioPageProps = {
     statsView: 'usdt' | 'clients';
@@ -56,6 +57,11 @@ type PortfolioPageProps = {
     reportYear: number;
     setReportYear: (year: number) => void;
     openPortfolioBalanceEditModal?: (asset: 'USDT' | 'EUR') => void;
+    /** Multi-currency: the wallets card, and a business set up with wallets (no fixed USDT / EUR cards) */
+    walletsModel?: boolean;
+    userDocRef?: unknown;
+    treasuryTransactions?: TreasuryTx[];
+    setAlert?: (message: string) => void;
 };
 
 type Metric = { label: string; value: number; currency: CurrencyCode; decimals: number };
@@ -177,6 +183,10 @@ export function PortfolioPage(props: PortfolioPageProps) {
         transactions,
         pendingDeliveries,
         onOpenClient,
+        walletsModel = false,
+        userDocRef,
+        treasuryTransactions = [],
+        setAlert,
     } = props;
     const { t } = useLanguage();
     const [simulatorOpen, setSimulatorOpen] = useState(false);
@@ -200,6 +210,10 @@ export function PortfolioPage(props: PortfolioPageProps) {
         ] : []),
     ];
 
+    const wallets = userDocRef ? <WalletsSection userDocRef={userDocRef as never} transactions={transactions} treasuryTransactions={treasuryTransactions} setAlert={setAlert}/> : null;
+    if (walletsModel)
+        return (<div className="anim-page-in flex flex-col gap-3">{wallets}</div>);
+
     return (<div className="anim-page-in flex flex-col gap-3">
       <HeroCard label={t('finance.stock')} value={stockValue}/>
 
@@ -211,6 +225,8 @@ export function PortfolioPage(props: PortfolioPageProps) {
 
       {pendingDeliveries && (pendingDeliveries.USDT > 0 || pendingDeliveries.EUR > 0 || (pendingDeliveries.awaited?.USDT ?? 0) > 0 || (pendingDeliveries.awaited?.EUR ?? 0) > 0) && (<ClientFundsCard owed={pendingDeliveries} mine={{ USDT: usdtAvail, EUR: eurAvail }} onOpenClient={onOpenClient}/>)}
       {pendingDeliveries?.supplierList && pendingDeliveries.supplierList.length > 0 && (<SupplierAwaitedCard list={pendingDeliveries.supplierList} onOpenClient={onOpenClient}/>)}
+
+      {wallets}
 
       <EurFundedCostImpactCard transactions={transactions}/>
 

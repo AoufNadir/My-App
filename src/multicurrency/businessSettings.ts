@@ -6,7 +6,8 @@ import { normalizeCurrencyCode } from '../currency/registry';
 // an account's opening balance is a treasury movement (M3), so it leaves a trace that can be reviewed.
 
 export type AccountKind = 'cash' | 'bank' | 'online';
-export type BusinessAccount = { id: string; name: string; kind: AccountKind; archived?: boolean };
+/** `currency` is the currency the wallet holds; missing means the base currency (all accounts made before wallets had one). */
+export type BusinessAccount = { id: string; name: string; kind: AccountKind; archived?: boolean; currency?: string };
 export type BusinessSettings = {
     baseCurrency: string;
     /** Currencies bought and sold (never the base one) */
@@ -15,6 +16,8 @@ export type BusinessSettings = {
     /** Small image as a data URL (under LOGO_MAX_BYTES), shown on reports */
     logo: string | null;
     setupDone: boolean;
+    /** 'wallets': a business set up with the one-question setup. Its accounts and currencies come from its wallets only. */
+    model?: 'wallets';
 };
 
 export const LOGO_MAX_BYTES = 100_000;
@@ -44,13 +47,15 @@ export function readBusinessSettings(raw: unknown): BusinessSettings {
     const baseCurrency = safeCode(data.baseCurrency) ?? LEGACY_SETTINGS.baseCurrency;
     const listed = Array.isArray(data.currencies) ? data.currencies.map(safeCode).filter((code): code is string => !!code) : [];
     const currencies = [...new Set(listed)].filter((code) => code !== baseCurrency);
+    const walletsModel = data.model === 'wallets';
     const logo = typeof data.logo === 'string' && data.logo.startsWith('data:image/') && data.logo.length <= LOGO_MAX_BYTES * 1.4 ? data.logo : null;
     return {
         baseCurrency,
-        currencies: currencies.length ? currencies : LEGACY_SETTINGS.currencies.filter((code) => code !== baseCurrency),
+        currencies: currencies.length || walletsModel ? currencies : LEGACY_SETTINGS.currencies.filter((code) => code !== baseCurrency),
         businessName: typeof data.businessName === 'string' ? data.businessName.trim().slice(0, 60) : '',
         logo,
         setupDone: data.setupDone !== false,
+        ...(walletsModel ? { model: 'wallets' as const } : {}),
     };
 }
 
@@ -61,13 +66,25 @@ export function readAccounts(docs: ReadonlyArray<{ id: string; data: Record<stri
             name: typeof data.name === 'string' ? data.name.trim().slice(0, 40) : '',
             kind: (['cash', 'bank', 'online'] as const).find((kind) => kind === data.kind) ?? 'cash',
             archived: data.archived === true,
+            ...(safeCode(data.currency) ? { currency: safeCode(data.currency)! } : {}),
         }))
         .filter((account) => account.name);
 }
 
 /** The accounts to use: the ones created, or the cash box and BaridiMob for a business made before M2. */
-export function effectiveAccounts(created: BusinessAccount[]): BusinessAccount[] {
-    return created.length ? created.filter((account) => !account.archived) : LEGACY_ACCOUNTS;
+export function effectiveAccounts(created: BusinessAccount[], model?: 'wallets'): BusinessAccount[] {
+    return created.length || model === 'wallets' ? created.filter((account) => !account.archived) : LEGACY_ACCOUNTS;
+}
+
+/** The currency a wallet holds. */
+export const walletCurrency = (account: BusinessAccount, base: string): string => account.currency ?? base;
+/** The accounts of the base currency (their balance comes from the treasury movements). */
+export const baseAccounts = (accounts: ReadonlyArray<BusinessAccount>, base: string): BusinessAccount[] => accounts.filter((a) => walletCurrency(a, base) === base);
+
+/** The currencies bought and sold: the ones of the settings and the ones of the wallets, never the base one. */
+export function tradedCurrencies(settings: BusinessSettings, accounts: ReadonlyArray<BusinessAccount>): string[] {
+    const base = settings.baseCurrency;
+    return [...new Set([...settings.currencies, ...accounts.map((a) => walletCurrency(a, base))])].filter((code) => code !== base);
 }
 
 /** The first-time setup is offered only to a business with nothing recorded and no settings saved yet. */
@@ -83,10 +100,6 @@ export type SetupCheck = { ok: true } | { ok: false; reason: 'no_currency' | 'no
 export function checkSetup(draft: SetupDraft): SetupCheck {
     if (!safeCode(draft.baseCurrency) || draft.currencies.some((code) => !safeCode(code)))
         return { ok: false, reason: 'bad_currency' };
-    if (!draft.currencies.filter((code) => code !== draft.baseCurrency).length)
-        return { ok: false, reason: 'no_currency' };
-    if (!draft.accounts.some((account) => account.name.trim()))
-        return { ok: false, reason: 'no_account' };
     if (draft.logo && draft.logo.length > LOGO_MAX_BYTES * 1.4)
         return { ok: false, reason: 'logo_too_big' };
     return { ok: true };
@@ -102,6 +115,7 @@ export function setupDocuments(draft: SetupDraft): { business: BusinessSettings;
             businessName: draft.businessName.trim().slice(0, 60),
             logo: draft.logo,
             setupDone: true,
+            model: 'wallets',
         },
         accounts: draft.accounts.filter((account) => account.name.trim()).map((account) => ({ name: account.name.trim().slice(0, 40), kind: account.kind, archived: false as const })),
     };

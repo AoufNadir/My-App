@@ -1,51 +1,84 @@
 import assert from 'node:assert/strict';
 
 import { computePamLedger } from '../utils/pamLedger';
-import { computeAccountBalances } from './accountBalances';
-import { checkCurrencyOperation, currencyOperationRows, type CurrencyOperation } from './currencyOperations';
+import { checkCurrencyOperation, conversionPam, currencyOperationRows, walletOpeningRow, type CurrencyOperation } from './currencyOperations';
+import { computeWalletViews } from './walletBalances';
+import type { BusinessAccount } from './businessSettings';
 import type { Tx, TreasuryTx } from '../types';
 
-// M4: the rows written for a purchase, a sale and a conversion of GBP / CNY give, through the same ledger as
-// USDT and EUR, the PAM and the profit worked out by hand. Fake figures only.
+// Wallets with their currency, purchases and sales paid from any wallet, and the conversion worked out by hand.
+// Fake figures only. Base currency DZD.
 
 const T0 = Date.UTC(2027, 1, 1, 9);
-const accounts = [{ id: 'Caisse', name: 'Caisse', kind: 'cash' as const }, { id: 'BaridiMob', name: 'BaridiMob', kind: 'bank' as const }, { id: 'acc-1', name: 'Banque', kind: 'bank' as const }];
+const accounts: BusinessAccount[] = [
+    { id: 'cash', name: 'Caisse', kind: 'cash', currency: 'DZD' },
+    { id: 'wise', name: 'Wise', kind: 'online', currency: 'EUR' },
+    { id: 'usd', name: 'Compte USD', kind: 'online', currency: 'USD' },
+    { id: 'bin1', name: 'Binance', kind: 'online', currency: 'USDT' },
+    { id: 'bin2', name: 'OKX', kind: 'online', currency: 'USDT' },
+];
+const traded = ['EUR', 'USD', 'USDT'];
 const txs: Tx[] = [];
-const treasury: TreasuryTx[] = [{ id: 'open', type: 'Ajout', source: 'acc-1', amount: 1_000_000, timestamp: T0 - 10 } as unknown as TreasuryTx];
+const treasury: TreasuryTx[] = [];
 let n = 0;
-const write = (op: CurrencyOperation, at: number) => {
-    n += 1;
-    const id = `m-${n}`;
-    const rows = currencyOperationRows(op, at, id);
-    txs.push({ id, ...rows.main } as unknown as Tx);
-    if (rows.linked.collection === 'usdt_txs') txs.push({ id: `l-${n}`, ...rows.linked.data } as unknown as Tx);
-    else treasury.push({ id: `l-${n}`, ...rows.linked.data } as unknown as TreasuryTx);
+let clock = T0;
+const push = (row: { collection: string; data: Record<string, unknown> }, id: string) => {
+    if (row.collection === 'usdt_txs') txs.push({ id, ...row.data } as unknown as Tx);
+    else treasury.push({ id, ...row.data } as unknown as TreasuryTx);
 };
-const ledger = () => computePamLedger(txs, { currencies: ['GBP', 'CNY'], nowMs: T0 + 1e9 });
-const balances = () => computeAccountBalances(treasury, accounts).byAccount;
+const write = (op: CurrencyOperation) => {
+    n += 1;
+    clock += 60_000;
+    const rows = currencyOperationRows(op, 'DZD', clock, `m-${n}`);
+    txs.push({ id: `m-${n}`, ...rows.main } as unknown as Tx);
+    push(rows.linked, `l-${n}`);
+};
+const ledger = () => computePamLedger(txs, { currencies: ['USD'], nowMs: T0 + 1e10 });
+const views = () => {
+    const l = ledger();
+    const stock = Object.fromEntries(Object.keys(l.holdings).map((c) => [c, l.holdings[c].available]));
+    return Object.fromEntries(computeWalletViews({ accounts, base: 'DZD', traded, transactions: txs, treasuryTransactions: treasury, stock }).map((v) => [v.id, v.balance]));
+};
 
-// 1. 1 000 GBP at 280 from the bank account: PAM 280, the account down 280 000.
-write({ kind: 'buy', currency: 'GBP', quantity: 1_000, price: 280, accountId: 'acc-1' }, T0);
-assert.equal(ledger().holdings.GBP.avgBuy, 280);
-assert.equal(balances()['acc-1'], 720_000);
+// 1. Openings: 1 000 000 DZD in the cash box; 500 USDT in OKX bought at 250 on average.
+push(walletOpeningRow({ walletId: 'cash', currency: 'DZD', quantity: 1_000_000, avgPrice: 0 }, 'DZD', T0), 'o-1');
+push(walletOpeningRow({ walletId: 'bin2', currency: 'USDT', quantity: 500, avgPrice: 250 }, 'DZD', T0), 'o-2');
+assert.equal(views().cash, 1_000_000);
+assert.equal(views().bin2, 500);
+assert.equal(ledger().holdings.USDT.avgBuy, 250);
+assert.equal(ledger().totals.derivedProfit, 0, 'an opening is no profit');
 
-// 2. 400 GBP converted to 3 600 CNY: the CNY cost 400 × 280 = 112 000, no profit.
-write({ kind: 'convert', from: 'GBP', fromQuantity: 400, to: 'CNY', toQuantity: 3_600 }, T0 + 1000);
-assert.equal(ledger().holdings.CNY.costBasis, 112_000);
-assert.equal(ledger().holdings.GBP.available, 600);
-assert.equal(ledger().totals.derivedProfit, 0, 'a conversion makes no profit');
+// 2. The owner's example: 1 000 EUR at 280 (280 000 DZD from the cash box)…
+write({ kind: 'buy', currency: 'EUR', quantity: 1_000, walletId: 'wise', other: { walletId: 'cash', currency: 'DZD', amount: 280_000 } });
+assert.equal(ledger().holdings.EUR.avgBuy, 280);
+assert.equal(views().cash, 720_000);
+assert.equal(views().wise, 1_000);
+// …the 1 000 EUR spent on 1 111.11 USD (1 USD = 0.90 EUR): the USD cost 280 000, so 252 DZD each.
+assert.equal(conversionPam(1_000, 280, 1_111.11), 252);
+write({ kind: 'buy', currency: 'USD', quantity: 1_111.11, walletId: 'usd', other: { walletId: 'wise', currency: 'EUR', amount: 1_000 } });
+assert.equal(ledger().holdings.USD.costBasis, 280_000, 'the USD carry what the EUR cost');
+assert.equal(Math.round(ledger().holdings.USD.avgBuy * 100) / 100, 252);
+assert.equal(views().wise, 0);
+assert.equal(views().usd, 1_111.11);
+assert.equal(ledger().totals.derivedProfit, 0, 'a conversion is no profit');
+// The profit comes at the sale: 1 111.11 USD at 260 into the cash box = 8 888.88 (to the cent).
+write({ kind: 'sell', currency: 'USD', quantity: 1_111.11, walletId: 'usd', other: { walletId: 'cash', currency: 'DZD', amount: 288_888.6 } });
+assert.equal(Math.round(ledger().totals.derivedProfit * 100) / 100, 8_888.6);
+assert.equal(views().cash, 1_008_888.6);
 
-// 3. 600 GBP sold at 300 into the cash box: profit 600 × 20 = 12 000.
-write({ kind: 'sell', currency: 'GBP', quantity: 600, price: 300, accountId: 'Caisse' }, T0 + 2000);
-assert.equal(ledger().totals.derivedProfit, 12_000);
-assert.equal(balances().Caisse, 180_000);
+// 3. Selling USDT for EUR (the other way round): 200 USDT from OKX for 180 EUR into Wise. The EUR cost 200 × 250.
+write({ kind: 'sell', currency: 'USDT', quantity: 200, walletId: 'bin2', other: { walletId: 'wise', currency: 'EUR', amount: 180 } });
+assert.equal(ledger().holdings.EUR.costBasis, 50_000);
+assert.equal(views().bin2, 300);
+assert.equal(views().bin1, 0, 'the first USDT wallet holds the rest: nothing');
+assert.equal(views().wise, 180);
 
 // 4. The checks.
-const stock = { GBP: 0, CNY: 3_600 };
-assert.deepEqual(checkCurrencyOperation({ kind: 'sell', currency: 'GBP', quantity: 1, price: 300, accountId: 'Caisse' }, stock, balances()), { ok: false, reason: 'stock' });
-assert.deepEqual(checkCurrencyOperation({ kind: 'buy', currency: 'GBP', quantity: 10_000, price: 280, accountId: 'acc-1' }, stock, balances()), { ok: false, reason: 'account' });
-assert.deepEqual(checkCurrencyOperation({ kind: 'convert', from: 'CNY', fromQuantity: 10, to: 'CNY', toQuantity: 10 }, stock, balances()), { ok: false, reason: 'same_currency' });
-assert.deepEqual(checkCurrencyOperation({ kind: 'buy', currency: 'GBP', quantity: 1, price: 0, accountId: 'acc-1' }, stock, balances()), { ok: false, reason: 'price' });
-assert.deepEqual(checkCurrencyOperation({ kind: 'convert', from: 'CNY', fromQuantity: 3_600, to: 'USDT', toQuantity: 500 }, stock, balances()), { ok: true });
+const b = views();
+assert.deepEqual(checkCurrencyOperation({ kind: 'sell', currency: 'USDT', quantity: 301, walletId: 'bin2', other: { walletId: 'cash', currency: 'DZD', amount: 1 } }, b), { ok: false, reason: 'stock' });
+assert.deepEqual(checkCurrencyOperation({ kind: 'buy', currency: 'USDT', quantity: 1, walletId: 'bin1', other: { walletId: 'wise', currency: 'EUR', amount: 181 } }, b), { ok: false, reason: 'account' });
+assert.deepEqual(checkCurrencyOperation({ kind: 'buy', currency: 'EUR', quantity: 1, walletId: 'wise', other: { walletId: 'wise', currency: 'EUR', amount: 1 } }, b), { ok: false, reason: 'same_currency' });
+assert.deepEqual(checkCurrencyOperation({ kind: 'buy', currency: 'USDT', quantity: 1, walletId: 'bin1', other: { walletId: 'cash', currency: 'DZD', amount: 0 } }, b), { ok: false, reason: 'amount' });
+assert.deepEqual(checkCurrencyOperation({ kind: 'buy', currency: 'USDT', quantity: 100, walletId: 'bin1', other: { walletId: 'cash', currency: 'DZD', amount: 25_000 } }, b), { ok: true });
 
 console.log('currencyOperations: ok');
