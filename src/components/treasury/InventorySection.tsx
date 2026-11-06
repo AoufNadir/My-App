@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react';
+import { inventoryFixFor } from '../../utils/inventoryCheck';
 import { SectionCard } from '../cards';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -210,8 +211,15 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
                                 ? text('inventory.short', { amount: money(Math.abs(row.gap), account) })
                                 : text('inventory.over', { amount: money(Math.abs(row.gap), account) })}
                       </p>
-                      {row.status !== 'match' && (<Button type="button" size="sm" variant="outline" disabled={!ready} onClick={() => correct(row)}>{t('inventory.fix')}</Button>)}
+                      {(() => {
+                        const fix = inventoryFixFor(row);
+                        return fix === 'personal_expense' || fix === 'forgotten_entry'
+                            ? <Button type="button" size="sm" variant="outline" disabled={!ready} onClick={() => correct(row)}>{t(fix === 'personal_expense' ? 'inventory.fixPersonal' : 'inventory.fixForgotten')}</Button>
+                            : null;
+                    })()}
                     </div>)}
+                  {row && inventoryFixFor(row) === 'investigate' && (<p role="status" className="mt-1 rounded-button bg-financial-loss-bg px-3 py-2 text-xs font-semibold text-financial-loss">{t('inventory.bigGap')}</p>)}
+                  {row && inventoryFixFor(row) === 'personal_expense' && (<p className="mt-1 text-xs text-neutral-500">{t('inventory.lookFirst')}</p>)}
                 </div>
               </Fragment>);
           })}

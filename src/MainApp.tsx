@@ -1,4 +1,5 @@
 import { previousProfits } from './utils/dashboardComparison';
+import { inventoryFixFor } from './utils/inventoryCheck';
 import { useMovementReasons } from './hooks/useMovementReasons';
 import { useDeliveries } from './hooks/useDeliveries';
 import { awaitedFromSuppliers, deliveryStates, isLate, operationQuantities, operationTimes, reservedForClients } from './utils/deferredDelivery';
@@ -1336,18 +1337,22 @@ export default function MainApp({ user }: {
     // Inventory (V5-2): a gap found by the count is fixed with the existing « edit balance » windows,
     // opened with the amount and the reason already filled in. Nothing is saved from here: the user
     // still presses Save in that window, and its own handler does the writing.
+    // V12-11: a gap is never fixed without someone behind it (see inventoryFixFor).
     const openInventoryCorrection = (row: InventoryRow) => {
-        const reason = `Écart d'inventaire ${now().date}`;
-        const entry = correctionEntryFor(row);
-        if (row.account === 'caisse' || row.account === 'baridi') {
-            openTreasuryBalanceEditModal(row.account === 'caisse' ? 'Caisse' : 'BaridiMob');
-            setTreasuryBalanceEditValue(entry);
-            setTreasuryBalanceEditNotes(reason);
+        const fix = inventoryFixFor(row);
+        const dzd = row.account === 'caisse' || row.account === 'baridi';
+        const amount = dzd ? String(Math.round(Math.abs(row.gap))) : Math.abs(row.gap).toFixed(2);
+        if (fix === 'personal_expense') {
+            openPersonalWithdrawalModal();
+            setPersonalWithdrawalMethod(row.account === 'caisse' ? 'Caisse' : row.account === 'baridi' ? 'BaridiMob' : row.account === 'usdt' ? 'USDT' : 'EUR');
+            setPersonalWithdrawalAmount(amount);
             return;
         }
-        openPortfolioBalanceEditModal(row.account === 'usdt' ? 'USDT' : 'EUR');
-        setPortfolioBalanceEditValue(entry);
-        setPortfolioBalanceEditNotes(reason);
+        if (fix === 'forgotten_entry') {
+            openAdjustmentModal('add');
+            setAdjustmentAsset(row.account === 'caisse' ? 'DZD-Caisse' : row.account === 'baridi' ? 'DZD-Baridi' : row.account === 'usdt' ? 'USDT' : 'EUR');
+            setAdjustmentAmount(amount);
+        }
     };
     const getRelativeDateLabel = (dateStr: string) => dateStr === now().date ? t('transactions.today') : dateStr;
     /* Legacy navigation/search handlers moved to hooks.
@@ -2305,7 +2310,7 @@ export default function MainApp({ user }: {
         setReportMonth,
         reportYear,
         setReportYear,
-        openPortfolioBalanceEditModal
+        // V12-11: no pencil on the stock: a quantity is never set by hand without someone behind the movement.
     }), [
         statsView, portfolioStats, smartTargetPrices,
         usdtReportMonth, usdtReportYear, transactions, clientTransactionsDzd, reportClientRows, selectedHeatmapDay,
