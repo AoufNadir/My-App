@@ -97,6 +97,7 @@ const areDashboardPagePropsEqual = (prev: any, next: any) => (prev?.portfolioSta
     // V12-1 and V12-2: the movements without a reason and the USDT/EUR owed to clients arrive after the page.
     && prev?.unexplainedMovementCount === next?.unexplainedMovementCount
     && sameJson(prev?.pendingDeliveries, next?.pendingDeliveries)
+    && sameJson(prev?.habits, next?.habits)
     && areDailyOverviewsEqual(prev?.dailyOverview, next?.dailyOverview));
 const areMainContentAreaPropsEqual = (prev: MainContentAreaProps, next: MainContentAreaProps) => {
     if (prev.t !== next.t

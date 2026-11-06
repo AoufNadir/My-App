@@ -14,5 +14,19 @@
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#0B1120",
-  "background_color": "#0B1120"
+  "background_color": "#0B1120",
+  "shortcuts": [
+    {
+      "name": "Dépense rapide",
+      "short_name": "Dépense",
+      "description": "Noter une petite dépense tout de suite",
+      "url": "/?action=quick-expense",
+      "icons": [
+        {
+          "src": "/pwa-icon.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
 }

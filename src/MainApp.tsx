@@ -1,6 +1,9 @@
 import { previousProfits } from './utils/dashboardComparison';
 import { inventoryFixFor } from './utils/inventoryCheck';
 import { useMovementReasons } from './hooks/useMovementReasons';
+import { useSubscriptions } from './hooks/useSubscriptions';
+import { dueSubscriptions, eveningCountDue, lateRecordingsThisMonth, monthKey, smallExpensesThisMonth, type Subscription } from './utils/habits';
+import { readSmallBudget } from './components/main/HabitsSettings';
 import { useDeliveries } from './hooks/useDeliveries';
 import { awaitedFromSuppliers, deliveryStates, isLate, operationQuantities, operationTimes, reservedForClients } from './utils/deferredDelivery';
 import { buildMovementReview } from './utils/movementReason';
@@ -571,7 +574,7 @@ export default function MainApp({ user }: {
         treasuryStats,
         setAlert,
     });
-    const { isSaving: isClientSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientWallets, setClientWallets, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientUsualChannel, setClientUsualChannel, clientIsFournisseur, setClientIsFournisseur, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, handleDeleteClient, handleZeroOutBalance, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, clientTxReceiverClientId, setClientTxReceiverClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, handleClientToClientTransfer, getClientTransferableAmount } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert, { investorTransactions, managerFeePercentage, managerFeeHistory }, notifyWithUndo);
+    const { isSaving: isClientSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode, clientFullName, setClientFullName, clientPhone, setClientPhone, initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientWallets, setClientWallets, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientUsualChannel, setClientUsualChannel, clientIsFournisseur, setClientIsFournisseur, clientIsP2P, setClientIsP2P, openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, handleDeleteClient, handleZeroOutBalance, isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx, clientTxToDelete, setClientTxToDelete, clientTxAmount, setClientTxAmount, clientTxType, setClientTxType, clientTxNotes, setClientTxNotes, clientTxSource, setClientTxSource, clientPaymentStatus: clientTxPaymentStatus, setClientPaymentStatus: setClientTxPaymentStatus, linkedClientId: clientTxLinkedClientId, clientTxReceiverClientId, setClientTxReceiverClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, handleClientToClientTransfer, getClientTransferableAmount } = useClientHandlers(userDocRef, clientsDzd, clientTransactionsDzd, clientBalances, treasuryTransactions, treasuryStats, investors, setAlert, { investorTransactions, managerFeePercentage, managerFeeHistory }, notifyWithUndo);
     const { isInvestorModalOpen, setIsInvestorModalOpen, editingInvestor, setEditingInvestor, investorToDelete, setInvestorToDelete, isInvestorTxModalOpen, setIsInvestorTxModalOpen, investorName, setInvestorName, investorInitialCapital, setInvestorInitialCapital, investorInitialCapitalSource, setInvestorInitialCapitalSource, investorNotes, setInvestorNotes, isManager, setIsManager, investorTxType, setInvestorTxType, investorTxAmount, setInvestorTxAmount, investorTxNotes, setInvestorTxNotes, investorTxPaymentSource, setInvestorTxPaymentSource, investorTxToDelete, setInvestorTxToDelete, isReinvestModalOpen, setIsReinvestModalOpen, reinvestInput, setReinvestInput, selectedInvestorId, setSelectedInvestorId, handleSaveInvestor, handleSaveInvestorTx, handleReinvestProfit, handleDeleteInvestor, openInvestorModal, closeInvestorModal,
     // Personal withdrawal (manager's daily personal expense)
     isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen, personalWithdrawalAmount, setPersonalWithdrawalAmount, personalWithdrawalMethod, setPersonalWithdrawalMethod, personalWithdrawalDate, setPersonalWithdrawalDate, personalWithdrawalNote, setPersonalWithdrawalNote, personalWithdrawalMode, setPersonalWithdrawalMode, personalWithdrawalPreview, editingPersonalExpenseTx, personalExpenseToDelete, setPersonalExpenseToDelete, openEditPersonalExpense, openPersonalWithdrawalModal, closePersonalWithdrawalModal, handleSavePersonalWithdrawal, handleDeletePersonalExpense, managerAvailableProfit, managerCapitalInvested, managerExists,
@@ -2565,6 +2568,50 @@ export default function MainApp({ user }: {
         if (notifications.permission !== 'granted' || !investorTermsSynced) return;
         notifications.notifyInvestorTerms(investorTerms.reminders);
     }, [notifications.permission, investorTermsSynced, investorTerms.reminders]);
+    // V12-13: habits against forgetting: subscriptions due, the evening count, small expenses, late recordings, P2P accounts.
+    const habitsNow = Date.now();
+    const subscriptionsState = useSubscriptions(userDocRef as never, isFinancialDataReady);
+    const subscriptionsDue = useMemo(() => dueSubscriptions(subscriptionsState.subscriptions, habitsNow), [subscriptionsState.subscriptions, Math.floor(habitsNow / 3_600_000)]); // eslint-disable-line react-hooks/exhaustive-deps
+    const eveningCount = inventoryReminder.lastTimestamp !== undefined && eveningCountDue(inventoryReminder.lastTimestamp ?? null, habitsNow);
+    const smallExpenses = useMemo(() => ({ spent: smallExpensesThisMonth(personalExpenses.map((tx) => ({ timestamp: tx.timestamp, amount: Number((tx as { amountDzd?: number }).amountDzd ?? tx.amount) })), habitsNow), budget: readSmallBudget() }), [personalExpenses, Math.floor(habitsNow / 3_600_000)]); // eslint-disable-line react-hooks/exhaustive-deps
+    const lateRecordings = useMemo(() => lateRecordingsThisMonth(treasuryTransactions as ReadonlyArray<{ timestamp?: number; recordedAt?: number }>, habitsNow), [treasuryTransactions, Math.floor(habitsNow / 3_600_000)]); // eslint-disable-line react-hooks/exhaustive-deps
+    const p2pUnbalanced = useMemo(() => clientsDzd.filter((client) => client.isP2P && Math.abs(clientBalances.get(client.id) ?? 0) >= 1).map((client) => ({ id: client.id, name: (client.fullName || client.nom || '').trim(), balance: clientBalances.get(client.id) ?? 0 })), [clientsDzd, clientBalances]);
+    const recordSubscription = (sub: Subscription) => {
+        openPersonalWithdrawalModal();
+        setPersonalWithdrawalMethod(sub.wallet);
+        setPersonalWithdrawalAmount(String(sub.amount));
+        setPersonalWithdrawalNote(sub.name);
+        subscriptionsState.markHandled(sub.id, monthKey(Date.now()));
+    };
+    // The app icon's « Dépense rapide » shortcut opens the personal expense window once the data is ready.
+    React.useEffect(() => {
+        if (!isFinancialDataReady || typeof window === 'undefined')
+            return;
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('action') !== 'quick-expense')
+            return;
+        params.delete('action');
+        window.history.replaceState(null, '', `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash}`);
+        openPersonalWithdrawalModal();
+    }, [isFinancialDataReady]); // eslint-disable-line react-hooks/exhaustive-deps
+    // On the phone, once a day each: the subscriptions of the day, and the evening count.
+    React.useEffect(() => {
+        if (notifications.permission !== 'granted' || !isFinancialDataReady)
+            return;
+        const day = new Date().toDateString();
+        const once = (key: string, send: () => void) => {
+            try {
+                if (localStorage.getItem(key) === day) return;
+                localStorage.setItem(key, day);
+            }
+            catch { return; }
+            send();
+        };
+        if (subscriptionsDue.length > 0)
+            once('app_notif_last_subscriptions', () => notifications.showNotification(t('habits.subsNotifTitle') as string, subscriptionsDue.map((sub) => `${sub.name} · ${sub.amount} ${sub.wallet}`).join(', '), { tag: 'subscriptions' }));
+        if (eveningCount)
+            once('app_notif_last_evening_count', () => notifications.showNotification(t('habits.eveningTitle') as string, t('habits.eveningBody') as string, { tag: 'evening-count' }));
+    }, [notifications.permission, isFinancialDataReady, subscriptionsDue, eveningCount]); // eslint-disable-line react-hooks/exhaustive-deps
     // V12-1: money movements nothing explains, counted for the Home page and its bell, and a phone notification
     // as soon as a new one appears. Only once the server has answered, so a cached list never counts.
     const homeMovementReasons = useMovementReasons(userDocRef as never, isFinancialDataReady, () => undefined);
@@ -2668,6 +2715,13 @@ export default function MainApp({ user }: {
         onOpenClientDebts: openClientsWithDebtFollowUp,
         onOpenTreasury: () => setView('tresorerie'),
         unexplainedMovementCount: movementsCounted ? unexplainedMovementCount : 0,
+        habits: { subscriptionsDue: subscriptionsDue.map((sub) => ({ id: sub.id, name: sub.name, amount: sub.amount, wallet: sub.wallet })), eveningCount, smallExpenses, lateRecordings, p2pUnbalanced },
+        onRecordSubscription: (id: string) => { const sub = subscriptionsDue.find((item) => item.id === id); if (sub) recordSubscription(sub); },
+        onQuickExpense: openPersonalWithdrawalModal,
+        onOpenInventory: () => {
+            setView('tresorerie');
+            window.setTimeout(() => document.getElementById('inventory')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
+        },
         pendingDeliveries,
         onReviewMovements: () => {
             setView('tresorerie');
@@ -3053,7 +3107,7 @@ export default function MainApp({ user }: {
         clientCreditLimit, setClientCreditLimit,
         clientGroup, setClientGroup,
         clientUsualChannel, setClientUsualChannel,
-        clientIsFournisseur, setClientIsFournisseur,
+        clientIsFournisseur, setClientIsFournisseur, clientIsP2P, setClientIsP2P,
         initialBalance, setInitialBalance,
         handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, closeClientModal, isClientSaving,
         clientToDelete, clientDeleteMode,

@@ -966,4 +966,18 @@ const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/'/g, '
     assert.ok(renderNew({ pendingDeliveries: { clients: 0, USDT: 0, EUR: 0, awaited: { USDT: 39.22, EUR: 0 } } }).includes(escapeHtml(words.suppliersUsdt)), 'a tile for what suppliers still owe');
     assert.ok(!renderNew({ pendingDeliveries: { clients: 0, USDT: 0, EUR: 0, awaited: { USDT: 0, EUR: 0 } } }).includes(escapeHtml(words.suppliersUsdt)), 'nothing awaited: no tile');
 }
+// ---- V12-13: habits on the Home page and in the bell ----
+{
+    const words = (translations.fr as unknown as { habits: Record<string, string> }).habits;
+    const habits = { subscriptionsDue: [{ id: 's1', name: 'ChatGPT', amount: 20, wallet: 'USDT' }], eveningCount: true, smallExpenses: { spent: 6_500, budget: 10_000 }, lateRecordings: 2, p2pUnbalanced: [{ id: 'p', name: 'P2P Binance', balance: -300 }] };
+    const html = renderNew({ habits, onRecordSubscription: noop, onQuickExpense: noop, onOpenInventory: noop });
+    assert.ok(html.includes(escapeHtml(words.subDue).replace('{name}', '<bdi>ChatGPT</bdi>')), 'the subscription of the day in the bell');
+    assert.ok(html.includes(escapeHtml(words.eveningTitle)), 'the evening count');
+    assert.ok(html.includes('P2P Binance'), 'the P2P account whose balance is not zero');
+    assert.ok(html.includes(escapeHtml(words.quickExpense)), 'the quick expense button');
+    assert.ok(/6.500 \/ 10.000 DZD/.test(html), 'small expenses against the budget');
+    const none = renderNew({ habits: { subscriptionsDue: [], eveningCount: false, smallExpenses: { spent: 0, budget: 0 }, lateRecordings: 0, p2pUnbalanced: [] } });
+    for (const key of ['eveningTitle', 'smallTitle', 'quickExpense'])
+        assert.ok(!none.includes(escapeHtml(words[key])), `nothing to show: no ${key}`);
+}
 console.log('DashboardPage tests passed');

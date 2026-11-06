@@ -84,6 +84,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     const [clientUsualChannel, setClientUsualChannel] = useState('');
     const [clientBalanceInput, setClientBalanceInput] = useState('');
     const [clientIsFournisseur, setClientIsFournisseur] = useState(false);
+    const [clientIsP2P, setClientIsP2P] = useState(false);
     const [clientDuplicateMatches, setClientDuplicateMatches] = useState<ClientDuplicateMatch[] | null>(null);
     const openClientModal = (client: ClientDzd | null = null) => {
         setEditingClient(client);
@@ -98,6 +99,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientGroup(client.group || '');
             setClientUsualChannel(usualChannelOf(client) ?? '');
             setClientIsFournisseur(client.isFournisseur || false);
+            setClientIsP2P(client.isP2P || false);
             const currentBal = clientBalances.get(client.id) || 0;
             setClientBalanceInput(currentBal.toString());
             setInitialBalance('');
@@ -113,6 +115,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientGroup('');
             setClientUsualChannel('');
             setClientIsFournisseur(false);
+            setClientIsP2P(false);
             setClientBalanceInput('');
             setInitialBalance('0');
         }
@@ -198,6 +201,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 group: clientGroup.trim() || null,
                 usualChannel: usualChannelToSave(clientUsualChannel),
                 isFournisseur: clientIsFournisseur || null,
+                isP2P: clientIsP2P || null,
                 nom: clientFullName.trim()
             };
             if (editingClient) {
@@ -1064,7 +1068,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         isSaving, isClientModalOpen, setIsClientModalOpen, editingClient, setEditingClient, clientToDelete, clientDeleteMode,
         clientFullName, setClientFullName, clientPhone, setClientPhone,
         initialBalance, setInitialBalance, clientRedotpayId, setClientRedotpayId,
-        clientBinanceEmail, setClientBinanceEmail, clientWallets, setClientWallets, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientUsualChannel, setClientUsualChannel, clientIsFournisseur, setClientIsFournisseur, clientBalanceInput, setClientBalanceInput,
+        clientBinanceEmail, setClientBinanceEmail, clientWallets, setClientWallets, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientUsualChannel, setClientUsualChannel, clientIsFournisseur, setClientIsFournisseur, clientIsP2P, setClientIsP2P, clientBalanceInput, setClientBalanceInput,
         clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient,
         openClientModal, closeClientModal, requestClientDelete, closeClientDeleteDialog, handleSaveClient, handleDeleteClient, handleZeroOutBalance,
         isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, setEditingClientTx,

@@ -1730,6 +1730,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 amount: preview.amountDzd,
                 notes: deliveryExpenseNote.trim() || 'Frais du projet',
                 payee,
+                recordedAt: Date.now(),
                 origin: 'delivery_expense',
                 expenseWallet: deliveryExpenseMethod,
                 expenseCurrency: preview.currency,

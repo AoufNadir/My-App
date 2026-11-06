@@ -263,6 +263,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                                 {overdue.daysOverdue}{t('common.dayShort')}
                               </span>)}
                             {overLimit && <AlertTriangleIcon aria-label={t('clients.creditLimitExceeded') as string} className="h-3.5 w-3.5 shrink-0 text-warning"/>}
+                            {client.isP2P && <span className="shrink-0 rounded-full bg-primary/10 px-1.5 text-xs font-bold text-primary">{t('clients.p2pBadge')}</span>}
                             {/* V12-2: USDT/EUR this client bought and has not received yet */}
                             {pendingDeliveryList.filter((item) => item.clientId === client.id).map((item) => (<span key={item.currency} className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 text-xs font-bold ${item.late ? 'bg-financial-loss-bg text-financial-loss' : 'bg-financial-debt-bg text-financial-debt'}`}>
                                 <ArrowUpRightIcon aria-hidden="true" className="h-3 w-3"/>

@@ -24,6 +24,7 @@ export function useInventoryReminder(userDocRef: UserDocRefLike | null | undefin
     reminder: InventoryReminder | null;
     /** Hides the reminder for the rest of today. */
     snooze: () => void;
+    lastTimestamp?: number | null;
 } {
     const [last, setLast] = useState<{ timestamp: number | null; ready: boolean }>({ timestamp: null, ready: false });
     const [snoozedDay, setSnoozedDay] = useState<string | null>(() => readInventorySnooze());
@@ -55,5 +56,6 @@ export function useInventoryReminder(userDocRef: UserDocRefLike | null | undefin
     const snooze = useCallback(() => setSnoozedDay(snoozeInventoryReminder(Date.now())), []);
     // The same object until the saved count, the snooze or the 5-minute clock changes, so the home page and the phone notification do not redo their work on every render.
     const reminder = useMemo(() => inventoryReminder({ lastTimestamp: last.timestamp, now, snoozedDay, ready: last.ready }), [last, now, snoozedDay]);
-    return { reminder, snooze };
+    /** V12-13: when the last count was saved (null before any), for the evening count */
+    return { reminder, snooze, lastTimestamp: last.ready ? last.timestamp : undefined };
 }

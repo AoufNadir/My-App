@@ -175,6 +175,8 @@ export interface ClientDzd {
     usualChannel?: 'cash' | 'baridi' | null;
     group?: string;
     isFournisseur?: boolean;
+    /** V12-13: a P2P platform account (Binance P2P…): many people behind one name, paid at once, its balance should stay at zero */
+    isP2P?: boolean;
     isActive?: boolean;
     archived?: boolean;
     archivedAt?: number;

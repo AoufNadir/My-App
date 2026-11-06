@@ -166,7 +166,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
 
       <TreasurySummarySection caisseBalance={caisseBalance} baridiBalance={baridiBalance} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string}/>
 
-      {inventoryEnabled && (<InventorySection expected={inventoryExpectedNow} checks={inventoryChecks} corrections={balanceCorrections} ready={inventoryReady} onSave={(data) => { saveInventoryCheck(data); }} onDelete={deleteInventoryCheck} onCorrect={(row) => onCorrectInventory?.(row)} treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} onInvestigate={onInvestigate}/>)}
+      {inventoryEnabled && (<div id="inventory" className="scroll-mt-20"><InventorySection expected={inventoryExpectedNow} checks={inventoryChecks} corrections={balanceCorrections} ready={inventoryReady} onSave={(data) => { saveInventoryCheck(data); }} onDelete={deleteInventoryCheck} onCorrect={(row) => onCorrectInventory?.(row)} treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} onInvestigate={onInvestigate}/></div>)}
 
       {movementReviewEnabled && (<div id="movement-review" className="scroll-mt-20"><MovementReviewSection treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} clientRows={clientTransactionsDzd} reasons={movementReasons} ready={inventoryReady} onWriteReason={saveMovementReason} onLinkClient={linkMovementToClient}/></div>)}
 

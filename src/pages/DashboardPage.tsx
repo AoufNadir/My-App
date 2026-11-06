@@ -116,6 +116,17 @@ type DashboardPageProps = {
     onSaveGoal?: (goal: number) => void;
     /** V12-1: money movements nothing explains (no client, no link, no reason), and the way to the list. */
     unexplainedMovementCount?: number;
+    /** V12-13: habits against forgetting */
+    habits?: {
+        subscriptionsDue: ReadonlyArray<{ id: string; name: string; amount: number; wallet: string }>;
+        eveningCount: boolean;
+        smallExpenses: { spent: number; budget: number };
+        lateRecordings: number;
+        p2pUnbalanced: ReadonlyArray<{ id: string; name: string; balance: number }>;
+    };
+    onRecordSubscription?: (id: string) => void;
+    onQuickExpense?: () => void;
+    onOpenInventory?: () => void;
     /** V12-2: clients still owed USDT/EUR they bought, and how much */
     pendingDeliveries?: { clients: number; USDT: number; EUR: number; late?: number; awaited?: { USDT: number; EUR: number }; supplierList?: ReadonlyArray<{ clientId: string; remaining: number; currency: string }> };
     onReviewMovements?: () => void;
@@ -363,6 +374,10 @@ function DashboardContent({
     onSaveGoal,
     initialNotificationsOpen = false,
     unexplainedMovementCount = 0,
+    habits,
+    onRecordSubscription,
+    onQuickExpense,
+    onOpenInventory,
     pendingDeliveries,
     onReviewMovements,
     weeklyRecap,
@@ -500,6 +515,15 @@ function DashboardContent({
     if (suppliersWaiting > 0) {
         actionItems.push({ id: 'supplier-receipts', tone: 'primary', icon: <DollarSignIcon className="h-4 w-4"/>, title: fillTemplate(t('dashboard.supplierReceipts') as string, { count: <CountText value={suppliersWaiting}/> }), onOpen: onOpenClients });
     }
+    for (const sub of habits?.subscriptionsDue ?? []) {
+        actionItems.push({ id: `subscription-${sub.id}`, tone: 'primary', icon: <WalletIcon className="h-4 w-4"/>, title: fillTemplate(t('habits.subDue') as string, { name: <bdi>{sub.name}</bdi> }), detail: <bdi dir="ltr">{sub.amount} {sub.wallet === 'Caisse' || sub.wallet === 'BaridiMob' ? 'DZD' : sub.wallet} · {sub.wallet}</bdi>, onOpen: onRecordSubscription ? () => onRecordSubscription(sub.id) : undefined });
+    }
+    if (habits?.eveningCount) {
+        actionItems.push({ id: 'evening-count', tone: 'debt', icon: <WalletIcon className="h-4 w-4"/>, title: t('habits.eveningTitle') as string, detail: t('habits.eveningBody') as string, onOpen: onOpenInventory });
+    }
+    if (habits && habits.p2pUnbalanced.length > 0) {
+        actionItems.push({ id: 'p2p-unbalanced', tone: 'debt', icon: <AlertTriangleIcon className="h-4 w-4"/>, title: fillTemplate(t('habits.p2pTitle') as string, { count: <CountText value={habits.p2pUnbalanced.length}/> }), detail: habits.p2pUnbalanced.map((item) => item.name).join(', '), onOpen: onOpenClients });
+    }
     if (lowStock) {
         actionItems.push({ id: 'low-stock', tone: 'debt', icon: <DollarSignIcon className="h-4 w-4"/>, title: t('dashboard.lowStock') as string, detail: t('dashboard.lowStockBody') as string });
     }
@@ -510,7 +534,7 @@ function DashboardContent({
         notificationItems.push({ entry: { id, signature, urgent }, row });
     };
     for (const item of actionItems)
-        addRow(item, item.id === 'overdue-debts' ? String(overdueCount) : item.id === 'unexplained-movements' ? String(unexplainedMovementCount) : item.id === 'pending-deliveries' ? `${pendingDeliveries?.USDT}|${pendingDeliveries?.EUR}|${pendingDeliveries?.late ?? 0}` : item.id === 'supplier-receipts' ? String(suppliersWaiting) : 'on', item.id === 'overdue-debts' || item.id === 'uncovered-advances' || (item.id === 'pending-deliveries' && (pendingDeliveries?.late ?? 0) > 0));
+        addRow(item, item.id === 'overdue-debts' ? String(overdueCount) : item.id === 'unexplained-movements' ? String(unexplainedMovementCount) : item.id === 'pending-deliveries' ? `${pendingDeliveries?.USDT}|${pendingDeliveries?.EUR}|${pendingDeliveries?.late ?? 0}` : item.id === 'supplier-receipts' ? String(suppliersWaiting) : item.id === 'p2p-unbalanced' ? JSON.stringify(habits?.p2pUnbalanced.map((p) => [p.id, Math.round(p.balance)])) : item.id === 'evening-count' ? new Date().toDateString() : 'on', item.id === 'overdue-debts' || item.id === 'uncovered-advances' || (item.id === 'pending-deliveries' && (pendingDeliveries?.late ?? 0) > 0));
     if (onInvestorTermReinvest && onInvestorTermWithdraw) {
         for (const term of investorTerms) {
             notificationItems.push({
@@ -548,6 +572,28 @@ function DashboardContent({
           </span>
           <span className="shrink-0 text-sm font-bold text-financial-debt">{t('movementReview.homeAction')}</span>
         </button>)}
+
+      {onQuickExpense && (<button type="button" onClick={onQuickExpense} className="flex min-h-touch w-full items-center gap-3 rounded-card border border-border bg-surface px-4 py-3 text-start transition-colors hover:bg-surface-muted">
+          <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-financial-loss-bg text-financial-loss"><WalletIcon className="h-5 w-5"/></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-neutral-900">{t('habits.quickExpense')}</span>
+            <span className="block text-xs text-neutral-500">{t('habits.quickExpenseHint')}</span>
+          </span>
+          <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100"/>
+        </button>)}
+
+      {habits && (habits.smallExpenses.budget > 0 || habits.lateRecordings > 0) && (<div className="space-y-2 rounded-card border border-border bg-surface px-4 py-3">
+          {habits.smallExpenses.budget > 0 && (<div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-xs font-semibold text-neutral-500">{t('habits.smallTitle')}</span>
+                <bdi dir="ltr" className={`text-sm font-bold tabular-nums ${habits.smallExpenses.spent > habits.smallExpenses.budget ? 'text-financial-loss' : 'text-neutral-900'}`}>{Math.round(habits.smallExpenses.spent).toLocaleString('fr-FR')} / {Math.round(habits.smallExpenses.budget).toLocaleString('fr-FR')} DZD</bdi>
+              </div>
+              <span role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.round((habits.smallExpenses.spent / habits.smallExpenses.budget) * 100))} className="mt-1.5 block h-2 w-full overflow-hidden rounded-full bg-surface-muted">
+                <span className={`block h-full rounded-full ${habits.smallExpenses.spent > habits.smallExpenses.budget ? 'bg-financial-loss' : 'bg-financial-debt'}`} style={{ width: `${Math.min(100, (habits.smallExpenses.spent / habits.smallExpenses.budget) * 100)}%` }}/>
+              </span>
+            </div>)}
+          {habits.lateRecordings > 0 && <p className="text-xs font-semibold text-financial-debt">{fillTemplate(t('habits.lateCount') as string, { count: <CountText value={habits.lateRecordings}/> })}</p>}
+        </div>)}
 
       <GoalCard goal={monthlyGoal} profit={dailyOverview.monthToDateProfit} suggested={suggestedGoal} onSave={onSaveGoal}/>
 
