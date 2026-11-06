@@ -17,9 +17,9 @@ const docs: DeliveryDoc[] = [
 ];
 for (const lang of ['fr', 'ar'] as const) {
     const html = render(lang, <ClientDeliveries clientId="c1" clientName="Client Test" docs={docs} saleIds={new Set(['s1'])} onRecord={() => undefined}/>);
-    for (const shown of ['3 906,25 USDT', '200,00 USDT', '3 706,25 USDT'])
+    for (const shown of ['3 906,25', '200,00', '3 706,25'])
         assert.ok(html.replace(/ | /g, ' ').includes(shown), `${lang}: ${shown}`);
-    assert.ok(!html.includes('50,00 USDT'), `${lang}: another client's sale is not shown`);
+    assert.ok(!html.includes('>50,00<'), `${lang}: another client's sale is not shown`);
 }
 const fr = deliveryMessage('fr', 'Client Test', { committed: 3_906.25, delivered: 500, remaining: 3_406.25, currency: 'USDT' }, 300).replace(/ | /g, ' ');
 assert.ok(fr.includes('300,00 USDT') && fr.includes('500,00 USDT') && fr.includes('3 406,25 USDT'), 'the message says what was sent, in total, and what is left');

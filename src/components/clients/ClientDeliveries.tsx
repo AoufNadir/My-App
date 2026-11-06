@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useLanguage, type Lang } from '../../contexts/LanguageContext';
 import { Button } from '../ui/Button';
-import { FormCard } from '../ui/FormCard';
+import { SegmentedControl } from '../ui/SegmentedControl';
+import { ArrowUpRightIcon } from '../icons/ArrowUpRightIcon';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { formatNumber } from '../../pages/shared/pageFormat';
 import { checkDelivery, deliveryStates, type ClientDeliveryState, type DeliveryCurrency, type DeliveryDoc } from '../../utils/deferredDelivery';
 import { formatWaNumber, openWhatsAppChooser, openWhatsAppMessenger } from '../../utils/whatsapp';
@@ -12,20 +14,20 @@ import { clientReportLanguage } from '../reports/reportLanguage';
 
 const W = {
     fr: {
-        title: 'À livrer au client', hint: 'Vendu au prix du jour, envoyé plus tard. Rien ici ne change un solde.',
+        title: 'À livrer au client', hint: 'Vendu au prix du jour, envoyé plus tard',
         sold: 'Vendu', delivered: 'Livré', left: 'Reste à livrer', qty: 'Quantité envoyée', deliver: 'J’ai livré',
         tooMuch: (left: string) => `Il ne reste que ${left} à livrer.`, empty: 'Écrivez la quantité envoyée.',
-        history: 'Livraisons', whatsapp: 'Prévenir sur WhatsApp', addOld: 'Ajouter un reste d’une ancienne vente',
+        history: 'Livraisons', whatsapp: 'Prévenir sur WhatsApp', addOld: 'Vente pas encore envoyée ? Ajoutez-la',
         addOldHint: 'Pour une vente déjà enregistrée avant cette fonction : la quantité qui n’a pas encore été envoyée.', add: 'Ajouter',
-        done: 'Tout est livré.',
+        done: 'Tout est livré.', cancel: 'Annuler',
     },
     ar: {
-        title: 'لم يُسلَّم للعميل بعد', hint: 'بِيع بسعر يومه ويُرسَل لاحقاً. لا شيء هنا يغيّر أي رصيد.',
+        title: 'لم يُسلَّم للعميل بعد', hint: 'بِيع بسعر يومه ويُرسَل لاحقاً',
         sold: 'بِيع', delivered: 'سُلّم', left: 'الباقي', qty: 'الكمية المرسلة', deliver: 'سلّمت',
         tooMuch: (left: string) => `الباقي ${left} فقط.`, empty: 'اكتب الكمية المرسلة.',
-        history: 'التسليمات', whatsapp: 'أخبره على واتساب', addOld: 'إضافة باقٍ من بيع قديم',
+        history: 'التسليمات', whatsapp: 'أخبره على واتساب', addOld: 'بيع لم يُرسَل بعد؟ أضفه',
         addOldHint: 'لبيع سُجّل قبل هذه الميزة: الكمية التي لم تُرسل بعد.', add: 'إضافة',
-        done: 'سُلّم كل شيء.',
+        done: 'سُلّم كل شيء.', cancel: 'إلغاء',
     },
 };
 
@@ -79,51 +81,72 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
             openWhatsAppChooser(text);
     };
 
-    // Nothing owed to this client: only the small link that adds a rest from an old sale, no card.
-    const oldForm = (<div className="space-y-2">
+    // In the style of the « Rapport d'activité » row just above: an icon, a title, a line of explanation.
+    const header = (subtitle: string, onClick?: () => void, trailing?: ReactNode) => {
+        const inner = (<>
+          <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-financial-debt-bg text-financial-debt">
+            <ArrowUpRightIcon className="h-5 w-5"/>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-neutral-900">{w.title}</span>
+            <span className="block truncate text-xs text-neutral-500">{subtitle}</span>
+          </span>
+          {trailing}
+        </>);
+        return onClick
+            ? <button type="button" onClick={onClick} className="flex min-h-touch w-full items-center gap-3 px-3 py-2 text-start transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">{inner}</button>
+            : <div className="flex min-h-touch items-center gap-3 px-3 py-2">{inner}</div>;
+    };
+    const box = 'mt-2 overflow-hidden rounded-button border border-border bg-surface';
+    const oldForm = (<div className="space-y-3 border-t border-border p-3">
         <p className="text-xs text-neutral-500">{w.addOldHint}</p>
-        <div className="flex gap-2">
-          <input inputMode="decimal" value={old.qty} onChange={(event) => setOld({ ...old, qty: event.target.value })} placeholder={w.left} aria-label={w.left} dir="ltr" className={field}/>
-          <select value={old.currency} onChange={(event) => setOld({ ...old, currency: event.target.value as DeliveryCurrency })} aria-label={w.left} className={`${field} w-24 shrink-0`}>
-            <option value="USDT">USDT</option><option value="EUR">EUR</option>
-          </select>
-          <Button type="button" variant="outline" size="md" className="shrink-0" onClick={() => {
-            const quantity = Number(old.qty.replace(',', '.'));
-            if (quantity > 0) {
-                onRecord('commitment', clientId, old.currency, quantity);
-                setOld({ qty: '', currency: old.currency });
-                setOldOpen(false);
-            }
+        <SegmentedControl size="sm" ariaLabel={w.left} value={old.currency} onChange={(currency) => setOld({ ...old, currency })} options={[{ id: 'USDT', label: 'USDT', tone: 'primary' }, { id: 'EUR', label: 'EUR', tone: 'primary' }]}/>
+        <div className="relative">
+          <input inputMode="decimal" value={old.qty} onChange={(event) => setOld({ ...old, qty: event.target.value })} placeholder="0,00" aria-label={w.left} dir="ltr" className={`${field} pe-16 text-base font-semibold`}/>
+          <span className="pointer-events-none absolute inset-y-0 end-3 flex items-center text-sm font-semibold text-neutral-500">{old.currency}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Button type="button" variant="ghost" size="md" onClick={() => { setOldOpen(false); setOld({ qty: '', currency: old.currency }); }}>{w.cancel}</Button>
+          <Button type="button" size="md" className="font-bold" disabled={!(Number(old.qty.replace(',', '.')) > 0)} onClick={() => {
+            onRecord('commitment', clientId, old.currency, Number(old.qty.replace(',', '.')));
+            setOld({ qty: '', currency: old.currency });
+            setOldOpen(false);
         }}>{w.add}</Button>
         </div>
       </div>);
     if (states.length === 0)
-        return oldOpen ? <FormCard title={w.title}>{oldForm}</FormCard> : <button type="button" onClick={() => setOldOpen(true)} className="min-h-touch px-1 text-start text-xs font-semibold text-primary">+ {w.addOld}</button>;
-    return (<FormCard title={w.title} description={states.length ? w.hint : undefined}>
-      {states.map((state) => (<div key={state.currency} className="space-y-2 rounded-button bg-surface-muted p-3">
+        return (<div className={box}>
+          {header(w.addOld, oldOpen ? undefined : () => setOldOpen(true), oldOpen ? undefined : <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100"/>)}
+          {oldOpen && oldForm}
+        </div>);
+    const totalLeft = states.reduce((sum, state) => sum + Math.max(0, state.remaining), 0);
+    return (<div className={box}>
+      {header(totalLeft > 0 ? w.hint : w.done)}
+      {states.map((state) => (<div key={state.currency} className="space-y-3 border-t border-border p-3">
           <div className="grid grid-cols-3 gap-2 text-center">
-            {[[w.sold, state.committed], [w.delivered, state.delivered], [w.left, state.remaining]].map(([label, value], i) => (<div key={i}>
+            {[[w.sold, state.committed], [w.delivered, state.delivered], [w.left, state.remaining]].map(([label, value], i) => (<div key={i} className={`rounded-button px-1 py-2 ${i === 2 && (value as number) > 0 ? 'bg-financial-debt-bg' : 'bg-surface-muted'}`}>
                 <p className="text-xs font-semibold text-neutral-500">{label as string}</p>
-                <p className={`text-sm font-bold tabular-nums ${i === 2 && (value as number) > 0 ? 'text-financial-debt' : 'text-neutral-900'}`}>{qtyText(value as number, state.currency)}</p>
+                <p className={`mt-0.5 text-sm font-bold tabular-nums ${i === 2 && (value as number) > 0 ? 'text-financial-debt' : 'text-neutral-900'}`}><bdi dir="ltr">{formatNumber(value as number, { min: 2, max: 2 })}</bdi></p>
+                <p className="text-[11px] font-semibold text-neutral-500">{state.currency}</p>
               </div>))}
           </div>
           {state.remaining > 0
-                ? (<div className="flex gap-2">
-                    <input inputMode="decimal" value={draft[state.currency] ?? ''} onChange={(event) => setDraft({ ...draft, [state.currency]: event.target.value })} placeholder={w.qty} aria-label={w.qty} dir="ltr" className={field}/>
-                    <Button type="button" size="md" className="shrink-0 font-bold" onClick={() => deliver(state)}>{w.deliver}</Button>
+                ? (<div className="space-y-2">
+                    <div className="relative">
+                      <input inputMode="decimal" value={draft[state.currency] ?? ''} onChange={(event) => setDraft({ ...draft, [state.currency]: event.target.value })} placeholder={w.qty} aria-label={w.qty} dir="ltr" className={`${field} pe-16 text-base font-semibold`}/>
+                      <span className="pointer-events-none absolute inset-y-0 end-3 flex items-center text-sm font-semibold text-neutral-500">{state.currency}</span>
+                    </div>
+                    {error[state.currency] && <p role="alert" className="text-xs font-semibold text-financial-loss">{error[state.currency]}</p>}
+                    <Button type="button" size="md" className="w-full font-bold" onClick={() => deliver(state)}>{w.deliver}</Button>
                   </div>)
                 : <p className="text-sm font-semibold text-financial-profit">✓ {w.done}</p>}
-          {error[state.currency] && <p role="alert" className="text-xs font-semibold text-financial-loss">{error[state.currency]}</p>}
-          {lastSent[state.currency] !== undefined && <Button type="button" variant="outline" size="sm" onClick={() => tell(state)}>{w.whatsapp}</Button>}
+          {lastSent[state.currency] !== undefined && <Button type="button" variant="outline" size="md" className="w-full" onClick={() => tell(state)}>{w.whatsapp}</Button>}
           {state.deliveries.length > 0 && (<details>
-              <summary className="cursor-pointer text-xs font-semibold text-neutral-600">{w.history} ({state.deliveries.length})</summary>
-              <ul className="mt-1 space-y-0.5 text-xs text-neutral-600">
-                {state.deliveries.map((doc) => <li key={doc.id} className="flex justify-between"><span>{new Date(doc.timestamp).toLocaleDateString('fr-FR')}</span><span className="tabular-nums">{qtyText(doc.quantity, doc.currency)}</span></li>)}
+              <summary className="min-h-touch cursor-pointer py-1 text-xs font-semibold text-neutral-600">{w.history} ({state.deliveries.length})</summary>
+              <ul className="space-y-1 text-xs text-neutral-600">
+                {state.deliveries.map((doc) => <li key={doc.id} className="flex justify-between rounded-button bg-surface-muted px-2 py-1.5"><span>{new Date(doc.timestamp).toLocaleDateString('fr-FR')}</span><span className="font-semibold tabular-nums">{qtyText(doc.quantity, doc.currency)}</span></li>)}
               </ul>
             </details>)}
         </div>))}
-      {!oldOpen
-            ? <button type="button" onClick={() => setOldOpen(true)} className="min-h-touch text-start text-xs font-semibold text-primary">+ {w.addOld}</button>
-            : oldForm}
-    </FormCard>);
+    </div>);
 }
