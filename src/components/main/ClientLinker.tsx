@@ -1,7 +1,10 @@
 import { memo } from 'react';
 import { Label } from '../ui/Label';
 import { SearchableSelect } from '../ui/SearchableSelect';
-import { SegmentedControl } from '../ui/SegmentedControl';
+import { CheckIcon } from '../icons/CheckIcon';
+import { BanknotesIcon } from '../icons/BanknotesIcon';
+import { CreditCardIcon } from '../icons/CreditCardIcon';
+import { UserIcon } from '../icons/UserIcon';
 import { PlusIcon } from '../icons/PlusIcon';
 import type { ClientDzd } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -15,7 +18,10 @@ type ClientLinkerProps = {
     openClientModal: (client: ClientDzd | null) => void;
     clientsDzd: ClientDzd[];
     fieldBase: string;
-    clientPaymentStatus: PaymentStatus;
+    /** null: nothing chosen yet (V13-1, never chosen for the user) */
+    clientPaymentStatus: PaymentStatus | null;
+    /** The way this client usually pays, shown as a hint only */
+    usualChannel?: 'cash' | 'baridi' | null;
     setClientPaymentStatus: (status: PaymentStatus) => void;
     errorMessage?: string;
     hasError?: boolean;
@@ -25,12 +31,18 @@ type ClientLinkerProps = {
     hidePaymentStatus?: boolean;
     hideLinkedDzdClient?: boolean;
 };
+// V13-1: three cards, the colours of the « where does the money go » strip. None is chosen for the user.
+const PAYMENT_CARDS = [
+    { id: 'credit' as const, label: 'transactions.credit', hint: 'transactions.paymentCreditHint', icon: UserIcon, on: 'border-financial-debt bg-financial-debt-bg', iconOn: 'bg-surface text-financial-debt', text: 'text-financial-debt', dot: 'border-financial-debt bg-financial-debt' },
+    { id: 'baridi' as const, label: 'transactions.settledBaridi', hint: 'transactions.paymentBaridiHint', icon: CreditCardIcon, on: 'border-primary bg-primary/5', iconOn: 'bg-surface text-primary', text: 'text-primary', dot: 'border-primary bg-primary' },
+    { id: 'cash' as const, label: 'transactions.settledCash', hint: 'transactions.paymentCashHint', icon: BanknotesIcon, on: 'border-financial-profit bg-financial-profit-bg', iconOn: 'bg-surface text-financial-profit', text: 'text-financial-profit', dot: 'border-financial-profit bg-financial-profit' },
+];
 const getClientName = (client: ClientDzd) => {
     if (client.fullName && client.fullName.trim())
         return client.fullName;
     return client.nom || '';
 };
-function ClientLinkerComponent({ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus, errorMessage, hasError, errorMessageDzd, hasErrorDzd, allowBaridiDzdLink = false, hidePaymentStatus = false, hideLinkedDzdClient = false }: ClientLinkerProps) {
+function ClientLinkerComponent({ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus, errorMessage, hasError, errorMessageDzd, hasErrorDzd, allowBaridiDzdLink = false, hidePaymentStatus = false, hideLinkedDzdClient = false, usualChannel = null }: ClientLinkerProps) {
     const { t } = useLanguage();
     const hasPrimaryClient = Boolean(linkedClientId && linkedClientId !== 'none');
     const showLinkedDzdClient = !hideLinkedDzdClient && hasPrimaryClient && (clientPaymentStatus === 'cash' || (allowBaridiDzdLink && clientPaymentStatus === 'baridi'));
@@ -56,11 +68,22 @@ function ClientLinkerComponent({ linkedClientId, setLinkedClientId, linkedClient
 
             {hasPrimaryClient && !hidePaymentStatus && (<div>
                     <Label>{t('transactions.paymentStatus')}</Label>
-                    <SegmentedControl size="md" ariaLabel={t('transactions.paymentStatus') as string} value={clientPaymentStatus} onChange={(status) => setClientPaymentStatus(status)} options={[
-                        { id: 'credit', label: t('transactions.credit'), tone: 'debt' },
-                        { id: 'baridi', label: t('transactions.settledBaridi'), tone: 'primary' },
-                        { id: 'cash', label: t('transactions.settledCash'), tone: 'profit' },
-                    ]}/>
+                    <div role="radiogroup" aria-label={t('transactions.paymentStatus') as string} className="grid gap-2">
+                        {PAYMENT_CARDS.map((card) => {
+                            const on = clientPaymentStatus === card.id;
+                            const Icon = card.icon;
+                            return (<button key={card.id} type="button" role="radio" aria-checked={on} onClick={() => setClientPaymentStatus(card.id)} className={`flex w-full items-center gap-3 rounded-card border-2 px-3 py-2.5 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${on ? card.on : 'border-border bg-surface hover:bg-surface-muted'}`}>
+                                <span aria-hidden="true" className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${on ? card.iconOn : 'bg-surface-muted text-neutral-500'}`}><Icon className="h-5 w-5"/></span>
+                                <span className="min-w-0 flex-1">
+                                    <span className={`block text-sm font-bold ${on ? card.text : 'text-neutral-900'}`}>{t(card.label)}</span>
+                                    <span className="block text-xs text-neutral-600">{t(card.hint)}</span>
+                                </span>
+                                <span aria-hidden="true" className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${on ? `${card.dot} text-white` : 'border-border-strong'}`}>{on && <CheckIcon className="h-3 w-3"/>}</span>
+                            </button>);
+                        })}
+                    </div>
+                    {!clientPaymentStatus && <p role="alert" className="mt-1.5 text-xs font-semibold text-danger">{t('transactions.paymentChoose')}</p>}
+                    {usualChannel && <p className="mt-1 text-xs text-neutral-500">{(t('transactions.paymentUsual') as string).replace('{channel}', t(usualChannel === 'baridi' ? 'transactions.settledBaridi' : 'transactions.settledCash') as string)}</p>}
                 </div>)}
 
             {showLinkedDzdClient && (<div>
@@ -85,5 +108,6 @@ const areClientLinkerPropsEqual = (prev: ClientLinkerProps, next: ClientLinkerPr
     && prev.hasErrorDzd === next.hasErrorDzd
     && prev.allowBaridiDzdLink === next.allowBaridiDzdLink
     && prev.hidePaymentStatus === next.hidePaymentStatus
-    && prev.hideLinkedDzdClient === next.hideLinkedDzdClient);
+    && prev.hideLinkedDzdClient === next.hideLinkedDzdClient
+    && prev.usualChannel === next.usualChannel);
 export const ClientLinker = memo(ClientLinkerComponent, areClientLinkerPropsEqual);

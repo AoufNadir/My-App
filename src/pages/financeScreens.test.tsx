@@ -303,3 +303,15 @@ for (const lang of ['fr', 'ar'] as const) {
 }
 
 console.log('financeScreens.test: Trésorerie, Portefeuille and Analyse show the same numbers as before, in French and Arabic');
+
+// V13-2: EUR hidden in the settings: no EUR card, a line says the stock left still counts; the total is the same.
+for (const lang of ['fr', 'ar'] as const) {
+    const shown = textOf(render(<PortfolioPage {...pageProps}/>, lang));
+    const hidden = textOf(render(<PortfolioPage {...pageProps} showEur={false}/>, lang));
+    assert.ok(shown.includes('EUR | 660,00'), `${lang}: EUR card shown by default`);
+    assert.ok(!hidden.includes('EUR | 660,00'), `${lang}: EUR card hidden`);
+    assert.ok(hidden.includes('660,00 EUR'), `${lang}: the EUR left in stock is said`);
+    const heroOf = (text: string) => text.split(' | ').slice(0, 4).join(' | ');
+    assert.equal(heroOf(hidden), heroOf(shown), `${lang}: the stock total does not change`);
+}
+console.log('financeScreens.test: V13-2 EUR hidden from the portfolio page, total unchanged');

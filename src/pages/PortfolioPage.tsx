@@ -56,6 +56,8 @@ type PortfolioPageProps = {
     reportYear: number;
     setReportYear: (year: number) => void;
     openPortfolioBalanceEditModal?: (asset: 'USDT' | 'EUR') => void;
+    /** V13-2: EUR hidden in the settings (its stock still counts in the total) */
+    showEur?: boolean;
 };
 
 type Metric = { label: string; value: number; currency: CurrencyCode; decimals: number };
@@ -177,6 +179,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
         transactions,
         pendingDeliveries,
         onOpenClient,
+        showEur = true,
     } = props;
     const { t } = useLanguage();
     const [simulatorOpen, setSimulatorOpen] = useState(false);
@@ -207,7 +210,9 @@ export function PortfolioPage(props: PortfolioPageProps) {
         <UsdtLockDetails portfolioStats={portfolioStats}/>
       </AssetCard>
 
-      <AssetCard symbol="EUR" icon={<EuroIcon className="h-5 w-5"/>} tone="eur" quantity={eurAvail} value={eurValue} metrics={priceMetrics(portfolioStats.eur.avgBuy, smartTargetEur)} onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('EUR') : undefined} editLabel={t('common.edit') as string}/>
+{showEur ? (
+            <AssetCard symbol="EUR" icon={<EuroIcon className="h-5 w-5"/>} tone="eur" quantity={eurAvail} value={eurValue} metrics={priceMetrics(portfolioStats.eur.avgBuy, smartTargetEur)} onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('EUR') : undefined} editLabel={t('common.edit') as string}/>
+      ) : eurAvail > 0 ? (<p className="rounded-button bg-surface-muted px-3 py-2 text-xs text-neutral-600">{(t('portfolio.eurHiddenStock') as string).replace('{amount}', eurAvail.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</p>) : null}
 
       {pendingDeliveries && (pendingDeliveries.USDT > 0 || pendingDeliveries.EUR > 0 || (pendingDeliveries.awaited?.USDT ?? 0) > 0 || (pendingDeliveries.awaited?.EUR ?? 0) > 0) && (<ClientFundsCard owed={pendingDeliveries} mine={{ USDT: usdtAvail, EUR: eurAvail }} onOpenClient={onOpenClient}/>)}
       {pendingDeliveries?.supplierList && pendingDeliveries.supplierList.length > 0 && (<SupplierAwaitedCard list={pendingDeliveries.supplierList} onOpenClient={onOpenClient}/>)}

@@ -548,3 +548,37 @@ for (const lang of ['fr', 'ar'] as const) {
     assert.ok(transactionWindow(lang, { ...sale, clientPaymentStatus: 'baridi' }).includes(esc(label)), `${lang}: paid by BaridiMob: offered`);
     assert.ok(!transactionWindow(lang, { ...sale, clientPaymentStatus: 'credit' }).includes(esc(label)), `${lang}: on credit: not offered`);
 }
+
+// V13-1: the payment status is never chosen for the user: with none chosen, no card is pressed, the window says so,
+// and no « where the money goes » strip is drawn; once pressed, that card alone is checked. A client's usual way is a hint.
+for (const lang of ['fr', 'ar'] as const) {
+    const tr = (translations[lang] as unknown as { transactions: Record<string, string> }).transactions;
+    const sale = { mode: 'sell_eur', sellAmount: '300', sellPrice: '262', sellTotal: '78600', linkedClientId: 'c3' };
+    const none = transactionWindow(lang, { ...sale, clientPaymentStatus: null });
+    assert.equal((none.match(/role="radio" aria-checked="true"/g) || []).length, 0, `${lang}: nothing chosen at opening`);
+    assert.equal((none.match(/role="radio" aria-checked="false"/g) || []).length, 3, `${lang}: three cards`);
+    assert.ok(none.includes(esc(tr.paymentChoose)), `${lang}: asks to choose`);
+    for (const hint of ['paymentCreditHint', 'paymentBaridiHint', 'paymentCashHint'])
+        assert.ok(none.includes(esc(tr[hint])), `${lang}: ${hint} written under its card`);
+    for (const status of ['credit', 'baridi', 'cash'] as const) {
+        const html = transactionWindow(lang, { ...sale, clientPaymentStatus: status });
+        assert.equal((html.match(/role="radio" aria-checked="true"/g) || []).length, 1, `${lang}: ${status}: one card checked`);
+        assert.ok(!html.includes(esc(tr.paymentChoose)), `${lang}: ${status}: no request once chosen`);
+    }
+    const buy = transactionWindow(lang, { ...buyWithDzd, clientPaymentStatus: null });
+    assert.equal((buy.match(/role="radio" aria-checked="true"/g) || []).length, 0, `${lang}: a purchase too opens with nothing chosen`);
+}
+console.log('operationWindows.test: V13-1 payment status never chosen for the user');
+
+// V13-2: EUR hidden in the settings: the buy / sell window offers USDT alone and no EUR settlement; shown, as before.
+for (const lang of ['fr', 'ar'] as const) {
+    const usdtSale = { mode: 'sell_eur', sellAmount: '300', sellPrice: '262', sellTotal: '78600', linkedClientId: 'c3', clientPaymentStatus: 'cash' };
+    const shown = transactionWindow(lang, { ...usdtSale, mode: 'buy_usdt', buyUsdtMode: 'with_dzd' });
+    assert.ok(shown.includes('>EUR</button>'), `${lang}: EUR offered by default`);
+    const hidden = transactionWindow(lang, { ...usdtSale, mode: 'buy_usdt', buyUsdtMode: 'with_dzd', showEur: false });
+    assert.ok(!hidden.includes('>EUR</button>'), `${lang}: EUR hidden`);
+    assert.ok(hidden.includes('>USDT</button>'), `${lang}: USDT still there`);
+    const editingEur = transactionWindow(lang, { ...usdtSale, showEur: false, editingTx: { id: 'x', type: 'sell', currency: 'EUR', quantity: 300 } });
+    assert.ok(editingEur.includes('>EUR</button>'), `${lang}: an operation saved in EUR still opens as it was`);
+}
+console.log('operationWindows.test: V13-2 EUR hidden from the buy / sell window');

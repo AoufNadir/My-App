@@ -21,6 +21,8 @@ type NewTransactionMenuDialogProps = {
   openDeliveryExpenseModal: () => void;
   openDigitalServiceModal?: () => void;
   openPersonalWithdrawalModal?: () => void;
+  /** V13-2: EUR hidden in the settings */
+  showEur?: boolean;
 };
 
 type PortfolioActionProps = {
@@ -64,6 +66,7 @@ export function NewTransactionMenuDialog({
   openDeliveryExpenseModal,
   openDigitalServiceModal,
   openPersonalWithdrawalModal,
+  showEur = true,
 }: NewTransactionMenuDialogProps) {
   const runAfterClose = (action: () => void) => {
     onClose();
@@ -90,6 +93,7 @@ export function NewTransactionMenuDialog({
               verb={t('transactions.sellVerb')}
               onClick={() => runAfterClose(() => openForm('sell_usdt'))}
             />
+            {showEur && (<>
             <PortfolioActionButton
               currency="EUR"
               direction="buy"
@@ -102,6 +106,7 @@ export function NewTransactionMenuDialog({
               verb={t('transactions.sellVerb')}
               onClick={() => runAfterClose(() => openForm('sell_eur'))}
             />
+            </>)}
           </div>
         </SectionCard>
 

@@ -9,6 +9,7 @@ const FORM_MESSAGE_KEYS: Readonly<Record<string, string>> = {
     'Veuillez entrer le prix': 'formErrors.priceMissing',
     'Montant total invalide': 'formErrors.totalInvalid',
     'Veuillez sélectionner un client': 'formErrors.clientMissing',
+    'Choisissez le mode de paiement': 'formErrors.paymentMissing',
     'Le client DZD doit etre different du client principal': 'formErrors.sameDzdClient',
     'Quantité requise': 'formErrors.quantityRequired',
     'Prix requis': 'formErrors.priceRequired',

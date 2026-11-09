@@ -10,6 +10,7 @@ import { CheckIcon } from '../icons/CheckIcon';
 import { LockIcon } from '../icons/LockIcon';
 import { FormCard } from '../ui/FormCard';
 import { NotificationSettings } from './NotificationSettings';
+import { CurrencyVisibilitySettings } from './CurrencyVisibilitySettings';
 import { HabitsSettings } from './HabitsSettings';
 
 type MainUtilityDialogsProps = Record<string, any>;
@@ -145,6 +146,8 @@ function MainUtilityDialogsComponent({
                     <PinSettings t={t} />
 
                     <NotificationSettings />
+
+                    {userDocRef && <CurrencyVisibilitySettings userDocRef={userDocRef} />}
 
                     {userDocRef && <HabitsSettings userDocRef={userDocRef} />}
 

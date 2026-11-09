@@ -1,4 +1,4 @@
-import { useState, useMemo, type MutableRefObject } from 'react';
+import { useCallback, useState, useMemo, type MutableRefObject } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
 import { Tx, PortfolioStats, ClientDzd, TreasuryTx, ClientTransactionDzd, Investor, InvestorTransaction } from '../types';
 import { now, parseAndEvaluate } from '../utils';
@@ -148,6 +148,13 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [linkedClientId, setLinkedClientId] = useState('none');
     const [linkedClientDzdId, setLinkedClientDzdId] = useState('none');
     const [clientPaymentStatus, setClientPaymentStatus] = useState<'credit' | 'baridi' | 'cash'>('cash');
+    // V13-1: the payment status is never chosen for the user. A new operation opens with none chosen and cannot be
+    // saved until one is pressed; an edited one opens on the status it was saved with.
+    const [paymentStatusChosen, setPaymentStatusChosen] = useState(false);
+    const choosePaymentStatus = useCallback((status: 'credit' | 'baridi' | 'cash') => {
+        setPaymentStatusChosen(true);
+        setClientPaymentStatus(status);
+    }, []);
     const [creditDueDate, setCreditDueDate] = useState('');
     const [pendingCreditRisk, setPendingCreditRisk] = useState<SmartSaleSnapshot | null>(null);
 
@@ -271,6 +278,10 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             errors[field] = msg;
             isValid = false;
         };
+        const requirePaymentStatus = () => {
+            if (!paymentStatusChosen)
+                addError('clientPaymentStatus', 'Choisissez le mode de paiement');
+        };
         const linkedEurWithdrawalOnEdit = editingTx
             ? transactions.find((tx) => tx.linkedTxId === editingTx.id &&
                 tx.type === 'Retrait Manuel' &&
@@ -280,6 +291,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         const eurAvailableForBuy = portfolioStats.eur.available + (linkedEurQtyOnEdit > 0 ? linkedEurQtyOnEdit : 0);
         if (mode === 'buy_usdt') {
             if (buyUsdtMode === 'with_dzd') {
+                requirePaymentStatus();
                 if (parseAndEvaluate(buyUsdtAmount) <= 0)
                     addError('buyUsdtAmount', 'Veuillez entrer la quantité');
                 if (parseAndEvaluate(buyUsdtPrice) <= 0)
@@ -304,6 +316,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             }
         }
         else if (mode === 'buy_eur') {
+            requirePaymentStatus();
             if (parseAndEvaluate(buyEurAmount) <= 0)
                 addError('buyEurAmount', 'Quantité requise');
             if (parseAndEvaluate(buyEurPrice) <= 0)
@@ -328,6 +341,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             const isUsdtSettledInEur = sellCurrency === 'USDT' && sellSettlementCurrency === 'EUR';
             const canUseLinkedDzdClient = !isUsdtSettledInEur && (clientPaymentStatus === 'cash' || clientPaymentStatus === 'baridi');
             const readOnlyEurToDzdRate = Number(portfolioStats.eur.avgBuy || 0);
+            if (!isUsdtSettledInEur)
+                requirePaymentStatus();
             if (amt <= 0)
                 addError('sellAmount', 'Quantité requise');
             if (parseAndEvaluate(sellPrice) <= 0)
@@ -363,7 +378,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 addError('linkedClientDzdId', 'Ce client a été supprimé');
         }
         return { isValid, errors };
-    }, [clientsDzd, mode, buyUsdtMode, buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, sellSettlementCurrency, sellEurToDzdRate, portfolioStats, editingTx, linkedClientId, linkedClientDzdId, clientPaymentStatus, creditDueDate, transactions, saleDatePlan]);
+    }, [clientsDzd, mode, buyUsdtMode, buyUsdtAmount, buyUsdtPrice, buyUsdtTotal, buyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, buyEurAmount, buyEurPrice, buyEurTotal, sellAmount, sellPrice, sellTotal, sellSettlementCurrency, sellEurToDzdRate, portfolioStats, editingTx, linkedClientId, linkedClientDzdId, clientPaymentStatus, paymentStatusChosen, creditDueDate, transactions, saleDatePlan]);
     const openForm = (newMode: TransactionFormMode, txToEdit: Tx | null = null, prefill?: PrefillSell) => {
         setBuyUsdtAmount('');
         setBuyUsdtPrice('');
@@ -393,6 +408,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             ? usualChannelOf(clientsDzd.find((client) => client.id === prefill.clientId))
             : null;
         setClientPaymentStatus(prefill?.paymentStatus ?? usualSaleChannel ?? 'cash');
+        // V13-1: shown as chosen only when editing a saved operation; anything else waits for the user's press.
+        setPaymentStatusChosen(Boolean(txToEdit));
         setCreditDueDate(prefill?.creditDueDate ?? '');
         setPendingCreditRisk(null);
         setEditingTx(txToEdit);
@@ -2090,7 +2107,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         realPurchaseTime, setRealPurchaseTime,
         buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount,
         eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate,
-        linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus,
+        linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId,
+        clientPaymentStatus: paymentStatusChosen ? clientPaymentStatus : null, setClientPaymentStatus: choosePaymentStatus, setPaymentStatusChosen,
         creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk,
         notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent,
         isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab,
