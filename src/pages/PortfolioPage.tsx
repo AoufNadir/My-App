@@ -223,7 +223,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
 
       <BottomSheet isOpen={simulatorOpen} onClose={() => setSimulatorOpen(false)} title={t('portfolio.pamPriceSimulator') as string}>
         <div className="p-4 sm:px-5">
-          <PamSimulator portfolioStats={portfolioStats} smartTargetUsdt={smartTargetUsdt} parseAndEvaluate={parseAndEvaluate}/>
+          <PamSimulator portfolioStats={portfolioStats} smartTargetUsdt={smartTargetUsdt} parseAndEvaluate={parseAndEvaluate} showEur={showEur}/>
         </div>
       </BottomSheet>
     </div>);

@@ -315,3 +315,17 @@ for (const lang of ['fr', 'ar'] as const) {
     assert.equal(heroOf(hidden), heroOf(shown), `${lang}: the stock total does not change`);
 }
 console.log('financeScreens.test: V13-2 EUR hidden from the portfolio page, total unchanged');
+
+// V13-2: EUR hidden: the PAM simulator keeps its DZD tabs only.
+for (const lang of ['fr', 'ar'] as const) {
+    const t = translations[lang] as unknown as { portfolio: Record<string, string> };
+    const shown = render(<PamSimulator portfolioStats={portfolioStats} smartTargetUsdt={246.5} parseAndEvaluate={parseAndEvaluate}/>, lang);
+    const hidden = render(<PamSimulator portfolioStats={portfolioStats} smartTargetUsdt={246.5} parseAndEvaluate={parseAndEvaluate} showEur={false}/>, lang);
+    for (const key of ['buyWithEur', 'sellUsdtVsEur']) {
+        assert.ok(shown.includes(t.portfolio[key]), `${lang}: ${key} shown by default`);
+        assert.ok(!hidden.includes(t.portfolio[key]), `${lang}: ${key} hidden`);
+    }
+    for (const key of ['buyWithDzd', 'sellUsdtVsDzd'])
+        assert.ok(hidden.includes(t.portfolio[key]), `${lang}: ${key} kept`);
+}
+console.log('financeScreens.test: V13-2 EUR tabs hidden from the PAM simulator');

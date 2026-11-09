@@ -23,6 +23,8 @@ type PamSimulatorProps = {
     portfolioStats: any;
     smartTargetUsdt?: number;
     parseAndEvaluate: (expr: string) => number;
+    /** V13-2: EUR hidden in the settings: no « with EUR » tabs */
+    showEur?: boolean;
 };
 
 const parsePositive = (parseAndEvaluate: (expr: string) => number, value: string) => {
@@ -34,7 +36,7 @@ const parsePositive = (parseAndEvaluate: (expr: string) => number, value: string
  * What a purchase or a sale would do to the USDT PAM, before doing it. Nothing is saved:
  * the figures come from the current PAM ledger and the values typed here.
  */
-export function PamSimulator({ portfolioStats, smartTargetUsdt = 0, parseAndEvaluate }: PamSimulatorProps) {
+export function PamSimulator({ portfolioStats, smartTargetUsdt = 0, parseAndEvaluate, showEur = true }: PamSimulatorProps) {
     const { t } = useLanguage();
     const [simMode, setSimMode] = useState<PamSimulatorMode>('dzd');
     const [simBuyQty, setSimBuyQty] = useState('');
@@ -195,7 +197,7 @@ export function PamSimulator({ portfolioStats, smartTargetUsdt = 0, parseAndEval
         { id: 'eur', label: t('portfolio.buyWithEur') as string },
         { id: 'sell_dzd', label: t('portfolio.sellUsdtVsDzd') as string },
         { id: 'sell_eur', label: t('portfolio.sellUsdtVsEur') as string },
-    ];
+    ].filter((tab) => showEur || (tab.id !== 'eur' && tab.id !== 'sell_eur')) as Tab[];
 
     return (
             <div className="space-y-4">
