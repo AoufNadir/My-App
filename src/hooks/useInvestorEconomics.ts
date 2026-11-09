@@ -5,6 +5,8 @@ import { buildInvestorCapitalReconciliation, calculateManagerOwnerCapital, calcu
 import { computePamLedger, type PamLedgerResult, type PamLedgerSellProfitRow } from '../utils/pamLedger';
 import type { DebtWriteOff } from '../utils/debtWriteOffs';
 export const LEGACY_MANAGER_FEE_PERCENTAGE = 30;
+/** V13-6: the loss policy applies to losses from this moment (2026-11-10 00:00, Algiers). Older ones keep the old split. */
+export const LOSS_POLICY_FROM_MS = Date.UTC(2026, 10, 9, 23, 0);
 export type InvestorAccountingWarningCode = 'available_profit_negative' | 'withdrawals_exceed_derived_profit' | 'uncosted_quantity_sold' | 'negative_derived_profit';
 export type InvestorAccountingWarningSeverity = 'info' | 'warning' | 'high';
 export interface InvestorAccountingWarning {
@@ -406,6 +408,33 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             // entirely to the manager (sole capital owner at that moment).
             managerShare = addM(managerShare, derivedProfit);
             creditManager(derivedProfit);
+            continue;
+        }
+        if (derivedProfit < 0 && sellTs >= LOSS_POLICY_FROM_MS) {
+            // V13-6 loss policy (owner's decision): no manager fee on a loss, it is shared by capital; an investor never
+            // loses more than his unwithdrawn profit plus his capital, the rest falls on the manager; profit already
+            // withdrawn is not taken back. Losses before this date keep the old split (closed months do not move).
+            const lossShares = distributeProportionally(derivedProfit, eligible.map((item) => item.cap));
+            let carried = 0;
+            eligible.forEach((item, index) => {
+                const inv = investorsBase.find((base) => base.id === item.id);
+                if (!inv || inv.isManager) return;
+                const taken = inv.txs.filter((tx) => (tx.type === 'withdraw_profit' || tx.type === 'reinvest_profit') && toMs(tx.timestamp) <= sellTs)
+                    .reduce((sum, tx) => addM(sum, tx.amount), 0);
+                const unwithdrawn = Math.max(0, subM(distributedProfitByInvestor.get(item.id) || 0, taken));
+                const limit = addM(item.cap, unwithdrawn);
+                if (-lossShares[index] > limit) {
+                    carried = addM(carried, subM(lossShares[index], -limit));
+                    lossShares[index] = -limit;
+                }
+            });
+            const managerIndex = eligible.findIndex((item) => item.id === managerInvestor?.id);
+            if (managerIndex >= 0) lossShares[managerIndex] = addM(lossShares[managerIndex], carried);
+            else { managerShare = addM(managerShare, carried); creditManager(carried); }
+            investorShare = addM(investorShare, sumM(lossShares));
+            eligible.forEach((item, index) => {
+                distributedProfitByInvestor.set(item.id, addM(distributedProfitByInvestor.get(item.id) || 0, lossShares[index]));
+            });
             continue;
         }
         const investorPool = roundM(derivedProfit * (1 - managerFeeRatio));
