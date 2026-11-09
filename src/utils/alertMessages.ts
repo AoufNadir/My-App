@@ -56,6 +56,7 @@ const ALERT_TEMPLATES: ReadonlyArray<readonly [string, string]> = [
     ['Transaction ajoutée.', 'alerts.txAdded'],
     ['Choisissez le portefeuille.', 'alerts.walletMissing'],
     ['Pour modifier une opération RMB ou une conversion : supprimez-la puis enregistrez-la à nouveau.', 'alerts.rmbEditByDelete'],
+    ['Refusé : le stock deviendrait négatif à une date plus tard.', 'alerts.negativeStock'],
     ['Erreur lors de l’ajout de la transaction.', 'alerts.txAddError'],
     ['Date de vente invalide.', 'alerts.saleDateInvalid'],
     ['La date de la vente ne peut pas être dans le futur.', 'alerts.saleDateFuture'],

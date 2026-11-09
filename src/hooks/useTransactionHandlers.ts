@@ -14,6 +14,7 @@ import {
 import { operationStamp } from '../utils/editStamp';
 import { formatNumber } from '../pages/shared/pageFormat';
 import { applyTransactionDelete } from '../transactionService';
+import { changeCreatesNegativeStock, NEGATIVE_STOCK_MESSAGE, withoutOperation, withQuantity } from '../utils/stockGuard';
 import { recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
 import { recordPortfolioShadow } from '../accounting/portfolioShadowDiagnostics';
 import { inventoryFromLegacyPortfolioStats } from '../accounting/portfolioShadowLegacyAdapter';
@@ -380,6 +381,13 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 addError('sellDate', SALE_DATE_MESSAGES.future);
             else if (saleDatePlan?.plan && !saleDatePlan.plan.ok)
                 addError('sellDate', SALE_DATE_MESSAGES[saleDatePlan.plan.reason]);
+        }
+        if (editingTx && mode && isValid) {
+            // V13-6 (audit): an edit never leaves the stock negative later on.
+            const editedQuantity = mode === 'sell_usdt' || mode === 'sell_eur' ? parseAndEvaluate(sellAmount)
+                : mode === 'buy_eur' ? parseAndEvaluate(buyEurAmount) : parseAndEvaluate(buyUsdtAmount);
+            if (editedQuantity > 0 && editedQuantity !== Number(editingTx.quantity) && changeCreatesNegativeStock(transactions, withQuantity(transactions, editingTx.id, editedQuantity)))
+                addError(mode.startsWith('sell') ? 'sellAmount' : mode === 'buy_eur' ? 'buyEurAmount' : 'buyUsdtAmount', NEGATIVE_STOCK_MESSAGE);
         }
         if (!editingTx && mode) {
             const isArchivedPick = (clientId: string) => !!clientId && clientId !== 'none' && !isClientActive(clientsDzd.find((client) => client.id === clientId));
@@ -1628,6 +1636,10 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
     };
     const handleDeleteTx = async (txId: string, type: 'usdt_tx' | 'client_tx' | 'treasury_tx' | 'asset_tx') => {
+        if (type === 'usdt_tx' && changeCreatesNegativeStock(transactions, withoutOperation(transactions, txId))) {
+            setAlert(`❌ ${NEGATIVE_STOCK_MESSAGE}`);
+            return;
+        }
         setIsSaving(true);
         try {
             const result = await applyTransactionDelete(txId, type, userDocRef);

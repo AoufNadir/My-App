@@ -15,6 +15,7 @@ const FORM_MESSAGE_KEYS: Readonly<Record<string, string>> = {
     'Prix requis': 'formErrors.priceRequired',
     'Taux requis': 'formErrors.rateRequired',
     'Solde insuffisant': 'formErrors.insufficientBalance',
+    'Refusé : le stock deviendrait négatif à une date plus tard.': 'formErrors.negativeStock',
     "Date d'échéance requise": 'formErrors.dueDateRequired',
     "L'échéance doit être future": 'formErrors.dueDateFuture',
     'Taux EUR/DZD requis': 'formErrors.eurDzdRateRequired',
