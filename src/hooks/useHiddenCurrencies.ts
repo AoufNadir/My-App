@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { readHiddenCurrencies, toggledHiddenCurrencies, type HideableCurrency } from '../utils/hiddenCurrencies';
 
 type UserDocRefLike = {
-    onSnapshot: (onNext: (snapshot: { exists?: boolean; data: () => Record<string, unknown> | undefined }) => void, onError?: (error: unknown) => void) => () => void;
+    // The app's Firestore wrapper: (onNext, options, onError), as `usePeriodLock` uses it.
+    onSnapshot: (onNext: (snapshot: { exists?: boolean; data: () => Record<string, unknown> | undefined }) => void, options?: { includeMetadataChanges?: boolean }, onError?: (error: Error) => void) => () => void;
     set: (data: Record<string, unknown>, options: { merge: boolean }) => Promise<unknown>;
 };
 
@@ -14,7 +15,7 @@ export function useHiddenCurrencies(userDocRef: UserDocRefLike | null | undefine
         return userDocRef.onSnapshot((snapshot) => {
             const next = readHiddenCurrencies(snapshot.data()?.hiddenCurrencies);
             setHidden((current) => (current.join() === next.join() ? current : next));
-        }, (error) => console.error('Error loading hidden currencies:', error));
+        }, undefined, (error) => console.error('Error loading hidden currencies:', error));
     }, [userDocRef]);
     const setCurrencyHidden = useCallback(async (code: HideableCurrency, isHidden: boolean) => {
         if (!userDocRef) return;
