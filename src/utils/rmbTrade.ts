@@ -8,10 +8,13 @@ import { stampAt } from './editStamp';
 //   `conversionLeg: 'out'` (the ledger moves the cost across).
 // Nothing here writes: it builds the rows a batch writes, so the numbers can be checked without Firestore.
 
-export type RmbSource = 'DZD' | 'EUR' | 'USDT';
+export type TradeCurrency = 'USDT' | 'EUR' | 'RMB';
+export type RmbSource = 'DZD' | TradeCurrency;
 export type PaymentStatus = 'credit' | 'baridi' | 'cash';
 export type RmbTradeInput = {
     kind: 'buy' | 'sell';
+    /** V13-4: the currency bought or sold (RMB when left out). With dinars only RMB goes through here. */
+    currency?: TradeCurrency;
     source: RmbSource;
     /** RMB bought or sold */
     quantity: number;
@@ -25,7 +28,8 @@ export type RmbTradeInput = {
     notes?: string;
 };
 export type RmbStock = { RMB: number; EUR: number; USDT: number };
-export type RmbCheck = { ok: true } | { ok: false; reason: 'client' | 'quantity' | 'price' | 'amount' | 'payment' | 'stock' | 'source_stock' };
+export type RmbCheck = { ok: true } | { ok: false; reason: 'client' | 'quantity' | 'price' | 'amount' | 'payment' | 'stock' | 'source_stock' | 'same_currency' };
+const currencyOf = (input: Pick<RmbTradeInput, 'currency'>): TradeCurrency => input.currency ?? 'RMB';
 
 const positive = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
 const round2 = (value: number) => Math.round(value * 100) / 100;
@@ -35,12 +39,14 @@ const qty = (value: number) => value.toLocaleString('fr-FR', { minimumFractionDi
 export function checkRmbTrade(input: RmbTradeInput, stock: RmbStock): RmbCheck {
     if (!input.clientId || input.clientId === 'none') return { ok: false, reason: 'client' };
     if (!positive(input.quantity)) return { ok: false, reason: 'quantity' };
+    const currency = currencyOf(input);
+    if (input.source === currency) return { ok: false, reason: 'same_currency' };
     if (input.source === 'DZD') {
         if (!positive(input.price)) return { ok: false, reason: 'price' };
         if (!input.paymentStatus) return { ok: false, reason: 'payment' };
     }
     else if (!positive(input.otherAmount)) return { ok: false, reason: 'amount' };
-    if (input.kind === 'sell' && input.quantity > stock.RMB + EPS) return { ok: false, reason: 'stock' };
+    if (input.kind === 'sell' && input.quantity > stock[currency] + EPS) return { ok: false, reason: 'stock' };
     if (input.kind === 'buy' && input.source !== 'DZD' && (input.otherAmount ?? 0) > stock[input.source] + EPS) return { ok: false, reason: 'source_stock' };
     return { ok: true };
 }
@@ -54,20 +60,23 @@ const PAYMENT_METHOD: Record<PaymentStatus, 'Crédit' | 'BaridiMob' | 'Espèces'
 export function rmbTradeRows(input: RmbTradeInput, nowMs: number, mainId: string, profitDzd = 0): RmbRows {
     const stamp = stampAt(nowMs);
     const notes = (input.notes ?? '').trim();
+    const currency = currencyOf(input);
     if (input.source !== 'DZD') {
         const other = input.source;
         const otherAmount = input.otherAmount as number;
         // What comes in, and what leaves.
-        const incoming = input.kind === 'buy' ? { currency: 'RMB', quantity: input.quantity } : { currency: other, quantity: otherAmount };
-        const outgoing = input.kind === 'buy' ? { currency: other, quantity: otherAmount } : { currency: 'RMB', quantity: input.quantity };
+        const incoming = input.kind === 'buy' ? { currency, quantity: input.quantity } : { currency: other, quantity: otherAmount };
+        const outgoing = input.kind === 'buy' ? { currency: other, quantity: otherAmount } : { currency, quantity: input.quantity };
         const label = input.kind === 'buy'
-            ? `Achat de ${qty(input.quantity)} RMB payé en ${qty(otherAmount)} ${other}`
-            : `Vente de ${qty(input.quantity)} RMB contre ${qty(otherAmount)} ${other}`;
+            ? `Achat de ${qty(input.quantity)} ${currency} payé en ${qty(otherAmount)} ${other}`
+            : `Vente de ${qty(input.quantity)} ${currency} contre ${qty(otherAmount)} ${other}`;
         return {
             main: { ...stamp, type: 'buy', currency: incoming.currency, quantity: incoming.quantity, price: 0, total: 0, notes: notes || label, linkedClientId: input.clientId, purchaseFundingCurrency: outgoing.currency, conversionFrom: outgoing.currency, conversionFromQuantity: outgoing.quantity },
             linked: [{ collection: 'usdt_txs', data: { ...stamp, timestamp: nowMs - 1, type: 'Retrait Manuel', currency: outgoing.currency, quantity: outgoing.quantity, notes: label, linkedTxId: mainId, conversionLeg: 'out' } }],
         };
     }
+    if (currency !== 'RMB')
+        throw new Error('USDT and EUR with dinars go through the usual window');
     const status = input.paymentStatus as PaymentStatus;
     const price = input.price as number;
     const total = Math.round(input.quantity * price);
@@ -87,15 +96,42 @@ export function rmbTradeRows(input: RmbTradeInput, nowMs: number, mainId: string
 }
 
 /** Before saving a conversion: the average price in DZD of what comes in (what left × its average price ÷ what came in). */
-export function rmbConversionPreview(input: Pick<RmbTradeInput, 'kind' | 'source' | 'quantity' | 'otherAmount'>, avgPrice: { RMB: number; EUR: number; USDT: number }): { incoming: string; avgPrice: number; rate: number } | null {
+export function rmbConversionPreview(input: Pick<RmbTradeInput, 'kind' | 'source' | 'quantity' | 'otherAmount' | 'currency'>, avgPrice: { RMB: number; EUR: number; USDT: number }): { incoming: string; avgPrice: number; rate: number; costDzd: number } | null {
     if (input.source === 'DZD' || !positive(input.quantity) || !positive(input.otherAmount)) return null;
+    const currency = currencyOf(input);
     const other = input.source;
-    const cost = input.kind === 'buy' ? input.otherAmount * avgPrice[other] : input.quantity * avgPrice.RMB;
+    const cost = input.kind === 'buy' ? input.otherAmount * avgPrice[other] : input.quantity * avgPrice[currency];
     const incomingQty = input.kind === 'buy' ? input.quantity : input.otherAmount;
-    return { incoming: input.kind === 'buy' ? 'RMB' : other, avgPrice: round2(cost / incomingQty), rate: input.quantity / input.otherAmount };
+    return { incoming: input.kind === 'buy' ? currency : other, avgPrice: round2(cost / incomingQty), rate: input.quantity / input.otherAmount, costDzd: round2(cost) };
+}
+
+/**
+ * V13-4: the three linked fields of a conversion: quantity of the currency, rate (1 other = rate × currency) and amount
+ * of the other currency. The field just typed is kept; the third is worked out from the two others.
+ */
+export type ThreeFields = { quantity: string; rate: string; amount: string };
+export function linkThreeFields(fields: ThreeFields, edited: keyof ThreeFields, parse: (value: string) => number): ThreeFields {
+    const q = parse(fields.quantity);
+    const r = parse(fields.rate);
+    const a = parse(fields.amount);
+    const ok = (value: number) => Number.isFinite(value) && value > 0;
+    const fmt = (value: number, digits: number) => String(Math.round(value * 10 ** digits) / 10 ** digits);
+    if (edited === 'quantity') {
+        if (ok(q) && ok(r)) return { ...fields, amount: fmt(q / r, 2) };
+        if (ok(q) && ok(a)) return { ...fields, rate: fmt(q / a, 4) };
+    }
+    if (edited === 'rate') {
+        if (ok(r) && ok(a)) return { ...fields, quantity: fmt(a * r, 2) };
+        if (ok(r) && ok(q)) return { ...fields, amount: fmt(q / r, 2) };
+    }
+    if (edited === 'amount') {
+        if (ok(a) && ok(r)) return { ...fields, quantity: fmt(a * r, 2) };
+        if (ok(a) && ok(q)) return { ...fields, rate: fmt(q / a, 4) };
+    }
+    return fields;
 }
 
 /** An operation of the RMB window: in RMB, or one leg of a conversion made there. Not editable in the USDT / EUR window. */
 export function isRmbOperation(tx: { currency?: unknown; conversionFrom?: unknown; conversionLeg?: unknown }): boolean {
-    return tx.currency === 'RMB' || tx.conversionFrom === 'RMB' || tx.conversionLeg === 'out';
+    return tx.currency === 'RMB' || Boolean(tx.conversionFrom) || tx.conversionLeg === 'out';
 }

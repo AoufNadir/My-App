@@ -54,7 +54,7 @@ const ALERT_TEMPLATES: ReadonlyArray<readonly [string, string]> = [
     ['Erreur lors de la création du service.', 'alerts.serviceCreateError'],
     ['Service archivé.', 'alerts.serviceArchived'],
     ['Transaction ajoutée.', 'alerts.txAdded'],
-    ['Pour modifier une opération RMB : supprimez-la puis enregistrez-la à nouveau.', 'alerts.rmbEditByDelete'],
+    ['Pour modifier une opération RMB ou une conversion : supprimez-la puis enregistrez-la à nouveau.', 'alerts.rmbEditByDelete'],
     ['Erreur lors de l’ajout de la transaction.', 'alerts.txAddError'],
     ['Date de vente invalide.', 'alerts.saleDateInvalid'],
     ['La date de la vente ne peut pas être dans le futur.', 'alerts.saleDateFuture'],

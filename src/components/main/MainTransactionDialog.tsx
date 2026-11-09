@@ -27,8 +27,11 @@ import { selectableClients } from '../../utils/clientRegistry';
 type MainTransactionDialogProps = Record<string, any>;
 type LastEditedSellField = 'eurReceived' | 'quantity' | 'total' | 'price';
 type SellCalculationBasis = Exclude<LastEditedSellField, 'price'>;
-export function MainTransactionDialog({ transactions, clientTransactionsDzd, profitByTxId, mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, setPaymentStatusChosen, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, deliveryPending, setDeliveryPending, receiptPending, setReceiptPending, sellTime, setSellTime, saleDatePlan, smartPricingByCurrency, smartQuoteRef, showEur = true, showRmb = true, onSwitchToRmb }: MainTransactionDialogProps) {
+export function MainTransactionDialog({ transactions, clientTransactionsDzd, profitByTxId, mode, editingTx, closeForm, openForm, t, fieldBase, buyUsdtMode, setBuyUsdtMode, setEurDzdPrice, portfolioStats, buyUsdtAmount, setBuyUsdtAmount, isTotalManual, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, setIsTotalManual, formValidation, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, clientPaymentStatus, setClientPaymentStatus, setPaymentStatusChosen, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, eurUsdtRate, setEurUsdtRate, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, profitPercent, setProfitPercent, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, clientBalances, handleBuy, handleSell, isSaving, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, deliveryPending, setDeliveryPending, receiptPending, setReceiptPending, sellTime, setSellTime, saleDatePlan, smartPricingByCurrency, smartQuoteRef, showEur = true, showRmb = true, onSwitchToRmb, onCrossTrade }: MainTransactionDialogProps) {
     const [sellUsdtSourceSelected, setSellUsdtSourceSelected] = React.useState(false);
+    // V13-4: EUR is bought or sold with dinars here; with USDT or RMB it goes to the conversion window.
+    const [eurDzdChosen, setEurDzdChosen] = React.useState(false);
+    React.useEffect(() => { setEurDzdChosen(false); }, [mode, editingTx?.id]);
     const [saleDateOpen, setSaleDateOpen] = React.useState(false);
     const [lastEditedSellField, setLastEditedSellField] = React.useState<LastEditedSellField>('quantity');
     const sellCalculationBasisRef = React.useRef<SellCalculationBasis>('quantity');
@@ -49,6 +52,16 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
     const selectedClientTotalLabel = Number(selectedClientTotal.toFixed(2)).toString();
     const isSellMode = mode === 'sell_usdt' || mode === 'sell_eur';
     const isBuyMode = mode === 'buy_usdt' || mode === 'buy_eur';
+    // Sources in other currencies offered here (V13-4): RMB unless hidden, and for EUR also USDT.
+    const crossSources = (currency: 'USDT' | 'EUR'): Array<'USDT' | 'EUR' | 'RMB'> => (!onCrossTrade || editingTx ? [] : currency === 'USDT'
+        ? (showRmb ? ['RMB'] : [])
+        : (['USDT', ...(showRmb ? ['RMB' as const] : [])] as Array<'USDT' | 'RMB'>));
+    const isChoosingEurSource = (mode === 'buy_eur' || mode === 'sell_eur') && !editingTx && !eurDzdChosen && crossSources('EUR').length > 0;
+    const crossWords = {
+        buyWith: (source: string) => (t('transactions.crossBuyWith') as string).replace('{c}', source),
+        sellWith: (source: string) => (t('transactions.crossSellWith') as string).replace('{c}', source),
+        conversion: t('transactions.crossConversion') as string,
+    };
     // V5-4: picking the client of a new sale starts the payment on the way he usually pays, unless the
     // status was already chosen by hand. Clearing the client puts back the default it replaced. The
     // setters are read from a ref because the client picker is memoised and does not re-render for them.
@@ -219,7 +232,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
         ? value.toLocaleString('fr-FR', { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits })
         : '0';
     const transactionSummary = (() => {
-        if (!mode || (mode === 'buy_usdt' && !buyUsdtMode) || (mode === 'sell_usdt' && !editingTx && !sellUsdtSourceSelected))
+        if (!mode || (mode === 'buy_usdt' && !buyUsdtMode) || (mode === 'sell_usdt' && !editingTx && !sellUsdtSourceSelected) || isChoosingEurSource)
             return null;
         const isSell = mode.startsWith('sell');
         const quantity = isSell
@@ -255,7 +268,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
             return null;
         return { quantity, price, total: totalInput, profitEstimate };
     })();
-    const isChoosingSource = (mode === 'buy_usdt' && !buyUsdtMode) || (mode === 'sell_usdt' && !editingTx && !sellUsdtSourceSelected);
+    const isChoosingSource = (mode === 'buy_usdt' && !buyUsdtMode) || (mode === 'sell_usdt' && !editingTx && !sellUsdtSourceSelected) || isChoosingEurSource;
     // Display only: nothing from here to the end of the window changes what is saved.
     // A calm form: an empty field never turns red. What is still missing, or the first typed value
     // to correct, is said once next to the Confirm button, in the reader's language.
@@ -446,7 +459,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
     // (An operation already saved in EUR still opens as it was.)
     const eurHiddenHere = !showEur && !editingTx;
     React.useEffect(() => {
-        if (!eurHiddenHere) return;
+        if (!eurHiddenHere || crossSources('USDT').length > 0) return;
         if (mode === 'buy_usdt' && !buyUsdtMode) setBuyUsdtMode('with_dzd');
         if (mode === 'sell_usdt' && !sellUsdtSourceSelected) chooseSellWithDzd();
     }, [eurHiddenHere, mode, buyUsdtMode, sellUsdtSourceSelected]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -538,7 +551,8 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                         {mode === 'buy_usdt' && !buyUsdtMode && (<FormCard title={t('transactions.fundingQuestion')} description={t('transactions.fundingHint')}>
                                 <div className="-mx-2 -my-1 divide-y divide-border">
                                     {renderSourceChoice(() => setBuyUsdtMode('with_dzd'), <BanknotesIcon className="h-5 w-5"/>, t('portfolio.buyWithDzd'), t('common.dinar'))}
-                                    {renderSourceChoice(() => { setBuyUsdtMode('with_eur'); setEurDzdPrice(portfolioStats.eur.avgBuy.toFixed(2)); }, <WalletIcon className="h-5 w-5"/>, t('portfolio.buyWithEur'), 'EUR')}
+                                    {!eurHiddenHere && renderSourceChoice(() => { setBuyUsdtMode('with_eur'); setEurDzdPrice(portfolioStats.eur.avgBuy.toFixed(2)); }, <WalletIcon className="h-5 w-5"/>, t('portfolio.buyWithEur'), 'EUR')}
+                                    {crossSources('USDT').map((source) => (<React.Fragment key={source}>{renderSourceChoice(() => onCrossTrade!('buy', 'USDT', source), <span className="text-base font-extrabold">¥</span>, crossWords.buyWith(source), crossWords.conversion)}</React.Fragment>))}
                                 </div>
                             </FormCard>)}
 
@@ -546,7 +560,10 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                         {mode === 'sell_usdt' && !sellUsdtSourceSelected && !editingTx && (<FormCard title={t('transactions.saleSourceQuestion')} description={t('transactions.saleSourceHint')}>
                                 <div className="-mx-2 -my-1 divide-y divide-border">
                                     {renderSourceChoice(chooseSellWithDzd, <BanknotesIcon className="h-5 w-5"/>, t('portfolio.sellWithDzd'), t('common.dinar'))}
-                                    {renderSourceChoice(chooseSellWithEur, <WalletIcon className="h-5 w-5"/>, t('portfolio.sellWithEur'), 'EUR')}
+                                    {/* V13-4: USDT for EUR is a conversion now (no profit until the sale in dinars): the conversion window. */}
+                                    {!eurHiddenHere && onCrossTrade && renderSourceChoice(() => onCrossTrade('sell', 'USDT', 'EUR'), <WalletIcon className="h-5 w-5"/>, t('portfolio.sellWithEur'), crossWords.conversion)}
+                                    {!eurHiddenHere && !onCrossTrade && renderSourceChoice(chooseSellWithEur, <WalletIcon className="h-5 w-5"/>, t('portfolio.sellWithEur'), 'EUR')}
+                                    {crossSources('USDT').map((source) => (<React.Fragment key={source}>{renderSourceChoice(() => onCrossTrade!('sell', 'USDT', source), <span className="text-base font-extrabold">¥</span>, crossWords.sellWith(source), crossWords.conversion)}</React.Fragment>))}
                                 </div>
                             </FormCard>)}
 
@@ -640,14 +657,22 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                             </>)}
 
                         {/* Sell USDT/EUR */}
-                        {isSellMode && (mode !== 'sell_usdt' || sellUsdtSourceSelected || !!editingTx) && (<>
+                        {/* V13-4: EUR, the source first: dinars here, USDT or RMB in the conversion window */}
+                        {isChoosingEurSource && (<FormCard title={isBuyMode ? t('transactions.fundingQuestion') : t('transactions.saleSourceQuestion')}>
+                                <div className="-mx-2 -my-1 divide-y divide-border">
+                                    {renderSourceChoice(() => setEurDzdChosen(true), <BanknotesIcon className="h-5 w-5"/>, isBuyMode ? t('portfolio.buyWithDzd') : t('portfolio.sellWithDzd'), t('common.dinar'))}
+                                    {crossSources('EUR').map((source) => (<React.Fragment key={source}>{renderSourceChoice(() => onCrossTrade!(isBuyMode ? 'buy' : 'sell', 'EUR', source), source === 'RMB' ? <span className="text-base font-extrabold">¥</span> : <WalletIcon className="h-5 w-5"/>, isBuyMode ? crossWords.buyWith(source) : crossWords.sellWith(source), crossWords.conversion)}</React.Fragment>))}
+                                </div>
+                            </FormCard>)}
+
+                        {isSellMode && !isChoosingEurSource && (mode !== 'sell_usdt' || sellUsdtSourceSelected || !!editingTx) && (<>
                                 <FormCard title={t('transactions.stepWhoSell')}>
                                 <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} setLinkedClientId={pickSaleClient} setClientPaymentStatus={pickSaleStatus} allowBaridiDzdLink hidePaymentStatus={isUsdtSellSettledInEur} hideLinkedDzdClient={isUsdtSellSettledInEur} {...clientLinkerErrors}/>
                                 {!isUsdtSellSettledInEur && clientPaymentStatus === 'credit' && renderCreditDueDateField(true)}
                                 </FormCard>
                                 {!isUsdtSellSettledInEur && renderAssistant(applySellPriceFromAssistant, parseAndEvaluate(sellPrice))}
                                 <FormCard title={t('transactions.stepHowMuch')}>
-                                {mode === 'sell_usdt' && !eurHiddenHere && (<div>
+                                {mode === 'sell_usdt' && !eurHiddenHere && (!onCrossTrade || isUsdtSellSettledInEur) && (<div>
                                         <p className="mb-1.5 text-sm font-medium text-neutral-700">{t('transactions.settlementCurrency')}</p>
                                         <SegmentedControl size="md" ariaLabel={t('transactions.settlementCurrency') as string} value={sellSettlementCurrency === 'EUR' ? 'EUR' : 'DZD'} onChange={(currency) => (currency === 'EUR' ? chooseSellWithEur() : chooseSellWithDzd())} options={[
                                             { id: 'DZD', label: 'DZD', tone: 'primary' },
@@ -685,7 +710,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                             </>)}
 
                         {/* Buy EUR */}
-                        {mode === 'buy_eur' && (<>
+                        {mode === 'buy_eur' && !isChoosingEurSource && (<>
                                 <FormCard title={t('transactions.stepWhoBuy')}>
                                 <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} {...clientLinkerErrors}/>
                                 {clientPaymentStatus === 'credit' && renderCreditDueDateField(false)}

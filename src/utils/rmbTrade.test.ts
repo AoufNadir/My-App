@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { computePamLedger } from './pamLedger';
-import { checkRmbTrade, rmbConversionPreview, rmbTradeRows, type RmbTradeInput } from './rmbTrade';
+import { checkRmbTrade, linkThreeFields, rmbConversionPreview, rmbTradeRows, type RmbTradeInput } from './rmbTrade';
 import type { Tx } from '../types';
 
 // V13-3: RMB bought with dinars, with USDT, with EUR, and sold for dinars or for USDT; every figure worked out by hand.
@@ -30,7 +30,7 @@ txs.push({ id: 'u-1', type: 'buy', currency: 'USDT', quantity: 1_000, price: 255
 const usdtBefore = { ...ledger().portfolioStats.usdt };
 
 // 1. The owner's example: 7 000 RMB paid with 1 000 USDT. The RMB cost 255 000, 36.43 DZD each. No profit.
-assert.deepEqual(rmbConversionPreview({ kind: 'buy', source: 'USDT', quantity: 7_000, otherAmount: 1_000 }, { RMB: 0, EUR: 0, USDT: 255 }), { incoming: 'RMB', avgPrice: 36.43, rate: 7 });
+assert.deepEqual(rmbConversionPreview({ kind: 'buy', source: 'USDT', quantity: 7_000, otherAmount: 1_000 }, { RMB: 0, EUR: 0, USDT: 255 }), { incoming: 'RMB', avgPrice: 36.43, rate: 7, costDzd: 255_000 });
 write({ kind: 'buy', source: 'USDT', quantity: 7_000, otherAmount: 1_000, clientId: 'supplier' });
 assert.equal(holding('RMB').costBasis, 255_000, 'the RMB carry what the USDT cost');
 assert.equal(holding('RMB').available, 7_000);
@@ -87,5 +87,52 @@ assert.deepEqual(checkRmbTrade({ kind: 'buy', source: 'USDT', quantity: 1_000, o
     assert.equal(result.holdings.RMB.avgBuy, 40);
     assert.equal(result.portfolioStats.eur.available, 0);
     assert.equal(result.eurFundedBuys.length, 0, 'not mistaken for the old EUR → USDT purchase');
+}
+// 8. V13-4: every pair, both ways, at cost and without profit.
+{
+    const T = T0 + 5e6;
+    const base: Tx[] = [
+        { id: 'b-u', type: 'buy', currency: 'USDT', quantity: 1_000, price: 250, total: 250_000, timestamp: T } as unknown as Tx,
+        { id: 'b-e', type: 'buy', currency: 'EUR', quantity: 1_000, price: 280, total: 280_000, timestamp: T + 1 } as unknown as Tx,
+    ];
+    const run = (inputs: RmbTradeInput[]) => {
+        const book = [...base];
+        inputs.forEach((input, i) => {
+            const id = `p-${i}`;
+            const rows = rmbTradeRows(input, T + 1_000 * (i + 1), id);
+            book.push({ id, ...rows.main } as unknown as Tx, ...rows.linked.map((row, j) => ({ id: `${id}-${j}`, ...row.data } as unknown as Tx)));
+        });
+        return computePamLedger(book, { nowMs: T + 1e10 });
+    };
+    // EUR bought with 1 100 USDT (1 USDT = 0,9 EUR → 990 EUR): the 990 EUR cost 1 100 × 250 = 275 000.
+    const eurWithUsdt = run([{ kind: 'buy', currency: 'EUR', source: 'USDT', quantity: 990, otherAmount: 1_000, clientId: 's' }]);
+    assert.equal(eurWithUsdt.portfolioStats.eur.costBasis, 280_000 + 250_000, 'EUR: its own 280 000 + what the USDT cost');
+    assert.equal(eurWithUsdt.portfolioStats.usdt.available, 0);
+    // USDT sold for EUR (now a conversion, option a): 500 USDT for 450 EUR, the EUR get 125 000, no profit.
+    const usdtForEur = run([{ kind: 'sell', currency: 'USDT', source: 'EUR', quantity: 500, otherAmount: 450, clientId: 'c' }]);
+    assert.equal(usdtForEur.portfolioStats.eur.costBasis, 280_000 + 125_000);
+    assert.equal(usdtForEur.portfolioStats.usdt.costBasis, 125_000);
+    assert.equal(usdtForEur.totals.derivedProfit, 0, 'no profit before the sale in dinars');
+    // USDT bought with RMB: first RMB with EUR (500 EUR → 3 500 RMB = 140 000), then 1 400 RMB → 200 USDT carry 56 000.
+    const usdtWithRmb = run([
+        { kind: 'buy', currency: 'RMB', source: 'EUR', quantity: 3_500, otherAmount: 500, clientId: 's' },
+        { kind: 'buy', currency: 'USDT', source: 'RMB', quantity: 200, otherAmount: 1_400, clientId: 's' },
+    ]);
+    assert.equal(usdtWithRmb.holdings.RMB.costBasis, 84_000, '2 100 RMB left at 40');
+    assert.equal(usdtWithRmb.portfolioStats.usdt.costBasis, 250_000 + 56_000);
+    assert.equal(usdtWithRmb.totals.derivedProfit, 0);
+    // The same pair cannot be both sides.
+    assert.deepEqual(checkRmbTrade({ kind: 'buy', currency: 'USDT', source: 'USDT', quantity: 1, otherAmount: 1, clientId: 'c' }, { RMB: 0, EUR: 0, USDT: 10 }), { ok: false, reason: 'same_currency' });
+    // The preview tells the cost in dinars before saving.
+    assert.deepEqual(rmbConversionPreview({ kind: 'buy', currency: 'EUR', source: 'USDT', quantity: 990, otherAmount: 1_100 }, { RMB: 0, EUR: 280, USDT: 250 }), { incoming: 'EUR', avgPrice: 277.78, rate: 0.9, costDzd: 275_000 });
+}
+
+// 9. The three linked fields: any two give the third.
+{
+    const parse = (v: string) => Number(v);
+    assert.deepEqual(linkThreeFields({ quantity: '7000', rate: '7', amount: '' }, 'rate', parse), { quantity: '7000', rate: '7', amount: '1000' });
+    assert.deepEqual(linkThreeFields({ quantity: '', rate: '7', amount: '1000' }, 'amount', parse), { quantity: '7000', rate: '7', amount: '1000' });
+    assert.deepEqual(linkThreeFields({ quantity: '7000', rate: '', amount: '1000' }, 'amount', parse), { quantity: '7000', rate: '7', amount: '1000' });
+    assert.deepEqual(linkThreeFields({ quantity: '7000', rate: '', amount: '' }, 'quantity', parse), { quantity: '7000', rate: '', amount: '' }, 'one field: nothing to work out');
 }
 console.log('rmbTrade.test: RMB with dinars, USDT and EUR, profits and costs worked out by hand');

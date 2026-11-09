@@ -41,11 +41,20 @@ for (const lang of ['fr', 'ar'] as const) {
 }
 // With dinars: no payment chosen (needs a client first: the cards show once one is picked, as in the USDT window).
 const dzd = render('fr', dialog('sell', 'DZD'));
-assert.ok(dzd.includes('Prix de 1 RMB (DZD)'), 'with dinars: the price');
+assert.ok(dzd.includes('Prix de 1 RMB (DZD)') && dzd.includes('Montant total (DZD)'), 'with dinars: the price and the total');
 assert.ok(dzd.includes('Choisissez le client'), 'the client first');
 const usdt = render('fr', dialog('buy', 'USDT'));
 assert.ok(usdt.includes('Montant payé (USDT)'), 'with USDT: what was paid');
 assert.ok(!usdt.includes('role="radio"'), 'a conversion has no payment to choose');
+
+// V13-4: EUR bought with USDT: the three linked fields (quantity, rate, amount paid), no payment to choose.
+const eurWithUsdt = render('fr', <RmbTradeDialog kind="buy" currency="EUR" initialSource="USDT" onClose={noop} onSwitch={noop} holdings={holdings} clientsDzd={clients} openClientModal={noop} fieldBase="" onSave={async () => true} parseAndEvaluate={(v) => Number(v)}/>);
+for (const label of ['Quantité (EUR)', 'Taux : 1 USDT = ? EUR', 'Montant payé (USDT)'])
+    assert.ok(eurWithUsdt.includes(label), `three fields: ${label}`);
+assert.ok(!eurWithUsdt.includes('role="radio"'), 'a conversion has no payment to choose');
+const rmbDzd = render('ar', dialog('buy', 'DZD'));
+for (const label of ['الكمية (RMB)', 'سعر 1 RMB (دج)', 'المبلغ الكلي (دج)'])
+    assert.ok(rmbDzd.includes(label), `dinars: ${label}`);
 
 // The menu: RMB tiles unless hidden.
 const menu = (showRmb: boolean) => renderToStaticMarkup(<NewTransactionMenuDialog isOpen onClose={noop} t={(k) => k} openForm={noop} openWalletTransferModal={noop} openTransferModal={noop} openAdjustmentModal={noop} openDeliveryExpenseModal={noop} showRmb={showRmb} openRmb={noop}/>);

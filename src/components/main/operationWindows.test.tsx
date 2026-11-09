@@ -607,3 +607,26 @@ console.log('operationWindows.test: V13-2 EUR hidden from the buy / sell window'
     assert.deepEqual(withoutHiddenEur([{ id: 'USDT' }, { id: 'EUR' }], true).map((o) => o.id), ['USDT', 'EUR']);
 }
 console.log('operationWindows.test: V13-2 EUR hidden from every window that offers it');
+
+// V13-4: every currency against every other: the usual window offers RMB for USDT, and asks EUR's source first
+// (dinars here, USDT or RMB in the conversion window). Without the conversion window, as before.
+for (const lang of ['fr', 'ar'] as const) {
+    const tr = (translations[lang] as unknown as { transactions: Record<string, string>; portfolio: Record<string, string> });
+    const cross = { onCrossTrade: () => undefined, showRmb: true };
+    const usdtBuy = transactionWindow(lang, { mode: 'buy_usdt', ...cross });
+    assert.ok(usdtBuy.includes(esc(tr.transactions.crossBuyWith.replace('{c}', 'RMB'))), `${lang}: USDT bought with RMB offered`);
+    assert.ok(usdtBuy.includes(esc(tr.portfolio.buyWithEur)), `${lang}: USDT bought with EUR kept`);
+    const usdtSell = transactionWindow(lang, { mode: 'sell_usdt', ...cross });
+    assert.ok(usdtSell.includes(esc(tr.transactions.crossSellWith.replace('{c}', 'RMB'))), `${lang}: USDT sold for RMB offered`);
+    const eurBuy = transactionWindow(lang, { mode: 'buy_eur', ...cross });
+    for (const source of ['USDT', 'RMB'])
+        assert.ok(eurBuy.includes(esc(tr.transactions.crossBuyWith.replace('{c}', source))), `${lang}: EUR bought with ${source} offered`);
+    assert.ok(eurBuy.includes(esc(tr.portfolio.buyWithDzd)), `${lang}: EUR with dinars first in the list`);
+    const eurSell = transactionWindow(lang, { mode: 'sell_eur', ...cross });
+    assert.ok(eurSell.includes(esc(tr.transactions.crossSellWith.replace('{c}', 'USDT'))), `${lang}: EUR sold for USDT offered`);
+    const noRmb = transactionWindow(lang, { mode: 'buy_usdt', onCrossTrade: () => undefined, showRmb: false });
+    assert.ok(!noRmb.includes(esc(tr.transactions.crossBuyWith.replace('{c}', 'RMB'))), `${lang}: RMB hidden, not a source`);
+    const eurOld = transactionWindow(lang, { mode: 'buy_eur', buyEurAmount: '500' });
+    assert.ok(!eurOld.includes(esc(tr.transactions.crossBuyWith.replace('{c}', 'USDT'))), `${lang}: without the conversion window, EUR opens on dinars as before`);
+}
+console.log('operationWindows.test: V13-4 sources in every currency');
