@@ -25,10 +25,15 @@ export type RmbTradeInput = {
     clientId: string;
     /** With dinars only */
     paymentStatus?: PaymentStatus | null;
+    /**
+     * V13-6, a sale for another currency: the average purchase price (DZD) of the currency received. The sale is
+     * valued with it, like a sale in dinars: sold above the average price of what leaves = profit, below = loss.
+     */
+    receivedAvgPrice?: number;
     notes?: string;
 };
 export type RmbStock = { RMB: number; EUR: number; USDT: number };
-export type RmbCheck = { ok: true } | { ok: false; reason: 'client' | 'quantity' | 'price' | 'amount' | 'payment' | 'stock' | 'source_stock' | 'same_currency' };
+export type RmbCheck = { ok: true } | { ok: false; reason: 'client' | 'quantity' | 'price' | 'amount' | 'payment' | 'stock' | 'source_stock' | 'same_currency' | 'no_received_price' };
 const currencyOf = (input: Pick<RmbTradeInput, 'currency'>): TradeCurrency => input.currency ?? 'RMB';
 
 const positive = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
@@ -48,6 +53,8 @@ export function checkRmbTrade(input: RmbTradeInput, stock: RmbStock): RmbCheck {
     else if (!positive(input.otherAmount)) return { ok: false, reason: 'amount' };
     if (input.kind === 'sell' && input.quantity > stock[currency] + EPS) return { ok: false, reason: 'stock' };
     if (input.kind === 'buy' && input.source !== 'DZD' && (input.otherAmount ?? 0) > stock[input.source] + EPS) return { ok: false, reason: 'source_stock' };
+    // No average price, no value: a currency never bought cannot value a sale (owner's rule, V13-6).
+    if (input.kind === 'sell' && input.source !== 'DZD' && !positive(input.receivedAvgPrice)) return { ok: false, reason: 'no_received_price' };
     return { ok: true };
 }
 
@@ -61,6 +68,20 @@ export function rmbTradeRows(input: RmbTradeInput, nowMs: number, mainId: string
     const stamp = stampAt(nowMs);
     const notes = (input.notes ?? '').trim();
     const currency = currencyOf(input);
+    if (input.source !== 'DZD' && input.kind === 'sell') {
+        // V13-6: a sale for another currency is a sale, as in dinars. What comes in is worth its quantity times its
+        // average purchase price; the sale's price per unit is that value over the quantity sold; the ledger gives
+        // the profit (above the average price of what leaves) or the loss (below). What comes in enters the stock
+        // at that same value, so its own average price does not move.
+        const other = input.source;
+        const otherAmount = input.otherAmount as number;
+        const valueDzd = round2(otherAmount * (input.receivedAvgPrice as number));
+        const label = `Vente de ${qty(input.quantity)} ${currency} contre ${qty(otherAmount)} ${other}`;
+        return {
+            main: { ...stamp, type: 'sell', currency, quantity: input.quantity, sell: round2(valueDzd / input.quantity), total: valueDzd, profit: round2(profitDzd), notes: notes || label, linkedClientId: input.clientId, receivedCurrency: other, receivedQuantity: otherAmount, receivedAvgPrice: input.receivedAvgPrice, crossTrade: true },
+            linked: [{ collection: 'usdt_txs', data: { ...stamp, timestamp: nowMs + 1, type: 'buy', currency: other, quantity: otherAmount, price: input.receivedAvgPrice, total: valueDzd, notes: label, linkedTxId: mainId, linkedClientId: input.clientId, crossTradeFrom: currency, crossTrade: true } }],
+        };
+    }
     if (input.source !== 'DZD') {
         const other = input.source;
         const otherAmount = input.otherAmount as number;
@@ -132,6 +153,6 @@ export function linkThreeFields(fields: ThreeFields, edited: keyof ThreeFields, 
 }
 
 /** An operation of the RMB window: in RMB, or one leg of a conversion made there. Not editable in the USDT / EUR window. */
-export function isRmbOperation(tx: { currency?: unknown; conversionFrom?: unknown; conversionLeg?: unknown }): boolean {
-    return tx.currency === 'RMB' || Boolean(tx.conversionFrom) || tx.conversionLeg === 'out';
+export function isRmbOperation(tx: { currency?: unknown; conversionFrom?: unknown; conversionLeg?: unknown; crossTrade?: unknown }): boolean {
+    return tx.currency === 'RMB' || Boolean(tx.conversionFrom) || tx.conversionLeg === 'out' || tx.crossTrade === true;
 }

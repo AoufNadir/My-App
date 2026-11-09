@@ -54,16 +54,32 @@ assert.equal(ledger().totals.byCurrency.RMB.derivedProfit, 6_800);
 assert.deepEqual(clientRows.at(-1), { ...clientRows.at(-1), montant: -80_000, type: 'Vente RMB', affectsBalance: true, paymentMethod: 'Crédit' });
 assert.equal(treasuryRows.length, 1, 'on credit: no treasury row');
 
-// 4. 1 400 RMB sold for 200 USDT (option a): the USDT cost 1 400 × 36.6 = 51 240, no profit now.
-write({ kind: 'sell', source: 'USDT', quantity: 1_400, otherAmount: 200, clientId: 'client' });
-assert.equal(ledger().portfolioStats.usdt.costBasis, 51_240);
+// 4. V13-6: 1 400 RMB sold for 200 USDT whose average price is 260: a SALE, like in dinars. What comes in is worth
+//    200 × 260 = 52 000; what leaves cost 1 400 × 36.6 = 51 240: profit 760. The USDT enter at 52 000 (PAM stays 260).
+assert.deepEqual(checkRmbTrade({ kind: 'sell', source: 'USDT', quantity: 1_400, otherAmount: 200, clientId: 'client' }, { RMB: 8_000, EUR: 0, USDT: 0 }), { ok: false, reason: 'no_received_price' }, 'no average price, no sale');
+write({ kind: 'sell', source: 'USDT', quantity: 1_400, otherAmount: 200, clientId: 'client', receivedAvgPrice: 260 }, 760);
+assert.equal(ledger().portfolioStats.usdt.costBasis, 52_000);
 assert.equal(ledger().portfolioStats.usdt.available, 200);
-assert.equal(ledger().totals.derivedProfit, 6_800, 'unchanged by the conversion');
+assert.equal(ledger().portfolioStats.usdt.avgBuy, 260);
+assert.equal(ledger().totals.derivedProfit, 6_800 + 760, 'sold above the average price: profit');
 assert.equal(holding('RMB').available, 6_600);
+assert.equal(clientRows.length + treasuryRows.length, 3, 'no dinar moved: no new client or treasury row');
 
 // 5. RMB never turns into USDT, and the USDT history before RMB is untouched.
 assert.equal(usdtBefore.avgBuy, 255);
 assert.ok(!ledger().sellProfitRows.some((row) => row.currency === 'USDT'), 'no USDT sale was invented');
+
+// 5b. The owner's example: 100 RMB at 36. Sold for EUR worth 3 700 → profit 100; worth 3 500 → loss 100.
+{
+    const sale = (eur: number) => {
+        const rows = rmbTradeRows({ kind: 'sell', currency: 'RMB', source: 'EUR', quantity: 100, otherAmount: eur, clientId: 'c', receivedAvgPrice: 280 }, T0 + 2e6, 's-1');
+        const book: Tx[] = [{ id: 's-0', type: 'buy', currency: 'RMB', quantity: 100, price: 36, total: 3_600, timestamp: T0 } as unknown as Tx, { id: 's-1', ...rows.main } as unknown as Tx, { id: 's-2', ...rows.linked[0].data } as unknown as Tx];
+        return computePamLedger(book, { nowMs: T0 + 1e10 });
+    };
+    assert.equal(sale(3_700 / 280).totals.derivedProfit, 100, 'above 36: profit');
+    assert.equal(sale(3_500 / 280).totals.derivedProfit, -100, 'below 36: loss');
+    assert.equal(sale(3_500 / 280).portfolioStats.eur.avgBuy, 280, 'the EUR keep their average price');
+}
 
 // 6. The checks.
 const stock = { RMB: 6_600, EUR: 0, USDT: 200 };
@@ -108,11 +124,11 @@ assert.deepEqual(checkRmbTrade({ kind: 'buy', source: 'USDT', quantity: 1_000, o
     const eurWithUsdt = run([{ kind: 'buy', currency: 'EUR', source: 'USDT', quantity: 990, otherAmount: 1_000, clientId: 's' }]);
     assert.equal(eurWithUsdt.portfolioStats.eur.costBasis, 280_000 + 250_000, 'EUR: its own 280 000 + what the USDT cost');
     assert.equal(eurWithUsdt.portfolioStats.usdt.available, 0);
-    // USDT sold for EUR (now a conversion, option a): 500 USDT for 450 EUR, the EUR get 125 000, no profit.
-    const usdtForEur = run([{ kind: 'sell', currency: 'USDT', source: 'EUR', quantity: 500, otherAmount: 450, clientId: 'c' }]);
-    assert.equal(usdtForEur.portfolioStats.eur.costBasis, 280_000 + 125_000);
+    // USDT sold for EUR (V13-6, a sale): 500 USDT (cost 125 000) for 450 EUR at 280 = 126 000 → profit 1 000.
+    const usdtForEur = run([{ kind: 'sell', currency: 'USDT', source: 'EUR', quantity: 500, otherAmount: 450, clientId: 'c', receivedAvgPrice: 280 }]);
+    assert.equal(usdtForEur.portfolioStats.eur.costBasis, 280_000 + 126_000);
     assert.equal(usdtForEur.portfolioStats.usdt.costBasis, 125_000);
-    assert.equal(usdtForEur.totals.derivedProfit, 0, 'no profit before the sale in dinars');
+    assert.equal(usdtForEur.totals.derivedProfit, 1_000);
     // USDT bought with RMB: first RMB with EUR (500 EUR → 3 500 RMB = 140 000), then 1 400 RMB → 200 USDT carry 56 000.
     const usdtWithRmb = run([
         { kind: 'buy', currency: 'RMB', source: 'EUR', quantity: 3_500, otherAmount: 500, clientId: 's' },

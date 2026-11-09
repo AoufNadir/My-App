@@ -20,7 +20,8 @@ import type { ClientDzd } from '../../types';
 
 // V13-3: the buy / sell window for RMB, made like the USDT one: the same top card (operation, currency, balance,
 // average price), first the source (dinars, EUR or USDT), then who and how much. With dinars the payment is chosen
-// by the owner (never for him); with EUR or USDT it is a conversion: no profit, the cost carries over.
+// by the owner (never for him); buying with EUR or USDT is a conversion (no profit, the cost carries over), selling for
+// another currency is a sale (V13-6): what comes in is valued at its average price, profit or loss against the PAM.
 
 export type RmbHolding = { available: number; avgBuy: number };
 export type RmbTradeDialogProps = {
@@ -47,9 +48,9 @@ const W = {
         detail: { DZD: 'Dinars : payé maintenant ou à crédit', EUR: 'Conversion : le coût des EUR est repris', USDT: 'Conversion : le coût des USDT est repris', RMB: 'Conversion : le coût des RMB est repris' },
         sellDetail: { DZD: 'Dinars : bénéfice calculé à la vente', EUR: 'Conversion sans bénéfice : le coût passe aux EUR', USDT: 'Conversion sans bénéfice : le coût passe aux USDT', RMB: 'Conversion sans bénéfice : le coût passe aux RMB' },
         quantity: (c: string) => `Quantité (${c})`, price: (c: string) => `Prix de 1 ${c} (DZD)`, totalDzd: 'Montant total (DZD)', rateLabel: (o: string, c: string) => `Taux : 1 ${o} = ? ${c}`, paid: (c: string) => `Montant payé (${c})`, received: (c: string) => `Montant reçu (${c})`, costLine: (c: string) => `Coût de ces ${c}`,
-        total: 'Total', profit: 'Bénéfice estimé', rate: 'Taux', newPam: (c: string) => `Prix moyen de ces ${c}`, conversion: 'Conversion : aucun bénéfice maintenant, il viendra à la vente en dinars.',
+        total: 'Total', profit: 'Bénéfice estimé', rate: 'Taux', newPam: (c: string) => `Prix moyen de ces ${c}`, conversion: 'Conversion : aucun bénéfice maintenant, il viendra à la vente en dinars.', crossValue: (c: string) => `Valeur reçue (au prix moyen des ${c})`, crossNote: 'Vente : ce qui entre est compté à son prix moyen, le bénéfice ou la perte se compare au prix moyen de ce qui sort.',
         changeSource: 'Changer la source', balance: 'Solde', pam: 'Prix moyen actuel',
-        errors: { client: 'Choisissez le client', quantity: 'Écrivez la quantité', price: 'Écrivez le prix', amount: 'Écrivez le montant', payment: 'Choisissez le mode de paiement', stock: 'Stock insuffisant', source_stock: 'Stock insuffisant pour payer', same_currency: 'Choisissez une autre devise' },
+        errors: { client: 'Choisissez le client', quantity: 'Écrivez la quantité', price: 'Écrivez le prix', amount: 'Écrivez le montant', payment: 'Choisissez le mode de paiement', stock: 'Stock insuffisant', source_stock: 'Stock insuffisant pour payer', same_currency: 'Choisissez une autre devise', no_received_price: 'Cette devise n’a pas de prix moyen (aucun achat) : impossible de calculer le bénéfice' },
         done: '✅ Opération enregistrée.',
     },
     ar: {
@@ -58,9 +59,9 @@ const W = {
         detail: { DZD: 'بالدينار: الآن أو بالدَّين', EUR: 'تحويل: تنتقل تكلفة اليورو', USDT: 'تحويل: تنتقل تكلفة الـ USDT', RMB: 'تحويل: تنتقل تكلفة الـ RMB' },
         sellDetail: { DZD: 'بالدينار: يُحسب الربح عند البيع', EUR: 'تحويل بلا ربح: التكلفة تنتقل إلى اليورو', USDT: 'تحويل بلا ربح: التكلفة تنتقل إلى الـ USDT', RMB: 'تحويل بلا ربح: التكلفة تنتقل إلى الـ RMB' },
         quantity: (c: string) => `الكمية (${c})`, price: (c: string) => `سعر 1 ${c} (دج)`, totalDzd: 'المبلغ الكلي (دج)', rateLabel: (o: string, c: string) => `سعر الصرف: \u20661 ${o} = ? ${c}\u2069`, paid: (c: string) => `المبلغ المدفوع (${c})`, received: (c: string) => `المبلغ المستلم (${c})`, costLine: (c: string) => `تكلفة هذه الـ ${c}`,
-        total: 'المجموع', profit: 'الربح المتوقع', rate: 'سعر الصرف', newPam: (c: string) => `متوسط سعر هذا الـ ${c}`, conversion: 'تحويل: لا ربح الآن، ويظهر الربح عند البيع بالدينار.',
+        total: 'المجموع', profit: 'الربح المتوقع', rate: 'سعر الصرف', newPam: (c: string) => `متوسط سعر هذا الـ ${c}`, conversion: 'تحويل: لا ربح الآن، ويظهر الربح عند البيع بالدينار.', crossValue: (c: string) => `قيمة ما استلمته (بمتوسط سعر الـ ${c})`, crossNote: 'بيع: ما يدخل يُحسب بمتوسط سعر شرائه، والربح أو الخسارة مقارنة بمتوسط سعر ما يخرج.',
         changeSource: 'تغيير المصدر', balance: 'الرصيد', pam: 'متوسط السعر الحالي',
-        errors: { client: 'اختر العميل', quantity: 'اكتب الكمية', price: 'اكتب السعر', amount: 'اكتب المبلغ', payment: 'اختر طريقة الدفع', stock: 'المخزون لا يكفي', source_stock: 'المخزون لا يكفي للدفع', same_currency: 'اختر عملة أخرى' },
+        errors: { client: 'اختر العميل', quantity: 'اكتب الكمية', price: 'اكتب السعر', amount: 'اكتب المبلغ', payment: 'اختر طريقة الدفع', stock: 'المخزون لا يكفي', source_stock: 'المخزون لا يكفي للدفع', same_currency: 'اختر عملة أخرى', no_received_price: 'هذه العملة بلا متوسط سعر شراء (لم تُشترَ قط)، فلا يُحسب ربح البيع' },
         done: '✅ سُجّلت العملية.',
     },
 };
@@ -87,7 +88,7 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
     const num = (value: string) => { const v = parseAndEvaluate(value || ''); return Number.isFinite(v) ? v : 0; };
     const quantityValue = source === 'DZD' ? num(dzd.quantity) : num(conv.quantity);
     const priceValue = num(dzd.quantity) > 0 && num(dzd.total) > 0 && !num(dzd.price) ? num(dzd.total) / num(dzd.quantity) : num(dzd.price);
-    const input: RmbTradeInput | null = source ? { kind, currency, source, quantity: quantityValue, price: priceValue, otherAmount: num(conv.amount), clientId, paymentStatus: source === 'DZD' ? status : null } : null;
+    const input: RmbTradeInput | null = source ? { kind, currency, source, quantity: quantityValue, price: priceValue, otherAmount: num(conv.amount), clientId, paymentStatus: source === 'DZD' ? status : null, receivedAvgPrice: kind === 'sell' && source && source !== 'DZD' ? holdings[source].avgBuy : undefined } : null;
     const stock = { RMB: holdings.RMB.available, EUR: holdings.EUR.available, USDT: holdings.USDT.available };
     const setDzdField = (field: 'quantity' | 'price' | 'total', value: string) => {
         const next = { ...dzd, [field]: value };
@@ -100,7 +101,11 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
     const check = input ? checkRmbTrade(input, stock) : null;
     const reason = check && check.ok === false ? w.errors[check.reason] : undefined;
     const total = input && source === 'DZD' ? Math.round(input.quantity * (input.price ?? 0)) : 0;
-    const profit = input && kind === 'sell' && source === 'DZD' && total > 0 ? Math.round((total - input.quantity * holdings[currency].avgBuy) * 100) / 100 : 0;
+    const r2 = (v: number) => Math.round(v * 100) / 100;
+    const crossSell = Boolean(input && kind === 'sell' && source && source !== 'DZD' && input.otherAmount && input.otherAmount > 0 && (input.receivedAvgPrice ?? 0) > 0);
+    const crossValue = crossSell && input ? r2((input.otherAmount ?? 0) * (input.receivedAvgPrice ?? 0)) : 0;
+    const profit = input && kind === 'sell' && source === 'DZD' && total > 0 ? r2(total - input.quantity * holdings[currency].avgBuy)
+        : crossSell && input && input.quantity > 0 ? r2(crossValue - input.quantity * holdings[currency].avgBuy) : 0;
     const preview = input && source !== 'DZD' ? rmbConversionPreview(input, { RMB: holdings.RMB.avgBuy, EUR: holdings.EUR.avgBuy, USDT: holdings.USDT.avgBuy }) : null;
     const usual = clientId !== 'none' ? usualChannelOf(clientsDzd.find((c) => c.id === clientId)) : null;
     const save = async () => {
@@ -119,7 +124,8 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
     const changeSource = () => (currency === 'RMB' ? setSource(null) : onSwitch(kind, currency));
     const footerStats: OperationFooterStat[] = [];
     if (total > 0) footerStats.push({ label: w.total, value: `${n(total, 0)} DZD` });
-    if (kind === 'sell' && source === 'DZD' && total > 0) footerStats.push({ label: w.profit, value: `${n(profit, 0)} DZD`, tone: profit >= 0 ? 'profit' : 'loss' });
+    if (crossSell) footerStats.push({ label: w.crossValue(source as string), value: `${n(crossValue, 0)} DZD` });
+    if ((kind === 'sell' && source === 'DZD' && total > 0) || crossSell) footerStats.push({ label: w.profit, value: `${n(profit, 0)} DZD`, tone: profit >= 0 ? 'profit' : 'loss' });
     return (<Modal isOpen onClose={onClose} className="bg-surface max-w-md">
       <ModalHeader onClose={onClose}>
         <ModalTitle className="text-base sm:text-lg">{`${kind === 'buy' ? t('transactions.buy') : t('transactions.sell')} ${currency}`}</ModalTitle>
@@ -168,9 +174,11 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
                 </>)}
               {preview && source !== 'DZD' && (<div className="space-y-0.5 rounded-button bg-surface-muted px-3 py-2 text-xs text-neutral-700">
                   <p>{w.rate}: <bdi dir="ltr">1 {source} = {n(preview.rate, 4)} {currency}</bdi> · <bdi dir="ltr">1 {currency} = {n(1 / preview.rate, 4)} {source}</bdi></p>
+                  {kind === 'buy' && (<>
                   <p>{w.costLine(preview.incoming)}: <bdi dir="ltr"><b>{n(preview.costDzd, 0)} DZD</b></bdi></p>
                   <p>{w.newPam(preview.incoming)}: <bdi dir="ltr"><b>{n(preview.avgPrice)} DZD</b></bdi></p>
-                  <p className="text-neutral-500">{w.conversion}</p>
+                  </>)}
+                  <p className="text-neutral-500">{kind === 'sell' ? w.crossNote : w.conversion}</p>
                 </div>)}
             </FormCard>
           </>)}
