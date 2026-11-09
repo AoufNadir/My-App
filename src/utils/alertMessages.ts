@@ -54,6 +54,7 @@ const ALERT_TEMPLATES: ReadonlyArray<readonly [string, string]> = [
     ['Erreur lors de la création du service.', 'alerts.serviceCreateError'],
     ['Service archivé.', 'alerts.serviceArchived'],
     ['Transaction ajoutée.', 'alerts.txAdded'],
+    ['Choisissez le portefeuille.', 'alerts.walletMissing'],
     ['Pour modifier une opération RMB ou une conversion : supprimez-la puis enregistrez-la à nouveau.', 'alerts.rmbEditByDelete'],
     ['Erreur lors de l’ajout de la transaction.', 'alerts.txAddError'],
     ['Date de vente invalide.', 'alerts.saleDateInvalid'],

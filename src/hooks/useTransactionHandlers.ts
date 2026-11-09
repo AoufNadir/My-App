@@ -23,6 +23,9 @@ import type { SmartSaleSnapshot } from '../services/smartPricingEngine';
 import {
     computeProjectExpensePreview,
     isAssetWallet,
+    isLegacyAssetWallet,
+    assetWalletStats,
+    getWalletRateToDzd,
     isCashWallet,
     type FinancialWallet,
 } from '../utils/digitalServiceAccounting';
@@ -176,6 +179,12 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [isDeliveryExpenseModalOpen, setIsDeliveryExpenseModalOpen] = useState(false);
     const [deliveryExpenseAmount, setDeliveryExpenseAmount] = useState('');
     const [deliveryExpenseMethod, setDeliveryExpenseMethod] = useState<DeliveryExpenseMethod>('Caisse');
+    // V13-5: the wallet is never chosen for the owner: none until he presses one (rule 11).
+    const [deliveryExpenseWalletChosen, setDeliveryExpenseWalletChosen] = useState(false);
+    const chooseDeliveryExpenseMethod = useCallback((wallet: DeliveryExpenseMethod) => {
+        setDeliveryExpenseWalletChosen(true);
+        setDeliveryExpenseMethod(wallet);
+    }, []);
     const [deliveryExpenseDate, setDeliveryExpenseDate] = useState<string>('');
     const [deliveryExpenseNote, setDeliveryExpenseNote] = useState('');
     /** V12-12: who was paid (the supplier): no project expense without it */
@@ -183,16 +192,18 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const projectExpenseRates = useMemo(() => ({
         usdtPma: Number(portfolioStats.usdt.avgBuy || 0),
         eurPma: Number(portfolioStats.eur.avgBuy || 0),
-    }), [portfolioStats.usdt.avgBuy, portfolioStats.eur.avgBuy]);
+        rmbPma: Number(portfolioStats.rmb?.avgBuy || 0),
+    }), [portfolioStats.usdt.avgBuy, portfolioStats.eur.avgBuy, portfolioStats.rmb?.avgBuy]);
     const deliveryExpensePreview = useMemo(() => {
         const amount = parseAndEvaluate(deliveryExpenseAmount);
         if (!Number.isFinite(amount)) return null;
+        if (!deliveryExpenseWalletChosen) return null;
         return computeProjectExpensePreview({
             wallet: deliveryExpenseMethod,
             amount,
             rates: projectExpenseRates,
         });
-    }, [deliveryExpenseAmount, deliveryExpenseMethod, projectExpenseRates]);
+    }, [deliveryExpenseAmount, deliveryExpenseMethod, projectExpenseRates, deliveryExpenseWalletChosen]);
     const getPortfolioAssetStats = (currency: PortfolioCurrency) => (currency === 'USDT' ? portfolioStats.usdt : portfolioStats.eur);
     const getPortfolioInventory = (currency: PortfolioCurrency) => inventoryFromLegacyPortfolioStats(portfolioStats, currency);
     const getPortfolioRemovalCost = (currency: PortfolioCurrency, quantity: number) => roundM(getPortfolioAssetStats(currency).avgBuy * quantity);
@@ -1661,6 +1672,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         const isoToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
         setDeliveryExpenseAmount('');
         setDeliveryExpenseMethod('Caisse');
+        setDeliveryExpenseWalletChosen(false);
         setDeliveryExpenseDate(isoToday);
         setDeliveryExpenseNote('');
         setDeliveryExpensePayee('');
@@ -1670,6 +1682,10 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setIsDeliveryExpenseModalOpen(false);
     };
     const handleSaveDeliveryExpense = async () => {
+        if (!deliveryExpenseWalletChosen) {
+            setAlert('⚠️ Choisissez le portefeuille.');
+            return;
+        }
         const amountNum = roundM(parseAndEvaluate(deliveryExpenseAmount));
         if (isNaN(amountNum) || amountNum <= 0) {
             setAlert('⚠️ Montant invalide.');
@@ -1679,7 +1695,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         if (payee.length < 2)
             return;
         if (isAssetWallet(deliveryExpenseMethod)) {
-            const rate = deliveryExpenseMethod === 'USDT' ? projectExpenseRates.usdtPma : projectExpenseRates.eurPma;
+            const rate = getWalletRateToDzd(deliveryExpenseMethod, projectExpenseRates);
             if (rate <= 0) {
                 setAlert(`⚠️ PMA ${deliveryExpenseMethod} indisponible.`);
                 return;
@@ -1690,9 +1706,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             ? treasuryStats.caisse
             : deliveryExpenseMethod === 'BaridiMob'
                 ? treasuryStats.baridi
-                : deliveryExpenseMethod === 'USDT'
-                    ? Number(portfolioStats.usdt.available || 0)
-                    : Number(portfolioStats.eur.available || 0);
+                : isAssetWallet(deliveryExpenseMethod)
+                    ? assetWalletStats(portfolioStats, deliveryExpenseMethod).available
+                    : 0;
         if (amountNum > availableBalance + epsilon) {
             setAlert(`⚠️ Solde ${deliveryExpenseMethod} insuffisant.`);
             return;
@@ -1782,7 +1798,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     amountDzd: preview.amountDzd,
                 }, [{ type: 'Retrait', source: deliveryExpenseMethod, amount: preview.amountDzd }]);
             }
-            else if (isAssetWallet(deliveryExpenseMethod)) {
+            else if (isLegacyAssetWallet(deliveryExpenseMethod)) {
                 const currency = deliveryExpenseMethod;
                 recordPortfolioShadow({
                     operationId: `shadow:project-expense-asset:${expenseRef.id}`,
@@ -1820,7 +1836,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 },
                 affectedSummaries: ['dashboard_summary', 'treasury_summary', 'portfolio_summary', 'investors_summary', 'financial_summary'],
                 wallets: isCashWallet(deliveryExpenseMethod) ? { [deliveryExpenseMethod]: -preview.amountDzd } : undefined,
-                portfolio: isAssetWallet(deliveryExpenseMethod)
+                portfolio: isLegacyAssetWallet(deliveryExpenseMethod)
                     ? { [deliveryExpenseMethod]: { quantityDelta: -amountNum, costBasisDeltaDzd: -getPortfolioRemovalCost(deliveryExpenseMethod, amountNum) } }
                     : undefined,
                 deliveryExpensesDelta: preview.amountDzd,
@@ -2119,7 +2135,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal,
         isDeliveryExpenseModalOpen, setIsDeliveryExpenseModalOpen,
         deliveryExpenseAmount, setDeliveryExpenseAmount,
-        deliveryExpenseMethod, setDeliveryExpenseMethod,
+        deliveryExpenseMethod: deliveryExpenseWalletChosen ? deliveryExpenseMethod : null, setDeliveryExpenseMethod: chooseDeliveryExpenseMethod,
         deliveryExpenseDate, setDeliveryExpenseDate,
         deliveryExpenseNote, setDeliveryExpenseNote, deliveryExpensePayee, setDeliveryExpensePayee,
         deliveryExpensePreview,

@@ -1,4 +1,4 @@
-import { useShowEur, withoutHiddenEur } from '../../contexts/CurrencyVisibilityContext';
+import { FINANCIAL_WALLETS, WalletPicker, walletBalancesOf } from '../ui/WalletPicker';
 import { Modal, ModalContent, ModalDescription, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
@@ -24,7 +24,8 @@ interface DeliveryExpenseModalProps {
     isSaving: boolean;
     amount: string;
     setAmount: (v: string) => void;
-    method: FinancialWallet;
+    /** null: not chosen yet (V13-5) */
+    method: FinancialWallet | null;
     setMethod: (v: FinancialWallet) => void;
     date: string;
     setDate: (v: string) => void;
@@ -61,16 +62,11 @@ export function DeliveryExpenseModal({
     preview,
     onSave,
 }: DeliveryExpenseModalProps) {
-    const showEur = useShowEur();
     const { t } = useLanguage();
-    const currency = getWalletCurrency(method);
-    const availableBalance = method === 'Caisse'
-        ? treasuryStats.caisse
-        : method === 'BaridiMob'
-            ? treasuryStats.baridi
-            : method === 'USDT'
-                ? Number(portfolioStats.usdt.available || 0)
-                : Number(portfolioStats.eur.available || 0);
+    // V13-5: no wallet until the owner picks one.
+    const balances = walletBalancesOf(treasuryStats, portfolioStats);
+    const currency = method ? getWalletCurrency(method) : 'DZD';
+    const availableBalance = method ? Number(balances[method] || 0) : 0;
 
     // Display only: the amount checked against the chosen wallet like the save does (it still
     // alerts on its own), and the amount kept visible at the bottom.
@@ -80,7 +76,7 @@ export function DeliveryExpenseModal({
     const footerStats: OperationFooterStat[] = [];
     if (hasAmount) {
         footerStats.push({ label: t('delivery.amount'), value: formatMoney(typedAmount, currency, { min: currency === 'DZD' ? 0 : 2, max: 2 }), tone: 'loss' });
-        if (preview && isAssetWallet(method))
+        if (preview && method && isAssetWallet(method))
             footerStats.push({ label: t('delivery.valueDzd'), value: formatMoney(preview.amountDzd, 'DZD', { min: 0, max: 0 }) });
     }
 
@@ -119,15 +115,10 @@ export function DeliveryExpenseModal({
 
                 <div>
                     <Label>{t('delivery.method')}</Label>
-                    <SegmentedControl size="md" columns={2} ariaLabel={t('delivery.method') as string} value={method} onChange={(next) => setMethod(next as FinancialWallet)} options={withoutHiddenEur([
-                        { id: 'Caisse', label: t('transactions.cash'), tone: 'profit' as const },
-                        { id: 'BaridiMob', label: t('transactions.baridi'), tone: 'primary' as const },
-                        { id: 'USDT', label: 'USDT', tone: 'primary' as const },
-                        { id: 'EUR', label: 'EUR', tone: 'primary' as const },
-                    ], showEur, method)}/>
+                    <WalletPicker value={method} onChange={(next) => setMethod(next as FinancialWallet)} wallets={FINANCIAL_WALLETS} labels={{ Caisse: t('transactions.cash') as string, BaridiMob: t('transactions.baridi') as string }} balances={balances} ariaLabel={t('delivery.method') as string} chooseLabel={t('transactions.walletChoose') as string}/>
                 </div>
 
-                {preview && isAssetWallet(method) && (
+                {preview && method && isAssetWallet(method) && (
                     <div className="rounded-button bg-surface-muted p-3 text-sm">
                         <div className="flex items-center justify-between gap-3">
                             <span className="text-neutral-500">{t('delivery.valueDzd')}</span>

@@ -1,4 +1,4 @@
-import { useShowEur, withoutHiddenEur } from '../../contexts/CurrencyVisibilityContext';
+import { FINANCIAL_WALLETS, WalletPicker, walletBalancesOf } from '../ui/WalletPicker';
 import { useMemo } from 'react';
 import type { ClientDzd, PortfolioStats } from '../../types';
 import type { DigitalServicePreview, DigitalServiceSaleWallet, FinancialWallet } from '../../utils/digitalServiceAccounting';
@@ -28,11 +28,12 @@ type DigitalServiceSaleModalProps = {
     setClientId: (value: string) => void;
     serviceName: string;
     setServiceName: (value: string) => void;
-    purchaseWallet: FinancialWallet;
+    /** null: not chosen yet (V13-5) */
+    purchaseWallet: FinancialWallet | null;
     setPurchaseWallet: (value: FinancialWallet) => void;
     purchaseAmount: string;
     setPurchaseAmount: (value: string) => void;
-    saleWallet: DigitalServiceSaleWallet;
+    saleWallet: DigitalServiceSaleWallet | null;
     setSaleWallet: (value: DigitalServiceSaleWallet) => void;
     saleAmount: string;
     setSaleAmount: (value: string) => void;
@@ -55,12 +56,6 @@ function getClientName(client: ClientDzd) {
     return client.fullName || client.nom || 'Client';
 }
 
-function walletBalance(wallet: FinancialWallet, treasuryStats: DigitalServiceSaleModalProps['treasuryStats'], portfolioStats: PortfolioStats) {
-    if (wallet === 'Caisse') return treasuryStats.caisse;
-    if (wallet === 'BaridiMob') return treasuryStats.baridi;
-    if (wallet === 'USDT') return Number(portfolioStats.usdt.available || 0);
-    return Number(portfolioStats.eur.available || 0);
-}
 
 export function DigitalServiceSaleModal({
     isOpen,
@@ -89,16 +84,17 @@ export function DigitalServiceSaleModal({
     onOpenClientModal,
     onSave,
 }: DigitalServiceSaleModalProps) {
-    const showEur = useShowEur();
     const { t } = useLanguage();
     const fieldBase = 'rounded-xl border-border bg-surface text-neutral-900';
     const clientOptions = useMemo(() => selectableClients(clientsDzd, [clientId]).map((client) => ({
         value: client.id,
         label: getClientName(client),
     })), [clientsDzd, clientId]);
-    const purchaseCurrency = getWalletCurrency(purchaseWallet);
-    const saleCurrency = getWalletCurrency(saleWallet);
-    const purchaseAvailable = walletBalance(purchaseWallet, treasuryStats, portfolioStats);
+    // V13-5: no wallet until the owner picks one.
+    const balances = walletBalancesOf(treasuryStats, portfolioStats);
+    const purchaseCurrency = purchaseWallet ? getWalletCurrency(purchaseWallet) : 'DZD';
+    const saleCurrency = saleWallet ? getWalletCurrency(saleWallet) : 'DZD';
+    const purchaseAvailable = purchaseWallet ? Number(balances[purchaseWallet] || 0) : 0;
 
     // Display only: once a sale price is typed, the sale and its margin stay visible at the bottom
     // (the same numbers as the summary above).
@@ -146,12 +142,7 @@ export function DigitalServiceSaleModal({
                 </FormCard>
 
                 <FormCard title={t('digitalServices.purchaseWallet')}>
-                    <SegmentedControl size="md" columns={2} ariaLabel={t('digitalServices.purchaseWallet') as string} value={purchaseWallet} onChange={(next) => setPurchaseWallet(next as FinancialWallet)} options={withoutHiddenEur([
-                        { id: 'Caisse', label: t('transactions.cash'), tone: 'profit' as const },
-                        { id: 'BaridiMob', label: t('transactions.baridi'), tone: 'primary' as const },
-                        { id: 'USDT', label: 'USDT', tone: 'primary' as const },
-                        { id: 'EUR', label: 'EUR', tone: 'primary' as const },
-                    ], showEur, purchaseWallet)}/>
+                    <WalletPicker value={purchaseWallet} onChange={(next) => setPurchaseWallet(next as FinancialWallet)} wallets={FINANCIAL_WALLETS} labels={{ Caisse: t('transactions.cash') as string, BaridiMob: t('transactions.baridi') as string }} balances={balances} ariaLabel={t('digitalServices.purchaseWallet') as string} chooseLabel={t('transactions.walletChoose') as string}/>
                     <MoneyField
                         label={t('digitalServices.purchaseAmount')}
                         value={purchaseAmount}
@@ -168,13 +159,7 @@ export function DigitalServiceSaleModal({
                 </FormCard>
 
                 <FormCard title={t('digitalServices.saleWallet')}>
-                    <SegmentedControl size="md" columns={3} ariaLabel={t('digitalServices.saleWallet') as string} value={saleWallet} onChange={(next) => setSaleWallet(next as DigitalServiceSaleWallet)} options={withoutHiddenEur([
-                        { id: 'Caisse', label: t('transactions.cash'), tone: 'profit' as const },
-                        { id: 'BaridiMob', label: t('transactions.baridi'), tone: 'primary' as const },
-                        { id: 'Credit', label: t('transactions.credit'), tone: 'debt' as const },
-                        { id: 'USDT', label: 'USDT', tone: 'primary' as const },
-                        { id: 'EUR', label: 'EUR', tone: 'primary' as const },
-                    ], showEur, saleWallet)}/>
+                    <WalletPicker value={saleWallet} onChange={(next) => setSaleWallet(next as DigitalServiceSaleWallet)} wallets={['Caisse', 'BaridiMob', 'Credit', 'USDT', 'EUR', 'RMB']} labels={{ Caisse: t('transactions.cash') as string, BaridiMob: t('transactions.baridi') as string, Credit: t('transactions.credit') as string }} balances={balances} ariaLabel={t('digitalServices.saleWallet') as string} chooseLabel={t('transactions.walletChoose') as string}/>
                     <MoneyField
                         label={t('digitalServices.saleAmount')}
                         value={saleAmount}

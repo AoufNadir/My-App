@@ -1,5 +1,6 @@
 export type CashWallet = 'Caisse' | 'BaridiMob';
-export type AssetWallet = 'USDT' | 'EUR';
+/** V13-5: RMB (Alipay) is a wallet like USDT and EUR. */
+export type AssetWallet = 'USDT' | 'EUR' | 'RMB';
 export type FinancialWallet = CashWallet | AssetWallet;
 export type DigitalServiceSaleWallet = FinancialWallet | 'Credit';
 export type WalletCurrency = 'DZD' | AssetWallet;
@@ -7,6 +8,8 @@ export type WalletCurrency = 'DZD' | AssetWallet;
 export type WalletRates = {
     usdtPma: number;
     eurPma: number;
+    /** V13-5: RMB average price (0 = none in stock) */
+    rmbPma?: number;
 };
 
 export type DigitalServicePreviewInput = {
@@ -42,13 +45,14 @@ export type ProjectExpensePreview = {
 const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
 export function getWalletCurrency(wallet: DigitalServiceSaleWallet): WalletCurrency {
-    if (wallet === 'USDT' || wallet === 'EUR') return wallet;
+    if (wallet === 'USDT' || wallet === 'EUR' || wallet === 'RMB') return wallet;
     return 'DZD';
 }
 
 export function getWalletRateToDzd(wallet: DigitalServiceSaleWallet, rates: WalletRates): number {
     if (wallet === 'USDT') return Number(rates.usdtPma || 0);
     if (wallet === 'EUR') return Number(rates.eurPma || 0);
+    if (wallet === 'RMB') return Number(rates.rmbPma || 0);
     return 1;
 }
 
@@ -90,7 +94,18 @@ export function computeProjectExpensePreview(input: ProjectExpensePreviewInput):
 }
 
 export function isAssetWallet(wallet: DigitalServiceSaleWallet): wallet is AssetWallet {
+    return wallet === 'USDT' || wallet === 'EUR' || wallet === 'RMB';
+}
+
+/** USDT or EUR: the wallets the read-model and shadow diagnostics know (RMB is left out of them, they are off in the app). */
+export function isLegacyAssetWallet(wallet: DigitalServiceSaleWallet): wallet is 'USDT' | 'EUR' {
     return wallet === 'USDT' || wallet === 'EUR';
+}
+
+/** V13-5: what an asset wallet holds now, from the portfolio stats (RMB under `rmb`). */
+export function assetWalletStats(stats: { usdt: { available?: number; avgBuy?: number }; eur: { available?: number; avgBuy?: number }; rmb?: { available?: number; avgBuy?: number } }, wallet: AssetWallet): { available: number; avgBuy: number } {
+    const row = wallet === 'USDT' ? stats.usdt : wallet === 'EUR' ? stats.eur : stats.rmb;
+    return { available: Number(row?.available || 0), avgBuy: Number(row?.avgBuy || 0) };
 }
 
 export function isCashWallet(wallet: DigitalServiceSaleWallet): wallet is CashWallet {

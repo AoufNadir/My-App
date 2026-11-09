@@ -229,8 +229,8 @@ export interface TreasuryTx {
     linkedAssetTxId?: string; // Link back to actifTransactions
     linkedDigitalServiceTxId?: string;
     linkedProjectExpenseTxId?: string;
-    expenseWallet?: 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR';
-    expenseCurrency?: 'DZD' | 'USDT' | 'EUR';
+    expenseWallet?: 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR' | 'RMB';
+    expenseCurrency?: 'DZD' | 'USDT' | 'EUR' | 'RMB';
     originalAmount?: number;
     conversionRateToDzd?: number;
     amountDzd?: number;
@@ -253,13 +253,13 @@ export interface DigitalServiceTransaction {
     type: 'digital_service_sale';
     clientId: string;
     serviceName: string;
-    purchaseWallet: 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR';
-    purchaseCurrency: 'DZD' | 'USDT' | 'EUR';
+    purchaseWallet: 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR' | 'RMB';
+    purchaseCurrency: 'DZD' | 'USDT' | 'EUR' | 'RMB';
     purchaseAmount: number;
     purchaseRateToDzd: number;
     purchaseAmountDzd: number;
-    saleWallet: 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR' | 'Credit';
-    saleCurrency: 'DZD' | 'USDT' | 'EUR';
+    saleWallet: 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR' | 'RMB' | 'Credit';
+    saleCurrency: 'DZD' | 'USDT' | 'EUR' | 'RMB';
     saleAmount: number;
     saleRateToDzd: number;
     saleAmountDzd: number;
@@ -353,6 +353,8 @@ export interface PortfolioStats {
         locked: number;
         lockedBatches: LockedBatch[];
     };
+    /** V13-5: RMB (Alipay), given to the expense, withdrawal and service windows only; absent in the ledger output. */
+    rmb?: { available: number; avgBuy: number };
 }
 
 // ===== Order System (Pro Digital Orders) =====

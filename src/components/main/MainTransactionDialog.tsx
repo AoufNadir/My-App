@@ -517,24 +517,13 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
     );
     return (<><Modal isOpen={mode !== null} onClose={closeForm} className="bg-surface max-w-md">
             <ModalHeader onClose={closeForm}>
-                <ModalTitle className="text-base sm:text-lg">{editingTx ? t('common.edit') : t('transactions.newTransaction')}</ModalTitle>
+                <ModalTitle className="text-base sm:text-lg">{/* V13-5: the operation and currency come from the menu: said once, in the title */}{editingTx ? t('common.edit') : mode ? `${isBuyMode ? t('transactions.buy') : t('transactions.sell')} ${activeCurrency}` : t('transactions.newTransaction')}</ModalTitle>
             </ModalHeader>
 
             <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
                 {mode && (<>
                         {/* What: operation and currency, then the balance and average price they act on */}
                         <FormCard>
-                            <div className="grid grid-cols-2 gap-2">
-                                <SegmentedControl size="md" ariaLabel={t('transactions.operationType') as string} value={isBuyMode ? 'buy' : 'sell'} onChange={switchOperation} disabled={!!editingTx} options={[
-                                    { id: 'buy', label: <><ArrowDownLeftIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{t('transactions.buy')}</>, tone: 'profit' },
-                                    { id: 'sell', label: <><ArrowUpRightIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{t('transactions.sell')}</>, tone: 'loss' },
-                                ]}/>
-                                <SegmentedControl size="md" ariaLabel={t('transactions.currencyLabel') as string} value={activeCurrency as 'USDT' | 'EUR' | 'RMB'} onChange={(currency) => (currency === 'RMB' ? onSwitchToRmb?.(isBuyMode ? 'buy' : 'sell') : switchCurrency(currency))} disabled={!!editingTx} options={[
-                                    { id: 'USDT' as const, label: 'USDT', tone: 'primary' as const },
-                                    ...(eurHiddenHere && activeCurrency !== 'EUR' ? [] : [{ id: 'EUR' as const, label: 'EUR', tone: 'primary' as const }]),
-                                    ...(showRmb && onSwitchToRmb && !editingTx ? [{ id: 'RMB' as const, label: 'RMB', tone: 'primary' as const }] : []),
-                                ]}/>
-                            </div>
                             <dl className="grid grid-cols-2 gap-2">
                                 <div className="min-w-0 rounded-button bg-surface-muted px-3 py-2">
                                     <dt className="truncate text-[11px] font-semibold text-neutral-500">{t('common.balance')}</dt>

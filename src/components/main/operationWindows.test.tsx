@@ -301,6 +301,7 @@ function splitAtBar(html: string): [string, string] {
     const tag = html.lastIndexOf('<', at);
     return [html.slice(0, tag), html.slice(tag)];
 }
+const WALLET_BALANCES = ['1⍽250⍽000', '480⍽000', '5⍽900,00', '1⍽200,00', '0,00'];
 const changed: string[] = [];
 for (const [name, renderScreen] of Object.entries(SCREENS) as Array<[keyof typeof SCREENS, (lang: Lang) => string]>)
     for (const lang of ['fr', 'ar'] as const) {
@@ -312,8 +313,10 @@ for (const [name, renderScreen] of Object.entries(SCREENS) as Array<[keyof typeo
         // The window itself shows exactly the numbers it showed before; the bar repeats some of
         // them and adds only the typed totals listed above.
         const lost = BEFORE[name].filter((token) => !(keptAtBottom.includes(token) ? inBar : inBody).includes(token));
+        // V13-5: the windows with the wallet list show each wallet's balance (cash box, BaridiMob, USDT, EUR, RMB).
+        const pickerBalances = /^(delivery|service|withdrawal)/.test(name) ? WALLET_BALANCES : [];
         const added = [
-            ...inBody.filter((token) => !BEFORE[name].includes(token)),
+            ...inBody.filter((token) => !BEFORE[name].includes(token) && !pickerBalances.includes(token)),
             ...inBar.filter((token) => !BEFORE[name].includes(token) && !newAtBottom.includes(token)),
         ];
         const missingTotals = newAtBottom.filter((token) => !inBar.includes(token));
@@ -571,23 +574,24 @@ for (const lang of ['fr', 'ar'] as const) {
 }
 console.log('operationWindows.test: V13-1 payment status never chosen for the user');
 
-// V13-2: EUR hidden in the settings: the buy / sell window offers USDT alone and no EUR settlement; shown, as before.
+// V13-5: the operation and the currency are chosen in the menu: no Buy/Sell or currency switch in the window,
+// its title says them. EUR hidden: no EUR source or EUR settlement either.
 for (const lang of ['fr', 'ar'] as const) {
-    const usdtSale = { mode: 'sell_eur', sellAmount: '300', sellPrice: '262', sellTotal: '78600', linkedClientId: 'c3', clientPaymentStatus: 'cash' };
-    const shown = transactionWindow(lang, { ...usdtSale, mode: 'buy_usdt', buyUsdtMode: 'with_dzd' });
-    assert.ok(shown.includes('>EUR</button>'), `${lang}: EUR offered by default`);
-    const hidden = transactionWindow(lang, { ...usdtSale, mode: 'buy_usdt', buyUsdtMode: 'with_dzd', showEur: false });
-    assert.ok(!hidden.includes('>EUR</button>'), `${lang}: EUR hidden`);
-    assert.ok(hidden.includes('>USDT</button>'), `${lang}: USDT still there`);
-    const editingEur = transactionWindow(lang, { ...usdtSale, showEur: false, editingTx: { id: 'x', type: 'sell', currency: 'EUR', quantity: 300 } });
-    assert.ok(editingEur.includes('>EUR</button>'), `${lang}: an operation saved in EUR still opens as it was`);
+    const tr = (translations[lang] as unknown as { transactions: Record<string, string>; portfolio: Record<string, string> });
+    const buyUsdt = transactionWindow(lang, { mode: 'buy_usdt', buyUsdtMode: 'with_dzd', linkedClientId: 'c3', clientPaymentStatus: 'cash' });
+    assert.ok(!buyUsdt.includes('>EUR</button>') && !buyUsdt.includes('>USDT</button>'), `${lang}: no currency switch`);
+    assert.ok(buyUsdt.includes(esc(`${tr.transactions.buy} USDT`)), `${lang}: the title says Buy USDT`);
+    const sellEur = transactionWindow(lang, { mode: 'sell_eur', sellAmount: '300', sellPrice: '262', sellTotal: '78600', linkedClientId: 'c3', clientPaymentStatus: 'cash' });
+    assert.ok(sellEur.includes(esc(`${tr.transactions.sell} EUR`)), `${lang}: the title says Sell EUR`);
+    const hiddenSource = transactionWindow(lang, { mode: 'buy_usdt', showEur: false, onCrossTrade: () => undefined, showRmb: true });
+    assert.ok(!hiddenSource.includes(esc(tr.portfolio.buyWithEur)), `${lang}: EUR hidden, not a source`);
 }
-console.log('operationWindows.test: V13-2 EUR hidden from the buy / sell window');
+console.log('operationWindows.test: V13-5 no switch in the window, the title says the operation');
 
 // V13-2 (everywhere): EUR hidden takes the EUR choice out of every window that offers it (project expense,
 // personal withdrawal, digital service purchase and sale); an operation already in EUR keeps it.
 {
-    const eurButtons = (html: string) => (html.match(/>EUR<\/button>/g) || []).length;
+    const eurButtons = (html: string) => (html.match(/role="radio"[^>]*>(?:(?!<\/button>).)*>EUR<\/span>/g) || []).length;
     const hidden = (node: ReturnType<typeof delivery>) => node;
     for (const lang of ['fr', 'ar'] as const) {
         const withProvider = (element: React.ReactElement) => render(<CurrencyVisibilityProvider showEur={false}>{element}</CurrencyVisibilityProvider>, lang);

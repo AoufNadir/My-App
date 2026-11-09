@@ -42,7 +42,7 @@ export function formatNumber(value: number, options?: DecimalOptions): string {
 export function formatDzd(value: number, options?: DecimalOptions): string {
     return `${formatNumber(value, options)} DZD`;
 }
-export type MoneyCurrency = 'DZD' | 'EUR' | 'USDT' | 'USD';
+export type MoneyCurrency = 'DZD' | 'EUR' | 'USDT' | 'USD' | 'RMB';
 type MoneyOptions = DecimalOptions & {
     showSign?: boolean;
 };

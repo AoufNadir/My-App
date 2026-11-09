@@ -372,6 +372,8 @@ export default function MainApp({ user }: {
         return { quantity, avgBuy: holding?.avgBuy ?? 0, value: holding ? Math.round(quantity * holding.avgBuy * 100) / 100 : 0 };
     }, [pamLedger]);
     const rmbStockValue = rmbStock.value;
+    // V13-5: the stats the money windows read (expense, withdrawal, digital service): USDT and EUR as always, and RMB.
+    const walletPortfolioStats = useMemo(() => ({ ...portfolioStats, rmb: { available: rmbStock.quantity, avgBuy: rmbStock.avgBuy } }), [portfolioStats, rmbStock]);
     const deliveryExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense'), [treasuryTransactions]);
     const personalExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense'), [treasuryTransactions]);
     const debtWriteOffs = useMemo(() => collectDebtWriteOffs(clientTransactionsDzd), [clientTransactionsDzd]);
@@ -575,7 +577,7 @@ export default function MainApp({ user }: {
     // by handleSell as the sp* snapshot (negotiation-loss tracking).
     const smartQuoteRef = React.useRef<SmartSaleSnapshot | null>(null);
     const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, setPaymentStatusChosen, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, adjustmentReason, setAdjustmentReason, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, deliveryExpensePayee, setDeliveryExpensePayee, deliveryExpensePreview, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, transferDate, setTransferDate, transferTime, setTransferTime, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer, handleApplyLock24hToRecentBuys, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, deliveryPending, setDeliveryPending, receiptPending, setReceiptPending, sellTime, setSellTime, saleDatePlan } = useTransactionHandlers({
-        userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd,
+        userDocRef, portfolioStats: walletPortfolioStats, transactions, clientsDzd, clientTransactionsDzd,
         investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats,
         periodLockedThrough: periodLock.lockedThrough,
         setAlert, setSelectedClientId: (id: string | null) => setSelectedClientId(id), setView: (v: string) => setView(v),
@@ -585,7 +587,7 @@ export default function MainApp({ user }: {
         userDocRef,
         clientsDzd,
         clientTransactionsDzd,
-        portfolioStats,
+        portfolioStats: walletPortfolioStats,
         treasuryStats,
         setAlert,
     });
@@ -594,7 +596,7 @@ export default function MainApp({ user }: {
     // Personal withdrawal (manager's daily personal expense)
     isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen, personalWithdrawalAmount, setPersonalWithdrawalAmount, personalWithdrawalMethod, setPersonalWithdrawalMethod, personalWithdrawalDate, setPersonalWithdrawalDate, personalWithdrawalNote, setPersonalWithdrawalNote, personalWithdrawalMode, setPersonalWithdrawalMode, personalWithdrawalPreview, editingPersonalExpenseTx, personalExpenseToDelete, setPersonalExpenseToDelete, openEditPersonalExpense, openPersonalWithdrawalModal, closePersonalWithdrawalModal, handleSavePersonalWithdrawal, handleDeletePersonalExpense, managerAvailableProfit, managerCapitalInvested, managerExists,
     // Reconcile advance
-    isReconcileAdvanceModalOpen, reconcileAdvanceTx, reconcileActualAmount, setReconcileActualAmount, reconcileSpentDescription, setReconcileSpentDescription, openReconcileAdvanceModal, closeReconcileAdvanceModal, handleReconcilePersonalAdvance } = useInvestorHandlers(userDocRef, derivedInvestors, treasuryStats, portfolioStats, setAlert);
+    isReconcileAdvanceModalOpen, reconcileAdvanceTx, reconcileActualAmount, setReconcileActualAmount, reconcileSpentDescription, setReconcileSpentDescription, openReconcileAdvanceModal, closeReconcileAdvanceModal, handleReconcilePersonalAdvance } = useInvestorHandlers(userDocRef, derivedInvestors, treasuryStats, walletPortfolioStats, setAlert);
     // --- 3. LOCAL UI STATE ---
     const [isNewOperationMenuOpen, setIsNewOperationMenuOpen] = useState(false);
     // V13-3 / V13-4: the RMB and conversion window (null: closed): which side, which currency, which source.
@@ -1788,7 +1790,7 @@ export default function MainApp({ user }: {
     // V7-2: the treasury adjustment window gives way to the window that already exists for the chosen
     // reason, opened on the same wallet with the amount typed so far. Nothing is saved by this step.
     const onAdjustmentRedirect = ({ reason, asset, direction, amount }: { reason: AdjustmentReason; asset: string; direction: 'add' | 'subtract'; amount: string }) => {
-        const wallet = asset === 'DZD-Caisse' ? 'Caisse' : asset === 'DZD-Baridi' ? 'BaridiMob' : asset === 'EUR' ? 'EUR' : 'USDT';
+        const wallet = asset === 'DZD-Caisse' ? 'Caisse' : asset === 'DZD-Baridi' ? 'BaridiMob' : asset === 'EUR' ? 'EUR' : asset === 'RMB' ? 'RMB' : 'USDT';
         setIsAdjustmentModalOpen(false);
         window.setTimeout(() => {
             if (reason === 'wallet_transfer') {
@@ -1809,6 +1811,9 @@ export default function MainApp({ user }: {
                 openDeliveryExpenseModal();
                 setDeliveryExpenseMethod(wallet);
                 setDeliveryExpenseAmount(amount);
+            }
+            else if ((reason === 'buy' || reason === 'sell') && asset === 'RMB') {
+                setTradeWin({ kind: reason, currency: 'RMB', source: null });
             }
             else if (reason === 'buy' || reason === 'sell') {
                 openForm(`${reason}_${asset === 'EUR' ? 'eur' : 'usdt'}`);
@@ -3011,7 +3016,7 @@ export default function MainApp({ user }: {
 
                 <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onNewOperation={isFinancialDataReady ? openNewOperationMenu : undefined} onOpenSettings={openSettingsModal} onSignOut={handleSignOut} overdueCount={dashboardPageProps.overdueDebtClientCount}/>
 
-                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} showEur={showEur} showRmb={showRmb} openRmb={(kind) => setRmbKind(kind)}/>
+                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} showEur={showEur} showRmb={showRmb} openRmb={(kind) => setRmbKind(kind)} balances={{ USDT: portfolioStats.usdt.available, EUR: portfolioStats.eur.available, RMB: rmbStock.quantity }}/>
                 <RmbTradeDialog kind={tradeWin?.kind ?? null} currency={tradeWin?.currency ?? 'RMB'} initialSource={tradeWin?.source ?? null} onClose={() => setTradeWin(null)} onSwitch={switchTradeWindow} holdings={rmbHoldings} clientsDzd={clientsDzd} openClientModal={openClientModal} fieldBase={fieldBase} onSave={saveRmbTrade} parseAndEvaluate={parseAndEvaluate}/>
 
                 {alert && (<AppToast message={translateAlert(alert, lang, t)} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? t('common.undo') : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined}/>)}
@@ -3152,7 +3157,7 @@ export default function MainApp({ user }: {
         buyRestriction, setBuyRestriction,
         realPurchaseTime, setRealPurchaseTime,
         sellDate, setSellDate, deliveryPending, setDeliveryPending, receiptPending, setReceiptPending, sellTime, setSellTime, saleDatePlan,
-        smartPricingByCurrency, smartQuoteRef, showEur, showRmb, onSwitchToRmb: (kind: 'buy' | 'sell') => switchTradeWindow(kind, 'RMB'), onCrossTrade: (kind: 'buy' | 'sell', currency: 'USDT' | 'EUR', source: 'USDT' | 'EUR' | 'RMB') => { closeForm(); setTradeWin({ kind, currency, source }); },
+        smartPricingByCurrency, smartQuoteRef, showEur, showRmb, walletPortfolioStats, onSwitchToRmb: (kind: 'buy' | 'sell') => switchTradeWindow(kind, 'RMB'), onCrossTrade: (kind: 'buy' | 'sell', currency: 'USDT' | 'EUR', source: 'USDT' | 'EUR' | 'RMB') => { closeForm(); setTradeWin({ kind, currency, source }); },
         isClientCrudDialogsOpen,
         txToDelete, setTxToDelete,
         handleDeleteConfirm,

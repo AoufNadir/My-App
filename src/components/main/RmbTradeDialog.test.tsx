@@ -30,14 +30,13 @@ for (const lang of ['fr', 'ar'] as const) {
     const buy = render(lang, dialog('buy'));
     for (const label of lang === 'fr' ? ['Achat avec DZD', 'Achat avec EUR', 'Achat avec USDT'] : ['شراء بالدينار', 'شراء باليورو', 'شراء بالـ USDT'])
         assert.ok(buy.includes(label), `${lang}: buy source ${label}`);
-    assert.ok(buy.includes('>RMB</button>'), `${lang}: RMB in the currency switch`);
+    assert.ok(!buy.includes('>USDT</button>') && buy.includes(lang === 'fr' ? 'Achat RMB' : 'شراء RMB'), `${lang}: no currency switch, the title says Buy RMB`);
     assert.ok(buy.includes('6 600,00 RMB') || buy.includes('6 600,00 RMB'), `${lang}: the RMB balance`);
     const sell = render(lang, dialog('sell'));
     for (const label of lang === 'fr' ? ['Vente avec DZD', 'Vente avec EUR', 'Vente avec USDT'] : ['بيع بالدينار', 'بيع مقابل يورو', 'بيع مقابل USDT'])
         assert.ok(sell.includes(label), `${lang}: sell source ${label}`);
     const noEur = render(lang, dialog('buy'), false);
     assert.ok(!noEur.includes(lang === 'fr' ? 'Achat avec EUR' : 'شراء باليورو'), `${lang}: EUR hidden, not a source`);
-    assert.ok(!noEur.includes('>EUR</button>'), `${lang}: EUR hidden, not in the switch`);
 }
 // With dinars: no payment chosen (needs a client first: the cards show once one is picked, as in the USDT window).
 const dzd = render('fr', dialog('sell', 'DZD'));
@@ -58,7 +57,7 @@ for (const label of ['الكمية (RMB)', 'سعر 1 RMB (دج)', 'المبلغ 
 
 // The menu: RMB tiles unless hidden.
 const menu = (showRmb: boolean) => renderToStaticMarkup(<NewTransactionMenuDialog isOpen onClose={noop} t={(k) => k} openForm={noop} openWalletTransferModal={noop} openTransferModal={noop} openAdjustmentModal={noop} openDeliveryExpenseModal={noop} showRmb={showRmb} openRmb={noop}/>);
-assert.equal(menu(true).split('>RMB</p>').length - 1, 2, 'RMB buy and sell tiles');
+assert.equal(menu(true).split('>RMB</p>').length - 1, 1, 'one RMB row (buy and sell)');
 assert.equal(menu(false).split('>RMB</p>').length - 1, 0, 'RMB hidden');
 
 // Editing: RMB operations are not opened in the USDT / EUR window.

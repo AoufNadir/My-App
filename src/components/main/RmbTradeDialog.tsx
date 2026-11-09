@@ -122,21 +122,10 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
     if (kind === 'sell' && source === 'DZD' && total > 0) footerStats.push({ label: w.profit, value: `${n(profit, 0)} DZD`, tone: profit >= 0 ? 'profit' : 'loss' });
     return (<Modal isOpen onClose={onClose} className="bg-surface max-w-md">
       <ModalHeader onClose={onClose}>
-        <ModalTitle className="text-base sm:text-lg">{t('transactions.newTransaction')}</ModalTitle>
+        <ModalTitle className="text-base sm:text-lg">{`${kind === 'buy' ? t('transactions.buy') : t('transactions.sell')} ${currency}`}</ModalTitle>
       </ModalHeader>
       <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
         <FormCard>
-          <div className="grid grid-cols-2 gap-2">
-            <SegmentedControl size="md" ariaLabel={t('transactions.operationType') as string} value={kind} onChange={(next) => onSwitch(next, currency)} options={[
-                { id: 'buy', label: <><ArrowDownLeftIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{t('transactions.buy')}</>, tone: 'profit' },
-                { id: 'sell', label: <><ArrowUpRightIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{t('transactions.sell')}</>, tone: 'loss' },
-            ]}/>
-            <SegmentedControl size="md" ariaLabel={t('transactions.currencyLabel') as string} value={currency} onChange={(next) => onSwitch(kind, next)} options={[
-                { id: 'USDT' as const, label: 'USDT', tone: 'primary' as const },
-                ...(showEur || currency === 'EUR' ? [{ id: 'EUR' as const, label: 'EUR', tone: 'primary' as const }] : []),
-                ...(showRmb || currency === 'RMB' ? [{ id: 'RMB' as const, label: 'RMB', tone: 'primary' as const }] : []),
-            ]}/>
-          </div>
           <dl className="grid grid-cols-2 gap-2">
             <div className="min-w-0 rounded-button bg-surface-muted px-3 py-2">
               <dt className="truncate text-[11px] font-semibold text-neutral-500">{w.balance}</dt>

@@ -10,7 +10,7 @@ import type { ClientTransactionDzd, TreasuryTx, Tx } from '../types';
  * recorded without a reason are found afterwards. Nothing here changes a balance.
  */
 
-export type AdjustmentAssetValue = 'DZD-Caisse' | 'DZD-Baridi' | 'USDT' | 'EUR';
+export type AdjustmentAssetValue = 'DZD-Caisse' | 'DZD-Baridi' | 'USDT' | 'EUR' | 'RMB';
 export type AdjustmentDirection = 'add' | 'subtract';
 
 /**
@@ -31,7 +31,7 @@ export const isDzdAdjustmentAsset = (asset: string) => asset === 'DZD-Caisse' ||
 
 /** The wallet of a cash or BaridiMob adjustment, as the window names it. */
 export const adjustmentAssetOf = (value: string): AdjustmentAssetValue | null =>
-    value === 'DZD-Caisse' || value === 'DZD-Baridi' || value === 'USDT' || value === 'EUR' ? value : null;
+    value === 'DZD-Caisse' || value === 'DZD-Baridi' || value === 'USDT' || value === 'EUR' || value === 'RMB' ? value : null;
 
 /** The reasons offered for this wallet and direction, in the order shown. */
 export function adjustmentReasonsFor(asset: AdjustmentAssetValue, direction: AdjustmentDirection): readonly AdjustmentReason[] {

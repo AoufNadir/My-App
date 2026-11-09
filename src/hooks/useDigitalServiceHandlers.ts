@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { db, type FirestoreDocumentReference } from '../firebase';
 import type { ClientDzd, ClientTransactionDzd, DigitalServiceTransaction, PortfolioStats } from '../types';
 import { now, parseAndEvaluate } from '../utils';
@@ -15,6 +15,9 @@ import { transitionClientBalanceDelta } from '../readModels/readModelDeltas';
 import {
     computeDigitalServicePreview,
     isAssetWallet,
+    isLegacyAssetWallet,
+    assetWalletStats,
+    getWalletRateToDzd,
     isCashWallet,
     type DigitalServiceSaleWallet,
     type FinancialWallet,
@@ -32,12 +35,13 @@ type UseDigitalServiceHandlersArgs = {
     setAlert: (msg: string) => void;
 };
 
-const SALE_PAYMENT_METHOD: Record<DigitalServiceSaleWallet, 'Espèces' | 'BaridiMob' | 'Crédit' | 'USDT' | 'EUR'> = {
+const SALE_PAYMENT_METHOD: Record<DigitalServiceSaleWallet, 'Espèces' | 'BaridiMob' | 'Crédit' | 'USDT' | 'EUR' | 'RMB'> = {
     Caisse: 'Espèces',
     BaridiMob: 'BaridiMob',
     Credit: 'Crédit',
     USDT: 'USDT',
     EUR: 'EUR',
+    RMB: 'RMB',
 };
 
 function toIsoToday() {
@@ -90,9 +94,14 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
     const [editingDigitalServiceTx, setEditingDigitalServiceTx] = useState<DigitalServiceTransaction | null>(null);
     const [digitalServiceClientId, setDigitalServiceClientId] = useState('');
     const [digitalServiceName, setDigitalServiceName] = useState('');
-    const [digitalServicePurchaseWallet, setDigitalServicePurchaseWallet] = useState<FinancialWallet>('Caisse');
+    const [digitalServicePurchaseWallet, setDigitalServicePurchaseWalletState] = useState<FinancialWallet>('Caisse');
+    // V13-5: neither wallet is chosen for the owner (rule 11); an edited sale keeps its own.
+    const [purchaseWalletChosen, setPurchaseWalletChosen] = useState(false);
+    const [saleWalletChosen, setSaleWalletChosen] = useState(false);
+    const setDigitalServicePurchaseWallet = useCallback((wallet: FinancialWallet) => { setPurchaseWalletChosen(true); setDigitalServicePurchaseWalletState(wallet); }, []);
     const [digitalServicePurchaseAmount, setDigitalServicePurchaseAmount] = useState('');
-    const [digitalServiceSaleWallet, setDigitalServiceSaleWallet] = useState<DigitalServiceSaleWallet>('Caisse');
+    const [digitalServiceSaleWallet, setDigitalServiceSaleWalletState] = useState<DigitalServiceSaleWallet>('Caisse');
+    const setDigitalServiceSaleWallet = useCallback((wallet: DigitalServiceSaleWallet) => { setSaleWalletChosen(true); setDigitalServiceSaleWalletState(wallet); }, []);
     const [digitalServiceSaleAmount, setDigitalServiceSaleAmount] = useState('');
     const [digitalServiceDate, setDigitalServiceDate] = useState(toIsoToday());
     const [digitalServiceNote, setDigitalServiceNote] = useState('');
@@ -100,12 +109,13 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
     const rates = useMemo(() => ({
         usdtPma: Number(portfolioStats.usdt.avgBuy || 0),
         eurPma: Number(portfolioStats.eur.avgBuy || 0),
-    }), [portfolioStats.usdt.avgBuy, portfolioStats.eur.avgBuy]);
+        rmbPma: Number(portfolioStats.rmb?.avgBuy || 0),
+    }), [portfolioStats.usdt.avgBuy, portfolioStats.eur.avgBuy, portfolioStats.rmb?.avgBuy]);
 
     const digitalServicePreview = useMemo(() => {
         const purchaseAmount = parseAndEvaluate(digitalServicePurchaseAmount);
         const saleAmount = parseAndEvaluate(digitalServiceSaleAmount);
-        if (!Number.isFinite(purchaseAmount) || !Number.isFinite(saleAmount)) return null;
+        if (!Number.isFinite(purchaseAmount) || !Number.isFinite(saleAmount) || !purchaseWalletChosen || !saleWalletChosen) return null;
         return computeDigitalServicePreview({
             purchaseWallet: digitalServicePurchaseWallet,
             purchaseAmount,
@@ -113,15 +123,17 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
             saleAmount,
             rates,
         });
-    }, [digitalServicePurchaseAmount, digitalServicePurchaseWallet, digitalServiceSaleAmount, digitalServiceSaleWallet, rates]);
+    }, [digitalServicePurchaseAmount, digitalServicePurchaseWallet, digitalServiceSaleAmount, digitalServiceSaleWallet, rates, purchaseWalletChosen, saleWalletChosen]);
 
     const resetDigitalServiceForm = () => {
         setEditingDigitalServiceTx(null);
         setDigitalServiceClientId('');
         setDigitalServiceName('');
-        setDigitalServicePurchaseWallet('Caisse');
+        setDigitalServicePurchaseWalletState('Caisse');
+        setPurchaseWalletChosen(false);
         setDigitalServicePurchaseAmount('');
-        setDigitalServiceSaleWallet('Caisse');
+        setDigitalServiceSaleWalletState('Caisse');
+        setSaleWalletChosen(false);
         setDigitalServiceSaleAmount('');
         setDigitalServiceDate(toIsoToday());
         setDigitalServiceNote('');
@@ -158,13 +170,14 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
 
     const validateDigitalService = (purchaseAmount: number, saleAmount: number) => {
         if (!digitalServiceClientId) return '⚠️ Client requis.';
+        if (!purchaseWalletChosen || !saleWalletChosen) return '⚠️ Choisissez le portefeuille.';
         if (!digitalServiceName.trim()) return '⚠️ Service numérique requis.';
         if (!Number.isFinite(purchaseAmount) || purchaseAmount <= 0) return '⚠️ Prix d’achat invalide.';
         if (!Number.isFinite(saleAmount) || saleAmount <= 0) return '⚠️ Prix de vente invalide.';
-        if (isAssetWallet(digitalServicePurchaseWallet) && rates[digitalServicePurchaseWallet === 'USDT' ? 'usdtPma' : 'eurPma'] <= 0) {
+        if (isAssetWallet(digitalServicePurchaseWallet) && getWalletRateToDzd(digitalServicePurchaseWallet, rates) <= 0) {
             return `⚠️ PMA ${digitalServicePurchaseWallet} indisponible.`;
         }
-        if (isAssetWallet(digitalServiceSaleWallet) && rates[digitalServiceSaleWallet === 'USDT' ? 'usdtPma' : 'eurPma'] <= 0) {
+        if (isAssetWallet(digitalServiceSaleWallet) && getWalletRateToDzd(digitalServiceSaleWallet, rates) <= 0) {
             return `⚠️ PMA ${digitalServiceSaleWallet} indisponible.`;
         }
         const epsilon = 0.005;
@@ -172,9 +185,9 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
             ? treasuryStats.caisse
             : digitalServicePurchaseWallet === 'BaridiMob'
                 ? treasuryStats.baridi
-                : digitalServicePurchaseWallet === 'USDT'
-                    ? Number(portfolioStats.usdt.available || 0)
-                    : Number(portfolioStats.eur.available || 0);
+                : isAssetWallet(digitalServicePurchaseWallet)
+                    ? assetWalletStats(portfolioStats, digitalServicePurchaseWallet).available
+                    : 0;
         const restoredOldPurchase = editingDigitalServiceTx?.purchaseWallet === digitalServicePurchaseWallet
             ? Number(editingDigitalServiceTx.purchaseAmount || 0)
             : 0;
@@ -375,7 +388,7 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
             const portfolioWarnings = editingDigitalServiceTx
                 ? ['Legacy update replaces existing Portfolio rows; V2 immutable reversal is prepared only.']
                 : [];
-            if (isAssetWallet(digitalServicePurchaseWallet)) {
+            if (isLegacyAssetWallet(digitalServicePurchaseWallet)) {
                 const currency = digitalServicePurchaseWallet;
                 const avgBuy = currency === 'USDT' ? portfolioStats.usdt.avgBuy : portfolioStats.eur.avgBuy;
                 recordPortfolioShadow({
@@ -392,7 +405,7 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
                     warnings: portfolioWarnings,
                 });
             }
-            if (isAssetWallet(digitalServiceSaleWallet)) {
+            if (isLegacyAssetWallet(digitalServiceSaleWallet)) {
                 const currency = digitalServiceSaleWallet;
                 recordPortfolioShadow({
                     operationId: `shadow:digital-service-sale-asset:${mainRef.id}`,
@@ -421,7 +434,7 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
                     revenueAccount: 'income.digital_service_sale',
                 }, { clientDeltas: { [digitalServiceClientId]: -preview.saleAmountDzd } });
             }
-            const servicePurchase = isAssetWallet(digitalServicePurchaseWallet)
+            const servicePurchase = isLegacyAssetWallet(digitalServicePurchaseWallet)
                 ? {
                     wallet: digitalServicePurchaseWallet,
                     quantity: purchaseAmount,
@@ -433,7 +446,7 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
                 : { wallet: digitalServicePurchaseWallet, amountDzd: preview.purchaseAmountDzd };
             const serviceSale = digitalServiceSaleWallet === 'Credit'
                 ? { wallet: 'Credit' as const, amountDzd: preview.saleAmountDzd, clientId: digitalServiceClientId }
-                : isAssetWallet(digitalServiceSaleWallet)
+                : isLegacyAssetWallet(digitalServiceSaleWallet)
                     ? { wallet: digitalServiceSaleWallet, quantity: saleAmount, amountDzd: preview.saleAmountDzd }
                     : { wallet: digitalServiceSaleWallet, amountDzd: preview.saleAmountDzd };
             recordServiceShadow({
@@ -465,13 +478,13 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
                         wallets[digitalServiceSaleWallet] = roundM((wallets[digitalServiceSaleWallet] || 0) + preview.saleAmountDzd);
                     }
                     const portfolio: Record<string, { quantityDelta: number; costBasisDeltaDzd: number }> = {};
-                    if (isAssetWallet(digitalServicePurchaseWallet)) {
+                    if (isLegacyAssetWallet(digitalServicePurchaseWallet)) {
                         portfolio[digitalServicePurchaseWallet] = {
                             quantityDelta: -purchaseAmount,
                             costBasisDeltaDzd: -preview.purchaseAmountDzd,
                         };
                     }
-                    if (isAssetWallet(digitalServiceSaleWallet)) {
+                    if (isLegacyAssetWallet(digitalServiceSaleWallet)) {
                         const current = portfolio[digitalServiceSaleWallet] || { quantityDelta: 0, costBasisDeltaDzd: 0 };
                         portfolio[digitalServiceSaleWallet] = {
                             quantityDelta: roundM(current.quantityDelta + saleAmount),
@@ -572,11 +585,11 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
         setDigitalServiceClientId,
         digitalServiceName,
         setDigitalServiceName,
-        digitalServicePurchaseWallet,
+        digitalServicePurchaseWallet: purchaseWalletChosen ? digitalServicePurchaseWallet : null,
         setDigitalServicePurchaseWallet,
         digitalServicePurchaseAmount,
         setDigitalServicePurchaseAmount,
-        digitalServiceSaleWallet,
+        digitalServiceSaleWallet: saleWalletChosen ? digitalServiceSaleWallet : null,
         setDigitalServiceSaleWallet,
         digitalServiceSaleAmount,
         setDigitalServiceSaleAmount,

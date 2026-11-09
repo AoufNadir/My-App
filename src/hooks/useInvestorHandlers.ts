@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
 import { Investor, InvestorTransaction, PortfolioStats, TreasuryTx } from '../types';
 import { now, parseAndEvaluate } from '../utils';
@@ -12,6 +12,9 @@ import {
     computeProjectExpensePreview,
     getWalletCurrency,
     isAssetWallet,
+    isLegacyAssetWallet,
+    assetWalletStats,
+    getWalletRateToDzd,
     isCashWallet,
     type FinancialWallet,
 } from '../utils/digitalServiceAccounting';
@@ -74,7 +77,13 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     // Personal withdrawal state (manager only — daily personal expense)
     const [isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen] = useState(false);
     const [personalWithdrawalAmount, setPersonalWithdrawalAmount] = useState('');
-    const [personalWithdrawalMethod, setPersonalWithdrawalMethod] = useState<FinancialWallet>('Caisse');
+    const [personalWithdrawalMethod, setPersonalWithdrawalMethodState] = useState<FinancialWallet>('Caisse');
+    // V13-5: the wallet is never chosen for the owner: none until he presses one (rule 11). An edited expense keeps its own.
+    const [personalWithdrawalWalletChosen, setPersonalWithdrawalWalletChosen] = useState(false);
+    const setPersonalWithdrawalMethod = useCallback((wallet: FinancialWallet) => {
+        setPersonalWithdrawalWalletChosen(true);
+        setPersonalWithdrawalMethodState(wallet);
+    }, []);
     const [personalWithdrawalDate, setPersonalWithdrawalDate] = useState<string>('');
     const [personalWithdrawalNote, setPersonalWithdrawalNote] = useState('');
     const [personalWithdrawalMode, setPersonalWithdrawalMode] = useState<'expense' | 'advance'>('expense');
@@ -83,20 +92,22 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     const personalWithdrawalRates = useMemo(() => ({
         usdtPma: Number(portfolioStats.usdt.avgBuy || 0),
         eurPma: Number(portfolioStats.eur.avgBuy || 0),
-    }), [portfolioStats.usdt.avgBuy, portfolioStats.eur.avgBuy]);
+        rmbPma: Number(portfolioStats.rmb?.avgBuy || 0),
+    }), [portfolioStats.usdt.avgBuy, portfolioStats.eur.avgBuy, portfolioStats.rmb?.avgBuy]);
     const personalWithdrawalPreview = useMemo(() => {
         const amount = parseAndEvaluate(personalWithdrawalAmount);
-        if (!Number.isFinite(amount)) return null;
+        if (!Number.isFinite(amount) || !personalWithdrawalWalletChosen) return null;
         return computeProjectExpensePreview({
             wallet: personalWithdrawalMethod,
             amount,
             rates: personalWithdrawalRates,
         });
-    }, [personalWithdrawalAmount, personalWithdrawalMethod, personalWithdrawalRates]);
+    }, [personalWithdrawalAmount, personalWithdrawalMethod, personalWithdrawalRates, personalWithdrawalWalletChosen]);
     const openPersonalWithdrawalModal = () => {
         setEditingPersonalExpenseTx(null);
         setPersonalWithdrawalAmount('');
-        setPersonalWithdrawalMethod('Caisse');
+        setPersonalWithdrawalMethodState('Caisse');
+        setPersonalWithdrawalWalletChosen(false);
         setPersonalWithdrawalDate('');
         setPersonalWithdrawalNote('');
         setPersonalWithdrawalMode('expense');
@@ -285,19 +296,19 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     };
     const resolvePersonalExpenseWallet = (tx?: TreasuryTx | null): FinancialWallet => {
         const wallet = tx?.expenseWallet || tx?.source || 'Caisse';
-        return wallet === 'USDT' || wallet === 'EUR' || wallet === 'BaridiMob' ? wallet : 'Caisse';
+        return wallet === 'USDT' || wallet === 'EUR' || wallet === 'RMB' || wallet === 'BaridiMob' ? wallet : 'Caisse';
     };
     const walletDeltaFor = (wallet: FinancialWallet, dzdDelta: number) => (
         isCashWallet(wallet) ? { [wallet]: dzdDelta } : undefined
     );
     const portfolioDeltaFor = (wallet: FinancialWallet, quantityDelta: number, costBasisDeltaDzd: number) => (
-        isAssetWallet(wallet) ? { [wallet]: { quantityDelta, costBasisDeltaDzd } } : undefined
+        isLegacyAssetWallet(wallet) ? { [wallet]: { quantityDelta, costBasisDeltaDzd } } : undefined
     );
     const getWalletAvailableBalance = (wallet: FinancialWallet): number => {
         if (wallet === 'Caisse') return Number(treasuryStats.caisse || 0);
         if (wallet === 'BaridiMob') return Number(treasuryStats.baridi || 0);
-        if (wallet === 'USDT') return Number(portfolioStats.usdt.available || 0);
-        return Number(portfolioStats.eur.available || 0);
+        if (isAssetWallet(wallet)) return assetWalletStats(portfolioStats, wallet).available;
+        return 0;
     };
     const getSourceAmountFromPersonalExpense = (tx?: TreasuryTx | null): number => Number(tx?.originalAmount ?? tx?.amount ?? 0);
     const deleteLinkedPersonalExpensePortfolioDocs = async (batch: ReturnType<typeof db.batch>, txId: string) => {
@@ -365,6 +376,10 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         setIsPersonalWithdrawalModalOpen(true);
     };
     const handleSavePersonalWithdrawal = async () => {
+        if (!personalWithdrawalWalletChosen) {
+            setAlert('⚠️ Choisissez le portefeuille.');
+            return;
+        }
         const amountNum = roundM(parseAndEvaluate(personalWithdrawalAmount));
         if (isNaN(amountNum) || amountNum <= 0) {
             setAlert('⚠️ Montant invalide.');
@@ -375,7 +390,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             return;
         }
         if (isAssetWallet(personalWithdrawalMethod)) {
-            const rate = personalWithdrawalMethod === 'USDT' ? personalWithdrawalRates.usdtPma : personalWithdrawalRates.eurPma;
+            const rate = getWalletRateToDzd(personalWithdrawalMethod, personalWithdrawalRates);
             if (rate <= 0) {
                 setAlert(`⚠️ PMA ${personalWithdrawalMethod} indisponible.`);
                 return;
@@ -525,7 +540,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     investorId: managerInvestor.id,
                 }, [{ type: 'Retrait', source: personalWithdrawalMethod, amount: preview.amountDzd }]);
             }
-            else if (isAssetWallet(personalWithdrawalMethod)) {
+            else if (isLegacyAssetWallet(personalWithdrawalMethod)) {
                 const currency = personalWithdrawalMethod;
                 recordPortfolioShadow({
                     operationId: `shadow:personal-withdrawal-asset:${treasuryRef.id}`,
@@ -640,11 +655,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             return;
         }
         const advanceWallet = resolvePersonalExpenseWallet(reconcileAdvanceTx);
-        const fallbackRate = advanceWallet === 'USDT'
-            ? personalWithdrawalRates.usdtPma
-            : advanceWallet === 'EUR'
-                ? personalWithdrawalRates.eurPma
-                : 1;
+        const fallbackRate = getWalletRateToDzd(advanceWallet, personalWithdrawalRates);
         const rateToDzd = Number(reconcileAdvanceTx.conversionRateToDzd || fallbackRate || 0);
         if (rateToDzd <= 0) {
             setAlert(`⚠️ PMA ${advanceWallet} indisponible.`);
@@ -805,7 +816,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     investorId: managerInvestor.id,
                 }, [{ type: 'Ajout', source: advanceWallet, amount: returnAmountDzd }]);
             }
-            else if (returnAmount > 0.005 && isAssetWallet(advanceWallet)) {
+            else if (returnAmount > 0.005 && isLegacyAssetWallet(advanceWallet)) {
                 const currency = advanceWallet;
                 recordPortfolioShadow({
                     operationId: `shadow:personal-return-asset:${reconcileAdvanceTx.id}:${timestamp}`,
@@ -832,7 +843,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 returnedAmountDzd: returnAmountDzd,
                 profitAmountDzd: funding.profitAmount,
                 capitalAmountDzd: funding.capitalAmount,
-                wallet: advanceWallet,
+                wallet: advanceWallet as 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR',
             }, {
                 managerAdvanceDzd: -roundM(advanceAmount * rateToDzd),
                 personalExpenseProfitDzd: funding.profitAmount,
@@ -1533,7 +1544,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         setIsPersonalWithdrawalModalOpen,
         personalWithdrawalAmount,
         setPersonalWithdrawalAmount,
-        personalWithdrawalMethod,
+        personalWithdrawalMethod: personalWithdrawalWalletChosen ? personalWithdrawalMethod : null,
         setPersonalWithdrawalMethod,
         personalWithdrawalDate,
         setPersonalWithdrawalDate,
