@@ -28,6 +28,8 @@ export interface Tx {
     linkedTreasuryTxId?: string;
     currency: 'USDT' | 'EUR';
     linkedTxId?: string;
+    /** Multi-currency (M1): marks the withdrawal of a conversion; its linkedTxId is the purchase of the other currency. */
+    conversionLeg?: 'out';
     linkedClientId?: string;
     linkedClientDzdId?: string;
     clientPaymentStatus?: 'credit' | 'baridi' | 'cash';
