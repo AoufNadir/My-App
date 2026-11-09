@@ -23,10 +23,13 @@ type NewTransactionMenuDialogProps = {
   openPersonalWithdrawalModal?: () => void;
   /** V13-2: EUR hidden in the settings */
   showEur?: boolean;
+  /** V13-3: RMB tiles (hidden in the settings like EUR) */
+  showRmb?: boolean;
+  openRmb?: (kind: 'buy' | 'sell') => void;
 };
 
 type PortfolioActionProps = {
-  currency: 'USDT' | 'EUR';
+  currency: 'USDT' | 'EUR' | 'RMB';
   direction: 'buy' | 'sell';
   verb: string;
   onClick: () => void;
@@ -67,6 +70,8 @@ export function NewTransactionMenuDialog({
   openDigitalServiceModal,
   openPersonalWithdrawalModal,
   showEur = true,
+  showRmb = true,
+  openRmb,
 }: NewTransactionMenuDialogProps) {
   const runAfterClose = (action: () => void) => {
     onClose();
@@ -105,6 +110,20 @@ export function NewTransactionMenuDialog({
               direction="sell"
               verb={t('transactions.sellVerb')}
               onClick={() => runAfterClose(() => openForm('sell_eur'))}
+            />
+            </>)}
+            {showRmb && openRmb && (<>
+            <PortfolioActionButton
+              currency="RMB"
+              direction="buy"
+              verb={t('transactions.buyVerb')}
+              onClick={() => runAfterClose(() => openRmb('buy'))}
+            />
+            <PortfolioActionButton
+              currency="RMB"
+              direction="sell"
+              verb={t('transactions.sellVerb')}
+              onClick={() => runAfterClose(() => openRmb('sell'))}
             />
             </>)}
           </div>

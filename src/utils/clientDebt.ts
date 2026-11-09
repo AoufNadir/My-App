@@ -28,7 +28,7 @@ export type ClientDebtState = {
     settledLotCount: number;
 };
 
-const CREDIT_SALE_TYPES = new Set(['Vente USDT', 'Vente EUR']);
+const CREDIT_SALE_TYPES = new Set(['Vente USDT', 'Vente EUR', 'Vente RMB']);
 
 function parseDueTimestamp(value: string | undefined, fallbackTimestamp: number, legacyGraceDays: number) {
     if (value) {

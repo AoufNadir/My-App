@@ -24,7 +24,9 @@ export type ReportKind = 'month' | 'year' | 'range';
 /** How the period is cut in the report's chart and table. */
 export type BreakdownUnit = CalendarKind;
 export type ReportLang = 'ar' | 'fr';
-export type ReportCurrency = 'USDT' | 'EUR';
+/** V13-3: RMB (the yuan, Alipay) besides USDT and EUR. */
+export type ReportCurrency = 'USDT' | 'EUR' | 'RMB';
+const reportCurrencyOf = (value: unknown): ReportCurrency => (value === 'EUR' ? 'EUR' : value === 'RMB' ? 'RMB' : 'USDT');
 
 export type ReportPeriod = {
     kind: PeriodKind;
@@ -431,9 +433,10 @@ export function classifyClientRow(row: ClientTransactionDzd, linked?: Tx): Repor
     const ledgerMethod = methodFromLedger(row.paymentMethod);
     switch (row.type) {
         case 'Vente USDT':
-        case 'Vente EUR': {
+        case 'Vente EUR':
+        case 'Vente RMB': {
             const sale = portfolio?.type === 'sell' ? portfolio : undefined;
-            const currency: ReportCurrency = sale?.currency === 'EUR' || (!sale && row.type === 'Vente EUR') ? 'EUR' : 'USDT';
+            const currency: ReportCurrency = sale ? reportCurrencyOf(sale.currency) : row.type === 'Vente EUR' ? 'EUR' : row.type === 'Vente RMB' ? 'RMB' : 'USDT';
             const settledInEur = Boolean(sale && sale.currency === 'USDT' && sale.settlementCurrency === 'EUR');
             const paidThroughAnotherAccount = Boolean(sale?.linkedClientDzdId);
             return {
@@ -462,7 +465,7 @@ export function classifyClientRow(row: ClientTransactionDzd, linked?: Tx): Repor
                 return {
                     ...base,
                     kind: 'saleToUs',
-                    currency: portfolio.currency === 'EUR' ? 'EUR' : 'USDT',
+                    currency: reportCurrencyOf(portfolio.currency),
                     quantity: positiveNumber(portfolio.quantity),
                     dzdCents: fundedInEur && !affectsBalance ? null : Math.abs(montantCents),
                     ...(fundedInEur ? { eurAmount: positiveNumber(portfolio.purchaseAmountEur) } : {}),
@@ -513,7 +516,7 @@ const inPeriod = (entry: ReportEntry, period: Pick<ReportPeriod, 'from' | 'to'>)
 export function periodTotals(entries: ReadonlyArray<ReportEntry>, period: Pick<ReportPeriod, 'from' | 'to'>): PeriodTotals {
     const totals: PeriodTotals = {
         spentCents: 0,
-        currencies: { USDT: emptyCurrency('USDT'), EUR: emptyCurrency('EUR') },
+        currencies: { USDT: emptyCurrency('USDT'), EUR: emptyCurrency('EUR'), RMB: emptyCurrency('RMB') },
         serviceCount: 0,
         serviceCents: 0,
         purchaseCount: 0,
@@ -679,7 +682,7 @@ export function buildClientActivityReport(input: BuildClientActivityReportInput)
     const entries = buildReportEntries(input.clientRows.filter((row) => row.clientId === input.clientId), input.transactions);
     const totals = periodTotals(entries, period);
     const isLive = period.to >= now;
-    const currencyCards: ReportCurrencyCard[] = (['USDT', 'EUR'] as ReportCurrency[])
+    const currencyCards: ReportCurrencyCard[] = (['USDT', 'EUR', 'RMB'] as ReportCurrency[])
         .filter((currency) => totals.currencies[currency].purchases > 0)
         .map((currency) => ({
             ...totals.currencies[currency],
@@ -712,7 +715,7 @@ export function buildClientActivityReport(input: BuildClientActivityReportInput)
     if (kind === 'month') {
         const yearToDate = periodTotals(entries, { from: yearPeriod(period.year).from, to: period.to });
         sinceJanuary = {
-            quantities: { USDT: yearToDate.currencies.USDT.quantity, EUR: yearToDate.currencies.EUR.quantity },
+            quantities: { USDT: yearToDate.currencies.USDT.quantity, EUR: yearToDate.currencies.EUR.quantity, RMB: yearToDate.currencies.RMB.quantity },
             spentCents: yearToDate.spentCents,
         };
         for (const entry of entries) {

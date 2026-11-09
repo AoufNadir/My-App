@@ -104,13 +104,13 @@ const AR_RECEIVED_MONEY: Partial<MethodWords> = {
 };
 
 const AR_OPERATION: OperationWords = {
-    quantity: (currency, quantity) => (currency === 'EUR' ? `${isolate(quantity)} يورو` : isolate(`${quantity} USDT`)),
+    quantity: (currency, quantity) => (currency === 'EUR' ? `${isolate(quantity)} يورو` : isolate(`${quantity} ${currency === 'RMB' ? 'RMB' : 'USDT'}`)),
     title: (entry, amount, small) => {
         switch (entry.kind) {
-            case 'buy': return amount ? `اشتريتَ ${amount}` : entry.currency === 'EUR' ? 'اشتريتَ يورو' : 'اشتريتَ USDT';
+            case 'buy': return amount ? `اشتريتَ ${amount}` : entry.currency === 'EUR' ? 'اشتريتَ يورو' : entry.currency === 'RMB' ? 'اشتريتَ RMB' : 'اشتريتَ USDT';
             case 'service': return 'اشتريتَ خدمة رقمية';
             case 'payment': return entry.method === 'cash' ? 'دفعتَ نقداً' : entry.method === 'baridi' ? 'دفعتَ عبر BaridiMob' : entry.method === 'usdt' ? 'دفعتَ بـ USDT' : entry.method === 'eur' ? 'دفعتَ باليورو' : 'سدّدتَ دفعة';
-            case 'saleToUs': return amount ? `بعتَ لنا ${amount}` : entry.currency === 'EUR' ? 'بعتَ لنا يورو' : 'بعتَ لنا USDT';
+            case 'saleToUs': return amount ? `بعتَ لنا ${amount}` : entry.currency === 'EUR' ? 'بعتَ لنا يورو' : entry.currency === 'RMB' ? 'بعتَ لنا RMB' : 'بعتَ لنا USDT';
             case 'withdrawal': return 'سحبتَ من رصيدك';
             case 'transfer': return entry.balanceCents >= 0 ? 'حوّلتَ مبلغًا إلى عميل آخر' : 'استلمتَ مبلغًا من عميل آخر';
             case 'opening': return entry.balanceCents < 0 ? 'سُجّل في حسابك دَين سابق' : 'سُجّل في حسابك رصيد سابق';
@@ -144,8 +144,8 @@ const AR: PhoneWords = {
     },
     heroAmount: (amount) => `بمبلغ ${amount}`,
     purchaseCount: arPurchases,
-    currencyName: { USDT: 'USDT', EUR: 'اليورو' },
-    perUnit: { USDT: 'DZD لكل USDT', EUR: 'DZD لكل يورو' },
+    currencyName: { USDT: 'USDT', EUR: 'اليورو', RMB: 'RMB' },
+    perUnit: { USDT: 'DZD لكل USDT', EUR: 'DZD لكل يورو', RMB: 'DZD لكل RMB' },
     lowestPrice: 'أقل سعر',
     highestPrice: 'أعلى سعر',
     statusSettled: 'حسابك مسوّى',
@@ -158,7 +158,7 @@ const AR: PhoneWords = {
     partsTitle: (unit) => (unit === 'week' ? 'إيقاع مشترياتك أسبوعاً بأسبوع' : unit === 'month' ? 'مشترياتك شهراً بشهر' : 'مشترياتك سنة بسنة'),
     noPurchase: 'لا شراء',
     operationsTitle: 'عملياتك',
-    per100: (currency, amount) => `كل 100 ${currency === 'EUR' ? 'يورو' : 'USDT'} كلّفتك ${amount}`,
+    per100: (currency, amount) => `كل 100 ${currency === 'EUR' ? 'يورو' : currency === 'RMB' ? 'RMB' : 'USDT'} كلّفتك ${amount}`,
     rangeCaption: (period) => `أسعار شرائك خلال ${period}`,
     title: { range: 'كشف حسابك', month: 'كشف حسابك الشهري', year: 'كشف حسابك السنوي' },
     ledger: {
@@ -192,13 +192,13 @@ const FR_RECEIVED_MONEY: Partial<MethodWords> = {
 };
 
 const FR_OPERATION: OperationWords = {
-    quantity: (currency, quantity) => (currency === 'EUR' ? `${isolate(quantity)} euros` : isolate(`${quantity} USDT`)),
+    quantity: (currency, quantity) => (currency === 'EUR' ? `${isolate(quantity)} euros` : isolate(`${quantity} ${currency === 'RMB' ? 'RMB' : 'USDT'}`)),
     title: (entry, amount, small) => {
         switch (entry.kind) {
-            case 'buy': return amount ? `Vous avez acheté ${amount}` : entry.currency === 'EUR' ? 'Vous avez acheté des euros' : 'Vous avez acheté des USDT';
+            case 'buy': return amount ? `Vous avez acheté ${amount}` : entry.currency === 'EUR' ? 'Vous avez acheté des euros' : entry.currency === 'RMB' ? 'Vous avez acheté des RMB' : 'Vous avez acheté des USDT';
             case 'service': return 'Vous avez acheté un service numérique';
             case 'payment': return entry.method === 'cash' ? 'Vous avez payé en espèces' : entry.method === 'baridi' ? 'Vous avez payé par BaridiMob' : entry.method === 'usdt' ? 'Vous avez payé en USDT' : entry.method === 'eur' ? 'Vous avez payé en euros' : 'Vous avez fait un versement';
-            case 'saleToUs': return amount ? `Vous nous avez vendu ${amount}` : entry.currency === 'EUR' ? 'Vous nous avez vendu des euros' : 'Vous nous avez vendu des USDT';
+            case 'saleToUs': return amount ? `Vous nous avez vendu ${amount}` : entry.currency === 'EUR' ? 'Vous nous avez vendu des euros' : entry.currency === 'RMB' ? 'Vous nous avez vendu des RMB' : 'Vous nous avez vendu des USDT';
             case 'withdrawal': return 'Vous avez retiré de votre solde';
             case 'transfer': return entry.balanceCents >= 0 ? 'Vous avez transféré à un autre client' : 'Vous avez reçu d’un autre client';
             case 'opening': return entry.balanceCents < 0 ? 'Une dette antérieure a été inscrite sur votre compte' : 'Un solde antérieur a été inscrit sur votre compte';
@@ -232,8 +232,8 @@ const FR: PhoneWords = {
     },
     heroAmount: (amount) => `pour ${amount}`,
     purchaseCount: (count) => `${count} achat${count > 1 ? 's' : ''}`,
-    currencyName: { USDT: 'USDT', EUR: 'EUR' },
-    perUnit: { USDT: 'DZD par USDT', EUR: 'DZD par euro' },
+    currencyName: { USDT: 'USDT', EUR: 'EUR', RMB: 'RMB' },
+    perUnit: { USDT: 'DZD par USDT', EUR: 'DZD par euro', RMB: 'DZD par RMB' },
     lowestPrice: 'Plus bas',
     highestPrice: 'Plus haut',
     statusSettled: 'Votre compte est réglé',
@@ -246,7 +246,7 @@ const FR: PhoneWords = {
     partsTitle: (unit) => (unit === 'week' ? 'Vos achats semaine par semaine' : unit === 'month' ? 'Vos achats mois par mois' : 'Vos achats année par année'),
     noPurchase: 'Aucun achat',
     operationsTitle: 'Vos opérations',
-    per100: (currency, amount) => `Chaque tranche de 100 ${currency === 'EUR' ? 'EUR' : 'USDT'} vous a coûté ${amount}`,
+    per100: (currency, amount) => `Chaque tranche de 100 ${currency === 'EUR' ? 'EUR' : currency === 'RMB' ? 'RMB' : 'USDT'} vous a coûté ${amount}`,
     rangeCaption: (period) => `Vos prix d’achat sur ${period}`,
     title: { range: 'Relevé de votre compte', month: 'Relevé mensuel de votre compte', year: 'Relevé annuel de votre compte' },
     ledger: {

@@ -1,8 +1,8 @@
 // V13-2: a currency hidden in the settings (EUR for now) leaves the buy / sell windows and the portfolio page.
 // Nothing is deleted: its past operations, profits and any stock left still count everywhere they did.
 // Kept on the user document (`hiddenCurrencies`), so the phone and both computers agree.
-export type HideableCurrency = 'EUR';
-export const HIDEABLE_CURRENCIES: HideableCurrency[] = ['EUR'];
+export type HideableCurrency = 'EUR' | 'RMB';
+export const HIDEABLE_CURRENCIES: HideableCurrency[] = ['EUR', 'RMB'];
 
 export function readHiddenCurrencies(raw: unknown): HideableCurrency[] {
     if (!Array.isArray(raw)) return [];

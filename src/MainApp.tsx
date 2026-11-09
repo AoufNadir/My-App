@@ -35,6 +35,8 @@ import { ArrowRightLeftIcon } from './components/icons/ArrowRightLeftIcon';
 import { RotateCcwIcon } from './components/icons/RotateCcwIcon';
 import { AppBottomNav } from './components/main/AppNavigation';
 import { useHiddenCurrencies } from './hooks/useHiddenCurrencies';
+import { RmbTradeDialog } from './components/main/RmbTradeDialog';
+import { isRmbOperation, rmbTradeRows, type RmbTradeInput } from './utils/rmbTrade';
 import { CurrencyVisibilityProvider } from './contexts/CurrencyVisibilityContext';
 import { NewTransactionMenuDialog } from './components/transactions/NewTransactionMenuDialog';
 import { MainHeaderBar } from './components/main/MainHeaderBar';
@@ -247,6 +249,7 @@ export default function MainApp({ user }: {
     // V13-2: EUR hidden in the settings leaves the buy / sell windows and the portfolio page; nothing else changes.
     const hiddenCurrencies = useHiddenCurrencies(userDocRef as never);
     const showEur = !hiddenCurrencies.isHidden('EUR');
+    const showRmb = !hiddenCurrencies.isHidden('RMB');
     // Open instantly from the IndexedDB cache when it holds a previous session's
     // data. An empty cache (first open on this device) still waits for the
     // server, so the app never flashes zero balances.
@@ -362,6 +365,13 @@ export default function MainApp({ user }: {
         return () => window.clearTimeout(timer);
     }, [pamLedger]);
     const portfolioStats = pamLedger.portfolioStats;
+    // V13-3: the RMB in stock (Alipay) and what it is worth at its average price, counted in the capital.
+    const rmbStock = useMemo(() => {
+        const holding = (pamLedger.holdings as Record<string, { available: number; locked: number; avgBuy: number }> | undefined)?.RMB;
+        const quantity = holding ? holding.available + (holding.locked || 0) : 0;
+        return { quantity, avgBuy: holding?.avgBuy ?? 0, value: holding ? Math.round(quantity * holding.avgBuy * 100) / 100 : 0 };
+    }, [pamLedger]);
+    const rmbStockValue = rmbStock.value;
     const deliveryExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense'), [treasuryTransactions]);
     const personalExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense'), [treasuryTransactions]);
     const debtWriteOffs = useMemo(() => collectDebtWriteOffs(clientTransactionsDzd), [clientTransactionsDzd]);
@@ -587,6 +597,8 @@ export default function MainApp({ user }: {
     isReconcileAdvanceModalOpen, reconcileAdvanceTx, reconcileActualAmount, setReconcileActualAmount, reconcileSpentDescription, setReconcileSpentDescription, openReconcileAdvanceModal, closeReconcileAdvanceModal, handleReconcilePersonalAdvance } = useInvestorHandlers(userDocRef, derivedInvestors, treasuryStats, portfolioStats, setAlert);
     // --- 3. LOCAL UI STATE ---
     const [isNewOperationMenuOpen, setIsNewOperationMenuOpen] = useState(false);
+    // V13-3: the RMB buy / sell window (null: closed).
+    const [rmbKind, setRmbKind] = useState<'buy' | 'sell' | null>(null);
     const [isMonthPlanOpen, setIsMonthPlanOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     // Stable, so the memoized header and bottom bar don't re-render with every page update.
@@ -1061,8 +1073,9 @@ export default function MainApp({ user }: {
         treasuryCards,
         investorLiability,
         services: servicesSummary,
-        managerPendingAdvances
-    }), [treasuryStats, portfolioStats, totals, treasuryCards, investorLiability, servicesSummary, managerPendingAdvances]);
+        managerPendingAdvances,
+        otherHoldingsValue: rmbStockValue,
+    }), [treasuryStats, portfolioStats, totals, treasuryCards, investorLiability, servicesSummary, managerPendingAdvances, rmbStockValue]);
     const managerProfitBreakdown = useMemo(() => reconcileManagerProfitBreakdown({
         breakdown: baseManagerProfitBreakdown,
         openingCapital: OWNER_OPENING_CAPITAL,
@@ -1715,6 +1728,12 @@ export default function MainApp({ user }: {
                 return;
             }
         }
+        // V13-3: an RMB operation (or a conversion made from the RMB window) is not opened in the USDT / EUR window,
+        // which would rewrite it as USDT or EUR: it is deleted and recorded again.
+        if (isRmbOperation(tx)) {
+            setAlert('ℹ️ Pour modifier une opération RMB : supprimez-la puis enregistrez-la à nouveau.');
+            return;
+        }
         if (tx.type === 'Ajout Manuel' || tx.type === 'Retrait Manuel') {
             openPortfolioBalanceEditModal(tx.currency, tx);
             return;
@@ -2285,6 +2304,8 @@ export default function MainApp({ user }: {
     }, [smartPricingByCurrency]);
     const portfolioPageProps = useMemo(() => ({
         showEur,
+        showRmb,
+        rmbStock,
         statsView,
         setStatsView,
         setIsSettingsModalOpen,
@@ -2325,7 +2346,7 @@ export default function MainApp({ user }: {
         usdtReportMonth, usdtReportYear, transactions, clientTransactionsDzd, reportClientRows, selectedHeatmapDay,
         fieldBase,
         reportClient, clientsDzd, reportMonth, reportYear, reportMonthNames,
-        getClientFullName, handleExportUsdtReport, openPortfolioBalanceEditModal, pendingDeliveries, showEur
+        getClientFullName, handleExportUsdtReport, openPortfolioBalanceEditModal, pendingDeliveries, showEur, showRmb, rmbStock
     ]);
     // Bulk-import clients from CSV. Skips duplicates by name or phone, creates
     // an initial-balance ledger entry when an `initialBalance` column is mapped.
@@ -2944,7 +2965,39 @@ export default function MainApp({ user }: {
             setAlert('❌ Erreur lors de la sauvegarde.');
         }
     }, [transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, derivedInvestors, investorTransactions, treasuryCards, manualAssetTransactions, pricingPlanSync.policy, pricingPlanSync.plan, pricingPlanSync.overrides]);
-    return (<CurrencyVisibilityProvider showEur={showEur}><div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
+    const rmbHoldings = (() => {
+        const of = (stats?: { available?: number; locked?: number; avgBuy?: number }) => ({ available: Number(stats?.available || 0), avgBuy: Number(stats?.avgBuy || 0) });
+        return { RMB: of(pamLedger.holdings?.RMB), USDT: of(portfolioStats.usdt), EUR: of(portfolioStats.eur) };
+    })();
+    const switchTradeWindow = (kind: 'buy' | 'sell', currency: 'USDT' | 'EUR' | 'RMB') => {
+        if (currency === 'RMB') {
+            closeForm();
+            setRmbKind(kind);
+            return;
+        }
+        setRmbKind(null);
+        openForm(`${kind}_${currency.toLowerCase()}` as 'buy_usdt');
+    };
+    const saveRmbTrade = async (input: RmbTradeInput, profitDzd: number): Promise<boolean> => {
+        try {
+            const batch = db.batch();
+            const mainRef = userDocRef.collection('usdt_txs').doc();
+            const rows = rmbTradeRows(input, Date.now(), mainRef.id, profitDzd);
+            batch.set(mainRef, rows.main);
+            for (const row of rows.linked)
+                batch.set(userDocRef.collection(row.collection).doc(), row.data);
+            await batch.commit();
+            setAlert('✅ Transaction ajoutée.');
+            return true;
+        }
+        catch (error) {
+            console.error(error);
+            if (!(error instanceof Error && error.name === 'FinancialWriteBlockedError'))
+                setAlert('❌ Erreur lors de la sauvegarde.');
+            return false;
+        }
+    };
+    return (<CurrencyVisibilityProvider showEur={showEur} showRmb={showRmb}><div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
             <OfflineBanner />
             <div className="mx-auto max-w-4xl px-page-x pb-24 sm:px-4">
                     <MainHeaderBar {...{ view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), handleOpenGlobalSearch, onOpenSettings: openSettingsModal, onSignOut: handleSignOut, labels: navLabels }}/>
@@ -2957,7 +3010,8 @@ export default function MainApp({ user }: {
 
                 <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onNewOperation={isFinancialDataReady ? openNewOperationMenu : undefined} onOpenSettings={openSettingsModal} onSignOut={handleSignOut} overdueCount={dashboardPageProps.overdueDebtClientCount}/>
 
-                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} showEur={showEur}/>
+                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} showEur={showEur} showRmb={showRmb} openRmb={(kind) => setRmbKind(kind)}/>
+                <RmbTradeDialog kind={rmbKind} onClose={() => setRmbKind(null)} onSwitch={switchTradeWindow} holdings={rmbHoldings} clientsDzd={clientsDzd} openClientModal={openClientModal} fieldBase={fieldBase} onSave={saveRmbTrade} parseAndEvaluate={parseAndEvaluate}/>
 
                 {alert && (<AppToast message={translateAlert(alert, lang, t)} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? t('common.undo') : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined}/>)}
 
@@ -3097,7 +3151,7 @@ export default function MainApp({ user }: {
         buyRestriction, setBuyRestriction,
         realPurchaseTime, setRealPurchaseTime,
         sellDate, setSellDate, deliveryPending, setDeliveryPending, receiptPending, setReceiptPending, sellTime, setSellTime, saleDatePlan,
-        smartPricingByCurrency, smartQuoteRef, showEur,
+        smartPricingByCurrency, smartQuoteRef, showEur, showRmb, onSwitchToRmb: (kind: 'buy' | 'sell') => switchTradeWindow(kind, 'RMB'),
         isClientCrudDialogsOpen,
         txToDelete, setTxToDelete,
         handleDeleteConfirm,

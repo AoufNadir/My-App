@@ -58,6 +58,9 @@ type PortfolioPageProps = {
     openPortfolioBalanceEditModal?: (asset: 'USDT' | 'EUR') => void;
     /** V13-2: EUR hidden in the settings (its stock still counts in the total) */
     showEur?: boolean;
+    /** V13-3: the RMB in stock (Alipay), and whether RMB is shown */
+    rmbStock?: { quantity: number; avgBuy: number; value: number };
+    showRmb?: boolean;
 };
 
 type Metric = { label: string; value: number; currency: CurrencyCode; decimals: number };
@@ -95,6 +98,28 @@ function AssetCard({ symbol, icon, tone, quantity, value, metrics, onEdit, editL
           </div>))}
       </dl>
       {children}
+    </section>);
+}
+
+/** V13-3: the RMB in stock (Alipay): the quantity, what it is worth at its average price, and that price. */
+function RmbCard({ quantity, avgBuy, value }: { quantity: number; avgBuy: number; value: number }) {
+    const { t } = useLanguage();
+    const n = (amount: number, digits = 2) => amount.toLocaleString('fr-FR', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    return (<section aria-label="RMB" className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4">
+      <div className="flex items-start gap-3">
+        <span aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${CARD_TONE_CLASS.asset}`}>¥</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-semibold text-neutral-500">RMB · Alipay</p>
+          <p className="mt-0.5 text-2xl font-bold tabular-nums text-neutral-900"><bdi dir="ltr">{n(quantity)} RMB</bdi></p>
+          <p className="mt-0.5 text-sm tabular-nums text-neutral-500"><bdi dir="ltr">{n(value, 0)} DZD</bdi></p>
+        </div>
+      </div>
+      <dl className="grid grid-cols-2 gap-2">
+        <div className="min-w-0 rounded-button bg-surface-muted px-3 py-2">
+          <dt className="text-xs font-semibold leading-snug text-neutral-500">{t('portfolio.currentPam')}</dt>
+          <dd className="mt-0.5 text-base font-bold tabular-nums text-neutral-900"><bdi dir="ltr">{n(avgBuy)} DZD</bdi></dd>
+        </div>
+      </dl>
     </section>);
 }
 
@@ -180,6 +205,8 @@ export function PortfolioPage(props: PortfolioPageProps) {
         pendingDeliveries,
         onOpenClient,
         showEur = true,
+        rmbStock,
+        showRmb = true,
     } = props;
     const { t } = useLanguage();
     const [simulatorOpen, setSimulatorOpen] = useState(false);
@@ -188,7 +215,8 @@ export function PortfolioPage(props: PortfolioPageProps) {
     const eurAvail = normalizeNearZero((portfolioStats.eur.available || 0) + (portfolioStats.eur.locked || 0));
     const usdtValue = usdtAvail * Number(portfolioStats.usdt.avgBuy || 0);
     const eurValue = eurAvail * Number(portfolioStats.eur.avgBuy || 0);
-    const stockValue = usdtValue + eurValue;
+    const rmbValue = rmbStock?.value ?? 0;
+    const stockValue = usdtValue + eurValue + rmbValue;
     const lockState = usdtLockState(portfolioStats, Date.now());
 
     const priceMetrics = (pam: number, suggestedSellPrice: number): Metric[] => [
@@ -213,6 +241,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
 {showEur ? (
             <AssetCard symbol="EUR" icon={<EuroIcon className="h-5 w-5"/>} tone="eur" quantity={eurAvail} value={eurValue} metrics={priceMetrics(portfolioStats.eur.avgBuy, smartTargetEur)} onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('EUR') : undefined} editLabel={t('common.edit') as string}/>
       ) : eurAvail > 0 ? (<p className="rounded-button bg-surface-muted px-3 py-2 text-xs text-neutral-600">{(t('portfolio.eurHiddenStock') as string).replace('{amount}', eurAvail.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</p>) : null}
+      {rmbStock && (showRmb || rmbStock.quantity > 0) && (<RmbCard quantity={rmbStock?.quantity ?? 0} avgBuy={rmbStock?.avgBuy ?? 0} value={rmbValue}/>)}
 
       {pendingDeliveries && (pendingDeliveries.USDT > 0 || pendingDeliveries.EUR > 0 || (pendingDeliveries.awaited?.USDT ?? 0) > 0 || (pendingDeliveries.awaited?.EUR ?? 0) > 0) && (<ClientFundsCard owed={pendingDeliveries} mine={{ USDT: usdtAvail, EUR: eurAvail }} onOpenClient={onOpenClient}/>)}
       {pendingDeliveries?.supplierList && pendingDeliveries.supplierList.length > 0 && (<SupplierAwaitedCard list={pendingDeliveries.supplierList} onOpenClient={onOpenClient}/>)}

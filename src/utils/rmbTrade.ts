@@ -94,3 +94,8 @@ export function rmbConversionPreview(input: Pick<RmbTradeInput, 'kind' | 'source
     const incomingQty = input.kind === 'buy' ? input.quantity : input.otherAmount;
     return { incoming: input.kind === 'buy' ? 'RMB' : other, avgPrice: round2(cost / incomingQty), rate: input.quantity / input.otherAmount };
 }
+
+/** An operation of the RMB window: in RMB, or one leg of a conversion made there. Not editable in the USDT / EUR window. */
+export function isRmbOperation(tx: { currency?: unknown; conversionFrom?: unknown; conversionLeg?: unknown }): boolean {
+    return tx.currency === 'RMB' || tx.conversionFrom === 'RMB' || tx.conversionLeg === 'out';
+}

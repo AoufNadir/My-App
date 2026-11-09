@@ -83,7 +83,7 @@ assert.ok(messages.size > 100, `the source scan finds the app's messages (${mess
 
 // A value filled in at run time ({value}) is shown here as a number. Messages that are only
 // a value, or a translated text with an emoji, are already in the reader's language.
-const SAME_IN_BOTH = /^(USDT|EUR|DZD|PAM|PMA|PDF|Enregistrer|BaridiMob|RedotPay|Binance|WhatsApp|Read|Models)$/;
+const SAME_IN_BOTH = /^(USDT|EUR|RMB|DZD|PAM|PMA|PDF|Enregistrer|BaridiMob|RedotPay|Binance|WhatsApp|Read|Models)$/;
 const notTranslated: string[] = [];
 for (const [message, where] of messages) {
     const shown = message.replace(/\{value\}/g, '120');

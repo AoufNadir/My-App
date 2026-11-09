@@ -54,6 +54,8 @@ type CapitalSnapshotInput = {
     /** Sum of pending personal advances (manager has taken cash but not yet reconciled).
      *  Treated as a receivable so totalCapital stays neutral during the pending period. */
     managerPendingAdvances?: number;
+    /** V13-3: what the other currencies in stock (RMB) are worth at their average price; 0 = as before */
+    otherHoldingsValue?: number;
 };
 
 export type CapitalSnapshot = {
@@ -118,11 +120,11 @@ export function calculateServicesCapitalImpact(services?: ServicesCapitalInput):
     };
 }
 
-export function computeCapitalSnapshot({ caisseBalance, baridiBalance, portfolioValue, portfolioStats, totalDettes, totalAvances, treasuryCards = [], investorLiability = 0, services, managerPendingAdvances = 0 }: CapitalSnapshotInput): CapitalSnapshot {
+export function computeCapitalSnapshot({ caisseBalance, baridiBalance, portfolioValue, portfolioStats, totalDettes, totalAvances, treasuryCards = [], investorLiability = 0, services, managerPendingAdvances = 0, otherHoldingsValue = 0 }: CapitalSnapshotInput): CapitalSnapshot {
     const normalizedCaisse = toFiniteNumber(caisseBalance);
     const normalizedBaridi = toFiniteNumber(baridiBalance);
     const cashTotal = normalizedCaisse + normalizedBaridi;
-    const stockValue = portfolioValue === undefined ? calculateStockValue(portfolioStats) : toFiniteNumber(portfolioValue);
+    const stockValue = (portfolioValue === undefined ? calculateStockValue(portfolioStats) : toFiniteNumber(portfolioValue)) + toFiniteNumber(otherHoldingsValue);
     const treasuryCardsTotal = treasuryCards.reduce((sum, card) => sum + toFiniteNumber(card.value), 0);
     const receivables = toAbsoluteAmount(totalDettes);
     const clientAdvances = toAbsoluteAmount(totalAvances);

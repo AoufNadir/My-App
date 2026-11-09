@@ -19,8 +19,8 @@ export type SummaryRowText = {
 type Words = {
     /** « 207,52 USDT » kept in one piece inside the sentence */
     quantity: (quantity: number, currency: string) => string;
-    buy: (quantity: string | null, currency: 'USDT' | 'EUR') => string;
-    saleToUs: (quantity: string | null, currency: 'USDT' | 'EUR') => string;
+    buy: (quantity: string | null, currency: 'USDT' | 'EUR' | 'RMB') => string;
+    saleToUs: (quantity: string | null, currency: 'USDT' | 'EUR' | 'RMB') => string;
     service: string;
     unitPrice: (price: string, unit: string) => string;
     /** How a purchase of the client was settled */
@@ -47,8 +47,8 @@ type Words = {
 
 const AR: Words = {
     quantity: (quantity, currency) => isolate(`${formatQuantity(quantity)} ${currency}`),
-    buy: (quantity, currency) => (quantity ? `اشتريتَ ${quantity}` : currency === 'EUR' ? 'اشتريتَ يورو' : 'اشتريتَ USDT'),
-    saleToUs: (quantity, currency) => (quantity ? `بعتَ لنا ${quantity}` : currency === 'EUR' ? 'بعتَ لنا يورو' : 'بعتَ لنا USDT'),
+    buy: (quantity, currency) => (quantity ? `اشتريتَ ${quantity}` : currency === 'EUR' ? 'اشتريتَ يورو' : currency === 'RMB' ? 'اشتريتَ RMB' : 'اشتريتَ USDT'),
+    saleToUs: (quantity, currency) => (quantity ? `بعتَ لنا ${quantity}` : currency === 'EUR' ? 'بعتَ لنا يورو' : currency === 'RMB' ? 'بعتَ لنا RMB' : 'بعتَ لنا USDT'),
     service: 'خدمة رقمية',
     unitPrice: (price, unit) => `بسعر\u00A0${isolate(`${price}\u00A0DZD`)}\u00A0لكل\u00A0${unit}`,
     onAccount: 'سُجّلت على حسابك',
@@ -75,8 +75,8 @@ const AR: Words = {
 
 const FR: Words = {
     quantity: (quantity, currency) => `${formatQuantity(quantity)} ${currency}`,
-    buy: (quantity, currency) => (quantity ? `Achat de ${quantity}` : currency === 'EUR' ? 'Achat EUR' : 'Achat USDT'),
-    saleToUs: (quantity, currency) => (quantity ? `Vente de ${quantity} à ProDigital` : currency === 'EUR' ? 'Vente EUR à ProDigital' : 'Vente USDT à ProDigital'),
+    buy: (quantity, currency) => (quantity ? `Achat de ${quantity}` : currency === 'EUR' ? 'Achat EUR' : currency === 'RMB' ? 'Achat RMB' : 'Achat USDT'),
+    saleToUs: (quantity, currency) => (quantity ? `Vente de ${quantity} à ProDigital` : currency === 'EUR' ? 'Vente EUR à ProDigital' : currency === 'RMB' ? 'Vente RMB à ProDigital' : 'Vente USDT à ProDigital'),
     service: 'Service numérique',
     unitPrice: (price, unit) => `à\u00A0${price}\u00A0DZD\u00A0/\u00A0${unit}`,
     onAccount: 'porté sur votre compte',
@@ -140,7 +140,7 @@ export function summaryRowText(entry: ReportEntry, context: SummaryRowContext, l
     const w = WORDS[lang];
     const channel = channelKey(entry, context);
     const quantity = entry.quantity && entry.currency ? w.quantity(entry.quantity, currencyUnit(entry.currency)) : null;
-    const currency = entry.currency === 'EUR' ? 'EUR' : 'USDT';
+    const currency = entry.currency === 'EUR' ? 'EUR' : entry.currency === 'RMB' ? 'RMB' : 'USDT';
     switch (entry.kind) {
         case 'buy':
             return { title: w.buy(quantity, currency), details: [...priceDetail(entry, w), ...paidWay(entry, context, w)] };

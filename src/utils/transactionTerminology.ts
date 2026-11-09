@@ -101,6 +101,8 @@ export function getClientOperationLabel(type: string, t?: TranslateFn): string {
         return t ? `${t('ledger.sell')} USDT` : 'Vente USDT';
     if (normalized === 'vente eur')
         return t ? `${t('ledger.sell')} EUR` : 'Vente EUR';
+    if (normalized === 'vente rmb')
+        return t ? `${t('ledger.sell')} RMB` : 'Vente RMB';
     if (normalized === 'achat eur')
         return t ? `${t('ledger.buy')} EUR` : 'Achat EUR';
     if (normalized === 'solde initial')
