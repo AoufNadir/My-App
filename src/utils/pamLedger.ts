@@ -6,6 +6,11 @@ export type PamCurrency = 'USDT' | 'EUR';
  */
 export type LedgerCurrency = PamCurrency | (string & {});
 const LEGACY_CURRENCIES: PamCurrency[] = ['USDT', 'EUR'];
+/**
+ * V13-3: currencies the app trades besides USDT and EUR, always kept apart in every ledger (even one built
+ * without options), so an RMB row is never read as USDT. Stored as « RMB » (the yuan, Alipay), the name the owner uses.
+ */
+export const APP_EXTRA_CURRENCIES: readonly string[] = ['RMB'];
 export type PamLedgerWarningCode = 'stored_mismatch' | 'oversell' | 'manual_total_present' | 'quantity_only_adjustment' | 'uncosted_quantity_sold' | 'legacy_fallback' | 'eur_conversion_related' | 'missing_buy_total';
 export type PamLedgerWarningSeverity = 'info' | 'warning' | 'high';
 export interface PamLedgerOptions {
@@ -237,6 +242,8 @@ function findEurConversionRelatedTxIds(transactions: InternalTx[], conversionWin
     const relatedIds = new Set<string>();
     const eurWithdrawals = transactions.filter((tx) => (normalizeCurrency(tx.currency) === 'EUR'
         && tx.type === 'Retrait Manuel'
+        // V13-3: an EUR leg marked as a conversion (EUR spent on RMB…) is not the old EUR → USDT pair.
+        && tx.conversionLeg !== 'out'
         && (hasConversionNote(tx) || Boolean(tx.linkedTxId))));
     const usdtBuys = transactions.filter((tx) => normalizeCurrency(tx.currency) === 'USDT' && tx.type === 'buy');
     for (const withdrawal of eurWithdrawals) {
@@ -349,7 +356,9 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
     const zeroEpsilon = options.zeroEpsilon ?? DEFAULT_ZERO_EPSILON;
     const conversionWindowMs = options.conversionWindowMs ?? DEFAULT_CONVERSION_WINDOW_MS;
     const nowMs = options.nowMs ?? Date.now();
-    const currencyList: LedgerCurrency[] = [...LEGACY_CURRENCIES, ...(options.currencies || []).filter((code) => !LEGACY_SET.has(code))];
+    // An app currency joins the list only when an operation uses it: without one, the result is exactly as before.
+    const presentExtras = APP_EXTRA_CURRENCIES.filter((code) => transactions.some((tx) => tx?.currency === code));
+    const currencyList: LedgerCurrency[] = [...LEGACY_CURRENCIES, ...[...new Set([...(options.currencies || []), ...presentExtras])].filter((code) => !LEGACY_SET.has(code))];
     const known: ReadonlySet<string> = new Set(currencyList);
     const orderedTransactions = sortTransactions(transactions, known);
     const eurConversionRelatedIds = findEurConversionRelatedTxIds(orderedTransactions, conversionWindowMs);
@@ -358,6 +367,7 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
     const operationRows: PamLedgerOperationRow[] = [];
     const sellProfitRows: PamLedgerSellProfitRow[] = [];
     const profitByTxId: Record<string, PamLedgerSellProfitRow> = {};
+    const outLegCostByBuyId = new Map<string, number>();
     const warnings: PamLedgerWarning[] = [];
     const seenEurConversionBuy: Record<string, boolean> = { USDT: false, EUR: false };
     for (const tx of orderedTransactions) {
@@ -469,7 +479,15 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
         }
         else if (tx.type === 'buy') {
             const conversion = conversions.get(txId);
-            const total = conversion ? conversion.ledgerCost : round2(asNumber(tx.total, 0));
+            // V13-3: a marked conversion whose outgoing leg was already met in this pass costs exactly what that leg took
+            // out of its stock. Resolved in time order, a loop (USDT → RMB → USDT) keeps its cost; otherwise as before.
+            const passCost = outLegCostByBuyId.has(txId) ? round2(outLegCostByBuyId.get(txId)!) : null;
+            if (conversion && passCost !== null && passCost > 0) {
+                conversion.ledgerCost = passCost;
+                conversion.applied = true;
+                conversion.fromAvgBuy = conversion.fromQuantity > 0 ? round4(passCost / conversion.fromQuantity) : conversion.fromAvgBuy;
+            }
+            const total = passCost !== null && passCost > 0 ? passCost : conversion ? conversion.ledgerCost : round2(asNumber(tx.total, 0));
             stats.purchasedQty = round2(stats.purchasedQty + quantity);
             stats.costBasis = round2(stats.costBasis + total);
             costBasisChange = total;
@@ -484,6 +502,8 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
             stats.purchasedQty = round2(stats.purchasedQty - removedQty);
             stats.costBasis = round2(stats.costBasis - removedCost);
             costBasisChange = -removedCost;
+            if (tx.type === 'Retrait Manuel' && tx.conversionLeg === 'out' && tx.linkedTxId)
+                outLegCostByBuyId.set(String(tx.linkedTxId), removedCost);
             if (stats.purchasedQty < 0.00001) {
                 stats.purchasedQty = 0;
                 stats.costBasis = 0;
