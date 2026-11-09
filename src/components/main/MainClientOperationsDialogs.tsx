@@ -150,7 +150,7 @@ const formatDisplayMetric = (value: number, digits = 2) => new Intl.NumberFormat
     minimumFractionDigits: 0,
     maximumFractionDigits: digits
 }).format(Number.isFinite(value) ? value : 0);
-function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, t, clientTxType, setClientTxType, fieldBase, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, clientTxAmount, setClientTxAmount, clientTxNotes, setClientTxNotes, clientTxPaymentStatus = 'cash', setClientTxPaymentStatus, clientTxLinkedClientId, clientTxReceiverClientId = 'none', setClientTxReceiverClientId, handleSaveClientTx, selectedClientId, isAdjustmentModalOpen, setIsAdjustmentModalOpen, editingTreasuryTx, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentClientId, adjustmentReason = '', setAdjustmentReason, onAdjustmentRedirect, clientBalances, portfolioStats, treasuryStats, clientsDzd, getClientFullName, setAdjustmentClientId, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, treasuryCards, handleGlobalAdjustment, isSaving }: MainClientOperationsDialogsProps) {
+function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, t, clientTxType, setClientTxType, fieldBase, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, clientTxAmount, setClientTxAmount, clientTxNotes, setClientTxNotes, clientTxPaymentStatus = 'cash', setClientTxPaymentStatus, clientTxLinkedClientId, clientTxReceiverClientId = 'none', setClientTxReceiverClientId, handleSaveClientTx, selectedClientId, isAdjustmentModalOpen, setIsAdjustmentModalOpen, editingTreasuryTx, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentClientId, adjustmentReason = '', setAdjustmentReason, onAdjustmentRedirect, clientBalances, portfolioStats, treasuryStats, clientsDzd, getClientFullName, setAdjustmentClientId, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, treasuryCards, handleGlobalAdjustment, isSaving, showEur = true }: MainClientOperationsDialogsProps) {
     const lastAutoPriceRef = useRef('');
     const normalizedClientTxType = normalizeLedgerLabel(clientTxType || '');
     const isClientSettlementTx = normalizedClientTxType === 'Règlement Reçu' || normalizedClientTxType === 'Paiement Effectué';
@@ -583,7 +583,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     <div>
                         <Label>{t('transactions.assetType')}</Label>
                         <div className="mt-1">
-                            <AdjustmentAssetDropdown value={adjustmentAsset} options={adjustmentAssetOptions} onChange={handleAdjustmentAssetChange} t={t}/>
+                            <AdjustmentAssetDropdown value={adjustmentAsset} options={showEur || adjustmentAsset === 'EUR' ? adjustmentAssetOptions : adjustmentAssetOptions.filter((option) => option.value !== 'EUR')} onChange={handleAdjustmentAssetChange} t={t}/>
                         </div>
                     </div>
                     </FormCard>
@@ -655,7 +655,8 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
 }
 const areMainClientOperationsDialogsPropsEqual = (prev: MainClientOperationsDialogsProps, next: MainClientOperationsDialogsProps) => {
     if (prev.isClientTxModalOpen !== next.isClientTxModalOpen
-        || prev.isAdjustmentModalOpen !== next.isAdjustmentModalOpen) {
+        || prev.isAdjustmentModalOpen !== next.isAdjustmentModalOpen
+        || prev.showEur !== next.showEur) {
         return false;
     }
     if (!next.isClientTxModalOpen && !next.isAdjustmentModalOpen) {

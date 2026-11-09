@@ -35,6 +35,7 @@ import { ArrowRightLeftIcon } from './components/icons/ArrowRightLeftIcon';
 import { RotateCcwIcon } from './components/icons/RotateCcwIcon';
 import { AppBottomNav } from './components/main/AppNavigation';
 import { useHiddenCurrencies } from './hooks/useHiddenCurrencies';
+import { CurrencyVisibilityProvider } from './contexts/CurrencyVisibilityContext';
 import { NewTransactionMenuDialog } from './components/transactions/NewTransactionMenuDialog';
 import { MainHeaderBar } from './components/main/MainHeaderBar';
 import { MainContentArea } from './components/main/MainContentArea';
@@ -2943,7 +2944,7 @@ export default function MainApp({ user }: {
             setAlert('❌ Erreur lors de la sauvegarde.');
         }
     }, [transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, derivedInvestors, investorTransactions, treasuryCards, manualAssetTransactions, pricingPlanSync.policy, pricingPlanSync.plan, pricingPlanSync.overrides]);
-    return (<div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
+    return (<CurrencyVisibilityProvider showEur={showEur}><div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
             <OfflineBanner />
             <div className="mx-auto max-w-4xl px-page-x pb-24 sm:px-4">
                     <MainHeaderBar {...{ view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), handleOpenGlobalSearch, onOpenSettings: openSettingsModal, onSignOut: handleSignOut, labels: navLabels }}/>
@@ -3165,5 +3166,5 @@ export default function MainApp({ user }: {
     }}/>
             </Suspense>)}
 
-        </div>);
+        </div></CurrencyVisibilityProvider>);
 }

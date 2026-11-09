@@ -1,3 +1,4 @@
+import { useShowEur, withoutHiddenEur } from '../../contexts/CurrencyVisibilityContext';
 import { useMemo } from 'react';
 import type { ClientDzd, PortfolioStats } from '../../types';
 import type { DigitalServicePreview, DigitalServiceSaleWallet, FinancialWallet } from '../../utils/digitalServiceAccounting';
@@ -88,6 +89,7 @@ export function DigitalServiceSaleModal({
     onOpenClientModal,
     onSave,
 }: DigitalServiceSaleModalProps) {
+    const showEur = useShowEur();
     const { t } = useLanguage();
     const fieldBase = 'rounded-xl border-border bg-surface text-neutral-900';
     const clientOptions = useMemo(() => selectableClients(clientsDzd, [clientId]).map((client) => ({
@@ -144,12 +146,12 @@ export function DigitalServiceSaleModal({
                 </FormCard>
 
                 <FormCard title={t('digitalServices.purchaseWallet')}>
-                    <SegmentedControl size="md" columns={2} ariaLabel={t('digitalServices.purchaseWallet') as string} value={purchaseWallet} onChange={(next) => setPurchaseWallet(next as FinancialWallet)} options={[
-                        { id: 'Caisse', label: t('transactions.cash'), tone: 'profit' },
-                        { id: 'BaridiMob', label: t('transactions.baridi'), tone: 'primary' },
-                        { id: 'USDT', label: 'USDT', tone: 'primary' },
-                        { id: 'EUR', label: 'EUR', tone: 'primary' },
-                    ]}/>
+                    <SegmentedControl size="md" columns={2} ariaLabel={t('digitalServices.purchaseWallet') as string} value={purchaseWallet} onChange={(next) => setPurchaseWallet(next as FinancialWallet)} options={withoutHiddenEur([
+                        { id: 'Caisse', label: t('transactions.cash'), tone: 'profit' as const },
+                        { id: 'BaridiMob', label: t('transactions.baridi'), tone: 'primary' as const },
+                        { id: 'USDT', label: 'USDT', tone: 'primary' as const },
+                        { id: 'EUR', label: 'EUR', tone: 'primary' as const },
+                    ], showEur, purchaseWallet)}/>
                     <MoneyField
                         label={t('digitalServices.purchaseAmount')}
                         value={purchaseAmount}
@@ -166,13 +168,13 @@ export function DigitalServiceSaleModal({
                 </FormCard>
 
                 <FormCard title={t('digitalServices.saleWallet')}>
-                    <SegmentedControl size="md" columns={3} ariaLabel={t('digitalServices.saleWallet') as string} value={saleWallet} onChange={(next) => setSaleWallet(next as DigitalServiceSaleWallet)} options={[
-                        { id: 'Caisse', label: t('transactions.cash'), tone: 'profit' },
-                        { id: 'BaridiMob', label: t('transactions.baridi'), tone: 'primary' },
-                        { id: 'Credit', label: t('transactions.credit'), tone: 'debt' },
-                        { id: 'USDT', label: 'USDT', tone: 'primary' },
-                        { id: 'EUR', label: 'EUR', tone: 'primary' },
-                    ]}/>
+                    <SegmentedControl size="md" columns={3} ariaLabel={t('digitalServices.saleWallet') as string} value={saleWallet} onChange={(next) => setSaleWallet(next as DigitalServiceSaleWallet)} options={withoutHiddenEur([
+                        { id: 'Caisse', label: t('transactions.cash'), tone: 'profit' as const },
+                        { id: 'BaridiMob', label: t('transactions.baridi'), tone: 'primary' as const },
+                        { id: 'Credit', label: t('transactions.credit'), tone: 'debt' as const },
+                        { id: 'USDT', label: 'USDT', tone: 'primary' as const },
+                        { id: 'EUR', label: 'EUR', tone: 'primary' as const },
+                    ], showEur, saleWallet)}/>
                     <MoneyField
                         label={t('digitalServices.saleAmount')}
                         value={saleAmount}

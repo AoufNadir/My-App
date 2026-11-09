@@ -15,6 +15,7 @@ import { MainTransactionDialog } from './MainTransactionDialog';
 import { MainClientOperationsDialogs } from './MainClientOperationsDialogs';
 import { ClientTransferDialog, WalletTransferDialog } from './MainDialogs';
 import { DeliveryExpenseModal } from '../modals/DeliveryExpenseModal';
+import { CurrencyVisibilityProvider, withoutHiddenEur } from '../../contexts/CurrencyVisibilityContext';
 import { DigitalServiceSaleModal } from '../modals/DigitalServiceSaleModal';
 import { PersonalWithdrawalModal } from '../modals/PersonalWithdrawalModal';
 import { PersonalAdvanceReconcileModal } from '../modals/PersonalAdvanceReconcileModal';
@@ -582,3 +583,27 @@ for (const lang of ['fr', 'ar'] as const) {
     assert.ok(editingEur.includes('>EUR</button>'), `${lang}: an operation saved in EUR still opens as it was`);
 }
 console.log('operationWindows.test: V13-2 EUR hidden from the buy / sell window');
+
+// V13-2 (everywhere): EUR hidden takes the EUR choice out of every window that offers it (project expense,
+// personal withdrawal, digital service purchase and sale); an operation already in EUR keeps it.
+{
+    const eurButtons = (html: string) => (html.match(/>EUR<\/button>/g) || []).length;
+    const hidden = (node: ReturnType<typeof delivery>) => node;
+    for (const lang of ['fr', 'ar'] as const) {
+        const withProvider = (element: React.ReactElement) => render(<CurrencyVisibilityProvider showEur={false}>{element}</CurrencyVisibilityProvider>, lang);
+        const deliveryEl = <DeliveryExpenseModal isOpen onClose={noop} isSaving={false} amount="" setAmount={noop} method="Caisse" setMethod={noop} date="2026-09-30" setDate={noop} note="" setNote={noop} treasuryStats={treasuryStats} portfolioStats={portfolioStats} preview={null} onSave={noop}/>;
+        const withdrawalEl = <PersonalWithdrawalModal isOpen onClose={noop} isSaving={false} amount="" setAmount={noop} method="Caisse" setMethod={noop} date="" setDate={noop} note="" setNote={noop} mode="expense" setMode={noop} treasuryStats={treasuryStats} portfolioStats={portfolioStats} preview={null} managerAvailableProfit={0} managerCapitalInvested={0} managerExists onSave={noop}/>;
+        const serviceEl = <DigitalServiceSaleModal isOpen onClose={noop} isSaving={false} clientId="" setClientId={noop} serviceName="" setServiceName={noop} purchaseWallet="Caisse" setPurchaseWallet={noop} purchaseAmount="" setPurchaseAmount={noop} saleWallet="Caisse" setSaleWallet={noop} saleAmount="" setSaleAmount={noop} date="2026-09-30" setDate={noop} note="" setNote={noop} clientsDzd={clientsDzd} treasuryStats={treasuryStats} portfolioStats={portfolioStats} preview={null} onOpenClientModal={noop} onSave={noop}/>;
+        assert.equal(eurButtons(render(deliveryEl, lang)), 1, `${lang}: project expense offers EUR by default`);
+        assert.equal(eurButtons(hidden(withProvider(deliveryEl))), 0, `${lang}: project expense without EUR`);
+        assert.equal(eurButtons(render(withdrawalEl, lang)), 1, `${lang}: withdrawal offers EUR by default`);
+        assert.equal(eurButtons(withProvider(withdrawalEl)), 0, `${lang}: withdrawal without EUR`);
+        assert.equal(eurButtons(render(serviceEl, lang)), 2, `${lang}: digital service offers EUR twice by default`);
+        assert.equal(eurButtons(withProvider(serviceEl)), 0, `${lang}: digital service without EUR`);
+        const eurExpense = <DeliveryExpenseModal isOpen onClose={noop} isSaving={false} amount="" setAmount={noop} method="EUR" setMethod={noop} date="2026-09-30" setDate={noop} note="" setNote={noop} treasuryStats={treasuryStats} portfolioStats={portfolioStats} preview={null} onSave={noop}/>;
+        assert.equal(eurButtons(withProvider(eurExpense)), 1, `${lang}: an expense already in EUR keeps its choice`);
+    }
+    assert.deepEqual(withoutHiddenEur([{ id: 'USDT' }, { id: 'EUR' }], false).map((o) => o.id), ['USDT']);
+    assert.deepEqual(withoutHiddenEur([{ id: 'USDT' }, { id: 'EUR' }], true).map((o) => o.id), ['USDT', 'EUR']);
+}
+console.log('operationWindows.test: V13-2 EUR hidden from every window that offers it');

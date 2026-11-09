@@ -1,3 +1,4 @@
+import { useShowEur, withoutHiddenEur } from '../../contexts/CurrencyVisibilityContext';
 import { Modal, ModalContent, ModalDescription, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
@@ -60,6 +61,7 @@ export function DeliveryExpenseModal({
     preview,
     onSave,
 }: DeliveryExpenseModalProps) {
+    const showEur = useShowEur();
     const { t } = useLanguage();
     const currency = getWalletCurrency(method);
     const availableBalance = method === 'Caisse'
@@ -117,12 +119,12 @@ export function DeliveryExpenseModal({
 
                 <div>
                     <Label>{t('delivery.method')}</Label>
-                    <SegmentedControl size="md" columns={2} ariaLabel={t('delivery.method') as string} value={method} onChange={(next) => setMethod(next as FinancialWallet)} options={[
-                        { id: 'Caisse', label: t('transactions.cash'), tone: 'profit' },
-                        { id: 'BaridiMob', label: t('transactions.baridi'), tone: 'primary' },
-                        { id: 'USDT', label: 'USDT', tone: 'primary' },
-                        { id: 'EUR', label: 'EUR', tone: 'primary' },
-                    ]}/>
+                    <SegmentedControl size="md" columns={2} ariaLabel={t('delivery.method') as string} value={method} onChange={(next) => setMethod(next as FinancialWallet)} options={withoutHiddenEur([
+                        { id: 'Caisse', label: t('transactions.cash'), tone: 'profit' as const },
+                        { id: 'BaridiMob', label: t('transactions.baridi'), tone: 'primary' as const },
+                        { id: 'USDT', label: 'USDT', tone: 'primary' as const },
+                        { id: 'EUR', label: 'EUR', tone: 'primary' as const },
+                    ], showEur, method)}/>
                 </div>
 
                 {preview && isAssetWallet(method) && (
