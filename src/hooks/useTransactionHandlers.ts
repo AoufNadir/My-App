@@ -14,6 +14,8 @@ import {
 import { operationStamp } from '../utils/editStamp';
 import { formatNumber } from '../pages/shared/pageFormat';
 import { applyTransactionDelete } from '../transactionService';
+import { transferStamp } from '../utils/transferStamp';
+import { CONCURRENT_SALE_MESSAGE, stockChangedOnServer } from '../utils/concurrentSaleGuard';
 import { changeCreatesNegativeStock, NEGATIVE_STOCK_MESSAGE, withoutOperation, withQuantity } from '../utils/stockGuard';
 import { recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
 import { recordPortfolioShadow } from '../accounting/portfolioShadowDiagnostics';
@@ -454,7 +456,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         setBuyEurForUsdtAmount(eurSpent > 0 ? eurSpent.toFixed(2) : '');
                         setEurUsdtRate(inferredRate > 0 ? inferredRate.toFixed(4) : '');
                         setEurDzdPrice(inferredEurPrice > 0 ? inferredEurPrice.toFixed(2) : '');
-                        if (txToEdit.lockedUntil && txToEdit.lockedUntil > Date.now()) {
+                        if (txToEdit.lockedUntil) { // V13-6 (audit): an expired lock still keeps its real purchase time on edit
                             setBuyRestriction('locked_24h');
                             const pd = new Date(txToEdit.lockedUntil - 24 * 60 * 60 * 1000);
                             setRealPurchaseTime(`${String(pd.getHours()).padStart(2, '0')}:${String(pd.getMinutes()).padStart(2, '0')}`);
@@ -467,7 +469,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         const existingTotal = Number(txToEdit.total || 0);
                         const fallbackTotal = Math.round((txToEdit.quantity || 0) * (txToEdit.price || 0));
                         setBuyUsdtTotal((existingTotal > 0 ? Math.round(existingTotal) : fallbackTotal).toString());
-                        if (txToEdit.lockedUntil && txToEdit.lockedUntil > Date.now()) {
+                        if (txToEdit.lockedUntil) { // V13-6 (audit): an expired lock still keeps its real purchase time on edit
                             setBuyRestriction('locked_24h');
                             const pd = new Date(txToEdit.lockedUntil - 24 * 60 * 60 * 1000);
                             setRealPurchaseTime(`${String(pd.getHours()).padStart(2, '0')}:${String(pd.getMinutes()).padStart(2, '0')}`);
@@ -1342,6 +1344,10 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     });
                 })()
                 : null;
+            if (!editingTx && await stockChangedOnServer(userDocRef.collection('usdt_txs') as never, transactions)) {
+                setAlert(`⚠️ ${CONCURRENT_SALE_MESSAGE}`);
+                return;
+            }
             await commitLegacyWithReadModelDeltas({
                 userDocRef,
                 batch,
@@ -2050,7 +2056,14 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 setAlert('⚠️ Impossible de retrouver le transfert lié.');
                 return;
             }
-            // Both rows keep their original date and time, so the pair stays matched and in its period.
+            // Both rows move together: the date typed in the window (V13-6, it was shown but never saved), else the old one.
+            const stamp = transferStamp(transferDate, transferTime);
+            if (stamp && stamp.timestamp > Date.now()) {
+                setAlert('⚠️ La date ne peut pas être dans le futur.');
+                return;
+            }
+            const moved = stamp && stamp.timestamp !== Number(editingTransferTx.timestamp)
+                ? { date: stamp.date, time: stamp.time, timestamp: stamp.timestamp } : null;
             const batch = db.batch();
             const note = transferNotes.trim();
             batch.update(userDocRef.collection('dzd_client_txs').doc(editingTransferTx.id), {
@@ -2058,7 +2071,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 montant: amt,
                 type: 'Transfert Sortant',
                 notes: note,
-                paymentMethod: 'Crédit'
+                paymentMethod: 'Crédit',
+                ...(moved ?? {})
             });
             batch.update(userDocRef.collection('dzd_client_txs').doc(counterpart.id), {
                 clientId: transferToClientId,
@@ -2066,7 +2080,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 type: 'Transfert Entrant',
                 notes: note,
                 paymentMethod: 'Crédit',
-                linkedTxId: editingTransferTx.id
+                linkedTxId: editingTransferTx.id,
+                ...(moved ? { ...moved, timestamp: moved.timestamp + 1 } : {})
             });
             await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [] });
             setAlert('✅ Transfert mis à jour.');

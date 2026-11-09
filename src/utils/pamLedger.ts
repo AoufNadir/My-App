@@ -481,7 +481,9 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
             const conversion = conversions.get(txId);
             // V13-3: a marked conversion whose outgoing leg was already met in this pass costs exactly what that leg took
             // out of its stock. Resolved in time order, a loop (USDT → RMB → USDT) keeps its cost; otherwise as before.
-            const passCost = outLegCostByBuyId.has(txId) ? round2(outLegCostByBuyId.get(txId)!) : null;
+            // V13-6 (audit): the old EUR → USDT purchase too, once applied, so EUR that came from USDT keep their cost.
+            const legacyPair = conversion?.fromCurrency === 'EUR' && conversion?.toCurrency === 'USDT';
+            const passCost = outLegCostByBuyId.has(txId) && (!legacyPair || conversion!.applied) ? round2(outLegCostByBuyId.get(txId)!) : null;
             if (conversion && passCost !== null && passCost > 0) {
                 conversion.ledgerCost = passCost;
                 conversion.applied = true;
@@ -502,7 +504,7 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
             stats.purchasedQty = round2(stats.purchasedQty - removedQty);
             stats.costBasis = round2(stats.costBasis - removedCost);
             costBasisChange = -removedCost;
-            if (tx.type === 'Retrait Manuel' && tx.conversionLeg === 'out' && tx.linkedTxId)
+            if (tx.type === 'Retrait Manuel' && tx.linkedTxId && (tx.conversionLeg === 'out' || (currency === 'EUR' && conversions.has(String(tx.linkedTxId)))))
                 outLegCostByBuyId.set(String(tx.linkedTxId), removedCost);
             if (stats.purchasedQty < 0.00001) {
                 stats.purchasedQty = 0;

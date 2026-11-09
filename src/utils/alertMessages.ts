@@ -140,6 +140,8 @@ const ALERT_TEMPLATES: ReadonlyArray<readonly [string, string]> = [
     ['Erreur lors de l’ajustement.', 'alerts.adjustmentError'],
     ['Frais du projet enregistrés.', 'alerts.projectCostsSaved'],
     ['Impossible de retrouver le transfert lié.', 'alerts.linkedTransferNotFound'],
+    ['La date ne peut pas être dans le futur.', 'alerts.dateFuture'],
+    ['Une autre opération vient d’être enregistrée : vérifiez le stock et confirmez à nouveau.', 'alerts.concurrentSale'],
     ['Paramètres de transfert invalides.', 'alerts.transferParamsInvalid'],
     ['Transfert réussi.', 'alerts.transferDone'],
     ['Aucune transaction récente à verrouiller.', 'alerts.noRecentToLock'],
