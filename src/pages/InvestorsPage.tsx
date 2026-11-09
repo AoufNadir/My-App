@@ -31,6 +31,8 @@ interface InvestorsPageProps {
     onDeleteInvestor: (investor: Investor) => void;
     investorEconomicsTotals: InvestorEconomicsResult['totals'];
     managerFeePercentage: string;
+    /** V13-6: each rate from its date (display only) */
+    managerFeeHistory?: ReadonlyArray<{ percentage: unknown; effectiveFrom: unknown }>;
     saveManagerFeePercentage: (val: string) => Promise<void>;
     userDocRef: FirestoreDocumentReference;
     setAlert: (msg: string) => void;
@@ -51,7 +53,7 @@ type InvestorsStats = {
     totalDebtWriteOffs: number;
     netDistributableProfit: number;
 };
-export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, saveManagerFeePercentage, userDocRef, setAlert, treasuryStats, managerProfitBreakdown, periodLock, investorTermsByInvestorId }) => {
+export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, managerFeeHistory, saveManagerFeePercentage, userDocRef, setAlert, treasuryStats, managerProfitBreakdown, periodLock, investorTermsByInvestorId }) => {
     const { t } = useLanguage();
     const stats: InvestorsStats = useMemo(() => {
         const nonManagerInvestors = investors.filter((inv) => inv.isActive && !inv.isManager);
@@ -127,7 +129,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
 
       {periodLock && (<PeriodLockCard {...periodLock} setAlert={setAlert}/>)}
 
-      <CommissionEditorModal isOpen={isCommissionModalOpen} onClose={() => setIsCommissionModalOpen(false)} value={managerFeePercentage} onSave={handleSaveCommission} managerFeeAmount={stats.managerFee}/>
+      <CommissionEditorModal isOpen={isCommissionModalOpen} onClose={() => setIsCommissionModalOpen(false)} value={managerFeePercentage} onSave={handleSaveCommission} managerFeeAmount={stats.managerFee} history={managerFeeHistory}/>
 
       {listReport && (<Suspense fallback={null}>
           <InvestorListDialog onClose={() => setListReport(null)} rows={listReport}/>

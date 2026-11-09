@@ -6,14 +6,16 @@ import { Label } from '../ui/Label';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { parseManagerFeePercentage } from '../../hooks/useSettings';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { managerFeeHistoryLines } from '../../utils/managerFeeHistoryLines';
 type CommissionEditorModalProps = {
     isOpen: boolean;
     onClose: () => void;
     value: string;
     onSave: (v: string) => Promise<void>;
     managerFeeAmount: number;
+    history?: ReadonlyArray<{ percentage: unknown; effectiveFrom: unknown }>;
 };
-export function CommissionEditorModal({ isOpen, onClose, value, onSave, managerFeeAmount }: CommissionEditorModalProps) {
+export function CommissionEditorModal({ isOpen, onClose, value, onSave, managerFeeAmount, history }: CommissionEditorModalProps) {
     const { t } = useLanguage();
     const [draftValue, setDraftValue] = useState(value);
     const [error, setError] = useState('');
@@ -67,6 +69,17 @@ export function CommissionEditorModal({ isOpen, onClose, value, onSave, managerF
             </div>
             {error && <p role="alert" className="mt-2 text-sm font-semibold text-danger">{error}</p>}
           </div>
+
+          {managerFeeHistoryLines(history).length > 0 && (<div className="rounded-card border border-border px-3 py-2.5">
+              <p className="text-xs font-semibold text-neutral-500">{t('investors.rateHistory')}</p>
+              <ul className="mt-1 space-y-0.5 text-sm text-neutral-800">
+                {managerFeeHistoryLines(history).map((line, i) => (<li key={i} className="flex justify-between gap-2">
+                    <span>{line.from === null ? t('investors.rateBefore') : `${t('investors.rateFrom')} ${new Date(line.from).toLocaleDateString('fr-FR')}`}</span>
+                    <b className="tabular-nums" dir="ltr">{line.percentage}%</b>
+                  </li>))}
+              </ul>
+              <p className="mt-1 text-xs text-neutral-500">{t('investors.rateHistoryHint')}</p>
+            </div>)}
 
           <div className="rounded-card border border-border bg-surface-muted px-3 py-2.5">
             <p className="text-xs font-semibold text-neutral-500">{t('investors.currentManagerShare')}</p>
