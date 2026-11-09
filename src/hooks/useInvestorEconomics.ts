@@ -388,6 +388,14 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             addM(distributedProfitByInvestor.get(managerInvestor.id) || 0, amount)
         );
     };
+    // V13-6: the most an investor (never the manager) can still lose at a moment: unwithdrawn profit + capital.
+    const investorLossLimit = (investorId: string, cap: number, ts: number): number | null => {
+        const inv = investorsBase.find((base) => base.id === investorId);
+        if (!inv || inv.isManager) return null;
+        const taken = inv.txs.filter((tx) => (tx.type === 'withdraw_profit' || tx.type === 'reinvest_profit') && toMs(tx.timestamp) <= ts)
+            .reduce((sum, tx) => addM(sum, tx.amount), 0);
+        return addM(cap, Math.max(0, subM(distributedProfitByInvestor.get(investorId) || 0, taken)));
+    };
     let totalDerivedProfit = 0;
     let managerShare = 0;
     let investorShare = 0;
@@ -417,13 +425,8 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
             const lossShares = distributeProportionally(derivedProfit, eligible.map((item) => item.cap));
             let carried = 0;
             eligible.forEach((item, index) => {
-                const inv = investorsBase.find((base) => base.id === item.id);
-                if (!inv || inv.isManager) return;
-                const taken = inv.txs.filter((tx) => (tx.type === 'withdraw_profit' || tx.type === 'reinvest_profit') && toMs(tx.timestamp) <= sellTs)
-                    .reduce((sum, tx) => addM(sum, tx.amount), 0);
-                const unwithdrawn = Math.max(0, subM(distributedProfitByInvestor.get(item.id) || 0, taken));
-                const limit = addM(item.cap, unwithdrawn);
-                if (-lossShares[index] > limit) {
+                const limit = investorLossLimit(item.id, item.cap, sellTs);
+                if (limit !== null && -lossShares[index] > limit) {
                     carried = addM(carried, subM(lossShares[index], -limit));
                     lossShares[index] = -limit;
                 }
@@ -502,6 +505,23 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
         // / withdraw_profit validation reflects the true post-expense entitlement.
         creditManager(-managerBurden);
         const burdenShares = distributeProportionally(investorBurden, eligible.map((item) => item.cap));
+        if (expenseTs >= LOSS_POLICY_FROM_MS) {
+            // V13-6 (owner's decision): the same limit as a loss: an investor never carries more than his unwithdrawn
+            // profit plus his capital; the rest falls on the manager.
+            let carried = 0;
+            eligible.forEach((item, index) => {
+                const limit = investorLossLimit(item.id, item.cap, expenseTs);
+                if (limit !== null && burdenShares[index] > limit) {
+                    carried = addM(carried, subM(burdenShares[index], limit));
+                    burdenShares[index] = limit;
+                }
+            });
+            if (carried > 0) {
+                investorShare = addM(investorShare, carried);
+                managerShare = subM(managerShare, carried);
+                creditManager(-carried);
+            }
+        }
         eligible.forEach((item, index) => {
             distributedProfitByInvestor.set(item.id, subM(distributedProfitByInvestor.get(item.id) || 0, burdenShares[index]));
         });

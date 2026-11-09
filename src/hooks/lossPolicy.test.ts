@@ -34,4 +34,11 @@ const sell = (ts: number, qty: number, price: number) => ({ id: `s${ts}`, type: 
     const r = run([buy(P, 1_000, 250), sell(P + 1, 1_000, 240)]);
     assert.equal(byId(r, 'a').totalProfit, -3_500, 'old split: 10 000 × 70% / 2');
 }
+// 5. The same limit on a project expense: 300 000 of delivery expense, A's share 105 000 (70% / 2), capped at 100 000.
+{
+    const expense = { id: 'e', type: 'Retrait', amount: 300_000, amountDzd: 300_000, timestamp: T + 5 } as never;
+    const r = deriveInvestorEconomics({ investors: [inv('m', true), inv('a')], investorTransactions: [], transactions: [], managerFeePercentage: '30', deliveryExpenses: [expense] });
+    assert.equal(byId(r, 'a').totalProfit, -100_000);
+    assert.equal(byId(r, 'm').totalProfit + byId(r, 'a').totalProfit, -300_000);
+}
 console.log('lossPolicy.test: no fee on a loss, investors capped at unwithdrawn profit + capital, the rest on the manager');
