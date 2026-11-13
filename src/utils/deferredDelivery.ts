@@ -1,4 +1,4 @@
-import type { TradeCurrencyCode } from '../currency/tradeCurrencies';
+import { TRADE_CURRENCY_CODES, type TradeCurrencyCode } from '../currency/tradeCurrencies';
 // V12-2: sold today at today's price, delivered later, in one or several times. The sale is an ordinary sale
 // (price, profit and stock out on the day of the sale); what is still owed to the client is followed apart, in the
 // `deliveries` collection, which holds no money and changes no balance:
@@ -7,7 +7,7 @@ import type { TradeCurrencyCode } from '../currency/tradeCurrencies';
 // The inventory adds what is still owed to the stock the books expect, because it is still in the wallet.
 
 export type DeliveryCurrency = TradeCurrencyCode;
-export const DELIVERY_CURRENCIES: DeliveryCurrency[] = ['USDT', 'EUR', 'RMB'];
+export const DELIVERY_CURRENCIES: DeliveryCurrency[] = TRADE_CURRENCY_CODES;
 /** to_client: sold, not sent yet (V12-2). from_supplier: bought and paid, not received yet (V12-8). */
 export type DeliveryDirection = 'to_client' | 'from_supplier';
 export type DeliveryDoc = {
@@ -93,10 +93,10 @@ export function awaitedFromSuppliers(states: ReadonlyArray<ClientDeliveryState>)
 }
 
 function pendingTotals(states: ReadonlyArray<ClientDeliveryState>, direction: DeliveryDirection): Record<DeliveryCurrency, number> {
-    const total = { USDT: 0, EUR: 0, RMB: 0 };
+    const total = Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, 0])) as Record<DeliveryCurrency, number>;
     for (const state of states.filter((item) => item.direction === direction))
         total[state.currency] += cents(Math.max(0, state.remaining));
-    return { USDT: fromCents(total.USDT), EUR: fromCents(total.EUR), RMB: fromCents(total.RMB) };
+    return Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, fromCents(total[code])])) as Record<DeliveryCurrency, number>;
 }
 
 export type DeliveryCheck = { ok: true } | { ok: false; reason: 'empty' | 'too_much'; remaining: number };

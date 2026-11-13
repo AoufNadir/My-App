@@ -1,3 +1,4 @@
+import { currencyKey, EXTRA_CURRENCY_CODES, TRADE_CURRENCY_CODES, type TradeCurrencyKey } from '../../currency/tradeCurrencies';
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { HeroCard, ListRow, SectionCard } from '../cards';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
@@ -131,7 +132,7 @@ export function AnalyticsOverview({ transactions, ledger, clientTransactionsDzd,
         return { total, volume, other, margin: total - volume - other };
     })() : null;
     const effectRow = (key: string, title: string, value: number) => (<Fragment key={key}><ListRow title={title} trailing={<CurrencyAmount value={value} currency="DZD" semantic="auto" size="md" decimals={0} showSign/>}/></Fragment>);
-    const marginMoves = previous ? (['usdt', 'eur', 'rmb'] as const)
+    const marginMoves = previous ? TRADE_CURRENCY_CODES.map(currencyKey)
         .filter((key) => stats[key] && previous[key] && stats[key].marginPer100 !== null && previous[key].marginPer100 !== null)
         .map((key) => label('anMarginMove', { currency: key.toUpperCase(), range: ltr(`${count(previous[key].marginPer100!)} → ${count(stats[key].marginPer100!)} DZD`) })) : [];
     const summary = effects && material(effects.total) ? (<SectionCard flush title={label(effects.total > 0 ? 'anSummaryUp' : 'anSummaryDown', { amount: ltr(`${count(Math.abs(effects.total))} DZD`) })}>
@@ -144,16 +145,15 @@ export function AnalyticsOverview({ transactions, ledger, clientTransactionsDzd,
     // 3. Volumes and margin
     const rows: Array<{ key: string; title: string; now: string; before: string | null; change: number | null }> = [];
     const qty = (value: number) => count(value);
-    const volumeRow = (key: 'usdt' | 'eur' | 'rmb') => {
+    const volumeRow = (key: TradeCurrencyKey) => {
         if (!stats[key] || (stats[key].sold === 0 && !(previous && previous[key]?.sold > 0)))
             return;
         const code = key.toUpperCase();
         rows.push({ key: `${key}-sold`, title: label('anSoldOf', { currency: code }), now: qty(stats[key].sold), before: previous ? qty(previous[key].sold) : null, change: previous ? percentChange(stats[key].sold, previous[key].sold) : null });
     };
-    volumeRow('usdt');
-    volumeRow('eur');
-    volumeRow('rmb'); // V14-2: only when RMB was sold in either period
-    for (const key of ['usdt', 'eur', 'rmb'] as const)
+    // V14-4: every currency of the list, each only when it was sold in either period
+    TRADE_CURRENCY_CODES.map(currencyKey).forEach(volumeRow);
+    for (const key of TRADE_CURRENCY_CODES.map(currencyKey))
         if (stats[key] && stats[key].marginPer100 !== null)
             rows.push({ key: `${key}-margin`, title: label('anMarginOf', { currency: key.toUpperCase() }), now: count(stats[key].marginPer100!), before: previous && previous[key] && previous[key].marginPer100 !== null ? count(previous[key].marginPer100!) : null, change: previous ? percentChange(stats[key].marginPer100, previous[key].marginPer100) : null });
     const table = (<SectionCard title={label('anVolumesMargin')}>
@@ -217,7 +217,7 @@ export function AnalyticsOverview({ transactions, ledger, clientTransactionsDzd,
           {detailRow(`${t('portfolio.avgSalesPrice')} USDT`, stats.avgSellPriceUsdt !== null ? `${formatNumber(stats.avgSellPriceUsdt, { min: 2, max: 2 })} DZD` : '—')}
           {detailRow(`${label('anBought')} USDT`, count(stats.usdt.bought))}
           {detailRow(`${label('anBought')} EUR`, count(stats.eur.bought))}
-          {(stats.rmb?.bought ?? 0) > 0 && detailRow(`${label('anBought')} RMB`, count(stats.rmb.bought))}
+          {EXTRA_CURRENCY_CODES.filter((code) => (stats[currencyKey(code)]?.bought ?? 0) > 0).map((code) => detailRow(`${label('anBought')} ${code}`, count(stats[currencyKey(code)].bought)))}
         </div>
       </details>);
 

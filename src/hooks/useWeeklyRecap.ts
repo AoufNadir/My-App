@@ -1,3 +1,4 @@
+import { isExtraCurrency } from '../currency/tradeCurrencies';
 import { useEffect, useMemo, useState } from 'react';
 import type { ClientDzd, ClientTransactionDzd, Tx } from '../types';
 import { computePamLedger, type PamLedgerResult } from '../utils/pamLedger';
@@ -12,7 +13,8 @@ export interface WeeklyRecap {
     usdtSold: number;
     eurSold: number;
     /** V14-3 */
-    rmbSold?: number;
+    /** V14-4: each extra currency sold this week (RMB and the next ones), only those with some */
+    extraSold?: Array<{ code: string; quantity: number }>;
     activeDays: number;
     topClientName: string | null;
     topClientProfit: number;
@@ -82,7 +84,7 @@ export function useWeeklyRecap({
         let sellCount = 0;
         let usdtSold = 0;
         let eurSold = 0;
-        let rmbSold = 0;
+        const extraSold = new Map<string, number>();
         const activeDaysSet = new Set<string>();
         const weekSellTxIds = new Set<string>();
 
@@ -92,7 +94,7 @@ export function useWeeklyRecap({
             sellCount++;
             if (row.currency === 'USDT') usdtSold += Number(row.quantity || 0);
             else if (row.currency === 'EUR') eurSold += Number(row.quantity || 0);
-            else if ((row.currency as string) === 'RMB') rmbSold += Number(row.quantity || 0);
+            else if (isExtraCurrency(String(row.currency))) extraSold.set(String(row.currency), (extraSold.get(String(row.currency)) ?? 0) + Number(row.quantity || 0));
             activeDaysSet.add(new Date(row.timestamp).toDateString());
             if ((row as any).txId) weekSellTxIds.add((row as any).txId);
         }
@@ -140,7 +142,7 @@ export function useWeeklyRecap({
             sellCount,
             usdtSold,
             eurSold,
-            ...(rmbSold > 0 ? { rmbSold } : {}),
+            ...(extraSold.size > 0 ? { extraSold: [...extraSold.entries()].map(([code, quantity]) => ({ code, quantity })) } : {}),
             activeDays: activeDaysSet.size,
             topClientName,
             topClientProfit,

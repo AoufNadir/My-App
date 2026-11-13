@@ -1,3 +1,4 @@
+import { EXTRA_CURRENCY_CODES, isExtraCurrency } from '../currency/tradeCurrencies';
 import type { ClientDzd, ClientTransactionDzd, Tx } from '../types';
 import type { PamLedgerResult } from './pamLedger';
 
@@ -89,9 +90,8 @@ export type MonthlyReport = {
     usdtSold: number;
     eurBought: number;
     eurSold: number;
-    /** V14-2: RMB (Alipay) of the month; the report shows it only when there is some */
-    rmbBought?: number;
-    rmbSold?: number;
+    /** V14-2 / V14-4: each extra currency (RMB and the next ones) bought / sold this month, only those with some */
+    extraTrades?: Array<{ code: string; bought: number; sold: number }>;
     /** All sales to date, USDT and EUR */
     cumulativeProfit: number;
     /** USDT purchases of the month (as the old report counted them) */
@@ -99,7 +99,7 @@ export type MonthlyReport = {
     /** Sales of the month, any currency */
     sellCount: number;
     clientMovementCount: number;
-    portfolio: { usdtAvailable: number; usdtAvgBuy: number; eurAvailable: number; eurAvgBuy: number; rmbAvailable?: number; rmbAvgBuy?: number };
+    portfolio: { usdtAvailable: number; usdtAvgBuy: number; eurAvailable: number; eurAvgBuy: number; extras?: Array<{ code: string; available: number; avgBuy: number }> };
     /** Sales of the month that sold more than the stock had a cost for; null when none */
     uncosted: { currency: string; count: number; quantityWithoutCostBasis: number; rows: MonthlyUncostedRow[]; hidden: number } | null;
     ranking: { rows: MonthlyRankingRow[]; hidden: number };
@@ -199,8 +199,8 @@ export function buildMonthlyReport(input: MonthlyReportInput): MonthlyReport {
     let usdtSold = 0;
     let eurBought = 0;
     let eurSold = 0;
-    let rmbBought = 0;
-    let rmbSold = 0;
+    const extraBought = new Map<string, number>();
+    const extraSold = new Map<string, number>();
     let realizedProfit = 0;
     let buyCount = 0;
     let sellCount = 0;
@@ -215,10 +215,10 @@ export function buildMonthlyReport(input: MonthlyReportInput): MonthlyReport {
             eurBought += tx.quantity;
         if (tx.currency === 'EUR' && tx.type === 'sell')
             eurSold += tx.quantity;
-        if ((tx.currency as string) === 'RMB' && tx.type === 'buy')
-            rmbBought += tx.quantity;
-        if ((tx.currency as string) === 'RMB' && tx.type === 'sell')
-            rmbSold += tx.quantity;
+        if (isExtraCurrency(String(tx.currency)) && tx.type === 'buy')
+            extraBought.set(String(tx.currency), (extraBought.get(String(tx.currency)) ?? 0) + tx.quantity);
+        if (isExtraCurrency(String(tx.currency)) && tx.type === 'sell')
+            extraSold.set(String(tx.currency), (extraSold.get(String(tx.currency)) ?? 0) + tx.quantity);
         if (tx.type === 'sell') {
             realizedProfit += realizedOf(tx);
             sellCount += 1;
@@ -336,7 +336,7 @@ export function buildMonthlyReport(input: MonthlyReportInput): MonthlyReport {
         usdtSold,
         eurBought,
         eurSold,
-        ...(rmbBought > 0 || rmbSold > 0 ? { rmbBought, rmbSold } : {}),
+        ...(extraBought.size + extraSold.size > 0 ? { extraTrades: EXTRA_CURRENCY_CODES.filter((code) => extraBought.has(code) || extraSold.has(code)).map((code) => ({ code, bought: extraBought.get(code) ?? 0, sold: extraSold.get(code) ?? 0 })) } : {}),
         cumulativeProfit,
         buyCount,
         sellCount,
@@ -346,7 +346,13 @@ export function buildMonthlyReport(input: MonthlyReportInput): MonthlyReport {
             usdtAvgBuy: input.portfolioStats.usdt.avgBuy,
             eurAvailable: input.portfolioStats.eur.available,
             eurAvgBuy: input.portfolioStats.eur.avgBuy,
-            ...((input.portfolioStats as { rmb?: { available: number; avgBuy: number } }).rmb?.available ? { rmbAvailable: (input.portfolioStats as { rmb?: { available: number } }).rmb!.available, rmbAvgBuy: (input.portfolioStats as { rmb?: { avgBuy: number } }).rmb!.avgBuy } : {}),
+            ...(() => {
+                const extras = EXTRA_CURRENCY_CODES
+                    .map((code) => ({ code, stats: (input.portfolioStats as Record<string, { available?: number; avgBuy?: number } | undefined>)[code.toLowerCase()] }))
+                    .filter((item) => Number(item.stats?.available) > 0)
+                    .map((item) => ({ code: item.code, available: Number(item.stats!.available), avgBuy: Number(item.stats!.avgBuy || 0) }));
+                return extras.length > 0 ? { extras } : {};
+            })(),
         },
         uncosted,
         ranking: { rows: topRows, hidden: Math.max(0, rankedRows.length - topRows.length) },

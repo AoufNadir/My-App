@@ -1,3 +1,4 @@
+import { EXTRA_CURRENCY_CODES, TRADE_CURRENCY_CODES, type TradeCurrencyCode } from '../currency/tradeCurrencies';
 import { Fragment, lazy, Suspense, useMemo, useState } from 'react';
 import { TreasuryCard, TreasuryTx } from '../types';
 import { TreasurySummarySection } from '../components/treasury/TreasurySummarySection';
@@ -136,7 +137,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
         const owed = reservedForClients(states);
         const awaited = awaitedFromSuppliers(states);
         // Owed to clients is still in the wallet (+); awaited from suppliers is in the books, not yet in the wallet (−).
-        return { USDT: owed.USDT - awaited.USDT, EUR: owed.EUR - awaited.EUR, RMB: owed.RMB - awaited.RMB };
+        return Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, (owed[code] ?? 0) - (awaited[code] ?? 0)])) as Record<TradeCurrencyCode, number>;
     }, [deliveryDocs, transactions]);
     const inventoryExpectedNow = useMemo(() => inventoryExpected({
         caisse: caisseBalance,
@@ -145,7 +146,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
         usdtLocked: portfolioStats?.usdt?.locked ?? 0,
         eurAvailable: (portfolioStats?.eur?.available ?? 0) + reserved.EUR,
         eurLocked: portfolioStats?.eur?.locked ?? 0,
-        rmbAvailable: (portfolioStats?.rmb?.available ?? 0) + reserved.RMB,
+        extraAvailable: Object.fromEntries(EXTRA_CURRENCY_CODES.map((code) => [code, Number((portfolioStats as Record<string, { available?: number } | undefined> | undefined)?.[code.toLowerCase()]?.available ?? 0) + reserved[code]])),
     }), [caisseBalance, baridiBalance, portfolioStats, reserved]);
     // Money movements typed by hand that nothing explains (V7-2).
     const movementReviewEnabled = Boolean(userDocRef && onLinkMovementToClient);

@@ -1,3 +1,4 @@
+import { currencyKey, isTradeCurrency, TRADE_CURRENCY_CODES, type TradeCurrencyKey } from '../currency/tradeCurrencies';
 import type { ClientTransactionDzd, Tx } from '../types';
 import type { PamLedgerResult } from './pamLedger';
 
@@ -72,11 +73,8 @@ export type CurrencyPeriodStats = {
     /** Profit ÷ quantity sold × 100: what 100 units sold earned. Null when nothing was sold. */
     marginPer100: number | null;
 };
-export type PeriodStats = {
-    usdt: CurrencyPeriodStats;
-    eur: CurrencyPeriodStats;
-    /** V14-2: RMB (Alipay), counted like EUR */
-    rmb: CurrencyPeriodStats;
+/** V14-4: one entry per currency of the list, under its lower-case code (usdt, eur, rmb, and the next ones). */
+export type PeriodStats = Record<TradeCurrencyKey, CurrencyPeriodStats> & {
     /** All the sales, as the old page counted them */
     profit: number;
     sellCount: number;
@@ -95,14 +93,12 @@ const inRange = (timestamp: number, range: PeriodRange) => timestamp >= range.fr
 
 /** The same sums as the old page (volumes by currency, profit of the sales), for any window. */
 export function computePeriodStats(transactions: ReadonlyArray<Tx>, ledger: LedgerForStats, range: PeriodRange): PeriodStats {
-    const usdt = emptyCurrency();
-    const eur = emptyCurrency();
-    const rmb = emptyCurrency();
+    const buckets = Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [currencyKey(code), emptyCurrency()])) as Record<TradeCurrencyKey, CurrencyPeriodStats>;
     let profit = 0;
     for (const tx of transactions) {
         if (!inRange(tx.timestamp, range))
             continue;
-        const bucket = tx.currency === 'USDT' ? usdt : tx.currency === 'EUR' ? eur : tx.currency === 'RMB' ? rmb : null;
+        const bucket = isTradeCurrency(tx.currency) ? buckets[currencyKey(tx.currency)] : null;
         if (tx.type === 'buy' && bucket)
             bucket.bought += tx.quantity;
         else if (tx.type === 'sell') {
@@ -115,7 +111,7 @@ export function computePeriodStats(transactions: ReadonlyArray<Tx>, ledger: Ledg
             }
         }
     }
-    for (const bucket of [usdt, eur, rmb])
+    for (const bucket of Object.values(buckets))
         bucket.marginPer100 = bucket.sold > 0 ? (bucket.profit / bucket.sold) * 100 : null;
     let sellCount = 0;
     let winCount = 0;
@@ -137,9 +133,7 @@ export function computePeriodStats(transactions: ReadonlyArray<Tx>, ledger: Ledg
         }
     }
     return {
-        usdt,
-        eur,
-        rmb,
+        ...buckets,
         profit,
         sellCount,
         winCount,
@@ -151,7 +145,7 @@ export function computePeriodStats(transactions: ReadonlyArray<Tx>, ledger: Ledg
 }
 
 /** Is there anything to compare with: a sale or a volume in the window before. */
-export const hasActivity = (stats: PeriodStats): boolean => stats.sellCount > 0 || stats.usdt.sold > 0 || stats.eur.sold > 0 || stats.usdt.bought > 0 || stats.eur.bought > 0 || (stats.rmb?.sold ?? 0) > 0 || (stats.rmb?.bought ?? 0) > 0;
+export const hasActivity = (stats: PeriodStats): boolean => stats.sellCount > 0 || TRADE_CURRENCY_CODES.some((code) => (stats[currencyKey(code)]?.sold ?? 0) > 0 || (stats[currencyKey(code)]?.bought ?? 0) > 0);
 
 export type ProfitEffects = {
     /** Profit now minus profit before */
@@ -175,7 +169,7 @@ export function profitEffects(current: PeriodStats, previous: PeriodStats): Prof
     let volume = 0;
     let margin = 0;
     let other = 0;
-    for (const key of ['usdt', 'eur', 'rmb'] as const) { // V14-2: RMB split like the others (was in « other »)
+    for (const key of TRADE_CURRENCY_CODES.map(currencyKey)) { // V14-2 / V14-4: every currency of the list
         const now = current[key];
         const before = previous[key];
         if (!now || !before)

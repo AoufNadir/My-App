@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import type { ReactNode } from 'react';
 import type { MonthlyClientRef, MonthlyReport } from '../../../utils/monthlyReport';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel } from '../../../utils/transactionTerminology';
@@ -54,9 +55,9 @@ export function MonthlyReportSheet({ report, lang, issuedAt, variant }: MonthlyR
           <ReportCard dot="bg-neutral-500" title={w.eurBoughtSold}>
             <ReportCardValue>{num(`${formatAmount(report.eurBought)} / ${formatAmount(report.eurSold)}`)}</ReportCardValue>
           </ReportCard>
-          {report.rmbBought !== undefined && (<ReportCard dot="bg-neutral-500" title={w.rmbBoughtSold}>
-              <ReportCardValue>{num(`${formatAmount(report.rmbBought)} / ${formatAmount(report.rmbSold ?? 0)}`)}</ReportCardValue>
-            </ReportCard>)}
+          {(report.extraTrades ?? []).map((item) => (<Fragment key={item.code}><ReportCard dot="bg-neutral-500" title={w.currencyBoughtSold(item.code)}>
+              <ReportCardValue>{num(`${formatAmount(item.bought)} / ${formatAmount(item.sold)}`)}</ReportCardValue>
+            </ReportCard></Fragment>))}
           <ReportCard dot={report.cumulativeProfit < 0 ? 'bg-financial-loss' : 'bg-financial-profit'} title={w.cumulativeProfit}>
             <ReportCardValue tone={tone(report.cumulativeProfit)}>{num(signedDzd(report.cumulativeProfit))}</ReportCardValue>
           </ReportCard>
@@ -78,10 +79,10 @@ export function MonthlyReportSheet({ report, lang, issuedAt, variant }: MonthlyR
             <ReportCardValue>{num(`${formatAmount(portfolio.eurAvailable)} EUR`)}</ReportCardValue>
             <small className="text-[11px] text-neutral-500">{w.avgBuy}: {num(`${formatAmount(portfolio.eurAvgBuy)} DZD`)}</small>
           </ReportCard>
-          {portfolio.rmbAvailable !== undefined && (<ReportCard dot="bg-primary" title={w.rmbAvailable}>
-              <ReportCardValue>{num(`${formatAmount(portfolio.rmbAvailable)} RMB`)}</ReportCardValue>
-              <small className="text-[11px] text-neutral-500">{w.avgBuy}: {num(`${formatAmount(portfolio.rmbAvgBuy ?? 0)} DZD`)}</small>
-            </ReportCard>)}
+          {(portfolio.extras ?? []).map((item) => (<Fragment key={item.code}><ReportCard dot="bg-primary" title={w.currencyAvailable(item.code)}>
+              <ReportCardValue>{num(`${formatAmount(item.available)} ${item.code}`)}</ReportCardValue>
+              <small className="text-[11px] text-neutral-500">{w.avgBuy}: {num(`${formatAmount(item.avgBuy)} DZD`)}</small>
+            </ReportCard></Fragment>))}
         </ReportCardGrid>
       </ReportSection>
 

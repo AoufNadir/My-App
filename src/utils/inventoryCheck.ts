@@ -1,3 +1,4 @@
+import { currencyKey, EXTRA_CURRENCY_CODES, isTradeCurrency, TRADE_CURRENCY_CODES, type TradeCurrencyKey } from '../currency/tradeCurrencies';
 import { fromCents, toCents } from './money';
 
 /**
@@ -5,10 +6,12 @@ import { fromCents, toCents } from './money';
  * what its own books say. Pure functions only; nothing here writes a balance or touches a profit.
  */
 
-export type InventoryAccount = 'caisse' | 'baridi' | 'usdt' | 'eur' | 'rmb';
+// V14-4: the two cash wallets and one wallet per currency of the list (usdt, eur, rmb, and the next ones).
+export type InventoryAccount = 'caisse' | 'baridi' | TradeCurrencyKey;
 
 // V14-2: RMB (Alipay) is counted like EUR.
-export const INVENTORY_ACCOUNTS: readonly InventoryAccount[] = ['caisse', 'baridi', 'usdt', 'eur', 'rmb'];
+export const INVENTORY_ACCOUNTS: readonly InventoryAccount[] = ['caisse', 'baridi', ...TRADE_CURRENCY_CODES.map(currencyKey)];
+const zeroTotals = (): InventoryExpected => Object.fromEntries(INVENTORY_ACCOUNTS.map((account) => [account, 0])) as InventoryExpected;
 
 export type InventoryExpected = Record<InventoryAccount, number>;
 
@@ -32,11 +35,9 @@ export type InventoryRow = {
  * than one dinar of difference is a match. USDT and EUR are counted to the cent; one cent is noise.
  */
 export const INVENTORY_TOLERANCE_CENTS: Record<InventoryAccount, number> = {
+    ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [currencyKey(code), 1])) as Record<TradeCurrencyKey, number>,
     caisse: 99,
     baridi: 99,
-    usdt: 1,
-    eur: 1,
-    rmb: 1,
 };
 
 export const isDzdAccount = (account: InventoryAccount): boolean => account === 'caisse' || account === 'baridi';
@@ -60,6 +61,8 @@ export function inventoryExpected(input: {
     eurAvailable: number;
     eurLocked?: number;
     rmbAvailable?: number;
+    /** V14-4: every extra currency (by code), RMB included */
+    extraAvailable?: Partial<Record<string, number>>;
 }): InventoryExpected {
     const sum = (a: number, b: number) => normalizeZero(fromCents(toCents(finite(a)) + toCents(finite(b))));
     return {
@@ -67,8 +70,8 @@ export function inventoryExpected(input: {
         baridi: normalizeZero(fromCents(toCents(finite(input.baridi)))),
         usdt: sum(input.usdtAvailable, input.usdtLocked ?? 0),
         eur: sum(input.eurAvailable, input.eurLocked ?? 0),
-        rmb: sum(input.rmbAvailable ?? 0, 0),
-    };
+        ...Object.fromEntries(EXTRA_CURRENCY_CODES.map((code) => [currencyKey(code), sum(input.extraAvailable?.[code] ?? (code === 'RMB' ? input.rmbAvailable ?? 0 : 0), 0)])),
+    } as InventoryExpected;
 }
 
 /** Compares what was counted with the books, for the accounts that were counted only. */
@@ -220,7 +223,7 @@ export function listBalanceCorrections(
     for (const tx of portfolioTransactions) {
         if (tx.origin !== 'balance_edit')
             continue;
-        const account: InventoryAccount | null = tx.currency === 'USDT' ? 'usdt' : tx.currency === 'EUR' ? 'eur' : tx.currency === 'RMB' ? 'rmb' : null;
+        const account: InventoryAccount | null = isTradeCurrency(tx.currency) ? currencyKey(tx.currency) : null;
         const amount = finite(tx.quantity);
         if (!account || amount <= 0)
             continue;
@@ -246,7 +249,7 @@ export const monthKeyOf = (timestamp: number): string => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 
-const emptyTotals = (): InventoryExpected => ({ caisse: 0, baridi: 0, usdt: 0, eur: 0, rmb: 0 });
+const emptyTotals = zeroTotals;
 
 /**
  * The monthly list: for each month, the checks made and the gaps absorbed by balance corrections,
@@ -269,7 +272,7 @@ export function inventoryMonths(checks: readonly InventoryCheck[], corrections: 
         const month = monthKeyOf(correction.timestamp);
         const entry = ensure(month);
         entry.correctionCount += 1;
-        const bucket = cents[month] || (cents[month] = { caisse: 0, baridi: 0, usdt: 0, eur: 0, rmb: 0 });
+        const bucket = cents[month] || (cents[month] = zeroTotals());
         bucket[correction.account] += toCents(correction.amount);
     }
     for (const [month, bucket] of Object.entries(cents)) {

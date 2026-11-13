@@ -1,3 +1,4 @@
+import { inventoryAccountCurrency, inventoryAccountLabel } from './inventoryLabels';
 import type { TradeCurrencyCode } from '../../currency/tradeCurrencies';
 import { useCurrencyShown } from '../../contexts/CurrencyVisibilityContext';
 import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -30,14 +31,6 @@ import {
 } from '../../utils/inventoryCheck';
 import { investigateInventory, type InvestigatorAction, type InvestigatorPortfolioTx, type InvestigatorTreasuryTx } from '../../utils/inventoryInvestigator';
 
-const ACCOUNT_LABEL_KEYS: Record<InventoryAccount, string> = {
-    caisse: 'inventory.accountCaisse',
-    baridi: 'inventory.accountBaridi',
-    usdt: 'inventory.accountUsdt',
-    eur: 'inventory.accountEur',
-    rmb: 'inventory.accountRmb',
-};
-const ACCOUNT_CURRENCY: Record<InventoryAccount, MoneyCurrency> = { caisse: 'DZD', baridi: 'DZD', usdt: 'USDT', eur: 'EUR', rmb: 'RMB' };
 const MONTHS_SHOWN = 3;
 
 type Draft = Record<InventoryAccount, string>;
@@ -87,7 +80,7 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
     // Whole dinars without decimals, otherwise always two (never « 120 000,4 »).
     const decimals = (value: number, account: InventoryAccount) => (isDzdAccount(account) && Number.isInteger(value) ? { min: 0, max: 0 } : { min: 2, max: 2 });
     // Isolated left to right, so an amount inside an Arabic sentence reads « 5 000 DZD », not « DZD 5 000 ».
-    const money = (value: number, account: InventoryAccount) => `\u2066${formatMoney(value, ACCOUNT_CURRENCY[account], decimals(value, account))}\u2069`;
+    const money = (value: number, account: InventoryAccount) => `\u2066${formatMoney(value, inventoryAccountCurrency(account), decimals(value, account))}\u2069`;
     
     // What was typed: empty means not counted; text that is not a plain non-negative amount is flagged.
     const parsed = useMemo(() => {
@@ -123,7 +116,7 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
 
     // V14-2: a hidden currency's wallet is not counted, unless the books still expect some in it.
     const isShown = useCurrencyShown();
-    const countable = (account: InventoryAccount) => (account === 'usdt' || account === 'eur' || account === 'rmb')
+    const countable = (account: InventoryAccount) => (account !== 'caisse' && account !== 'baridi')
         ? isShown(account.toUpperCase() as TradeCurrencyCode) || Math.abs(Number(expected?.[account] ?? 0)) > 0.005
         : true;
     const hasDraft = INVENTORY_ACCOUNTS.some((account) => draft[account].trim() !== '');
@@ -169,7 +162,7 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
             {check.rows.map((row) => {
                 const style = STATUS_STYLE[row.status];
                 return (<span key={row.account} className={`text-xs font-semibold ${style.tone}`}>
-                    {style.mark} {t(ACCOUNT_LABEL_KEYS[row.account])}{row.status === 'match' ? '' : <> <span dir="ltr">{formatMoney(row.gap, null, { min: 0, max: 2, showSign: true })}</span></>}
+                    {style.mark} {inventoryAccountLabel(t, row.account)}{row.status === 'match' ? '' : <> <span dir="ltr">{formatMoney(row.gap, null, { min: 0, max: 2, showSign: true })}</span></>}
                 </span>);
             })}
         </div>
@@ -210,7 +203,7 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
               const style = row ? STATUS_STYLE[row.status] : null;
               return (<Fragment key={account}>
                 <div>
-                  <MoneyField label={t(ACCOUNT_LABEL_KEYS[account]) as string} value={draft[account]} onChange={(value) => edit(account, value)} currency={ACCOUNT_CURRENCY[account]} placeholder="0" error={parsed.invalid[account] ? t('common.invalidAmount') : undefined} hint={<span>{text('inventory.inApp', { amount: money(expected[account], account) })}</span>}/>
+                  <MoneyField label={inventoryAccountLabel(t, account)} value={draft[account]} onChange={(value) => edit(account, value)} currency={inventoryAccountCurrency(account)} placeholder="0" error={parsed.invalid[account] ? t('common.invalidAmount') : undefined} hint={<span>{text('inventory.inApp', { amount: money(expected[account], account) })}</span>}/>
                   {row && style && (<div className="mt-1 flex items-center justify-between gap-2">
                       <p className={`text-sm font-bold ${style.tone}`}>
                         {style.mark} {row.status === 'match'
@@ -254,7 +247,7 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
                       {month.correctionCount === 0
                         ? t('inventory.noCorrections')
                         : INVENTORY_ACCOUNTS.filter((account) => month.corrections[account] !== 0).map((account) => (<span key={account} className="me-2 inline-block font-semibold text-neutral-700">
-                            {t(ACCOUNT_LABEL_KEYS[account])} <span dir="ltr">{formatMoney(month.corrections[account], null, { min: 0, max: 2, showSign: true })}</span>
+                            {inventoryAccountLabel(t, account)} <span dir="ltr">{formatMoney(month.corrections[account], null, { min: 0, max: 2, showSign: true })}</span>
                           </span>))}
                     </p>
                   </div>))}

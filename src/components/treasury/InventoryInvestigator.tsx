@@ -1,3 +1,4 @@
+import { inventoryAccountCurrency, inventoryAccountLabel } from './inventoryLabels';
 import type { ReactNode } from 'react';
 import { Button } from '../ui/Button';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -13,14 +14,6 @@ import type {
     WrongChannelSuggestion,
 } from '../../utils/inventoryInvestigator';
 
-const ACCOUNT_LABEL_KEYS: Record<InventoryAccount, string> = {
-    caisse: 'inventory.accountCaisse',
-    baridi: 'inventory.accountBaridi',
-    usdt: 'inventory.accountUsdt',
-    eur: 'inventory.accountEur',
-    rmb: 'inventory.accountRmb',
-};
-const ACCOUNT_CURRENCY: Record<InventoryAccount, MoneyCurrency> = { caisse: 'DZD', baridi: 'DZD', usdt: 'USDT', eur: 'EUR', rmb: 'RMB' };
 const OPERATION_LABEL_KEYS: Record<string, string> = {
     Ajout: 'opAjout',
     Retrait: 'opRetrait',
@@ -121,14 +114,14 @@ export function InventoryInvestigator({ suggestions, ready, onAction }: Inventor
 
     const operationAmount = (operation: InvestigatorOperation, account: InventoryAccount) => {
         const sign = operation.direction > 0 ? '+' : operation.direction < 0 ? '-' : '';
-        const currency = ACCOUNT_CURRENCY[account];
+        const currency = inventoryAccountCurrency(account);
         const formatted = currency === 'DZD' ? dzd(operation.amount) : formatMoney(operation.amount, currency, { min: 2, max: 2 });
         return `${sign}${formatted}`;
     };
     const unexplained = (s: UnexplainedSuggestion, index: number) => card(`gap-${index}`, <>
         <p className="text-sm font-bold text-neutral-900">{word('unexplainedTitle', {
-            account: String(t(ACCOUNT_LABEL_KEYS[s.account])),
-            gap: ltr(formatMoney(s.gap, ACCOUNT_CURRENCY[s.account], { min: 0, max: 2, showSign: true })),
+            account: inventoryAccountLabel(t, s.account),
+            gap: ltr(formatMoney(s.gap, inventoryAccountCurrency(s.account), { min: 0, max: 2, showSign: true })),
         })}</p>
         <p className="text-xs text-neutral-600">
           {s.count === 0

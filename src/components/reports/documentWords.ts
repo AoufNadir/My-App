@@ -59,8 +59,8 @@ export type MonthlyReportWords = {
     topClient: string;
     usdtBoughtSold: string;
     eurBoughtSold: string;
-    rmbBoughtSold: string;
-    rmbAvailable: string;
+    currencyBoughtSold: (code: string) => string;
+    currencyAvailable: (code: string) => string;
     cumulativeProfit: string;
     buys: string;
     sells: string;
@@ -113,8 +113,8 @@ export const MONTHLY_REPORT_WORDS: Record<ReportSheetLang, MonthlyReportWords> =
         topClient: 'أفضل عميل — ربح المبيعات (PAM)',
         usdtBoughtSold: 'USDT المشترى / المباع',
         eurBoughtSold: 'EUR المشترى / المباع',
-        rmbBoughtSold: 'RMB المشترى / المباع',
-        rmbAvailable: 'RMB المتاح',
+        currencyBoughtSold: (code) => `${code} المشترى / المباع`,
+        currencyAvailable: (code) => `${code} المتاح`,
         cumulativeProfit: 'ربح المبيعات التراكمي (PAM)',
         buys: 'مشتريات المحفظة',
         sells: 'مبيعات المحفظة',
@@ -165,8 +165,8 @@ export const MONTHLY_REPORT_WORDS: Record<ReportSheetLang, MonthlyReportWords> =
         topClient: 'Top client — profit de vente (PAM)',
         usdtBoughtSold: 'USDT acheté / vendu',
         eurBoughtSold: 'EUR acheté / vendu',
-        rmbBoughtSold: 'RMB acheté / vendu',
-        rmbAvailable: 'RMB disponible',
+        currencyBoughtSold: (code) => `${code} acheté / vendu`,
+        currencyAvailable: (code) => `${code} disponible`,
         cumulativeProfit: 'Profit de vente cumulé (PAM)',
         buys: 'Achats Portefeuille',
         sells: 'Ventes Portefeuille',

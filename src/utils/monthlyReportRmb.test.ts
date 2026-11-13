@@ -11,8 +11,9 @@ const rmb = [
     { id: 's', type: 'sell', currency: 'RMB', quantity: 400, sell: 38, total: 15_200, timestamp: T + 1000 },
 ] as unknown as Tx[];
 const withRmb = buildMonthlyReport({ ...base, transactions: rmb, portfolioStats: { ...stats, rmb: { available: 600, avgBuy: 36 } } as never });
-assert.deepEqual([withRmb.rmbBought, withRmb.rmbSold, withRmb.portfolio.rmbAvailable, withRmb.portfolio.rmbAvgBuy], [1_000, 400, 600, 36]);
+assert.deepEqual(withRmb.extraTrades, [{ code: 'RMB', bought: 1_000, sold: 400 }]);
+assert.deepEqual(withRmb.portfolio.extras, [{ code: 'RMB', available: 600, avgBuy: 36 }]);
 const without = buildMonthlyReport({ ...base, transactions: [], portfolioStats: stats as never });
-assert.equal(without.rmbBought, undefined, 'no RMB: nothing more in the report');
-assert.equal(without.portfolio.rmbAvailable, undefined);
+assert.equal(without.extraTrades, undefined, 'no RMB: nothing more in the report');
+assert.equal(without.portfolio.extras, undefined);
 console.log('monthlyReportRmb.test: RMB in the monthly report only when there is some');
