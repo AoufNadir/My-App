@@ -1,3 +1,5 @@
+import { useCurrencyShown } from '../../contexts/CurrencyVisibilityContext';
+import { TRADE_CURRENCIES, type TradeCurrencyCode } from '../../currency/tradeCurrencies';
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '../ui/Button';
@@ -49,11 +51,17 @@ export function PamSimulator({ portfolioStats, smartTargetUsdt = 0, parseAndEval
     const [simSellEurPrice, setSimSellEurPrice] = useState('');
     const [simSellEurToDzdRate, setSimSellEurToDzdRate] = useState('');
 
-    const currentPam = Number(portfolioStats.usdt?.avgBuy || 0);
-    const availableUsdt = Math.max(0, Number(portfolioStats.usdt?.available || 0));
-    const purchasedQty = Math.max(0, Number(portfolioStats.usdt?.purchasedQty || portfolioStats.usdt?.available || 0));
-    const costBasis = Math.max(0, Number(portfolioStats.usdt?.costBasis || (purchasedQty * currentPam) || 0));
-    const suggestedDzdSellPrice = smartTargetUsdt > 0 ? smartTargetUsdt : currentPam;
+    // V14-3: any currency of the list that is shown (USDT, EUR, RMB…); the « with EUR » tabs are for USDT only.
+    const isShown = useCurrencyShown();
+    const choices = TRADE_CURRENCIES.filter((c) => isShown(c.code) && portfolioStats?.[c.code.toLowerCase()]);
+    const [chosen, setChosen] = useState<TradeCurrencyCode | null>(null);
+    const simCurrency: TradeCurrencyCode = chosen && choices.some((c) => c.code === chosen) ? chosen : (choices[0]?.code ?? 'USDT');
+    const sim = portfolioStats?.[simCurrency.toLowerCase()] ?? {};
+    const currentPam = Number(sim.avgBuy || 0);
+    const availableUsdt = Math.max(0, Number(sim.available || 0));
+    const purchasedQty = Math.max(0, Number(sim.purchasedQty || sim.available || 0));
+    const costBasis = Math.max(0, Number(sim.costBasis || (purchasedQty * currentPam) || 0));
+    const suggestedDzdSellPrice = simCurrency === 'USDT' && smartTargetUsdt > 0 ? smartTargetUsdt : currentPam;
 
     const newPamFromDzdSimulator = useMemo(() => {
         const qty = parsePositive(parseAndEvaluate, simBuyQty);
@@ -197,10 +205,13 @@ export function PamSimulator({ portfolioStats, smartTargetUsdt = 0, parseAndEval
         { id: 'eur', label: t('portfolio.buyWithEur') as string },
         { id: 'sell_dzd', label: t('portfolio.sellUsdtVsDzd') as string },
         { id: 'sell_eur', label: t('portfolio.sellUsdtVsEur') as string },
-    ].filter((tab) => showEur || (tab.id !== 'eur' && tab.id !== 'sell_eur')) as Tab[];
+    ].filter((tab) => (showEur && simCurrency === 'USDT') || (tab.id !== 'eur' && tab.id !== 'sell_eur')) as Tab[];
 
     return (
             <div className="space-y-4">
+                {choices.length > 1 && (<div role="radiogroup" aria-label={t('transactions.currencyLabel') as string} className="flex gap-2">
+                    {choices.map((c) => (<button key={c.code} type="button" role="radio" aria-checked={c.code === simCurrency} onClick={() => { setChosen(c.code); setSimMode('dzd'); }} className={`min-h-9 flex-1 rounded-button border px-3 text-sm font-bold ${c.code === simCurrency ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-surface text-neutral-700'}`}>{c.code}</button>))}
+                </div>)}
                 <div className="space-y-3 rounded-card bg-surface-muted p-3">
                     <div className="grid grid-cols-2 gap-2">
                         <QuickMetric
@@ -243,7 +254,7 @@ export function PamSimulator({ portfolioStats, smartTargetUsdt = 0, parseAndEval
                 {simMode === 'dzd' && (
                     <div className="space-y-3">
                         <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
-                            <MoneyField label={t('portfolio.qtyUsdt') as string} value={simBuyQty} onChange={setSimBuyQty} currency="USDT" placeholder="1000" />
+                            <MoneyField label={`${t('transactions.quantity')} (${simCurrency})`} value={simBuyQty} onChange={setSimBuyQty} currency={simCurrency as 'USDT'} placeholder="1000" />
                             <MoneyField label={t('portfolio.buyPrice') as string} value={simBuyPrice} onChange={setSimBuyPrice} currency="DZD" placeholder="240.50" />
                         </div>
                         {newPamFromDzdSimulator !== null && (
@@ -273,7 +284,7 @@ export function PamSimulator({ portfolioStats, smartTargetUsdt = 0, parseAndEval
                 {simMode === 'sell_dzd' && (
                     <div className="space-y-3">
                         <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
-                            <MoneyField label={t('portfolio.qtyUsdt') as string} value={simSellUsdtQty} onChange={setSimSellUsdtQty} currency="USDT" placeholder="1000" onMax={() => setSimSellUsdtQty(availableUsdt.toFixed(2))} maxDisabled={availableUsdt <= 0} />
+                            <MoneyField label={`${t('transactions.quantity')} (${simCurrency})`} value={simSellUsdtQty} onChange={setSimSellUsdtQty} currency={simCurrency as 'USDT'} placeholder="1000" onMax={() => setSimSellUsdtQty(availableUsdt.toFixed(2))} maxDisabled={availableUsdt <= 0} />
                             <MoneyField label={t('portfolio.sellingPriceDzd') as string} value={simSellDzdPrice} onChange={setSimSellDzdPrice} currency="DZD" placeholder="242.00" />
                         </div>
 
@@ -301,7 +312,7 @@ export function PamSimulator({ portfolioStats, smartTargetUsdt = 0, parseAndEval
                 {simMode === 'sell_eur' && (
                     <div className="space-y-3">
                         <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
-                            <MoneyField label={t('portfolio.qtyUsdt') as string} value={simSellUsdtQty} onChange={setSimSellUsdtQty} currency="USDT" placeholder="1000" onMax={() => setSimSellUsdtQty(availableUsdt.toFixed(2))} maxDisabled={availableUsdt <= 0} />
+                            <MoneyField label={`${t('transactions.quantity')} (${simCurrency})`} value={simSellUsdtQty} onChange={setSimSellUsdtQty} currency={simCurrency as 'USDT'} placeholder="1000" onMax={() => setSimSellUsdtQty(availableUsdt.toFixed(2))} maxDisabled={availableUsdt <= 0} />
                             <MoneyField label={t('portfolio.sellingPriceEur') as string} value={simSellEurPrice} onChange={setSimSellEurPrice} currency="EUR" placeholder="0.8650" />
                             <MoneyField label={t('portfolio.rateEurDzd') as string} value={simSellEurToDzdRate} onChange={setSimSellEurToDzdRate} currency="DZD" placeholder="250.00" />
                         </div>

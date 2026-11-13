@@ -69,6 +69,8 @@ const ALL_FILTER_MODES: TransactionFilterMode[] = [
     'sell_usdt_dzd',
     'sell_usdt_eur',
     'sell_eur_dzd',
+    'buy_rmb',
+    'sell_rmb',
     'stock',
     'stock_in',
     'stock_out',
@@ -258,6 +260,11 @@ function matchesTransactionFilter(mode: TransactionFilterMode, tx: DisplayTx) {
             return tx.sourceType === 'usdt_tx'
                 && isCryptoSell(rawTx)
                 && rawTx.currency === 'EUR';
+        // V14-3: every RMB purchase / sale, whatever it was paid with
+        case 'buy_rmb':
+            return tx.sourceType === 'usdt_tx' && isCryptoBuy(rawTx) && (rawTx.currency as string) === 'RMB';
+        case 'sell_rmb':
+            return tx.sourceType === 'usdt_tx' && isCryptoSell(rawTx) && (rawTx.currency as string) === 'RMB';
         case 'stock_in':
             return tx.sourceType === 'usdt_tx'
                 && (rawTx as Tx).type === 'Ajout Manuel';
@@ -345,6 +352,8 @@ function getMatchingTransactionFilterModes(tx: DisplayTx): TransactionFilterMode
             else if (rawTx.currency === 'EUR' && !rawTx.linkedTxId) {
                 modes.add('buy_eur_dzd');
             }
+            else if ((rawTx.currency as string) === 'RMB')
+                modes.add('buy_rmb');
         }
         if (isCryptoSell(rawTx)) {
             modes.add('sell');
@@ -354,6 +363,8 @@ function getMatchingTransactionFilterModes(tx: DisplayTx): TransactionFilterMode
             else if (rawTx.currency === 'EUR') {
                 modes.add('sell_eur_dzd');
             }
+            else if ((rawTx.currency as string) === 'RMB')
+                modes.add('sell_rmb');
         }
         if (isCryptoManual(rawTx)) {
             modes.add('adjustments');
@@ -489,6 +500,8 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
         sell_usdt_dzd: t('transactions.filterSellUsdtDzd'),
         sell_usdt_eur: t('transactions.filterSellUsdtEur'),
         sell_eur_dzd: t('transactions.filterSellEurDzd'),
+        buy_rmb: t('transactions.filterBuyRmb'),
+        sell_rmb: t('transactions.filterSellRmb'),
         stock: t('transactions.filterStock'),
         stock_in: t('transactions.filterStockIn'),
         stock_out: t('transactions.filterStockOut'),

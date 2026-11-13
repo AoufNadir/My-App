@@ -2,7 +2,11 @@
 // window that records, and counts.
 
 // ---- Recurring subscriptions: one reminder on their day, never recorded without a tap ----
-export type SubscriptionWallet = 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR';
+import { TRADE_CURRENCY_CODES, type TradeCurrencyCode } from '../currency/tradeCurrencies';
+
+// V14-3: any currency of the list (USDT, EUR, RMB, and the next ones) besides the two dinar wallets.
+export type SubscriptionWallet = 'Caisse' | 'BaridiMob' | TradeCurrencyCode;
+export const SUBSCRIPTION_WALLETS: SubscriptionWallet[] = ['Caisse', 'BaridiMob', ...TRADE_CURRENCY_CODES];
 export type Subscription = { id: string; name: string; amount: number; wallet: SubscriptionWallet; day: number; active: boolean; handledMonth?: string };
 
 export const monthKey = (ts: number) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
@@ -14,7 +18,7 @@ export function parseSubscription(id: string, raw: unknown): Subscription | null
     const name = typeof data.name === 'string' ? data.name.trim().slice(0, 40) : '';
     const amount = Number(data.amount);
     const day = Math.round(Number(data.day));
-    const wallet = (['Caisse', 'BaridiMob', 'USDT', 'EUR'] as const).find((w) => w === data.wallet);
+    const wallet = SUBSCRIPTION_WALLETS.find((w) => w === data.wallet);
     if (!name || !(amount > 0) || !wallet || !(day >= 1 && day <= 28))
         return null;
     return { id, name, amount: Math.round(amount * 100) / 100, wallet, day, active: data.active !== false, ...(typeof data.handledMonth === 'string' ? { handledMonth: data.handledMonth } : {}) };

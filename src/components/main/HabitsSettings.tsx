@@ -1,7 +1,8 @@
+import { useCurrencyShown } from '../../contexts/CurrencyVisibilityContext';
 import { useState } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useSubscriptions } from '../../hooks/useSubscriptions';
-import type { SubscriptionWallet } from '../../utils/habits';
+import { SUBSCRIPTION_WALLETS, type SubscriptionWallet } from '../../utils/habits';
 import { Button } from '../ui/Button';
 import { FormCard } from '../ui/FormCard';
 import { Trash2Icon } from '../icons/Trash2Icon';
@@ -23,28 +24,30 @@ export function readSmallBudget(): number {
 const W = {
     fr: {
         title: 'Habitudes contre les oublis', hint: 'Les abonnements vous sont rappelés le jour venu ; rien n’est enregistré sans votre accord.',
-        subs: 'Abonnements mensuels', name: 'Nom (ex. ChatGPT)', amount: 'Montant', day: 'Jour du mois', add: 'Ajouter', none: 'Aucun abonnement.', remove: 'Supprimer',
+        subs: 'Abonnements mensuels', wallet: 'Portefeuille', name: 'Nom (ex. ChatGPT)', amount: 'Montant', day: 'Jour du mois', add: 'Ajouter', none: 'Aucun abonnement.', remove: 'Supprimer',
         budget: 'Budget mensuel des petites dépenses (DZD)', budgetHint: 'Dépenses personnelles de 5 000 DZD au plus. Laissez vide pour ne rien afficher.', save: 'Enregistrer', saved: 'Enregistré',
     },
     ar: {
         title: 'عادات ضد النسيان', hint: 'تُذكَّر بالاشتراكات في يومها، ولا يُسجَّل شيء دون موافقتك.',
-        subs: 'الاشتراكات الشهرية', name: 'الاسم (مثلاً ChatGPT)', amount: 'المبلغ', day: 'يوم الشهر', add: 'إضافة', none: 'لا اشتراكات.', remove: 'حذف',
+        subs: 'الاشتراكات الشهرية', wallet: 'المحفظة', name: 'الاسم (مثلاً ChatGPT)', amount: 'المبلغ', day: 'يوم الشهر', add: 'إضافة', none: 'لا اشتراكات.', remove: 'حذف',
         budget: 'حدّ المصاريف الصغيرة الشهري (DZD)', budgetHint: 'المصاريف الشخصية التي لا تتجاوز 5 000 DZD. اتركه فارغاً لإخفائه.', save: 'حفظ', saved: 'حُفظ',
     },
 };
-const WALLETS: SubscriptionWallet[] = ['Caisse', 'BaridiMob', 'USDT', 'EUR'];
 const field = 'min-h-input w-full rounded-button border border-border bg-surface px-3 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary/40';
 
 export function HabitsSettings({ userDocRef }: { userDocRef: Parameters<typeof useSubscriptions>[0] }) {
     const { lang } = useLanguage();
     const w = W[lang];
     const { subscriptions, add, remove } = useSubscriptions(userDocRef, Boolean(userDocRef));
-    const [draft, setDraft] = useState({ name: '', amount: '', wallet: 'USDT' as SubscriptionWallet, day: '1' });
+    // V14-3: nothing pre-chosen (rule 11): no wallet, no day until the owner picks them.
+    const [draft, setDraft] = useState({ name: '', amount: '', wallet: '' as SubscriptionWallet | '', day: '' });
+    const isShown = useCurrencyShown();
+    const wallets = SUBSCRIPTION_WALLETS.filter((wallet) => wallet === 'Caisse' || wallet === 'BaridiMob' || isShown(wallet));
     const [budget, setBudget] = useState(() => (readSmallBudget() ? String(readSmallBudget()) : ''));
     const [saved, setSaved] = useState(false);
     const amount = Number(draft.amount.replace(',', '.'));
     const day = Math.round(Number(draft.day));
-    const canAdd = draft.name.trim().length >= 2 && amount > 0 && day >= 1 && day <= 28;
+    const canAdd = draft.name.trim().length >= 2 && amount > 0 && day >= 1 && day <= 28 && draft.wallet !== '';
     return (<FormCard title={w.title} description={w.hint}>
       <div className="space-y-2">
         <p className="text-sm font-semibold text-neutral-700">{w.subs}</p>
@@ -61,11 +64,12 @@ export function HabitsSettings({ userDocRef }: { userDocRef: Parameters<typeof u
         <div className="grid grid-cols-3 gap-2">
           <input inputMode="decimal" value={draft.amount} onChange={(event) => setDraft({ ...draft, amount: event.target.value })} placeholder={w.amount} aria-label={w.amount} dir="ltr" className={field}/>
           <select value={draft.wallet} onChange={(event) => setDraft({ ...draft, wallet: event.target.value as SubscriptionWallet })} aria-label={w.amount} className={field}>
-            {WALLETS.map((wallet) => <option key={wallet} value={wallet}>{wallet}</option>)}
+            <option value="" disabled>{w.wallet}</option>
+            {wallets.map((wallet) => <option key={wallet} value={wallet}>{wallet}</option>)}
           </select>
           <input inputMode="numeric" value={draft.day} onChange={(event) => setDraft({ ...draft, day: event.target.value })} placeholder={w.day} aria-label={w.day} dir="ltr" className={field}/>
         </div>
-        <Button type="button" variant="outline" size="md" className="w-full" disabled={!canAdd} onClick={() => { add({ name: draft.name, amount, wallet: draft.wallet, day }); setDraft({ ...draft, name: '', amount: '' }); }}>+ {w.add}</Button>
+        <Button type="button" variant="outline" size="md" className="w-full" disabled={!canAdd} onClick={() => { if (draft.wallet === '') return; add({ name: draft.name, amount, wallet: draft.wallet, day }); setDraft({ name: '', amount: '', wallet: '', day: '' }); }}>+ {w.add}</Button>
       </div>
       <div className="space-y-2 border-t border-border pt-3">
         <p className="text-sm font-semibold text-neutral-700">{w.budget}</p>

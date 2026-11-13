@@ -7,7 +7,7 @@ import { buildClientStatementTransactions } from '../utils/clientStatementTransa
 type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
 export type ClientsPageProps = {
     /** V12-2: clients still waiting for USDT/EUR they bought */
-    pendingDeliveryList?: ReadonlyArray<{ clientId: string; currency: 'USDT' | 'EUR'; remaining: number; late: boolean }>;
+    pendingDeliveryList?: ReadonlyArray<{ clientId: string; currency: 'USDT' | 'EUR' | 'RMB'; remaining: number; late: boolean }>;
     selectedClientId: string | null;
     setSelectedClientId: (id: string | null) => void;
     openClientModal: (client: ClientDzd | null) => void;

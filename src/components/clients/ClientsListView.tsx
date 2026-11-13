@@ -38,7 +38,7 @@ const CLIENT_IMPORT_FIELDS: Array<Omit<CsvFieldSpec, 'label'> & { labelKey: stri
 ];
 type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'zero_balance';
 type ClientsListViewProps = {
-    pendingDeliveryList?: ReadonlyArray<{ clientId: string; currency: 'USDT' | 'EUR'; remaining: number; late: boolean }>;
+    pendingDeliveryList?: ReadonlyArray<{ clientId: string; currency: 'USDT' | 'EUR' | 'RMB'; remaining: number; late: boolean }>;
     openClientModal: (client: ClientDzd | null) => void;
     clientSearchQuery: string;
     setClientSearchQuery: (query: string) => void;

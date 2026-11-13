@@ -1,3 +1,4 @@
+import { useCurrencyShown } from '../../contexts/CurrencyVisibilityContext';
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { Dropdown } from '../ui/Dropdown';
@@ -113,6 +114,7 @@ export function TransactionsHistoryCard({
           { mode: 'buy_usdt_dzd', icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
           { mode: 'buy_usdt_eur', icon: <ArrowRightLeftIcon className="h-4 w-4" />, tone: 'text-primary bg-primary/10' },
           { mode: 'buy_eur_dzd', icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
+          { mode: 'buy_rmb', icon: <ArrowDownLeftIcon className="h-4 w-4" />, tone: 'text-financial-profit bg-success-bg' },
         ],
       }],
     },
@@ -125,6 +127,7 @@ export function TransactionsHistoryCard({
           { mode: 'sell_usdt_dzd', icon: <ArrowUpRightIcon className="h-4 w-4" />, tone: 'text-financial-loss bg-danger-bg' },
           { mode: 'sell_usdt_eur', icon: <ArrowRightLeftIcon className="h-4 w-4" />, tone: 'text-financial-debt bg-warning-bg' },
           { mode: 'sell_eur_dzd', icon: <ArrowUpRightIcon className="h-4 w-4" />, tone: 'text-financial-loss bg-danger-bg' },
+          { mode: 'sell_rmb', icon: <ArrowUpRightIcon className="h-4 w-4" />, tone: 'text-financial-loss bg-danger-bg' },
         ],
       }],
     },
@@ -212,6 +215,10 @@ export function TransactionsHistoryCard({
       sections: [],
     },
   ];
+  // V14-3: the filters of a hidden currency leave (its operations still show under « all »).
+  const isShown = useCurrencyShown();
+  const modeShown = (mode: string) => (/usdt/.test(mode) ? isShown('USDT') : true)
+      && (/eur/.test(mode) ? isShown('EUR') : true) && (/rmb/.test(mode) ? isShown('RMB') : true);
   const getGroupModes = (group: FilterGroup) => [group.mode, ...group.sections.flatMap((section) => section.modes.map((item) => item.mode))];
   const activeFilterGroup = filterGroups.find((group) => getGroupModes(group).includes(filterMode))
     || filterGroups.find((group) => group.mode === LEGACY_FILTER_GROUP[filterMode])
@@ -424,7 +431,7 @@ export function TransactionsHistoryCard({
                     {section.title}
                   </div>
                 )}
-                {section.modes.map(({ mode, label, icon, tone }) => {
+                {section.modes.filter(({ mode }) => modeShown(mode)).map(({ mode, label, icon, tone }) => {
                   const isActive = filterMode === mode;
                   return (
                     <button

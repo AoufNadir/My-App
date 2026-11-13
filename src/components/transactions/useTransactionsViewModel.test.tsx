@@ -927,7 +927,10 @@ function rowsOf(groups: Record<string, DisplayTx[]>) {
 // V2-5 added the Services family (digital_services), which the reference predates: the other
 // counters are compared with the reference, and this one with the service rows it lists.
 function withoutServices(counts: Record<TransactionFilterMode, number>) {
-    const { digital_services: _services, ...others } = counts;
+    // V14-3: the RMB filters are new; the fake history holds no RMB, so they must be zero.
+    const { digital_services: _services, buy_rmb: buyRmb, sell_rmb: sellRmb, ...others } = counts;
+    assert.equal(buyRmb ?? 0, 0);
+    assert.equal(sellRmb ?? 0, 0);
     return others;
 }
 const serviceRowsOf = (groups: Record<string, DisplayTx[]>) => rowsOf(groups).filter((row) => row.category === 'digital_service');
