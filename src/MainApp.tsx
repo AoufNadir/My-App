@@ -1,4 +1,4 @@
-import { commitWithStockLock, requireStockLockSeq, STOCK_CHANGED_MESSAGE, StockChangedError } from './utils/stockLock';
+import { commitWithStockLockOrBatch, STOCK_CHANGED_MESSAGE, StockChangedError } from './utils/stockLock';
 import { useStockLockSeq } from './hooks/useStockLockSeq';
 import { previousProfits } from './utils/dashboardComparison';
 import { inventoryFixFor } from './utils/inventoryCheck';
@@ -3002,6 +3002,7 @@ export default function MainApp({ user }: {
         setTradeWin(null);
         openForm(`${kind}_${currency.toLowerCase()}` as 'buy_usdt');
     };
+    const rmbTradeSource = React.useMemo(() => ({ transactions, clientTransactions: clientTransactionsDzd, profitByTxId: pamLedger.profitByTxId }), [transactions, clientTransactionsDzd, pamLedger.profitByTxId]);
     const saveRmbTrade = async (input: RmbTradeInput, profitDzd: number, pending = false): Promise<boolean> => {
         try {
             const batch = db.batch();
@@ -3018,7 +3019,7 @@ export default function MainApp({ user }: {
                 });
             // V13-7: whatever takes stock out (a sale, or paying with another currency) goes with the stock lock.
             if (input.kind === 'sell' || input.source !== 'DZD')
-                await commitWithStockLock(db, userDocRef, batch, requireStockLockSeq(stockLockSeq));
+                await commitWithStockLockOrBatch(db, userDocRef, batch, stockLockSeq);
             else
                 await batch.commit();
             setAlert('✅ Transaction ajoutée.');
@@ -3049,7 +3050,7 @@ export default function MainApp({ user }: {
                 <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onNewOperation={isFinancialDataReady ? openNewOperationMenu : undefined} onOpenSettings={openSettingsModal} onSignOut={handleSignOut} overdueCount={dashboardPageProps.overdueDebtClientCount}/>
 
                 <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} showUsdt={showUsdt || portfolioStats.usdt.available > 0} showEur={showEur} showRmb={showRmb} openRmb={(kind) => setRmbKind(kind)} balances={{ USDT: portfolioStats.usdt.available, EUR: portfolioStats.eur.available, RMB: rmbStock.quantity }}/>
-                <RmbTradeDialog kind={tradeWin?.kind ?? null} currency={tradeWin?.currency ?? 'RMB'} initialSource={tradeWin?.source ?? null} onClose={() => setTradeWin(null)} onSwitch={switchTradeWindow} holdings={rmbHoldings} clientsDzd={clientsDzd} openClientModal={openClientModal} fieldBase={fieldBase} onSave={saveRmbTrade} parseAndEvaluate={parseAndEvaluate}/>
+                <RmbTradeDialog kind={tradeWin?.kind ?? null} currency={tradeWin?.currency ?? 'RMB'} initialSource={tradeWin?.source ?? null} onClose={() => setTradeWin(null)} onSwitch={switchTradeWindow} holdings={rmbHoldings} clientsDzd={clientsDzd} openClientModal={openClientModal} fieldBase={fieldBase} onSave={saveRmbTrade} parseAndEvaluate={parseAndEvaluate} tradeSource={rmbTradeSource}/>
 
                 {alert && (<AppToast message={translateAlert(alert, lang, t)} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? t('common.undo') : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined}/>)}
 

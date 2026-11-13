@@ -68,3 +68,19 @@ assert.equal(daysAgo(at(11, 5, 1), at(11, 5, 23)), 0, 'today');
 assert.equal(daysAgo(at(11, 4, 23), at(11, 5, 1)), 1, 'yesterday, though less than 24 hours ago');
 assert.equal(daysAgo(at(10, 30), at(11, 5)), 6);
 console.log('clientLastTrade tests passed');
+
+// V14-3: RMB too; a sale for another currency (crossTrade) and a conversion have no price in dinars and are skipped.
+{
+    const T = Date.UTC(2027, 3, 1);
+    const source = {
+        transactions: [
+            { id: 'r1', type: 'sell', currency: 'RMB', quantity: 1000, sell: 38.5, total: 38_500, timestamp: T, linkedClientId: 'k' },
+            { id: 'r2', type: 'sell', currency: 'RMB', quantity: 500, sell: 37, total: 18_500, timestamp: T + 1000, linkedClientId: 'k', crossTrade: true },
+        ] as never,
+        clientTransactions: [],
+        profitByTxId: {},
+    };
+    const last = lastTradeWithClient(source, { clientId: 'k', side: 'sell', currency: 'RMB' });
+    assert.equal(last?.price, 38.5, 'the RMB sale in dinars, not the cross sale');
+}
+console.log('clientLastTrade: RMB ok');

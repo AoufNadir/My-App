@@ -1,3 +1,4 @@
+import type { TradeCurrencyCode } from '../../currency/tradeCurrencies';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatNumber } from '../../pages/shared/pageFormat';
 import { daysAgo, type ClientTrade, type TradeSide } from '../../utils/clientLastTrade';
@@ -13,7 +14,7 @@ const qty0 = (value: number) => formatNumber(value, { min: 0, max: 2 });
 
 type Props = {
     side: TradeSide;
-    currency: 'USDT' | 'EUR';
+    currency: TradeCurrencyCode;
     clientName: string;
     /** The last operation with this client, in this currency */
     trade: ClientTrade | null;

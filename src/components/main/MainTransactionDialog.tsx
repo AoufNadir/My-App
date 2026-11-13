@@ -425,7 +425,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
         updateSellLinkedFieldsAfterPriceChange(price);
     };
     const renderAssistant = (applyPrice: (price: number) => void, currentPrice: number) => (assist && assistClientId
-        ? <ClientTradeAssistant side={assistSide} currency={activeCurrency as 'USDT' | 'EUR'} clientName={clientNameOf(assistClientId)} trade={assist.trade} reference={assist.reference} currentPrice={currentPrice} onUsePrice={applyPrice} now={assistNow}/>
+        ? <ClientTradeAssistant side={assistSide} currency={activeCurrency} clientName={clientNameOf(assistClientId)} trade={assist.trade} reference={assist.reference} currentPrice={currentPrice} onUsePrice={applyPrice} now={assistNow}/>
         : null);
     // Learned repayment behavior of the linked client (DZD ledger, currency-independent).
     const linkedDebtState = hasPrimaryClient ? activeSmartPricing?.debtByClientId?.get(linkedClientId) : undefined;

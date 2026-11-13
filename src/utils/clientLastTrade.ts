@@ -1,4 +1,5 @@
 import type { ClientTransactionDzd, Tx } from '../types';
+import type { TradeCurrencyCode } from '../currency/tradeCurrencies';
 
 // What the new-operation window tells you about a client before the quantity (V11-1): the last price you
 // sold to him (or bought from him), when, how much, what you earned on it and how it was settled; the last
@@ -56,13 +57,15 @@ type Source = {
     profitByTxId: ProfitLookup;
 };
 
-function trades(source: Source, side: TradeSide, currency: 'USDT' | 'EUR'): ClientTrade[] {
+function trades(source: Source, side: TradeSide, currency: TradeCurrencyCode): ClientTrade[] {
     const clients = clientOfEachTrade(source.clientTransactions);
     const result: ClientTrade[] = [];
     for (const tx of source.transactions) {
-        if (tx.type !== side || tx.currency !== currency || !tx.id)
+        // V14-3: any currency of the list; conversions and sales for another currency have no price in dinars.
+        const raw = tx as Tx & { crossTrade?: boolean; conversionFrom?: string; linkedClientId?: string };
+        if (tx.type !== side || (tx.currency as string) !== currency || !tx.id || raw.crossTrade || raw.conversionFrom)
             continue;
-        const client = clients.get(tx.id);
+        const client = clients.get(tx.id) ?? (raw.linkedClientId && raw.linkedClientId !== 'none' ? { clientId: raw.linkedClientId, payment: null as TradePayment, timestamp: tx.timestamp } : undefined);
         const price = dinarPrice(tx, side);
         if (!client || price === null)
             continue;
@@ -81,12 +84,12 @@ function trades(source: Source, side: TradeSide, currency: 'USDT' | 'EUR'): Clie
 }
 
 /** The last sale to (or purchase from) this client, in this currency. */
-export function lastTradeWithClient(source: Source, input: { clientId: string; side: TradeSide; currency: 'USDT' | 'EUR' }): ClientTrade | null {
+export function lastTradeWithClient(source: Source, input: { clientId: string; side: TradeSide; currency: TradeCurrencyCode }): ClientTrade | null {
     return trades(source, input.side, input.currency).find((trade) => trade.clientId === input.clientId) ?? null;
 }
 
 /** The last sale (or purchase) to anyone else: the reference for a client with no history. */
-export function lastTradeWithAnyone(source: Source, input: { side: TradeSide; currency: 'USDT' | 'EUR'; exceptClientId?: string }): ClientTrade | null {
+export function lastTradeWithAnyone(source: Source, input: { side: TradeSide; currency: TradeCurrencyCode; exceptClientId?: string }): ClientTrade | null {
     return trades(source, input.side, input.currency).find((trade) => trade.clientId !== input.exceptClientId) ?? null;
 }
 

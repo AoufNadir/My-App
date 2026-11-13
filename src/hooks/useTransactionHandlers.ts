@@ -16,7 +16,7 @@ import { formatNumber } from '../pages/shared/pageFormat';
 import { applyTransactionDelete } from '../transactionService';
 import { transferStamp } from '../utils/transferStamp';
 import { computePamLedger } from '../utils/pamLedger';
-import { requireStockLockSeq, STOCK_CHANGED_MESSAGE, StockChangedError } from '../utils/stockLock';
+import { STOCK_CHANGED_MESSAGE, StockChangedError } from '../utils/stockLock';
 import { changeCreatesNegativeStock, NEGATIVE_STOCK_MESSAGE, withoutOperation, withQuantity } from '../utils/stockGuard';
 import { recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
 import { recordPortfolioShadow } from '../accounting/portfolioShadowDiagnostics';
@@ -1359,7 +1359,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     userDocRef,
                     batch,
                     deltas: readModelDelta ? [readModelDelta] : [],
-                    stockLock: { db, expected: requireStockLockSeq(stockLockSeq) },
+                    stockLock: { db, expected: stockLockSeq ?? null },
                 });
             }
             catch (error) {

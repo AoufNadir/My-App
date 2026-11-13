@@ -1,3 +1,5 @@
+import { ClientTradeAssistant } from './ClientTradeAssistant';
+import { lastTradeWithAnyone, lastTradeWithClient } from '../../utils/clientLastTrade';
 import React from 'react';
 import { Modal, ModalContent, ModalHeader, ModalTitle } from '../ui/Modal';
 import { FormCard } from '../ui/FormCard';
@@ -40,6 +42,8 @@ export type RmbTradeDialogProps = {
     currency?: TradeCurrency;
     /** Open on a source already chosen (USDT and EUR always do: their dinar window is the usual one) */
     initialSource?: RmbSource | null;
+    /** V14-3: for « last price with this client » (read only) */
+    tradeSource?: Parameters<typeof lastTradeWithClient>[0];
 };
 
 const W = {
@@ -68,7 +72,7 @@ const W = {
 };
 const n = (value: number, digits = 2) => value.toLocaleString('fr-FR', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
-export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, openClientModal, fieldBase, onSave, parseAndEvaluate, initialSource = null, currency = 'RMB' }: RmbTradeDialogProps) {
+export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, openClientModal, fieldBase, onSave, parseAndEvaluate, initialSource = null, currency = 'RMB', tradeSource }: RmbTradeDialogProps) {
     const { lang, t } = useLanguage();
     const w = W[lang];
     const showEur = useShowEur();
@@ -77,6 +81,14 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
     const [source, setSource] = React.useState<RmbSource | null>(initialSource);
     const [clientId, setClientId] = React.useState('none');
     const [pending, setPending] = React.useState(false);
+    // V14-3: the last price with the chosen client (or with anyone, for a new client), as in the USDT / EUR window.
+    const [assistNow] = React.useState(() => Date.now());
+    const assist = React.useMemo(() => {
+        if (!tradeSource || !kind || clientId === 'none') return null;
+        const trade = lastTradeWithClient(tradeSource, { clientId, side: kind, currency });
+        return { trade, reference: trade ? null : lastTradeWithAnyone(tradeSource, { side: kind, currency, exceptClientId: clientId }) };
+    }, [tradeSource, kind, clientId, currency]);
+    const clientNameOf = (id: string) => clientsDzd.find((x) => x.id === id)?.fullName ?? '';
     const [status, setStatus] = React.useState<PaymentStatus | null>(null);
     // With dinars: quantity, price, total. Paid in another currency: quantity, rate, amount (V13-4, three linked fields).
     const [dzd, setDzd] = React.useState({ quantity: '', price: '', total: '' });
@@ -179,6 +191,7 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
             <FormCard title={t('transactions.stepHowMuch')}>
               {source === 'DZD' ? (<>
                   <MoneyField label={w.quantity(currency)} value={dzd.quantity} onChange={(v) => setDzdField('quantity', v)} onMax={kind === 'sell' ? () => setDzdField('quantity', String(holdings[currency].available)) : undefined} hint={kind === 'sell' ? <>{w.balance}: <bdi dir="ltr">{n(holdings[currency].available)} {currency}</bdi></> : undefined}/>
+                  {assist && clientId !== 'none' && (<ClientTradeAssistant side={kind} currency={currency} clientName={clientNameOf(clientId)} trade={assist.trade} reference={assist.reference} currentPrice={num(dzd.price)} onUsePrice={(price) => setDzdField('price', String(price))} now={assistNow}/>)}
                   <MoneyField label={w.price(currency)} value={dzd.price} onChange={(v) => setDzdField('price', v)} hint={<>{w.pam}: <bdi dir="ltr">{holdings[currency].avgBuy.toFixed(2)} DZD</bdi></>}/>
                   <MoneyField label={w.totalDzd} value={dzd.total} onChange={(v) => setDzdField('total', v)}/>
                 </>) : (<>
