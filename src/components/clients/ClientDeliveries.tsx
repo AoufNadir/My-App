@@ -1,3 +1,4 @@
+import { TRADE_CURRENCY_CODES } from '../../currency/tradeCurrencies';
 import { useCurrencyShown, withoutHiddenCurrencies } from '../../contexts/CurrencyVisibilityContext';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useLanguage, type Lang } from '../../contexts/LanguageContext';
@@ -190,7 +191,7 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
               </div>)
             : (<div className="space-y-3">
         <p className="text-xs text-neutral-500">{w.addOldHint}</p>
-        <SegmentedControl size="sm" ariaLabel={w.left} value={old.currency} onChange={(currency) => setOld({ ...old, currency })} options={withoutHiddenCurrencies([{ id: 'USDT', label: 'USDT', tone: 'primary' as const }, { id: 'EUR', label: 'EUR', tone: 'primary' as const }, { id: 'RMB', label: 'RMB', tone: 'primary' as const }], isShown, old.currency)}/>
+        <SegmentedControl size="sm" ariaLabel={w.left} value={old.currency} onChange={(currency) => setOld({ ...old, currency })} options={withoutHiddenCurrencies(TRADE_CURRENCY_CODES.map((code) => ({ id: code, label: code, tone: 'primary' as const })), isShown, old.currency)}/>
         <div className="relative">
           <input inputMode="decimal" value={old.qty} onChange={(event) => setOld({ ...old, qty: event.target.value })} placeholder="0,00" aria-label={w.left} dir="ltr" className={`${field} pr-16 text-base font-semibold`}/>
           <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4 text-sm font-semibold text-neutral-500">{old.currency}</span>

@@ -1,3 +1,4 @@
+import { TRADE_CURRENCY_CODES } from '../../currency/tradeCurrencies';
 import assert from 'node:assert/strict';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CurrencyVisibilityProvider } from '../../contexts/CurrencyVisibilityContext';
@@ -14,13 +15,13 @@ const radios = (html: string) => (html.match(/role="radio"/g) || []).length;
 const checked = (html: string) => (html.match(/aria-checked="true"/g) || []).length;
 
 const none = render(null);
-assert.equal(radios(none), 5, 'five wallets: cash box, BaridiMob, USDT, EUR, RMB');
+assert.equal(radios(none), 2 + TRADE_CURRENCY_CODES.length, 'the cash box, BaridiMob and every currency of the list');
 assert.equal(checked(none), 0, 'nothing chosen for the owner');
 assert.ok(none.includes('Choisissez le portefeuille'), 'asks to choose');
 assert.ok(none.includes('6 600,00 RMB') || none.includes('6 600,00 RMB'), 'the RMB balance on its row');
 assert.equal(checked(render('RMB')), 1);
-assert.equal(radios(render(null, false, false)), 3, 'EUR and RMB hidden');
-assert.equal(radios(render('EUR', false, false)), 4, 'a hidden currency already saved stays');
+assert.equal(radios(render(null, false, false)), TRADE_CURRENCY_CODES.length, 'EUR and RMB hidden');
+assert.equal(radios(render('EUR', false, false)), TRADE_CURRENCY_CODES.length + 1, 'a hidden currency already saved stays');
 
 // RMB as a wallet: valued at its average price, like USDT and EUR; the diagnostics keep to USDT and EUR.
 const rates = { usdtPma: 255, eurPma: 280, rmbPma: 36.5 };

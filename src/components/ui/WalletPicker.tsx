@@ -44,12 +44,12 @@ export function WalletPicker({ value, onChange, wallets, labels, balances, ariaL
 
 /** What each wallet holds: the cash box and BaridiMob from the treasury, USDT, EUR and RMB from the stock. */
 export function walletBalancesOf(treasuryStats: { caisse?: number; baridi?: number }, portfolioStats: { usdt: { available?: number }; eur: { available?: number }; rmb?: { available?: number } }): WalletBalances {
+    // V14-4: every currency of the list, read under its lower-case code.
+    const stats = portfolioStats as unknown as Record<string, { available?: number } | undefined>;
     return {
         Caisse: Number(treasuryStats.caisse || 0),
         BaridiMob: Number(treasuryStats.baridi || 0),
-        USDT: Number(portfolioStats.usdt.available || 0),
-        EUR: Number(portfolioStats.eur.available || 0),
-        RMB: Number(portfolioStats.rmb?.available || 0),
+        ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, Number(stats[code.toLowerCase()]?.available || 0)])),
     };
 }
 export const FINANCIAL_WALLETS: PickerWallet[] = ['Caisse', 'BaridiMob', ...TRADE_CURRENCY_CODES];

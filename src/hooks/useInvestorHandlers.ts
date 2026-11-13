@@ -95,7 +95,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         eurPma: Number(portfolioStats.eur.avgBuy || 0),
         rmbPma: Number(portfolioStats.rmb?.avgBuy || 0),
         pmaByCurrency: Object.fromEntries(EXTRA_CURRENCY_CODES.map((code) => [code, Number((portfolioStats as Record<string, any>)[code.toLowerCase()]?.avgBuy || 0)])),
-    }), [portfolioStats.usdt.avgBuy, portfolioStats.eur.avgBuy, portfolioStats.rmb?.avgBuy]);
+    }), [portfolioStats]);
     const personalWithdrawalPreview = useMemo(() => {
         const amount = parseAndEvaluate(personalWithdrawalAmount);
         if (!Number.isFinite(amount) || !personalWithdrawalWalletChosen) return null;

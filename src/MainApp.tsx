@@ -1813,7 +1813,7 @@ export default function MainApp({ user }: {
     // V7-2: the treasury adjustment window gives way to the window that already exists for the chosen
     // reason, opened on the same wallet with the amount typed so far. Nothing is saved by this step.
     const onAdjustmentRedirect = ({ reason, asset, direction, amount }: { reason: AdjustmentReason; asset: string; direction: 'add' | 'subtract'; amount: string }) => {
-        const wallet = asset === 'DZD-Caisse' ? 'Caisse' : asset === 'DZD-Baridi' ? 'BaridiMob' : asset === 'EUR' ? 'EUR' : asset === 'RMB' ? 'RMB' : 'USDT';
+        const wallet = asset === 'DZD-Caisse' ? 'Caisse' : asset === 'DZD-Baridi' ? 'BaridiMob' : asset as TradeCurrencyCode;
         setIsAdjustmentModalOpen(false);
         window.setTimeout(() => {
             if (reason === 'wallet_transfer') {
@@ -1835,8 +1835,8 @@ export default function MainApp({ user }: {
                 setDeliveryExpenseMethod(wallet);
                 setDeliveryExpenseAmount(amount);
             }
-            else if ((reason === 'buy' || reason === 'sell') && asset === 'RMB') {
-                setTradeWin({ kind: reason, currency: 'RMB', source: null });
+            else if ((reason === 'buy' || reason === 'sell') && isExtraCurrency(asset)) {
+                setTradeWin({ kind: reason, currency: asset as TradeCurrencyCode, source: null });
             }
             else if (reason === 'buy' || reason === 'sell') {
                 openForm(`${reason}_${asset === 'EUR' ? 'eur' : 'usdt'}`);

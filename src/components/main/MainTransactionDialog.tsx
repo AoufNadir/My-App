@@ -1,5 +1,6 @@
 import type { TradeCurrencyCode } from '../../currency/tradeCurrencies';
-import { useShowUsdt } from '../../contexts/CurrencyVisibilityContext';
+import { useCurrencyShown, useShowUsdt } from '../../contexts/CurrencyVisibilityContext';
+import { EXTRA_CURRENCY_CODES, tradeCurrency } from '../../currency/tradeCurrencies';
 import React from 'react';
 import { Modal, ModalContent, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -55,10 +56,13 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
     const isSellMode = mode === 'sell_usdt' || mode === 'sell_eur';
     const isBuyMode = mode === 'buy_usdt' || mode === 'buy_eur';
     const showUsdtHere = useShowUsdt();
+    const isShownHere = useCurrencyShown();
     // Sources in other currencies offered here (V13-4): RMB unless hidden, and for EUR also USDT.
-    const crossSources = (currency: 'USDT' | 'EUR'): Array<TradeCurrencyCode> => (!onCrossTrade || editingTx ? [] : currency === 'USDT'
-        ? (showRmb ? ['RMB'] : [])
-        : ([...(showUsdtHere || portfolioStats.usdt.available > 0 ? ['USDT' as const] : []), ...(showRmb ? ['RMB' as const] : [])] as Array<'USDT' | 'RMB'>));
+    // V14-4: every extra currency of the list that is shown (RMB and the next ones), and USDT for EUR.
+    const shownExtras = EXTRA_CURRENCY_CODES.filter((code) => isShownHere(code) && (code !== 'RMB' || showRmb));
+    const crossSources = (currency: 'USDT' | 'EUR'): TradeCurrencyCode[] => (!onCrossTrade || editingTx ? [] : currency === 'USDT'
+        ? shownExtras
+        : [...(showUsdtHere || portfolioStats.usdt.available > 0 ? ['USDT' as const] : []), ...shownExtras]);
     const isChoosingEurSource = (mode === 'buy_eur' || mode === 'sell_eur') && !editingTx && !eurDzdChosen && crossSources('EUR').length > 0;
     const crossWords = {
         buyWith: (source: string) => (t('transactions.crossBuyWith') as string).replace('{c}', source),
@@ -552,7 +556,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                                 <div className="-mx-2 -my-1 divide-y divide-border">
                                     {renderSourceChoice(() => setBuyUsdtMode('with_dzd'), <BanknotesIcon className="h-5 w-5"/>, t('portfolio.buyWithDzd'), t('common.dinar'))}
                                     {!eurHiddenHere && renderSourceChoice(() => { setBuyUsdtMode('with_eur'); setEurDzdPrice(portfolioStats.eur.avgBuy.toFixed(2)); }, <WalletIcon className="h-5 w-5"/>, t('portfolio.buyWithEur'), 'EUR')}
-                                    {crossSources('USDT').map((source) => (<React.Fragment key={source}>{renderSourceChoice(() => onCrossTrade!('buy', 'USDT', source), <span className="text-base font-extrabold">¥</span>, crossWords.buyWith(source), crossWords.conversion)}</React.Fragment>))}
+                                    {crossSources('USDT').map((source) => (<React.Fragment key={source}>{renderSourceChoice(() => onCrossTrade!('buy', 'USDT', source), <span className="text-base font-extrabold">{tradeCurrency(source).symbol}</span>, crossWords.buyWith(source), crossWords.conversion)}</React.Fragment>))}
                                 </div>
                             </FormCard>)}
 
@@ -563,7 +567,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                                     {/* V13-4: USDT for EUR is a conversion now (no profit until the sale in dinars): the conversion window. */}
                                     {!eurHiddenHere && onCrossTrade && renderSourceChoice(() => onCrossTrade('sell', 'USDT', 'EUR'), <WalletIcon className="h-5 w-5"/>, t('portfolio.sellWithEur'), crossWords.sale)}
                                     {!eurHiddenHere && !onCrossTrade && renderSourceChoice(chooseSellWithEur, <WalletIcon className="h-5 w-5"/>, t('portfolio.sellWithEur'), 'EUR')}
-                                    {crossSources('USDT').map((source) => (<React.Fragment key={source}>{renderSourceChoice(() => onCrossTrade!('sell', 'USDT', source), <span className="text-base font-extrabold">¥</span>, crossWords.sellWith(source), crossWords.sale)}</React.Fragment>))}
+                                    {crossSources('USDT').map((source) => (<React.Fragment key={source}>{renderSourceChoice(() => onCrossTrade!('sell', 'USDT', source), <span className="text-base font-extrabold">{tradeCurrency(source).symbol}</span>, crossWords.sellWith(source), crossWords.sale)}</React.Fragment>))}
                                 </div>
                             </FormCard>)}
 
@@ -661,7 +665,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                         {isChoosingEurSource && (<FormCard title={isBuyMode ? t('transactions.fundingQuestion') : t('transactions.saleSourceQuestion')}>
                                 <div className="-mx-2 -my-1 divide-y divide-border">
                                     {renderSourceChoice(() => setEurDzdChosen(true), <BanknotesIcon className="h-5 w-5"/>, isBuyMode ? t('portfolio.buyWithDzd') : t('portfolio.sellWithDzd'), t('common.dinar'))}
-                                    {crossSources('EUR').map((source) => (<React.Fragment key={source}>{renderSourceChoice(() => onCrossTrade!(isBuyMode ? 'buy' : 'sell', 'EUR', source), source === 'RMB' ? <span className="text-base font-extrabold">¥</span> : <WalletIcon className="h-5 w-5"/>, isBuyMode ? crossWords.buyWith(source) : crossWords.sellWith(source), isBuyMode ? crossWords.conversion : crossWords.sale)}</React.Fragment>))}
+                                    {crossSources('EUR').map((source) => (<React.Fragment key={source}>{renderSourceChoice(() => onCrossTrade!(isBuyMode ? 'buy' : 'sell', 'EUR', source), source !== 'USDT' ? <span className="text-base font-extrabold">{tradeCurrency(source).symbol}</span> : <WalletIcon className="h-5 w-5"/>, isBuyMode ? crossWords.buyWith(source) : crossWords.sellWith(source), isBuyMode ? crossWords.conversion : crossWords.sale)}</React.Fragment>))}
                                 </div>
                             </FormCard>)}
 

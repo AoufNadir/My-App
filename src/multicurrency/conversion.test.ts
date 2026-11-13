@@ -83,7 +83,7 @@ const holding = (rows: Tx[], code: string) => computePamLedger(rows, opts).holdi
 
 // 6. By default nothing changes: only USDT and EUR, an unknown code is read as USDT as before, base DZD.
 {
-    const rows = [tx({ type: 'buy', currency: 'GBP' as Tx['currency'], quantity: 10, total: 2_800 })];
+    const rows = [tx({ type: 'buy', currency: 'XYZ' as Tx['currency'], quantity: 10, total: 2_800 })];
     const plain = computePamLedger(rows, { nowMs: T0 + DAY });
     assert.deepEqual(Object.keys(plain.holdings), ['USDT', 'EUR']);
     assert.equal(plain.holdings.USDT.available, 10, 'old reading: not EUR means USDT');

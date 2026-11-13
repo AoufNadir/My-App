@@ -1,3 +1,4 @@
+import { EXTRA_CURRENCY_CODES, isExtraCurrency } from '../../currency/tradeCurrencies';
 import { useEffect, useMemo, useState } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, DigitalServiceTransaction } from '../../types';
 import { computePamLedger } from '../../utils/pamLedger';
@@ -262,9 +263,9 @@ function matchesTransactionFilter(mode: TransactionFilterMode, tx: DisplayTx) {
                 && rawTx.currency === 'EUR';
         // V14-3: every RMB purchase / sale, whatever it was paid with
         case 'buy_rmb':
-            return tx.sourceType === 'usdt_tx' && isCryptoBuy(rawTx) && (rawTx.currency as string) === 'RMB';
+            return tx.sourceType === 'usdt_tx' && isCryptoBuy(rawTx) && isExtraCurrency(String(rawTx.currency));
         case 'sell_rmb':
-            return tx.sourceType === 'usdt_tx' && isCryptoSell(rawTx) && (rawTx.currency as string) === 'RMB';
+            return tx.sourceType === 'usdt_tx' && isCryptoSell(rawTx) && isExtraCurrency(String(rawTx.currency));
         case 'stock_in':
             return tx.sourceType === 'usdt_tx'
                 && (rawTx as Tx).type === 'Ajout Manuel';
@@ -352,7 +353,7 @@ function getMatchingTransactionFilterModes(tx: DisplayTx): TransactionFilterMode
             else if (rawTx.currency === 'EUR' && !rawTx.linkedTxId) {
                 modes.add('buy_eur_dzd');
             }
-            else if ((rawTx.currency as string) === 'RMB')
+            else if (isExtraCurrency(String(rawTx.currency)))
                 modes.add('buy_rmb');
         }
         if (isCryptoSell(rawTx)) {
@@ -363,7 +364,7 @@ function getMatchingTransactionFilterModes(tx: DisplayTx): TransactionFilterMode
             else if (rawTx.currency === 'EUR') {
                 modes.add('sell_eur_dzd');
             }
-            else if ((rawTx.currency as string) === 'RMB')
+            else if (isExtraCurrency(String(rawTx.currency)))
                 modes.add('sell_rmb');
         }
         if (isCryptoManual(rawTx)) {
@@ -500,8 +501,9 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
         sell_usdt_dzd: t('transactions.filterSellUsdtDzd'),
         sell_usdt_eur: t('transactions.filterSellUsdtEur'),
         sell_eur_dzd: t('transactions.filterSellEurDzd'),
-        buy_rmb: t('transactions.filterBuyRmb'),
-        sell_rmb: t('transactions.filterSellRmb'),
+        // V14-4: every extra currency (RMB and the next ones) under one filter each way, named by their codes
+        buy_rmb: `${t('transactions.buy')} ${EXTRA_CURRENCY_CODES.join(' / ')}`,
+        sell_rmb: `${t('transactions.sell')} ${EXTRA_CURRENCY_CODES.join(' / ')}`,
         stock: t('transactions.filterStock'),
         stock_in: t('transactions.filterStockIn'),
         stock_out: t('transactions.filterStockOut'),

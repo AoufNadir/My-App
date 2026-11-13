@@ -1,3 +1,5 @@
+import { INVENTORY_ACCOUNTS } from '../../utils/inventoryCheck';
+const INVENTORY_ACCOUNTS_COUNT = INVENTORY_ACCOUNTS.length;
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -21,7 +23,7 @@ const storage = new Map<string, string>();
 };
 type Lang = 'fr' | 'ar';
 const noop = () => undefined;
-const expected = { caisse: 482_500, baridi: 120_000.4, usdt: 1_500.5, eur: 90.25, rmb: 0 };
+const expected = { caisse: 482_500, baridi: 120_000.4, usdt: 1_500.5, eur: 90.25, rmb: 0, ...Object.fromEntries(INVENTORY_ACCOUNTS.filter((a) => !['caisse', 'baridi', 'usdt', 'eur', 'rmb'].includes(a)).map((a) => [a, 0])) } as unknown as import('../../utils/inventoryCheck').InventoryExpected;
 const stamp = (timestamp: number, date: string) => ({ date, time: '20:00', timestamp });
 const check = (id: string, timestamp: number, date: string, counted: Parameters<typeof buildInventoryCheckData>[1]): InventoryCheck =>
     ({ id, ...buildInventoryCheckData(expected, counted, stamp(timestamp, date))! });
@@ -47,7 +49,7 @@ for (const lang of ['fr', 'ar'] as const) {
     {
         const html = render(lang, { defaultOpen: true });
         const out = text(html);
-        assert.equal(count(out, fr ? 'Dans l’application' : 'في التطبيق'), 5, `${lang}: one books line per account (V14-2: RMB too)`);
+        assert.equal(count(out, fr ? 'Dans l’application' : 'في التطبيق'), INVENTORY_ACCOUNTS_COUNT, `${lang}: one books line per account (every wallet of the list)`);
         assert.match(out, /482 500/);
         assert.match(out, /1 500,50/);
         assert.match(out, /120 000,40/, 'cents shown as two decimals');

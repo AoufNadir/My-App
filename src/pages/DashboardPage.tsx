@@ -1,5 +1,5 @@
 import { useCurrencyShown, useShowEur, useShowRmb, useShowUsdt } from '../contexts/CurrencyVisibilityContext';
-import { tradeCurrency, type TradeCurrencyCode } from '../currency/tradeCurrencies';
+import { EXTRA_CURRENCY_CODES, tradeCurrency, type TradeCurrencyCode } from '../currency/tradeCurrencies';
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { CurrencyAmount, type AmountSemantic } from '../components/financial/CurrencyAmount';
 import { AlertCard, HeroCard, SectionCard, StatTile, StatTileGrid } from '../components/cards';
@@ -622,7 +622,7 @@ function DashboardContent({
         {/* V12-2: sold and not sent yet: still in the wallet, but not yours (not in the capital). */}
         {pendingDeliveries && pendingDeliveries.USDT > 0 && (<StatTile label={t('dashboard.clientsUsdt') as string} value={pendingDeliveries.USDT} currency="USDT" decimals={2} icon={<ArrowUpRightIcon className="h-3.5 w-3.5"/>} tone="debt"/>)}
         {pendingDeliveries && pendingDeliveries.EUR > 0 && (<StatTile label={t('dashboard.clientsEur') as string} value={pendingDeliveries.EUR} currency="EUR" decimals={2} icon={<ArrowUpRightIcon className="h-3.5 w-3.5"/>} tone="debt"/>)}
-        {pendingDeliveries && (pendingDeliveries.RMB ?? 0) > 0 && (<StatTile label={t('dashboard.clientsRmb') as string} value={pendingDeliveries.RMB ?? 0} currency="RMB" decimals={2} icon={<ArrowUpRightIcon className="h-3.5 w-3.5"/>} tone="debt"/>)}
+        {pendingDeliveries && EXTRA_CURRENCY_CODES.filter((code) => ((pendingDeliveries as Record<string, unknown>)[code] as number ?? 0) > 0).map((code) => (<Fragment key={code}><StatTile label={code === 'RMB' ? t('dashboard.clientsRmb') as string : (t('dashboard.clientsCurrency') as string).replace('{c}', code)} value={(pendingDeliveries as Record<string, unknown>)[code] as number} currency={code as 'RMB'} decimals={2} icon={<ArrowUpRightIcon className="h-3.5 w-3.5"/>} tone="debt"/></Fragment>))}
         {/* V12-8: paid and not received yet, the other way */}
         {(pendingDeliveries?.awaited?.USDT ?? 0) > 0 && (<StatTile label={t('dashboard.suppliersUsdt') as string} value={pendingDeliveries!.awaited!.USDT} currency="USDT" decimals={2} icon={<ArrowDownLeftIcon className="h-3.5 w-3.5"/>} tone="primary"/>)}
         {(pendingDeliveries?.awaited?.EUR ?? 0) > 0 && (<StatTile label={t('dashboard.suppliersEur') as string} value={pendingDeliveries!.awaited!.EUR} currency="EUR" decimals={2} icon={<ArrowDownLeftIcon className="h-3.5 w-3.5"/>} tone="primary"/>)}

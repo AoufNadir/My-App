@@ -34,7 +34,7 @@ import { investigateInventory, type InvestigatorAction, type InvestigatorPortfol
 const MONTHS_SHOWN = 3;
 
 type Draft = Record<InventoryAccount, string>;
-const EMPTY_DRAFT: Draft = { caisse: '', baridi: '', usdt: '', eur: '', rmb: '' };
+const EMPTY_DRAFT: Draft = Object.fromEntries(INVENTORY_ACCOUNTS.map((account) => [account, ''])) as Draft;
 
 /** Colour plus a symbol, so the state never rests on colour alone. */
 const STATUS_STYLE: Record<InventoryGapStatus, { tone: string; mark: string }> = {

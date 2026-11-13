@@ -1,3 +1,4 @@
+import { TRADE_CURRENCY_CODES } from '../currency/tradeCurrencies';
 import assert from 'node:assert/strict';
 
 import type { ClientTransactionDzd, Tx } from '../types';
@@ -210,7 +211,7 @@ assert.equal(september.balance.lines.payments, toCents(300 * 262.5 + 200000), 'P
 assert.deepEqual(september.balance.paymentsByMethod, [{ method: 'baridi', cents: toCents(300 * 262.5 + 200000) }]);
 assert.equal(september.balance.lines.transfer, toCents(-15000), 'The debt moved to this client');
 assert.equal(september.biggestPurchase?.quantity, 800, 'Biggest purchase of the month by DZD amount');
-assert.deepEqual(september.sinceJanuary?.quantities, { USDT: 1000 + 400 + 800 + 600 + 500, EUR: 300, RMB: 0 });
+assert.deepEqual(september.sinceJanuary?.quantities, { ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, 0])), USDT: 1000 + 400 + 800 + 600 + 500, EUR: 300 });
 assert.equal(september.comparedWith?.period.key, 'm-2026-08');
 assert.ok(september.showEurColumn && september.showUsdtColumn);
 

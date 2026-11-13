@@ -33,7 +33,7 @@ export type RmbTradeInput = {
     receivedAvgPrice?: number;
     notes?: string;
 };
-export type RmbStock = Record<TradeCurrencyCode, number>;
+export type RmbStock = Partial<Record<TradeCurrencyCode, number>>;
 export type RmbCheck = { ok: true } | { ok: false; reason: 'client' | 'quantity' | 'price' | 'amount' | 'payment' | 'stock' | 'source_stock' | 'same_currency' | 'no_received_price' };
 const currencyOf = (input: Pick<RmbTradeInput, 'currency'>): TradeCurrency => input.currency ?? 'RMB';
 
@@ -52,8 +52,8 @@ export function checkRmbTrade(input: RmbTradeInput, stock: RmbStock): RmbCheck {
         if (!input.paymentStatus) return { ok: false, reason: 'payment' };
     }
     else if (!positive(input.otherAmount)) return { ok: false, reason: 'amount' };
-    if (input.kind === 'sell' && input.quantity > stock[currency] + EPS) return { ok: false, reason: 'stock' };
-    if (input.kind === 'buy' && input.source !== 'DZD' && (input.otherAmount ?? 0) > stock[input.source] + EPS) return { ok: false, reason: 'source_stock' };
+    if (input.kind === 'sell' && input.quantity > (stock[currency] ?? 0) + EPS) return { ok: false, reason: 'stock' };
+    if (input.kind === 'buy' && input.source !== 'DZD' && (input.otherAmount ?? 0) > (stock[input.source] ?? 0) + EPS) return { ok: false, reason: 'source_stock' };
     // No average price, no value: a currency never bought cannot value a sale (owner's rule, V13-6).
     if (input.kind === 'sell' && input.source !== 'DZD' && !positive(input.receivedAvgPrice)) return { ok: false, reason: 'no_received_price' };
     return { ok: true };
@@ -118,11 +118,11 @@ export function rmbTradeRows(input: RmbTradeInput, nowMs: number, mainId: string
 }
 
 /** Before saving a conversion: the average price in DZD of what comes in (what left × its average price ÷ what came in). */
-export function rmbConversionPreview(input: Pick<RmbTradeInput, 'kind' | 'source' | 'quantity' | 'otherAmount' | 'currency'>, avgPrice: Record<TradeCurrencyCode, number>): { incoming: string; avgPrice: number; rate: number; costDzd: number } | null {
+export function rmbConversionPreview(input: Pick<RmbTradeInput, 'kind' | 'source' | 'quantity' | 'otherAmount' | 'currency'>, avgPrice: Partial<Record<TradeCurrencyCode, number>>): { incoming: string; avgPrice: number; rate: number; costDzd: number } | null {
     if (input.source === 'DZD' || !positive(input.quantity) || !positive(input.otherAmount)) return null;
     const currency = currencyOf(input);
     const other = input.source;
-    const cost = input.kind === 'buy' ? input.otherAmount * avgPrice[other] : input.quantity * avgPrice[currency];
+    const cost = input.kind === 'buy' ? input.otherAmount * (avgPrice[other] ?? 0) : input.quantity * (avgPrice[currency] ?? 0);
     const incomingQty = input.kind === 'buy' ? input.quantity : input.otherAmount;
     return { incoming: input.kind === 'buy' ? currency : other, avgPrice: round2(cost / incomingQty), rate: input.quantity / input.otherAmount, costDzd: round2(cost) };
 }

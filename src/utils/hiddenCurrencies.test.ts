@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
-import { canHideCurrency, readHiddenCurrencies, toggledHiddenCurrencies } from './hiddenCurrencies';
+import { HIDEABLE_CURRENCIES, canHideCurrency, readHiddenCurrencies, toggledHiddenCurrencies } from './hiddenCurrencies';
 
 assert.deepEqual(readHiddenCurrencies(undefined), [], 'nothing saved: EUR shown, as always');
 assert.deepEqual(readHiddenCurrencies('EUR'), [], 'a broken value hides nothing');
 assert.deepEqual(readHiddenCurrencies(['EUR', 'USDT', 'XYZ']), ['USDT', 'EUR'], 'V14-2: USDT can be hidden too; unknown codes are ignored');
-assert.deepEqual(readHiddenCurrencies(['USDT', 'EUR', 'RMB']), ['EUR', 'RMB'], 'all hidden: the first comes back, one always stays shown');
-assert.equal(canHideCurrency(['USDT', 'EUR'], 'RMB'), false, 'the last shown cannot be hidden');
-assert.deepEqual(toggledHiddenCurrencies(['USDT', 'EUR'], 'RMB', true), ['USDT', 'EUR'], 'refused: nothing changes');
+assert.deepEqual(readHiddenCurrencies([...HIDEABLE_CURRENCIES]), HIDEABLE_CURRENCIES.slice(1), 'all hidden: the first comes back, one always stays shown');
+{
+    const allButLast = HIDEABLE_CURRENCIES.slice(0, -1);
+    const last = HIDEABLE_CURRENCIES[HIDEABLE_CURRENCIES.length - 1];
+    assert.equal(canHideCurrency(allButLast, last), false, 'the last shown cannot be hidden');
+    assert.deepEqual(toggledHiddenCurrencies(allButLast, last, true), allButLast, 'refused: nothing changes');
+}
 assert.equal(canHideCurrency([], 'USDT'), true);
 assert.deepEqual(readHiddenCurrencies(['RMB', 'EUR']), ['EUR', 'RMB']);
 assert.deepEqual(toggledHiddenCurrencies(['EUR'], 'RMB', true), ['EUR', 'RMB']);

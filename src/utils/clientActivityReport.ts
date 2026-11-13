@@ -717,7 +717,7 @@ export function buildClientActivityReport(input: BuildClientActivityReportInput)
     if (kind === 'month') {
         const yearToDate = periodTotals(entries, { from: yearPeriod(period.year).from, to: period.to });
         sinceJanuary = {
-            quantities: { USDT: yearToDate.currencies.USDT.quantity, EUR: yearToDate.currencies.EUR.quantity, RMB: yearToDate.currencies.RMB.quantity },
+            quantities: Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, yearToDate.currencies[code].quantity])) as Record<ReportCurrency, number>,
             spentCents: yearToDate.spentCents,
         };
         for (const entry of entries) {

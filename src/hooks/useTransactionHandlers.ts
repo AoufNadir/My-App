@@ -204,7 +204,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         eurPma: Number(portfolioStats.eur.avgBuy || 0),
         rmbPma: Number(portfolioStats.rmb?.avgBuy || 0),
         pmaByCurrency: Object.fromEntries(EXTRA_CURRENCY_CODES.map((code) => [code, Number((portfolioStats as Record<string, any>)[code.toLowerCase()]?.avgBuy || 0)])),
-    }), [portfolioStats.usdt.avgBuy, portfolioStats.eur.avgBuy, portfolioStats.rmb?.avgBuy]);
+    }), [portfolioStats]);
     const deliveryExpensePreview = useMemo(() => {
         const amount = parseAndEvaluate(deliveryExpenseAmount);
         if (!Number.isFinite(amount)) return null;

@@ -32,7 +32,7 @@ export type RmbTradeDialogProps = {
     onClose: () => void;
     /** Back to the USDT / EUR window, or the other side of RMB */
     onSwitch: (kind: 'buy' | 'sell', currency: TradeCurrencyCode) => void;
-    holdings: Record<TradeCurrencyCode, RmbHolding>;
+    holdings: Partial<Record<TradeCurrencyCode, RmbHolding>>;
     clientsDzd: ClientDzd[];
     openClientModal: (client: ClientDzd | null) => void;
     fieldBase: string;

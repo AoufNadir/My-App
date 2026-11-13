@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { checkDelivery, deliveryStates, operationQuantities, parseDelivery, reservedForClients, type DeliveryDoc } from './deferredDelivery';
+import { TRADE_CURRENCY_CODES } from '../currency/tradeCurrencies';
+// V14-4: every currency of the list at zero unless the case says otherwise.
+const zeros = (values: Record<string, number>) => ({ ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, 0])), ...values });
 
 // V12-2: a client buys 3 906,25 USDT today and asks for them in several times: 200, then 300.
 const doc = (id: string, kind: DeliveryDoc['kind'], quantity: number, day: number, extra: Partial<DeliveryDoc> = {}): DeliveryDoc => ({ id, kind, clientId: 'c1', currency: 'USDT', quantity, timestamp: day * 86_400_000, ...extra });
@@ -7,7 +10,7 @@ const docs = [doc('a', 'commitment', 3_906.25, 1, { saleTxId: 's1' }), doc('b', 
 const [state] = deliveryStates(docs);
 assert.deepEqual([state.committed, state.delivered, state.remaining], [3_906.25, 500, 3_406.25]);
 assert.equal(state.deliveries.length, 2);
-assert.deepEqual(reservedForClients([state]), { USDT: 3_406.25, EUR: 0, RMB: 0 }, 'the inventory expects what is still owed');
+assert.deepEqual(reservedForClients([state]), zeros({ USDT: 3_406.25 }), 'the inventory expects what is still owed');
 // Never more than what is left, to the cent.
 assert.deepEqual(checkDelivery(3_406.25, 3_406.25), { ok: true });
 assert.deepEqual(checkDelivery(3_406.25, 3_406.26), { ok: false, reason: 'too_much', remaining: 3_406.25 });
@@ -51,8 +54,8 @@ import { awaitedFromSuppliers } from './deferredDelivery';
 {
     const both = deliveryStates([...docs, doc('f1', 'commitment', 1_000, 3, { clientId: 'sup', direction: 'from_supplier' }), doc('f2', 'delivery', 400, 5, { clientId: 'sup', direction: 'from_supplier' })]);
     assert.equal(both.length, 2);
-    assert.deepEqual(awaitedFromSuppliers(both), { USDT: 600, EUR: 0, RMB: 0 }, 'awaited from the supplier');
-    assert.deepEqual(reservedForClients(both), { USDT: 3_406.25, EUR: 0, RMB: 0 }, 'owed to clients unchanged');
+    assert.deepEqual(awaitedFromSuppliers(both), zeros({ USDT: 600 }), 'awaited from the supplier');
+    assert.deepEqual(reservedForClients(both), zeros({ USDT: 3_406.25 }), 'owed to clients unchanged');
     assert.equal(parseDelivery('x', { kind: 'delivery', clientId: 'c', currency: 'USDT', quantity: 1, timestamp: 1 })!.direction, 'to_client', 'old lines are client lines');
 }
 // Waiting time from the sale itself, also for a line written before the sale's date was kept with it.
@@ -74,7 +77,7 @@ import { awaitedFromSuppliers } from './deferredDelivery';
     ];
     const states = deliveryStates(rmb);
     assert.equal(states[0].remaining, 4_500);
-    assert.deepEqual(reservedForClients(states), { USDT: 0, EUR: 0, RMB: 4_500 });
-    assert.equal(parseDelivery('x', { kind: 'commitment', clientId: 'c', currency: 'GBP', quantity: 1, timestamp: 1 }), null, 'unknown currency refused');
+    assert.deepEqual(reservedForClients(states), zeros({ RMB: 4_500 }));
+    assert.equal(parseDelivery('x', { kind: 'commitment', clientId: 'c', currency: 'XYZ', quantity: 1, timestamp: 1 }), null, 'unknown currency refused');
 }
 console.log('deferredDelivery tests passed');

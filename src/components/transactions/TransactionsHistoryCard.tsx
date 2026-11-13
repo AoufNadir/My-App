@@ -1,3 +1,4 @@
+import { EXTRA_CURRENCY_CODES } from '../../currency/tradeCurrencies';
 import { useCurrencyShown } from '../../contexts/CurrencyVisibilityContext';
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
@@ -218,7 +219,7 @@ export function TransactionsHistoryCard({
   // V14-3: the filters of a hidden currency leave (its operations still show under « all »).
   const isShown = useCurrencyShown();
   const modeShown = (mode: string) => (/usdt/.test(mode) ? isShown('USDT') : true)
-      && (/eur/.test(mode) ? isShown('EUR') : true) && (/rmb/.test(mode) ? isShown('RMB') : true);
+      && (/eur/.test(mode) ? isShown('EUR') : true) && (/rmb/.test(mode) ? EXTRA_CURRENCY_CODES.some((code) => isShown(code)) : true);
   const getGroupModes = (group: FilterGroup) => [group.mode, ...group.sections.flatMap((section) => section.modes.map((item) => item.mode))];
   const activeFilterGroup = filterGroups.find((group) => getGroupModes(group).includes(filterMode))
     || filterGroups.find((group) => group.mode === LEGACY_FILTER_GROUP[filterMode])
