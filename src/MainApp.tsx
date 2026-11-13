@@ -683,7 +683,7 @@ export default function MainApp({ user }: {
         investorTransactions,
         managerFeePercentage,
         managerFeeHistory,
-        portfolioStats,
+        portfolioStats: walletPortfolioStats,
         pamLedger,
         t,
         transactions,

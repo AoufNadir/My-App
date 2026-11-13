@@ -75,6 +75,8 @@ export type CurrencyPeriodStats = {
 export type PeriodStats = {
     usdt: CurrencyPeriodStats;
     eur: CurrencyPeriodStats;
+    /** V14-2: RMB (Alipay), counted like EUR */
+    rmb: CurrencyPeriodStats;
     /** All the sales, as the old page counted them */
     profit: number;
     sellCount: number;
@@ -95,11 +97,12 @@ const inRange = (timestamp: number, range: PeriodRange) => timestamp >= range.fr
 export function computePeriodStats(transactions: ReadonlyArray<Tx>, ledger: LedgerForStats, range: PeriodRange): PeriodStats {
     const usdt = emptyCurrency();
     const eur = emptyCurrency();
+    const rmb = emptyCurrency();
     let profit = 0;
     for (const tx of transactions) {
         if (!inRange(tx.timestamp, range))
             continue;
-        const bucket = tx.currency === 'USDT' ? usdt : tx.currency === 'EUR' ? eur : null;
+        const bucket = tx.currency === 'USDT' ? usdt : tx.currency === 'EUR' ? eur : tx.currency === 'RMB' ? rmb : null;
         if (tx.type === 'buy' && bucket)
             bucket.bought += tx.quantity;
         else if (tx.type === 'sell') {
@@ -112,7 +115,7 @@ export function computePeriodStats(transactions: ReadonlyArray<Tx>, ledger: Ledg
             }
         }
     }
-    for (const bucket of [usdt, eur])
+    for (const bucket of [usdt, eur, rmb])
         bucket.marginPer100 = bucket.sold > 0 ? (bucket.profit / bucket.sold) * 100 : null;
     let sellCount = 0;
     let winCount = 0;
@@ -136,6 +139,7 @@ export function computePeriodStats(transactions: ReadonlyArray<Tx>, ledger: Ledg
     return {
         usdt,
         eur,
+        rmb,
         profit,
         sellCount,
         winCount,
@@ -147,7 +151,7 @@ export function computePeriodStats(transactions: ReadonlyArray<Tx>, ledger: Ledg
 }
 
 /** Is there anything to compare with: a sale or a volume in the window before. */
-export const hasActivity = (stats: PeriodStats): boolean => stats.sellCount > 0 || stats.usdt.sold > 0 || stats.eur.sold > 0 || stats.usdt.bought > 0 || stats.eur.bought > 0;
+export const hasActivity = (stats: PeriodStats): boolean => stats.sellCount > 0 || stats.usdt.sold > 0 || stats.eur.sold > 0 || stats.usdt.bought > 0 || stats.eur.bought > 0 || (stats.rmb?.sold ?? 0) > 0 || (stats.rmb?.bought ?? 0) > 0;
 
 export type ProfitEffects = {
     /** Profit now minus profit before */
@@ -171,9 +175,11 @@ export function profitEffects(current: PeriodStats, previous: PeriodStats): Prof
     let volume = 0;
     let margin = 0;
     let other = 0;
-    for (const key of ['usdt', 'eur'] as const) {
+    for (const key of ['usdt', 'eur', 'rmb'] as const) { // V14-2: RMB split like the others (was in « other »)
         const now = current[key];
         const before = previous[key];
+        if (!now || !before)
+            continue; // stats made before RMB existed: its profit stays in « other » below
         if (now.sold > 0 && before.sold > 0) {
             const marginBefore = before.profit / before.sold;
             volume += (now.sold - before.sold) * marginBefore;

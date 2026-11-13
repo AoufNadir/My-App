@@ -188,4 +188,15 @@ for (const [kind, year, month] of [['month', 2026, 9], ['month', 2026, 8], ['mon
     const twice = rankClients({ transactions: txs, clientTransactions: [row('B', octIds[0], { linkRole: 'dzd_receiver' }), row('A', octIds[0])], ledger, clientNameById: names, unknownName: '?', range: window });
     assert.equal(twice.byVolume[0].clientId, 'A', 'the primary row beats the receiver row');
 }
+// V14-2: RMB volumes and margin are counted like EUR (fake figures: 1 000 RMB at 36, 600 sold at 38 → profit 1 200).
+{
+    const T = Date.UTC(2027, 1, 10);
+    const book = [
+        { id: 'rb', type: 'buy', currency: 'RMB', quantity: 1_000, price: 36, total: 36_000, timestamp: T },
+        { id: 'rs', type: 'sell', currency: 'RMB', quantity: 600, sell: 38, total: 22_800, timestamp: T + 1000 },
+    ] as unknown as Tx[];
+    const stats = computePeriodStats(book, computePamLedger(book, { nowMs: T + 1e9 }), { from: T - 1, to: T + 1e6 });
+    assert.deepEqual([stats.rmb.bought, stats.rmb.sold, stats.rmb.profit, stats.rmb.marginPer100], [1_000, 600, 1_200, 200]);
+    assert.equal(hasActivity(stats), true);
+}
 console.log('analyticsPeriod tests passed');
