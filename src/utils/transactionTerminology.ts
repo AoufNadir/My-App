@@ -1,3 +1,4 @@
+import { EXTRA_CURRENCY_CODES } from '../currency/tradeCurrencies';
 import type { ClientTransactionDzd } from '../types';
 
 type PortfolioRawType = 'buy' | 'sell' | 'Ajout Manuel' | 'Retrait Manuel' | string;
@@ -101,8 +102,10 @@ export function getClientOperationLabel(type: string, t?: TranslateFn): string {
         return t ? `${t('ledger.sell')} USDT` : 'Vente USDT';
     if (normalized === 'vente eur')
         return t ? `${t('ledger.sell')} EUR` : 'Vente EUR';
-    if (normalized === 'vente rmb')
-        return t ? `${t('ledger.sell')} RMB` : 'Vente RMB';
+    // V14-4: the sale of any extra currency of the list (« Vente RMB », and the next ones)
+    const extraSale = EXTRA_CURRENCY_CODES.find((code) => normalized === `vente ${code.toLowerCase()}`);
+    if (extraSale)
+        return t ? `${t('ledger.sell')} ${extraSale}` : `Vente ${extraSale}`;
     if (normalized === 'achat eur')
         return t ? `${t('ledger.buy')} EUR` : 'Achat EUR';
     if (normalized === 'solde initial')

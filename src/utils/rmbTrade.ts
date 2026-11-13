@@ -1,4 +1,4 @@
-import type { TradeCurrencyCode } from '../currency/tradeCurrencies';
+import { isExtraCurrency, type TradeCurrencyCode } from '../currency/tradeCurrencies';
 import { stampAt } from './editStamp';
 
 // V13-3: buying and selling RMB (the yuan, Alipay), stored as currency « RMB » in the same collections as USDT and EUR.
@@ -33,7 +33,7 @@ export type RmbTradeInput = {
     receivedAvgPrice?: number;
     notes?: string;
 };
-export type RmbStock = { RMB: number; EUR: number; USDT: number };
+export type RmbStock = Record<TradeCurrencyCode, number>;
 export type RmbCheck = { ok: true } | { ok: false; reason: 'client' | 'quantity' | 'price' | 'amount' | 'payment' | 'stock' | 'source_stock' | 'same_currency' | 'no_received_price' };
 const currencyOf = (input: Pick<RmbTradeInput, 'currency'>): TradeCurrency => input.currency ?? 'RMB';
 
@@ -97,7 +97,7 @@ export function rmbTradeRows(input: RmbTradeInput, nowMs: number, mainId: string
             linked: [{ collection: 'usdt_txs', data: { ...stamp, timestamp: nowMs - 1, type: 'Retrait Manuel', currency: outgoing.currency, quantity: outgoing.quantity, notes: label, linkedTxId: mainId, conversionLeg: 'out' } }],
         };
     }
-    if (currency !== 'RMB')
+    if (!isExtraCurrency(currency))
         throw new Error('USDT and EUR with dinars go through the usual window');
     const status = input.paymentStatus as PaymentStatus;
     const price = input.price as number;
@@ -107,18 +107,18 @@ export function rmbTradeRows(input: RmbTradeInput, nowMs: number, mainId: string
     const linked: RmbRow[] = [];
     if (input.kind === 'buy') {
         if (paidNow)
-            linked.push({ collection: 'treasury_txs', data: { ...stamp, type: 'Retrait', source: wallet, amount: total, notes: `Achat ${qty(input.quantity)} RMB`, linkedTxId: mainId } });
-        linked.push({ collection: 'dzd_client_txs', data: { ...stamp, clientId: input.clientId, montant: total, type: 'Règlement Reçu', notes: `Financement achat de ${qty(input.quantity)} RMB`, linkedTxId: mainId, linkRole: 'primary', paymentMethod: PAYMENT_METHOD[status], affectsBalance: status === 'credit' } });
-        return { main: { ...stamp, type: 'buy', currency: 'RMB', quantity: input.quantity, price, total, notes, clientPaymentStatus: status, purchaseFundingCurrency: 'DZD' }, linked };
+            linked.push({ collection: 'treasury_txs', data: { ...stamp, type: 'Retrait', source: wallet, amount: total, notes: `Achat ${qty(input.quantity)} ${currency}`, linkedTxId: mainId } });
+        linked.push({ collection: 'dzd_client_txs', data: { ...stamp, clientId: input.clientId, montant: total, type: 'Règlement Reçu', notes: `Financement achat de ${qty(input.quantity)} ${currency}`, linkedTxId: mainId, linkRole: 'primary', paymentMethod: PAYMENT_METHOD[status], affectsBalance: status === 'credit' } });
+        return { main: { ...stamp, type: 'buy', currency, quantity: input.quantity, price, total, notes, clientPaymentStatus: status, purchaseFundingCurrency: 'DZD' }, linked };
     }
     if (paidNow)
-        linked.push({ collection: 'treasury_txs', data: { ...stamp, type: 'Ajout', source: wallet, amount: total, notes: `Vente ${qty(input.quantity)} RMB`, linkedTxId: mainId } });
-    linked.push({ collection: 'dzd_client_txs', data: { ...stamp, clientId: input.clientId, montant: -total, type: 'Vente RMB', notes: `Vente de ${qty(input.quantity)} RMB`, linkedTxId: mainId, linkRole: 'primary', paymentMethod: PAYMENT_METHOD[status], affectsBalance: status === 'credit' } });
-    return { main: { ...stamp, type: 'sell', currency: 'RMB', quantity: input.quantity, sell: price, total, profit: round2(profitDzd), notes, linkedClientId: input.clientId, clientPaymentStatus: status, settlementCurrency: 'DZD' }, linked };
+        linked.push({ collection: 'treasury_txs', data: { ...stamp, type: 'Ajout', source: wallet, amount: total, notes: `Vente ${qty(input.quantity)} ${currency}`, linkedTxId: mainId } });
+    linked.push({ collection: 'dzd_client_txs', data: { ...stamp, clientId: input.clientId, montant: -total, type: `Vente ${currency}`, notes: `Vente de ${qty(input.quantity)} ${currency}`, linkedTxId: mainId, linkRole: 'primary', paymentMethod: PAYMENT_METHOD[status], affectsBalance: status === 'credit' } });
+    return { main: { ...stamp, type: 'sell', currency, quantity: input.quantity, sell: price, total, profit: round2(profitDzd), notes, linkedClientId: input.clientId, clientPaymentStatus: status, settlementCurrency: 'DZD' }, linked };
 }
 
 /** Before saving a conversion: the average price in DZD of what comes in (what left × its average price ÷ what came in). */
-export function rmbConversionPreview(input: Pick<RmbTradeInput, 'kind' | 'source' | 'quantity' | 'otherAmount' | 'currency'>, avgPrice: { RMB: number; EUR: number; USDT: number }): { incoming: string; avgPrice: number; rate: number; costDzd: number } | null {
+export function rmbConversionPreview(input: Pick<RmbTradeInput, 'kind' | 'source' | 'quantity' | 'otherAmount' | 'currency'>, avgPrice: Record<TradeCurrencyCode, number>): { incoming: string; avgPrice: number; rate: number; costDzd: number } | null {
     if (input.source === 'DZD' || !positive(input.quantity) || !positive(input.otherAmount)) return null;
     const currency = currencyOf(input);
     const other = input.source;
@@ -155,5 +155,5 @@ export function linkThreeFields(fields: ThreeFields, edited: keyof ThreeFields, 
 
 /** An operation of the RMB window: in RMB, or one leg of a conversion made there. Not editable in the USDT / EUR window. */
 export function isRmbOperation(tx: { currency?: unknown; conversionFrom?: unknown; conversionLeg?: unknown; crossTrade?: unknown }): boolean {
-    return tx.currency === 'RMB' || Boolean(tx.conversionFrom) || tx.conversionLeg === 'out' || tx.crossTrade === true;
+    return isExtraCurrency(String(tx.currency ?? '')) || Boolean(tx.conversionFrom) || tx.conversionLeg === 'out' || tx.crossTrade === true;
 }

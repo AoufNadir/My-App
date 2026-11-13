@@ -194,7 +194,7 @@ export interface ClientTransactionDzd {
     date: string;
     time: string;
     montant: number; // Positive = Credit (Advance), Negative = Debt
-    type: 'Règlement Reçu' | 'Paiement Effectué' | 'Vente USDT' | 'Vente EUR' | 'Vente RMB' | 'Achat EUR' | 'Vente service numérique' | 'Solde Initial' | 'Transfert Entrant' | 'Transfert Sortant' | 'Ajustement Solde' | 'Remise solde';
+    type: 'Règlement Reçu' | 'Paiement Effectué' | 'Vente USDT' | 'Vente EUR' | `Vente ${TradeCurrencyCode}` | 'Achat EUR' | 'Vente service numérique' | 'Solde Initial' | 'Transfert Entrant' | 'Transfert Sortant' | 'Ajustement Solde' | 'Remise solde';
     notes?: string;
     /** Free-form labels for filtering (shared with Tx tags). */
     tags?: string[];

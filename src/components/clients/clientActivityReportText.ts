@@ -137,10 +137,10 @@ const AR: ReportWords = {
     colBalance: 'الرصيد بعدها',
     operation: (entry) => {
         switch (entry.kind) {
-            case 'buy': return entry.currency === 'EUR' ? 'شراء يورو' : entry.currency === 'RMB' ? 'شراء RMB' : 'شراء USDT';
+            case 'buy': return entry.currency === 'EUR' ? 'شراء يورو' : `شراء ${entry.currency}`;
             case 'service': return 'خدمة رقمية';
             case 'payment': return entry.method === 'cash' ? 'دفعة نقداً' : entry.method === 'baridi' ? 'دفعة BaridiMob' : entry.method === 'usdt' ? 'دفعة بـ USDT' : entry.method === 'eur' ? 'دفعة باليورو' : 'دفعة';
-            case 'saleToUs': return entry.currency === 'EUR' ? 'بيع يورو لنا' : entry.currency === 'RMB' ? 'بيع RMB لنا' : 'بيع USDT لنا';
+            case 'saleToUs': return entry.currency === 'EUR' ? 'بيع يورو لنا' : `بيع ${entry.currency} لنا`;
             case 'withdrawal': return 'سحب من رصيدك';
             case 'transfer': return entry.balanceCents >= 0 ? 'دفعتَ عنّا لعميل آخر' : 'استلمتَ مالنا من عميل آخر';
             case 'opening': return 'الرصيد الافتتاحي';
@@ -218,10 +218,10 @@ const FR: ReportWords = {
     colBalance: 'Solde après',
     operation: (entry) => {
         switch (entry.kind) {
-            case 'buy': return entry.currency === 'EUR' ? 'Achat EUR' : entry.currency === 'RMB' ? 'Achat RMB' : 'Achat USDT';
+            case 'buy': return entry.currency === 'EUR' ? 'Achat EUR' : `Achat ${entry.currency}`;
             case 'service': return 'Service numérique';
             case 'payment': return entry.method === 'cash' ? 'Versement espèces' : entry.method === 'baridi' ? 'Versement BaridiMob' : entry.method === 'usdt' ? 'Versement en USDT' : entry.method === 'eur' ? 'Versement en euros' : 'Versement';
-            case 'saleToUs': return entry.currency === 'EUR' ? 'Vente EUR à ProDigital' : entry.currency === 'RMB' ? 'Vente RMB à ProDigital' : 'Vente USDT à ProDigital';
+            case 'saleToUs': return entry.currency === 'EUR' ? 'Vente EUR à ProDigital' : `Vente ${entry.currency} à ProDigital`;
             case 'withdrawal': return 'Retrait sur votre solde';
             case 'transfer': return entry.balanceCents >= 0 ? 'Vous avez payé pour nous un autre client' : 'Vous avez reçu notre argent d’un autre client';
             case 'opening': return 'Solde d’ouverture';
@@ -236,4 +236,4 @@ const FR: ReportWords = {
 export const REPORT_WORDS: Record<ReportLang, ReportWords> = { ar: AR, fr: FR };
 
 export { formatCompactDzd, formatDate, formatDayMonth, formatDzdCents, formatEur, formatEurPrice, formatPercent, formatPrice, formatQuantity } from '../reports/reportFormat';
-export const currencyUnit = (currency: ReportCurrency) => (currency === 'EUR' ? '€' : currency === 'RMB' ? 'RMB' : 'USDT');
+export const currencyUnit = (currency: ReportCurrency) => (currency === 'EUR' ? '€' : `${currency}`);

@@ -1,4 +1,4 @@
-import type { TradeCurrencyCode } from '../currency/tradeCurrencies';
+import { isTradeCurrency, TRADE_CURRENCY_CODES, type TradeCurrencyCode } from '../currency/tradeCurrencies';
 import type { ClientTransactionDzd, Tx } from '../types';
 import { toCents } from './money';
 
@@ -27,7 +27,9 @@ export type BreakdownUnit = CalendarKind;
 export type ReportLang = 'ar' | 'fr';
 /** V13-3: RMB (the yuan, Alipay) besides USDT and EUR. */
 export type ReportCurrency = TradeCurrencyCode;
-const reportCurrencyOf = (value: unknown): ReportCurrency => (value === 'EUR' ? 'EUR' : value === 'RMB' ? 'RMB' : 'USDT');
+const reportCurrencyOf = (value: unknown): ReportCurrency => (isTradeCurrency(value) ? value : 'USDT');
+/** The client-row type of a sale in a currency of the list (« Vente USDT », « Vente RMB »…), or a value no row has. */
+const saleTypeOf = (type: unknown): string => (typeof type === 'string' && type.startsWith('Vente ') && isTradeCurrency(type.slice(6)) ? type : '\u0000');
 
 export type ReportPeriod = {
     kind: PeriodKind;
@@ -433,11 +435,10 @@ export function classifyClientRow(row: ClientTransactionDzd, linked?: Tx): Repor
     const portfolio = linked && (linked.type === 'buy' || linked.type === 'sell') ? linked : undefined;
     const ledgerMethod = methodFromLedger(row.paymentMethod);
     switch (row.type) {
-        case 'Vente USDT':
-        case 'Vente EUR':
-        case 'Vente RMB': {
+        case saleTypeOf(row.type): {
+            // V14-4: « Vente <code> » for every currency of the list
             const sale = portfolio?.type === 'sell' ? portfolio : undefined;
-            const currency: ReportCurrency = sale ? reportCurrencyOf(sale.currency) : row.type === 'Vente EUR' ? 'EUR' : row.type === 'Vente RMB' ? 'RMB' : 'USDT';
+            const currency: ReportCurrency = sale ? reportCurrencyOf(sale.currency) : reportCurrencyOf(String(row.type).slice(6));
             const settledInEur = Boolean(sale && sale.currency === 'USDT' && sale.settlementCurrency === 'EUR');
             const paidThroughAnotherAccount = Boolean(sale?.linkedClientDzdId);
             return {
@@ -517,7 +518,7 @@ const inPeriod = (entry: ReportEntry, period: Pick<ReportPeriod, 'from' | 'to'>)
 export function periodTotals(entries: ReadonlyArray<ReportEntry>, period: Pick<ReportPeriod, 'from' | 'to'>): PeriodTotals {
     const totals: PeriodTotals = {
         spentCents: 0,
-        currencies: { USDT: emptyCurrency('USDT'), EUR: emptyCurrency('EUR'), RMB: emptyCurrency('RMB') },
+        currencies: Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, emptyCurrency(code)])) as Record<ReportCurrency, ReturnType<typeof emptyCurrency>>,
         serviceCount: 0,
         serviceCents: 0,
         purchaseCount: 0,
@@ -683,7 +684,7 @@ export function buildClientActivityReport(input: BuildClientActivityReportInput)
     const entries = buildReportEntries(input.clientRows.filter((row) => row.clientId === input.clientId), input.transactions);
     const totals = periodTotals(entries, period);
     const isLive = period.to >= now;
-    const currencyCards: ReportCurrencyCard[] = (['USDT', 'EUR', 'RMB'] as ReportCurrency[])
+    const currencyCards: ReportCurrencyCard[] = (TRADE_CURRENCY_CODES as ReportCurrency[])
         .filter((currency) => totals.currencies[currency].purchases > 0)
         .map((currency) => ({
             ...totals.currencies[currency],

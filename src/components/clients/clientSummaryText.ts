@@ -48,8 +48,8 @@ type Words = {
 
 const AR: Words = {
     quantity: (quantity, currency) => isolate(`${formatQuantity(quantity)} ${currency}`),
-    buy: (quantity, currency) => (quantity ? `اشتريتَ ${quantity}` : currency === 'EUR' ? 'اشتريتَ يورو' : currency === 'RMB' ? 'اشتريتَ RMB' : 'اشتريتَ USDT'),
-    saleToUs: (quantity, currency) => (quantity ? `بعتَ لنا ${quantity}` : currency === 'EUR' ? 'بعتَ لنا يورو' : currency === 'RMB' ? 'بعتَ لنا RMB' : 'بعتَ لنا USDT'),
+    buy: (quantity, currency) => (quantity ? `اشتريتَ ${quantity}` : currency === 'EUR' ? 'اشتريتَ يورو' : `اشتريتَ ${currency}`),
+    saleToUs: (quantity, currency) => (quantity ? `بعتَ لنا ${quantity}` : currency === 'EUR' ? 'بعتَ لنا يورو' : `بعتَ لنا ${currency}`),
     service: 'خدمة رقمية',
     unitPrice: (price, unit) => `بسعر\u00A0${isolate(`${price}\u00A0DZD`)}\u00A0لكل\u00A0${unit}`,
     onAccount: 'سُجّلت على حسابك',
@@ -76,8 +76,8 @@ const AR: Words = {
 
 const FR: Words = {
     quantity: (quantity, currency) => `${formatQuantity(quantity)} ${currency}`,
-    buy: (quantity, currency) => (quantity ? `Achat de ${quantity}` : currency === 'EUR' ? 'Achat EUR' : currency === 'RMB' ? 'Achat RMB' : 'Achat USDT'),
-    saleToUs: (quantity, currency) => (quantity ? `Vente de ${quantity} à ProDigital` : currency === 'EUR' ? 'Vente EUR à ProDigital' : currency === 'RMB' ? 'Vente RMB à ProDigital' : 'Vente USDT à ProDigital'),
+    buy: (quantity, currency) => (quantity ? `Achat de ${quantity}` : currency === 'EUR' ? 'Achat EUR' : `Achat ${currency}`),
+    saleToUs: (quantity, currency) => (quantity ? `Vente de ${quantity} à ProDigital` : currency === 'EUR' ? 'Vente EUR à ProDigital' : `Vente ${currency} à ProDigital`),
     service: 'Service numérique',
     unitPrice: (price, unit) => `à\u00A0${price}\u00A0DZD\u00A0/\u00A0${unit}`,
     onAccount: 'porté sur votre compte',
@@ -141,7 +141,7 @@ export function summaryRowText(entry: ReportEntry, context: SummaryRowContext, l
     const w = WORDS[lang];
     const channel = channelKey(entry, context);
     const quantity = entry.quantity && entry.currency ? w.quantity(entry.quantity, currencyUnit(entry.currency)) : null;
-    const currency = entry.currency === 'EUR' ? 'EUR' : entry.currency === 'RMB' ? 'RMB' : 'USDT';
+    const currency = (entry.currency ?? 'USDT') as TradeCurrencyCode;
     switch (entry.kind) {
         case 'buy':
             return { title: w.buy(quantity, currency), details: [...priceDetail(entry, w), ...paidWay(entry, context, w)] };
