@@ -2727,6 +2727,7 @@ export default function MainApp({ user }: {
     const effectiveDashboardDebtClients = dashboardSummary?.clients.topOverdueClients.items ?? dashboardDebtClients;
     const dashboardCanQuickSell = Number(dashboardPortfolioStats?.usdt?.available || 0) > 0;
     const dashboardPageProps = {
+        rmbInStock: rmbStock.quantity,
         dailyOverview: dashboardDailyOverview,
         managerProfitBreakdown: dashboardManagerProfitBreakdown,
         financialAudit: dashboardFinancialAudit,

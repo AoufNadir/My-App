@@ -1,6 +1,6 @@
 import React from 'react';
 import { formatNumber } from '../../pages/shared/pageFormat';
-export type CurrencyCode = 'DZD' | 'EUR' | 'USDT' | 'USD';
+export type CurrencyCode = 'DZD' | 'EUR' | 'USDT' | 'USD' | 'RMB';
 export type AmountSemantic = 'profit' | 'loss' | 'neutral' | 'auto' | 'plain';
 export type AmountSize = 'sm' | 'md' | 'lg' | 'xl' | 'hero';
 export type CurrencyAmountProps = Omit<React.HTMLAttributes<HTMLSpanElement>, 'children'> & {

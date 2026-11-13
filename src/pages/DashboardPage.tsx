@@ -1,4 +1,4 @@
-import { useShowEur } from '../contexts/CurrencyVisibilityContext';
+import { useShowEur, useShowRmb } from '../contexts/CurrencyVisibilityContext';
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { CurrencyAmount, type AmountSemantic } from '../components/financial/CurrencyAmount';
 import { AlertCard, HeroCard, SectionCard, StatTile, StatTileGrid } from '../components/cards';
@@ -72,6 +72,8 @@ type DashboardPageProps = {
         previousProfit?: Record<ProfitPeriod, number>;
     };
     portfolioStats: any;
+    /** V13-6: RMB in stock (quantity), shown like EUR: when RMB is on, or when some is held */
+    rmbInStock?: number;
     treasuryStats: any;
     totals: any;
     treasuryCards: TreasuryCard[];
@@ -347,6 +349,7 @@ export function DashboardPage(props: DashboardPageProps) {
 function DashboardContent({
     dailyOverview,
     portfolioStats,
+    rmbInStock = 0,
     capitalSnapshot,
     investorBreakdown,
     overdueDebtClients,
@@ -459,6 +462,7 @@ function DashboardContent({
     const eurLocked = Number(portfolioStats?.eur?.locked || 0);
     const usdtInStock = usdtAvailable + usdtLocked;
     const showEur = useShowEur();
+    const showRmb = useShowRmb();
     const eurInStock = eurAvailable + eurLocked;
     const lowStock = usdtInStock < 100 && eurInStock < 100;
     const getClientDebtAmount = (client: OverdueDebtClient) => {
@@ -606,6 +610,7 @@ function DashboardContent({
         <StatTile label={t('common.baridiBalance') as string} value={capitalSnapshot.baridiBalance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd"/>
         <StatTile label={t('dashboard.usdtInStock') as string} value={usdtInStock} currency="USDT" decimals={2} icon={<DollarSignIcon className="h-3.5 w-3.5"/>} tone="usdt"/>
         {(showEur || eurInStock > 0) && <StatTile label={t('dashboard.eurInStock') as string} value={eurInStock} currency="EUR" decimals={2} icon={<EuroIcon className="h-3.5 w-3.5"/>} tone="eur"/>}
+        {(showRmb || rmbInStock > 0) && <StatTile label={t('dashboard.rmbInStock') as string} value={rmbInStock} currency="RMB" decimals={2} icon={<span className="text-[11px] font-extrabold leading-none">¥</span>} tone="eur"/>}
         {/* V12-2: sold and not sent yet: still in the wallet, but not yours (not in the capital). */}
         {pendingDeliveries && pendingDeliveries.USDT > 0 && (<StatTile label={t('dashboard.clientsUsdt') as string} value={pendingDeliveries.USDT} currency="USDT" decimals={2} icon={<ArrowUpRightIcon className="h-3.5 w-3.5"/>} tone="debt"/>)}
         {pendingDeliveries && pendingDeliveries.EUR > 0 && (<StatTile label={t('dashboard.clientsEur') as string} value={pendingDeliveries.EUR} currency="EUR" decimals={2} icon={<ArrowUpRightIcon className="h-3.5 w-3.5"/>} tone="debt"/>)}
