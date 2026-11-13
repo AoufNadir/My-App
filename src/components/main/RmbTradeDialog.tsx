@@ -1,4 +1,4 @@
-import type { TradeCurrencyCode } from '../../currency/tradeCurrencies';
+import { isExtraCurrency, tradeCurrency, TRADE_CURRENCY_CODES, type TradeCurrencyCode } from '../../currency/tradeCurrencies';
 import { ClientTradeAssistant } from './ClientTradeAssistant';
 import { lastTradeWithAnyone, lastTradeWithClient } from '../../utils/clientLastTrade';
 import React from 'react';
@@ -16,7 +16,7 @@ import { WalletIcon } from '../icons/WalletIcon';
 import { DollarSignIcon } from '../icons/DollarSignIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { useShowEur, useShowRmb, useShowUsdt } from '../../contexts/CurrencyVisibilityContext';
+import { useCurrencyShown } from '../../contexts/CurrencyVisibilityContext';
 import { usualChannelOf } from '../../utils/usualChannel';
 import { checkRmbTrade, linkThreeFields, rmbConversionPreview, type PaymentStatus, type RmbSource, type RmbTradeInput, type ThreeFields, type TradeCurrency } from '../../utils/rmbTrade';
 import type { ClientDzd } from '../../types';
@@ -32,7 +32,7 @@ export type RmbTradeDialogProps = {
     onClose: () => void;
     /** Back to the USDT / EUR window, or the other side of RMB */
     onSwitch: (kind: 'buy' | 'sell', currency: TradeCurrencyCode) => void;
-    holdings: { RMB: RmbHolding; USDT: RmbHolding; EUR: RmbHolding };
+    holdings: Record<TradeCurrencyCode, RmbHolding>;
     clientsDzd: ClientDzd[];
     openClientModal: (client: ClientDzd | null) => void;
     fieldBase: string;
@@ -50,9 +50,10 @@ export type RmbTradeDialogProps = {
 const W = {
     fr: {
         buyQuestion: 'Source d’achat', buyHint: (c: string) => `Choisissez comment les ${c} ont été achetés.`, sellQuestion: 'Source de vente', sellHint: (c: string) => `Choisissez contre quoi les ${c} sont vendus.`,
-        buyWith: { DZD: 'Achat avec DZD', EUR: 'Achat avec EUR', USDT: 'Achat avec USDT', RMB: 'Achat avec RMB' }, sellWith: { DZD: 'Vente avec DZD', EUR: 'Vente avec EUR', USDT: 'Vente avec USDT', RMB: 'Vente avec RMB' },
-        detail: { DZD: 'Dinars : payé maintenant ou à crédit', EUR: 'Conversion : le coût des EUR est repris', USDT: 'Conversion : le coût des USDT est repris', RMB: 'Conversion : le coût des RMB est repris' },
-        sellDetail: { DZD: 'Dinars : bénéfice calculé à la vente', EUR: 'Conversion sans bénéfice : le coût passe aux EUR', USDT: 'Conversion sans bénéfice : le coût passe aux USDT', RMB: 'Conversion sans bénéfice : le coût passe aux RMB' },
+        // V14-4: any currency of the list, by its code (the dinar and the euro keep their words)
+        buyWith: (c: string) => `Achat avec ${c}`, sellWith: (c: string) => `Vente avec ${c}`,
+        detail: (c: string) => (c === 'DZD' ? 'Dinars : payé maintenant ou à crédit' : `Conversion : le coût des ${c} est repris`),
+        sellDetail: (c: string) => (c === 'DZD' ? 'Dinars : bénéfice calculé à la vente' : `Vente : bénéfice ou perte au prix moyen des ${c}`),
         quantity: (c: string) => `Quantité (${c})`, price: (c: string) => `Prix de 1 ${c} (DZD)`, totalDzd: 'Montant total (DZD)', rateLabel: (o: string, c: string) => `Taux : 1 ${o} = ? ${c}`, paid: (c: string) => `Montant payé (${c})`, received: (c: string) => `Montant reçu (${c})`, costLine: (c: string) => `Coût de ces ${c}`,
         total: 'Total', profit: 'Bénéfice estimé', rate: 'Taux', newPam: (c: string) => `Prix moyen de ces ${c}`, conversion: 'Conversion : aucun bénéfice maintenant, il viendra à la vente en dinars.', crossValue: (c: string) => `Valeur reçue (au prix moyen des ${c})`, crossNote: 'Vente : ce qui entre est compté à son prix moyen, le bénéfice ou la perte se compare au prix moyen de ce qui sort.',
         changeSource: 'Changer la source', balance: 'Solde', pam: 'Prix moyen actuel',
@@ -61,9 +62,9 @@ const W = {
     },
     ar: {
         buyQuestion: 'مصدر الشراء', buyHint: (c: string) => `اختر كيف اشتريت ${c}.`, sellQuestion: 'مصدر البيع', sellHint: (c: string) => `اختر مقابل ماذا تبيع ${c}.`,
-        buyWith: { DZD: 'شراء بالدينار', EUR: 'شراء باليورو', USDT: 'شراء بالـ USDT', RMB: 'شراء بالـ RMB' }, sellWith: { DZD: 'بيع بالدينار', EUR: 'بيع مقابل يورو', USDT: 'بيع مقابل USDT', RMB: 'بيع مقابل RMB' },
-        detail: { DZD: 'بالدينار: الآن أو بالدَّين', EUR: 'تحويل: تنتقل تكلفة اليورو', USDT: 'تحويل: تنتقل تكلفة الـ USDT', RMB: 'تحويل: تنتقل تكلفة الـ RMB' },
-        sellDetail: { DZD: 'بالدينار: يُحسب الربح عند البيع', EUR: 'تحويل بلا ربح: التكلفة تنتقل إلى اليورو', USDT: 'تحويل بلا ربح: التكلفة تنتقل إلى الـ USDT', RMB: 'تحويل بلا ربح: التكلفة تنتقل إلى الـ RMB' },
+        buyWith: (c: string) => (c === 'DZD' ? 'شراء بالدينار' : c === 'EUR' ? 'شراء باليورو' : `شراء بالـ ${c}`), sellWith: (c: string) => (c === 'DZD' ? 'بيع بالدينار' : c === 'EUR' ? 'بيع مقابل يورو' : `بيع مقابل ${c}`),
+        detail: (c: string) => (c === 'DZD' ? 'بالدينار: الآن أو بالدَّين' : c === 'EUR' ? 'تحويل: تنتقل تكلفة اليورو' : `تحويل: تنتقل تكلفة الـ ${c}`),
+        sellDetail: (c: string) => (c === 'DZD' ? 'بالدينار: يُحسب الربح عند البيع' : c === 'EUR' ? 'بيع: ربح أو خسارة بمتوسط سعر اليورو' : `بيع: ربح أو خسارة بمتوسط سعر الـ ${c}`),
         quantity: (c: string) => `الكمية (${c})`, price: (c: string) => `سعر 1 ${c} (دج)`, totalDzd: 'المبلغ الكلي (دج)', rateLabel: (o: string, c: string) => `سعر الصرف: \u20661 ${o} = ? ${c}\u2069`, paid: (c: string) => `المبلغ المدفوع (${c})`, received: (c: string) => `المبلغ المستلم (${c})`, costLine: (c: string) => `تكلفة هذه الـ ${c}`,
         total: 'المجموع', profit: 'الربح المتوقع', rate: 'سعر الصرف', newPam: (c: string) => `متوسط سعر هذا الـ ${c}`, conversion: 'تحويل: لا ربح الآن، ويظهر الربح عند البيع بالدينار.', crossValue: (c: string) => `قيمة ما استلمته (بمتوسط سعر الـ ${c})`, crossNote: 'بيع: ما يدخل يُحسب بمتوسط سعر شرائه، والربح أو الخسارة مقارنة بمتوسط سعر ما يخرج.',
         changeSource: 'تغيير المصدر', balance: 'الرصيد', pam: 'متوسط السعر الحالي',
@@ -76,9 +77,9 @@ const n = (value: number, digits = 2) => value.toLocaleString('fr-FR', { minimum
 export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, openClientModal, fieldBase, onSave, parseAndEvaluate, initialSource = null, currency = 'RMB', tradeSource }: RmbTradeDialogProps) {
     const { lang, t } = useLanguage();
     const w = W[lang];
-    const showEur = useShowEur();
-    const showRmb = useShowRmb();
-    const showUsdt = useShowUsdt();
+    const isShown = useCurrencyShown();
+    const showEur = isShown('EUR');
+    const showUsdt = isShown('USDT');
     const [source, setSource] = React.useState<RmbSource | null>(initialSource);
     const [clientId, setClientId] = React.useState('none');
     const [pending, setPending] = React.useState(false);
@@ -105,7 +106,7 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
     const quantityValue = source === 'DZD' ? num(dzd.quantity) : num(conv.quantity);
     const priceValue = num(dzd.quantity) > 0 && num(dzd.total) > 0 && !num(dzd.price) ? num(dzd.total) / num(dzd.quantity) : num(dzd.price);
     const input: RmbTradeInput | null = source ? { kind, currency, source, quantity: quantityValue, price: priceValue, otherAmount: num(conv.amount), clientId, paymentStatus: source === 'DZD' ? status : null, receivedAvgPrice: kind === 'sell' && source && source !== 'DZD' ? holdings[source].avgBuy : undefined } : null;
-    const stock = { RMB: holdings.RMB.available, EUR: holdings.EUR.available, USDT: holdings.USDT.available };
+    const stock = Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, holdings[code]?.available ?? 0])) as Record<TradeCurrencyCode, number>;
     const setDzdField = (field: 'quantity' | 'price' | 'total', value: string) => {
         const next = { ...dzd, [field]: value };
         const q = num(next.quantity), p = num(next.price), tt = num(next.total);
@@ -122,7 +123,7 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
     const crossValue = crossSell && input ? r2((input.otherAmount ?? 0) * (input.receivedAvgPrice ?? 0)) : 0;
     const profit = input && kind === 'sell' && source === 'DZD' && total > 0 ? r2(total - input.quantity * holdings[currency].avgBuy)
         : crossSell && input && input.quantity > 0 ? r2(crossValue - input.quantity * holdings[currency].avgBuy) : 0;
-    const preview = input && source !== 'DZD' ? rmbConversionPreview(input, { RMB: holdings.RMB.avgBuy, EUR: holdings.EUR.avgBuy, USDT: holdings.USDT.avgBuy }) : null;
+    const preview = input && source !== 'DZD' ? rmbConversionPreview(input, Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, holdings[code]?.avgBuy ?? 0])) as Record<TradeCurrencyCode, number>) : null;
     const usual = clientId !== 'none' ? usualChannelOf(clientsDzd.find((c) => c.id === clientId)) : null;
     // V14-2: « not sent yet » (sale) / « not received yet » (purchase), with a client, paid in cash or BaridiMob.
     const pendingAllowed = source === 'DZD' && clientId !== 'none' && (status === 'cash' || status === 'baridi');
@@ -136,10 +137,12 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
             setSaving(false);
         }
     };
-    const sources: RmbSource[] = (['DZD', 'USDT', 'EUR', 'RMB'] as RmbSource[])
-        .filter((s) => s !== currency && (s !== 'DZD' || currency === 'RMB') && (s !== 'EUR' || showEur) && (s !== 'RMB' || showRmb) && (s !== 'USDT' || showUsdt || holdings.USDT.available > 0));
-    const icon = (s: RmbSource) => (s === 'DZD' ? <BanknotesIcon className="h-5 w-5"/> : s === 'EUR' ? <WalletIcon className="h-5 w-5"/> : s === 'RMB' ? <span className="text-base font-extrabold">¥</span> : <DollarSignIcon className="h-5 w-5"/>);
-    const changeSource = () => (currency === 'RMB' ? setSource(null) : onSwitch(kind, currency));
+    // V14-4: dinars for an extra currency (USDT and EUR have their own dinar window), and every other shown currency
+    // (one still held stays offered).
+    const sources: RmbSource[] = (['DZD', ...TRADE_CURRENCY_CODES] as RmbSource[])
+        .filter((s) => s !== currency && (s !== 'DZD' || isExtraCurrency(currency)) && (s === 'DZD' || isShown(s) || (holdings[s]?.available ?? 0) > 0));
+    const icon = (s: RmbSource) => (s === 'DZD' ? <BanknotesIcon className="h-5 w-5"/> : s === 'EUR' ? <WalletIcon className="h-5 w-5"/> : isExtraCurrency(s) ? <span className="text-base font-extrabold">{tradeCurrency(s).symbol}</span> : <DollarSignIcon className="h-5 w-5"/>);
+    const changeSource = () => (isExtraCurrency(currency) ? setSource(null) : onSwitch(kind, currency));
     const footerStats: OperationFooterStat[] = [];
     if (total > 0) footerStats.push({ label: w.total, value: `${n(total, 0)} DZD` });
     if (crossSell) footerStats.push({ label: w.crossValue(source as string), value: `${n(crossValue, 0)} DZD` });
@@ -167,8 +170,8 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
               {sources.map((s) => (<button key={s} type="button" onClick={() => setSource(s)} className="flex min-h-touch w-full items-center gap-3 rounded-button px-2 py-2.5 text-start transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-financial-asset-bg text-financial-asset">{icon(s)}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-bold text-neutral-900">{kind === 'buy' ? w.buyWith[s] : w.sellWith[s]}</span>
-                    <span className="block text-xs text-neutral-500">{kind === 'buy' ? w.detail[s] : w.sellDetail[s]}</span>
+                    <span className="block text-[15px] font-bold text-neutral-900">{kind === 'buy' ? w.buyWith(s) : w.sellWith(s)}</span>
+                    <span className="block text-xs text-neutral-500">{kind === 'buy' ? w.detail(s) : w.sellDetail(s)}</span>
                   </span>
                   <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100"/>
                 </button>))}

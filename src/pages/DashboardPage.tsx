@@ -1,4 +1,5 @@
-import { useShowEur, useShowRmb, useShowUsdt } from '../contexts/CurrencyVisibilityContext';
+import { useCurrencyShown, useShowEur, useShowRmb, useShowUsdt } from '../contexts/CurrencyVisibilityContext';
+import { tradeCurrency, type TradeCurrencyCode } from '../currency/tradeCurrencies';
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { CurrencyAmount, type AmountSemantic } from '../components/financial/CurrencyAmount';
 import { AlertCard, HeroCard, SectionCard, StatTile, StatTileGrid } from '../components/cards';
@@ -74,6 +75,8 @@ type DashboardPageProps = {
     portfolioStats: any;
     /** V13-6: RMB in stock (quantity), shown like EUR: when RMB is on, or when some is held */
     rmbInStock?: number;
+    /** V14-4: the other extra currencies of the list (after RMB) */
+    extraInStock?: ReadonlyArray<{ code: TradeCurrencyCode; quantity: number }>;
     treasuryStats: any;
     totals: any;
     treasuryCards: TreasuryCard[];
@@ -351,6 +354,7 @@ function DashboardContent({
     dailyOverview,
     portfolioStats,
     rmbInStock = 0,
+    extraInStock = [],
     capitalSnapshot,
     investorBreakdown,
     overdueDebtClients,
@@ -464,6 +468,7 @@ function DashboardContent({
     const usdtInStock = usdtAvailable + usdtLocked;
     const showEur = useShowEur();
     const showRmb = useShowRmb();
+    const isShownCode = useCurrencyShown();
     const showUsdt = useShowUsdt();
     const eurInStock = eurAvailable + eurLocked;
     const lowStock = usdtInStock < 100 && eurInStock < 100;
@@ -613,6 +618,7 @@ function DashboardContent({
         {(showUsdt || usdtInStock > 0) && <StatTile label={t('dashboard.usdtInStock') as string} value={usdtInStock} currency="USDT" decimals={2} icon={<DollarSignIcon className="h-3.5 w-3.5"/>} tone="usdt"/>}
         {(showEur || eurInStock > 0) && <StatTile label={t('dashboard.eurInStock') as string} value={eurInStock} currency="EUR" decimals={2} icon={<EuroIcon className="h-3.5 w-3.5"/>} tone="eur"/>}
         {(showRmb || rmbInStock > 0) && <StatTile label={t('dashboard.rmbInStock') as string} value={rmbInStock} currency="RMB" decimals={2} icon={<span className="text-[11px] font-extrabold leading-none">¥</span>} tone="eur"/>}
+        {extraInStock.filter((item) => isShownCode(item.code) || item.quantity > 0).map((item) => (<Fragment key={item.code}><StatTile label={(t('dashboard.currencyInStock') as string).replace('{c}', item.code)} value={item.quantity} currency={item.code as 'RMB'} decimals={2} icon={<span className="text-[11px] font-extrabold leading-none">{tradeCurrency(item.code).symbol}</span>} tone="eur"/></Fragment>))}
         {/* V12-2: sold and not sent yet: still in the wallet, but not yours (not in the capital). */}
         {pendingDeliveries && pendingDeliveries.USDT > 0 && (<StatTile label={t('dashboard.clientsUsdt') as string} value={pendingDeliveries.USDT} currency="USDT" decimals={2} icon={<ArrowUpRightIcon className="h-3.5 w-3.5"/>} tone="debt"/>)}
         {pendingDeliveries && pendingDeliveries.EUR > 0 && (<StatTile label={t('dashboard.clientsEur') as string} value={pendingDeliveries.EUR} currency="EUR" decimals={2} icon={<ArrowUpRightIcon className="h-3.5 w-3.5"/>} tone="debt"/>)}

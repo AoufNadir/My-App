@@ -1,4 +1,4 @@
-import type { TradeCurrencyCode } from '../../currency/tradeCurrencies';
+import { EXTRA_TRADE_CURRENCIES, type TradeCurrencyCode } from '../../currency/tradeCurrencies';
 import { Button } from '../ui/Button';
 import { Modal, ModalContent, ModalHeader, ModalTitle } from '../ui/Modal';
 import { ListRow } from '../cards/ListRow';
@@ -28,7 +28,10 @@ type NewTransactionMenuDialogProps = {
   showEur?: boolean;
   /** V13-3: RMB tiles (hidden in the settings like EUR) */
   showRmb?: boolean;
-  openRmb?: (kind: 'buy' | 'sell') => void;
+  /** V14-4: the window of an extra currency (RMB and the next ones) */
+  openRmb?: (kind: 'buy' | 'sell', currency?: TradeCurrencyCode) => void;
+  /** V14-4: hidden currencies (settings); one still held stays */
+  hidden?: ReadonlyArray<string>;
   /** V13-5: what each currency holds, shown on its row */
   balances?: Partial<Record<TradeCurrencyCode, number>>;
 };
@@ -49,6 +52,7 @@ export function NewTransactionMenuDialog({
   showRmb = true,
   openRmb,
   balances,
+  hidden,
 }: NewTransactionMenuDialogProps) {
   const runAfterClose = (action: () => void) => {
     onClose();
@@ -58,7 +62,8 @@ export function NewTransactionMenuDialog({
   const rows: Array<{ code: TradeCurrencyCode; symbol: string; buy: () => void; sell: () => void }> = [
     ...(showUsdt ? [{ code: 'USDT' as const, symbol: '$', buy: () => openForm('buy_usdt'), sell: () => openForm('sell_usdt') }] : []),
     ...(showEur ? [{ code: 'EUR' as const, symbol: '€', buy: () => openForm('buy_eur'), sell: () => openForm('sell_eur') }] : []),
-    ...(showRmb && openRmb ? [{ code: 'RMB' as const, symbol: '¥', buy: () => openRmb('buy'), sell: () => openRmb('sell') }] : []),
+    // V14-4: one row per extra currency of the list, shown unless hidden (RMB keeps its own switch prop)
+    ...(openRmb ? EXTRA_TRADE_CURRENCIES.filter((c) => (c.code === 'RMB' ? showRmb : true) && !(hidden ?? []).includes(c.code)).map((c) => ({ code: c.code, symbol: c.symbol, buy: () => openRmb('buy', c.code), sell: () => openRmb('sell', c.code) })) : []),
   ];
 
   return (

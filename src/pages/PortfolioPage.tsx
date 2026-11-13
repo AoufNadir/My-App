@@ -1,4 +1,6 @@
-import { useShowUsdt } from '../contexts/CurrencyVisibilityContext';
+import { Fragment } from 'react';
+import { useCurrencyShown, useShowUsdt } from '../contexts/CurrencyVisibilityContext';
+import { EXTRA_CURRENCY_CODES, isTradeCurrency, tradeCurrency } from '../currency/tradeCurrencies';
 import { useState, type ReactNode } from 'react';
 import { ChevronRightIcon } from '../components/icons/ChevronRightIcon';
 import { ArrowUpRightIcon } from '../components/icons/ArrowUpRightIcon';
@@ -61,6 +63,8 @@ type PortfolioPageProps = {
     showEur?: boolean;
     /** V13-3: the RMB in stock (Alipay), and whether RMB is shown */
     rmbStock?: { quantity: number; avgBuy: number; value: number };
+    /** V14-4: every extra currency of the list (RMB included) */
+    extraStocks?: Record<string, { quantity: number; avgBuy: number; value: number }>;
     showRmb?: boolean;
 };
 
@@ -103,15 +107,15 @@ function AssetCard({ symbol, icon, tone, quantity, value, metrics, onEdit, editL
 }
 
 /** V13-3: the RMB in stock (Alipay): the quantity, what it is worth at its average price, and that price. */
-function RmbCard({ quantity, avgBuy, value }: { quantity: number; avgBuy: number; value: number }) {
+function RmbCard({ quantity, avgBuy, value, code = 'RMB' }: { quantity: number; avgBuy: number; value: number; code?: string }) {
     const { t } = useLanguage();
     const n = (amount: number, digits = 2) => amount.toLocaleString('fr-FR', { minimumFractionDigits: digits, maximumFractionDigits: digits });
-    return (<section aria-label="RMB" className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4">
+    return (<section aria-label={code} className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4">
       <div className="flex items-start gap-3">
-        <span aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${CARD_TONE_CLASS.asset}`}>¥</span>
+        <span aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${CARD_TONE_CLASS.asset}`}>{isTradeCurrency(code) ? tradeCurrency(code).symbol : code}</span>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-neutral-500">RMB · Alipay</p>
-          <p className="mt-0.5 text-2xl font-bold tabular-nums text-neutral-900"><bdi dir="ltr">{n(quantity)} RMB</bdi></p>
+          <p className="text-[13px] font-semibold text-neutral-500">{code === 'RMB' ? 'RMB · Alipay' : code}</p>
+          <p className="mt-0.5 text-2xl font-bold tabular-nums text-neutral-900"><bdi dir="ltr">{n(quantity)} {code}</bdi></p>
           <p className="mt-0.5 text-sm tabular-nums text-neutral-500"><bdi dir="ltr">{n(value, 0)} DZD</bdi></p>
         </div>
       </div>
@@ -207,10 +211,12 @@ export function PortfolioPage(props: PortfolioPageProps) {
         onOpenClient,
         showEur = true,
         rmbStock,
+        extraStocks,
         showRmb = true,
     } = props;
     const { t } = useLanguage();
     const showUsdt = useShowUsdt();
+    const isShown = useCurrencyShown();
     const [simulatorOpen, setSimulatorOpen] = useState(false);
     const normalizeNearZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : value);
     const usdtAvail = normalizeNearZero((portfolioStats.usdt.available || 0) + (portfolioStats.usdt.locked || 0));
@@ -244,7 +250,9 @@ export function PortfolioPage(props: PortfolioPageProps) {
 {showEur ? (
             <AssetCard symbol="EUR" icon={<EuroIcon className="h-5 w-5"/>} tone="eur" quantity={eurAvail} value={eurValue} metrics={priceMetrics(portfolioStats.eur.avgBuy, smartTargetEur)} onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('EUR') : undefined} editLabel={t('common.edit') as string}/>
       ) : eurAvail > 0 ? (<p className="rounded-button bg-surface-muted px-3 py-2 text-xs text-neutral-600">{(t('portfolio.eurHiddenStock') as string).replace('{amount}', eurAvail.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</p>) : null}
-      {rmbStock && (showRmb || rmbStock.quantity > 0) && (<RmbCard quantity={rmbStock?.quantity ?? 0} avgBuy={rmbStock?.avgBuy ?? 0} value={rmbValue}/>)}
+      {extraStocks
+          ? EXTRA_CURRENCY_CODES.map((code) => { const stock = extraStocks[code]; return stock && (isShown(code) || stock.quantity > 0) ? (<Fragment key={code}><RmbCard code={code} quantity={stock.quantity} avgBuy={stock.avgBuy} value={stock.value}/></Fragment>) : null; })
+          : rmbStock && (showRmb || rmbStock.quantity > 0) && (<RmbCard quantity={rmbStock?.quantity ?? 0} avgBuy={rmbStock?.avgBuy ?? 0} value={rmbValue}/>)}
 
       {pendingDeliveries && (pendingDeliveries.USDT > 0 || pendingDeliveries.EUR > 0 || (pendingDeliveries.awaited?.USDT ?? 0) > 0 || (pendingDeliveries.awaited?.EUR ?? 0) > 0) && (<ClientFundsCard owed={pendingDeliveries} mine={{ USDT: usdtAvail, EUR: eurAvail }} onOpenClient={onOpenClient}/>)}
       {pendingDeliveries?.supplierList && pendingDeliveries.supplierList.length > 0 && (<SupplierAwaitedCard list={pendingDeliveries.supplierList} onOpenClient={onOpenClient}/>)}
@@ -255,7 +263,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
 
       <BottomSheet isOpen={simulatorOpen} onClose={() => setSimulatorOpen(false)} title={t('portfolio.pamPriceSimulator') as string}>
         <div className="p-4 sm:px-5">
-          <PamSimulator portfolioStats={rmbStock ? { ...portfolioStats, rmb: { available: rmbStock.quantity, avgBuy: rmbStock.avgBuy, purchasedQty: rmbStock.quantity, costBasis: rmbStock.quantity * rmbStock.avgBuy } } : portfolioStats} smartTargetUsdt={smartTargetUsdt} parseAndEvaluate={parseAndEvaluate} showEur={showEur}/>
+          <PamSimulator portfolioStats={{ ...portfolioStats, ...Object.fromEntries(Object.entries(extraStocks ?? (rmbStock ? { RMB: rmbStock } : {})).map(([code, stock]) => [code.toLowerCase(), { available: stock.quantity, avgBuy: stock.avgBuy, purchasedQty: stock.quantity, costBasis: stock.quantity * stock.avgBuy }])) }} smartTargetUsdt={smartTargetUsdt} parseAndEvaluate={parseAndEvaluate} showEur={showEur}/>
         </div>
       </BottomSheet>
     </div>);

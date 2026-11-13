@@ -2335,6 +2335,7 @@ export default function MainApp({ user }: {
         showEur,
         showRmb,
         rmbStock,
+        extraStocks,
         statsView,
         setStatsView,
         setIsSettingsModalOpen,
@@ -2375,7 +2376,7 @@ export default function MainApp({ user }: {
         usdtReportMonth, usdtReportYear, transactions, clientTransactionsDzd, reportClientRows, selectedHeatmapDay,
         fieldBase,
         reportClient, clientsDzd, reportMonth, reportYear, reportMonthNames,
-        getClientFullName, handleExportUsdtReport, openPortfolioBalanceEditModal, pendingDeliveries, showEur, showRmb, rmbStock
+        getClientFullName, handleExportUsdtReport, openPortfolioBalanceEditModal, pendingDeliveries, showEur, showRmb, rmbStock, extraStocks
     ]);
     // Bulk-import clients from CSV. Skips duplicates by name or phone, creates
     // an initial-balance ledger entry when an `initialBalance` column is mapped.
@@ -2751,6 +2752,7 @@ export default function MainApp({ user }: {
     const dashboardCanQuickSell = Number(dashboardPortfolioStats?.usdt?.available || 0) > 0;
     const dashboardPageProps = {
         rmbInStock: rmbStock.quantity,
+        extraInStock: EXTRA_CURRENCY_CODES.filter((code) => code !== 'RMB').map((code) => ({ code, quantity: extraStocks[code]?.quantity ?? 0 })),
         dailyOverview: dashboardDailyOverview,
         managerProfitBreakdown: dashboardManagerProfitBreakdown,
         financialAudit: dashboardFinancialAudit,
@@ -3060,7 +3062,7 @@ export default function MainApp({ user }: {
 
                 <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onNewOperation={isFinancialDataReady ? openNewOperationMenu : undefined} onOpenSettings={openSettingsModal} onSignOut={handleSignOut} overdueCount={dashboardPageProps.overdueDebtClientCount}/>
 
-                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} showUsdt={showUsdt || portfolioStats.usdt.available > 0} showEur={showEur} showRmb={showRmb} openRmb={(kind, currency = 'RMB') => openExtraTrade(kind, currency as TradeCurrencyCode)} balances={{ USDT: portfolioStats.usdt.available, EUR: portfolioStats.eur.available, RMB: rmbStock.quantity }}/>
+                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} showUsdt={showUsdt || portfolioStats.usdt.available > 0} showEur={showEur} showRmb={showRmb} openRmb={(kind, currency = 'RMB') => openExtraTrade(kind, currency as TradeCurrencyCode)} balances={{ USDT: portfolioStats.usdt.available, EUR: portfolioStats.eur.available, ...Object.fromEntries((Object.entries(extraStocks) as Array<[string, ExtraStock]>).map(([code, stock]) => [code, stock.quantity])) }} hidden={hiddenCurrencies.hidden.filter((code) => !((extraStocks[code]?.quantity ?? 0) > 0))}/>
                 <RmbTradeDialog kind={tradeWin?.kind ?? null} currency={tradeWin?.currency ?? 'RMB'} initialSource={tradeWin?.source ?? null} onClose={() => setTradeWin(null)} onSwitch={switchTradeWindow} holdings={rmbHoldings} clientsDzd={clientsDzd} openClientModal={openClientModal} fieldBase={fieldBase} onSave={saveRmbTrade} parseAndEvaluate={parseAndEvaluate} tradeSource={rmbTradeSource}/>
 
                 {alert && (<AppToast message={translateAlert(alert, lang, t)} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? t('common.undo') : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined}/>)}
