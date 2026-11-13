@@ -1,3 +1,4 @@
+import { EXTRA_CURRENCY_CODES } from '../currency/tradeCurrencies';
 import type { LockedBatch, PortfolioStats, Tx } from '../types';
 export type PamCurrency = 'USDT' | 'EUR';
 /**
@@ -10,7 +11,7 @@ const LEGACY_CURRENCIES: PamCurrency[] = ['USDT', 'EUR'];
  * V13-3: currencies the app trades besides USDT and EUR, always kept apart in every ledger (even one built
  * without options), so an RMB row is never read as USDT. Stored as « RMB » (the yuan, Alipay), the name the owner uses.
  */
-export const APP_EXTRA_CURRENCIES: readonly string[] = ['RMB'];
+export const APP_EXTRA_CURRENCIES: readonly string[] = EXTRA_CURRENCY_CODES;
 export type PamLedgerWarningCode = 'stored_mismatch' | 'oversell' | 'manual_total_present' | 'quantity_only_adjustment' | 'uncosted_quantity_sold' | 'legacy_fallback' | 'eur_conversion_related' | 'missing_buy_total';
 export type PamLedgerWarningSeverity = 'info' | 'warning' | 'high';
 export interface PamLedgerOptions {

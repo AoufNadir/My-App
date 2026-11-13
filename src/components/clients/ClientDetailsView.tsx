@@ -1,3 +1,4 @@
+import type { TradeCurrencyCode } from '../../currency/tradeCurrencies';
 import { Fragment, lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useDeliveries } from '../../hooks/useDeliveries';
 import { deliveryStates, operationQuantities, type DeliveryDoc } from '../../utils/deferredDelivery';
@@ -168,7 +169,7 @@ function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transa
     // This client's sales in USDT/EUR paid in dinars, newest first: the ones that can still be « not sent yet ».
     const sales = useMemo(() => (transactions ?? [])
         .filter((tx: any) => tx.type === 'sell' && tx.id && tx.linkedClientId === clientId && (tx.currency === 'USDT' || tx.currency === 'EUR' || tx.currency === 'RMB') && tx.settlementCurrency !== 'EUR' && !tx.crossTrade)
-        .map((tx: any) => ({ id: tx.id as string, currency: tx.currency as 'USDT' | 'EUR' | 'RMB', quantity: Number(tx.quantity) || 0, timestamp: Number(tx.timestamp) || 0 }))
+        .map((tx: any) => ({ id: tx.id as string, currency: tx.currency as TradeCurrencyCode, quantity: Number(tx.quantity) || 0, timestamp: Number(tx.timestamp) || 0 }))
         .filter((sale) => sale.quantity > 0)
         .sort((a, b) => b.timestamp - a.timestamp), [transactions, clientId]);
     // V12-8: this client's purchases (he is the supplier): found through his account rows linked to a purchase.
@@ -176,7 +177,7 @@ function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transa
         const linked = new Set((clientRows ?? []).filter((row) => row.clientId === clientId && row.linkedTxId).map((row) => row.linkedTxId as string));
         return (transactions ?? [])
             .filter((tx: any) => tx.type === 'buy' && tx.id && linked.has(tx.id) && (tx.currency === 'USDT' || tx.currency === 'EUR' || tx.currency === 'RMB') && tx.purchaseFundingCurrency !== 'EUR' && !tx.conversionFrom && !tx.crossTrade)
-            .map((tx: any) => ({ id: tx.id as string, currency: tx.currency as 'USDT' | 'EUR' | 'RMB', quantity: Number(tx.quantity) || 0, timestamp: Number(tx.timestamp) || 0 }))
+            .map((tx: any) => ({ id: tx.id as string, currency: tx.currency as TradeCurrencyCode, quantity: Number(tx.quantity) || 0, timestamp: Number(tx.timestamp) || 0 }))
             .filter((buy) => buy.quantity > 0)
             .sort((a, b) => b.timestamp - a.timestamp);
     }, [transactions, clientRows, clientId]);

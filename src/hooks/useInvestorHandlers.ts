@@ -1,3 +1,4 @@
+import { EXTRA_CURRENCY_CODES, isTradeCurrency } from '../currency/tradeCurrencies';
 import { useCallback, useMemo, useState } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
 import { Investor, InvestorTransaction, PortfolioStats, TreasuryTx } from '../types';
@@ -93,6 +94,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         usdtPma: Number(portfolioStats.usdt.avgBuy || 0),
         eurPma: Number(portfolioStats.eur.avgBuy || 0),
         rmbPma: Number(portfolioStats.rmb?.avgBuy || 0),
+        pmaByCurrency: Object.fromEntries(EXTRA_CURRENCY_CODES.map((code) => [code, Number((portfolioStats as Record<string, any>)[code.toLowerCase()]?.avgBuy || 0)])),
     }), [portfolioStats.usdt.avgBuy, portfolioStats.eur.avgBuy, portfolioStats.rmb?.avgBuy]);
     const personalWithdrawalPreview = useMemo(() => {
         const amount = parseAndEvaluate(personalWithdrawalAmount);
@@ -296,7 +298,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     };
     const resolvePersonalExpenseWallet = (tx?: TreasuryTx | null): FinancialWallet => {
         const wallet = tx?.expenseWallet || tx?.source || 'Caisse';
-        return wallet === 'USDT' || wallet === 'EUR' || wallet === 'RMB' || wallet === 'BaridiMob' ? wallet : 'Caisse';
+        return isTradeCurrency(wallet) || wallet === 'BaridiMob' ? wallet as FinancialWallet : 'Caisse';
     };
     const walletDeltaFor = (wallet: FinancialWallet, dzdDelta: number) => (
         isCashWallet(wallet) ? { [wallet]: dzdDelta } : undefined

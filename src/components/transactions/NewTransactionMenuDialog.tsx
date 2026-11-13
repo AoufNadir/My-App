@@ -1,3 +1,4 @@
+import type { TradeCurrencyCode } from '../../currency/tradeCurrencies';
 import { Button } from '../ui/Button';
 import { Modal, ModalContent, ModalHeader, ModalTitle } from '../ui/Modal';
 import { ListRow } from '../cards/ListRow';
@@ -29,7 +30,7 @@ type NewTransactionMenuDialogProps = {
   showRmb?: boolean;
   openRmb?: (kind: 'buy' | 'sell') => void;
   /** V13-5: what each currency holds, shown on its row */
-  balances?: Partial<Record<'USDT' | 'EUR' | 'RMB', number>>;
+  balances?: Partial<Record<TradeCurrencyCode, number>>;
 };
 
 export function NewTransactionMenuDialog({
@@ -54,7 +55,7 @@ export function NewTransactionMenuDialog({
     window.setTimeout(action, 0);
   };
 
-  const rows: Array<{ code: 'USDT' | 'EUR' | 'RMB'; symbol: string; buy: () => void; sell: () => void }> = [
+  const rows: Array<{ code: TradeCurrencyCode; symbol: string; buy: () => void; sell: () => void }> = [
     ...(showUsdt ? [{ code: 'USDT' as const, symbol: '$', buy: () => openForm('buy_usdt'), sell: () => openForm('sell_usdt') }] : []),
     ...(showEur ? [{ code: 'EUR' as const, symbol: '€', buy: () => openForm('buy_eur'), sell: () => openForm('sell_eur') }] : []),
     ...(showRmb && openRmb ? [{ code: 'RMB' as const, symbol: '¥', buy: () => openRmb('buy'), sell: () => openRmb('sell') }] : []),

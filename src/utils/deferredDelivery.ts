@@ -1,3 +1,4 @@
+import type { TradeCurrencyCode } from '../currency/tradeCurrencies';
 // V12-2: sold today at today's price, delivered later, in one or several times. The sale is an ordinary sale
 // (price, profit and stock out on the day of the sale); what is still owed to the client is followed apart, in the
 // `deliveries` collection, which holds no money and changes no balance:
@@ -5,7 +6,7 @@
 // - a `delivery`: what was sent, never more than what is left.
 // The inventory adds what is still owed to the stock the books expect, because it is still in the wallet.
 
-export type DeliveryCurrency = 'USDT' | 'EUR' | 'RMB';
+export type DeliveryCurrency = TradeCurrencyCode;
 export const DELIVERY_CURRENCIES: DeliveryCurrency[] = ['USDT', 'EUR', 'RMB'];
 /** to_client: sold, not sent yet (V12-2). from_supplier: bought and paid, not received yet (V12-8). */
 export type DeliveryDirection = 'to_client' | 'from_supplier';

@@ -1,3 +1,4 @@
+import type { TradeCurrencyCode } from '../currency/tradeCurrencies';
 import { stampAt } from './editStamp';
 
 // V13-3: buying and selling RMB (the yuan, Alipay), stored as currency « RMB » in the same collections as USDT and EUR.
@@ -8,7 +9,7 @@ import { stampAt } from './editStamp';
 //   `conversionLeg: 'out'` (the ledger moves the cost across).
 // Nothing here writes: it builds the rows a batch writes, so the numbers can be checked without Firestore.
 
-export type TradeCurrency = 'USDT' | 'EUR' | 'RMB';
+export type TradeCurrency = TradeCurrencyCode;
 export type RmbSource = 'DZD' | TradeCurrency;
 export type PaymentStatus = 'credit' | 'baridi' | 'cash';
 export type RmbTradeInput = {

@@ -1,3 +1,5 @@
+import { EXTRA_CURRENCY_CODES } from '../currency/tradeCurrencies';
+import { TRADE_CURRENCY_CODES, type TradeCurrencyCode } from '../currency/tradeCurrencies';
 import { useCallback, useMemo, useState } from 'react';
 import { db, type FirestoreDocumentReference } from '../firebase';
 import type { ClientDzd, ClientTransactionDzd, DigitalServiceTransaction, PortfolioStats } from '../types';
@@ -35,13 +37,11 @@ type UseDigitalServiceHandlersArgs = {
     setAlert: (msg: string) => void;
 };
 
-const SALE_PAYMENT_METHOD: Record<DigitalServiceSaleWallet, 'Espèces' | 'BaridiMob' | 'Crédit' | 'USDT' | 'EUR' | 'RMB'> = {
+const SALE_PAYMENT_METHOD: Record<DigitalServiceSaleWallet, 'Espèces' | 'BaridiMob' | 'Crédit' | TradeCurrencyCode> = {
     Caisse: 'Espèces',
     BaridiMob: 'BaridiMob',
     Credit: 'Crédit',
-    USDT: 'USDT',
-    EUR: 'EUR',
-    RMB: 'RMB',
+    ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, code])) as Record<TradeCurrencyCode, TradeCurrencyCode>,
 };
 
 function toIsoToday() {
@@ -110,6 +110,7 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
         usdtPma: Number(portfolioStats.usdt.avgBuy || 0),
         eurPma: Number(portfolioStats.eur.avgBuy || 0),
         rmbPma: Number(portfolioStats.rmb?.avgBuy || 0),
+        pmaByCurrency: Object.fromEntries(EXTRA_CURRENCY_CODES.map((code) => [code, Number((portfolioStats as Record<string, any>)[code.toLowerCase()]?.avgBuy || 0)])),
     }), [portfolioStats.usdt.avgBuy, portfolioStats.eur.avgBuy, portfolioStats.rmb?.avgBuy]);
 
     const digitalServicePreview = useMemo(() => {

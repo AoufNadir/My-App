@@ -38,6 +38,8 @@ import { RotateCcwIcon } from './components/icons/RotateCcwIcon';
 import { AppBottomNav } from './components/main/AppNavigation';
 import { useHiddenCurrencies } from './hooks/useHiddenCurrencies';
 import { RmbTradeDialog } from './components/main/RmbTradeDialog';
+import { EXTRA_CURRENCY_CODES, isExtraCurrency, type TradeCurrencyCode } from './currency/tradeCurrencies';
+type ExtraStock = { quantity: number; avgBuy: number; value: number };
 import { isRmbOperation, rmbTradeRows, type RmbTradeInput } from './utils/rmbTrade';
 import { CurrencyVisibilityProvider } from './contexts/CurrencyVisibilityContext';
 import { NewTransactionMenuDialog } from './components/transactions/NewTransactionMenuDialog';
@@ -369,15 +371,18 @@ export default function MainApp({ user }: {
         return () => window.clearTimeout(timer);
     }, [pamLedger]);
     const portfolioStats = pamLedger.portfolioStats;
-    // V13-3: the RMB in stock (Alipay) and what it is worth at its average price, counted in the capital.
-    const rmbStock = useMemo(() => {
-        const holding = (pamLedger.holdings as Record<string, { available: number; locked: number; avgBuy: number }> | undefined)?.RMB;
+    // V13-3 / V14-4: every extra currency of the list (RMB and the next ones): its stock and what it is worth at its
+    // average price, counted in the capital.
+    const extraStocks = useMemo<Record<string, ExtraStock>>(() => Object.fromEntries(EXTRA_CURRENCY_CODES.map((code) => {
+        const holding = (pamLedger.holdings as Record<string, { available: number; locked: number; avgBuy: number }> | undefined)?.[code];
         const quantity = holding ? holding.available + (holding.locked || 0) : 0;
-        return { quantity, avgBuy: holding?.avgBuy ?? 0, value: holding ? Math.round(quantity * holding.avgBuy * 100) / 100 : 0 };
-    }, [pamLedger]);
-    const rmbStockValue = rmbStock.value;
-    // V13-5: the stats the money windows read (expense, withdrawal, digital service): USDT and EUR as always, and RMB.
-    const walletPortfolioStats = useMemo(() => ({ ...portfolioStats, rmb: { available: rmbStock.quantity, avgBuy: rmbStock.avgBuy } }), [portfolioStats, rmbStock]);
+        return [code, { quantity, avgBuy: holding?.avgBuy ?? 0, value: holding ? Math.round(quantity * holding.avgBuy * 100) / 100 : 0 }];
+    })) as Record<string, ExtraStock>, [pamLedger]);
+    const rmbStock: ExtraStock = extraStocks.RMB ?? { quantity: 0, avgBuy: 0, value: 0 };
+    const extraStockValue: number = (Object.values(extraStocks) as ExtraStock[]).reduce((sum, stock) => sum + stock.value, 0);
+    // V13-5 / V14-4: the stats the money windows read (expense, withdrawal, digital service): USDT and EUR as always,
+    // and each extra currency under its lower-case code.
+    const walletPortfolioStats = useMemo(() => ({ ...portfolioStats, ...Object.fromEntries((Object.entries(extraStocks) as Array<[string, ExtraStock]>).map(([code, stock]) => [code.toLowerCase(), { available: stock.quantity, avgBuy: stock.avgBuy }])) }), [portfolioStats, extraStocks]);
     const deliveryExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense'), [treasuryTransactions]);
     const personalExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense'), [treasuryTransactions]);
     const debtWriteOffs = useMemo(() => collectDebtWriteOffs(clientTransactionsDzd), [clientTransactionsDzd]);
@@ -604,8 +609,9 @@ export default function MainApp({ user }: {
     // --- 3. LOCAL UI STATE ---
     const [isNewOperationMenuOpen, setIsNewOperationMenuOpen] = useState(false);
     // V13-3 / V13-4: the RMB and conversion window (null: closed): which side, which currency, which source.
-    const [tradeWin, setTradeWin] = useState<{ kind: 'buy' | 'sell'; currency: 'USDT' | 'EUR' | 'RMB'; source: 'DZD' | 'USDT' | 'EUR' | 'RMB' | null } | null>(null);
-    const setRmbKind = (kind: 'buy' | 'sell' | null) => setTradeWin(kind ? { kind, currency: 'RMB', source: null } : null);
+    const [tradeWin, setTradeWin] = useState<{ kind: 'buy' | 'sell'; currency: TradeCurrencyCode; source: 'DZD' | TradeCurrencyCode | null } | null>(null);
+    // V14-4: the window of an extra currency (RMB and the next ones), its source chosen there.
+    const openExtraTrade = (kind: 'buy' | 'sell', currency: TradeCurrencyCode) => setTradeWin({ kind, currency, source: null });
     const [isMonthPlanOpen, setIsMonthPlanOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     // Stable, so the memoized header and bottom bar don't re-render with every page update.
@@ -1081,8 +1087,8 @@ export default function MainApp({ user }: {
         investorLiability,
         services: servicesSummary,
         managerPendingAdvances,
-        otherHoldingsValue: rmbStockValue,
-    }), [treasuryStats, portfolioStats, totals, treasuryCards, investorLiability, servicesSummary, managerPendingAdvances, rmbStockValue]);
+        otherHoldingsValue: extraStockValue,
+    }), [treasuryStats, portfolioStats, totals, treasuryCards, investorLiability, servicesSummary, managerPendingAdvances, extraStockValue]);
     const managerProfitBreakdown = useMemo(() => reconcileManagerProfitBreakdown({
         breakdown: baseManagerProfitBreakdown,
         openingCapital: OWNER_OPENING_CAPITAL,
@@ -2991,12 +2997,12 @@ export default function MainApp({ user }: {
     }, [transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, derivedInvestors, investorTransactions, treasuryCards, manualAssetTransactions, pricingPlanSync.policy, pricingPlanSync.plan, pricingPlanSync.overrides]);
     const rmbHoldings = (() => {
         const of = (stats?: { available?: number; locked?: number; avgBuy?: number }) => ({ available: Number(stats?.available || 0), avgBuy: Number(stats?.avgBuy || 0) });
-        return { RMB: of(pamLedger.holdings?.RMB), USDT: of(portfolioStats.usdt), EUR: of(portfolioStats.eur) };
+        return { ...Object.fromEntries(EXTRA_CURRENCY_CODES.map((code) => [code, of((pamLedger.holdings as Record<string, any> | undefined)?.[code])])), USDT: of(portfolioStats.usdt), EUR: of(portfolioStats.eur) } as Record<TradeCurrencyCode, { available: number; avgBuy: number }>;
     })();
-    const switchTradeWindow = (kind: 'buy' | 'sell', currency: 'USDT' | 'EUR' | 'RMB') => {
-        if (currency === 'RMB') {
+    const switchTradeWindow = (kind: 'buy' | 'sell', currency: TradeCurrencyCode) => {
+        if (isExtraCurrency(currency)) {
             closeForm();
-            setRmbKind(kind);
+            setTradeWin({ kind, currency, source: null });
             return;
         }
         setTradeWin(null);
@@ -3041,7 +3047,7 @@ export default function MainApp({ user }: {
             return false;
         }
     };
-    return (<CurrencyVisibilityProvider showUsdt={showUsdt} showEur={showEur} showRmb={showRmb}><div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
+    return (<CurrencyVisibilityProvider hidden={hiddenCurrencies.hidden}><div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
             <OfflineBanner />
             <div className="mx-auto max-w-4xl px-page-x pb-24 sm:px-4">
                     <MainHeaderBar {...{ view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), handleOpenGlobalSearch, onOpenSettings: openSettingsModal, onSignOut: handleSignOut, labels: navLabels }}/>
@@ -3054,7 +3060,7 @@ export default function MainApp({ user }: {
 
                 <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onNewOperation={isFinancialDataReady ? openNewOperationMenu : undefined} onOpenSettings={openSettingsModal} onSignOut={handleSignOut} overdueCount={dashboardPageProps.overdueDebtClientCount}/>
 
-                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} showUsdt={showUsdt || portfolioStats.usdt.available > 0} showEur={showEur} showRmb={showRmb} openRmb={(kind) => setRmbKind(kind)} balances={{ USDT: portfolioStats.usdt.available, EUR: portfolioStats.eur.available, RMB: rmbStock.quantity }}/>
+                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} showUsdt={showUsdt || portfolioStats.usdt.available > 0} showEur={showEur} showRmb={showRmb} openRmb={(kind, currency = 'RMB') => openExtraTrade(kind, currency as TradeCurrencyCode)} balances={{ USDT: portfolioStats.usdt.available, EUR: portfolioStats.eur.available, RMB: rmbStock.quantity }}/>
                 <RmbTradeDialog kind={tradeWin?.kind ?? null} currency={tradeWin?.currency ?? 'RMB'} initialSource={tradeWin?.source ?? null} onClose={() => setTradeWin(null)} onSwitch={switchTradeWindow} holdings={rmbHoldings} clientsDzd={clientsDzd} openClientModal={openClientModal} fieldBase={fieldBase} onSave={saveRmbTrade} parseAndEvaluate={parseAndEvaluate} tradeSource={rmbTradeSource}/>
 
                 {alert && (<AppToast message={translateAlert(alert, lang, t)} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? t('common.undo') : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined}/>)}
@@ -3195,7 +3201,7 @@ export default function MainApp({ user }: {
         buyRestriction, setBuyRestriction,
         realPurchaseTime, setRealPurchaseTime,
         sellDate, setSellDate, deliveryPending, setDeliveryPending, receiptPending, setReceiptPending, sellTime, setSellTime, saleDatePlan,
-        smartPricingByCurrency, smartQuoteRef, showEur, showRmb, walletPortfolioStats, onSwitchToRmb: (kind: 'buy' | 'sell') => switchTradeWindow(kind, 'RMB'), onCrossTrade: (kind: 'buy' | 'sell', currency: 'USDT' | 'EUR', source: 'USDT' | 'EUR' | 'RMB') => { closeForm(); setTradeWin({ kind, currency, source }); },
+        smartPricingByCurrency, smartQuoteRef, showEur, showRmb, walletPortfolioStats, onSwitchToRmb: (kind: 'buy' | 'sell') => switchTradeWindow(kind, 'RMB'), onCrossTrade: (kind: 'buy' | 'sell', currency: 'USDT' | 'EUR', source: TradeCurrencyCode) => { closeForm(); setTradeWin({ kind, currency, source }); },
         isClientCrudDialogsOpen,
         txToDelete, setTxToDelete,
         handleDeleteConfirm,

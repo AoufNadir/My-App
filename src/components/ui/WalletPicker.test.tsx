@@ -7,7 +7,7 @@ import { assetWalletStats, computeProjectExpensePreview, getWalletRateToDzd, isA
 // V13-5: the wallet list: one row per wallet with its balance, RMB included, nothing chosen for the owner,
 // a hidden currency left out unless it is the one already saved.
 const balances = walletBalancesOf({ caisse: 1_250_000, baridi: 480_000 }, { usdt: { available: 5_900 }, eur: { available: 1_200 }, rmb: { available: 6_600 } });
-const render = (value: Parameters<typeof WalletPicker>[0]['value'], showEur = true, showRmb = true) => renderToStaticMarkup(<CurrencyVisibilityProvider showEur={showEur} showRmb={showRmb}>
+const render = (value: Parameters<typeof WalletPicker>[0]['value'], showEur = true, showRmb = true) => renderToStaticMarkup(<CurrencyVisibilityProvider hidden={[...(showEur ? [] : ["EUR"]), ...(showRmb ? [] : ["RMB"])]}>
   <WalletPicker value={value} onChange={() => undefined} wallets={FINANCIAL_WALLETS} labels={{ Caisse: 'Caisse', BaridiMob: 'BaridiMob' }} balances={balances} ariaLabel="Portefeuille" chooseLabel="Choisissez le portefeuille"/>
 </CurrencyVisibilityProvider>);
 const radios = (html: string) => (html.match(/role="radio"/g) || []).length;

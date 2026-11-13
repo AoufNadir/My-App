@@ -1,3 +1,4 @@
+import type { TradeCurrencyCode } from '../../currency/tradeCurrencies';
 import type { ReportEntry } from '../../utils/clientActivityReport';
 import type { SummaryRowContext } from '../../utils/clientSummary';
 import { isolate, type ReportSheetLang } from '../reports/ReportSheet';
@@ -19,8 +20,8 @@ export type SummaryRowText = {
 type Words = {
     /** « 207,52 USDT » kept in one piece inside the sentence */
     quantity: (quantity: number, currency: string) => string;
-    buy: (quantity: string | null, currency: 'USDT' | 'EUR' | 'RMB') => string;
-    saleToUs: (quantity: string | null, currency: 'USDT' | 'EUR' | 'RMB') => string;
+    buy: (quantity: string | null, currency: TradeCurrencyCode) => string;
+    saleToUs: (quantity: string | null, currency: TradeCurrencyCode) => string;
     service: string;
     unitPrice: (price: string, unit: string) => string;
     /** How a purchase of the client was settled */

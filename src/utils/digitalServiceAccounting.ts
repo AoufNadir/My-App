@@ -1,6 +1,7 @@
+import { isTradeCurrency, type TradeCurrencyCode } from '../currency/tradeCurrencies';
 export type CashWallet = 'Caisse' | 'BaridiMob';
 /** V13-5: RMB (Alipay) is a wallet like USDT and EUR. */
-export type AssetWallet = 'USDT' | 'EUR' | 'RMB';
+export type AssetWallet = TradeCurrencyCode;
 export type FinancialWallet = CashWallet | AssetWallet;
 export type DigitalServiceSaleWallet = FinancialWallet | 'Credit';
 export type WalletCurrency = 'DZD' | AssetWallet;
@@ -10,6 +11,8 @@ export type WalletRates = {
     eurPma: number;
     /** V13-5: RMB average price (0 = none in stock) */
     rmbPma?: number;
+    /** V14-4: the average price of every extra currency (RMB and the next ones), by code */
+    pmaByCurrency?: Partial<Record<string, number>>;
 };
 
 export type DigitalServicePreviewInput = {
@@ -45,14 +48,14 @@ export type ProjectExpensePreview = {
 const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
 export function getWalletCurrency(wallet: DigitalServiceSaleWallet): WalletCurrency {
-    if (wallet === 'USDT' || wallet === 'EUR' || wallet === 'RMB') return wallet;
+    if (isTradeCurrency(wallet)) return wallet;
     return 'DZD';
 }
 
 export function getWalletRateToDzd(wallet: DigitalServiceSaleWallet, rates: WalletRates): number {
     if (wallet === 'USDT') return Number(rates.usdtPma || 0);
     if (wallet === 'EUR') return Number(rates.eurPma || 0);
-    if (wallet === 'RMB') return Number(rates.rmbPma || 0);
+    if (isTradeCurrency(wallet)) return Number(rates.pmaByCurrency?.[wallet] ?? (wallet === 'RMB' ? rates.rmbPma : 0) ?? 0);
     return 1;
 }
 
@@ -94,7 +97,7 @@ export function computeProjectExpensePreview(input: ProjectExpensePreviewInput):
 }
 
 export function isAssetWallet(wallet: DigitalServiceSaleWallet): wallet is AssetWallet {
-    return wallet === 'USDT' || wallet === 'EUR' || wallet === 'RMB';
+    return isTradeCurrency(wallet);
 }
 
 /** USDT or EUR: the wallets the read-model and shadow diagnostics know (RMB is left out of them, they are off in the app). */
@@ -104,7 +107,8 @@ export function isLegacyAssetWallet(wallet: DigitalServiceSaleWallet): wallet is
 
 /** V13-5: what an asset wallet holds now, from the portfolio stats (RMB under `rmb`). */
 export function assetWalletStats(stats: { usdt: { available?: number; avgBuy?: number }; eur: { available?: number; avgBuy?: number }; rmb?: { available?: number; avgBuy?: number } }, wallet: AssetWallet): { available: number; avgBuy: number } {
-    const row = wallet === 'USDT' ? stats.usdt : wallet === 'EUR' ? stats.eur : stats.rmb;
+    // V14-4: each currency of the list under its lower-case code (usdt, eur, rmb, and the next ones).
+    const row = (stats as Record<string, { available?: number; avgBuy?: number } | undefined>)[wallet.toLowerCase()];
     return { available: Number(row?.available || 0), avgBuy: Number(row?.avgBuy || 0) };
 }
 

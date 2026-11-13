@@ -1,3 +1,4 @@
+import { TRADE_CURRENCY_CODES } from '../../currency/tradeCurrencies';
 import { FINANCIAL_WALLETS, WalletPicker, walletBalancesOf } from '../ui/WalletPicker';
 import { useMemo } from 'react';
 import type { ClientDzd, PortfolioStats } from '../../types';
@@ -159,7 +160,7 @@ export function DigitalServiceSaleModal({
                 </FormCard>
 
                 <FormCard title={t('digitalServices.saleWallet')}>
-                    <WalletPicker value={saleWallet} onChange={(next) => setSaleWallet(next as DigitalServiceSaleWallet)} wallets={['Caisse', 'BaridiMob', 'Credit', 'USDT', 'EUR', 'RMB']} labels={{ Caisse: t('transactions.cash') as string, BaridiMob: t('transactions.baridi') as string, Credit: t('transactions.credit') as string }} balances={balances} ariaLabel={t('digitalServices.saleWallet') as string} chooseLabel={t('transactions.walletChoose') as string}/>
+                    <WalletPicker value={saleWallet} onChange={(next) => setSaleWallet(next as DigitalServiceSaleWallet)} wallets={['Caisse', 'BaridiMob', 'Credit', ...TRADE_CURRENCY_CODES]} labels={{ Caisse: t('transactions.cash') as string, BaridiMob: t('transactions.baridi') as string, Credit: t('transactions.credit') as string }} balances={balances} ariaLabel={t('digitalServices.saleWallet') as string} chooseLabel={t('transactions.walletChoose') as string}/>
                     <MoneyField
                         label={t('digitalServices.saleAmount')}
                         value={saleAmount}

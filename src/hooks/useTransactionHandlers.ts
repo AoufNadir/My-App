@@ -1,3 +1,4 @@
+import { EXTRA_CURRENCY_CODES } from '../currency/tradeCurrencies';
 import { useCallback, useState, useMemo, type MutableRefObject } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
 import { Tx, PortfolioStats, ClientDzd, TreasuryTx, ClientTransactionDzd, Investor, InvestorTransaction } from '../types';
@@ -202,6 +203,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         usdtPma: Number(portfolioStats.usdt.avgBuy || 0),
         eurPma: Number(portfolioStats.eur.avgBuy || 0),
         rmbPma: Number(portfolioStats.rmb?.avgBuy || 0),
+        pmaByCurrency: Object.fromEntries(EXTRA_CURRENCY_CODES.map((code) => [code, Number((portfolioStats as Record<string, any>)[code.toLowerCase()]?.avgBuy || 0)])),
     }), [portfolioStats.usdt.avgBuy, portfolioStats.eur.avgBuy, portfolioStats.rmb?.avgBuy]);
     const deliveryExpensePreview = useMemo(() => {
         const amount = parseAndEvaluate(deliveryExpenseAmount);

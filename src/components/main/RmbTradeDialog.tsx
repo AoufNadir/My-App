@@ -1,3 +1,4 @@
+import type { TradeCurrencyCode } from '../../currency/tradeCurrencies';
 import { ClientTradeAssistant } from './ClientTradeAssistant';
 import { lastTradeWithAnyone, lastTradeWithClient } from '../../utils/clientLastTrade';
 import React from 'react';
@@ -30,7 +31,7 @@ export type RmbTradeDialogProps = {
     kind: 'buy' | 'sell' | null;
     onClose: () => void;
     /** Back to the USDT / EUR window, or the other side of RMB */
-    onSwitch: (kind: 'buy' | 'sell', currency: 'USDT' | 'EUR' | 'RMB') => void;
+    onSwitch: (kind: 'buy' | 'sell', currency: TradeCurrencyCode) => void;
     holdings: { RMB: RmbHolding; USDT: RmbHolding; EUR: RmbHolding };
     clientsDzd: ClientDzd[];
     openClientModal: (client: ClientDzd | null) => void;

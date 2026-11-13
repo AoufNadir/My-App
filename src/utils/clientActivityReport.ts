@@ -1,3 +1,4 @@
+import type { TradeCurrencyCode } from '../currency/tradeCurrencies';
 import type { ClientTransactionDzd, Tx } from '../types';
 import { toCents } from './money';
 
@@ -25,7 +26,7 @@ export type ReportKind = 'month' | 'year' | 'range';
 export type BreakdownUnit = CalendarKind;
 export type ReportLang = 'ar' | 'fr';
 /** V13-3: RMB (the yuan, Alipay) besides USDT and EUR. */
-export type ReportCurrency = 'USDT' | 'EUR' | 'RMB';
+export type ReportCurrency = TradeCurrencyCode;
 const reportCurrencyOf = (value: unknown): ReportCurrency => (value === 'EUR' ? 'EUR' : value === 'RMB' ? 'RMB' : 'USDT');
 
 export type ReportPeriod = {

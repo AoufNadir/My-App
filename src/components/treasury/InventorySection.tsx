@@ -1,3 +1,4 @@
+import type { TradeCurrencyCode } from '../../currency/tradeCurrencies';
 import { useCurrencyShown } from '../../contexts/CurrencyVisibilityContext';
 import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react';
 import { inventoryFixFor } from '../../utils/inventoryCheck';
@@ -123,7 +124,7 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
     // V14-2: a hidden currency's wallet is not counted, unless the books still expect some in it.
     const isShown = useCurrencyShown();
     const countable = (account: InventoryAccount) => (account === 'usdt' || account === 'eur' || account === 'rmb')
-        ? isShown(account.toUpperCase() as 'USDT' | 'EUR' | 'RMB') || Math.abs(Number(expected?.[account] ?? 0)) > 0.005
+        ? isShown(account.toUpperCase() as TradeCurrencyCode) || Math.abs(Number(expected?.[account] ?? 0)) > 0.005
         : true;
     const hasDraft = INVENTORY_ACCOUNTS.some((account) => draft[account].trim() !== '');
     const edit = (account: InventoryAccount, value: string) => {

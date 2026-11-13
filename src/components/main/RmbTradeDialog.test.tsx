@@ -19,7 +19,7 @@ const storage = new Map<string, string>();
 (globalThis as unknown as { localStorage: unknown }).localStorage = (globalThis as unknown as { window: { localStorage: unknown } }).window.localStorage;
 const render = (lang: 'fr' | 'ar', node: ReactElement, showEur = true) => {
     storage.set('app_lang', lang);
-    return renderToStaticMarkup(<LanguageProvider><CurrencyVisibilityProvider showEur={showEur}>{node}</CurrencyVisibilityProvider></LanguageProvider>);
+    return renderToStaticMarkup(<LanguageProvider><CurrencyVisibilityProvider hidden={showEur ? [] : ["EUR"]}>{node}</CurrencyVisibilityProvider></LanguageProvider>);
 };
 const noop = () => undefined;
 const holdings = { RMB: { available: 6_600, avgBuy: 36.6 }, USDT: { available: 200, avgBuy: 256.2 }, EUR: { available: 0, avgBuy: 0 } };

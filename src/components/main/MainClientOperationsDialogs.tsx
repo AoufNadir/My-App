@@ -1,3 +1,4 @@
+import { isTradeCurrency, TRADE_CURRENCY_CODES } from '../../currency/tradeCurrencies';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ModalContent, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Label } from '../ui/Label';
@@ -11,8 +12,8 @@ import { SegmentedControl } from '../ui/SegmentedControl';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { AdjustmentReasonPicker } from './AdjustmentReasonPicker';
 import { WalletPicker, type PickerWallet } from '../ui/WalletPicker';
-const ASSET_TO_WALLET: Record<string, PickerWallet> = { 'DZD-Caisse': 'Caisse', 'DZD-Baridi': 'BaridiMob', USDT: 'USDT', EUR: 'EUR', RMB: 'RMB' };
-const WALLET_TO_ASSET: Partial<Record<PickerWallet, string>> = { Caisse: 'DZD-Caisse', BaridiMob: 'DZD-Baridi', USDT: 'USDT', EUR: 'EUR', RMB: 'RMB' };
+const ASSET_TO_WALLET: Record<string, PickerWallet> = { 'DZD-Caisse': 'Caisse', 'DZD-Baridi': 'BaridiMob', ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, code])) };
+const WALLET_TO_ASSET: Partial<Record<PickerWallet, string>> = { Caisse: 'DZD-Caisse', BaridiMob: 'DZD-Baridi', ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, code])) };
 import { ArrowDownIcon } from '../icons/ArrowDownIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { WalletIcon } from '../icons/WalletIcon';
@@ -46,7 +47,7 @@ const resolveAdjustmentAutoPrice = (asset: string, treasuryCards: Array<{
     name?: string;
     value?: number;
 }>, portfolioStats: any, t?: TranslateFn) => {
-    if (asset !== 'USDT' && asset !== 'EUR' && asset !== 'RMB') {
+    if (!isTradeCurrency(asset)) {
         return { value: '', sourceLabel: '', sourceType: 'none' as const };
     }
     const currency = asset;
@@ -88,10 +89,8 @@ const resolveAdjustmentAutoPrice = (asset: string, treasuryCards: Array<{
 const adjustmentAssetOptions = [
     { value: 'DZD-Caisse', label: 'DZD - Caisse', labelKey: 'transactions.assetDzdCaisse' },
     { value: 'DZD-Baridi', label: 'DZD - Baridi', labelKey: 'transactions.assetDzdBaridi' },
-    { value: 'USDT', label: 'USDT', labelKey: '' },
-    { value: 'EUR', label: 'EUR', labelKey: '' },
-    { value: 'RMB', label: 'RMB', labelKey: '' }
-] as const;
+    ...TRADE_CURRENCY_CODES.map((code) => ({ value: code, label: code, labelKey: '' })),
+];
 type AdjustmentAssetOption = typeof adjustmentAssetOptions[number];
 const assetOptionLabel = (option: AdjustmentAssetOption, t?: TranslateFn) => (option.labelKey ? getDisplayLabel(t, option.labelKey, option.label) : option.label);
 const getAdjustmentAssetLabel = (asset: string, t?: TranslateFn) => {
@@ -234,7 +233,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     useEffect(() => {
         if (!isAdjustmentModalOpen || editingTreasuryTx)
             return;
-        if (adjustmentAsset !== 'USDT' && adjustmentAsset !== 'EUR' && adjustmentAsset !== 'RMB') {
+        if (!isTradeCurrency(adjustmentAsset)) {
             if (adjustmentPrice === lastAutoPriceRef.current && adjustmentPrice !== '') {
                 setAdjustmentPrice('');
             }
@@ -248,7 +247,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
         }
         lastAutoPriceRef.current = adjustmentAuto.value;
     }, [isAdjustmentModalOpen, editingTreasuryTx, adjustmentAsset, adjustmentAuto.value, adjustmentPrice, setAdjustmentPrice]);
-    const isCryptoAdjustment = adjustmentAsset === 'USDT' || adjustmentAsset === 'EUR' || adjustmentAsset === 'RMB';
+    const isCryptoAdjustment = isTradeCurrency(adjustmentAsset);
     const isDzdAdjustment = adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi';
     const selectedAssetLabel = getAdjustmentAssetLabel(adjustmentAsset, t);
     // V7-2: only the « client » reason carries a client.
@@ -259,34 +258,22 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     const selectedClient = (clientsDzd || []).find((client: any) => client.id === reasonClientId);
     const selectedClientName = selectedClient ? getClientFullName(selectedClient) : getDisplayLabel(t, 'transactions.noClient', 'Aucun client');
     const linkedClientBalance = Number(clientBalances?.get?.(reasonClientId) || 0);
+    // V14-4: any currency of the list reads its own balance (portfolioStats under its lower-case code).
+    const currencyBalance = isTradeCurrency(adjustmentAsset) ? Number(portfolioStats?.[adjustmentAsset.toLowerCase()]?.available || 0) : 0;
     const selectedAssetMax = Number(adjustmentAsset === 'DZD-Caisse'
         ? (treasuryStats?.caisse || 0)
         : adjustmentAsset === 'DZD-Baridi'
             ? (treasuryStats?.baridi || 0)
-            : adjustmentAsset === 'USDT'
-                ? (portfolioStats?.usdt?.available || 0)
-                : adjustmentAsset === 'EUR'
-                    ? (portfolioStats?.eur?.available || 0)
-                    : adjustmentAsset === 'RMB'
-                        ? (portfolioStats?.rmb?.available || 0)
-                        : 0);
-    const availableAssetBalance = Number(adjustmentAsset === 'USDT'
-        ? (portfolioStats?.usdt?.available || 0)
-        : adjustmentAsset === 'EUR'
-            ? (portfolioStats?.eur?.available || 0)
-            : adjustmentAsset === 'RMB'
-                ? (portfolioStats?.rmb?.available || 0)
-                : 0);
+            : currencyBalance);
+    const availableAssetBalance = currencyBalance;
     const parsedAdjustmentAmount = Number.parseFloat(adjustmentAmount || '0');
-    const exceedsAvailableBalance = adjustmentTab === 'subtract' && (adjustmentAsset === 'USDT'
-        ? parsedAdjustmentAmount > (portfolioStats?.usdt?.available || 0)
-        : adjustmentAsset === 'EUR' || adjustmentAsset === 'RMB'
-            ? parsedAdjustmentAmount > ((adjustmentAsset === 'EUR' ? portfolioStats?.eur?.available : portfolioStats?.rmb?.available) || 0)
-            : adjustmentAsset === 'DZD-Caisse'
-                ? parsedAdjustmentAmount > (treasuryStats?.caisse || 0)
-                : adjustmentAsset === 'DZD-Baridi'
-                    ? parsedAdjustmentAmount > (treasuryStats?.baridi || 0)
-                    : false);
+    const exceedsAvailableBalance = adjustmentTab === 'subtract' && (isTradeCurrency(adjustmentAsset)
+        ? parsedAdjustmentAmount > currencyBalance
+        : adjustmentAsset === 'DZD-Caisse'
+            ? parsedAdjustmentAmount > (treasuryStats?.caisse || 0)
+            : adjustmentAsset === 'DZD-Baridi'
+                ? parsedAdjustmentAmount > (treasuryStats?.baridi || 0)
+                : false);
     const adjustmentReady = adjustmentTabChosen && adjustmentAssetChosen;
     const isConfirmDisabled = (isSaving ||
         !adjustmentReady ||
@@ -606,7 +593,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     {adjustmentTabChosen && (<div>
                         <Label>{t('transactions.assetType')}</Label>
                         <div className="mt-1">
-                            <WalletPicker value={adjustmentAssetChosen ? (ASSET_TO_WALLET[adjustmentAsset] ?? null) : null} onChange={(wallet) => handleAdjustmentAssetChange(WALLET_TO_ASSET[wallet] ?? wallet)} wallets={['Caisse', 'BaridiMob', 'USDT', 'EUR', 'RMB']} labels={{ Caisse: 'Caisse (DZD)', BaridiMob: 'BaridiMob (DZD)' }} balances={{ Caisse: Number(treasuryStats?.caisse || 0), BaridiMob: Number(treasuryStats?.baridi || 0), USDT: Number(portfolioStats?.usdt?.available || 0), EUR: Number(portfolioStats?.eur?.available || 0), RMB: Number(portfolioStats?.rmb?.available || 0) }} ariaLabel={t('transactions.assetType') as string}/>
+                            <WalletPicker value={adjustmentAssetChosen ? (ASSET_TO_WALLET[adjustmentAsset] ?? null) : null} onChange={(wallet) => handleAdjustmentAssetChange(WALLET_TO_ASSET[wallet] ?? wallet)} wallets={['Caisse', 'BaridiMob', ...TRADE_CURRENCY_CODES]} labels={{ Caisse: 'Caisse (DZD)', BaridiMob: 'BaridiMob (DZD)' }} balances={{ Caisse: Number(treasuryStats?.caisse || 0), BaridiMob: Number(treasuryStats?.baridi || 0), ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, Number(portfolioStats?.[code.toLowerCase()]?.available || 0)])) }} ariaLabel={t('transactions.assetType') as string}/>
                         </div>
                     </div>)}
                     </FormCard>

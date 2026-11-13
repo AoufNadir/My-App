@@ -1,3 +1,4 @@
+import type { TradeCurrencyCode } from './currency/tradeCurrencies';
 import type { ClientWallets } from './utils/clientWallets';
 export interface Tx {
     id: string;
@@ -229,8 +230,8 @@ export interface TreasuryTx {
     linkedAssetTxId?: string; // Link back to actifTransactions
     linkedDigitalServiceTxId?: string;
     linkedProjectExpenseTxId?: string;
-    expenseWallet?: 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR' | 'RMB';
-    expenseCurrency?: 'DZD' | 'USDT' | 'EUR' | 'RMB';
+    expenseWallet?: 'Caisse' | 'BaridiMob' | TradeCurrencyCode;
+    expenseCurrency?: 'DZD' | TradeCurrencyCode;
     originalAmount?: number;
     conversionRateToDzd?: number;
     amountDzd?: number;
@@ -253,13 +254,13 @@ export interface DigitalServiceTransaction {
     type: 'digital_service_sale';
     clientId: string;
     serviceName: string;
-    purchaseWallet: 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR' | 'RMB';
-    purchaseCurrency: 'DZD' | 'USDT' | 'EUR' | 'RMB';
+    purchaseWallet: 'Caisse' | 'BaridiMob' | TradeCurrencyCode;
+    purchaseCurrency: 'DZD' | TradeCurrencyCode;
     purchaseAmount: number;
     purchaseRateToDzd: number;
     purchaseAmountDzd: number;
-    saleWallet: 'Caisse' | 'BaridiMob' | 'USDT' | 'EUR' | 'RMB' | 'Credit';
-    saleCurrency: 'DZD' | 'USDT' | 'EUR' | 'RMB';
+    saleWallet: 'Caisse' | 'BaridiMob' | TradeCurrencyCode | 'Credit';
+    saleCurrency: 'DZD' | TradeCurrencyCode;
     saleAmount: number;
     saleRateToDzd: number;
     saleAmountDzd: number;
