@@ -45,3 +45,26 @@ export async function commitWithStockLock(db: DbLike, userDocRef: FirestoreDocum
         return next;
     });
 }
+
+/**
+ * V14-3 (owner, 2026-11-13: « Erreur lors de la vente » on the live site): a transaction needs the server at that very
+ * moment (a phone that drops the connection for a second fails it), while a batch waits and retries. So: the lock
+ * first; if the transaction fails for any other reason than « another sale came first » or the write gate, the sale is
+ * still saved with the batch it was built in, as before V13-7. The real error is logged for diagnosis.
+ */
+export async function commitWithStockLockOrBatch(db: DbLike, userDocRef: FirestoreDocumentReference, batch: Pick<FirestoreWriteBatch, 'operations' | 'commit'>, expected: number | null | undefined): Promise<void> {
+    if (expected === null || expected === undefined) {
+        // The lock was not read yet (no connection when the window opened): the usual save.
+        await batch.commit();
+        return;
+    }
+    try {
+        await commitWithStockLock(db, userDocRef, batch, expected);
+    }
+    catch (error) {
+        if (error instanceof StockChangedError || (error instanceof Error && error.name === 'FinancialWriteBlockedError'))
+            throw error;
+        console.warn('[stock lock] transaction failed, saving with the batch:', error);
+        await batch.commit();
+    }
+}

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { commitWithStockLock, requireStockLockSeq, stockLockSeqOf, StockChangedError } from './stockLock';
+import { commitWithStockLock, commitWithStockLockOrBatch, requireStockLockSeq, stockLockSeqOf, StockChangedError } from './stockLock';
 
 // V13-7 (audit retest): two tabs both read 40 RMB and sell 21 at the same moment. A fake Firestore runs the two
 // transactions one after the other, as the server does: the second finds the lock moved and writes nothing.
@@ -37,5 +37,16 @@ const sale = (id: string) => ({ operations: [{ kind: 'set', ref: ref(`users/u/us
     assert.equal(await commitWithStockLock(db, user, sale('edit-old-sale'), stockLockSeqOf(store.get('users/u/stock_lock/main'))), 3, 'saved after deletions');
     // Before the lock is read, nothing is written.
     assert.throws(() => requireStockLockSeq(null), StockChangedError);
+    // V14-3 hotfix: the transaction fails (phone offline for a second): the sale is still saved with its batch.
+    let committed = 0;
+    const offlineDb = { runTransaction: async () => { throw new Error('Failed to get document because the client is offline.'); } };
+    const batchOf = { operations: [], commit: async () => { committed += 1; } } as any;
+    await commitWithStockLockOrBatch(offlineDb, user, batchOf, 3);
+    assert.equal(committed, 1, 'saved with the batch');
+    await commitWithStockLockOrBatch(offlineDb, user, batchOf, null);
+    assert.equal(committed, 2, 'lock not read yet: the usual save');
+    // « Another sale came first » is still refused, never saved behind the lock's back.
+    await assert.rejects(commitWithStockLockOrBatch(db, user, sale('late'), 0), StockChangedError);
+    assert.equal(committed, 2);
     console.log('stockLock.test: two tabs cannot sell the same stock, the second sale is refused whole');
 })();

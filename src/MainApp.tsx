@@ -1,4 +1,4 @@
-import { commitWithStockLock, requireStockLockSeq, STOCK_CHANGED_MESSAGE, StockChangedError } from './utils/stockLock';
+import { commitWithStockLockOrBatch, STOCK_CHANGED_MESSAGE, StockChangedError } from './utils/stockLock';
 import { useStockLockSeq } from './hooks/useStockLockSeq';
 import { previousProfits } from './utils/dashboardComparison';
 import { inventoryFixFor } from './utils/inventoryCheck';
@@ -3018,7 +3018,7 @@ export default function MainApp({ user }: {
                 });
             // V13-7: whatever takes stock out (a sale, or paying with another currency) goes with the stock lock.
             if (input.kind === 'sell' || input.source !== 'DZD')
-                await commitWithStockLock(db, userDocRef, batch, requireStockLockSeq(stockLockSeq));
+                await commitWithStockLockOrBatch(db, userDocRef, batch, stockLockSeq);
             else
                 await batch.commit();
             setAlert('✅ Transaction ajoutée.');
