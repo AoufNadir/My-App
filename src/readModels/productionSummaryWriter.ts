@@ -3,6 +3,7 @@ import type {
     DashboardReadModelSet,
     ReadModelName,
 } from './dashboardReadModels';
+import { commitWithStockLock } from '../utils/stockLock';
 import { INITIAL_READ_MODEL_DOCUMENT_IDS, stableReadModelPayloadHash } from './initialSnapshotWriter';
 import { READ_MODEL_APPLIED_OPS_PATH, applyReadModelDelta, type ReadModelDelta } from './readModelDeltas';
 import {
@@ -37,6 +38,8 @@ export type CommitLegacyWithReadModelDeltasInput = {
     batch: FirestoreWriteBatch;
     deltas?: readonly ReadModelDelta[];
     summaryWriteMode?: SummaryWriteMode | string;
+    /** V13-7: a sale is written with the stock lock, all or nothing (see utils/stockLock). */
+    stockLock?: { expected: number; db: Parameters<typeof commitWithStockLock>[0] };
 };
 
 function uniqueReadModelNames(names: readonly ReadModelName[]): ReadModelName[] {
@@ -303,8 +306,11 @@ export async function commitLegacyWithReadModelDeltas(
 ): Promise<CommitLegacyWithReadModelDeltasResult> {
     const summaryWriteMode = getSummaryWriteMode(input.summaryWriteMode);
     const deltas = input.deltas?.filter(Boolean) || [];
-    if (!isSummaryWriteEnabled(summaryWriteMode) || deltas.length === 0) {
-        await input.batch.commit();
+    if (!isSummaryWriteEnabled(summaryWriteMode) || deltas.length === 0 || input.stockLock) {
+        if (input.stockLock)
+            await commitWithStockLock(input.stockLock.db, input.userDocRef, input.batch, input.stockLock.expected);
+        else
+            await input.batch.commit();
         return {
             status: 'legacy_only',
             summaryWriteMode,

@@ -6,9 +6,15 @@ import type { Tx } from '../types';
  * The whole history is replayed with the change; a sale that becomes larger than the stock held at its moment, and
  * was not already so before, means the change is refused before anything is written.
  */
-const oversellIds = (txs: Tx[]): Set<string> => new Set(computePamLedger(txs, { nowMs: Date.now() }).warnings
-    .filter((warning) => warning.code === 'oversell')
-    .map((warning) => String(warning.txId)));
+// V13-7 (audit retest): any moment of the history, whatever took the stock out (a sale, an expense or a withdrawal
+// paid in a currency, a service, a conversion): the balance after each operation must not go below zero.
+const oversellIds = (txs: Tx[]): Set<string> => {
+    const ledger = computePamLedger(txs, { nowMs: 0 });
+    const ids = new Set(ledger.warnings.filter((warning) => warning.code === 'oversell').map((warning) => String(warning.txId)));
+    for (const row of ledger.operationRows)
+        if (row.statsAfter.available < -0.005) ids.add(String(row.txId));
+    return ids;
+};
 
 export function changeCreatesNegativeStock(before: Tx[], after: Tx[]): boolean {
     const was = oversellIds(before);

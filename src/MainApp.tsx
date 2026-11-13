@@ -1,3 +1,4 @@
+import { commitWithStockLock, expectedStockSeq, STOCK_CHANGED_MESSAGE, StockChangedError } from './utils/stockLock';
 import { previousProfits } from './utils/dashboardComparison';
 import { inventoryFixFor } from './utils/inventoryCheck';
 import { useMovementReasons } from './hooks/useMovementReasons';
@@ -1769,6 +1770,16 @@ export default function MainApp({ user }: {
             }
             return;
         }
+        // V13-7 (audit): a project expense or a personal expense never opens the cash adjustment (which asked
+        // « I paid a client »): the personal one opens its own window; the project one is deleted and entered again.
+        if (tx.origin === 'personal_expense') {
+            openEditPersonalExpense(tx);
+            return;
+        }
+        if (tx.origin === 'delivery_expense') {
+            setAlert('ℹ️ Pour modifier un frais du projet : supprimez-le puis enregistrez-le à nouveau.');
+            return;
+        }
         if (tx.origin === 'manual_asset') {
             // The Services page is gone: this movement came from it and has no window to open it in.
             setAlert(t('common.legacyServicesMovement') as string);
@@ -2996,11 +3007,19 @@ export default function MainApp({ user }: {
             batch.set(mainRef, rows.main);
             for (const row of rows.linked)
                 batch.set(userDocRef.collection(row.collection).doc(), row.data);
-            await batch.commit();
+            // V13-7: whatever takes stock out (a sale, or paying with another currency) goes with the stock lock.
+            if (input.kind === 'sell' || input.source !== 'DZD')
+                await commitWithStockLock(db, userDocRef, batch, expectedStockSeq(transactions as never));
+            else
+                await batch.commit();
             setAlert('✅ Transaction ajoutée.');
             return true;
         }
         catch (error) {
+            if (error instanceof StockChangedError) {
+                setAlert(`⚠️ ${STOCK_CHANGED_MESSAGE}`);
+                return false;
+            }
             console.error(error);
             if (!(error instanceof Error && error.name === 'FinancialWriteBlockedError'))
                 setAlert('❌ Erreur lors de la sauvegarde.');

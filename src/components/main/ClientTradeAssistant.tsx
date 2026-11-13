@@ -41,7 +41,7 @@ export function ClientTradeAssistant({ side, currency, clientName, trade, refere
         return (<section aria-label={tr(side === 'sell' ? 'assistLastSale' : 'assistLastBuy', { name: clientName })} className="flex items-center justify-between gap-3 rounded-card border border-primary/25 bg-primary/5 px-3 py-2.5">
           <div className="min-w-0">
             <p className="text-xs font-semibold text-neutral-600">{tr(side === 'sell' ? 'assistLastSaleShort' : 'assistLastBuyShort', { when: when(trade.timestamp) })}</p>
-            <p className="mt-0.5 leading-tight"><span dir="ltr" className="text-lg font-extrabold tabular-nums text-neutral-900">{price2(trade.price)}</span> <small className="text-xs text-neutral-600"><bdi>{currency} · {qty0(trade.quantity)}</bdi></small></p>
+            <p className="mt-0.5 leading-tight"><span dir="ltr" className="text-lg font-extrabold tabular-nums text-neutral-900">{price2(trade.price)}</span> <small className="text-xs text-neutral-600"><bdi dir="ltr">DZD/{currency} · {qty0(trade.quantity)} {currency}</bdi></small></p>
           </div>
           {Math.abs(currentPrice - trade.price) < 0.005
             ? <span className="shrink-0 text-[13px] font-bold text-financial-profit">✓ {tr('assistApplied')}</span>

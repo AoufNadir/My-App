@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import { commitWithStockLock, expectedStockSeq, StockChangedError } from './stockLock';
+
+// V13-7 (audit retest): two tabs both read 40 RMB and sell 21 at the same moment. A fake Firestore runs the two
+// transactions one after the other, as the server does: the second finds the lock moved and writes nothing.
+const store = new Map<string, Record<string, unknown>>();
+const ref = (path: string) => ({ nativeRef: { path }, collection: (c: string) => ({ doc: (d: string) => ref(`${path}/${c}/${d}`) }) }) as any;
+const user = ref('users/u');
+const db = {
+    async runTransaction<T>(fn: (tx: any) => Promise<T>): Promise<T> {
+        const writes: Array<() => void> = [];
+        const tx = {
+            get: async (r: any) => ({ exists: store.has(r.nativeRef.path), data: () => store.get(r.nativeRef.path) }),
+            set: (r: any, data: any) => writes.push(() => store.set(r.nativeRef.path, data)),
+            update: (r: any, data: any) => writes.push(() => store.set(r.nativeRef.path, { ...store.get(r.nativeRef.path), ...data })),
+            delete: (r: any) => writes.push(() => store.delete(r.nativeRef.path)),
+        };
+        const out = await fn(tx);
+        writes.forEach((w) => w());
+        return out;
+    },
+};
+const sale = (id: string) => ({ operations: [{ kind: 'set', ref: ref(`users/u/usdt_txs/${id}`), data: { type: 'sell', currency: 'RMB', quantity: 21 } }] }) as any;
+(async () => {
+    const seenByBoth = expectedStockSeq([]); // both tabs loaded the same history
+    assert.equal(await commitWithStockLock(db, user, sale('a'), seenByBoth), 1, 'first tab: saved');
+    await assert.rejects(commitWithStockLock(db, user, sale('b'), seenByBoth), StockChangedError, 'second tab: refused');
+    assert.ok(store.has('users/u/usdt_txs/a') && !store.has('users/u/usdt_txs/b'), 'only one sale written: 40 − 21 = 19, never −2');
+    assert.equal(store.get('users/u/usdt_txs/a')!.stockSeq, 1, 'the sale tells other tabs which lock number it made');
+    // The second tab, once it has received sale a, knows the lock is at 1 and may sell the remaining 19.
+    const afterUpdate = expectedStockSeq([{ stockSeq: 1 }]);
+    assert.equal(await commitWithStockLock(db, user, sale('c'), afterUpdate), 2);
+    console.log('stockLock.test: two tabs cannot sell the same stock, the second sale is refused whole');
+})();

@@ -13,4 +13,15 @@ assert.equal(changeCreatesNegativeStock(txs, withQuantity(txs, 'b', 80)), false,
 assert.equal(changeCreatesNegativeStock(txs, withoutOperation(txs, 'b')), true, 'buy deleted under a later sale');
 assert.equal(changeCreatesNegativeStock(txs, withoutOperation(txs, 's')), false, 'deleting a sale is safe');
 assert.equal(changeCreatesNegativeStock(txs, withQuantity(txs, 's', 120)), true, 'sale raised above the stock');
+// V13-7, the auditor's case: buy 100, an expense paid with 65 USDT, then a buy of 2. Today the stock is 37, and
+// cutting the first buy to 64 still leaves today positive (1), but right after the expense it was 64 − 65 = −1: refused.
+{
+    const book = [
+        { id: 'b1', type: 'buy', currency: 'USDT', quantity: 100, price: 240, total: 24_000, timestamp: T },
+        { id: 'x', type: 'Retrait Manuel', currency: 'USDT', quantity: 65, timestamp: T + 1000 },
+        { id: 'b2', type: 'buy', currency: 'USDT', quantity: 2, price: 240, total: 480, timestamp: T + 2000 },
+    ] as unknown as Tx[];
+    assert.equal(changeCreatesNegativeStock(book, withQuantity(book, 'b1', 64)), true, 'negative right after the expense: refused');
+    assert.equal(changeCreatesNegativeStock(book, withQuantity(book, 'b1', 65)), false, 'exactly enough at every moment');
+}
 console.log('stockGuard.test: edits and deletes never leave the stock negative later');

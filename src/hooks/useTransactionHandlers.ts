@@ -15,7 +15,7 @@ import { operationStamp } from '../utils/editStamp';
 import { formatNumber } from '../pages/shared/pageFormat';
 import { applyTransactionDelete } from '../transactionService';
 import { transferStamp } from '../utils/transferStamp';
-import { CONCURRENT_SALE_MESSAGE, stockChangedOnServer } from '../utils/concurrentSaleGuard';
+import { expectedStockSeq, STOCK_CHANGED_MESSAGE, StockChangedError } from '../utils/stockLock';
 import { changeCreatesNegativeStock, NEGATIVE_STOCK_MESSAGE, withoutOperation, withQuantity } from '../utils/stockGuard';
 import { recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
 import { recordPortfolioShadow } from '../accounting/portfolioShadowDiagnostics';
@@ -1347,15 +1347,22 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     });
                 })()
                 : null;
-            if (!editingTx && await stockChangedOnServer(userDocRef.collection('usdt_txs') as never, transactions)) {
-                setAlert(`⚠️ ${CONCURRENT_SALE_MESSAGE}`);
-                return;
+            // V13-7: written with the stock lock: if another tab sold meanwhile, nothing is written.
+            try {
+                await commitLegacyWithReadModelDeltas({
+                    userDocRef,
+                    batch,
+                    deltas: readModelDelta ? [readModelDelta] : [],
+                    stockLock: { db, expected: expectedStockSeq(transactions as never) },
+                });
             }
-            await commitLegacyWithReadModelDeltas({
-                userDocRef,
-                batch,
-                deltas: readModelDelta ? [readModelDelta] : [],
-            });
+            catch (error) {
+                if (error instanceof StockChangedError) {
+                    setAlert(`⚠️ ${STOCK_CHANGED_MESSAGE}`);
+                    return;
+                }
+                throw error;
+            }
             closeForm();
             if (linkedClientId !== 'none') {
                 setTimeout(() => {
@@ -1971,6 +1978,10 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         setTransferToClientId(incomingTx.clientId);
         setTransferAmount(Math.abs(outgoingTx.montant).toString());
         setTransferNotes(outgoingTx.notes || incomingTx.notes || '');
+        // V13-7 (audit): the editor opens on the transfer's own date and time, not empty fields.
+        const [day, month, year] = String(outgoingTx.date || '').split('/');
+        setTransferDate(year && month && day ? `${year}-${month}-${day}` : '');
+        setTransferTime(String(outgoingTx.time || '').slice(0, 5));
         setIsTransferModalOpen(true);
     };
     const handleSaveTransfer = async () => {
@@ -2071,7 +2082,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 setAlert('⚠️ La date ne peut pas être dans le futur.');
                 return;
             }
-            const moved = stamp && stamp.timestamp !== Number(editingTransferTx.timestamp)
+            // Unchanged date and time (as the editor now opens on them): the rows keep their exact moment.
+            const sameMoment = stamp && stamp.date === editingTransferTx.date && stamp.time === String(editingTransferTx.time || '').slice(0, 5);
+            const moved = stamp && !sameMoment && stamp.timestamp !== Number(editingTransferTx.timestamp)
                 ? { date: stamp.date, time: stamp.time, timestamp: stamp.timestamp } : null;
             const batch = db.batch();
             const note = transferNotes.trim();

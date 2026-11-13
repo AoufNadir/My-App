@@ -61,6 +61,8 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
         buyWith: (source: string) => (t('transactions.crossBuyWith') as string).replace('{c}', source),
         sellWith: (source: string) => (t('transactions.crossSellWith') as string).replace('{c}', source),
         conversion: t('transactions.crossConversion') as string,
+        // V13-6/7: a sale for another currency makes a profit or a loss, valued at that currency's average price.
+        sale: t('transactions.crossSale') as string,
     };
     // V5-4: picking the client of a new sale starts the payment on the way he usually pays, unless the
     // status was already chosen by hand. Clearing the client puts back the default it replaced. The
@@ -260,8 +262,12 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
         const saleValueDzd = isSell && isUsdtSellSettledInEur
             ? totalInput * effectiveSellEurToDzdRateValue
             : totalInput;
-        const soldCostDzd = isSell ? quantity * activeStats.avgBuy : 0;
-        const profitEstimate = isSell && price > 0 && activeStats.avgBuy > 0
+        // V13-7 (audit): an old sale is previewed with the average price of its own moment, as the save computes it,
+        // not today's; and a quantity that is not positive shows no profit at all.
+        const editedRow = isSell && editingTx?.id ? (profitByTxId as Record<string, any> | undefined)?.[editingTx.id] : undefined;
+        const avgAtSale = editedRow?.statsBefore?.purchasedQty > 0 ? editedRow.statsBefore.costBasis / editedRow.statsBefore.purchasedQty : activeStats.avgBuy;
+        const soldCostDzd = isSell ? quantity * avgAtSale : 0;
+        const profitEstimate = isSell && quantity > 0 && price > 0 && avgAtSale > 0
             ? saleValueDzd - soldCostDzd
             : null;
         if (quantity <= 0 && price <= 0 && totalInput <= 0)
@@ -550,9 +556,9 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                                 <div className="-mx-2 -my-1 divide-y divide-border">
                                     {renderSourceChoice(chooseSellWithDzd, <BanknotesIcon className="h-5 w-5"/>, t('portfolio.sellWithDzd'), t('common.dinar'))}
                                     {/* V13-4: USDT for EUR is a conversion now (no profit until the sale in dinars): the conversion window. */}
-                                    {!eurHiddenHere && onCrossTrade && renderSourceChoice(() => onCrossTrade('sell', 'USDT', 'EUR'), <WalletIcon className="h-5 w-5"/>, t('portfolio.sellWithEur'), crossWords.conversion)}
+                                    {!eurHiddenHere && onCrossTrade && renderSourceChoice(() => onCrossTrade('sell', 'USDT', 'EUR'), <WalletIcon className="h-5 w-5"/>, t('portfolio.sellWithEur'), crossWords.sale)}
                                     {!eurHiddenHere && !onCrossTrade && renderSourceChoice(chooseSellWithEur, <WalletIcon className="h-5 w-5"/>, t('portfolio.sellWithEur'), 'EUR')}
-                                    {crossSources('USDT').map((source) => (<React.Fragment key={source}>{renderSourceChoice(() => onCrossTrade!('sell', 'USDT', source), <span className="text-base font-extrabold">¥</span>, crossWords.sellWith(source), crossWords.conversion)}</React.Fragment>))}
+                                    {crossSources('USDT').map((source) => (<React.Fragment key={source}>{renderSourceChoice(() => onCrossTrade!('sell', 'USDT', source), <span className="text-base font-extrabold">¥</span>, crossWords.sellWith(source), crossWords.sale)}</React.Fragment>))}
                                 </div>
                             </FormCard>)}
 
@@ -650,7 +656,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                         {isChoosingEurSource && (<FormCard title={isBuyMode ? t('transactions.fundingQuestion') : t('transactions.saleSourceQuestion')}>
                                 <div className="-mx-2 -my-1 divide-y divide-border">
                                     {renderSourceChoice(() => setEurDzdChosen(true), <BanknotesIcon className="h-5 w-5"/>, isBuyMode ? t('portfolio.buyWithDzd') : t('portfolio.sellWithDzd'), t('common.dinar'))}
-                                    {crossSources('EUR').map((source) => (<React.Fragment key={source}>{renderSourceChoice(() => onCrossTrade!(isBuyMode ? 'buy' : 'sell', 'EUR', source), source === 'RMB' ? <span className="text-base font-extrabold">¥</span> : <WalletIcon className="h-5 w-5"/>, isBuyMode ? crossWords.buyWith(source) : crossWords.sellWith(source), crossWords.conversion)}</React.Fragment>))}
+                                    {crossSources('EUR').map((source) => (<React.Fragment key={source}>{renderSourceChoice(() => onCrossTrade!(isBuyMode ? 'buy' : 'sell', 'EUR', source), source === 'RMB' ? <span className="text-base font-extrabold">¥</span> : <WalletIcon className="h-5 w-5"/>, isBuyMode ? crossWords.buyWith(source) : crossWords.sellWith(source), isBuyMode ? crossWords.conversion : crossWords.sale)}</React.Fragment>))}
                                 </div>
                             </FormCard>)}
 
