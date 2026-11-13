@@ -15,7 +15,8 @@ import { operationStamp } from '../utils/editStamp';
 import { formatNumber } from '../pages/shared/pageFormat';
 import { applyTransactionDelete } from '../transactionService';
 import { transferStamp } from '../utils/transferStamp';
-import { expectedStockSeq, STOCK_CHANGED_MESSAGE, StockChangedError } from '../utils/stockLock';
+import { computePamLedger } from '../utils/pamLedger';
+import { requireStockLockSeq, STOCK_CHANGED_MESSAGE, StockChangedError } from '../utils/stockLock';
 import { changeCreatesNegativeStock, NEGATIVE_STOCK_MESSAGE, withoutOperation, withQuantity } from '../utils/stockGuard';
 import { recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
 import { recordPortfolioShadow } from '../accounting/portfolioShadowDiagnostics';
@@ -58,6 +59,8 @@ interface HandlerProps {
     };
     /** End of the last closed month: a sale cannot be dated inside it */
     periodLockedThrough?: number | null;
+    /** V13-7: the stock lock number this tab has seen (useStockLockSeq) */
+    stockLockSeq?: number | null;
     setAlert: (msg: string) => void;
     setSelectedClientId: (id: string | null) => void;
     setView: (view: 'transactions' | 'dzd' | 'tresorerie' | 'statistiques' | 'tresorerie' | 'investors') => void;
@@ -107,7 +110,7 @@ const dzdSaleDraft = (currency: PortfolioCurrency, sellAmount: string, sellPrice
     const saleValueDzd = isTotalManual && totalInput > 0 ? totalInput : quantity * unitPrice;
     return { currency, quantity, sellPrice: unitPrice, saleValueDzd, totalRevenue: Math.round(saleValueDzd) };
 };
-export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats, periodLockedThrough, setAlert, setSelectedClientId, setView, smartQuoteRef }: HandlerProps) {
+export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats, periodLockedThrough, stockLockSeq, setAlert, setSelectedClientId, setView, smartQuoteRef }: HandlerProps) {
     const [isSaving, setIsSaving] = useState(false);
     const paymentMethodByStatus: Record<'credit' | 'baridi' | 'cash', 'Crédit' | 'BaridiMob' | 'Espèces'> = {
         credit: 'Crédit',
@@ -502,8 +505,11 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     ? Number(txToEdit.sellPriceEur || 0)
                     : Number(txToEdit.sell || 0));
                 setSellTotal((existingTotal > 0 ? existingTotal : fallbackTotal).toString());
-                if (sellAssetStats.avgBuy > 0 && txToEdit.sell) {
-                    const margin = txToEdit.sell - sellAssetStats.avgBuy;
+                // V13-7: the margin of an old sale against the average price of its own moment, as its profit.
+                const saleRow = computePamLedger(transactions).profitByTxId?.[txToEdit.id] as { statsBefore?: { purchasedQty: number; costBasis: number } } | undefined;
+                const avgAtSale = saleRow?.statsBefore && saleRow.statsBefore.purchasedQty > 0 ? saleRow.statsBefore.costBasis / saleRow.statsBefore.purchasedQty : sellAssetStats.avgBuy;
+                if (avgAtSale > 0 && txToEdit.sell) {
+                    const margin = txToEdit.sell - avgAtSale;
                     setProfitPercent(margin.toFixed(2));
                 }
             }
@@ -1353,7 +1359,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     userDocRef,
                     batch,
                     deltas: readModelDelta ? [readModelDelta] : [],
-                    stockLock: { db, expected: expectedStockSeq(transactions as never) },
+                    stockLock: { db, expected: requireStockLockSeq(stockLockSeq) },
                 });
             }
             catch (error) {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { commitWithStockLock, expectedStockSeq, StockChangedError } from './stockLock';
+import { commitWithStockLock, requireStockLockSeq, stockLockSeqOf, StockChangedError } from './stockLock';
 
 // V13-7 (audit retest): two tabs both read 40 RMB and sell 21 at the same moment. A fake Firestore runs the two
 // transactions one after the other, as the server does: the second finds the lock moved and writes nothing.
@@ -22,13 +22,20 @@ const db = {
 };
 const sale = (id: string) => ({ operations: [{ kind: 'set', ref: ref(`users/u/usdt_txs/${id}`), data: { type: 'sell', currency: 'RMB', quantity: 21 } }] }) as any;
 (async () => {
-    const seenByBoth = expectedStockSeq([]); // both tabs loaded the same history
+    const seenByBoth = stockLockSeqOf(store.get('users/u/stock_lock/main')); // both tabs see the same lock: 0
     assert.equal(await commitWithStockLock(db, user, sale('a'), seenByBoth), 1, 'first tab: saved');
     await assert.rejects(commitWithStockLock(db, user, sale('b'), seenByBoth), StockChangedError, 'second tab: refused');
     assert.ok(store.has('users/u/usdt_txs/a') && !store.has('users/u/usdt_txs/b'), 'only one sale written: 40 − 21 = 19, never −2');
     assert.equal(store.get('users/u/usdt_txs/a')!.stockSeq, 1, 'the sale tells other tabs which lock number it made');
     // The second tab, once it has received sale a, knows the lock is at 1 and may sell the remaining 19.
-    const afterUpdate = expectedStockSeq([{ stockSeq: 1 }]);
+    const afterUpdate = stockLockSeqOf(store.get('users/u/stock_lock/main'));
     assert.equal(await commitWithStockLock(db, user, sale('c'), afterUpdate), 2);
+    // Retest 2 (auditor): the test sales were deleted, then an old sale was edited and refused again and again. The
+    // number now comes from the lock itself, so a deletion does not leave the tab behind for ever.
+    store.delete('users/u/usdt_txs/a');
+    store.delete('users/u/usdt_txs/c');
+    assert.equal(await commitWithStockLock(db, user, sale('edit-old-sale'), stockLockSeqOf(store.get('users/u/stock_lock/main'))), 3, 'saved after deletions');
+    // Before the lock is read, nothing is written.
+    assert.throws(() => requireStockLockSeq(null), StockChangedError);
     console.log('stockLock.test: two tabs cannot sell the same stock, the second sale is refused whole');
 })();

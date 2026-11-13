@@ -1,4 +1,5 @@
-import { commitWithStockLock, expectedStockSeq, STOCK_CHANGED_MESSAGE, StockChangedError } from './utils/stockLock';
+import { commitWithStockLock, requireStockLockSeq, STOCK_CHANGED_MESSAGE, StockChangedError } from './utils/stockLock';
+import { useStockLockSeq } from './hooks/useStockLockSeq';
 import { previousProfits } from './utils/dashboardComparison';
 import { inventoryFixFor } from './utils/inventoryCheck';
 import { useMovementReasons } from './hooks/useMovementReasons';
@@ -212,6 +213,7 @@ export default function MainApp({ user }: {
     const dashboardSummaryRead = useDashboardSummaryReadModel(userDocRef, readModelsMode);
     // 1.2 Settings
     const { managerFeePercentage, managerFeeHistory, saveManagerFeePercentage, isSettingsLoaded } = useSettings(userDocRef);
+    const stockLockSeq = useStockLockSeq(userDocRef);
     // Closed months (utils/periodLock): their operations can be neither edited nor deleted.
     const periodLock = usePeriodLock(userDocRef);
     const periodLockRef = useRef(periodLock);
@@ -580,7 +582,7 @@ export default function MainApp({ user }: {
     const { isSaving, setIsSaving, mode, setMode, editingTx, setEditingTx, isTotalManual, setIsTotalManual, buyUsdtAmount, setBuyUsdtAmount, buyUsdtPrice, setBuyUsdtPrice, buyUsdtTotal, setBuyUsdtTotal, buyEurAmount, setBuyEurAmount, buyEurPrice, setBuyEurPrice, buyEurTotal, setBuyEurTotal, sellAmount, setSellAmount, sellPrice, setSellPrice, sellTotal, setSellTotal, sellSettlementCurrency, setSellSettlementCurrency, sellEurToDzdRate, setSellEurToDzdRate, buyUsdtMode, setBuyUsdtMode, buyEurForUsdtAmount, setBuyEurForUsdtAmount, eurDzdPrice, setEurDzdPrice, eurUsdtRate, setEurUsdtRate, linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, clientPaymentStatus, setClientPaymentStatus, setPaymentStatusChosen, creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk, notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent, isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab, adjustmentTabChosen, setAdjustmentTabChosen, adjustmentAssetChosen, setAdjustmentAssetChosen, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, adjustmentClientId, setAdjustmentClientId, adjustmentReason, setAdjustmentReason, editingTreasuryTx, usdtFromEurCalc, formValidation, openForm, closeForm, handleBuy, handleSell, handleGlobalAdjustment, handleDeleteTx, openAdjustmentModal, isDeliveryExpenseModalOpen, deliveryExpenseAmount, setDeliveryExpenseAmount, deliveryExpenseMethod, setDeliveryExpenseMethod, deliveryExpenseDate, setDeliveryExpenseDate, deliveryExpenseNote, setDeliveryExpenseNote, deliveryExpensePayee, setDeliveryExpensePayee, deliveryExpensePreview, openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense, txToDelete, setTxToDelete, handleConfirmDeleteTx, isTransferModalOpen, setIsTransferModalOpen, transferAmount, setTransferAmount, transferFromClientId, setTransferFromClientId, transferToClientId, setTransferToClientId, transferNotes, setTransferNotes, transferDate, setTransferDate, transferTime, setTransferTime, editingTransferTx, openTransferModal, closeTransferModal, handleSaveTransfer, handleApplyLock24hToRecentBuys, buyRestriction, setBuyRestriction, realPurchaseTime, setRealPurchaseTime, sellDate, setSellDate, deliveryPending, setDeliveryPending, receiptPending, setReceiptPending, sellTime, setSellTime, saleDatePlan } = useTransactionHandlers({
         userDocRef, portfolioStats: walletPortfolioStats, transactions, clientsDzd, clientTransactionsDzd,
         investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats,
-        periodLockedThrough: periodLock.lockedThrough,
+        periodLockedThrough: periodLock.lockedThrough, stockLockSeq,
         setAlert, setSelectedClientId: (id: string | null) => setSelectedClientId(id), setView: (v: string) => setView(v),
         smartQuoteRef,
     });
@@ -3009,7 +3011,7 @@ export default function MainApp({ user }: {
                 batch.set(userDocRef.collection(row.collection).doc(), row.data);
             // V13-7: whatever takes stock out (a sale, or paying with another currency) goes with the stock lock.
             if (input.kind === 'sell' || input.source !== 'DZD')
-                await commitWithStockLock(db, userDocRef, batch, expectedStockSeq(transactions as never));
+                await commitWithStockLock(db, userDocRef, batch, requireStockLockSeq(stockLockSeq));
             else
                 await batch.commit();
             setAlert('✅ Transaction ajoutée.');

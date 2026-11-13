@@ -98,6 +98,9 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
         return { trade, reference: trade ? null : lastTradeWithAnyone(tradeSource, { side: assistSide, currency: activeCurrency, exceptClientId: assistClientId }) };
     }, [assistClientId, editingTx, tradeSource, assistSide, activeCurrency]);
     const activeStats = activeCurrency === 'EUR' ? portfolioStats.eur : portfolioStats.usdt;
+    // V13-7 (audit): an old sale is read at the average price of its own moment (profit and unit margin alike).
+    const editedSaleRow = (mode === 'sell_usdt' || mode === 'sell_eur') && editingTx?.id ? (profitByTxId as Record<string, any> | undefined)?.[editingTx.id] : undefined;
+    const saleAvg: number = editedSaleRow?.statsBefore?.purchasedQty > 0 ? editedSaleRow.statsBefore.costBasis / editedSaleRow.statsBefore.purchasedQty : activeStats.avgBuy;
     const isUsdtSellSettledInEur = mode === 'sell_usdt' && sellSettlementCurrency === 'EUR';
     const sellEurToDzdRateValue = parseAndEvaluate(sellEurToDzdRate);
     const pamEurToDzdRate = Number(portfolioStats.eur.avgBuy || 0);
@@ -130,10 +133,10 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
             setSellAmount('');
     };
     const updateSellPriceMargin = (price: number) => {
-        if (activeStats.avgBuy <= 0 || price <= 0)
+        if (saleAvg <= 0 || price <= 0)
             return;
         const effectivePriceDzd = isUsdtSellSettledInEur ? price * effectiveSellEurToDzdRateValue : price;
-        setProfitPercent((effectivePriceDzd - activeStats.avgBuy).toFixed(2));
+        setProfitPercent((effectivePriceDzd - saleAvg).toFixed(2));
     };
     const updateSellLinkedFieldsAfterPriceChange = (price: number) => {
         if (price <= 0)
@@ -264,8 +267,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
             : totalInput;
         // V13-7 (audit): an old sale is previewed with the average price of its own moment, as the save computes it,
         // not today's; and a quantity that is not positive shows no profit at all.
-        const editedRow = isSell && editingTx?.id ? (profitByTxId as Record<string, any> | undefined)?.[editingTx.id] : undefined;
-        const avgAtSale = editedRow?.statsBefore?.purchasedQty > 0 ? editedRow.statsBefore.costBasis / editedRow.statsBefore.purchasedQty : activeStats.avgBuy;
+        const avgAtSale = saleAvg;
         const soldCostDzd = isSell ? quantity * avgAtSale : 0;
         const profitEstimate = isSell && quantity > 0 && price > 0 && avgAtSale > 0
             ? saleValueDzd - soldCostDzd
@@ -353,7 +355,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                 updateSellPriceMargin(price);
             }} error={fieldError('sellPrice')}/>
             <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-neutral-500">
-                <span className="min-w-0">{t('portfolio.currentPam')}: <span dir="ltr" className="font-semibold tabular-nums text-neutral-700">{activeStats.avgBuy.toFixed(2)} {t('common.dinar')}</span></span>
+                <span className="min-w-0">{editedSaleRow ? t('transactions.pamAtSale') : t('portfolio.currentPam')}: <span dir="ltr" className="font-semibold tabular-nums text-neutral-700">{saleAvg.toFixed(2)} {t('common.dinar')}</span></span>
                 {parseAndEvaluate(profitPercent) !== 0 && (<span className={`min-w-0 font-semibold ${parseAndEvaluate(profitPercent) > 0 ? 'text-financial-profit' : 'text-financial-loss'}`}>
                         {t('transactions.unitMargin')}: <span dir="ltr" className="tabular-nums">{parseAndEvaluate(profitPercent) > 0 ? '+' : ''}{parseAndEvaluate(profitPercent).toFixed(2)} {t('common.dinar')}</span>
                     </span>)}

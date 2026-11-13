@@ -3,8 +3,8 @@ import type { FirestoreDocumentReference, FirestoreTransaction, FirestoreWriteBa
 /**
  * V13-7 (audit, retest 2026-11-13): two tabs or two phones must never sell the same stock. Every sale (any currency,
  * any window) is written inside one Firestore transaction with a lock document `stock_lock/main` holding a sequence
- * number. Each sale saves the number it moved the lock to (`stockSeq`), so a tab knows which number its stock is up
- * to: the highest `stockSeq` among the operations it has. If the lock moved on meanwhile (another tab sold first), the
+ * number, which every tab follows with a listener (hooks/useStockLockSeq; a deleted sale does not move it back).
+ * Each stock row also keeps the number it made (`stockSeq`, for reading the history). If the lock moved on meanwhile (another tab sold first), the
  * whole sale is refused and nothing is written; the screen updates and the owner confirms again on the fresh stock.
  */
 export const STOCK_CHANGED_MESSAGE = 'Une autre opération vient d’être enregistrée : vérifiez le stock et confirmez à nouveau.';
@@ -12,8 +12,14 @@ export class StockChangedError extends Error {
     constructor() { super(STOCK_CHANGED_MESSAGE); this.name = 'StockChangedError'; }
 }
 
-export function expectedStockSeq(txs: ReadonlyArray<{ stockSeq?: unknown }>): number {
-    return txs.reduce((max, tx) => Math.max(max, Number(tx.stockSeq) || 0), 0);
+/** The number held by the lock document (0 before the first sale). Read by each tab with a listener. */
+export function stockLockSeqOf(data: { seq?: unknown } | null | undefined): number {
+    return Number(data?.seq) || 0;
+}
+/** Not loaded yet: nothing is written until the tab knows the lock (the same message asks to confirm again). */
+export function requireStockLockSeq(seq: number | null | undefined): number {
+    if (seq === null || seq === undefined) throw new StockChangedError();
+    return seq;
 }
 
 type TxLike = Pick<FirestoreTransaction, 'get' | 'set' | 'update' | 'delete'>;

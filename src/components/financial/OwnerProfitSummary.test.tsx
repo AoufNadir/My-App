@@ -182,7 +182,7 @@ assert.notEqual(label('fr', 'investors.profitFromSales'), label('ar', 'investors
     assert.ok(ar.includes(`${label('ar', 'investors.profitFromSales')}|${whole(172_520)}|DZD`), 'ar: « من بيع الدولار واليورو » 172 520');
     assert.ok(ar.includes(`${label('ar', 'investors.profitFromOtherBusinesses')}|${label('ar', 'investors.profitFromOtherBusinessesHint')}|${whole(13_900)}|DZD`), 'ar: « من الأعمال الأخرى » 13 900');
     const fr = textOf(render(CASES.whole, 'fr'));
-    assert.ok(fr.includes(`Ventes USDT et EUR|${whole(172_520)}|DZD`), 'fr: ventes');
+    assert.ok(fr.includes(`Ventes de devises|${whole(172_520)}|DZD`), 'fr: ventes');
     assert.ok(fr.includes(`Autres activités|Services, factures et services numériques|${whole(13_900)}|DZD`), 'fr: autres activités');
 }
 
