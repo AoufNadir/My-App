@@ -11,6 +11,8 @@ export interface WeeklyRecap {
     sellCount: number;
     usdtSold: number;
     eurSold: number;
+    /** V14-3 */
+    rmbSold?: number;
     activeDays: number;
     topClientName: string | null;
     topClientProfit: number;
@@ -80,6 +82,7 @@ export function useWeeklyRecap({
         let sellCount = 0;
         let usdtSold = 0;
         let eurSold = 0;
+        let rmbSold = 0;
         const activeDaysSet = new Set<string>();
         const weekSellTxIds = new Set<string>();
 
@@ -89,6 +92,7 @@ export function useWeeklyRecap({
             sellCount++;
             if (row.currency === 'USDT') usdtSold += Number(row.quantity || 0);
             else if (row.currency === 'EUR') eurSold += Number(row.quantity || 0);
+            else if ((row.currency as string) === 'RMB') rmbSold += Number(row.quantity || 0);
             activeDaysSet.add(new Date(row.timestamp).toDateString());
             if ((row as any).txId) weekSellTxIds.add((row as any).txId);
         }
@@ -136,6 +140,7 @@ export function useWeeklyRecap({
             sellCount,
             usdtSold,
             eurSold,
+            ...(rmbSold > 0 ? { rmbSold } : {}),
             activeDays: activeDaysSet.size,
             topClientName,
             topClientProfit,

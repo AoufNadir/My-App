@@ -196,6 +196,7 @@ function WeeklyRecapAlert({ recap, onDismiss }: { recap: WeeklyRecap; onDismiss?
           {' · '}{fillTemplate(t('dashboard.recapSales') as string, { count: <CountText value={recap.sellCount}/> })}
           {recap.usdtSold > 0 && (<>{' · '}<CurrencyAmount value={recap.usdtSold} currency="USDT" size="sm" decimals={0}/></>)}
           {recap.eurSold > 0 && (<>{' · '}<CurrencyAmount value={recap.eurSold} currency="EUR" size="sm" decimals={0}/></>)}
+          {(recap.rmbSold ?? 0) > 0 && (<>{' · '}<CurrencyAmount value={recap.rmbSold ?? 0} currency="RMB" size="sm" decimals={0}/></>)}
           {' · '}{fillTemplate(t('dashboard.recapActiveDays') as string, { count: <CountText value={recap.activeDays}/> })}
         </span>
         {recap.topClientName && (<span className="block">

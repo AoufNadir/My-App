@@ -248,6 +248,9 @@ function priceReference(input: InvestigatorInput, currency: AssetCurrency, side:
 }
 
 function trade(input: InvestigatorInput, row: InventoryRow, byAccount: Map<InventoryAccount, InventoryRow>): TradeSuggestion | null {
+    // V14-3: no « forgotten sale / purchase » guess for RMB (its window is another one); its operations are listed below.
+    if (row.account === 'rmb')
+        return null;
     const currency: AssetCurrency = row.account === 'eur' ? 'EUR' : 'USDT';
     const quantityCents = Math.abs(toCents(row.gap));
     // The cash boxes counted: their gaps add up to what the sale brought in or the purchase took out.
@@ -299,9 +302,9 @@ function operationsSince(input: InvestigatorInput, account: InventoryAccount, si
         }
     }
     else {
-        const currency = account === 'eur' ? 'EUR' : 'USDT';
+        const currency: string = account === 'eur' ? 'EUR' : account === 'rmb' ? 'RMB' : 'USDT';
         for (const tx of input.portfolioTransactions) {
-            if (tx.currency !== currency || tx.origin === 'balance_edit' || (since !== null && tx.timestamp <= since))
+            if ((tx.currency as string) !== currency || tx.origin === 'balance_edit' || (since !== null && tx.timestamp <= since))
                 continue;
             const quantity = Number(tx.quantity);
             if (!Number.isFinite(quantity) || quantity <= 0)

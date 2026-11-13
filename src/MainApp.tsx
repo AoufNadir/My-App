@@ -1372,13 +1372,13 @@ export default function MainApp({ user }: {
         const amount = dzd ? String(Math.round(Math.abs(row.gap))) : Math.abs(row.gap).toFixed(2);
         if (fix === 'personal_expense') {
             openPersonalWithdrawalModal();
-            setPersonalWithdrawalMethod(row.account === 'caisse' ? 'Caisse' : row.account === 'baridi' ? 'BaridiMob' : row.account === 'usdt' ? 'USDT' : 'EUR');
+            setPersonalWithdrawalMethod(row.account === 'caisse' ? 'Caisse' : row.account === 'baridi' ? 'BaridiMob' : row.account === 'usdt' ? 'USDT' : row.account === 'rmb' ? 'RMB' : 'EUR');
             setPersonalWithdrawalAmount(amount);
             return;
         }
         if (fix === 'forgotten_entry') {
             openAdjustmentModal('add');
-            setAdjustmentAsset(row.account === 'caisse' ? 'DZD-Caisse' : row.account === 'baridi' ? 'DZD-Baridi' : row.account === 'usdt' ? 'USDT' : 'EUR');
+            setAdjustmentAsset(row.account === 'caisse' ? 'DZD-Caisse' : row.account === 'baridi' ? 'DZD-Baridi' : row.account === 'usdt' ? 'USDT' : row.account === 'rmb' ? 'RMB' : 'EUR');
             // the inventory row says which wallet and that money is missing from the books: both known
             setAdjustmentTabChosen(true);
             setAdjustmentAssetChosen(true);
