@@ -3023,6 +3023,11 @@ export default function MainApp({ user }: {
             else
                 await batch.commit();
             setAlert('✅ Transaction ajoutée.');
+            // V14-3: as after a USDT / EUR operation, the page of the client of the operation opens.
+            if (input.clientId && input.clientId !== 'none') {
+                const clientId = input.clientId;
+                setTimeout(() => { setSelectedClientId(clientId); setView('dzd'); }, 100);
+            }
             return true;
         }
         catch (error) {
