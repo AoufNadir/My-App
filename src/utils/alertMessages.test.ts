@@ -56,6 +56,9 @@ function texts(node: ts.Expression, sf: ts.SourceFile): string[] {
         }
         return outs;
     }
+    // V14-5: saveErrorAlert(error, fallback) shows the fallback (or the stock-lock message).
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'saveErrorAlert' && node.arguments[1])
+        return texts(node.arguments[1], sf);
     if (ts.isConditionalExpression(node))
         return [...texts(node.whenTrue, sf), ...texts(node.whenFalse, sf)];
     if (ts.isBinaryExpression(node) && (node.operatorToken.kind === ts.SyntaxKind.BarBarToken || node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken))

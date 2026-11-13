@@ -1,4 +1,4 @@
-import { commitWithStockLockOrBatch, STOCK_CHANGED_MESSAGE, StockChangedError } from './utils/stockLock';
+import { commitWithStockLockOrBatch, registerStockLock, saveErrorAlert, STOCK_CHANGED_MESSAGE, StockChangedError } from './utils/stockLock';
 import { useStockLockSeq } from './hooks/useStockLockSeq';
 import { previousProfits } from './utils/dashboardComparison';
 import { inventoryFixFor } from './utils/inventoryCheck';
@@ -216,6 +216,10 @@ export default function MainApp({ user }: {
     // 1.2 Settings
     const { managerFeePercentage, managerFeeHistory, saveManagerFeePercentage, isSettingsLoaded } = useSettings(userDocRef);
     const stockLockSeq = useStockLockSeq(userDocRef);
+    const stockLockSeqRef = useRef(stockLockSeq);
+    stockLockSeqRef.current = stockLockSeq;
+    // V14-5: every save that touches stock (expenses, withdrawals, services, edits, deletes) goes through the lock.
+    useEffect(() => registerStockLock({ db, expected: () => stockLockSeqRef.current }), []);
     // Closed months (utils/periodLock): their operations can be neither edited nor deleted.
     const periodLock = usePeriodLock(userDocRef);
     const periodLockRef = useRef(periodLock);
@@ -1513,7 +1517,7 @@ export default function MainApp({ user }: {
             closeTreasuryBalanceEditModal();
         }
         catch (e) {
-            setAlert("❌ Erreur lors de la mise à jour du solde.");
+            setAlert(saveErrorAlert(e, "❌ Erreur lors de la mise à jour du solde."));
         }
         finally {
             setIsSaving(false);
@@ -1663,7 +1667,7 @@ export default function MainApp({ user }: {
             closePortfolioBalanceEditModal();
         }
         catch (e) {
-            setAlert(t('common.error'));
+            setAlert(saveErrorAlert(e, t('common.error')));
         }
         finally {
             setIsSaving(false);
@@ -1961,7 +1965,7 @@ export default function MainApp({ user }: {
             closeWalletTransferModal();
         }
         catch (e) {
-            setAlert("❌ Erreur lors du transfert.");
+            setAlert(saveErrorAlert(e, "❌ Erreur lors du transfert."));
         }
         finally {
             setIsSaving(false);
@@ -2067,7 +2071,7 @@ export default function MainApp({ user }: {
             setTreasuryCardNotes('');
         }
         catch (e) {
-            setAlert(`❌ ${t('common.error')}`);
+            setAlert(saveErrorAlert(e, `❌ ${t('common.error')}`));
         }
         finally {
             setIsSaving(false);
@@ -2095,7 +2099,7 @@ export default function MainApp({ user }: {
             setTreasuryCardToDelete(null);
         }
         catch (e) {
-            setAlert(`❌ ${t('common.error')}`);
+            setAlert(saveErrorAlert(e, `❌ ${t('common.error')}`));
         }
         finally {
             setIsSaving(false);
@@ -2125,7 +2129,7 @@ export default function MainApp({ user }: {
             }
             catch (e) {
                 console.error(e);
-                setAlert('❌ Erreur pendant la suppression.');
+                setAlert(saveErrorAlert(e, '❌ Erreur pendant la suppression.'));
             }
             finally {
                 setIsSaving(false);
@@ -2191,7 +2195,7 @@ export default function MainApp({ user }: {
             }
             catch (e) {
                 console.error(e);
-                setAlert("❌ Erreur lors de la suppression.");
+                setAlert(saveErrorAlert(e, "❌ Erreur lors de la suppression."));
             }
             finally {
                 setIsSaving(false);
@@ -2233,7 +2237,7 @@ export default function MainApp({ user }: {
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur pendant la suppression.');
+            setAlert(saveErrorAlert(e, '❌ Erreur pendant la suppression.'));
         }
         finally {
             setIsSaving(false);
@@ -2276,7 +2280,7 @@ export default function MainApp({ user }: {
             setIsResetModalOpen(false);
         }
         catch (e) {
-            setAlert("❌ Erreur lors de la réinitialisation.");
+            setAlert(saveErrorAlert(e, "❌ Erreur lors de la réinitialisation."));
         }
         finally {
             setIsSaving(false);

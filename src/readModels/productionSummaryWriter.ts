@@ -3,7 +3,7 @@ import type {
     DashboardReadModelSet,
     ReadModelName,
 } from './dashboardReadModels';
-import { commitWithStockLock, commitWithStockLockOrBatch } from '../utils/stockLock';
+import { commitWithStockLock, commitWithStockLockOrBatch, stockLockFor } from '../utils/stockLock';
 import { INITIAL_READ_MODEL_DOCUMENT_IDS, stableReadModelPayloadHash } from './initialSnapshotWriter';
 import { READ_MODEL_APPLIED_OPS_PATH, applyReadModelDelta, type ReadModelDelta } from './readModelDeltas';
 import {
@@ -306,9 +306,11 @@ export async function commitLegacyWithReadModelDeltas(
 ): Promise<CommitLegacyWithReadModelDeltasResult> {
     const summaryWriteMode = getSummaryWriteMode(input.summaryWriteMode);
     const deltas = input.deltas?.filter(Boolean) || [];
-    if (!isSummaryWriteEnabled(summaryWriteMode) || deltas.length === 0 || input.stockLock) {
-        if (input.stockLock)
-            await commitWithStockLockOrBatch(input.stockLock.db, input.userDocRef, input.batch, input.stockLock.expected);
+    // V14-5: any batch that writes a stock row takes the lock, not only sales.
+    const stockLock = input.stockLock ?? stockLockFor(input.batch);
+    if (!isSummaryWriteEnabled(summaryWriteMode) || deltas.length === 0 || stockLock) {
+        if (stockLock)
+            await commitWithStockLockOrBatch(stockLock.db, input.userDocRef, input.batch, stockLock.expected);
         else
             await input.batch.commit();
         return {

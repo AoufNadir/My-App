@@ -17,7 +17,7 @@ import { formatNumber } from '../pages/shared/pageFormat';
 import { applyTransactionDelete } from '../transactionService';
 import { transferStamp } from '../utils/transferStamp';
 import { computePamLedger } from '../utils/pamLedger';
-import { STOCK_CHANGED_MESSAGE, StockChangedError } from '../utils/stockLock';
+import { STOCK_CHANGED_MESSAGE, StockChangedError, saveErrorAlert } from '../utils/stockLock';
 import { changeCreatesNegativeStock, NEGATIVE_STOCK_MESSAGE, withoutOperation, withQuantity } from '../utils/stockGuard';
 import { recordTreasuryShadow } from '../accounting/treasuryShadowDiagnostics';
 import { recordPortfolioShadow } from '../accounting/portfolioShadowDiagnostics';
@@ -899,7 +899,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de l’achat.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de l’achat.'));
         }
         finally {
             setIsSaving(false);
@@ -1381,7 +1381,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de la vente.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de la vente.'));
         }
         finally {
             setIsSaving(false);
@@ -1657,7 +1657,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de l’ajustement.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de l’ajustement.'));
         }
         finally {
             setIsSaving(false);
@@ -1678,7 +1678,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de la suppression.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de la suppression.'));
         }
         finally {
             setIsSaving(false);
@@ -1907,7 +1907,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de l’enregistrement.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de l’enregistrement.'));
         }
         finally {
             setIsSaving(false);
@@ -2059,7 +2059,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors du transfert.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors du transfert.'));
         }
         finally {
             setIsSaving(false);
@@ -2119,7 +2119,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors du transfert.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors du transfert.'));
         }
         finally {
             setIsSaving(false);
@@ -2164,7 +2164,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             setAlert(`✅ ${toUpdate.length} achat(s) marqué(s) comme bloqués 24h.`);
         } catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors du verrouillage.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors du verrouillage.'));
         } finally {
             setIsSaving(false);
         }

@@ -1,3 +1,4 @@
+import { saveErrorAlert } from '../utils/stockLock';
 import { EXTRA_CURRENCY_CODES } from '../currency/tradeCurrencies';
 import { TRADE_CURRENCY_CODES, type TradeCurrencyCode } from '../currency/tradeCurrencies';
 import { useCallback, useMemo, useState } from 'react';
@@ -552,7 +553,7 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de l’enregistrement du service numérique.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de l’enregistrement du service numérique.'));
         }
         finally {
             setIsDigitalServiceSaving(false);
@@ -571,7 +572,7 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de la suppression du service numérique.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de la suppression du service numérique.'));
         }
         finally {
             setIsDigitalServiceSaving(false);

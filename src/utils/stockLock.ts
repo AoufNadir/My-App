@@ -68,3 +68,28 @@ export async function commitWithStockLockOrBatch(db: DbLike, userDocRef: Firesto
         await batch.commit();
     }
 }
+
+/**
+ * V14-5 (owner, 2026-11-13): not only sales take stock out. A project expense, a personal withdrawal, an investor
+ * paid in a currency, a digital service, an adjustment, an edit or a delete all write stock rows (`usdt_txs`). The app
+ * registers the lock once (MainApp), and every save whose batch touches a stock row goes through it automatically
+ * (readModels/productionSummaryWriter), so two windows can never take the same stock whatever they record.
+ */
+export type AmbientStockLock = { db: DbLike; expected: () => number | null | undefined };
+let ambientLock: AmbientStockLock | null = null;
+export function registerStockLock(lock: AmbientStockLock): () => void {
+    ambientLock = lock;
+    return () => { if (ambientLock === lock) ambientLock = null; };
+}
+export function batchTouchesStock(batch: Pick<FirestoreWriteBatch, 'operations'>): boolean {
+    return (batch.operations || []).some((op) => op.ref.nativeRef.path.includes('/usdt_txs/'));
+}
+/** The lock to use for this batch, or none (no stock row, or the app did not register it, as in tests). */
+export function stockLockFor(batch: Pick<FirestoreWriteBatch, 'operations'>): { db: DbLike; expected: number | null } | undefined {
+    if (!ambientLock || !batchTouchesStock(batch)) return undefined;
+    return { db: ambientLock.db, expected: ambientLock.expected() ?? null };
+}
+/** The alert for a failed save: the clear « confirm again » message when another operation came first. */
+export function saveErrorAlert(error: unknown, fallback: string): string {
+    return error instanceof StockChangedError ? `⚠️ ${STOCK_CHANGED_MESSAGE}` : fallback;
+}

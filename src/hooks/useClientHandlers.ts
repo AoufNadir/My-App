@@ -1,3 +1,4 @@
+import { saveErrorAlert } from '../utils/stockLock';
 import { useRef, useState } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
 import { ClientDzd, ClientTransactionDzd, Investor, InvestorTransaction, TreasuryTx } from '../types';
@@ -151,7 +152,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         }
         catch (e) {
             console.error(e);
-            setAlert(t('clients.restoreError'));
+            setAlert(saveErrorAlert(e, t('clients.restoreError')));
             return false;
         }
         finally {
@@ -310,7 +311,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de l’enregistrement du client.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de l’enregistrement du client.'));
             return false;
         }
         finally {
@@ -388,7 +389,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         }
         catch (e) {
             console.error(e);
-            setAlert(t('clients.restoreError'));
+            setAlert(saveErrorAlert(e, t('clients.restoreError')));
         }
     };
     const announceClientArchived = (clientId: string, message: string) => {
@@ -421,7 +422,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             }
             catch (e) {
                 console.error(e);
-                setAlert('❌ Erreur lors de la suppression du client.');
+                setAlert(saveErrorAlert(e, '❌ Erreur lors de la suppression du client.'));
                 return false;
             }
             finally {
@@ -456,7 +457,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de la suppression de l’historique du client.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de la suppression de l’historique du client.'));
             return false;
         }
         finally {
@@ -817,7 +818,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             return true;
         }
         catch (e) {
-            setAlert('❌ Erreur lors de l’enregistrement de la transaction.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de l’enregistrement de la transaction.'));
             return false;
         }
         finally {
@@ -836,7 +837,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 setAlert('❌ Erreur lors de la suppression.');
         }
         catch (e) {
-            setAlert('❌ Erreur lors de la suppression.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de la suppression.'));
         }
         finally {
             setIsSaving(false);
@@ -1056,7 +1057,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors du transfert entre clients.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors du transfert entre clients.'));
             return false;
         }
         finally {

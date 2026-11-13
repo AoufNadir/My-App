@@ -1,3 +1,4 @@
+import { saveErrorAlert } from '../utils/stockLock';
 import { EXTRA_CURRENCY_CODES, isTradeCurrency } from '../currency/tradeCurrencies';
 import { useCallback, useMemo, useState } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
@@ -645,7 +646,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de l’enregistrement.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de l’enregistrement.'));
         }
         finally {
             setIsSaving(false);
@@ -899,7 +900,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de la régularisation.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de la régularisation.'));
         }
         finally {
             setIsSaving(false);
@@ -938,7 +939,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         }
         catch (e) {
             console.error(e);
-            setAlert('❌ Erreur lors de la suppression.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de la suppression.'));
         }
         finally {
             setIsSaving(false);
@@ -1131,7 +1132,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             return true;
         }
         catch (e) {
-            setAlert('❌ Erreur lors de l’enregistrement.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de l’enregistrement.'));
             return false;
         }
         finally {
@@ -1385,7 +1386,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             return true;
         }
         catch (e) {
-            setAlert('❌ Erreur lors de l’enregistrement de la transaction.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de l’enregistrement de la transaction.'));
             return false;
         }
         finally {
@@ -1461,7 +1462,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             return true;
         }
         catch (e) {
-            setAlert('❌ Erreur lors du réinvestissement.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors du réinvestissement.'));
             return false;
         }
         finally {
@@ -1488,7 +1489,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             return true;
         }
         catch (e) {
-            setAlert('❌ Erreur lors de la suppression de l’investisseur.');
+            setAlert(saveErrorAlert(e, '❌ Erreur lors de la suppression de l’investisseur.'));
             return false;
         }
         finally {
