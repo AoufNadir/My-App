@@ -10,6 +10,9 @@ import { ChannelStrip } from '../ui/ChannelStrip';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { AdjustmentReasonPicker } from './AdjustmentReasonPicker';
+import { WalletPicker, type PickerWallet } from '../ui/WalletPicker';
+const ASSET_TO_WALLET: Record<string, PickerWallet> = { 'DZD-Caisse': 'Caisse', 'DZD-Baridi': 'BaridiMob', USDT: 'USDT', EUR: 'EUR', RMB: 'RMB' };
+const WALLET_TO_ASSET: Partial<Record<PickerWallet, string>> = { Caisse: 'DZD-Caisse', BaridiMob: 'DZD-Baridi', USDT: 'USDT', EUR: 'EUR', RMB: 'RMB' };
 import { ArrowDownIcon } from '../icons/ArrowDownIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { WalletIcon } from '../icons/WalletIcon';
@@ -151,7 +154,7 @@ const formatDisplayMetric = (value: number, digits = 2) => new Intl.NumberFormat
     minimumFractionDigits: 0,
     maximumFractionDigits: digits
 }).format(Number.isFinite(value) ? value : 0);
-function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, t, clientTxType, setClientTxType, fieldBase, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, clientTxAmount, setClientTxAmount, clientTxNotes, setClientTxNotes, clientTxPaymentStatus = 'cash', setClientTxPaymentStatus, clientTxLinkedClientId, clientTxReceiverClientId = 'none', setClientTxReceiverClientId, handleSaveClientTx, selectedClientId, isAdjustmentModalOpen, setIsAdjustmentModalOpen, editingTreasuryTx, adjustmentTab, setAdjustmentTab, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentClientId, adjustmentReason = '', setAdjustmentReason, onAdjustmentRedirect, clientBalances, portfolioStats, treasuryStats, clientsDzd, getClientFullName, setAdjustmentClientId, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, treasuryCards, handleGlobalAdjustment, isSaving, showEur = true, showRmb = true }: MainClientOperationsDialogsProps) {
+function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClientTxModalOpen, editingClientTx, t, clientTxType, setClientTxType, fieldBase, clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice, clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice, clientTxAmount, setClientTxAmount, clientTxNotes, setClientTxNotes, clientTxPaymentStatus = 'cash', setClientTxPaymentStatus, clientTxLinkedClientId, clientTxReceiverClientId = 'none', setClientTxReceiverClientId, handleSaveClientTx, selectedClientId, isAdjustmentModalOpen, setIsAdjustmentModalOpen, editingTreasuryTx, adjustmentTab, setAdjustmentTab, adjustmentTabChosen = true, setAdjustmentTabChosen, adjustmentAssetChosen = true, setAdjustmentAssetChosen, adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount, adjustmentClientId, adjustmentReason = '', setAdjustmentReason, onAdjustmentRedirect, clientBalances, portfolioStats, treasuryStats, clientsDzd, getClientFullName, setAdjustmentClientId, adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote, treasuryCards, handleGlobalAdjustment, isSaving, showEur = true, showRmb = true }: MainClientOperationsDialogsProps) {
     const lastAutoPriceRef = useRef('');
     const normalizedClientTxType = normalizeLedgerLabel(clientTxType || '');
     const isClientSettlementTx = normalizedClientTxType === 'Règlement Reçu' || normalizedClientTxType === 'Paiement Effectué';
@@ -194,6 +197,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     };
     const handleAdjustmentTabChange = (tab: 'add' | 'subtract') => {
         setAdjustmentTab(tab);
+        setAdjustmentTabChosen?.(true);
         dropReasonNotOffered(adjustmentAsset, tab);
     };
     const handleAdjustmentReasonChange = (reason: AdjustmentReason) => {
@@ -203,6 +207,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     };
     const handleAdjustmentAssetChange = (value: string) => {
         setAdjustmentAsset(value);
+        setAdjustmentAssetChosen?.(true);
         dropReasonNotOffered(value, adjustmentTab);
         if (editingTreasuryTx)
             return;
@@ -282,7 +287,9 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                 : adjustmentAsset === 'DZD-Baridi'
                     ? parsedAdjustmentAmount > (treasuryStats?.baridi || 0)
                     : false);
+    const adjustmentReady = adjustmentTabChosen && adjustmentAssetChosen;
     const isConfirmDisabled = (isSaving ||
+        !adjustmentReady ||
         reasonBlock !== null ||
         !adjustmentAmount ||
         parsedAdjustmentAmount <= 0 ||
@@ -321,6 +328,10 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
             });
     const confirmHelperText = isSaving
         ? getDisplayLabel(t, 'common.processing', 'Traitement...')
+        : !adjustmentTabChosen
+            ? getDisplayLabel(t, 'transactions.adjustmentChooseDirection', 'Choisissez : argent entré ou argent sorti.')
+        : !adjustmentAssetChosen
+            ? getDisplayLabel(t, 'transactions.adjustmentChooseWallet', 'Choisissez le portefeuille.')
         : reasonBlock
             ? getDisplayLabel(t, `movementReason.blocked.${reasonBlock}`, 'Choisissez la raison du mouvement.')
             : !adjustmentAmount || parsedAdjustmentAmount <= 0
@@ -580,19 +591,27 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                 </ModalHeader>
                 <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
                     <FormCard>
-                    <SegmentedControl size="md" ariaLabel={t('transactions.operationType') as string} value={adjustmentTab === 'subtract' ? 'subtract' : 'add'} onChange={(tab) => handleAdjustmentTabChange(tab)} options={[
-                        { id: 'add', label: t('transactions.addTo'), tone: 'profit' },
-                        { id: 'subtract', label: t('transactions.withdrawFrom'), tone: 'loss' },
-                    ]}/>
+                    {/* V13-7: nothing pre-chosen: the direction, then the wallet, pressed by the owner (rule 11) */}
+                    <div role="radiogroup" aria-label={t('transactions.operationType') as string} className="grid grid-cols-2 gap-2">
+                        {(['add', 'subtract'] as const).map((tab) => {
+            const on = adjustmentTabChosen && adjustmentTab === tab;
+            const tone = tab === 'add' ? 'border-profit bg-profit/10 text-profit' : 'border-loss bg-loss/10 text-loss';
+            return (<button key={tab} type="button" role="radio" aria-checked={on} onClick={() => handleAdjustmentTabChange(tab)} className={`min-h-14 rounded-card border-2 px-3 py-2 text-center text-sm font-bold transition-colors ${on ? tone : 'border-border bg-surface text-neutral-800 hover:bg-surface-muted'}`}>
+                                <span className="block text-lg leading-none">{tab === 'add' ? '+' : '−'}</span>
+                                {tab === 'add' ? t('transactions.adjustmentMoneyIn') : t('transactions.adjustmentMoneyOut')}
+                            </button>);
+        })}
+                    </div>
 
-                    <div>
+                    {adjustmentTabChosen && (<div>
                         <Label>{t('transactions.assetType')}</Label>
                         <div className="mt-1">
-                            <AdjustmentAssetDropdown value={adjustmentAsset} options={adjustmentAssetOptions.filter((option) => (option.value !== 'EUR' || showEur || adjustmentAsset === 'EUR') && (option.value !== 'RMB' || showRmb || adjustmentAsset === 'RMB'))} onChange={handleAdjustmentAssetChange} t={t}/>
+                            <WalletPicker value={adjustmentAssetChosen ? (ASSET_TO_WALLET[adjustmentAsset] ?? null) : null} onChange={(wallet) => handleAdjustmentAssetChange(WALLET_TO_ASSET[wallet] ?? wallet)} wallets={['Caisse', 'BaridiMob', 'USDT', 'EUR', 'RMB']} labels={{ Caisse: 'Caisse (DZD)', BaridiMob: 'BaridiMob (DZD)' }} balances={{ Caisse: Number(treasuryStats?.caisse || 0), BaridiMob: Number(treasuryStats?.baridi || 0), USDT: Number(portfolioStats?.usdt?.available || 0), EUR: Number(portfolioStats?.eur?.available || 0), RMB: Number(portfolioStats?.rmb?.available || 0) }} ariaLabel={t('transactions.assetType') as string}/>
                         </div>
-                    </div>
+                    </div>)}
                     </FormCard>
 
+                    {adjustmentReady && (<>
                     <FormCard>
                         <AdjustmentReasonPicker t={t} asset={adjustmentAssetOf(adjustmentAsset) || 'DZD-Caisse'} direction={adjustmentTab === 'subtract' ? 'subtract' : 'add'} value={adjustmentReason} onChange={handleAdjustmentReasonChange} allowRedirects={!editingTreasuryTx} onRedirect={(reason) => onAdjustmentRedirect?.({ reason, asset: adjustmentAsset, direction: adjustmentTab === 'subtract' ? 'subtract' : 'add', amount: adjustmentAmount })}>
                             {adjustmentReason === 'client' && isDzdAdjustment && (<div>
@@ -646,6 +665,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     {adjustmentReason !== 'other' && (<FormCard>
                         <Textarea id="adjustment_notes" label={t('common.notesOptional') as string} value={adjustmentNote ?? ''} onChange={(e) => setAdjustmentNote(e.target.value)} rows={2} placeholder={t('transactions.notesPlaceholder') as string} className="resize-none text-sm"/>
                     </FormCard>)}
+                    </>)}
                 </ModalContent>
                 <OperationFooter stats={adjustmentStats} reason={adjustmentBlockedReason} reasonTone={adjustmentTyped ? 'fix' : 'missing'}>
                     <Button variant="outline" onClick={() => setIsAdjustmentModalOpen(false)}>

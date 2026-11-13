@@ -172,6 +172,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
     const [adjustmentTab, setAdjustmentTab] = useState<'add' | 'subtract'>('add');
     const [adjustmentAsset, setAdjustmentAsset] = useState('DZD-Caisse');
+    // V13-7: a new movement starts with no direction and no wallet: the owner presses both himself (rule 11).
+    const [adjustmentTabChosen, setAdjustmentTabChosen] = useState(false);
+    const [adjustmentAssetChosen, setAdjustmentAssetChosen] = useState(false);
     const [adjustmentAmount, setAdjustmentAmount] = useState('');
     const [adjustmentPrice, setAdjustmentPrice] = useState('');
     const [adjustmentNote, setAdjustmentNote] = useState('');
@@ -1377,6 +1380,10 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     };
     const cancelCreditRisk = () => setPendingCreditRisk(null);
     const handleGlobalAdjustment = async () => {
+        if (!adjustmentTabChosen || !adjustmentAssetChosen) {
+            setAlert('⚠️ Choisissez l’entrée ou la sortie, puis le portefeuille.');
+            return;
+        }
         const amountNum = parseAndEvaluate(adjustmentAmount);
         if (isNaN(amountNum) || amountNum <= 0) {
             setAlert('⚠️ Montant invalide.');
@@ -1664,6 +1671,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     };
     const openAdjustmentModal = (type: 'add' | 'subtract' = 'add', txToEdit: TreasuryTx | null = null) => {
         setAdjustmentTab(type);
+        setAdjustmentTabChosen(Boolean(txToEdit));
+        setAdjustmentAssetChosen(Boolean(txToEdit));
         setEditingTreasuryTx(txToEdit);
         setAdjustmentPrice('');
         if (txToEdit) {
@@ -2155,6 +2164,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         creditDueDate, setCreditDueDate, pendingCreditRisk, confirmCreditRisk, cancelCreditRisk,
         notes, setNotes, txTags, setTxTags, profitPercent, setProfitPercent,
         isAdjustmentModalOpen, setIsAdjustmentModalOpen, adjustmentTab, setAdjustmentTab,
+        adjustmentTabChosen, setAdjustmentTabChosen, adjustmentAssetChosen, setAdjustmentAssetChosen,
         adjustmentAsset, setAdjustmentAsset, adjustmentAmount, setAdjustmentAmount,
         adjustmentPrice, setAdjustmentPrice, adjustmentNote, setAdjustmentNote,
         adjustmentClientId, setAdjustmentClientId, adjustmentReason, setAdjustmentReason, editingTreasuryTx, setEditingTreasuryTx,

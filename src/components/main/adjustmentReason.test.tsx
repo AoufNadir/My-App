@@ -66,7 +66,9 @@ const confirmOff = (html: string, lang: Lang) => {
     assert.ok(match, `${lang}: the Confirm button is there`);
     return /\sdisabled=""/.test(match![0]);
 };
-const radios = (html: string) => (html.match(/role="radio"/g) || []).length;
+// V13-7: the window opens with two radio groups of its own (direction, wallet); the reasons come after them.
+const reasonPart = (html: string) => html.split('role="radiogroup"').slice(3).join('');
+const radios = (html: string) => reasonPart(html).split('role="radio"').length - 1;
 
 const FR = {
     pick: 'Choisissez la raison du mouvement.', client: 'Choisissez le client.', note: 'Écrivez la raison dans les notes.',
@@ -86,7 +88,7 @@ for (const lang of ['fr', 'ar'] as const) {
         const out = text(html);
         assert.ok(out.includes(w.title), `${lang}: the question is asked`);
         assert.equal(radios(html), 4, `${lang}: BaridiMob exit offers four reasons`);
-        assert.equal(count(html, 'aria-checked="true"'), 0, `${lang}: none is chosen for the user`);
+        assert.equal(count(reasonPart(html), 'aria-checked="true"'), 0, `${lang}: no reason is chosen for the user`);
         assert.ok(out.includes(w.pick), `${lang}: the bar says to choose a reason`);
         assert.equal(confirmOff(html, lang), true, `${lang}: Save is off without a reason`);
         assert.ok(out.includes(w.clientOut) && !out.includes(w.other), `${lang}: no « other reason »`);
@@ -97,10 +99,10 @@ for (const lang of ['fr', 'ar'] as const) {
     {
         const html = adjustmentWindow(lang, { adjustmentReason: 'client' });
         const out = text(html);
-        assert.equal(count(html, 'aria-checked="true"'), 1);
+        assert.equal(count(reasonPart(html), 'aria-checked="true"'), 1);
         assert.ok(out.includes(w.client), `${lang}: the bar asks for the client`);
         assert.equal(confirmOff(html, lang), true);
-        const reasonAt = html.indexOf('aria-checked="true"');
+        const reasonAt = html.indexOf('aria-checked="true"', html.indexOf(reasonPart(html)));
         const selectAt = html.indexOf('role="combobox"');
         assert.ok(selectAt > reasonAt, `${lang}: the client field sits under the chosen reason`);
         assert.ok(selectAt < html.indexOf('placeholder="0.00"'), `${lang}: and above the amount`);

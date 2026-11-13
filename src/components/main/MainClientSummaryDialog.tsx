@@ -3,7 +3,8 @@ import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '../ui
 import { Button } from '../ui/Button';
 import { ShareIcon } from '../icons/ShareIcon';
 import { buildClientSummary } from '../../utils/clientSummary';
-import { openWhatsAppMessenger } from '../../utils/whatsapp';
+import { formatWaNumber, openWhatsAppMessenger } from '../../utils/whatsapp';
+import { copyImageToClipboard } from '../../utils/clipboardImage';
 import { ClientSummarySheet, clientSummaryMessage, CLIENT_SUMMARY_WORDS } from '../clients/ClientSummarySheet';
 import { ReportLanguagePicker, ReportPreview, ReportPrintHolder, useReportLanguage } from '../reports/ReportDialogParts';
 import { CLIENT_DEFAULT_LANGUAGE, clientReportLanguageKey } from '../reports/reportLanguage';
@@ -85,7 +86,24 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
             setIsSharing(false);
         }
     };
-    // A WhatsApp link carries text only: the client's chat opens on the same summary as a message.
+    // V13-7: the picture is copied, then the client's own chat opens: long-press, Paste, Send. A web page cannot
+    // attach a picture to one chosen chat by itself. If the copy is refused, the share sheet opens instead.
+    const hasPhone = Boolean(summaryClient?.phone && formatWaNumber(String(summaryClient.phone)));
+    const handleSendToClient = async () => {
+        if (!summaryClient || !hasPhone || isSharing)
+            return;
+        if (!readyImage) {
+            await handleShareImage();
+            return;
+        }
+        if (await copyImageToClipboard(readyImage)) {
+            setAlert(t('clientSummary.pasteInChat') as string);
+            openWhatsAppMessenger(summaryClient.phone);
+        }
+        else
+            await handleShareImage();
+    };
+    // The same summary as a text message (kept for those who prefer it).
     const handleWhatsApp = () => {
         if (summaryClient?.phone && summary)
             openWhatsAppMessenger(summaryClient.phone, clientSummaryMessage(summary, reportLang, clientName));
@@ -116,9 +134,12 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
       <ModalFooter className="flex-wrap">
         <Button type="button" variant="outline" onClick={close}>{t('common.close')}</Button>
         {summaryClient?.phone && (<Button type="button" variant="outline" onClick={handleWhatsApp} disabled={!summary} className="gap-2 text-[#128C7E]">
-            WhatsApp
+            {t('clientSummary.whatsAppText')}
           </Button>)}
-        <Button type="button" variant="primary" onClick={handleShareImage} disabled={isSharing || !summaryClient} className="order-first min-w-full gap-2">
+        {hasPhone && (<Button type="button" variant="primary" onClick={handleSendToClient} disabled={isSharing || !summaryClient} className="order-first min-w-full gap-2 bg-[#128C7E] hover:bg-[#0f7a6e]">
+            {isSharing ? t('clientSummary.preparing') : `${t('clientSummary.sendToClientChat')} · ${reportLang === 'ar' ? 'ع' : 'FR'}`}
+          </Button>)}
+        <Button type="button" variant={hasPhone ? 'outline' : 'primary'} onClick={handleShareImage} disabled={isSharing || !summaryClient} className={`${hasPhone ? '' : 'order-first'} min-w-full gap-2`}>
           <ShareIcon aria-hidden="true" className="h-4 w-4"/>
           {isSharing ? t('clientSummary.preparing') : `${t('clientSummary.shareImage')} · ${reportLang === 'ar' ? 'ع' : 'FR'}`}
         </Button>

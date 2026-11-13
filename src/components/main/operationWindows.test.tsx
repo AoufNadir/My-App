@@ -314,7 +314,7 @@ for (const [name, renderScreen] of Object.entries(SCREENS) as Array<[keyof typeo
         // them and adds only the typed totals listed above.
         const lost = BEFORE[name].filter((token) => !(keptAtBottom.includes(token) ? inBar : inBody).includes(token));
         // V13-5: the windows with the wallet list show each wallet's balance (cash box, BaridiMob, USDT, EUR, RMB).
-        const pickerBalances = /^(delivery|service|withdrawal)/.test(name) ? WALLET_BALANCES : [];
+        const pickerBalances = /^(delivery|service|withdrawal|adjust)/.test(name) ? WALLET_BALANCES : [];
         const added = [
             ...inBody.filter((token) => !BEFORE[name].includes(token) && !pickerBalances.includes(token)),
             ...inBar.filter((token) => !BEFORE[name].includes(token) && !newAtBottom.includes(token)),
@@ -634,3 +634,14 @@ for (const lang of ['fr', 'ar'] as const) {
     assert.ok(!eurOld.includes(esc(tr.transactions.crossBuyWith.replace('{c}', 'USDT'))), `${lang}: without the conversion window, EUR opens on dinars as before`);
 }
 console.log('operationWindows.test: V13-4 sources in every currency');
+// V13-7: a new treasury adjustment starts with no direction and no wallet; the reason waits for both (rule 11).
+for (const lang of ['fr', 'ar'] as const) {
+    const tr = translations[lang] as any;
+    const blank = clientOperations(lang, { isAdjustmentModalOpen: true, adjustmentTabChosen: false, adjustmentAssetChosen: false, adjustmentAmount: '', adjustmentReason: '' });
+    assert.ok(blank.includes(esc(tr.transactions.adjustmentMoneyIn)) && blank.includes(esc(tr.transactions.adjustmentMoneyOut)), `${lang}: both directions offered`);
+    assert.ok(!blank.includes('aria-checked="true"'), `${lang}: nothing chosen for the owner`);
+    assert.ok(!blank.includes(esc(tr.movementReason?.question ?? '§none§')) && blank.includes(esc(tr.transactions.adjustmentChooseDirection)), `${lang}: the reason waits, the footer says what to press`);
+    const directionOnly = clientOperations(lang, { isAdjustmentModalOpen: true, adjustmentTabChosen: true, adjustmentAssetChosen: false, adjustmentAmount: '', adjustmentReason: '' });
+    assert.ok(directionOnly.includes('role="radiogroup"') && directionOnly.includes(esc(tr.transactions.adjustmentChooseWallet)), `${lang}: then the wallet list, none chosen`);
+}
+console.log('operationWindows.test: V13-7 adjustment with nothing pre-chosen');
