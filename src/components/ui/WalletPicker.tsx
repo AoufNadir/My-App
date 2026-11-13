@@ -1,5 +1,5 @@
 import React from 'react';
-import { useShowEur, useShowRmb } from '../../contexts/CurrencyVisibilityContext';
+import { useCurrencyShown } from '../../contexts/CurrencyVisibilityContext';
 
 // V13-5: the wallet a payment comes from (or goes to), one row per wallet, under one another: any number of
 // currencies fits, no empty half-row. Each row shows what the wallet holds. Nothing is chosen for the owner (rule 11);
@@ -19,9 +19,9 @@ export function WalletPicker({ value, onChange, wallets, labels, balances, ariaL
     /** Said under the list while nothing is chosen */
     chooseLabel?: string;
 }) {
-    const showEur = useShowEur();
-    const showRmb = useShowRmb();
-    const shown = wallets.filter((wallet) => (wallet !== 'EUR' || showEur || value === 'EUR') && (wallet !== 'RMB' || showRmb || value === 'RMB'));
+    const isShown = useCurrencyShown();
+    // V14-2: any hidden currency of the list leaves, unless it is the one already chosen.
+    const shown = wallets.filter((wallet) => !(wallet === 'USDT' || wallet === 'EUR' || wallet === 'RMB') || isShown(wallet) || value === wallet);
     const n = (amount: number, unit: string) => `${amount.toLocaleString('fr-FR', { minimumFractionDigits: unit === 'DZD' ? 0 : 2, maximumFractionDigits: 2 })} ${unit}`;
     return (<div>
       <div role="radiogroup" aria-label={ariaLabel} className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">

@@ -13,7 +13,7 @@ import { WalletIcon } from '../icons/WalletIcon';
 import { DollarSignIcon } from '../icons/DollarSignIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { useShowEur, useShowRmb } from '../../contexts/CurrencyVisibilityContext';
+import { useShowEur, useShowRmb, useShowUsdt } from '../../contexts/CurrencyVisibilityContext';
 import { usualChannelOf } from '../../utils/usualChannel';
 import { checkRmbTrade, linkThreeFields, rmbConversionPreview, type PaymentStatus, type RmbSource, type RmbTradeInput, type ThreeFields, type TradeCurrency } from '../../utils/rmbTrade';
 import type { ClientDzd } from '../../types';
@@ -72,6 +72,7 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
     const w = W[lang];
     const showEur = useShowEur();
     const showRmb = useShowRmb();
+    const showUsdt = useShowUsdt();
     const [source, setSource] = React.useState<RmbSource | null>(initialSource);
     const [clientId, setClientId] = React.useState('none');
     const [status, setStatus] = React.useState<PaymentStatus | null>(null);
@@ -119,7 +120,7 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
         }
     };
     const sources: RmbSource[] = (['DZD', 'USDT', 'EUR', 'RMB'] as RmbSource[])
-        .filter((s) => s !== currency && (s !== 'DZD' || currency === 'RMB') && (s !== 'EUR' || showEur) && (s !== 'RMB' || showRmb));
+        .filter((s) => s !== currency && (s !== 'DZD' || currency === 'RMB') && (s !== 'EUR' || showEur) && (s !== 'RMB' || showRmb) && (s !== 'USDT' || showUsdt || holdings.USDT.available > 0));
     const icon = (s: RmbSource) => (s === 'DZD' ? <BanknotesIcon className="h-5 w-5"/> : s === 'EUR' ? <WalletIcon className="h-5 w-5"/> : s === 'RMB' ? <span className="text-base font-extrabold">¥</span> : <DollarSignIcon className="h-5 w-5"/>);
     const changeSource = () => (currency === 'RMB' ? setSource(null) : onSwitch(kind, currency));
     const footerStats: OperationFooterStat[] = [];

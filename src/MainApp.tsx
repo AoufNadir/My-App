@@ -253,6 +253,7 @@ export default function MainApp({ user }: {
     const hiddenCurrencies = useHiddenCurrencies(userDocRef as never);
     const showEur = !hiddenCurrencies.isHidden('EUR');
     const showRmb = !hiddenCurrencies.isHidden('RMB');
+    const showUsdt = !hiddenCurrencies.isHidden('USDT');
     // Open instantly from the IndexedDB cache when it holds a previous session's
     // data. An empty cache (first open on this device) still waits for the
     // server, so the app never flashes zero balances.
@@ -3028,7 +3029,7 @@ export default function MainApp({ user }: {
             return false;
         }
     };
-    return (<CurrencyVisibilityProvider showEur={showEur} showRmb={showRmb}><div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
+    return (<CurrencyVisibilityProvider showUsdt={showUsdt} showEur={showEur} showRmb={showRmb}><div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
             <OfflineBanner />
             <div className="mx-auto max-w-4xl px-page-x pb-24 sm:px-4">
                     <MainHeaderBar {...{ view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), handleOpenGlobalSearch, onOpenSettings: openSettingsModal, onSignOut: handleSignOut, labels: navLabels }}/>
@@ -3041,7 +3042,7 @@ export default function MainApp({ user }: {
 
                 <AppBottomNav view={view} onSelect={navigateToView} labels={navLabels} onNewOperation={isFinancialDataReady ? openNewOperationMenu : undefined} onOpenSettings={openSettingsModal} onSignOut={handleSignOut} overdueCount={dashboardPageProps.overdueDebtClientCount}/>
 
-                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} showEur={showEur} showRmb={showRmb} openRmb={(kind) => setRmbKind(kind)} balances={{ USDT: portfolioStats.usdt.available, EUR: portfolioStats.eur.available, RMB: rmbStock.quantity }}/>
+                <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} showUsdt={showUsdt || portfolioStats.usdt.available > 0} showEur={showEur} showRmb={showRmb} openRmb={(kind) => setRmbKind(kind)} balances={{ USDT: portfolioStats.usdt.available, EUR: portfolioStats.eur.available, RMB: rmbStock.quantity }}/>
                 <RmbTradeDialog kind={tradeWin?.kind ?? null} currency={tradeWin?.currency ?? 'RMB'} initialSource={tradeWin?.source ?? null} onClose={() => setTradeWin(null)} onSwitch={switchTradeWindow} holdings={rmbHoldings} clientsDzd={clientsDzd} openClientModal={openClientModal} fieldBase={fieldBase} onSave={saveRmbTrade} parseAndEvaluate={parseAndEvaluate}/>
 
                 {alert && (<AppToast message={translateAlert(alert, lang, t)} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? t('common.undo') : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined}/>)}

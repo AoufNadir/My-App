@@ -137,7 +137,7 @@ function clientOperations(lang: Lang, state: Record<string, unknown>) {
         clientTxEurPrice: '', setClientTxEurPrice: noop, clientTxAmount: '', setClientTxAmount: noop, clientTxNotes: '', setClientTxNotes: noop,
         clientTxPaymentStatus: 'cash', setClientTxPaymentStatus: noop, clientTxLinkedClientId: 'none', clientTxReceiverClientId: 'none', setClientTxReceiverClientId: noop,
         handleSaveClientTx: noop, selectedClientId: 'c1', isAdjustmentModalOpen: false, setIsAdjustmentModalOpen: noop, editingTreasuryTx: null,
-        adjustmentTab: 'add', setAdjustmentTab: noop, adjustmentAsset: 'DZD-Caisse', setAdjustmentAsset: noop, adjustmentAmount: '', setAdjustmentAmount: noop,
+        adjustmentTab: 'add', setAdjustmentTab: noop, adjustmentTabChosen: true, adjustmentAssetChosen: true, adjustmentAsset: 'DZD-Caisse', setAdjustmentAsset: noop, adjustmentAmount: '', setAdjustmentAmount: noop,
         adjustmentClientId: 'none', clientBalances, portfolioStats, treasuryStats, clientsDzd, getClientFullName, setAdjustmentClientId: noop, adjustmentPrice: '',
         setAdjustmentPrice: noop, adjustmentNote: '', setAdjustmentNote: noop, treasuryCards, handleGlobalAdjustment: noop, isSaving: false,
         ...state,
@@ -645,3 +645,15 @@ for (const lang of ['fr', 'ar'] as const) {
     assert.ok(directionOnly.includes('role="radiogroup"') && directionOnly.includes(esc(tr.transactions.adjustmentChooseWallet)), `${lang}: then the wallet list, none chosen`);
 }
 console.log('operationWindows.test: V13-7 adjustment with nothing pre-chosen');
+// V14-2 (owner, 2026-11-13: the window still opened on « Caisse »): the « nothing chosen yet » flags must travel
+// from MainApp through MainAppDialogs to the window, and the window's own default is « not chosen ».
+{
+    const { readFileSync } = await import('node:fs');
+    const dialogs = readFileSync(new URL('./MainAppDialogs.tsx', import.meta.url), 'utf8');
+    const window = readFileSync(new URL('./MainClientOperationsDialogs.tsx', import.meta.url), 'utf8');
+    for (const flag of ['adjustmentTabChosen', 'adjustmentAssetChosen', 'setAdjustmentTabChosen', 'setAdjustmentAssetChosen'])
+        assert.ok((dialogs.match(new RegExp(`\\b${flag}\\b`, 'g')) || []).length >= 2, `MainAppDialogs passes ${flag} on`);
+    assert.ok(window.includes('adjustmentTabChosen = false') && window.includes('adjustmentAssetChosen = false'), 'missing flags mean nothing is chosen');
+    assert.ok(window.includes('prev.adjustmentTabChosen === next.adjustmentTabChosen'), 'a tap on a card redraws the window');
+}
+console.log('operationWindows.test: V14-2 the adjustment flags reach the window');

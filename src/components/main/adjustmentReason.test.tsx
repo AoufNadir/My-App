@@ -53,7 +53,7 @@ function adjustmentWindow(lang: Lang, state: Record<string, unknown>) {
         clientTxPaymentStatus: 'cash', setClientTxPaymentStatus: noop, clientTxLinkedClientId: 'none', clientTxReceiverClientId: 'none', setClientTxReceiverClientId: noop,
         handleSaveClientTx: noop, selectedClientId: 'c1',
         isAdjustmentModalOpen: true, setIsAdjustmentModalOpen: noop, editingTreasuryTx: null,
-        adjustmentTab: 'subtract', setAdjustmentTab: noop, adjustmentAsset: 'DZD-Baridi', setAdjustmentAsset: noop, adjustmentAmount: '3000', setAdjustmentAmount: noop,
+        adjustmentTab: 'subtract', setAdjustmentTab: noop, adjustmentTabChosen: true, adjustmentAssetChosen: true, adjustmentAsset: 'DZD-Baridi', setAdjustmentAsset: noop, adjustmentAmount: '3000', setAdjustmentAmount: noop,
         adjustmentClientId: '', adjustmentReason: '', setAdjustmentReason: noop, onAdjustmentRedirect: noop, clientBalances, portfolioStats, treasuryStats, clientsDzd, getClientFullName,
         setAdjustmentClientId: noop, adjustmentPrice: '', setAdjustmentPrice: noop, adjustmentNote: '', setAdjustmentNote: noop, treasuryCards: [], handleGlobalAdjustment: noop, isSaving: false,
         ...state,

@@ -1,4 +1,4 @@
-import { useShowEur, useShowRmb } from '../contexts/CurrencyVisibilityContext';
+import { useShowEur, useShowRmb, useShowUsdt } from '../contexts/CurrencyVisibilityContext';
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { CurrencyAmount, type AmountSemantic } from '../components/financial/CurrencyAmount';
 import { AlertCard, HeroCard, SectionCard, StatTile, StatTileGrid } from '../components/cards';
@@ -463,6 +463,7 @@ function DashboardContent({
     const usdtInStock = usdtAvailable + usdtLocked;
     const showEur = useShowEur();
     const showRmb = useShowRmb();
+    const showUsdt = useShowUsdt();
     const eurInStock = eurAvailable + eurLocked;
     const lowStock = usdtInStock < 100 && eurInStock < 100;
     const getClientDebtAmount = (client: OverdueDebtClient) => {
@@ -608,7 +609,7 @@ function DashboardContent({
       <StatTileGrid>
         <StatTile label={t('common.caisseBalance') as string} value={capitalSnapshot.caisseBalance} icon={<WalletIcon className="h-3.5 w-3.5"/>} tone="dzd"/>
         <StatTile label={t('common.baridiBalance') as string} value={capitalSnapshot.baridiBalance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd"/>
-        <StatTile label={t('dashboard.usdtInStock') as string} value={usdtInStock} currency="USDT" decimals={2} icon={<DollarSignIcon className="h-3.5 w-3.5"/>} tone="usdt"/>
+        {(showUsdt || usdtInStock > 0) && <StatTile label={t('dashboard.usdtInStock') as string} value={usdtInStock} currency="USDT" decimals={2} icon={<DollarSignIcon className="h-3.5 w-3.5"/>} tone="usdt"/>}
         {(showEur || eurInStock > 0) && <StatTile label={t('dashboard.eurInStock') as string} value={eurInStock} currency="EUR" decimals={2} icon={<EuroIcon className="h-3.5 w-3.5"/>} tone="eur"/>}
         {(showRmb || rmbInStock > 0) && <StatTile label={t('dashboard.rmbInStock') as string} value={rmbInStock} currency="RMB" decimals={2} icon={<span className="text-[11px] font-extrabold leading-none">¥</span>} tone="eur"/>}
         {/* V12-2: sold and not sent yet: still in the wallet, but not yours (not in the capital). */}

@@ -1,3 +1,4 @@
+import { useShowUsdt } from '../contexts/CurrencyVisibilityContext';
 import { useState, type ReactNode } from 'react';
 import { ChevronRightIcon } from '../components/icons/ChevronRightIcon';
 import { ArrowUpRightIcon } from '../components/icons/ArrowUpRightIcon';
@@ -209,6 +210,7 @@ export function PortfolioPage(props: PortfolioPageProps) {
         showRmb = true,
     } = props;
     const { t } = useLanguage();
+    const showUsdt = useShowUsdt();
     const [simulatorOpen, setSimulatorOpen] = useState(false);
     const normalizeNearZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : value);
     const usdtAvail = normalizeNearZero((portfolioStats.usdt.available || 0) + (portfolioStats.usdt.locked || 0));
@@ -234,9 +236,10 @@ export function PortfolioPage(props: PortfolioPageProps) {
     return (<div className="anim-page-in flex flex-col gap-3">
       <HeroCard label={t('finance.stock')} value={stockValue}/>
 
-      <AssetCard symbol="USDT" icon={<DollarSignIcon className="h-5 w-5"/>} tone="usdt" quantity={usdtAvail} value={usdtValue} metrics={usdtMetrics} onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('USDT') : undefined} editLabel={t('common.edit') as string}>
+      {/* V14-2: USDT hidden in the settings leaves the page unless some is still held */}
+      {(showUsdt || usdtAvail > 0 || Number(portfolioStats.usdt.locked || 0) > 0) && (<AssetCard symbol="USDT" icon={<DollarSignIcon className="h-5 w-5"/>} tone="usdt" quantity={usdtAvail} value={usdtValue} metrics={usdtMetrics} onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('USDT') : undefined} editLabel={t('common.edit') as string}>
         <UsdtLockDetails portfolioStats={portfolioStats}/>
-      </AssetCard>
+      </AssetCard>)}
 
 {showEur ? (
             <AssetCard symbol="EUR" icon={<EuroIcon className="h-5 w-5"/>} tone="eur" quantity={eurAvail} value={eurValue} metrics={priceMetrics(portfolioStats.eur.avgBuy, smartTargetEur)} onEdit={openPortfolioBalanceEditModal ? () => openPortfolioBalanceEditModal('EUR') : undefined} editLabel={t('common.edit') as string}/>

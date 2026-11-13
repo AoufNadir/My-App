@@ -1,3 +1,4 @@
+import { useShowUsdt } from '../../contexts/CurrencyVisibilityContext';
 import React from 'react';
 import { Modal, ModalContent, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -52,10 +53,11 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
     const selectedClientTotalLabel = Number(selectedClientTotal.toFixed(2)).toString();
     const isSellMode = mode === 'sell_usdt' || mode === 'sell_eur';
     const isBuyMode = mode === 'buy_usdt' || mode === 'buy_eur';
+    const showUsdtHere = useShowUsdt();
     // Sources in other currencies offered here (V13-4): RMB unless hidden, and for EUR also USDT.
     const crossSources = (currency: 'USDT' | 'EUR'): Array<'USDT' | 'EUR' | 'RMB'> => (!onCrossTrade || editingTx ? [] : currency === 'USDT'
         ? (showRmb ? ['RMB'] : [])
-        : (['USDT', ...(showRmb ? ['RMB' as const] : [])] as Array<'USDT' | 'RMB'>));
+        : ([...(showUsdtHere || portfolioStats.usdt.available > 0 ? ['USDT' as const] : []), ...(showRmb ? ['RMB' as const] : [])] as Array<'USDT' | 'RMB'>));
     const isChoosingEurSource = (mode === 'buy_eur' || mode === 'sell_eur') && !editingTx && !eurDzdChosen && crossSources('EUR').length > 0;
     const crossWords = {
         buyWith: (source: string) => (t('transactions.crossBuyWith') as string).replace('{c}', source),

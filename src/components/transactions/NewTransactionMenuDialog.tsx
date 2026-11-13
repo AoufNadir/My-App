@@ -21,6 +21,8 @@ type NewTransactionMenuDialogProps = {
   openDeliveryExpenseModal: () => void;
   openDigitalServiceModal?: () => void;
   openPersonalWithdrawalModal?: () => void;
+  /** V14-2: USDT hidden in the settings (and none held) */
+  showUsdt?: boolean;
   /** V13-2: EUR hidden in the settings */
   showEur?: boolean;
   /** V13-3: RMB tiles (hidden in the settings like EUR) */
@@ -41,6 +43,7 @@ export function NewTransactionMenuDialog({
   openDeliveryExpenseModal,
   openDigitalServiceModal,
   openPersonalWithdrawalModal,
+  showUsdt = true,
   showEur = true,
   showRmb = true,
   openRmb,
@@ -52,7 +55,7 @@ export function NewTransactionMenuDialog({
   };
 
   const rows: Array<{ code: 'USDT' | 'EUR' | 'RMB'; symbol: string; buy: () => void; sell: () => void }> = [
-    { code: 'USDT', symbol: '$', buy: () => openForm('buy_usdt'), sell: () => openForm('sell_usdt') },
+    ...(showUsdt ? [{ code: 'USDT' as const, symbol: '$', buy: () => openForm('buy_usdt'), sell: () => openForm('sell_usdt') }] : []),
     ...(showEur ? [{ code: 'EUR' as const, symbol: '€', buy: () => openForm('buy_eur'), sell: () => openForm('sell_eur') }] : []),
     ...(showRmb && openRmb ? [{ code: 'RMB' as const, symbol: '¥', buy: () => openRmb('buy'), sell: () => openRmb('sell') }] : []),
   ];
