@@ -55,7 +55,7 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
         : hasSpent ? [{ key: 'dzd', value: dzdShort(totals.spentCents), unit: 'DZD' }] : [];
     // Nothing bought: no empty box when the account below already tells the story.
     const hero = bigLines.length === 0
-        ? (showBalance ? null : <div data-pdf-break="" className="rounded-2xl bg-surface-muted px-4 py-4 text-[15px] font-semibold text-neutral-700">{w.leadNone}</div>)
+        ? (showBalance ? null : <div data-pdf-break="" className="rounded-2xl bg-surface-muted px-4 py-4 text-[15px] font-semibold text-neutral-700">{report.operations.length > 0 ? w.leadNoneWithOps : w.noOperations}</div>)
         : (<div data-pdf-break="" className="rounded-[18px] bg-primary px-4 pb-3.5 pt-4 text-white">
           <p className="text-[14px] leading-snug opacity-90">{p.heroLabel(report.kind, period, report.isLive)}</p>
           {bigLines.map((line) => (<p key={line.key} className="mt-0.5 flex items-baseline gap-2 font-latin leading-tight">
@@ -352,7 +352,7 @@ export function ClientActivityPhoneSheet({ report, lang, clientName, showBalance
           <p data-pdf-break="" className="text-[15.5px] font-extrabold leading-snug">{p.operationsTitle}</p>
           {showBalanceAfter && <p data-pdf-break="" className="pb-1 text-[13px] leading-snug text-neutral-500">{o.hint}</p>}
           {report.operations.length === 0
-            ? (<p className="text-[13.5px] text-neutral-500">{w.leadNone}</p>)
+            ? (<p className="text-[13.5px] text-neutral-500">{w.noOperations}</p>)
             : (<div>
               {report.operations.map(operationRow)}
             </div>)}

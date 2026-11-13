@@ -266,7 +266,7 @@ for (const lang of ['ar', 'fr'] as const) {
     for (const period of [monthPeriod(2026, 8), yearPeriod(2026), ...RANGES])
         assert.doesNotMatch(render(period, lang, true, 'phone', 'k', 'Nour'), /EUR|€|euro|اليورو|يورو/i, `${period.key} ${lang}: no euro for a USDT-only client`);
     const quiet = render(monthPeriod(2026, 0), lang, true, 'phone', 'k', 'Nour');
-    assert.ok(quiet.includes(REPORT_WORDS[lang].leadNone), `${lang}: a month without purchases says so`);
+    assert.ok(quiet.includes(REPORT_WORDS[lang].noOperations), `${lang}: an empty month says « no operation » (V14-2)`);
 }
 
 // 11. V8-3: every operation is a sentence from the client's side, with no + or − sign, and says where the account stands after it.
@@ -277,7 +277,7 @@ for (const lang of ['ar', 'fr'] as const) {
     assert.doesNotMatch(operations, /[+−]/, 'No plus or minus sign in the operations');
     for (const sentence of [
         '800 USDT', '600 USDT', '500 USDT', '300 USDT', REPORT_WORDS.ar.balanceLine.saleToUs,
-        'استلمتَ مبلغًا من عميل آخر', 'اشتريتَ خدمة رقمية',
+        'استلمتَ مالنا من عميل آخر', 'اشتريتَ خدمة رقمية',
         'سُجّلت على حسابك، لم تدفعها بعد', 'دفعتَ ثمنها باليورو', 'استلمتَ ثمنها باليورو', 'دفعتَ ثمنها بـ USDT',
     ])
         assert.ok(operations.includes(sentence), `ar: « ${sentence} » is on the operations`);
@@ -297,7 +297,7 @@ for (const lang of ['ar', 'fr'] as const) {
     const fr = plain(render(monthPeriod(2026, 8), 'fr', true, 'phone'));
     const frOperations = fr.slice(fr.indexOf(PHONE_WORDS.fr.operationsTitle));
     assert.doesNotMatch(frOperations, /[+−]/, 'fr: no plus or minus sign in the operations');
-    for (const sentence of ['800 USDT', '300 USDT', REPORT_WORDS.fr.balanceLine.saleToUs, 'Vous avez reçu d’un autre client', 'Vous avez acheté un service numérique', 'Inscrit sur votre compte, pas encore payé', 'Payé en euros', 'Vous avez reçu le montant en euros', 'Ensuite vous devez'])
+    for (const sentence of ['800 USDT', '300 USDT', REPORT_WORDS.fr.balanceLine.saleToUs, 'Vous avez reçu notre argent d’un autre client', 'Vous avez acheté un service numérique', 'Inscrit sur votre compte, pas encore payé', 'Payé en euros', 'Vous avez reçu le montant en euros', 'Ensuite vous devez'])
         assert.ok(frOperations.includes(sentence), `fr: « ${sentence} » is on the operations`);
     assert.ok(plain(render(monthPeriod(2026, 8), 'fr', true, 'phone', 'z')).includes('Ensuite votre compte est réglé'), 'fr: settled');
     assert.ok(plain(render(monthPeriod(2026, 8), 'fr', true, 'phone', 'c')).includes('Ensuite en votre faveur'), 'fr: in credit');

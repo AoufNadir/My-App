@@ -58,6 +58,10 @@ export type ReportWords = {
     allPaid: (amount: string) => string;
     balanceZero: string;
     leadNone: string;
+    /** V14-2: no purchase, but other operations below (sales to us, payments, transfers) */
+    leadNoneWithOps: string;
+    /** V14-2: nothing at all in the period */
+    noOperations: string;
     sinceJanuary: (year: number) => string;
     biggest: (month: number) => string;
     onDay: string;
@@ -119,6 +123,8 @@ const AR: ReportWords = {
     allPaid: (amount) => `دفعت كل ما اشتريته في هذه الفترة (${amount}). رصيدك صفر.`,
     balanceZero: 'رصيدك صفر في بداية الفترة ونهايتها.',
     leadNone: 'لم تشترِ في هذه الفترة.',
+    leadNoneWithOps: 'لم تشترِ منّا في هذه الفترة؛ عملياتك أدناه.',
+    noOperations: 'لا توجد عمليات في هذه الفترة.',
     sinceJanuary: (year) => `منذ بداية ${year}`,
     biggest: (month) => `أكبر عملية في ${MONTHS.ar[month]}`,
     onDay: 'يوم',
@@ -136,7 +142,7 @@ const AR: ReportWords = {
             case 'payment': return entry.method === 'cash' ? 'دفعة نقداً' : entry.method === 'baridi' ? 'دفعة BaridiMob' : entry.method === 'usdt' ? 'دفعة بـ USDT' : entry.method === 'eur' ? 'دفعة باليورو' : 'دفعة';
             case 'saleToUs': return entry.currency === 'EUR' ? 'بيع يورو لنا' : entry.currency === 'RMB' ? 'بيع RMB لنا' : 'بيع USDT لنا';
             case 'withdrawal': return 'سحب من رصيدك';
-            case 'transfer': return entry.balanceCents >= 0 ? 'حوّلتَ مبلغًا إلى عميل آخر' : 'استلمتَ مبلغًا من عميل آخر';
+            case 'transfer': return entry.balanceCents >= 0 ? 'دفعتَ عنّا لعميل آخر' : 'استلمتَ مالنا من عميل آخر';
             case 'opening': return 'الرصيد الافتتاحي';
             case 'writeOff': return 'تخفيض من دينك';
             default: return entry.balanceCents >= 0 ? 'إضافة إلى رصيدك' : 'خصم من رصيدك';
@@ -198,6 +204,8 @@ const FR: ReportWords = {
     allPaid: (amount) => `Vous avez tout réglé sur la période (${amount}). Solde à zéro.`,
     balanceZero: 'Solde à zéro au début et à la fin de la période.',
     leadNone: 'Aucun achat sur cette période.',
+    leadNoneWithOps: 'Aucun achat chez nous sur cette période ; vos opérations sont ci-dessous.',
+    noOperations: 'Aucune opération sur cette période.',
     sinceJanuary: (year) => `Depuis le 1er janvier ${year}`,
     biggest: (month) => `Plus gros achat ${frMonthOf(month)}`,
     onDay: 'le',
@@ -215,7 +223,7 @@ const FR: ReportWords = {
             case 'payment': return entry.method === 'cash' ? 'Versement espèces' : entry.method === 'baridi' ? 'Versement BaridiMob' : entry.method === 'usdt' ? 'Versement en USDT' : entry.method === 'eur' ? 'Versement en euros' : 'Versement';
             case 'saleToUs': return entry.currency === 'EUR' ? 'Vente EUR à ProDigital' : entry.currency === 'RMB' ? 'Vente RMB à ProDigital' : 'Vente USDT à ProDigital';
             case 'withdrawal': return 'Retrait sur votre solde';
-            case 'transfer': return entry.balanceCents >= 0 ? 'Vous avez transféré à un autre client' : 'Vous avez reçu d’un autre client';
+            case 'transfer': return entry.balanceCents >= 0 ? 'Vous avez payé pour nous un autre client' : 'Vous avez reçu notre argent d’un autre client';
             case 'opening': return 'Solde d’ouverture';
             case 'writeOff': return 'Remise sur votre dette';
             default: return entry.balanceCents >= 0 ? 'Ajout à votre solde' : 'Déduction de votre solde';

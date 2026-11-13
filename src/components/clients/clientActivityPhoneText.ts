@@ -112,7 +112,7 @@ const AR_OPERATION: OperationWords = {
             case 'payment': return entry.method === 'cash' ? 'دفعتَ نقداً' : entry.method === 'baridi' ? 'دفعتَ عبر BaridiMob' : entry.method === 'usdt' ? 'دفعتَ بـ USDT' : entry.method === 'eur' ? 'دفعتَ باليورو' : 'سدّدتَ دفعة';
             case 'saleToUs': return amount ? `بعتَ لنا ${amount}` : entry.currency === 'EUR' ? 'بعتَ لنا يورو' : entry.currency === 'RMB' ? 'بعتَ لنا RMB' : 'بعتَ لنا USDT';
             case 'withdrawal': return 'سحبتَ من رصيدك';
-            case 'transfer': return entry.balanceCents >= 0 ? 'حوّلتَ مبلغًا إلى عميل آخر' : 'استلمتَ مبلغًا من عميل آخر';
+            case 'transfer': return entry.balanceCents >= 0 ? 'دفعتَ عنّا لعميل آخر' : 'استلمتَ مالنا من عميل آخر';
             case 'opening': return entry.balanceCents < 0 ? 'سُجّل في حسابك دَين سابق' : 'سُجّل في حسابك رصيد سابق';
             case 'writeOff': return small ? 'أسقطنا عنك مبلغاً صغيراً' : 'أسقطنا عنك جزءاً من دينك';
             default: return entry.balanceCents >= 0 ? 'أضفنا إلى رصيدك' : 'خصمنا من رصيدك';
@@ -200,7 +200,7 @@ const FR_OPERATION: OperationWords = {
             case 'payment': return entry.method === 'cash' ? 'Vous avez payé en espèces' : entry.method === 'baridi' ? 'Vous avez payé par BaridiMob' : entry.method === 'usdt' ? 'Vous avez payé en USDT' : entry.method === 'eur' ? 'Vous avez payé en euros' : 'Vous avez fait un versement';
             case 'saleToUs': return amount ? `Vous nous avez vendu ${amount}` : entry.currency === 'EUR' ? 'Vous nous avez vendu des euros' : entry.currency === 'RMB' ? 'Vous nous avez vendu des RMB' : 'Vous nous avez vendu des USDT';
             case 'withdrawal': return 'Vous avez retiré de votre solde';
-            case 'transfer': return entry.balanceCents >= 0 ? 'Vous avez transféré à un autre client' : 'Vous avez reçu d’un autre client';
+            case 'transfer': return entry.balanceCents >= 0 ? 'Vous avez payé pour nous un autre client' : 'Vous avez reçu notre argent d’un autre client';
             case 'opening': return entry.balanceCents < 0 ? 'Une dette antérieure a été inscrite sur votre compte' : 'Un solde antérieur a été inscrit sur votre compte';
             case 'writeOff': return small ? 'Nous vous avons fait remise d’un petit montant' : 'Nous vous avons fait remise d’une partie de votre dette';
             default: return entry.balanceCents >= 0 ? 'Nous avons ajouté à votre solde' : 'Nous avons déduit de votre solde';

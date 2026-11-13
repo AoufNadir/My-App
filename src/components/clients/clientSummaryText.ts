@@ -65,8 +65,8 @@ const AR: Words = {
     advanceForOtherDetail: 'أُضيفت إلى رصيدك',
     // Read by the client: a credit means they sent money to someone else for us, a debit that
     // someone else's money reached them (V7-3, the owner's wording).
-    transferIn: 'حوّلتَ مبلغًا إلى عميل آخر',
-    transferOut: 'استلمتَ مبلغًا من عميل آخر',
+    transferIn: 'دفعتَ عنّا لعميل آخر',
+    transferOut: 'استلمتَ مالنا من عميل آخر',
     adjustmentIn: 'تعديل: إضافة إلى رصيدك',
     adjustmentOut: 'تعديل: خصم من رصيدك',
     opening: 'الرصيد الافتتاحي',
@@ -91,8 +91,8 @@ const FR: Words = {
     otherPaidDetail: 'déduit de votre solde',
     advanceForOther: 'Règlement en espèces à un autre client pour notre compte',
     advanceForOtherDetail: 'crédité sur votre solde',
-    transferIn: 'Vous avez transféré à un autre client',
-    transferOut: 'Vous avez reçu d’un autre client',
+    transferIn: 'Vous avez payé pour nous un autre client',
+    transferOut: 'Vous avez reçu notre argent d’un autre client',
     adjustmentIn: 'Ajustement : crédité sur votre solde',
     adjustmentOut: 'Ajustement : déduit de votre solde',
     opening: 'Solde d’ouverture',
