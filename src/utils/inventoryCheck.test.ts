@@ -18,8 +18,9 @@ import {
 const expected = inventoryExpected({ caisse: 482_500, baridi: 120_000.4, usdtAvailable: 1_200.5, usdtLocked: 300, eurAvailable: 90.25 });
 
 // The books: USDT counts the part still locked for 24 hours, a missing locked part is zero.
-assert.deepEqual(expected, { caisse: 482_500, baridi: 120_000.4, usdt: 1_500.5, eur: 90.25 });
-assert.deepEqual(inventoryExpected({ caisse: Number.NaN, baridi: -0, usdtAvailable: Number.NaN, eurAvailable: 0 }), { caisse: 0, baridi: 0, usdt: 0, eur: 0 });
+assert.deepEqual(expected, { caisse: 482_500, baridi: 120_000.4, usdt: 1_500.5, eur: 90.25, rmb: 0 });
+assert.deepEqual(inventoryExpected({ caisse: Number.NaN, baridi: -0, usdtAvailable: Number.NaN, eurAvailable: 0 }), { caisse: 0, baridi: 0, usdt: 0, eur: 0, rmb: 0 });
+assert.equal(inventoryExpected({ caisse: 0, baridi: 0, usdtAvailable: 0, eurAvailable: 0, rmbAvailable: 3_500.4 }).rmb, 3_500.4, 'V14-2: RMB (Alipay) is counted too');
 
 // An account that was not counted is left out; it is never read as zero.
 {
@@ -114,9 +115,9 @@ const correctionRows = () => listBalanceCorrections(
     assert.deepEqual(months.map((m) => m.month), ['2026-10', '2026-09']);
     const oct = months[0];
     assert.deepEqual(oct.checks.map((c) => c.id), ['o']);
-    assert.deepEqual(oct.corrections, { caisse: -1_200, baridi: 500, usdt: -12.5, eur: 3 });
+    assert.deepEqual(oct.corrections, { caisse: -1_200, baridi: 500, usdt: -12.5, eur: 3, rmb: 0 });
     assert.equal(oct.correctionCount, 4);
-    assert.deepEqual(months[1].corrections, { caisse: -300, baridi: 0, usdt: 0, eur: 0 });
+    assert.deepEqual(months[1].corrections, { caisse: -300, baridi: 0, usdt: 0, eur: 0, rmb: 0 });
     assert.deepEqual(inventoryMonths([], []), []);
     assert.equal(monthKeyOf(new Date(2026, 0, 31, 23, 30).getTime()), '2026-01');
 }

@@ -33,7 +33,8 @@ export type RmbTradeDialogProps = {
     clientsDzd: ClientDzd[];
     openClientModal: (client: ClientDzd | null) => void;
     fieldBase: string;
-    onSave: (input: RmbTradeInput, profitDzd: number) => Promise<boolean>;
+    /** V14-2: `pending`: paid now, sent (or received) later, as in the USDT and EUR windows */
+    onSave: (input: RmbTradeInput, profitDzd: number, pending?: boolean) => Promise<boolean>;
     parseAndEvaluate: (expr: string) => number;
     /** V13-4: the currency bought or sold here (RMB by default). USDT and EUR come here only paid in another currency. */
     currency?: TradeCurrency;
@@ -75,6 +76,7 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
     const showUsdt = useShowUsdt();
     const [source, setSource] = React.useState<RmbSource | null>(initialSource);
     const [clientId, setClientId] = React.useState('none');
+    const [pending, setPending] = React.useState(false);
     const [status, setStatus] = React.useState<PaymentStatus | null>(null);
     // With dinars: quantity, price, total. Paid in another currency: quantity, rate, amount (V13-4, three linked fields).
     const [dzd, setDzd] = React.useState({ quantity: '', price: '', total: '' });
@@ -82,7 +84,7 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
     const [saving, setSaving] = React.useState(false);
     React.useEffect(() => {
         // Each opening starts empty: nothing is chosen for the owner.
-        setSource(initialSource); setClientId('none'); setStatus(null); setDzd({ quantity: '', price: '', total: '' }); setConv({ quantity: '', rate: '', amount: '' });
+        setSource(initialSource); setClientId('none'); setStatus(null); setPending(false); setDzd({ quantity: '', price: '', total: '' }); setConv({ quantity: '', rate: '', amount: '' });
     }, [kind, initialSource, currency]);
     if (!kind)
         return null;
@@ -109,11 +111,13 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
         : crossSell && input && input.quantity > 0 ? r2(crossValue - input.quantity * holdings[currency].avgBuy) : 0;
     const preview = input && source !== 'DZD' ? rmbConversionPreview(input, { RMB: holdings.RMB.avgBuy, EUR: holdings.EUR.avgBuy, USDT: holdings.USDT.avgBuy }) : null;
     const usual = clientId !== 'none' ? usualChannelOf(clientsDzd.find((c) => c.id === clientId)) : null;
+    // V14-2: « not sent yet » (sale) / « not received yet » (purchase), with a client, paid in cash or BaridiMob.
+    const pendingAllowed = source === 'DZD' && clientId !== 'none' && (status === 'cash' || status === 'baridi');
     const save = async () => {
         if (!input || !check?.ok || saving) return;
         setSaving(true);
         try {
-            if (await onSave(input, profit)) onClose();
+            if (await onSave(input, profit, pendingAllowed && pending)) onClose();
         }
         finally {
             setSaving(false);
@@ -162,6 +166,15 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
             <button type="button" onClick={changeSource} className="inline-flex items-center gap-1 text-xs font-semibold text-primary"><ChevronRightIcon aria-hidden="true" className="h-4 w-4 -scale-x-100 rtl:scale-x-100"/>{w.changeSource}: {kind === 'buy' ? w.buyWith[source] : w.sellWith[source]}</button>
             <FormCard title={kind === 'buy' ? t('transactions.stepWhoBuy') : t('transactions.stepWhoSell')}>
               <ClientLinker linkedClientId={clientId} setLinkedClientId={setClientId} linkedClientDzdId="none" setLinkedClientDzdId={() => undefined} openClientModal={openClientModal} clientsDzd={clientsDzd} fieldBase={fieldBase} clientPaymentStatus={status} setClientPaymentStatus={setStatus} hidePaymentStatus={source !== 'DZD'} hideLinkedDzdClient usualChannel={source === 'DZD' ? usual : null}/>
+              {pendingAllowed && (<button type="button" role="switch" aria-checked={pending} onClick={() => setPending(!pending)} className={`flex w-full items-center gap-3 rounded-card border px-4 py-3 text-start transition-colors ${pending ? 'border-financial-debt/40 bg-financial-debt-bg' : 'border-border bg-surface hover:bg-surface-muted'}`}>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold text-neutral-900">{t(kind === 'sell' ? 'transactions.deliveryPending' : 'transactions.receiptPending')}</span>
+                    <span className="mt-0.5 block text-xs text-neutral-500">{t(kind === 'sell' ? 'transactions.deliveryPendingHint' : 'transactions.receiptPendingHint')}</span>
+                  </span>
+                  <span aria-hidden="true" className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${pending ? 'bg-financial-debt' : 'bg-neutral-300'}`}>
+                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${pending ? 'start-[22px]' : 'start-0.5'}`}/>
+                  </span>
+                </button>)}
             </FormCard>
             <FormCard title={t('transactions.stepHowMuch')}>
               {source === 'DZD' ? (<>

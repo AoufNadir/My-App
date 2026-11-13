@@ -18,8 +18,9 @@ const ACCOUNT_LABEL_KEYS: Record<InventoryAccount, string> = {
     baridi: 'inventory.accountBaridi',
     usdt: 'inventory.accountUsdt',
     eur: 'inventory.accountEur',
+    rmb: 'inventory.accountRmb',
 };
-const ACCOUNT_CURRENCY: Record<InventoryAccount, MoneyCurrency> = { caisse: 'DZD', baridi: 'DZD', usdt: 'USDT', eur: 'EUR' };
+const ACCOUNT_CURRENCY: Record<InventoryAccount, MoneyCurrency> = { caisse: 'DZD', baridi: 'DZD', usdt: 'USDT', eur: 'EUR', rmb: 'RMB' };
 const OPERATION_LABEL_KEYS: Record<string, string> = {
     Ajout: 'opAjout',
     Retrait: 'opRetrait',

@@ -21,7 +21,7 @@ const storage = new Map<string, string>();
 };
 type Lang = 'fr' | 'ar';
 const noop = () => undefined;
-const expected = { caisse: 482_500, baridi: 120_000.4, usdt: 1_500.5, eur: 90.25 };
+const expected = { caisse: 482_500, baridi: 120_000.4, usdt: 1_500.5, eur: 90.25, rmb: 0 };
 const stamp = (timestamp: number, date: string) => ({ date, time: '20:00', timestamp });
 const check = (id: string, timestamp: number, date: string, counted: Parameters<typeof buildInventoryCheckData>[1]): InventoryCheck =>
     ({ id, ...buildInventoryCheckData(expected, counted, stamp(timestamp, date))! });
@@ -47,7 +47,7 @@ for (const lang of ['fr', 'ar'] as const) {
     {
         const html = render(lang, { defaultOpen: true });
         const out = text(html);
-        assert.equal(count(out, fr ? 'Dans l’application' : 'في التطبيق'), 4, `${lang}: one books line per account`);
+        assert.equal(count(out, fr ? 'Dans l’application' : 'في التطبيق'), 5, `${lang}: one books line per account (V14-2: RMB too)`);
         assert.match(out, /482 500/);
         assert.match(out, /1 500,50/);
         assert.match(out, /120 000,40/, 'cents shown as two decimals');

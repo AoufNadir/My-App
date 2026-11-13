@@ -21,7 +21,7 @@ const storage = new Map<string, string>();
 };
 type Lang = 'fr' | 'ar';
 const noop = () => undefined;
-const expected = { caisse: 482_500, baridi: 120_000, usdt: 1_500.5, eur: 90.25 };
+const expected = { caisse: 482_500, baridi: 120_000, usdt: 1_500.5, eur: 90.25, rmb: 0 };
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.now();
 const stamp = (daysAgo: number) => {

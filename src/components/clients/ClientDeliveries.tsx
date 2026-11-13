@@ -1,4 +1,4 @@
-import { useShowEur, withoutHiddenEur } from '../../contexts/CurrencyVisibilityContext';
+import { useCurrencyShown, withoutHiddenCurrencies } from '../../contexts/CurrencyVisibilityContext';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useLanguage, type Lang } from '../../contexts/LanguageContext';
 import { Button } from '../ui/Button';
@@ -125,7 +125,7 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
     const [noPhone, setNoPhone] = useState(false);
     const [toRemove, setToRemove] = useState<{ doc: DeliveryDoc; state: ClientDeliveryState } | null>(null);
     const [removeError, setRemoveError] = useState('');
-    const showEur = useShowEur();
+    const isShown = useCurrencyShown();
     const [old, setOld] = useState<{ qty: string; currency: DeliveryCurrency }>({ qty: '', currency: 'USDT' });
     const field = 'min-h-input w-full rounded-button border border-border bg-surface px-3 text-sm tabular-nums text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary/40';
 
@@ -190,7 +190,7 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
               </div>)
             : (<div className="space-y-3">
         <p className="text-xs text-neutral-500">{w.addOldHint}</p>
-        <SegmentedControl size="sm" ariaLabel={w.left} value={old.currency} onChange={(currency) => setOld({ ...old, currency })} options={withoutHiddenEur([{ id: 'USDT', label: 'USDT', tone: 'primary' as const }, { id: 'EUR', label: 'EUR', tone: 'primary' as const }], showEur, old.currency)}/>
+        <SegmentedControl size="sm" ariaLabel={w.left} value={old.currency} onChange={(currency) => setOld({ ...old, currency })} options={withoutHiddenCurrencies([{ id: 'USDT', label: 'USDT', tone: 'primary' as const }, { id: 'EUR', label: 'EUR', tone: 'primary' as const }, { id: 'RMB', label: 'RMB', tone: 'primary' as const }], isShown, old.currency)}/>
         <div className="relative">
           <input inputMode="decimal" value={old.qty} onChange={(event) => setOld({ ...old, qty: event.target.value })} placeholder="0,00" aria-label={w.left} dir="ltr" className={`${field} pr-16 text-base font-semibold`}/>
           <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4 text-sm font-semibold text-neutral-500">{old.currency}</span>

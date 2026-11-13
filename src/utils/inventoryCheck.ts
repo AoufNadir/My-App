@@ -5,9 +5,10 @@ import { fromCents, toCents } from './money';
  * what its own books say. Pure functions only; nothing here writes a balance or touches a profit.
  */
 
-export type InventoryAccount = 'caisse' | 'baridi' | 'usdt' | 'eur';
+export type InventoryAccount = 'caisse' | 'baridi' | 'usdt' | 'eur' | 'rmb';
 
-export const INVENTORY_ACCOUNTS: readonly InventoryAccount[] = ['caisse', 'baridi', 'usdt', 'eur'];
+// V14-2: RMB (Alipay) is counted like EUR.
+export const INVENTORY_ACCOUNTS: readonly InventoryAccount[] = ['caisse', 'baridi', 'usdt', 'eur', 'rmb'];
 
 export type InventoryExpected = Record<InventoryAccount, number>;
 
@@ -35,6 +36,7 @@ export const INVENTORY_TOLERANCE_CENTS: Record<InventoryAccount, number> = {
     baridi: 99,
     usdt: 1,
     eur: 1,
+    rmb: 1,
 };
 
 export const isDzdAccount = (account: InventoryAccount): boolean => account === 'caisse' || account === 'baridi';
@@ -57,6 +59,7 @@ export function inventoryExpected(input: {
     usdtLocked?: number;
     eurAvailable: number;
     eurLocked?: number;
+    rmbAvailable?: number;
 }): InventoryExpected {
     const sum = (a: number, b: number) => normalizeZero(fromCents(toCents(finite(a)) + toCents(finite(b))));
     return {
@@ -64,6 +67,7 @@ export function inventoryExpected(input: {
         baridi: normalizeZero(fromCents(toCents(finite(input.baridi)))),
         usdt: sum(input.usdtAvailable, input.usdtLocked ?? 0),
         eur: sum(input.eurAvailable, input.eurLocked ?? 0),
+        rmb: sum(input.rmbAvailable ?? 0, 0),
     };
 }
 
@@ -216,7 +220,7 @@ export function listBalanceCorrections(
     for (const tx of portfolioTransactions) {
         if (tx.origin !== 'balance_edit')
             continue;
-        const account: InventoryAccount | null = tx.currency === 'USDT' ? 'usdt' : tx.currency === 'EUR' ? 'eur' : null;
+        const account: InventoryAccount | null = tx.currency === 'USDT' ? 'usdt' : tx.currency === 'EUR' ? 'eur' : tx.currency === 'RMB' ? 'rmb' : null;
         const amount = finite(tx.quantity);
         if (!account || amount <= 0)
             continue;
@@ -242,7 +246,7 @@ export const monthKeyOf = (timestamp: number): string => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 
-const emptyTotals = (): InventoryExpected => ({ caisse: 0, baridi: 0, usdt: 0, eur: 0 });
+const emptyTotals = (): InventoryExpected => ({ caisse: 0, baridi: 0, usdt: 0, eur: 0, rmb: 0 });
 
 /**
  * The monthly list: for each month, the checks made and the gaps absorbed by balance corrections,
@@ -265,7 +269,7 @@ export function inventoryMonths(checks: readonly InventoryCheck[], corrections: 
         const month = monthKeyOf(correction.timestamp);
         const entry = ensure(month);
         entry.correctionCount += 1;
-        const bucket = cents[month] || (cents[month] = { caisse: 0, baridi: 0, usdt: 0, eur: 0 });
+        const bucket = cents[month] || (cents[month] = { caisse: 0, baridi: 0, usdt: 0, eur: 0, rmb: 0 });
         bucket[correction.account] += toCents(correction.amount);
     }
     for (const [month, bucket] of Object.entries(cents)) {

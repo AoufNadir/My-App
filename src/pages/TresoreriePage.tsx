@@ -74,7 +74,7 @@ type TresoreriePageProps = {
     /** Inventory (V5-2): the user document, to save counts. Without it the section is not shown. */
     userDocRef?: any;
     setAlert?: (message: string) => void;
-    portfolioStats?: { usdt?: { available?: number; locked?: number }; eur?: { available?: number; locked?: number } };
+    portfolioStats?: { usdt?: { available?: number; locked?: number }; eur?: { available?: number; locked?: number }; rmb?: { available?: number } };
     /** Portfolio (USDT/EUR) operations, whose balance corrections the monthly list shows */
     transactions?: any[];
     /** False while the figures come from the phone's cache */
@@ -136,7 +136,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
         const owed = reservedForClients(states);
         const awaited = awaitedFromSuppliers(states);
         // Owed to clients is still in the wallet (+); awaited from suppliers is in the books, not yet in the wallet (−).
-        return { USDT: owed.USDT - awaited.USDT, EUR: owed.EUR - awaited.EUR };
+        return { USDT: owed.USDT - awaited.USDT, EUR: owed.EUR - awaited.EUR, RMB: owed.RMB - awaited.RMB };
     }, [deliveryDocs, transactions]);
     const inventoryExpectedNow = useMemo(() => inventoryExpected({
         caisse: caisseBalance,
@@ -145,6 +145,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
         usdtLocked: portfolioStats?.usdt?.locked ?? 0,
         eurAvailable: (portfolioStats?.eur?.available ?? 0) + reserved.EUR,
         eurLocked: portfolioStats?.eur?.locked ?? 0,
+        rmbAvailable: (portfolioStats?.rmb?.available ?? 0) + reserved.RMB,
     }), [caisseBalance, baridiBalance, portfolioStats, reserved]);
     // Money movements typed by hand that nothing explains (V7-2).
     const movementReviewEnabled = Boolean(userDocRef && onLinkMovementToClient);

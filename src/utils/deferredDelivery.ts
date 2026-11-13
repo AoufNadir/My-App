@@ -5,7 +5,8 @@
 // - a `delivery`: what was sent, never more than what is left.
 // The inventory adds what is still owed to the stock the books expect, because it is still in the wallet.
 
-export type DeliveryCurrency = 'USDT' | 'EUR';
+export type DeliveryCurrency = 'USDT' | 'EUR' | 'RMB';
+export const DELIVERY_CURRENCIES: DeliveryCurrency[] = ['USDT', 'EUR', 'RMB'];
 /** to_client: sold, not sent yet (V12-2). from_supplier: bought and paid, not received yet (V12-8). */
 export type DeliveryDirection = 'to_client' | 'from_supplier';
 export type DeliveryDoc = {
@@ -31,7 +32,7 @@ export function parseDelivery(id: string, raw: unknown): DeliveryDoc | null {
         return null;
     const data = raw as Record<string, unknown>;
     const kind = data.kind === 'commitment' || data.kind === 'delivery' ? data.kind : null;
-    const currency = data.currency === 'USDT' || data.currency === 'EUR' ? data.currency : null;
+    const currency = DELIVERY_CURRENCIES.includes(data.currency as DeliveryCurrency) ? data.currency as DeliveryCurrency : null;
     const quantity = Number(data.quantity);
     const timestamp = Number(data.timestamp);
     if (!kind || !currency || typeof data.clientId !== 'string' || !data.clientId || !(quantity > 0) || !Number.isFinite(timestamp))
@@ -91,10 +92,10 @@ export function awaitedFromSuppliers(states: ReadonlyArray<ClientDeliveryState>)
 }
 
 function pendingTotals(states: ReadonlyArray<ClientDeliveryState>, direction: DeliveryDirection): Record<DeliveryCurrency, number> {
-    const total = { USDT: 0, EUR: 0 };
+    const total = { USDT: 0, EUR: 0, RMB: 0 };
     for (const state of states.filter((item) => item.direction === direction))
         total[state.currency] += cents(Math.max(0, state.remaining));
-    return { USDT: fromCents(total.USDT), EUR: fromCents(total.EUR) };
+    return { USDT: fromCents(total.USDT), EUR: fromCents(total.EUR), RMB: fromCents(total.RMB) };
 }
 
 export type DeliveryCheck = { ok: true } | { ok: false; reason: 'empty' | 'too_much'; remaining: number };

@@ -1,3 +1,4 @@
+import { useCurrencyShown } from '../../contexts/CurrencyVisibilityContext';
 import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react';
 import { inventoryFixFor } from '../../utils/inventoryCheck';
 import { SectionCard } from '../cards';
@@ -33,12 +34,13 @@ const ACCOUNT_LABEL_KEYS: Record<InventoryAccount, string> = {
     baridi: 'inventory.accountBaridi',
     usdt: 'inventory.accountUsdt',
     eur: 'inventory.accountEur',
+    rmb: 'inventory.accountRmb',
 };
-const ACCOUNT_CURRENCY: Record<InventoryAccount, MoneyCurrency> = { caisse: 'DZD', baridi: 'DZD', usdt: 'USDT', eur: 'EUR' };
+const ACCOUNT_CURRENCY: Record<InventoryAccount, MoneyCurrency> = { caisse: 'DZD', baridi: 'DZD', usdt: 'USDT', eur: 'EUR', rmb: 'RMB' };
 const MONTHS_SHOWN = 3;
 
 type Draft = Record<InventoryAccount, string>;
-const EMPTY_DRAFT: Draft = { caisse: '', baridi: '', usdt: '', eur: '' };
+const EMPTY_DRAFT: Draft = { caisse: '', baridi: '', usdt: '', eur: '', rmb: '' };
 
 /** Colour plus a symbol, so the state never rests on colour alone. */
 const STATUS_STYLE: Record<InventoryGapStatus, { tone: string; mark: string }> = {
@@ -118,6 +120,11 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
         return `${monthNames[Number(month) - 1] ?? month} ${year}`;
     };
 
+    // V14-2: a hidden currency's wallet is not counted, unless the books still expect some in it.
+    const isShown = useCurrencyShown();
+    const countable = (account: InventoryAccount) => (account === 'usdt' || account === 'eur' || account === 'rmb')
+        ? isShown(account.toUpperCase() as 'USDT' | 'EUR' | 'RMB') || Math.abs(Number(expected?.[account] ?? 0)) > 0.005
+        : true;
     const hasDraft = INVENTORY_ACCOUNTS.some((account) => draft[account].trim() !== '');
     const edit = (account: InventoryAccount, value: string) => {
         setDraft((current) => ({ ...current, [account]: value }));
@@ -197,7 +204,7 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
               {text('inventory.investigator.jump', { count: String(suggestions.length) })}
             </button>)}
           {!ready && (<p role="status" className="rounded-button bg-warning-bg px-3 py-2 text-xs font-semibold text-warning">{t('inventory.waitingSync')}</p>)}
-          {INVENTORY_ACCOUNTS.map((account) => {
+          {INVENTORY_ACCOUNTS.filter((account) => countable(account)).map((account) => {
               const row = rowByAccount.get(account);
               const style = row ? STATUS_STYLE[row.status] : null;
               return (<Fragment key={account}>
