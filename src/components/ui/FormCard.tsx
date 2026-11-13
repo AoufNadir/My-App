@@ -1,4 +1,6 @@
-import { useId, type ReactNode } from 'react';
+import { createContext, useContext, useId, type ReactNode } from 'react';
+/** V14-1: inside a settings section the section is the card: a FormCard shows only its fields (and description). */
+export const FormCardBareContext = createContext(false);
 export type FormCardProps = {
     title?: ReactNode;
     description?: ReactNode;
@@ -13,6 +15,12 @@ export type FormCardProps = {
  */
 function FormCard({ title, description, aside, children, className = '' }: FormCardProps) {
     const titleId = useId();
+    const bare = useContext(FormCardBareContext);
+    if (bare)
+        return (<div className={['space-y-3', className].filter(Boolean).join(' ')}>
+          {description && <p className="text-xs leading-relaxed text-neutral-500">{description}</p>}
+          {children}
+        </div>);
     return (<section aria-labelledby={title ? titleId : undefined} className={['rounded-card border border-border bg-surface', className].filter(Boolean).join(' ')}>
       {title && (<div className="flex items-start justify-between gap-3 px-4 pt-3.5">
           <div className="min-w-0">

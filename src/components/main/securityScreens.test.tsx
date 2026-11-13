@@ -15,7 +15,6 @@ import { MainUtilityDialogs } from './MainUtilityDialogs'; // v29-only
 import { NewTransactionMenuDialog } from '../transactions/NewTransactionMenuDialog'; // v29-only
 import { Auth } from '../Auth'; // v29-only
 import { AuthLockScreen } from '../AuthLockScreen'; // v29-only
-import { authLockStore } from '../../hooks/useAuthLock'; // v29-only
 import { translations } from '../../translations'; // v29-only
 
 // V2-9 redrew the global search, the month plan, the client summary (share button on the
@@ -225,55 +224,38 @@ const pinSettings = (lang: Lang) => render(<WithT>{(t) => <MainUtilityDialogs {.
     isCreateAssetModalOpen: false, setIsCreateAssetModalOpen: noop, isTreasuryCardModalOpen: false, setIsTreasuryCardModalOpen: noop,
     treasuryCardToDelete: null, treasuryTxToDelete: null,
 }}/>}</WithT>, lang);
-const lockScreen = (pinLength: number | null) => (lang: Lang) => render(<AuthLockScreen onUnlock={async () => false} pinLength={pinLength}/>, lang);
+const lockScreen = (lang: Lang) => render(<AuthLockScreen onUnlock={async () => false} autoPrompt={false}/>, lang);
 const menu = (lang: Lang) => render(<WithT>{(t) => <NewTransactionMenuDialog {...{
     isOpen: true, onClose: noop, t, openForm: noop, openWalletTransferModal: noop, openTransferModal: noop, openAdjustmentModal: noop,
     openDeliveryExpenseModal: noop, openDigitalServiceModal: noop, openPersonalWithdrawalModal: noop,
 }}/>}</WithT>, lang);
-sharedScreens.settingsPinOff = pinSettings;
-sharedScreens.lock4 = lockScreen(4);
-sharedScreens.lock5 = lockScreen(5);
-sharedScreens.lock6 = lockScreen(6);
-sharedScreens.lockOldPin = lockScreen(null);
+sharedScreens.settings = pinSettings;
+sharedScreens.lock = lockScreen;
 sharedScreens.signIn = (lang) => render(<Auth/>, lang);
 sharedScreens.newOperationMenu = menu;
-const settingsOff = { fr: pinSettings('fr'), ar: pinSettings('ar') };
-await authLockStore.setPin('48291');
-sharedScreens.settingsPinOn = pinSettings;
-const settingsOn = { fr: pinSettings('fr'), ar: pinSettings('ar') };
+const settingsFolded = { fr: pinSettings('fr'), ar: pinSettings('ar') };
 const french = Object.entries(sharedScreens)
     .map(([name, renderScreen]) => [name, frenchWords(renderScreen('ar'))] as const)
     .filter(([, words]) => words.length > 0)
     .map(([name, words]) => `${name}: ${words.join(' ')}`);
 assert.deepEqual(french, [], 'no French word left on the Arabic screens');
 
-// ---- Settings: « Sécurité et sauvegarde », the PIN card, the backup card and Close ----
+// ---- V14-1 settings: five folded rows; the PIN is gone ----
 for (const lang of ['fr', 'ar'] as const) {
-    const off = textOf(settingsOff[lang]);
-    for (const key of ['settings.securityTitle', 'settings.pinTitle', 'settings.pinDescription', 'settings.enablePin', 'settings.backupTitle', 'settings.backupDownload', 'common.close'])
-        assert.ok(off.includes(label(lang, key)), `${lang} settings, no PIN: ${key}`);
-    assert.equal((settingsOff[lang].match(/maxLength="6"/g) || []).length, 2, `${lang}: two PIN fields of up to 6 digits`);
-    assert.ok(!off.includes(label(lang, 'settings.lockNow')), `${lang}: nothing to lock without a PIN`);
-    const on = textOf(settingsOn[lang]);
-    for (const key of ['settings.pinActive', 'settings.pinActiveDetail', 'settings.lockNow', 'settings.disablePin'])
-        assert.ok(on.includes(label(lang, key)), `${lang} settings, PIN on: ${key}`);
-    assert.ok(!settingsOn[lang].includes('type="password"'), `${lang}: no PIN field once the PIN is on`);
+    const html = settingsFolded[lang];
+    const text = textOf(html);
+    for (const key of ['settings.settingsTitle', 'settings.secLock', 'settings.bioInactive', 'settings.notifTitle', 'settings.backupTitle', 'common.close'])
+        assert.ok(text.includes(label(lang, key)), `${lang} settings: ${key}`);
+    assert.equal((html.match(/aria-expanded="false"/g) || []).length, 3, `${lang}: lock, notifications and backup rows, all folded (no user doc in this test)`);
+    assert.ok(!html.includes('type="password"') && !/maxLength="6"/.test(html), `${lang}: no PIN field any more`);
 }
 
-// ---- Lock screen: one dot per digit of the PIN, and the subtitle says how many ----
-const dots = (html: string) => (html.match(/h-3\.5 w-3\.5 rounded-full/g) || []).length;
+// ---- V14-1 lock screen: fingerprint or face, and « sign in again » ----
 for (const lang of ['fr', 'ar'] as const) {
-    for (const length of [4, 5, 6]) {
-        const html = lockScreen(length)(lang);
-        assert.equal(dots(html), length, `${lang}: ${length} dots for a ${length}-digit PIN`);
-        assert.ok(textOf(html).includes(label(lang, 'lock.enterCodeDigits').replace('{count}', String(length))), `${lang}: asks for ${length} digits`);
-        assert.equal((html.match(/<button type="button"/g) || []).length, 11, `${lang}: ten digit keys and the erase key`);
-        assert.ok(html.includes(`aria-label="${label(lang, 'lock.erase')}"`), `${lang}: the erase key is named`);
-    }
-    // A PIN saved before its length was kept: 4 dots to start, and the subtitle says 4 to 6.
-    const old = lockScreen(null)(lang);
-    assert.equal(dots(old), 4, `${lang}: an old PIN starts with 4 dots`);
-    assert.ok(textOf(old).includes(label(lang, 'lock.enterCodeRange')), `${lang}: an old PIN may have 4 to 6 digits`);
+    const text = textOf(lockScreen(lang));
+    for (const key of ['lock.title', 'lock.useBiometrics', 'lock.unlock', 'lock.signInAgain'])
+        assert.ok(text.includes(label(lang, key)), `${lang} lock: ${key}`);
+    assert.ok(!/[0-9]<\/button>/.test(lockScreen(lang)), `${lang}: no digit keys`);
 }
 
 // ---- Client summary: the window follows the app's language, the picture the client's own ----
@@ -296,4 +278,4 @@ for (const lang of ['fr', 'ar'] as const) {
     assert.ok(textOf(fr).includes('WhatsApp'), 'the client with a phone gets a WhatsApp button');
 }
 
-console.log('securityScreens.test: the search, the month plan and the client summary show the same numbers as V2-8; settings, lock (4 to 6 digits), sign-in and (+) read in Arabic with no French left');
+console.log('securityScreens.test: the search, the month plan and the client summary show the same numbers as V2-8; settings (folded rows), lock (fingerprint or face), sign-in and (+) read in Arabic with no French left');

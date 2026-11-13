@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Input } from '../ui/Input';
@@ -12,97 +12,50 @@ import { FormCard } from '../ui/FormCard';
 import { NotificationSettings } from './NotificationSettings';
 import { CurrencyVisibilitySettings } from './CurrencyVisibilitySettings';
 import { HabitsSettings } from './HabitsSettings';
+import { SettingsSection } from './SettingsSection';
 
 type MainUtilityDialogsProps = Record<string, any>;
 
-type PinMessage = { text: string; tone: 'error' | 'success' };
+type LockMessage = { text: string; tone: 'error' | 'success' };
 
-function PinSettings({ t }: { t: (key: string) => any }) {
-    const { pinEnabled, setPin, disablePin, lock } = useAuthLock();
-    const [draft, setDraft] = useState('');
-    const [confirm, setConfirm] = useState('');
-    const [msg, setMsg] = useState<PinMessage | null>(null);
-
-    const handleSetPin = async () => {
+// V14-1: one switch: lock with the fingerprint or the face of this phone. No PIN any more.
+function BiometricLockSettings({ t }: { t: (key: string) => any }) {
+    const { enabled, enable, disable, lock, available } = useAuthLock();
+    const [supported, setSupported] = useState<boolean | null>(null);
+    const [busy, setBusy] = useState(false);
+    const [msg, setMsg] = useState<LockMessage | null>(null);
+    useEffect(() => {
+        let alive = true;
+        void available().then((ok) => { if (alive) setSupported(ok); });
+        return () => { alive = false; };
+    }, [available]);
+    const toggle = async () => {
         setMsg(null);
-        if (draft.length < 4) {
-            setMsg({ text: t('settings.pinTooShort'), tone: 'error' });
+        if (enabled) {
+            disable();
+            setMsg({ text: t('settings.bioOff'), tone: 'success' });
             return;
         }
-        if (draft !== confirm) {
-            setMsg({ text: t('settings.pinMismatch'), tone: 'error' });
-            return;
-        }
-        await setPin(draft);
-        setDraft('');
-        setConfirm('');
-        setMsg({ text: t('settings.pinEnabledMessage'), tone: 'success' });
+        setBusy(true);
+        const ok = await enable();
+        setBusy(false);
+        setMsg(ok ? { text: t('settings.bioOn'), tone: 'success' } : { text: t('settings.bioFailed'), tone: 'error' });
     };
-
-    const handleDisable = () => {
-        disablePin();
-        setMsg({ text: t('settings.pinDisabledMessage'), tone: 'success' });
-    };
-
-    return (
-        <FormCard
-            title={t('settings.pinTitle')}
-            description={pinEnabled ? t('settings.pinActiveDetail') : t('settings.pinDescription')}
-            aside={pinEnabled ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-financial-profit-bg px-2 py-0.5 text-financial-profit">
-                    <CheckIcon aria-hidden="true" className="h-3.5 w-3.5"/>
-                    {t('settings.pinActive')}
-                </span>
-            ) : undefined}
-        >
-            {pinEnabled ? (
-                <div className="grid grid-cols-2 gap-2">
-                    <Button type="button" variant="outline" onClick={lock}>
-                        <LockIcon aria-hidden="true" className="h-4 w-4"/>
-                        {t('settings.lockNow')}
-                    </Button>
-                    <Button type="button" onClick={handleDisable} className="border border-financial-loss/30 bg-surface text-financial-loss hover:bg-financial-loss-bg active:bg-financial-loss-bg">
-                        {t('settings.disablePin')}
-                    </Button>
-                </div>
-            ) : (
-                <>
-                    <Input
-                        type="password"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={6}
-                        autoComplete="off"
-                        aria-label={t('settings.newPin')}
-                        placeholder={t('settings.newPin')}
-                        value={draft}
-                        onChange={(event) => setDraft(event.target.value.replace(/\D/g, ''))}
-                        dir="ltr"
-                    />
-                    <Input
-                        type="password"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={6}
-                        autoComplete="off"
-                        aria-label={t('settings.confirmPin')}
-                        placeholder={t('settings.confirmPin')}
-                        value={confirm}
-                        onChange={(event) => setConfirm(event.target.value.replace(/\D/g, ''))}
-                        dir="ltr"
-                    />
-                    <Button type="button" onClick={handleSetPin} className="w-full">
-                        {t('settings.enablePin')}
-                    </Button>
-                </>
-            )}
-            {msg && (
-                <p role="status" className={`text-xs font-semibold ${msg.tone === 'error' ? 'text-financial-loss' : 'text-financial-profit'}`}>
-                    {msg.text}
-                </p>
-            )}
-        </FormCard>
-    );
+    return (<FormCard description={t('settings.bioDescription')}>
+        {supported === false && !enabled
+            ? <p className="text-xs font-semibold text-financial-loss">{t('settings.bioUnsupported')}</p>
+            : (<label className="flex min-h-12 items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-neutral-900">{t('settings.bioSwitch')}</span>
+                <button type="button" role="switch" aria-checked={enabled} disabled={busy} onClick={toggle} className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${enabled ? 'bg-primary' : 'bg-neutral-300'} disabled:opacity-60`}>
+                    <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${enabled ? 'start-[1.375rem]' : 'start-0.5'}`}/>
+                </button>
+            </label>)}
+        {enabled && (<Button type="button" variant="outline" onClick={lock} className="w-full">
+                <LockIcon aria-hidden="true" className="h-4 w-4"/>
+                {t('settings.lockNow')}
+            </Button>)}
+        {msg && <p role="status" className={`text-xs font-semibold ${msg.tone === 'error' ? 'text-financial-loss' : 'text-financial-profit'}`}>{msg.text}</p>}
+    </FormCard>);
 }
 
 function MainUtilityDialogsComponent({
@@ -134,37 +87,38 @@ function MainUtilityDialogsComponent({
     handleDeleteTreasuryTxConfirm,
 }: MainUtilityDialogsProps) {
     const closeSettings = () => setIsSettingsModalOpen(false);
+    // V14-1: one section open at a time, all folded when the window opens.
+    const [openSection, setOpenSection] = useState<string | null>(null);
+    const toggleSection = (id: string) => setOpenSection((current) => (current === id ? null : id));
+    const { enabled: lockEnabled } = useAuthLock();
     const closeTreasuryCard = () => setIsTreasuryCardModalOpen(false);
 
     return (
         <>
             <Modal isOpen={isSettingsModalOpen} onClose={closeSettings} className="max-w-sm bg-surface text-neutral-900">
                 <ModalHeader onClose={closeSettings}>
-                    <ModalTitle className="text-base sm:text-lg">{t('settings.securityTitle')}</ModalTitle>
+                    <ModalTitle className="text-base sm:text-lg">{t('settings.settingsTitle')}</ModalTitle>
                 </ModalHeader>
                 <ModalContent className="space-y-3 bg-app-bg px-4 py-4 sm:px-5">
-                    <PinSettings t={t} />
-
-                    <NotificationSettings />
-
-                    {userDocRef && <CurrencyVisibilitySettings userDocRef={userDocRef} />}
-
-                    {userDocRef && <HabitsSettings userDocRef={userDocRef} />}
-
-                    <FormCard title={t('settings.backupTitle')} description={t('settings.backupDescription')}>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="md"
-                            className="w-full font-semibold gap-2"
-                            onClick={() => typeof handleExportBackup === 'function' && handleExportBackup()}
-                        >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                            </svg>
-                            {t('settings.backupDownload')}
-                        </Button>
-                    </FormCard>
+                    <SettingsSection title={t('settings.secLock')} summary={lockEnabled ? t('settings.bioActive') : t('settings.bioInactive')} icon={<LockIcon className="h-4 w-4"/>} open={openSection === 'lock'} onToggle={() => toggleSection('lock')}>
+                        <BiometricLockSettings t={t} />
+                    </SettingsSection>
+                    <SettingsSection title={t('settings.notifTitle')} summary={t('settings.secNotifSummary')} icon={<span className="text-sm font-bold">!</span>} open={openSection === 'notif'} onToggle={() => toggleSection('notif')}>
+                        <NotificationSettings />
+                    </SettingsSection>
+                    {userDocRef && (<SettingsSection title={t('settings.secCurrencies')} summary={t('settings.secCurrenciesSummary')} icon={<span className="text-sm font-bold">¤</span>} open={openSection === 'currencies'} onToggle={() => toggleSection('currencies')}>
+                        <CurrencyVisibilitySettings userDocRef={userDocRef} />
+                    </SettingsSection>)}
+                    {userDocRef && (<SettingsSection title={t('settings.secHabits')} summary={t('settings.secHabitsSummary')} icon={<CheckIcon className="h-4 w-4"/>} open={openSection === 'habits'} onToggle={() => toggleSection('habits')}>
+                        <HabitsSettings userDocRef={userDocRef} />
+                    </SettingsSection>)}
+                    <SettingsSection title={t('settings.backupTitle')} summary={t('settings.secBackupSummary')} icon={<span className="text-sm font-bold">↓</span>} open={openSection === 'backup'} onToggle={() => toggleSection('backup')}>
+                        <FormCard description={t('settings.backupDescription')}>
+                            <Button type="button" variant="outline" size="md" className="w-full gap-2 font-semibold" onClick={() => typeof handleExportBackup === 'function' && handleExportBackup()}>
+                                {t('settings.backupDownload')}
+                            </Button>
+                        </FormCard>
+                    </SettingsSection>
                 </ModalContent>
                 <ModalFooter>
                     <Button type="button" variant="outline" className="w-full" onClick={closeSettings}>{t('common.close')}</Button>
