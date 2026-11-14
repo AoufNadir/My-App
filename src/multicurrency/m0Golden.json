@@ -314,7 +314,7 @@
   "caisseBalance": 812345.67,
   "baridiBalance": 156000.5,
   "cashTotal": 968346.17,
-  "stockValue": 102544,
+  "stockValue": 102542.89999999998,
   "treasuryCardsTotal": 0,
   "receivables": 95000,
   "clientAdvances": 12500.25,
@@ -323,8 +323,8 @@
   "serviceClientAdvances": 0,
   "servicesCapitalImpact": 0,
   "managerPendingAdvances": 3000,
-  "totalCapital": 1156389.92,
+  "totalCapital": 1156388.82,
   "investorLiability": 400000,
-  "netOwnedCapital": 756389.9199999999
+  "netOwnedCapital": 756388.8200000001
  }
 }

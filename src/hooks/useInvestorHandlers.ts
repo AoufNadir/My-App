@@ -64,13 +64,13 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     // M3: payment source for the opening capital. 'none' keeps the legacy
     // behavior (treat as opening equity, no cash movement). Caisse/BaridiMob
     // adds a matching treasury_tx so totalCapital reflects the cash inflow.
-    const [investorInitialCapitalSource, setInvestorInitialCapitalSource] = useState<'none' | 'Caisse' | 'BaridiMob'>('none');
+    const [investorInitialCapitalSource, setInvestorInitialCapitalSource] = useState<'none' | 'Caisse' | 'BaridiMob' | ''>(''); // V14-5: no source chosen in advance (rule 11)
     // Transaction state
     const [isInvestorTxModalOpen, setIsInvestorTxModalOpen] = useState(false);
     const [investorTxAmount, setInvestorTxAmount] = useState('');
     const [investorTxType, setInvestorTxType] = useState<'deposit_capital' | 'withdraw_profit' | 'withdraw_capital' | 'reinvest_profit'>('deposit_capital');
     const [investorTxNotes, setInvestorTxNotes] = useState('');
-    const [investorTxPaymentSource, setInvestorTxPaymentSource] = useState<'Caisse' | 'BaridiMob'>('Caisse');
+    const [investorTxPaymentSource, setInvestorTxPaymentSource] = useState<'Caisse' | 'BaridiMob' | ''>(''); // V14-5: no wallet chosen in advance (rule 11)
     const [investorTxToDelete, setInvestorTxToDelete] = useState<InvestorTransaction | null>(null);
     // Reinvest state
     const [isReinvestModalOpen, setIsReinvestModalOpen] = useState(false);
@@ -962,7 +962,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             setIsManager(false);
             setInvestorEmail('');
             setInvestorPhone('');
-            setInvestorInitialCapitalSource('none');
+            setInvestorInitialCapitalSource('');
         }
         setIsInvestorModalOpen(true);
     };
@@ -978,6 +978,10 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         }
         if (isNaN(capital) || capital < 0) {
             setAlert('⚠️ Capital initial invalide.');
+            return;
+        }
+        if (!editingInvestor && capital > 0 && !investorInitialCapitalSource) {
+            setAlert('⚠️ Choisissez le portefeuille.');
             return;
         }
         if (isManager) {
@@ -1148,6 +1152,10 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         const selectedInvestor = derivedInvestors.find((investor) => investor.id === selectedInvestorId);
         if (!selectedInvestor) {
             setAlert('⚠️ Investisseur introuvable.');
+            return;
+        }
+        if (!investorTxPaymentSource) {
+            setAlert('⚠️ Choisissez le portefeuille.');
             return;
         }
         if (investorTxType === 'withdraw_profit') {
@@ -1382,7 +1390,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             setIsInvestorTxModalOpen(false);
             setInvestorTxAmount('');
             setInvestorTxNotes('');
-            setInvestorTxPaymentSource('Caisse');
+            setInvestorTxPaymentSource('');
             return true;
         }
         catch (e) {

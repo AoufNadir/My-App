@@ -83,7 +83,7 @@ import { collectDebtWriteOffs } from './utils/debtWriteOffs';
 import { withAdjustmentChannels } from './utils/clientRowChannels';
 import { findPeriodLockViolation, formatLockDate, isInLockedPeriod, savedTimestampFrom } from './utils/periodLock';
 import { operationStamp } from './utils/editStamp';
-import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot } from './utils/capitalSnapshot';
+import { calculateInvestorLiability, calculateInvestorBreakdown, calculateServicesCapitalImpact, computeCapitalSnapshot, heldStockValue } from './utils/capitalSnapshot';
 import { summarizePersonalExpenseTotals } from './utils/financialAudit';
 import { buildServiceProfitOverview } from './utils/serviceProfitOverview';
 import { buildDashboardReadModelShadowFromLegacy, getReadModelsMode, reconcileDashboardReadModelsWithLegacy, type DashboardReadModelShadowDiagnostic } from './readModels/dashboardReadModels';
@@ -382,9 +382,9 @@ export default function MainApp({ user }: {
     // V13-3 / V14-4: every extra currency of the list (RMB and the next ones): its stock and what it is worth at its
     // average price, counted in the capital.
     const extraStocks = useMemo<Record<string, ExtraStock>>(() => Object.fromEntries(EXTRA_CURRENCY_CODES.map((code) => {
-        const holding = (pamLedger.holdings as Record<string, { available: number; locked: number; avgBuy: number }> | undefined)?.[code];
+        const holding = (pamLedger.holdings as Record<string, { available: number; locked: number; avgBuy: number; costBasis: number; purchasedQty: number }> | undefined)?.[code];
         const quantity = holding ? holding.available + (holding.locked || 0) : 0;
-        return [code, { quantity, avgBuy: holding?.avgBuy ?? 0, value: holding ? Math.round(quantity * holding.avgBuy * 100) / 100 : 0 }];
+        return [code, { quantity, avgBuy: holding?.avgBuy ?? 0, value: holding ? Math.round(heldStockValue(holding) * 100) / 100 : 0 }];
     })) as Record<string, ExtraStock>, [pamLedger]);
     const rmbStock: ExtraStock = extraStocks.RMB ?? { quantity: 0, avgBuy: 0, value: 0 };
     const extraStockValue: number = (Object.values(extraStocks) as ExtraStock[]).reduce((sum, stock) => sum + stock.value, 0);
@@ -3020,6 +3020,15 @@ export default function MainApp({ user }: {
     };
     const rmbTradeSource = React.useMemo(() => ({ transactions, clientTransactions: clientTransactionsDzd, profitByTxId: pamLedger.profitByTxId }), [transactions, clientTransactionsDzd, pamLedger.profitByTxId]);
     const saveRmbTrade = async (input: RmbTradeInput, profitDzd: number, pending = false): Promise<boolean> => {
+        // V14-5 (accounting tour): a purchase paid now needs the money in that wallet, as in the USDT and EUR windows.
+        if (input.kind === 'buy' && input.source === 'DZD' && (input.paymentStatus === 'cash' || input.paymentStatus === 'baridi')) {
+            const total = Math.round(input.quantity * Number(input.price || 0));
+            const held = input.paymentStatus === 'cash' ? Number(treasuryStats.caisse || 0) : Number(treasuryStats.baridi || 0);
+            if (total > held + 0.005) {
+                setAlert(input.paymentStatus === 'cash' ? '⚠️ Solde Caisse insuffisant.' : '⚠️ Solde BaridiMob insuffisant.');
+                return false;
+            }
+        }
         try {
             const batch = db.batch();
             const mainRef = userDocRef.collection('usdt_txs').doc();

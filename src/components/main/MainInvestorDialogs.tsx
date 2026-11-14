@@ -52,11 +52,11 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                                         </button>
                                     ))}
                                 </div>
-                                <p className="mt-1 text-xs text-neutral-400">
+                                {investorInitialCapitalSource && <p className="mt-1 text-xs text-neutral-400">
                                     {investorInitialCapitalSource === 'none'
                                         ? t('investorDialog.openingBalanceHint')
                                         : template('investorDialog.cashAddedHint', { source: investorInitialCapitalSource })}
-                                </p>
+                                </p>}
                             </div>
                         )}
 
@@ -91,7 +91,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
             const validAmount = Number.isFinite(amt) && amt > 0;
             const availableProfit = selectedInv?.availableProfit || 0;
             const capitalInvested = selectedInv?.capitalInvested || 0;
-            const paymentSource = investorTxPaymentSource || 'Caisse';
+            const paymentSource = investorTxPaymentSource || '';
             const paymentSourceBalance = paymentSource === 'Caisse'
                 ? Number(treasuryStats?.caisse || 0)
                 : Number(treasuryStats?.baridi || 0);
@@ -134,7 +134,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                 nextValue = availableProfit + amt;
                 titleStr = t('investorDialog.distributeProfitTitle');
             }
-            const isInvalid = !validAmount || exceedsCap || exceedsPaymentSource;
+            const isInvalid = !validAmount || exceedsCap || exceedsPaymentSource || !paymentSource;
             // V5-1: what the investor can take is always in sight, and Max fills it in: the smaller of
             // their profit (or capital) and the chosen register's balance, never a cent above either.
             const isWithdrawal = investorTxType === 'withdraw_profit' || investorTxType === 'withdraw_capital';
@@ -159,6 +159,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                             {investorTxType === 'withdraw_profit' && (<div>
                                     <Label>{t('investorDialog.paymentSource')}</Label>
                                     <Select value={paymentSource} onChange={(event) => setInvestorTxPaymentSource(event.target.value as 'Caisse' | 'BaridiMob')} className="mt-1">
+                                        <option value="" disabled>{t('transactions.walletChoose')}</option>
                                         <option value="Caisse">{t('transactions.cash')}</option>
                                         <option value="BaridiMob">{t('transactions.baridi')}</option>
                                     </Select>
@@ -170,6 +171,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                             {investorTxType === 'deposit_capital' && (<div>
                                     <Label>{t('investorDialog.depositDestination')}</Label>
                                     <Select value={paymentSource} onChange={(event) => setInvestorTxPaymentSource(event.target.value as 'Caisse' | 'BaridiMob')} className="mt-1">
+                                        <option value="" disabled>{t('transactions.walletChoose')}</option>
                                         <option value="Caisse">{t('transactions.cash')}</option>
                                         <option value="BaridiMob">{t('transactions.baridi')}</option>
                                     </Select>
@@ -181,6 +183,7 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                             {investorTxType === 'withdraw_capital' && (<div>
                                     <Label>{t('investorDialog.withdrawalSource')}</Label>
                                     <Select value={paymentSource} onChange={(event) => setInvestorTxPaymentSource(event.target.value as 'Caisse' | 'BaridiMob')} className="mt-1">
+                                        <option value="" disabled>{t('transactions.walletChoose')}</option>
                                         <option value="Caisse">{t('transactions.cash')}</option>
                                         <option value="BaridiMob">{t('transactions.baridi')}</option>
                                     </Select>

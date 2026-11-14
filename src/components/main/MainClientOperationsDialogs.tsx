@@ -159,9 +159,9 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     const isClientSettlementTx = normalizedClientTxType === 'Règlement Reçu' || normalizedClientTxType === 'Paiement Effectué';
     const isClientPaymentReceived = normalizedClientTxType === 'Règlement Reçu';
     const isClientPaymentMade = normalizedClientTxType === 'Paiement Effectué';
-    const settlementPaymentStatus = clientTxPaymentStatus === 'baridi' ? 'baridi' : 'cash';
+    const settlementPaymentStatus = clientTxPaymentStatus === 'baridi' ? 'baridi' : clientTxPaymentStatus === 'cash' ? 'cash' : '';
     const clientSettlementWalletLabel = String(settlementPaymentStatus === 'baridi' ? t('transactions.baridi') : t('transactions.cash'));
-    const clientSettlementHint = String(isClientPaymentReceived ? t('transactions.clientTreasuryAddHint') : t('transactions.clientTreasuryRetraitHint'))
+    const clientSettlementHint = !settlementPaymentStatus ? String(t('transactions.walletChoose')) : String(isClientPaymentReceived ? t('transactions.clientTreasuryAddHint') : t('transactions.clientTreasuryRetraitHint'))
         .replace('{wallet}', clientSettlementWalletLabel);
     const parsedClientTxAmount = parseAndEvaluate(clientTxAmount);
     const clientTxTargetClientId = clientTxLinkedClientId && clientTxLinkedClientId !== 'none'
@@ -373,7 +373,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     // V5-4: where a payment from or to a client is recorded, in the colour of the channel. Only for a
     // payment (not a sale or a purchase made from the client page), and only a payment received can
     // warn about the client's usual channel.
-    const settlementSummary = isClientSettlementTx && Number.isFinite(amtVal)
+    const settlementSummary = isClientSettlementTx && Number.isFinite(amtVal) && settlementPaymentStatus
         ? settlementChannel({ received: isClientPaymentReceived, status: settlementPaymentStatus, receiverClientId: hasReceiverClient ? clientTxReceiverClientId : undefined, amount: Math.abs(amtVal) })
         : null;
     const settlementTargetClient = (clientsDzd || []).find((client: any) => client.id === clientTxTargetClientId) || null;

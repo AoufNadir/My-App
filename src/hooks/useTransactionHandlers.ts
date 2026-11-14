@@ -613,6 +613,19 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 totalCost = usdtFromEurCalc.totalCostDzd;
             }
             totalCost = Math.round(totalCost);
+            // V14-5 (accounting tour, owner's choice): a purchase paid now from the Caisse or BaridiMob needs the money
+            // there, as an expense does. On an edit, what the purchase already took from that wallet is given back first.
+            if (buyUsdtMode !== 'with_eur' && (clientPaymentStatus === 'cash' || clientPaymentStatus === 'baridi') && !(clientPaymentStatus === 'cash' && linkedClientDzdId !== 'none')) {
+                const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                const held = wallet === 'Caisse' ? Number(treasuryStats.caisse || 0) : Number(treasuryStats.baridi || 0);
+                const givenBack = editingTx
+                    ? treasuryTransactions.filter((tx) => tx.linkedTxId === editingTx.id && tx.type === 'Retrait' && tx.source === wallet).reduce((sum, tx) => sum + Number(tx.amount || 0), 0)
+                    : 0;
+                if (totalCost > held + givenBack + 0.005) {
+                    setAlert(wallet === 'Caisse' ? '⚠️ Solde Caisse insuffisant.' : '⚠️ Solde BaridiMob insuffisant.');
+                    return;
+                }
+            }
             const buyMetadata: any = {
                 purchaseFundingCurrency: mode === 'buy_usdt' && buyUsdtMode === 'with_eur' ? 'EUR' : 'DZD'
             };

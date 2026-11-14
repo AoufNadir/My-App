@@ -93,13 +93,25 @@ export function calculateInvestorLiability(investors: ReadonlyArray<Investor>): 
     }, 0);
 }
 
+/**
+ * What a stock is worth at its cost. V14-5 (accounting tour): the cost actually held (costBasis), not the quantity times
+ * the average price rounded to 2 decimals: 1 200 RMB at 35.4167 were shown 42 504 instead of 42 500 (with 50 000 USDT the
+ * rounding reaches about 250 DZD). Units held without a cost (old quantity-only adjustments) keep the average price.
+ */
+export function heldStockValue(position?: PortfolioPosition & { costBasis?: number; purchasedQty?: number }): number {
+    const held = toFiniteNumber(position?.available) + toFiniteNumber(position?.locked);
+    const avg = toFiniteNumber(position?.avgBuy);
+    if (position?.costBasis === undefined || position?.purchasedQty === undefined)
+        return held * avg;
+    const costBasis = toFiniteNumber(position.costBasis);
+    const purchasedQty = toFiniteNumber(position.purchasedQty);
+    if (held <= 0 || purchasedQty <= 0)
+        return held * avg;
+    return held * (costBasis / purchasedQty);
+}
+
 export function calculateStockValue(portfolioStats?: Pick<PortfolioStats, 'usdt' | 'eur'>): number {
-    const usdt = portfolioStats?.usdt as PortfolioPosition | undefined;
-    const eur = portfolioStats?.eur as PortfolioPosition | undefined;
-    const usdtTotal = toFiniteNumber(usdt?.available) + toFiniteNumber(usdt?.locked);
-    const eurTotal = toFiniteNumber(eur?.available) + toFiniteNumber(eur?.locked);
-    return (usdtTotal * toFiniteNumber(usdt?.avgBuy))
-        + (eurTotal * toFiniteNumber(eur?.avgBuy));
+    return heldStockValue(portfolioStats?.usdt as PortfolioPosition | undefined) + heldStockValue(portfolioStats?.eur as PortfolioPosition | undefined);
 }
 
 export function calculateServicesCapitalImpact(services?: ServicesCapitalInput): {

@@ -472,7 +472,8 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     const [clientTxType, setClientTxType] = useState(CLIENT_TX_PAYMENT_RECEIVED);
     const [clientTxNotes, setClientTxNotes] = useState('');
     const [clientTxSource, setClientTxSource] = useState('Caisse');
-    const [clientPaymentStatus, setClientPaymentStatus] = useState<'credit' | 'cash' | 'baridi'>('cash');
+    // V14-5: a new payment or receipt starts with no wallet chosen (rule 11); the usual channel is a hint only.
+    const [clientPaymentStatus, setClientPaymentStatus] = useState<'credit' | 'cash' | 'baridi' | null>(null);
     const [linkedClientId, setLinkedClientId] = useState('none');
     const [clientTxReceiverClientId, setClientTxReceiverClientId] = useState('none');
     // USDT/EUR related fields for client tx modal
@@ -502,8 +503,8 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientTxNotes('');
             setClientTxSource('Caisse');
             // V5-4: a payment received starts on the way this client usually pays; every other operation starts in cash.
-            const usualChannel = presetClientTxType === CLIENT_TX_PAYMENT_RECEIVED ? usualChannelOf(clientsDzd.find((client) => client.id === selectedClientId)) : null;
-            setClientPaymentStatus(usualChannel ?? 'cash');
+            const isSettlement = presetClientTxType === CLIENT_TX_PAYMENT_RECEIVED || presetClientTxType === CLIENT_TX_PAYMENT_MADE;
+            setClientPaymentStatus(isSettlement ? null : 'cash');
             setLinkedClientId(selectedClientId || 'none');
             setClientTxReceiverClientId('none');
             setClientTxUsdtAmount('');
@@ -523,6 +524,11 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         }
         if (!editingClientTx && !isClientActive(clientsDzd.find((client) => client.id === targetClientId))) {
             setAlert('⚠️ Ce client a été supprimé.');
+            return;
+        }
+        const chosenStatus = clientPaymentStatus;
+        if (!chosenStatus) {
+            setAlert('⚠️ Choisissez le portefeuille.');
             return;
         }
         const amount = parseAndEvaluate(clientTxAmount);
@@ -547,7 +553,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             const { montant, paymentStatus: effectiveClientPaymentStatus, isBalanceRowEdit } = planClientTxSave({
                 type: normalizedClientTxType,
                 amount,
-                selectedStatus: clientPaymentStatus,
+                selectedStatus: chosenStatus,
                 isEditing: !!editingClientTx,
             });
             if ((normalizedClientTxType === CLIENT_TX_PAYMENT_RECEIVED || normalizedClientTxType === CLIENT_TX_PAYMENT_MADE) && amount <= 0) {

@@ -1,3 +1,4 @@
+import { heldStockValue } from '../utils/capitalSnapshot';
 import { Fragment } from 'react';
 import { useCurrencyShown, useShowUsdt } from '../contexts/CurrencyVisibilityContext';
 import { EXTRA_CURRENCY_CODES, isTradeCurrency, tradeCurrency } from '../currency/tradeCurrencies';
@@ -221,10 +222,12 @@ export function PortfolioPage(props: PortfolioPageProps) {
     const normalizeNearZero = (value: number) => (Object.is(value, -0) || Math.abs(value) < 0.005 ? 0 : value);
     const usdtAvail = normalizeNearZero((portfolioStats.usdt.available || 0) + (portfolioStats.usdt.locked || 0));
     const eurAvail = normalizeNearZero((portfolioStats.eur.available || 0) + (portfolioStats.eur.locked || 0));
-    const usdtValue = usdtAvail * Number(portfolioStats.usdt.avgBuy || 0);
-    const eurValue = eurAvail * Number(portfolioStats.eur.avgBuy || 0);
+    // V14-5: valued at the cost held (heldStockValue), and every extra currency of the list counts, not only RMB.
+    const usdtValue = usdtAvail === 0 ? 0 : heldStockValue(portfolioStats.usdt);
+    const eurValue = eurAvail === 0 ? 0 : heldStockValue(portfolioStats.eur);
     const rmbValue = rmbStock?.value ?? 0;
-    const stockValue = usdtValue + eurValue + rmbValue;
+    const extrasValue = extraStocks ? Object.values(extraStocks).reduce((sum, stock) => sum + (stock?.value ?? 0), 0) : rmbValue;
+    const stockValue = usdtValue + eurValue + extrasValue;
     const lockState = usdtLockState(portfolioStats, Date.now());
 
     const priceMetrics = (pam: number, suggestedSellPrice: number): Metric[] => [
