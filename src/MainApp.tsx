@@ -1,3 +1,4 @@
+import { registerStockHistory } from './utils/stockGuard';
 import { commitWithStockLockOrBatch, registerStockLock, saveErrorAlert, STOCK_CHANGED_MESSAGE, StockChangedError } from './utils/stockLock';
 import { useStockLockSeq } from './hooks/useStockLockSeq';
 import { previousProfits } from './utils/dashboardComparison';
@@ -220,6 +221,9 @@ export default function MainApp({ user }: {
     stockLockSeqRef.current = stockLockSeq;
     // V14-5: every save that touches stock (expenses, withdrawals, services, edits, deletes) goes through the lock.
     useEffect(() => registerStockLock({ db, expected: () => stockLockSeqRef.current }), []);
+    const stockHistoryRef = useRef(transactions);
+    stockHistoryRef.current = transactions;
+    useEffect(() => registerStockHistory(() => stockHistoryRef.current), []);
     // Closed months (utils/periodLock): their operations can be neither edited nor deleted.
     const periodLock = usePeriodLock(userDocRef);
     const periodLockRef = useRef(periodLock);

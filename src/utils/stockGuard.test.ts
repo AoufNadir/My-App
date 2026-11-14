@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { changeCreatesNegativeStock, withoutOperation, withQuantity } from './stockGuard';
+import { assertBatchKeepsStock, batchCreatesNegativeStock, changeCreatesNegativeStock, NegativeStockError, registerStockHistory, withoutOperation, withQuantity } from './stockGuard';
 import type { Tx } from '../types';
 
 // V13-6 (audit): buy 100, sell 80 later. Reducing the buy to 50, or deleting it, would make the later sale oversell.
@@ -23,5 +23,23 @@ assert.equal(changeCreatesNegativeStock(txs, withQuantity(txs, 's', 120)), true,
     ] as unknown as Tx[];
     assert.equal(changeCreatesNegativeStock(book, withQuantity(book, 'b1', 64)), true, 'negative right after the expense: refused');
     assert.equal(changeCreatesNegativeStock(book, withQuantity(book, 'b1', 65)), false, 'exactly enough at every moment');
+}
+// V14-5 (accounting tour): the delete pressed on the client row of a purchase removes the purchase itself. The check
+// follows what the batch really deletes, whatever the window.
+{
+    const op = (kind: 'set' | 'update' | 'delete', id: string, data?: object) => ({ kind, ref: { nativeRef: { path: `users/u/usdt_txs/${id}` } }, data });
+    const client = (id: string) => ({ kind: 'delete' as const, ref: { nativeRef: { path: `users/u/dzd_client_txs/${id}` } } });
+    assert.equal(batchCreatesNegativeStock(txs, [client('c'), op('delete', 'b')]), true, 'client row and its purchase deleted: refused');
+    assert.equal(batchCreatesNegativeStock(txs, [op('delete', 's')]), false, 'deleting the sale is fine');
+    assert.equal(batchCreatesNegativeStock(txs, [op('update', 'b', { quantity: 60 })]), true, 'an edit through any window too');
+    assert.equal(batchCreatesNegativeStock(txs, [op('set', 'new', { type: 'sell', currency: 'USDT', quantity: 500, timestamp: T + 5 })]), false, 'a new row is checked by its own window');
+    assert.equal(batchCreatesNegativeStock(txs, [client('c')]), false, 'no stock row: nothing to check');
+    // A buy whose 24h lock is long over still funded the later sale: deleting it must be refused.
+    const locked = [{ ...txs[0], lockedUntil: T + 86_400_000 }, txs[1]] as unknown as Tx[];
+    assert.equal(changeCreatesNegativeStock(locked, withoutOperation(locked, 'b')), true, 'a past locked buy counts as held');
+    const off = registerStockHistory(() => txs);
+    assert.throws(() => assertBatchKeepsStock([op('delete', 'b')]), NegativeStockError);
+    off();
+    assertBatchKeepsStock([op('delete', 'b')]);
 }
 console.log('stockGuard.test: edits and deletes never leave the stock negative later');

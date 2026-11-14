@@ -4,6 +4,7 @@ import type {
     ReadModelName,
 } from './dashboardReadModels';
 import { commitWithStockLock, commitWithStockLockOrBatch, stockLockFor } from '../utils/stockLock';
+import { assertBatchKeepsStock } from '../utils/stockGuard';
 import { INITIAL_READ_MODEL_DOCUMENT_IDS, stableReadModelPayloadHash } from './initialSnapshotWriter';
 import { READ_MODEL_APPLIED_OPS_PATH, applyReadModelDelta, type ReadModelDelta } from './readModelDeltas';
 import {
@@ -306,6 +307,8 @@ export async function commitLegacyWithReadModelDeltas(
 ): Promise<CommitLegacyWithReadModelDeltasResult> {
     const summaryWriteMode = getSummaryWriteMode(input.summaryWriteMode);
     const deltas = input.deltas?.filter(Boolean) || [];
+    // V14-5: no delete or edit, from any window, may leave the stock negative at a later moment.
+    assertBatchKeepsStock(input.batch.operations || []);
     // V14-5: any batch that writes a stock row takes the lock, not only sales.
     const stockLock = input.stockLock ?? stockLockFor(input.batch);
     if (!isSummaryWriteEnabled(summaryWriteMode) || deltas.length === 0 || stockLock) {

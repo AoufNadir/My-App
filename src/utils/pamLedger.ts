@@ -363,7 +363,8 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
     const known: ReadonlySet<string> = new Set(currencyList);
     const orderedTransactions = sortTransactions(transactions, known);
     const eurConversionRelatedIds = findEurConversionRelatedTxIds(orderedTransactions, conversionWindowMs);
-    const conversions = findConversions(orderedTransactions, { ...options, nowMs }, options.eurFundedCostFromTs ?? EUR_FUNDED_COST_RULE_FROM_TS, known);
+    const eurRuleFromTs = options.eurFundedCostFromTs ?? EUR_FUNDED_COST_RULE_FROM_TS;
+    const conversions = findConversions(orderedTransactions, { ...options, nowMs }, eurRuleFromTs, known);
     const statsByCurrency: Record<string, WorkingStats> = Object.fromEntries(currencyList.map((code) => [code, createWorkingStats()]));
     const operationRows: PamLedgerOperationRow[] = [];
     const sellProfitRows: PamLedgerSellProfitRow[] = [];
@@ -484,7 +485,10 @@ export function computePamLedger(transactions: Tx[], options: PamLedgerOptions =
             // out of its stock. Resolved in time order, a loop (USDT → RMB → USDT) keeps its cost; otherwise as before.
             // V13-6 (audit): the old EUR → USDT purchase too, once applied, so EUR that came from USDT keep their cost.
             const legacyPair = conversion?.fromCurrency === 'EUR' && conversion?.toCurrency === 'USDT';
-            const passCost = outLegCostByBuyId.has(txId) && (!legacyPair || conversion!.applied) ? round2(outLegCostByBuyId.get(txId)!) : null;
+            // V14-5 (accounting tour): the old EUR → USDT purchases keep their saved total before the rule's day, as the
+            // owner chose. After it, the cost met in this pass is used even when the sub-ledger found no EUR price (EUR
+            // that came from USDT): before, that cost was dropped and the USDT came in at 0 DZD.
+            const passCost = outLegCostByBuyId.has(txId) && (!legacyPair || conversion!.applied || conversion!.timestamp >= eurRuleFromTs) ? round2(outLegCostByBuyId.get(txId)!) : null;
             if (conversion && passCost !== null && passCost > 0) {
                 conversion.ledgerCost = passCost;
                 conversion.applied = true;

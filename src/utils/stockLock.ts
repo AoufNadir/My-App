@@ -91,5 +91,7 @@ export function stockLockFor(batch: Pick<FirestoreWriteBatch, 'operations'>): { 
 }
 /** The alert for a failed save: the clear « confirm again » message when another operation came first. */
 export function saveErrorAlert(error: unknown, fallback: string): string {
-    return error instanceof StockChangedError ? `⚠️ ${STOCK_CHANGED_MESSAGE}` : fallback;
+    if (error instanceof StockChangedError) return `⚠️ ${STOCK_CHANGED_MESSAGE}`;
+    if (error instanceof Error && error.name === 'NegativeStockError') return `❌ ${error.message}`;
+    return fallback;
 }
