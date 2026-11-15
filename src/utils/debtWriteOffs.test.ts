@@ -131,8 +131,6 @@ const profitOf = (result: ReturnType<typeof economics>, id: string) => result.de
         clientTransactionsDzd,
         treasuryTransactions,
         treasuryCards: [],
-        manualAssets: [],
-        manualAssetClients: [],
         manualAssetTransactions: [],
         digitalServiceTransactions: [],
         investors,

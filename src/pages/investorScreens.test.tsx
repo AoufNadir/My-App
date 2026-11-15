@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { LanguageProvider } from '../contexts/LanguageContext';
-import type { InvestorTransaction, ManualAsset, ManualAssetClient, ManualAssetTransaction, TreasuryTx } from '../types';
+import type { InvestorTransaction, ManualAssetTransaction, TreasuryTx } from '../types';
 import type { DerivedInvestor, InvestorEconomicsResult, ManagerProfitBreakdown } from '../hooks/useInvestorEconomics';
 import type { CapitalSnapshot, InvestorBreakdown } from '../utils/capitalSnapshot';
 import { distinctScreenNumbers, screenText, showSpaces } from '../testing/screenNumbers';

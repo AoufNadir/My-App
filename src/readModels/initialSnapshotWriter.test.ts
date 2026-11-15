@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import type { ClientDzd, ClientTransactionDzd, DigitalServiceTransaction, Investor, InvestorTransaction, ManualAsset, ManualAssetClient, ManualAssetTransaction, TreasuryCard, TreasuryTx, Tx } from '../types';
+import type { ClientDzd, ClientTransactionDzd, DigitalServiceTransaction, Investor, InvestorTransaction, ManualAssetTransaction, TreasuryCard, TreasuryTx, Tx } from '../types';
 import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
 import { buildDashboardReadModelShadowFromLegacy, type BuildDashboardReadModelsInput, type DashboardReadModelLegacyBaseline } from './dashboardReadModels';
 import {
@@ -72,11 +72,6 @@ const treasuryCards: TreasuryCard[] = [
     { id: 'card-1', name: 'Card', value: 100 },
 ];
 
-const manualAssets: ManualAsset[] = [
-    { id: 'asset-1', name: 'Service', createdAt: dayStart, updatedAt: dayStart },
-];
-
-const manualAssetClients: ManualAssetClient[] = [];
 const manualAssetTransactions: ManualAssetTransaction[] = [];
 const digitalServiceTransactions: DigitalServiceTransaction[] = [
     {
@@ -125,8 +120,6 @@ function buildInput(overrides: Partial<BuildDashboardReadModelsInput> = {}): Bui
         clientTransactionsDzd,
         treasuryTransactions,
         treasuryCards,
-        manualAssets,
-        manualAssetClients,
         manualAssetTransactions,
         digitalServiceTransactions,
         investors,

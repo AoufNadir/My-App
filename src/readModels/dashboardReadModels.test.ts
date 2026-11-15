@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import type { ClientDzd, ClientTransactionDzd, DigitalServiceTransaction, Investor, InvestorTransaction, ManualAsset, ManualAssetClient, ManualAssetTransaction, TreasuryCard, TreasuryTx, Tx } from '../types';
+import type { ClientDzd, ClientTransactionDzd, DigitalServiceTransaction, Investor, InvestorTransaction, ManualAssetTransaction, TreasuryCard, TreasuryTx, Tx } from '../types';
 import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
 import {
     READ_MODEL_CANONICAL_OWNERS,
@@ -100,14 +100,6 @@ const treasuryCards: TreasuryCard[] = [
     { id: 'card-1', name: 'Card', value: 300 },
 ];
 
-const manualAssets: ManualAsset[] = [
-    { id: 'asset-1', name: 'Service', createdAt: dayStart, updatedAt: dayStart },
-];
-
-const manualAssetClients: ManualAssetClient[] = [
-    { id: 'asset-client-1', assetId: 'asset-1', fullName: 'Service Client', createdAt: dayStart, updatedAt: dayStart },
-];
-
 const manualAssetTransactions: ManualAssetTransaction[] = [
     {
         id: 'service-1',
@@ -190,8 +182,6 @@ const shadow = buildDashboardReadModelShadowFromLegacy({
     clientTransactionsDzd,
     treasuryTransactions,
     treasuryCards,
-    manualAssets,
-    manualAssetClients,
     manualAssetTransactions,
     digitalServiceTransactions,
     investors,

@@ -28,8 +28,6 @@ function baseSnapshot(): DashboardReadModelSet {
             },
         ] as TreasuryTx[],
         treasuryCards: [],
-        manualAssets: [],
-        manualAssetClients: [],
         manualAssetTransactions: [],
         digitalServiceTransactions: [],
         investors: [] as Investor[],

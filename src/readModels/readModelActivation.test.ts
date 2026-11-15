@@ -35,8 +35,6 @@ function baseSnapshot() {
             },
         ] as TreasuryTx[],
         treasuryCards: [],
-        manualAssets: [],
-        manualAssetClients: [],
         manualAssetTransactions: [],
         digitalServiceTransactions: [],
         investors: [] as Investor[],

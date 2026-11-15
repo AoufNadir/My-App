@@ -4,8 +4,6 @@ import type {
     DigitalServiceTransaction,
     Investor,
     InvestorTransaction,
-    ManualAsset,
-    ManualAssetClient,
     ManualAssetTransaction,
     OverdueDebtClient,
     PortfolioStats,
@@ -388,9 +386,6 @@ export type BuildDashboardReadModelsInput = {
     clientTransactionsDzd: ClientTransactionDzd[];
     treasuryTransactions: TreasuryTx[];
     treasuryCards: TreasuryCard[];
-    /** Not read by the app any more (V10-3): left out, the counts are 0. Kept for the stored summary's two counts. */
-    manualAssets?: ManualAsset[];
-    manualAssetClients?: ManualAssetClient[];
     manualAssetTransactions: ManualAssetTransaction[];
     digitalServiceTransactions: DigitalServiceTransaction[];
     investors: Investor[];
@@ -765,9 +760,6 @@ export function buildClientsReadModel(input: {
 export function buildServicesReadModel(input: {
     meta: ReadModelSnapshotMeta;
     revision: number;
-    /** Not read by the app any more (V10-3): left out, the counts are 0. Kept for the stored summary's two counts. */
-    manualAssets?: ManualAsset[];
-    manualAssetClients?: ManualAssetClient[];
     manualAssetTransactions: ManualAssetTransaction[];
     digitalServiceTransactions: DigitalServiceTransaction[];
 }): ServicesReadModel {
@@ -790,8 +782,9 @@ export function buildServicesReadModel(input: {
         digitalServiceProfit,
         serviceRevenue,
         netCapitalImpact: money(servicesCapitalImpact),
-        servicesCount: input.manualAssets?.length ?? 0,
-        clientsCount: input.manualAssetClients?.length ?? 0,
+        // V14-7: the old services and their clients are no longer read: the stored summary keeps its two counts at 0.
+        servicesCount: 0,
+        clientsCount: 0,
     };
 }
 
@@ -1032,8 +1025,6 @@ export function buildDashboardReadModelShadowFromLegacy(input: BuildDashboardRea
     const services = buildServicesReadModel({
         meta,
         revision: resolveSummaryRevision(input.summaryRevisions, 'services_summary'),
-        manualAssets: input.manualAssets,
-        manualAssetClients: input.manualAssetClients,
         manualAssetTransactions: input.manualAssetTransactions,
         digitalServiceTransactions: input.digitalServiceTransactions,
     });

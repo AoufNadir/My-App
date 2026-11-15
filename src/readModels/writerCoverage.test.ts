@@ -97,8 +97,6 @@ function buildBaseSnapshot() {
         clientTransactionsDzd: [] as ClientTransactionDzd[],
         treasuryTransactions,
         treasuryCards: [{ id: 'card-1', name: 'Card', value: 1000 }] as TreasuryCard[],
-        manualAssets: [],
-        manualAssetClients: [],
         manualAssetTransactions: [],
         digitalServiceTransactions: [],
         investors,

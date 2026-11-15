@@ -274,29 +274,6 @@ export interface DigitalServiceTransaction {
     linkedClientTxId?: string;
 }
 // ===== Manual Assets System =====
-export interface ManualAsset {
-    id: string;
-    name: string; // "Conception", "Printing", etc.
-    description?: string;
-    createdAt: number;
-    updatedAt: number;
-    archived?: boolean;
-    archivedAt?: number;
-    archivedReason?: string;
-}
-export interface ManualAssetClient {
-    id: string;
-    assetId: string; // Foreign key to manual_assets
-    fullName: string;
-    phone?: string;
-    email?: string;
-    notes?: string;
-    createdAt: number;
-    updatedAt: number;
-    archived?: boolean;
-    archivedAt?: number;
-    archivedReason?: string;
-}
 export type ManualAssetTransactionType = 'service' | 'payment_received' | 'payment_made' | 'adjustment' | 'invoice';
 export interface ManualAssetTransaction {
     id: string;

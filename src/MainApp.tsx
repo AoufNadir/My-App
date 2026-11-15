@@ -2142,32 +2142,8 @@ export default function MainApp({ user }: {
             }
             return;
         }
-        await handleDeleteTx(treasuryTxToDelete.id, 'treasury_tx');
-        setTreasuryTxToDelete(null);
-        return;
-        // Treasury rows can be child transactions. Delete their parent when possible
-        // to keep balances and linked records consistent.
-        if (treasuryTxToDelete.origin === 'manual_asset') {
-            if (!treasuryTxToDelete.linkedAssetTxId) {
-                setAlert("⚠️ Transaction liée à un service introuvable.");
-                setTreasuryTxToDelete(null);
-                return;
-            }
-            await handleDeleteTx(treasuryTxToDelete.linkedAssetTxId, 'asset_tx');
-            setTreasuryTxToDelete(null);
-            return;
-        }
-        if (treasuryTxToDelete.linkedTxId) {
-            if (treasuryTxToDelete.origin === 'client_tx') {
-                await handleDeleteTx(treasuryTxToDelete.linkedTxId, 'client_tx');
-            }
-            else {
-                // Legacy treasury rows generated from USDT/EUR operations may not have origin.
-                await handleDeleteTx(treasuryTxToDelete.linkedTxId, 'usdt_tx');
-            }
-            setTreasuryTxToDelete(null);
-            return;
-        }
+        // A treasury row that belongs to an operation (a sale, a client payment, an old service) is deleted with it:
+        // applyTransactionDelete finds the parent (transactionService.resolveDeletionTarget).
         await handleDeleteTx(treasuryTxToDelete.id, 'treasury_tx');
         setTreasuryTxToDelete(null);
     };
