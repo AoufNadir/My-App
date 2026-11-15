@@ -77,6 +77,8 @@ type DashboardPageProps = {
     rmbInStock?: number;
     /** V14-4: the other extra currencies of the list (after RMB) */
     extraInStock?: ReadonlyArray<{ code: TradeCurrencyCode; quantity: number }>;
+    /** V15-2: the owner's other dinar accounts (bank, CCP, …) */
+    otherCashAccounts?: ReadonlyArray<{ id: string; name: string; balance: number }>;
     treasuryStats: any;
     totals: any;
     treasuryCards: TreasuryCard[];
@@ -355,6 +357,7 @@ function DashboardContent({
     portfolioStats,
     rmbInStock = 0,
     extraInStock = [],
+    otherCashAccounts = [],
     capitalSnapshot,
     investorBreakdown,
     overdueDebtClients,
@@ -615,6 +618,7 @@ function DashboardContent({
       <StatTileGrid>
         <StatTile label={t('common.caisseBalance') as string} value={capitalSnapshot.caisseBalance} icon={<WalletIcon className="h-3.5 w-3.5"/>} tone="dzd"/>
         <StatTile label={t('common.baridiBalance') as string} value={capitalSnapshot.baridiBalance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd"/>
+        {otherCashAccounts.map((account) => (<Fragment key={account.id}><StatTile label={account.name} value={account.balance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd"/></Fragment>))}
         {(showUsdt || usdtInStock > 0) && <StatTile label={t('dashboard.usdtInStock') as string} value={usdtInStock} currency="USDT" decimals={2} icon={<DollarSignIcon className="h-3.5 w-3.5"/>} tone="usdt"/>}
         {(showEur || eurInStock > 0) && <StatTile label={t('dashboard.eurInStock') as string} value={eurInStock} currency="EUR" decimals={2} icon={<EuroIcon className="h-3.5 w-3.5"/>} tone="eur"/>}
         {(showRmb || rmbInStock > 0) && <StatTile label={t('dashboard.rmbInStock') as string} value={rmbInStock} currency="RMB" decimals={2} icon={<span className="text-[11px] font-extrabold leading-none">¥</span>} tone="eur"/>}

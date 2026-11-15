@@ -11,6 +11,7 @@ import { LockIcon } from '../icons/LockIcon';
 import { FormCard } from '../ui/FormCard';
 import { NotificationSettings } from './NotificationSettings';
 import { CurrencyVisibilitySettings } from './CurrencyVisibilitySettings';
+import { CashAccountsSettings } from './CashAccountsSettings';
 import { HabitsSettings } from './HabitsSettings';
 import { SettingsSection } from './SettingsSection';
 
@@ -108,6 +109,9 @@ function MainUtilityDialogsComponent({
                     </SettingsSection>
                     {userDocRef && (<SettingsSection title={t('settings.secCurrencies')} summary={t('settings.secCurrenciesSummary')} icon={<span className="text-sm font-bold">¤</span>} open={openSection === 'currencies'} onToggle={() => toggleSection('currencies')}>
                         <CurrencyVisibilitySettings userDocRef={userDocRef} />
+                    </SettingsSection>)}
+                    {userDocRef && (<SettingsSection title={t('settings.secAccounts')} summary={t('settings.secAccountsSummary')} icon={<span className="text-sm font-bold">DA</span>} open={openSection === 'accounts'} onToggle={() => toggleSection('accounts')}>
+                        <CashAccountsSettings userDocRef={userDocRef as never} />
                     </SettingsSection>)}
                     {userDocRef && (<SettingsSection title={t('settings.secHabits')} summary={t('settings.secHabitsSummary')} icon={<CheckIcon className="h-4 w-4"/>} open={openSection === 'habits'} onToggle={() => toggleSection('habits')}>
                         <HabitsSettings userDocRef={userDocRef} />

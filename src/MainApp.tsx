@@ -1,4 +1,5 @@
 import { registerStockHistory } from './utils/stockGuard';
+import { CASH_ACCOUNTS } from './accounts/cashAccounts';
 import { commitWithStockLockOrBatch, registerStockLock, saveErrorAlert, STOCK_CHANGED_MESSAGE, StockChangedError } from './utils/stockLock';
 import { useStockLockSeq } from './hooks/useStockLockSeq';
 import { previousProfits } from './utils/dashboardComparison';
@@ -648,12 +649,13 @@ export default function MainApp({ user }: {
     const [clientSortMode, setClientSortMode] = useState<ClientSortMode>('all');
     const [isWalletTransferModalOpen, setIsWalletTransferModalOpen] = useState(false);
     const [walletTransferAmount, setWalletTransferAmount] = useState('');
-    const [walletTransferSource, setWalletTransferSource] = useState<'Caisse' | 'BaridiMob'>('Caisse');
-    const [walletTransferDest, setWalletTransferDest] = useState<'Caisse' | 'BaridiMob'>('BaridiMob');
+    const [walletTransferSource, setWalletTransferSource] = useState<string>('Caisse');
+    const [walletTransferDest, setWalletTransferDest] = useState<string>('BaridiMob');
     const [walletTransferNotes, setWalletTransferNotes] = useState('');
-    const setWalletTransferSourceAndSync = useCallback((value: 'Caisse' | 'BaridiMob') => {
+    const setWalletTransferSourceAndSync = useCallback((value: string) => {
         setWalletTransferSource(value);
-        setWalletTransferDest(value === 'Caisse' ? 'BaridiMob' : 'Caisse');
+        // V15-2: with only the Caisse and BaridiMob the other one is the destination; with more, the owner picks it.
+        setWalletTransferDest(CASH_ACCOUNTS.length === 2 ? (CASH_ACCOUNTS.find((account) => account.id !== value)?.id ?? '') : '');
     }, []);
     const [editingWalletTransferTx, setEditingWalletTransferTx] = useState<TreasuryTx | null>(null);
     const [editingTreasuryCard, setEditingTreasuryCard] = useState<TreasuryCard | null>(null);
@@ -1096,6 +1098,8 @@ export default function MainApp({ user }: {
         services: servicesSummary,
         managerPendingAdvances,
         otherHoldingsValue: extraStockValue,
+        // V15-2: the owner's other dinar accounts count in the cash like the Caisse and BaridiMob.
+        otherCashBalance: (Object.entries(treasuryStats.accounts ?? {}) as Array<[string, number]>).reduce((sum, [id, value]) => (id === 'Caisse' || id === 'BaridiMob' ? sum : sum + value), 0),
     }), [treasuryStats, portfolioStats, totals, treasuryCards, investorLiability, servicesSummary, managerPendingAdvances, extraStockValue]);
     const managerProfitBreakdown = useMemo(() => reconcileManagerProfitBreakdown({
         breakdown: baseManagerProfitBreakdown,
@@ -1333,7 +1337,7 @@ export default function MainApp({ user }: {
         else {
             setEditingWalletTransferTx(null);
             setWalletTransferSource('Caisse');
-            setWalletTransferDest('BaridiMob');
+            setWalletTransferDest(CASH_ACCOUNTS.length === 2 ? 'BaridiMob' : ''); // V15-2: more accounts, the owner picks
             setWalletTransferAmount('');
             setWalletTransferNotes('');
         }
@@ -1901,7 +1905,11 @@ export default function MainApp({ user }: {
             setAlert(t('common.sameSourceDest'));
             return;
         }
-        let sourceBalance = walletTransferSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+        if (!walletTransferDest) {
+            setAlert('⚠️ Choisissez le portefeuille.');
+            return;
+        }
+        let sourceBalance = Number(treasuryStats.accounts?.[walletTransferSource] ?? 0);
         if (editingWalletTransferTx) {
             if (editingWalletTransferTx.source === walletTransferSource)
                 sourceBalance += editingWalletTransferTx.amount;
@@ -1925,7 +1933,8 @@ export default function MainApp({ user }: {
                 notes: walletTransferNotes || 'Transfert interne',
                 date, time, timestamp: ts
             };
-            recordTreasuryShadow({
+            const builtIn = (id: unknown) => id === 'Caisse' || id === 'BaridiMob';
+            if (builtIn(walletTransferSource) && builtIn(walletTransferDest)) recordTreasuryShadow({
                 operationId: `shadow:wallet-transfer:${editingWalletTransferTx?.id || ts}`,
                 actorUid: userDocRef.id,
                 effectiveAt: ts,
@@ -1946,15 +1955,17 @@ export default function MainApp({ user }: {
                 batch.set(txRef, payload);
                 setAlert("✅ Transfert enregistré.");
             }
-            const walletDeltas = { Caisse: 0, BaridiMob: 0 };
+            const walletDeltas: Record<string, number> = { Caisse: 0, BaridiMob: 0 };
             if (editingWalletTransferTx) {
-                const oldSource = editingWalletTransferTx.source === 'BaridiMob' ? 'BaridiMob' : 'Caisse';
-                const oldDest = editingWalletTransferTx.destination === 'Caisse' ? 'Caisse' : 'BaridiMob';
+                const oldSource = String(editingWalletTransferTx.source ?? 'Caisse');
+                const oldDest = String(editingWalletTransferTx.destination ?? 'BaridiMob');
+                walletDeltas[oldSource] = walletDeltas[oldSource] ?? 0;
+                walletDeltas[oldDest] = walletDeltas[oldDest] ?? 0;
                 walletDeltas[oldSource] += Math.abs(Number(editingWalletTransferTx.amount || 0));
                 walletDeltas[oldDest] -= Math.abs(Number(editingWalletTransferTx.amount || 0));
             }
-            walletDeltas[walletTransferSource] -= amount;
-            walletDeltas[walletTransferDest] += amount;
+            walletDeltas[walletTransferSource] = (walletDeltas[walletTransferSource] ?? 0) - amount;
+            walletDeltas[walletTransferDest] = (walletDeltas[walletTransferDest] ?? 0) + amount;
             await commitLegacyWithReadModelDeltas({
                 userDocRef,
                 batch,
@@ -2008,8 +2019,8 @@ export default function MainApp({ user }: {
         }
     };
     const handleSwapSourceDest = () => { const s = walletTransferSource; const d = walletTransferDest; setWalletTransferSource(d); setWalletTransferDest(s); };
-    const getWalletTransferEditableBalance = (account: 'Caisse' | 'BaridiMob') => {
-        let balance = account === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
+    const getWalletTransferEditableBalance = (account: string) => {
+        let balance = Number(treasuryStats.accounts?.[account] ?? 0);
         if (editingWalletTransferTx) {
             if (editingWalletTransferTx.source === account)
                 balance += editingWalletTransferTx.amount;
@@ -2029,6 +2040,7 @@ export default function MainApp({ user }: {
         || isNaN(walletTransferAmountValue)
         || walletTransferAmountValue <= 0
         || walletTransferAmountValue > walletTransferSourceBalance
+        || !walletTransferDest
         || walletTransferSource === walletTransferDest;
     const handleSaveTreasuryCard = async () => {
         const name = treasuryCardName.trim();
@@ -2736,6 +2748,8 @@ export default function MainApp({ user }: {
     const effectiveDashboardDebtClients = dashboardSummary?.clients.topOverdueClients.items ?? dashboardDebtClients;
     const dashboardCanQuickSell = Number(dashboardPortfolioStats?.usdt?.available || 0) > 0;
     const dashboardPageProps = {
+        // V15-2: the owner's other dinar accounts, one tile each after the Caisse and BaridiMob.
+        otherCashAccounts: CASH_ACCOUNTS.filter((account) => account.custom).map((account) => ({ id: account.id, name: account.name, balance: Number(treasuryStats.accounts?.[account.id] ?? 0) })),
         rmbInStock: rmbStock.quantity,
         extraInStock: EXTRA_CURRENCY_CODES.filter((code) => code !== 'RMB').map((code) => ({ code, quantity: extraStocks[code]?.quantity ?? 0 })),
         dailyOverview: dashboardDailyOverview,
@@ -2824,8 +2838,8 @@ export default function MainApp({ user }: {
         amount: walletTransferAmount, setAmount: setWalletTransferAmount, source: walletTransferSource, setSource: setWalletTransferSourceAndSync,
         destination: walletTransferDest, setDestination: setWalletTransferDest, notes: walletTransferNotes, setNotes: setWalletTransferNotes,
         onMax: handleWalletTransferMaxClick, onSwap: handleSwapSourceDest, onConfirm: handleWalletTransfer, isInvalid: isWalletTransferInvalid,
-        isSaving, caisseBalance: getWalletTransferEditableBalance('Caisse'), baridiBalance: getWalletTransferEditableBalance('BaridiMob'), title: editingWalletTransferTx ? `${t('common.edit')} ${t('transactions.internalTransferShort')}` : t('transactions.internalTransferShort'),
-        subtitle: `${t('transactions.cash')} ↔ ${t('transactions.baridi')}`, amountLabel: t('transactions.amount'), fromLabel: t('transactions.from'),
+        isSaving, caisseBalance: getWalletTransferEditableBalance('Caisse'), baridiBalance: getWalletTransferEditableBalance('BaridiMob'), balances: Object.fromEntries(CASH_ACCOUNTS.map((account) => [account.id, getWalletTransferEditableBalance(account.id)])), title: editingWalletTransferTx ? `${t('common.edit')} ${t('transactions.internalTransferShort')}` : t('transactions.internalTransferShort'),
+        subtitle: CASH_ACCOUNTS.length === 2 ? `${t('transactions.cash')} ↔ ${t('transactions.baridi')}` : CASH_ACCOUNTS.map((account) => (account.id === 'Caisse' ? t('transactions.cash') : account.name)).join(' · '), amountLabel: t('transactions.amount'), fromLabel: t('transactions.from'),
         toLabel: t('transactions.to'), sourceLabel: t('common.source'), destinationLabel: t('common.destination'),
         notesOptionalLabel: t('common.notesOptional'), sameAccountErrorText: t('formErrors.sameWallet'),
         processingText: t('common.processing'), confirmText: editingWalletTransferTx ? t('common.save') : t('transactions.confirmTransfer')

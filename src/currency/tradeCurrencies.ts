@@ -94,6 +94,10 @@ export function setCustomCurrencies(custom: readonly TradeCurrencyInfo[]): boole
     TRADE_CURRENCY_CODES.splice(0, TRADE_CURRENCY_CODES.length, ...TRADE_CURRENCIES.map((c) => c.code));
     EXTRA_TRADE_CURRENCIES.splice(0, EXTRA_TRADE_CURRENCIES.length, ...TRADE_CURRENCIES.filter((c) => isExtraCurrency(c.code)));
     EXTRA_CURRENCY_CODES.splice(0, EXTRA_CURRENCY_CODES.length, ...EXTRA_TRADE_CURRENCIES.map((c) => c.code));
-    for (const refresh of refreshers) refresh();
+    refreshLiveLists();
     return true;
+}
+/** Refills every derived list (used by the dinar accounts' registry too). */
+export function refreshLiveLists(): void {
+    for (const refresh of refreshers) refresh();
 }

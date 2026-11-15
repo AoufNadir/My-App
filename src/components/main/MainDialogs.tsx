@@ -1,3 +1,4 @@
+import { CASH_ACCOUNTS, cashAccount } from '../../accounts/cashAccounts';
 import React from 'react';
 import { DATE_PRESET_IDS, activeDatePreset, datePresetRange, type DatePresetId } from '../../utils/datePresets';
 import { Modal, ModalContent, ModalDescription, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';
@@ -147,10 +148,10 @@ type WalletTransferDialogProps = {
     onClose: () => void;
     amount: string;
     setAmount: (value: string) => void;
-    source: 'Caisse' | 'BaridiMob';
-    setSource: (value: 'Caisse' | 'BaridiMob') => void;
-    destination: 'Caisse' | 'BaridiMob';
-    setDestination: (value: 'Caisse' | 'BaridiMob') => void;
+    source: string;
+    setSource: (value: string) => void;
+    destination: string;
+    setDestination: (value: string) => void;
     notes: string;
     setNotes: (value: string) => void;
     onMax: () => void;
@@ -160,6 +161,8 @@ type WalletTransferDialogProps = {
     isSaving: boolean;
     caisseBalance: number;
     baridiBalance: number;
+    /** V15-2: the balance of every dinar account (Caisse, BaridiMob and the owner's), the edited transfer given back */
+    balances?: Record<string, number>;
     title: string;
     subtitle: string;
     amountLabel: string;
@@ -172,9 +175,7 @@ type WalletTransferDialogProps = {
     processingText: string;
     confirmText: string;
 };
-type InternalWallet = 'Caisse' | 'BaridiMob';
-const getOppositeWallet = (wallet: InternalWallet): InternalWallet => wallet === 'Caisse' ? 'BaridiMob' : 'Caisse';
-const walletBalance = (wallet: InternalWallet, caisseBalance: number, baridiBalance: number) => wallet === 'Caisse' ? caisseBalance : baridiBalance;
+type InternalWallet = string;
 type WalletChoiceCardProps = {
     wallet: InternalWallet;
     /** The wallet's name in the page language */
@@ -207,21 +208,27 @@ function WalletChoiceCard({ name, balance, selected = false, readOnly = false, h
       {content}
     </button>);
 }
-export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, source, setSource, destination, setDestination, notes, setNotes, onMax, onSwap, onConfirm, isInvalid, isSaving, caisseBalance, baridiBalance, title, subtitle, amountLabel, fromLabel, toLabel, sourceLabel, destinationLabel, notesOptionalLabel, sameAccountErrorText, processingText, confirmText }: WalletTransferDialogProps) {
+export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, source, setSource, destination, setDestination, notes, setNotes, onMax, onSwap, onConfirm, isInvalid, isSaving, caisseBalance, baridiBalance, balances, title, subtitle, amountLabel, fromLabel, toLabel, sourceLabel, destinationLabel, notesOptionalLabel, sameAccountErrorText, processingText, confirmText }: WalletTransferDialogProps) {
     const { t } = useLanguage();
-    const destinationWallet = getOppositeWallet(source);
+    // V15-2: any two dinar accounts. With only the Caisse and BaridiMob the destination is the other one, as before;
+    // with more accounts the owner picks it (none picked in advance).
+    const accountIds = CASH_ACCOUNTS.map((account) => account.id);
+    const twoAccounts = accountIds.length === 2;
+    const walletBalance = (wallet: InternalWallet, _c?: number, _b?: number) => balances?.[wallet] ?? (wallet === 'Caisse' ? caisseBalance : wallet === 'BaridiMob' ? baridiBalance : 0);
+    const getOppositeWallet = (wallet: InternalWallet): InternalWallet => (twoAccounts ? accountIds.find((id) => id !== wallet) ?? wallet : '');
+    const destinationWallet = twoAccounts ? getOppositeWallet(source) : destination;
     React.useEffect(() => {
-        if (isOpen && destination !== destinationWallet) {
+        if (isOpen && twoAccounts && destination !== destinationWallet) {
             setDestination(destinationWallet);
         }
-    }, [isOpen, destination, destinationWallet, setDestination]);
+    }, [isOpen, twoAccounts, destination, destinationWallet, setDestination]);
     const handleSourceChange = (nextSource: InternalWallet) => {
         setSource(nextSource);
         setDestination(getOppositeWallet(nextSource));
     };
     // Display only: the wallet names in the page language, why Confirm is off, and the amount kept
     // visible at the bottom. The confirm rule itself (isInvalid) comes from MainApp unchanged.
-    const walletName = (wallet: InternalWallet) => (wallet === 'Caisse' ? t('transactions.cash') : t('transactions.baridi')) as string;
+    const walletName = (wallet: InternalWallet) => (wallet === 'Caisse' ? t('transactions.cash') as string : wallet === 'BaridiMob' ? t('transactions.baridi') as string : cashAccount(wallet).name);
     const typedAmount = parseAndEvaluate(amount);
     const hasAmount = !!amount && Number.isFinite(typedAmount) && typedAmount > 0;
     const blockedReason = !isInvalid || isSaving
@@ -230,7 +237,7 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
             ? sameAccountErrorText
             : !hasAmount
                 ? t('transactions.enterValidAmount') as string
-                : typedAmount > walletBalance(source, caisseBalance, baridiBalance)
+                : typedAmount > walletBalance(source)
                     ? t('formErrors.insufficientBalance') as string
                     : undefined;
     return (<Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
@@ -247,8 +254,7 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
           <div>
             <Label>{fromLabel}</Label>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <WalletChoiceCard wallet="Caisse" name={walletName('Caisse')} balance={caisseBalance} selected={source === 'Caisse'} onClick={() => handleSourceChange('Caisse')}/>
-              <WalletChoiceCard wallet="BaridiMob" name={walletName('BaridiMob')} balance={baridiBalance} selected={source === 'BaridiMob'} onClick={() => handleSourceChange('BaridiMob')}/>
+              {accountIds.map((id) => (<React.Fragment key={id}><WalletChoiceCard wallet={id} name={walletName(id)} balance={walletBalance(id)} selected={source === id} onClick={() => handleSourceChange(id)}/></React.Fragment>))}
             </div>
           </div>
 
@@ -263,11 +269,13 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
           <div>
             <div className="flex items-center justify-between gap-3">
               <Label>{toLabel}</Label>
-              <span className="text-xs font-medium text-neutral-500">{t('transactions.automatic')}</span>
+              {twoAccounts && <span className="text-xs font-medium text-neutral-500">{t('transactions.automatic')}</span>}
             </div>
-            <div className="mt-2">
-              <WalletChoiceCard wallet={destinationWallet} name={walletName(destinationWallet)} balance={walletBalance(destinationWallet, caisseBalance, baridiBalance)} readOnly helperText={destinationLabel}/>
-            </div>
+            {twoAccounts ? (<div className="mt-2">
+              <WalletChoiceCard wallet={destinationWallet} name={walletName(destinationWallet)} balance={walletBalance(destinationWallet)} readOnly helperText={destinationLabel}/>
+            </div>) : (<div className="mt-2 grid grid-cols-2 gap-2">
+              {accountIds.filter((id) => id !== source).map((id) => (<React.Fragment key={id}><WalletChoiceCard wallet={id} name={walletName(id)} balance={walletBalance(id)} selected={destination === id} onClick={() => setDestination(id)}/></React.Fragment>))}
+            </div>)}
             {source === destination && (<p className="mt-1 text-xs font-medium text-danger">{sameAccountErrorText}</p>)}
           </div>
 
@@ -275,8 +283,10 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
             const amt = parseAndEvaluate(amount);
             if (!Number.isFinite(amt) || amt <= 0 || source === destination)
                 return null;
-            const sourceBalance = source === 'Caisse' ? caisseBalance : baridiBalance;
-            const destBalance = destinationWallet === 'Caisse' ? caisseBalance : baridiBalance;
+            if (!destinationWallet)
+                return null;
+            const sourceBalance = walletBalance(source);
+            const destBalance = walletBalance(destinationWallet);
             const nextSource = sourceBalance - amt;
             const nextDest = destBalance + amt;
             const insufficient = nextSource < 0;
