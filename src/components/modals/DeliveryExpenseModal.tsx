@@ -20,6 +20,8 @@ import { getWalletCurrency, isAssetWallet } from '../../utils/digitalServiceAcco
 
 interface DeliveryExpenseModalProps {
     isOpen: boolean;
+    /** V14-6: editing a saved expense */
+    isEditing?: boolean;
     onClose: () => void;
     isSaving: boolean;
     amount: string;
@@ -45,6 +47,7 @@ interface DeliveryExpenseModalProps {
 
 export function DeliveryExpenseModal({
     isOpen,
+    isEditing = false,
     onClose,
     isSaving,
     amount,
@@ -83,7 +86,7 @@ export function DeliveryExpenseModal({
     return (
         <Modal isOpen={isOpen} onClose={onClose} className="max-w-md bg-surface text-neutral-900">
             <ModalHeader onClose={onClose}>
-                <ModalTitle className="text-base sm:text-lg">{t('delivery.title')}</ModalTitle>
+                <ModalTitle className="text-base sm:text-lg">{isEditing ? t('delivery.editTitle') : t('delivery.title')}</ModalTitle>
                 <ModalDescription>{t('delivery.description')}</ModalDescription>
             </ModalHeader>
 

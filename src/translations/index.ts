@@ -1425,6 +1425,7 @@ export const translations = {
         delivery: {
             addExpense: 'Frais du projet',
             title: 'Frais du projet',
+            editTitle: 'Modifier les frais du projet',
             description: 'Enregistrer une dépense du projet (livraison, matériel, outil...)',
             subtitle: 'Dépense partagée selon les contributions',
             badge: 'Dépense',
@@ -3437,6 +3438,7 @@ export const translations = {
         delivery: {
             addExpense: 'مصاريف المشروع',
             title: 'مصاريف المشروع',
+            editTitle: 'تعديل مصروف المشروع',
             description: 'تسجيل مصروف يخص المشروع مثل التوصيل أو شراء آلة أو أداة مساعدة',
             subtitle: 'مصروف مشترك حسب مساهمة المستثمرين',
             badge: 'مصروف',

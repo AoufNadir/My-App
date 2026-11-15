@@ -187,6 +187,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [adjustmentReason, setAdjustmentReason] = useState<AdjustmentReason | ''>('');
     const [editingTreasuryTx, setEditingTreasuryTx] = useState<TreasuryTx | null>(null);
     const [isDeliveryExpenseModalOpen, setIsDeliveryExpenseModalOpen] = useState(false);
+    /** V14-6: the project expense being edited in its own window (null: a new one). */
+    const [editingDeliveryExpense, setEditingDeliveryExpense] = useState<TreasuryTx | null>(null);
     const [deliveryExpenseAmount, setDeliveryExpenseAmount] = useState('');
     const [deliveryExpenseMethod, setDeliveryExpenseMethod] = useState<DeliveryExpenseMethod>('Caisse');
     // V13-5: the wallet is never chosen for the owner: none until he presses one (rule 11).
@@ -1722,9 +1724,22 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         setIsAdjustmentModalOpen(true);
     };
+    const isoDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    /** V14-6 (owner): a project expense opens its own window, filled with what was saved; its wallet stays as chosen then. */
+    const openEditDeliveryExpense = (tx: TreasuryTx) => {
+        const saved = tx as TreasuryTx & { expenseWallet?: DeliveryExpenseMethod; originalAmount?: number; payee?: string };
+        setEditingDeliveryExpense(tx);
+        setDeliveryExpenseAmount(String(saved.originalAmount ?? tx.amount ?? ''));
+        setDeliveryExpenseMethod((saved.expenseWallet ?? tx.source ?? 'Caisse') as DeliveryExpenseMethod);
+        setDeliveryExpenseWalletChosen(true);
+        setDeliveryExpenseDate(isoDay(new Date(Number(tx.timestamp) || Date.now())));
+        setDeliveryExpenseNote(tx.notes && tx.notes !== 'Frais du projet' ? tx.notes : '');
+        setDeliveryExpensePayee(saved.payee ?? '');
+        setIsDeliveryExpenseModalOpen(true);
+    };
     const openDeliveryExpenseModal = () => {
-        const today = new Date();
-        const isoToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const isoToday = isoDay(new Date());
+        setEditingDeliveryExpense(null);
         setDeliveryExpenseAmount('');
         setDeliveryExpenseMethod('Caisse');
         setDeliveryExpenseWalletChosen(false);
@@ -1735,6 +1750,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     };
     const closeDeliveryExpenseModal = () => {
         setIsDeliveryExpenseModalOpen(false);
+        setEditingDeliveryExpense(null);
     };
     const handleSaveDeliveryExpense = async () => {
         if (!deliveryExpenseWalletChosen) {
@@ -1764,7 +1780,12 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 : isAssetWallet(deliveryExpenseMethod)
                     ? assetWalletStats(portfolioStats, deliveryExpenseMethod).available
                     : 0;
-        if (amountNum > availableBalance + epsilon) {
+        const editedExpense = editingDeliveryExpense as (TreasuryTx & { expenseWallet?: string; originalAmount?: number; recordedAt?: number }) | null;
+        // On an edit, what this expense already took from the same wallet comes back first.
+        const givenBack = editedExpense && (editedExpense.expenseWallet ?? editedExpense.source) === deliveryExpenseMethod
+            ? Number(editedExpense.originalAmount ?? editedExpense.amount ?? 0)
+            : 0;
+        if (amountNum > availableBalance + givenBack + epsilon) {
             setAlert(`⚠️ Solde ${deliveryExpenseMethod} insuffisant.`);
             return;
         }
@@ -1801,14 +1822,27 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     }
                 }
             }
+            if (editedExpense && deliveryExpenseDate === isoDay(new Date(Number(editedExpense.timestamp) || 0))) {
+                // V14-6: an edit keeps the expense's own moment when its day is not changed.
+                timestamp = Number(editedExpense.timestamp);
+                dateStr = editedExpense.date;
+                timeStr = editedExpense.time;
+            }
             if (!dateStr) {
                 const nowStamp = now();
                 timestamp = nowStamp.timestamp;
                 dateStr = nowStamp.date;
                 timeStr = nowStamp.time;
             }
-            const expenseRef = userDocRef.collection('treasury_txs').doc();
+            const expenseRef = editedExpense
+                ? userDocRef.collection('treasury_txs').doc(editedExpense.id)
+                : userDocRef.collection('treasury_txs').doc();
             const batch = db.batch();
+            if (editedExpense) {
+                // The old wallet leg (USDT, EUR, RMB…) goes, the new one is written below: one expense, one leg.
+                for (const leg of transactions.filter((tx) => tx.linkedTxId === editedExpense.id && tx.origin === 'delivery_expense'))
+                    batch.delete(userDocRef.collection('usdt_txs').doc(leg.id));
+            }
             batch.set(expenseRef, {
                 timestamp,
                 date: dateStr,
@@ -1818,7 +1852,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 amount: preview.amountDzd,
                 notes: deliveryExpenseNote.trim() || 'Frais du projet',
                 payee,
-                recordedAt: Date.now(),
+                recordedAt: editedExpense?.recordedAt ?? Date.now(),
+                ...(editedExpense ? { editedAt: Date.now() } : {}),
                 origin: 'delivery_expense',
                 expenseWallet: deliveryExpenseMethod,
                 expenseCurrency: preview.currency,
@@ -1843,7 +1878,10 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     origin: 'delivery_expense',
                 });
             }
-            if (isCashWallet(deliveryExpenseMethod)) {
+            if (editedExpense) {
+                // The diagnostic shadows follow new operations only; an edit rewrites the saved rows.
+            }
+            else if (isCashWallet(deliveryExpenseMethod)) {
                 recordTreasuryShadow({
                     operationId: `shadow:project-expense:${expenseRef.id}`,
                     actorUid: userDocRef.id,
@@ -1913,10 +1951,12 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             await commitLegacyWithReadModelDeltas({
                 userDocRef,
                 batch,
-                deltas: [readModelDelta],
+                // An edit rewrites the rows; the read models (off on the live site) are rebuilt from them.
+                deltas: editedExpense ? [] : [readModelDelta],
             });
-            setAlert('✅ Frais du projet enregistrés.');
+            setAlert(editedExpense ? '✅ Transaction mise à jour.' : '✅ Frais du projet enregistrés.');
             setIsDeliveryExpenseModalOpen(false);
+            setEditingDeliveryExpense(null);
         }
         catch (e) {
             console.error(e);
@@ -2208,7 +2248,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         deliveryExpenseAmount, setDeliveryExpenseAmount,
         deliveryExpenseMethod: deliveryExpenseWalletChosen ? deliveryExpenseMethod : null, setDeliveryExpenseMethod: chooseDeliveryExpenseMethod,
         deliveryExpenseDate, setDeliveryExpenseDate,
-        deliveryExpenseNote, setDeliveryExpenseNote, deliveryExpensePayee, setDeliveryExpensePayee,
+        deliveryExpenseNote, setDeliveryExpenseNote, deliveryExpensePayee, setDeliveryExpensePayee, editingDeliveryExpense, openEditDeliveryExpense,
         deliveryExpensePreview,
         openDeliveryExpenseModal, closeDeliveryExpenseModal, handleSaveDeliveryExpense,
         txToDelete, setTxToDelete, handleConfirmDeleteTx,

@@ -63,7 +63,8 @@ export function batchCreatesNegativeStock(txs: Tx[], operations: readonly StockO
         if (id === null) continue;
         if (op.kind === 'delete') after.delete(id);
         else if (op.kind === 'update') { const old = after.get(id); if (old) after.set(id, { ...old, ...(op.data as object) } as Tx); }
-        else if (known.has(id)) after.set(id, { ...((op.options as { merge?: boolean } | undefined)?.merge ? after.get(id) : {}), ...(op.data as object), id } as Tx);
+        else after.set(id, { ...((op.options as { merge?: boolean } | undefined)?.merge ? after.get(id) : {}), ...(op.data as object), id } as Tx);
+        // (A row written in the same batch as a delete or an edit, e.g. the new leg of an edited expense, counts too.)
     }
     const was = oversellIds(txs);
     for (const id of oversellIds([...after.values()]))
