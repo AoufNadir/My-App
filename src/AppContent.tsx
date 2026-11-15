@@ -1,3 +1,4 @@
+import { CurrencyRegistryGate } from './currency/CurrencyRegistryGate';
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { useLanguage } from './contexts/LanguageContext';
@@ -40,9 +41,11 @@ export default function AppContent() {
     }
     const operatorView = (
         <>
-            <Suspense fallback={loadingScreen}>
-                <MainApp user={user} />
-            </Suspense>
+            <CurrencyRegistryGate uid={user.uid} loading={loadingScreen}>
+                <Suspense fallback={loadingScreen}>
+                    <MainApp user={user} />
+                </Suspense>
+            </CurrencyRegistryGate>
             {isLocked && <AuthLockScreen onUnlock={unlock} />}
         </>
     );

@@ -34,7 +34,8 @@ import { investigateInventory, type InvestigatorAction, type InvestigatorPortfol
 const MONTHS_SHOWN = 3;
 
 type Draft = Record<InventoryAccount, string>;
-const EMPTY_DRAFT: Draft = Object.fromEntries(INVENTORY_ACCOUNTS.map((account) => [account, ''])) as Draft;
+// V15-1: built when used, so a currency added in the settings has its field.
+const emptyDraft = (): Draft => Object.fromEntries(INVENTORY_ACCOUNTS.map((account) => [account, ''])) as Draft;
 
 /** Colour plus a symbol, so the state never rests on colour alone. */
 const STATUS_STYLE: Record<InventoryGapStatus, { tone: string; mark: string }> = {
@@ -70,7 +71,7 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
     const text = (key: string, values: Record<string, string> = {}) =>
         Object.entries(values).reduce((out, [name, value]) => out.replace(new RegExp(`\\{${name}\\}`, 'g'), value), String(t(key)));
     const [isOpen, setIsOpen] = useState(defaultOpen);
-    const [draft, setDraft] = useState<Draft>({ ...EMPTY_DRAFT, ...initialDraft });
+    const [draft, setDraft] = useState<Draft>({ ...emptyDraft(), ...initialDraft });
     const [note, setNote] = useState('');
     const [justSaved, setJustSaved] = useState(false);
     const [showAllMonths, setShowAllMonths] = useState(false);
@@ -128,7 +129,7 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
         setIsOpen(false);
         // A saved inventory is finished; an unsaved one is kept for when the window is reopened.
         if (justSaved) {
-            setDraft(EMPTY_DRAFT);
+            setDraft(emptyDraft());
             setNote('');
             setJustSaved(false);
         }

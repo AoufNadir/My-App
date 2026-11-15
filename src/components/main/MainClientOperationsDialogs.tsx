@@ -1,4 +1,4 @@
-import { isTradeCurrency, TRADE_CURRENCY_CODES } from '../../currency/tradeCurrencies';
+import { isTradeCurrency, TRADE_CURRENCY_CODES, liveRecord } from '../../currency/tradeCurrencies';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ModalContent, ModalHeader, ModalTitle } from '../ui/Modal';
 import { Label } from '../ui/Label';
@@ -12,8 +12,8 @@ import { SegmentedControl } from '../ui/SegmentedControl';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { AdjustmentReasonPicker } from './AdjustmentReasonPicker';
 import { WalletPicker, type PickerWallet } from '../ui/WalletPicker';
-const ASSET_TO_WALLET: Record<string, PickerWallet> = { 'DZD-Caisse': 'Caisse', 'DZD-Baridi': 'BaridiMob', ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, code])) };
-const WALLET_TO_ASSET: Partial<Record<PickerWallet, string>> = { Caisse: 'DZD-Caisse', BaridiMob: 'DZD-Baridi', ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, code])) };
+const ASSET_TO_WALLET: Record<string, PickerWallet> = liveRecord<PickerWallet>(() => ({ 'DZD-Caisse': 'Caisse', 'DZD-Baridi': 'BaridiMob', ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, code])) }));
+const WALLET_TO_ASSET: Partial<Record<PickerWallet, string>> = liveRecord<string>(() => ({ Caisse: 'DZD-Caisse', BaridiMob: 'DZD-Baridi', ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, code])) }));
 import { ArrowDownIcon } from '../icons/ArrowDownIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { WalletIcon } from '../icons/WalletIcon';

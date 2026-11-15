@@ -74,7 +74,7 @@ export type CurrencyPeriodStats = {
     marginPer100: number | null;
 };
 /** V14-4: one entry per currency of the list, under its lower-case code (usdt, eur, rmb, and the next ones). */
-export type PeriodStats = Record<TradeCurrencyKey, CurrencyPeriodStats> & {
+export type PeriodStats = { usdt: CurrencyPeriodStats; eur: CurrencyPeriodStats; rmb: CurrencyPeriodStats } & { [currency: string]: unknown } & {
     /** All the sales, as the old page counted them */
     profit: number;
     sellCount: number;
@@ -88,6 +88,8 @@ export type PeriodStats = Record<TradeCurrencyKey, CurrencyPeriodStats> & {
 
 type LedgerForStats = Pick<PamLedgerResult, 'profitByTxId' | 'sellProfitRows'>;
 
+/** V15-1: the entry of any currency, a currency added by the owner included (empty when it had no activity). */
+export const periodCurrency = (stats: PeriodStats, code: string): CurrencyPeriodStats => (stats[currencyKey(code)] as CurrencyPeriodStats | undefined) ?? emptyCurrency();
 const emptyCurrency = (): CurrencyPeriodStats => ({ sold: 0, bought: 0, profit: 0, sellCount: 0, marginPer100: null });
 const inRange = (timestamp: number, range: PeriodRange) => timestamp >= range.from && timestamp <= range.to;
 
@@ -133,7 +135,7 @@ export function computePeriodStats(transactions: ReadonlyArray<Tx>, ledger: Ledg
         }
     }
     return {
-        ...buckets,
+        ...(buckets as unknown as { usdt: CurrencyPeriodStats; eur: CurrencyPeriodStats; rmb: CurrencyPeriodStats }),
         profit,
         sellCount,
         winCount,
@@ -145,7 +147,7 @@ export function computePeriodStats(transactions: ReadonlyArray<Tx>, ledger: Ledg
 }
 
 /** Is there anything to compare with: a sale or a volume in the window before. */
-export const hasActivity = (stats: PeriodStats): boolean => stats.sellCount > 0 || TRADE_CURRENCY_CODES.some((code) => (stats[currencyKey(code)]?.sold ?? 0) > 0 || (stats[currencyKey(code)]?.bought ?? 0) > 0);
+export const hasActivity = (stats: PeriodStats): boolean => stats.sellCount > 0 || TRADE_CURRENCY_CODES.some((code) => periodCurrency(stats, code).sold > 0 || periodCurrency(stats, code).bought > 0);
 
 export type ProfitEffects = {
     /** Profit now minus profit before */
@@ -170,8 +172,8 @@ export function profitEffects(current: PeriodStats, previous: PeriodStats): Prof
     let margin = 0;
     let other = 0;
     for (const key of TRADE_CURRENCY_CODES.map(currencyKey)) { // V14-2 / V14-4: every currency of the list
-        const now = current[key];
-        const before = previous[key];
+        const now = current[key] as CurrencyPeriodStats | undefined;
+        const before = previous[key] as CurrencyPeriodStats | undefined;
         if (!now || !before)
             continue; // stats made before RMB existed: its profit stays in « other » below
         if (now.sold > 0 && before.sold > 0) {

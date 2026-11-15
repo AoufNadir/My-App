@@ -2,11 +2,11 @@
 // window that records, and counts.
 
 // ---- Recurring subscriptions: one reminder on their day, never recorded without a tap ----
-import { TRADE_CURRENCY_CODES, type TradeCurrencyCode } from '../currency/tradeCurrencies';
+import { TRADE_CURRENCY_CODES, type TradeCurrencyCode, liveList } from '../currency/tradeCurrencies';
 
 // V14-3: any currency of the list (USDT, EUR, RMB, and the next ones) besides the two dinar wallets.
 export type SubscriptionWallet = 'Caisse' | 'BaridiMob' | TradeCurrencyCode;
-export const SUBSCRIPTION_WALLETS: SubscriptionWallet[] = ['Caisse', 'BaridiMob', ...TRADE_CURRENCY_CODES];
+export const SUBSCRIPTION_WALLETS: SubscriptionWallet[] = liveList(() => ['Caisse', 'BaridiMob', ...TRADE_CURRENCY_CODES]);
 export type Subscription = { id: string; name: string; amount: number; wallet: SubscriptionWallet; day: number; active: boolean; handledMonth?: string };
 
 export const monthKey = (ts: number) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };

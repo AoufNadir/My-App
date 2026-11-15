@@ -1,4 +1,4 @@
-import { currencyKey, EXTRA_CURRENCY_CODES, isTradeCurrency, TRADE_CURRENCY_CODES, type TradeCurrencyKey } from '../currency/tradeCurrencies';
+import { currencyKey, EXTRA_CURRENCY_CODES, isTradeCurrency, TRADE_CURRENCY_CODES, type TradeCurrencyKey, liveList, liveRecord } from '../currency/tradeCurrencies';
 import { fromCents, toCents } from './money';
 
 /**
@@ -10,7 +10,7 @@ import { fromCents, toCents } from './money';
 export type InventoryAccount = 'caisse' | 'baridi' | TradeCurrencyKey;
 
 // V14-2: RMB (Alipay) is counted like EUR.
-export const INVENTORY_ACCOUNTS: readonly InventoryAccount[] = ['caisse', 'baridi', ...TRADE_CURRENCY_CODES.map(currencyKey)];
+export const INVENTORY_ACCOUNTS: readonly InventoryAccount[] = liveList<InventoryAccount>(() => ['caisse', 'baridi', ...TRADE_CURRENCY_CODES.map(currencyKey)]);
 const zeroTotals = (): InventoryExpected => Object.fromEntries(INVENTORY_ACCOUNTS.map((account) => [account, 0])) as InventoryExpected;
 
 export type InventoryExpected = Record<InventoryAccount, number>;
@@ -34,11 +34,11 @@ export type InventoryRow = {
  * Cash is counted in whole dinars (the balance correction window only takes whole dinars), so less
  * than one dinar of difference is a match. USDT and EUR are counted to the cent; one cent is noise.
  */
-export const INVENTORY_TOLERANCE_CENTS: Record<InventoryAccount, number> = {
+export const INVENTORY_TOLERANCE_CENTS: Record<InventoryAccount, number> = liveRecord<number>(() => ({
     ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [currencyKey(code), 1])) as Record<TradeCurrencyKey, number>,
     caisse: 99,
     baridi: 99,
-};
+}));
 
 export const isDzdAccount = (account: InventoryAccount): boolean => account === 'caisse' || account === 'baridi';
 

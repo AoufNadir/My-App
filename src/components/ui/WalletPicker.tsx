@@ -1,4 +1,4 @@
-import { TRADE_CURRENCY_CODES, type TradeCurrencyCode } from '../../currency/tradeCurrencies';
+import { TRADE_CURRENCY_CODES, type TradeCurrencyCode, liveList } from '../../currency/tradeCurrencies';
 import React from 'react';
 import { useCurrencyShown } from '../../contexts/CurrencyVisibilityContext';
 
@@ -52,4 +52,4 @@ export function walletBalancesOf(treasuryStats: { caisse?: number; baridi?: numb
         ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, Number(stats[code.toLowerCase()]?.available || 0)])),
     };
 }
-export const FINANCIAL_WALLETS: PickerWallet[] = ['Caisse', 'BaridiMob', ...TRADE_CURRENCY_CODES];
+export const FINANCIAL_WALLETS: PickerWallet[] = liveList(() => ['Caisse', 'BaridiMob', ...TRADE_CURRENCY_CODES]);

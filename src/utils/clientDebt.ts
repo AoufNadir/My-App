@@ -1,4 +1,4 @@
-import { TRADE_CURRENCY_CODES } from '../currency/tradeCurrencies';
+import { TRADE_CURRENCY_CODES, liveSet } from '../currency/tradeCurrencies';
 import type { ClientTransactionDzd } from '../types';
 
 const DAY_MS = 86_400_000;
@@ -29,7 +29,7 @@ export type ClientDebtState = {
     settledLotCount: number;
 };
 
-const CREDIT_SALE_TYPES = new Set(TRADE_CURRENCY_CODES.map((code) => `Vente ${code}`));
+const CREDIT_SALE_TYPES = liveSet(() => TRADE_CURRENCY_CODES.map((code) => `Vente ${code}`));
 
 function parseDueTimestamp(value: string | undefined, fallbackTimestamp: number, legacyGraceDays: number) {
     if (value) {
