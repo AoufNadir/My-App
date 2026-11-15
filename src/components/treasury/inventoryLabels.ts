@@ -1,3 +1,4 @@
+import { cashAccount, isCustomCashAccount } from '../../accounts/cashAccounts';
 import type { MoneyCurrency } from '../../pages/shared/pageFormat';
 import type { InventoryAccount } from '../../utils/inventoryCheck';
 
@@ -12,6 +13,7 @@ const KNOWN: Partial<Record<InventoryAccount, string>> = {
 };
 export function inventoryAccountLabel(t: (key: string) => unknown, account: InventoryAccount): string {
     const key = KNOWN[account];
+    if (isCustomCashAccount(account)) return cashAccount(account).name; // V15-2c
     return key ? String(t(key)) : String(t('inventory.accountCurrency')).replace('{c}', account.toUpperCase());
 }
-export const inventoryAccountCurrency = (account: InventoryAccount): MoneyCurrency => (account === 'caisse' || account === 'baridi' ? 'DZD' : account.toUpperCase() as MoneyCurrency);
+export const inventoryAccountCurrency = (account: InventoryAccount): MoneyCurrency => (account === 'caisse' || account === 'baridi' || isCustomCashAccount(account) ? 'DZD' : account.toUpperCase() as MoneyCurrency);

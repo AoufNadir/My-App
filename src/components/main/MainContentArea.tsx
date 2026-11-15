@@ -196,6 +196,7 @@ function MainContentAreaComponent({ t, dailyOverview, userDocRef, setAlert, isFi
                     {view === 'tresorerie' && (<TresoreriePage {...{
             caisseBalance: treasuryStats.caisse,
             baridiBalance: treasuryStats.baridi,
+            otherCashBalances: (treasuryStats as { accounts?: Record<string, number> }).accounts,
             investorLiability,
             investorBreakdown,
             capitalSnapshot,

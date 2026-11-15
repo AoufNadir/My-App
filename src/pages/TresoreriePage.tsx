@@ -62,6 +62,8 @@ const WALLET_LABEL_KEYS: Record<string, string> = { Caisse: 'transactions.cash',
 
 type TresoreriePageProps = {
     caisseBalance: number;
+    /** V15-2c: the owner's other dinar accounts, by id */
+    otherCashBalances?: Record<string, number>;
     baridiBalance: number;
     investorBreakdown?: { capital: number; profits: number; total: number };
     capitalSnapshot: CapitalSnapshot;
@@ -89,7 +91,7 @@ type TresoreriePageProps = {
     onLinkMovementToClient?: (tx: TreasuryTx) => void;
     [key: string]: any;
 };
-export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown, capitalSnapshot, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, treasuryTransactions = [], userDocRef, setAlert, portfolioStats, transactions = [], inventoryReady = true, onCorrectInventory, onInvestigate, clientTransactionsDzd = [], onLinkMovementToClient }: TresoreriePageProps) {
+export function TresoreriePage({ caisseBalance, baridiBalance, otherCashBalances, investorBreakdown, capitalSnapshot, treasuryCards, openTreasuryCardModal, setTreasuryCardToDelete, openTreasuryBalanceEditModal, openDeliveryExpenseModal, treasuryTransactions = [], userDocRef, setAlert, portfolioStats, transactions = [], inventoryReady = true, onCorrectInventory, onInvestigate, clientTransactionsDzd = [], onLinkMovementToClient }: TresoreriePageProps) {
     const { t } = useLanguage();
     const weekdays = t('common.weekdaysNarrow') as unknown as string[];
 
@@ -147,7 +149,8 @@ export function TresoreriePage({ caisseBalance, baridiBalance, investorBreakdown
         eurAvailable: (portfolioStats?.eur?.available ?? 0) + reserved.EUR,
         eurLocked: portfolioStats?.eur?.locked ?? 0,
         extraAvailable: Object.fromEntries(EXTRA_CURRENCY_CODES.map((code) => [code, Number((portfolioStats as Record<string, { available?: number } | undefined> | undefined)?.[code.toLowerCase()]?.available ?? 0) + reserved[code]])),
-    }), [caisseBalance, baridiBalance, portfolioStats, reserved]);
+        otherCash: otherCashBalances,
+    }), [caisseBalance, baridiBalance, portfolioStats, reserved, otherCashBalances]);
     // Money movements typed by hand that nothing explains (V7-2).
     const movementReviewEnabled = Boolean(userDocRef && onLinkMovementToClient);
     const { reasons: movementReasons, saveReason: saveMovementReason } = useMovementReasons(

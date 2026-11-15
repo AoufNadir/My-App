@@ -1,3 +1,4 @@
+import { CASH_ACCOUNT_IDS, cashAccount, isCashAccountId } from '../../accounts/cashAccounts';
 import { TRADE_CURRENCY_CODES, type TradeCurrencyCode, liveList } from '../../currency/tradeCurrencies';
 import React from 'react';
 import { useCurrencyShown } from '../../contexts/CurrencyVisibilityContext';
@@ -9,7 +10,7 @@ import { useCurrencyShown } from '../../contexts/CurrencyVisibilityContext';
 export type PickerWallet = 'Caisse' | 'BaridiMob' | TradeCurrencyCode | 'Credit';
 export type WalletBalances = Partial<Record<PickerWallet, number>>;
 // V14-4: the unit of a wallet: dinars for the two cash wallets, the currency's own code otherwise.
-const unitOf = (wallet: PickerWallet): string => (wallet === 'Caisse' || wallet === 'BaridiMob' ? 'DZD' : wallet === 'Credit' ? '' : wallet);
+const unitOf = (wallet: PickerWallet): string => (wallet === 'Caisse' || wallet === 'BaridiMob' || isCashAccountId(wallet) ? 'DZD' : wallet === 'Credit' ? '' : wallet);
 const isCurrencyWallet = (wallet: PickerWallet): wallet is TradeCurrencyCode => (TRADE_CURRENCY_CODES as string[]).includes(wallet);
 
 export function WalletPicker({ value, onChange, wallets, labels, balances, ariaLabel, chooseLabel }: {
@@ -33,7 +34,7 @@ export function WalletPicker({ value, onChange, wallets, labels, balances, ariaL
             const balance = balances?.[wallet];
             return (<button key={wallet} type="button" role="radio" aria-checked={on} onClick={() => onChange(wallet)} className={`flex min-h-12 w-full items-center gap-3 px-3 py-2 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${on ? 'bg-primary/5' : 'hover:bg-surface-muted'}`}>
                 <span aria-hidden="true" className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${on ? 'border-primary' : 'border-border-strong'}`}>{on && <span className="h-2.5 w-2.5 rounded-full bg-primary"/>}</span>
-                <span className={`min-w-0 flex-1 text-sm font-semibold ${on ? 'text-primary' : 'text-neutral-900'}`}>{labels[wallet] ?? wallet}</span>
+                <span className={`min-w-0 flex-1 text-sm font-semibold ${on ? 'text-primary' : 'text-neutral-900'}`}>{labels[wallet] ?? (isCashAccountId(wallet) ? cashAccount(wallet).name : wallet)}</span>
                 {balance !== undefined && unitOf(wallet) && <bdi dir="ltr" className="shrink-0 text-xs tabular-nums text-neutral-500">{n(balance, unitOf(wallet))}</bdi>}
               </button>);
         })}
@@ -43,13 +44,15 @@ export function WalletPicker({ value, onChange, wallets, labels, balances, ariaL
 }
 
 /** What each wallet holds: the cash box and BaridiMob from the treasury, USDT, EUR and RMB from the stock. */
-export function walletBalancesOf(treasuryStats: { caisse?: number; baridi?: number }, portfolioStats: { usdt: { available?: number }; eur: { available?: number }; rmb?: { available?: number } }): WalletBalances {
+export function walletBalancesOf(treasuryStats: { caisse?: number; baridi?: number; accounts?: Record<string, number> }, portfolioStats: { usdt: { available?: number }; eur: { available?: number }; rmb?: { available?: number } }): WalletBalances {
     // V14-4: every currency of the list, read under its lower-case code.
     const stats = portfolioStats as unknown as Record<string, { available?: number } | undefined>;
     return {
         Caisse: Number(treasuryStats.caisse || 0),
         BaridiMob: Number(treasuryStats.baridi || 0),
+        // V15-2c: the owner's other dinar accounts
+        ...Object.fromEntries(CASH_ACCOUNT_IDS.filter((id) => id !== 'Caisse' && id !== 'BaridiMob').map((id) => [id, Number(treasuryStats.accounts?.[id] || 0)])),
         ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, Number(stats[code.toLowerCase()]?.available || 0)])),
     };
 }
-export const FINANCIAL_WALLETS: PickerWallet[] = liveList(() => ['Caisse', 'BaridiMob', ...TRADE_CURRENCY_CODES]);
+export const FINANCIAL_WALLETS: PickerWallet[] = liveList(() => [...CASH_ACCOUNT_IDS, ...TRADE_CURRENCY_CODES]); // V15-2c: every dinar account, then the currencies

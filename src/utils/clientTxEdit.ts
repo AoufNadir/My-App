@@ -1,7 +1,8 @@
+import { CUSTOM_CASH_ACCOUNTS, type PaymentChoice } from '../accounts/cashAccounts';
 import type { ClientTransactionDzd } from '../types';
 import { normalizeLedgerLabel } from './financialUx';
 
-export type ClientTxPaymentStatus = 'credit' | 'cash' | 'baridi';
+export type ClientTxPaymentStatus = PaymentChoice; // V15-2c: or another dinar account's id
 
 export const CLIENT_TX_PAYMENT_RECEIVED = 'Règlement Reçu';
 export const CLIENT_TX_PAYMENT_MADE = 'Paiement Effectué';
@@ -27,6 +28,10 @@ export const paymentStatusForExistingClientTx = (paymentMethod: string | undefin
         return 'baridi';
     if (paymentMethod === 'Espèces' || paymentMethod === 'EspÃ¨ces')
         return 'cash';
+    // V15-2c: a row paid on another dinar account carries that account's name.
+    const account = CUSTOM_CASH_ACCOUNTS.find((a) => a.name === paymentMethod);
+    if (account)
+        return account.id;
     return 'credit';
 };
 

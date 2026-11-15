@@ -24,11 +24,12 @@ assert.equal(Math.round(snap.stockValue * 100) / 100, 100, '3 USDT bought 100 DZ
 // 2 to 4. Rule 11: no wallet chosen in advance for an investor's capital, a client payment or receipt.
 const read = (file: string) => readFileSync(new URL(file, import.meta.url), 'utf8');
 const investors = read('../hooks/useInvestorHandlers.ts');
-assert.match(investors, /useState<'none' \| 'Caisse' \| 'BaridiMob' \| ''>\(''\)/, 'new investor: no capital source in advance');
-assert.match(investors, /useState<'Caisse' \| 'BaridiMob' \| ''>\(''\)/, 'deposit / withdrawal: no wallet in advance');
+// V15-2c: the sources are any dinar account now, still none in advance.
+assert.match(investors, /\[investorInitialCapitalSource, setInvestorInitialCapitalSource\] = useState<string>\(''\)/, 'new investor: no capital source in advance');
+assert.match(investors, /\[investorTxPaymentSource, setInvestorTxPaymentSource\] = useState<string>\(''\)/, 'deposit / withdrawal: no wallet in advance');
 assert.equal((investors.match(/Choisissez le portefeuille/g) || []).length >= 2, true, 'both saves refuse without a wallet');
 const clients = read('../hooks/useClientHandlers.ts');
-assert.match(clients, /useState<'credit' \| 'cash' \| 'baridi' \| null>\(null\)/, 'client payment: no wallet in advance');
+assert.match(clients, /useState<PaymentChoice \| null>\(null\)/, 'client payment: no wallet in advance');
 assert.match(clients, /setClientPaymentStatus\(isSettlement \? null : 'cash'\)/);
 assert.doesNotMatch(clients, /setClientPaymentStatus\(usualChannel \?\? 'cash'\)/, 'the usual channel is a hint only');
 

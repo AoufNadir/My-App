@@ -1,5 +1,5 @@
 import { registerStockHistory } from './utils/stockGuard';
-import { CASH_ACCOUNTS, cashAccount, walletOfStatus } from './accounts/cashAccounts';
+import { CASH_ACCOUNTS, adjustmentAssetForWallet, cashAccount, isCustomCashAccount, walletOfStatus } from './accounts/cashAccounts';
 import { commitWithStockLockOrBatch, registerStockLock, saveErrorAlert, STOCK_CHANGED_MESSAGE, StockChangedError } from './utils/stockLock';
 import { useStockLockSeq } from './hooks/useStockLockSeq';
 import { previousProfits } from './utils/dashboardComparison';
@@ -1386,17 +1386,18 @@ export default function MainApp({ user }: {
     // V12-11: a gap is never fixed without someone behind it (see inventoryFixFor).
     const openInventoryCorrection = (row: InventoryRow) => {
         const fix = inventoryFixFor(row);
-        const dzd = row.account === 'caisse' || row.account === 'baridi';
+        const custom = isCustomCashAccount(row.account) ? row.account : null; // V15-2c: another dinar account
+        const dzd = row.account === 'caisse' || row.account === 'baridi' || Boolean(custom);
         const amount = dzd ? String(Math.round(Math.abs(row.gap))) : Math.abs(row.gap).toFixed(2);
         if (fix === 'personal_expense') {
             openPersonalWithdrawalModal();
-            setPersonalWithdrawalMethod(row.account === 'caisse' ? 'Caisse' : row.account === 'baridi' ? 'BaridiMob' : row.account.toUpperCase() as TradeCurrencyCode);
+            setPersonalWithdrawalMethod(row.account === 'caisse' ? 'Caisse' : row.account === 'baridi' ? 'BaridiMob' : custom ? custom as never : row.account.toUpperCase() as TradeCurrencyCode);
             setPersonalWithdrawalAmount(amount);
             return;
         }
         if (fix === 'forgotten_entry') {
             openAdjustmentModal('add');
-            setAdjustmentAsset(row.account === 'caisse' ? 'DZD-Caisse' : row.account === 'baridi' ? 'DZD-Baridi' : row.account.toUpperCase());
+            setAdjustmentAsset(row.account === 'caisse' ? 'DZD-Caisse' : row.account === 'baridi' ? 'DZD-Baridi' : custom ? adjustmentAssetForWallet(custom) : row.account.toUpperCase());
             // the inventory row says which wallet and that money is missing from the books: both known
             setAdjustmentTabChosen(true);
             setAdjustmentAssetChosen(true);

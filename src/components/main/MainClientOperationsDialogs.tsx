@@ -1,3 +1,4 @@
+import { CASH_ACCOUNT_IDS, CUSTOM_CASH_ACCOUNTS, adjustmentAssetForWallet, cashAccount, cashBalanceOf, cashWalletOfAsset, walletOfStatus } from '../../accounts/cashAccounts';
 import { isTradeCurrency, TRADE_CURRENCY_CODES, liveRecord } from '../../currency/tradeCurrencies';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ModalContent, ModalHeader, ModalTitle } from '../ui/Modal';
@@ -12,8 +13,8 @@ import { SegmentedControl } from '../ui/SegmentedControl';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { AdjustmentReasonPicker } from './AdjustmentReasonPicker';
 import { WalletPicker, type PickerWallet } from '../ui/WalletPicker';
-const ASSET_TO_WALLET: Record<string, PickerWallet> = liveRecord<PickerWallet>(() => ({ 'DZD-Caisse': 'Caisse', 'DZD-Baridi': 'BaridiMob', ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, code])) }));
-const WALLET_TO_ASSET: Partial<Record<PickerWallet, string>> = liveRecord<string>(() => ({ Caisse: 'DZD-Caisse', BaridiMob: 'DZD-Baridi', ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, code])) }));
+const ASSET_TO_WALLET: Record<string, PickerWallet> = liveRecord<PickerWallet>(() => ({ 'DZD-Caisse': 'Caisse', 'DZD-Baridi': 'BaridiMob', ...Object.fromEntries(CUSTOM_CASH_ACCOUNTS.map((a) => [adjustmentAssetForWallet(a.id), a.id])), ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, code])) }));
+const WALLET_TO_ASSET: Partial<Record<PickerWallet, string>> = liveRecord<string>(() => ({ Caisse: 'DZD-Caisse', BaridiMob: 'DZD-Baridi', ...Object.fromEntries(CUSTOM_CASH_ACCOUNTS.map((a) => [a.id, adjustmentAssetForWallet(a.id)])), ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, code])) }));
 import { ArrowDownIcon } from '../icons/ArrowDownIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { WalletIcon } from '../icons/WalletIcon';
@@ -159,8 +160,9 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     const isClientSettlementTx = normalizedClientTxType === 'Règlement Reçu' || normalizedClientTxType === 'Paiement Effectué';
     const isClientPaymentReceived = normalizedClientTxType === 'Règlement Reçu';
     const isClientPaymentMade = normalizedClientTxType === 'Paiement Effectué';
-    const settlementPaymentStatus = clientTxPaymentStatus === 'baridi' ? 'baridi' : clientTxPaymentStatus === 'cash' ? 'cash' : '';
-    const clientSettlementWalletLabel = String(settlementPaymentStatus === 'baridi' ? t('transactions.baridi') : t('transactions.cash'));
+    // V15-2c: cash, baridi or another dinar account's id ('' while none is chosen)
+    const settlementPaymentStatus: string = clientTxPaymentStatus && clientTxPaymentStatus !== 'credit' ? clientTxPaymentStatus : '';
+    const clientSettlementWalletLabel = String(settlementPaymentStatus === 'baridi' ? t('transactions.baridi') : settlementPaymentStatus === 'cash' || !settlementPaymentStatus ? t('transactions.cash') : cashAccount(settlementPaymentStatus).name);
     const clientSettlementHint = !settlementPaymentStatus ? String(t('transactions.walletChoose')) : String(isClientPaymentReceived ? t('transactions.clientTreasuryAddHint') : t('transactions.clientTreasuryRetraitHint'))
         .replace('{wallet}', clientSettlementWalletLabel);
     const parsedClientTxAmount = parseAndEvaluate(clientTxAmount);
@@ -176,9 +178,9 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     const receiverClientName = receiverClient ? getClientFullName(receiverClient) : '';
     const clientTxMaxAmount = Math.abs(Number(clientBalances?.get?.(clientTxTargetClientId) || 0));
     const clientTxMaxDisabled = !isClientSettlementTx || clientTxMaxAmount <= 0.005;
-    const clientSettlementWalletBalance = clientSettlementWalletLabel === 'Caisse'
-        ? Number(treasuryStats?.caisse || 0)
-        : Number(treasuryStats?.baridi || 0);
+    // V15-2c: the balance of the chosen account itself. (It compared the translated label with « Caisse »: in Arabic
+    // the label is « الصندوق », so a payment from the Caisse was checked against BaridiMob.)
+    const clientSettlementWalletBalance = cashBalanceOf(treasuryStats, walletOfStatus(settlementPaymentStatus || 'cash'));
     const clientSettlementWalletInsufficient = (isClientSettlementTx
         && !editingClientTx
         && !isClientPaymentReceived
@@ -260,20 +262,15 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
     const linkedClientBalance = Number(clientBalances?.get?.(reasonClientId) || 0);
     // V14-4: any currency of the list reads its own balance (portfolioStats under its lower-case code).
     const currencyBalance = isTradeCurrency(adjustmentAsset) ? Number(portfolioStats?.[adjustmentAsset.toLowerCase()]?.available || 0) : 0;
-    const selectedAssetMax = Number(adjustmentAsset === 'DZD-Caisse'
-        ? (treasuryStats?.caisse || 0)
-        : adjustmentAsset === 'DZD-Baridi'
-            ? (treasuryStats?.baridi || 0)
-            : currencyBalance);
+    const adjustedCashWallet = cashWalletOfAsset(adjustmentAsset); // V15-2c: any dinar account
+    const selectedAssetMax = Number(adjustedCashWallet ? cashBalanceOf(treasuryStats, adjustedCashWallet) : currencyBalance);
     const availableAssetBalance = currencyBalance;
     const parsedAdjustmentAmount = Number.parseFloat(adjustmentAmount || '0');
     const exceedsAvailableBalance = adjustmentTab === 'subtract' && (isTradeCurrency(adjustmentAsset)
         ? parsedAdjustmentAmount > currencyBalance
-        : adjustmentAsset === 'DZD-Caisse'
-            ? parsedAdjustmentAmount > (treasuryStats?.caisse || 0)
-            : adjustmentAsset === 'DZD-Baridi'
-                ? parsedAdjustmentAmount > (treasuryStats?.baridi || 0)
-                : false);
+        : adjustedCashWallet
+            ? parsedAdjustmentAmount > cashBalanceOf(treasuryStats, adjustedCashWallet)
+            : false);
     const adjustmentReady = adjustmentTabChosen && adjustmentAssetChosen;
     const isConfirmDisabled = (isSaving ||
         !adjustmentReady ||
@@ -421,7 +418,8 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                             <SegmentedControl size="md" ariaLabel={t('transactions.settlementMethod') as string} value={settlementPaymentStatus} onChange={(value) => setClientTxPaymentStatus?.(value)} options={[
                                 { id: 'cash', label: <><WalletIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{t('transactions.cash')}</>, tone: 'profit' },
                                 { id: 'baridi', label: <><BanknotesIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{t('transactions.baridi')}</>, tone: 'primary' },
-                            ]}/>
+                                ...CUSTOM_CASH_ACCOUNTS.map((account) => ({ id: account.id, label: <><BanknotesIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{account.name}</>, tone: 'primary' as const })),
+                            ]} columns={CUSTOM_CASH_ACCOUNTS.length > 0 ? 2 : undefined}/>
                             <p className={`mt-1.5 text-xs leading-5 ${clientSettlementWalletInsufficient ? 'font-medium text-financial-loss' : 'text-neutral-500'}`}>
                                 {clientSettlementWalletInsufficient
                 ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant.', { asset: clientSettlementWalletLabel })
@@ -593,7 +591,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                     {adjustmentTabChosen && (<div>
                         <Label>{t('transactions.assetType')}</Label>
                         <div className="mt-1">
-                            <WalletPicker value={adjustmentAssetChosen ? (ASSET_TO_WALLET[adjustmentAsset] ?? null) : null} onChange={(wallet) => handleAdjustmentAssetChange(WALLET_TO_ASSET[wallet] ?? wallet)} wallets={['Caisse', 'BaridiMob', ...TRADE_CURRENCY_CODES]} labels={{ Caisse: 'Caisse (DZD)', BaridiMob: 'BaridiMob (DZD)' }} balances={{ Caisse: Number(treasuryStats?.caisse || 0), BaridiMob: Number(treasuryStats?.baridi || 0), ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, Number(portfolioStats?.[code.toLowerCase()]?.available || 0)])) }} ariaLabel={t('transactions.assetType') as string}/>
+                            <WalletPicker value={adjustmentAssetChosen ? (ASSET_TO_WALLET[adjustmentAsset] ?? null) : null} onChange={(wallet) => handleAdjustmentAssetChange(WALLET_TO_ASSET[wallet] ?? wallet)} wallets={[...CASH_ACCOUNT_IDS, ...TRADE_CURRENCY_CODES]} labels={{ Caisse: 'Caisse (DZD)', BaridiMob: 'BaridiMob (DZD)', ...Object.fromEntries(CUSTOM_CASH_ACCOUNTS.map((a) => [a.id, `${a.name} (DZD)`])) }} balances={{ Caisse: Number(treasuryStats?.caisse || 0), BaridiMob: Number(treasuryStats?.baridi || 0), ...Object.fromEntries(CUSTOM_CASH_ACCOUNTS.map((a) => [a.id, cashBalanceOf(treasuryStats, a.id)])), ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, Number(portfolioStats?.[code.toLowerCase()]?.available || 0)])) }} ariaLabel={t('transactions.assetType') as string}/>
                         </div>
                     </div>)}
                     </FormCard>

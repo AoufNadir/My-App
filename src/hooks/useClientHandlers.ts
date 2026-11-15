@@ -1,3 +1,4 @@
+import { cashAccount, cashBalanceOf, paymentMethodOfStatus, walletOfStatus, type PaymentChoice } from '../accounts/cashAccounts';
 import { saveErrorAlert } from '../utils/stockLock';
 import { useRef, useState } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
@@ -473,7 +474,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     const [clientTxNotes, setClientTxNotes] = useState('');
     const [clientTxSource, setClientTxSource] = useState('Caisse');
     // V14-5: a new payment or receipt starts with no wallet chosen (rule 11); the usual channel is a hint only.
-    const [clientPaymentStatus, setClientPaymentStatus] = useState<'credit' | 'cash' | 'baridi' | null>(null);
+    const [clientPaymentStatus, setClientPaymentStatus] = useState<PaymentChoice | null>(null);
     const [linkedClientId, setLinkedClientId] = useState('none');
     const [clientTxReceiverClientId, setClientTxReceiverClientId] = useState('none');
     // USDT/EUR related fields for client tx modal
@@ -564,17 +565,15 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 setAlert('⚠️ Le client qui reçoit doit être différent.');
                 return;
             }
-            const paymentMethod = paymentMethodMap[effectiveClientPaymentStatus];
-            const walletSource = effectiveClientPaymentStatus === 'cash' ? 'Caisse' : 'BaridiMob';
+            const paymentMethod = paymentMethodOfStatus(effectiveClientPaymentStatus); // V15-2c: the account's name for an added account
+            const walletSource = walletOfStatus(effectiveClientPaymentStatus);
             const treasuryTxType = isPaymentReceived ? 'Ajout' : 'Retrait';
             let readModelDelta: ReturnType<typeof mustPrepareWriterReadModelDelta> | null = null;
             if (effectiveClientPaymentStatus !== 'credit' && !isPaymentReceived && receiverClientId === 'none') {
                 const linkedTreasuryTx = editingClientTx?.linkedTxId
                     ? treasuryTransactions.find(tx => tx.id === editingClientTx.linkedTxId)
                     : null;
-                const currentWalletBalance = walletSource === 'Caisse'
-                    ? Number(treasuryStats?.caisse || 0)
-                    : Number(treasuryStats?.baridi || 0);
+                const currentWalletBalance = cashBalanceOf(treasuryStats, walletSource);
                 const existingLinkedEffect = linkedTreasuryTx?.source === walletSource
                     ? (linkedTreasuryTx.type === 'Ajout' || linkedTreasuryTx.type === 'Adjustment (+)'
                         ? Number(linkedTreasuryTx.amount || 0)
@@ -584,7 +583,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     : 0;
                 const editableWalletBalance = currentWalletBalance - existingLinkedEffect;
                 if (amount > editableWalletBalance + CLIENT_DELETE_EPSILON) {
-                    setAlert(walletSource === 'Caisse' ? '⚠️ Solde Caisse insuffisant.' : '⚠️ Solde BaridiMob insuffisant.');
+                    setAlert(`⚠️ Solde ${walletSource === 'Caisse' || walletSource === 'BaridiMob' ? walletSource : cashAccount(walletSource).name} insuffisant.`);
                     return;
                 }
             }
@@ -618,12 +617,12 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 const oldMontant = Number(editingClientTx.montant || 0);
                 const beforeClientBalance = (clientBalances.get(editingClientTx.clientId) || 0) - oldMontant;
                 const clientsDelta = transitionClientBalanceDelta(beforeClientBalance, beforeClientBalance + montant);
-                const walletDeltas = { Caisse: 0, BaridiMob: 0 };
+                const walletDeltas: Record<string, number> = { Caisse: 0, BaridiMob: 0, [walletSource]: 0 };
                 const linkedTreasuryTx = editingClientTx.linkedTxId && !isBalanceRowEdit
                     ? treasuryTransactions.find(tx => tx.id === editingClientTx.linkedTxId)
                     : null;
                 if (linkedTreasuryTx?.source === 'Caisse' || linkedTreasuryTx?.source === 'BaridiMob') {
-                    walletDeltas[linkedTreasuryTx.source] -= linkedTreasuryTx.type === 'Ajout' ? Number(linkedTreasuryTx.amount || 0) : -Number(linkedTreasuryTx.amount || 0);
+                    walletDeltas[linkedTreasuryTx.source] = (walletDeltas[linkedTreasuryTx.source] ?? 0) - (linkedTreasuryTx.type === 'Ajout' ? Number(linkedTreasuryTx.amount || 0) : -Number(linkedTreasuryTx.amount || 0));
                 }
                 if (effectiveClientPaymentStatus !== 'credit') {
                     walletDeltas[walletSource] += isPaymentReceived ? amount : -amount;
@@ -739,7 +738,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     batch.set(clientTxRef, clientTxPayload);
                     const clientsDelta = balanceTransitionForClient(targetClientId, montant);
                     clientsDelta.activeClientsTodayDelta = activeClientTodayDelta(targetClientId, timestamp);
-                    const walletDeltas = { Caisse: 0, BaridiMob: 0 };
+                    const walletDeltas: Record<string, number> = { Caisse: 0, BaridiMob: 0, [walletSource]: 0 };
                     if (effectiveClientPaymentStatus !== 'credit') {
                         walletDeltas[walletSource] = isPaymentReceived ? amount : -amount;
                     }
@@ -762,10 +761,10 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     actorUid: userDocRef.id,
                     effectiveAt: timestamp,
                     kind,
-                    wallet: walletSource,
+                    wallet: walletSource as 'Caisse' | 'BaridiMob', // diagnostics only
                     amountDzd: amount,
                     clientId: targetClientId,
-                }, [{ type: treasuryTxType, source: walletSource, amount }]);
+                }, [{ type: treasuryTxType, source: walletSource as 'Caisse' | 'BaridiMob', amount }]); // diagnostics only
             }
             if (!editingClientTx) {
                 if (receiverClientId !== 'none') {
@@ -806,7 +805,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                         clientId: targetClientId,
                         amountDzd: amount,
                         positionBefore,
-                        wallet: walletSource,
+                        wallet: walletSource as 'Caisse' | 'BaridiMob', // diagnostics only
                     }, {
                         clientDeltas: { [targetClientId]: montant },
                         cashDeltasDzd: { [walletSource]: isPaymentReceived ? amount : -amount },

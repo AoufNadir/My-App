@@ -52,7 +52,7 @@ export function tradeChannel(input: {
  */
 export function settlementChannel(input: {
     received: boolean;
-    status: 'cash' | 'baridi';
+    status: string; // V15-2c: cash, baridi or another dinar account's id
     receiverClientId?: string | null;
     amount: number;
 }): ChannelSummary | null {
@@ -61,7 +61,7 @@ export function settlementChannel(input: {
     const flow = input.received ? 'in' : 'out';
     if (hasId(input.receiverClientId))
         return { kind: 'client', wallet: null, flow, amount: input.amount, accountClientId: input.receiverClientId };
-    return { kind: input.status, wallet: walletOf(input.status), flow, amount: input.amount, accountClientId: null };
+    return { kind: input.status === 'cash' ? 'cash' : 'baridi', wallet: walletOf(input.status), flow, amount: input.amount, accountClientId: null };
 }
 
 /** The colour of a channel in every window that names one: cash green, BaridiMob blue, credit orange. */

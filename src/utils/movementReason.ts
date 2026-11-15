@@ -1,3 +1,4 @@
+import { cashWalletOfAsset } from '../accounts/cashAccounts';
 import { isTradeCurrency } from '../currency/tradeCurrencies';
 import type { TradeCurrencyCode } from '../currency/tradeCurrencies';
 import type { ClientTransactionDzd, TreasuryTx, Tx } from '../types';
@@ -29,11 +30,11 @@ const DZD_SUBTRACT: readonly AdjustmentReason[] = ['client', 'personal_withdrawa
 const CRYPTO_ADD: readonly AdjustmentReason[] = ['buy'];
 const CRYPTO_SUBTRACT: readonly AdjustmentReason[] = ['sell', 'personal_withdrawal', 'project_expense'];
 
-export const isDzdAdjustmentAsset = (asset: string) => asset === 'DZD-Caisse' || asset === 'DZD-Baridi';
+export const isDzdAdjustmentAsset = (asset: string) => cashWalletOfAsset(asset) !== null; // V15-2c: any dinar account
 
 /** The wallet of a cash or BaridiMob adjustment, as the window names it. */
 export const adjustmentAssetOf = (value: string): AdjustmentAssetValue | null =>
-    value === 'DZD-Caisse' || value === 'DZD-Baridi' || isTradeCurrency(value) ? value as AdjustmentAssetValue : null;
+    cashWalletOfAsset(value) !== null || isTradeCurrency(value) ? value as AdjustmentAssetValue : null;
 
 /** The reasons offered for this wallet and direction, in the order shown. */
 export function adjustmentReasonsFor(asset: AdjustmentAssetValue, direction: AdjustmentDirection): readonly AdjustmentReason[] {

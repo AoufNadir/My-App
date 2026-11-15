@@ -1,3 +1,4 @@
+import { isCashAccountId } from '../accounts/cashAccounts';
 import { isTradeCurrency, type TradeCurrencyCode } from '../currency/tradeCurrencies';
 export type CashWallet = 'Caisse' | 'BaridiMob';
 /** V13-5: RMB (Alipay) is a wallet like USDT and EUR. */
@@ -113,5 +114,6 @@ export function assetWalletStats(stats: { usdt: { available?: number; avgBuy?: n
 }
 
 export function isCashWallet(wallet: DigitalServiceSaleWallet): wallet is CashWallet {
-    return wallet === 'Caisse' || wallet === 'BaridiMob';
+    // V15-2c: any dinar account (the Caisse, BaridiMob, or one the owner added) holds dinars.
+    return wallet === 'Caisse' || wallet === 'BaridiMob' || isCashAccountId(wallet);
 }

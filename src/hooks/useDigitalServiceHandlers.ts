@@ -1,3 +1,4 @@
+import { cashAccount, cashBalanceOf } from '../accounts/cashAccounts';
 import { saveErrorAlert } from '../utils/stockLock';
 import { EXTRA_CURRENCY_CODES } from '../currency/tradeCurrencies';
 import { TRADE_CURRENCY_CODES, type TradeCurrencyCode } from '../currency/tradeCurrencies';
@@ -183,11 +184,9 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
             return `⚠️ PMA ${digitalServiceSaleWallet} indisponible.`;
         }
         const epsilon = 0.005;
-        const currentAvailable = digitalServicePurchaseWallet === 'Caisse'
-            ? treasuryStats.caisse
-            : digitalServicePurchaseWallet === 'BaridiMob'
-                ? treasuryStats.baridi
-                : isAssetWallet(digitalServicePurchaseWallet)
+        const currentAvailable = isCashWallet(digitalServicePurchaseWallet)
+            ? cashBalanceOf(treasuryStats, digitalServicePurchaseWallet) // V15-2c: any dinar account
+            : isAssetWallet(digitalServicePurchaseWallet)
                     ? assetWalletStats(portfolioStats, digitalServicePurchaseWallet).available
                     : 0;
         const restoredOldPurchase = editingDigitalServiceTx?.purchaseWallet === digitalServicePurchaseWallet
@@ -337,7 +336,7 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
                     `Vente ${saleAmount} ${preview.saleCurrency} (${preview.saleAmountDzd.toFixed(2)} DZD)`,
                     `Marge ${preview.profitDzd.toFixed(2)} DZD`,
                 ].filter(Boolean).join(' - '),
-                paymentMethod: SALE_PAYMENT_METHOD[digitalServiceSaleWallet],
+                paymentMethod: SALE_PAYMENT_METHOD[digitalServiceSaleWallet] ?? cashAccount(digitalServiceSaleWallet).name, // V15-2c: another dinar account by its name
                 affectsBalance: digitalServiceSaleWallet === 'Credit',
                 origin: 'digital_service_sale',
             });

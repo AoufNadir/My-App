@@ -1,3 +1,4 @@
+import { cashAccount, cashBalanceOf } from '../accounts/cashAccounts';
 import { saveErrorAlert } from '../utils/stockLock';
 import { EXTRA_CURRENCY_CODES, isTradeCurrency } from '../currency/tradeCurrencies';
 import { useCallback, useMemo, useState } from 'react';
@@ -64,13 +65,13 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     // M3: payment source for the opening capital. 'none' keeps the legacy
     // behavior (treat as opening equity, no cash movement). Caisse/BaridiMob
     // adds a matching treasury_tx so totalCapital reflects the cash inflow.
-    const [investorInitialCapitalSource, setInvestorInitialCapitalSource] = useState<'none' | 'Caisse' | 'BaridiMob' | ''>(''); // V14-5: no source chosen in advance (rule 11)
+    const [investorInitialCapitalSource, setInvestorInitialCapitalSource] = useState<string>(''); // 'none', 'Caisse', 'BaridiMob' or another dinar account (V15-2c) // V14-5: no source chosen in advance (rule 11)
     // Transaction state
     const [isInvestorTxModalOpen, setIsInvestorTxModalOpen] = useState(false);
     const [investorTxAmount, setInvestorTxAmount] = useState('');
     const [investorTxType, setInvestorTxType] = useState<'deposit_capital' | 'withdraw_profit' | 'withdraw_capital' | 'reinvest_profit'>('deposit_capital');
     const [investorTxNotes, setInvestorTxNotes] = useState('');
-    const [investorTxPaymentSource, setInvestorTxPaymentSource] = useState<'Caisse' | 'BaridiMob' | ''>(''); // V14-5: no wallet chosen in advance (rule 11)
+    const [investorTxPaymentSource, setInvestorTxPaymentSource] = useState<string>(''); // V15-2c: any dinar account; V14-5: no wallet chosen in advance (rule 11)
     const [investorTxToDelete, setInvestorTxToDelete] = useState<InvestorTransaction | null>(null);
     // Reinvest state
     const [isReinvestModalOpen, setIsReinvestModalOpen] = useState(false);
@@ -308,8 +309,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         isLegacyAssetWallet(wallet) ? { [wallet]: { quantityDelta, costBasisDeltaDzd } } : undefined
     );
     const getWalletAvailableBalance = (wallet: FinancialWallet): number => {
-        if (wallet === 'Caisse') return Number(treasuryStats.caisse || 0);
-        if (wallet === 'BaridiMob') return Number(treasuryStats.baridi || 0);
+        if (isCashWallet(wallet)) return cashBalanceOf(treasuryStats, wallet); // V15-2c: any dinar account
         if (isAssetWallet(wallet)) return assetWalletStats(portfolioStats, wallet).available;
         return 0;
     };
@@ -1160,15 +1160,13 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         }
         if (investorTxType === 'withdraw_profit') {
             const availableProfit = Number(selectedInvestor.availableProfit || 0);
-            const sourceBalance = investorTxPaymentSource === 'Caisse'
-                ? Number(treasuryStats.caisse || 0)
-                : Number(treasuryStats.baridi || 0);
+            const sourceBalance = cashBalanceOf(treasuryStats, investorTxPaymentSource);
             if (amount > availableProfit + 0.005) {
                 setAlert('⚠️ Montant dépasse le profit disponible.');
                 return;
             }
             if (amount > sourceBalance + 0.005) {
-                setAlert(investorTxPaymentSource === 'Caisse' ? '⚠️ Solde Caisse insuffisant.' : '⚠️ Solde BaridiMob insuffisant.');
+                setAlert(`⚠️ Solde ${investorTxPaymentSource === 'Caisse' || investorTxPaymentSource === 'BaridiMob' ? investorTxPaymentSource : cashAccount(investorTxPaymentSource).name} insuffisant.`);
                 return;
             }
         }
@@ -1176,9 +1174,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         if (investorTxType === 'withdraw_capital') {
             const capitalInvested = Number(selectedInvestor.capitalInvested || 0);
             const availableProfit = Number(selectedInvestor.availableProfit || 0);
-            const sourceBalance = investorTxPaymentSource === 'Caisse'
-                ? Number(treasuryStats.caisse || 0)
-                : Number(treasuryStats.baridi || 0);
+            const sourceBalance = cashBalanceOf(treasuryStats, investorTxPaymentSource);
             if (amount > capitalInvested + 0.005) {
                 setAlert('⚠️ Montant dépasse le capital investi.');
                 return;
@@ -1191,7 +1187,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                 return;
             }
             if (amount > sourceBalance + 0.005) {
-                setAlert(investorTxPaymentSource === 'Caisse' ? '⚠️ Solde Caisse insuffisant.' : '⚠️ Solde BaridiMob insuffisant.');
+                setAlert(`⚠️ Solde ${investorTxPaymentSource === 'Caisse' || investorTxPaymentSource === 'BaridiMob' ? investorTxPaymentSource : cashAccount(investorTxPaymentSource).name} insuffisant.`);
                 return;
             }
         }

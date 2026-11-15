@@ -59,3 +59,11 @@ export const walletOfStatus = (status: PaymentChoice | null | undefined): string
 export const paymentMethodOfStatus = (status: PaymentChoice | null | undefined): string => (status === 'credit' ? 'Crédit' : status === 'baridi' ? 'BaridiMob' : status === 'cash' || !status ? 'Espèces' : cashAccount(status).name);
 /** A payment made now (not on the client's account). */
 export const isPaidNow = (status: PaymentChoice | null | undefined): boolean => Boolean(status) && status !== 'credit';
+/** V15-2c: what a dinar account holds, from the treasury figures (the Caisse and BaridiMob as before). */
+export const cashBalanceOf = (stats: { caisse?: number; baridi?: number; accounts?: Record<string, number> } | null | undefined, id: string): number => (id === 'Caisse' ? Number(stats?.caisse || 0) : id === 'BaridiMob' ? Number(stats?.baridi || 0) : Number(stats?.accounts?.[id] || 0));
+/** V15-2c: one of the accounts the owner added (a plain check, not a type guard). */
+export const isCustomCashAccount = (id: string): boolean => CUSTOM_CASH_ACCOUNTS.some((a) => a.id === id);
+/** V15-2c: the « asset » of the treasury adjustment window for a dinar account: DZD-Caisse, DZD-Baridi, DZD-<id>. */
+export const adjustmentAssetForWallet = (id: string): string => (id === 'Caisse' ? 'DZD-Caisse' : id === 'BaridiMob' ? 'DZD-Baridi' : `DZD-${id}`);
+/** And back: the dinar account of an adjustment asset, or null for a currency. */
+export const cashWalletOfAsset = (asset: string): string | null => (asset === 'DZD-Caisse' ? 'Caisse' : asset === 'DZD-Baridi' ? 'BaridiMob' : asset.startsWith('DZD-') && isCustomCashAccount(asset.slice(4)) ? asset.slice(4) : null);

@@ -1,3 +1,4 @@
+import { CUSTOM_CASH_ACCOUNTS, isCustomCashAccount } from '../accounts/cashAccounts';
 import { currencyKey, EXTRA_CURRENCY_CODES, isTradeCurrency, TRADE_CURRENCY_CODES, type TradeCurrencyKey, liveList, liveRecord } from '../currency/tradeCurrencies';
 import { fromCents, toCents } from './money';
 
@@ -10,7 +11,8 @@ import { fromCents, toCents } from './money';
 export type InventoryAccount = 'caisse' | 'baridi' | TradeCurrencyKey;
 
 // V14-2: RMB (Alipay) is counted like EUR.
-export const INVENTORY_ACCOUNTS: readonly InventoryAccount[] = liveList<InventoryAccount>(() => ['caisse', 'baridi', ...TRADE_CURRENCY_CODES.map(currencyKey)]);
+// V15-2c: the owner's other dinar accounts are counted too, under their id, after BaridiMob.
+export const INVENTORY_ACCOUNTS: readonly InventoryAccount[] = liveList<InventoryAccount>(() => ['caisse', 'baridi', ...CUSTOM_CASH_ACCOUNTS.map((a) => a.id as InventoryAccount), ...TRADE_CURRENCY_CODES.map(currencyKey)]);
 const zeroTotals = (): InventoryExpected => Object.fromEntries(INVENTORY_ACCOUNTS.map((account) => [account, 0])) as InventoryExpected;
 
 export type InventoryExpected = Record<InventoryAccount, number>;
@@ -36,11 +38,12 @@ export type InventoryRow = {
  */
 export const INVENTORY_TOLERANCE_CENTS: Record<InventoryAccount, number> = liveRecord<number>(() => ({
     ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [currencyKey(code), 1])) as Record<TradeCurrencyKey, number>,
+    ...Object.fromEntries(CUSTOM_CASH_ACCOUNTS.map((a) => [a.id, 99])),
     caisse: 99,
     baridi: 99,
 }));
 
-export const isDzdAccount = (account: InventoryAccount): boolean => account === 'caisse' || account === 'baridi';
+export const isDzdAccount = (account: InventoryAccount): boolean => account === 'caisse' || account === 'baridi' || isCustomCashAccount(account);
 
 const finite = (value: unknown): number => {
     const n = Number(value);
@@ -63,11 +66,14 @@ export function inventoryExpected(input: {
     rmbAvailable?: number;
     /** V14-4: every extra currency (by code), RMB included */
     extraAvailable?: Partial<Record<string, number>>;
+    /** V15-2c: the owner's other dinar accounts, by id */
+    otherCash?: Partial<Record<string, number>>;
 }): InventoryExpected {
     const sum = (a: number, b: number) => normalizeZero(fromCents(toCents(finite(a)) + toCents(finite(b))));
     return {
         caisse: normalizeZero(fromCents(toCents(finite(input.caisse)))),
         baridi: normalizeZero(fromCents(toCents(finite(input.baridi)))),
+        ...Object.fromEntries(CUSTOM_CASH_ACCOUNTS.map((a) => [a.id, normalizeZero(fromCents(toCents(finite(input.otherCash?.[a.id] ?? 0))))])),
         usdt: sum(input.usdtAvailable, input.usdtLocked ?? 0),
         eur: sum(input.eurAvailable, input.eurLocked ?? 0),
         ...Object.fromEntries(EXTRA_CURRENCY_CODES.map((code) => [currencyKey(code), sum(input.extraAvailable?.[code] ?? (code === 'RMB' ? input.rmbAvailable ?? 0 : 0), 0)])),

@@ -1,4 +1,4 @@
-import { cashAccount, isPaidNow, type PaymentChoice, paymentMethodOfStatus, walletOfStatus } from '../accounts/cashAccounts';
+import { adjustmentAssetForWallet, cashAccount, cashBalanceOf, cashWalletOfAsset, isPaidNow, type PaymentChoice, paymentMethodOfStatus, walletOfStatus } from '../accounts/cashAccounts';
 import { EXTRA_CURRENCY_CODES } from '../currency/tradeCurrencies';
 import { useCallback, useState, useMemo, type MutableRefObject } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
@@ -1423,7 +1423,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         }
         // V7-2: every movement typed by hand says why. Only a client reason carries a client; the window
         // already refuses Save in these cases, this is the same rule once more where the money is written.
-        const isCashAdjustment = adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi';
+        const isCashAdjustment = cashWalletOfAsset(adjustmentAsset) !== null; // V15-2c: any dinar account
         const adjustedClientId = isCashAdjustment && adjustmentReason === 'client' ? adjustmentClientId : '';
         const reasonBlock = isAdjustmentReasonAllowed(adjustmentAsset, adjustmentTab, adjustmentReason)
             ? adjustmentReasonBlock({ reason: adjustmentReason, clientId: adjustedClientId, note: adjustmentNote })
@@ -1453,12 +1453,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 setAlert('⚠️ Solde EUR insuffisant.');
                 return;
             }
-            if (adjustmentAsset === 'DZD-Caisse' && amountNum > (treasuryStats.caisse + oldSubtractAmountOnWallet('Caisse') + epsilon)) {
-                setAlert('⚠️ Solde Caisse insuffisant.');
-                return;
-            }
-            if (adjustmentAsset === 'DZD-Baridi' && amountNum > (treasuryStats.baridi + oldSubtractAmountOnWallet('BaridiMob') + epsilon)) {
-                setAlert('⚠️ Solde BaridiMob insuffisant.');
+            const adjustedWallet = cashWalletOfAsset(adjustmentAsset);
+            if (adjustedWallet && amountNum > (cashBalanceOf(treasuryStats, adjustedWallet) + oldSubtractAmountOnWallet(adjustedWallet as 'Caisse') + epsilon)) {
+                setAlert(`⚠️ Solde ${adjustedWallet === 'Caisse' || adjustedWallet === 'BaridiMob' ? adjustedWallet : cashAccount(adjustedWallet).name} insuffisant.`);
                 return;
             }
         }
@@ -1512,7 +1509,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             }
             else {
                 const type = adjustmentTab === 'add' ? 'Ajout' : 'Retrait';
-                const source = adjustmentAsset === 'DZD-Caisse' ? 'Caisse' : 'BaridiMob';
+                const source = cashWalletOfAsset(adjustmentAsset) ?? 'Caisse';
                 const note = adjustmentNote || 'Ajustement Trésorerie';
                 const clientTxType = adjustmentTab === 'add' ? 'Règlement Reçu' : 'Paiement Effectué';
                 const clientAmount = adjustmentTab === 'add' ? amountNum : -amountNum;
@@ -1605,7 +1602,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     }
                 }
             }
-            if (adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') {
+            if (adjustmentAsset === 'DZD-Caisse' || adjustmentAsset === 'DZD-Baridi') { // diagnostics: the two built-in accounts only
                 const wallet = adjustmentAsset === 'DZD-Caisse' ? 'Caisse' : 'BaridiMob';
                 const kind = adjustmentTab === 'add' ? 'treasury_adjustment_in' : 'treasury_adjustment_out';
                 recordTreasuryShadow({
@@ -1710,7 +1707,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         if (txToEdit) {
             const linkedAdjustmentClientTx = clientTransactionsDzd.find((tx) => tx.linkedTxId === txToEdit.id && tx.origin === 'adjustment');
             setAdjustmentAmount(txToEdit.amount.toString());
-            setAdjustmentAsset(txToEdit.source === 'Caisse' ? 'DZD-Caisse' : 'DZD-Baridi');
+            setAdjustmentAsset(adjustmentAssetForWallet(String(txToEdit.source || 'Caisse')));
             setAdjustmentNote(txToEdit.notes || '');
             setAdjustmentClientId(linkedAdjustmentClientTx?.clientId || '');
             // V7-2: a movement already tied to a client keeps that reason; one whose note says something
@@ -1775,11 +1772,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             }
         }
         const epsilon = 0.005;
-        const availableBalance = deliveryExpenseMethod === 'Caisse'
-            ? treasuryStats.caisse
-            : deliveryExpenseMethod === 'BaridiMob'
-                ? treasuryStats.baridi
-                : isAssetWallet(deliveryExpenseMethod)
+        const availableBalance = isCashWallet(deliveryExpenseMethod)
+            ? cashBalanceOf(treasuryStats, deliveryExpenseMethod) // V15-2c: any dinar account
+            : isAssetWallet(deliveryExpenseMethod)
                     ? assetWalletStats(portfolioStats, deliveryExpenseMethod).available
                     : 0;
         const editedExpense = editingDeliveryExpense as (TreasuryTx & { expenseWallet?: string; originalAmount?: number; recordedAt?: number }) | null;
