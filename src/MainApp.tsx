@@ -1,5 +1,5 @@
 import { registerStockHistory } from './utils/stockGuard';
-import { CASH_ACCOUNTS } from './accounts/cashAccounts';
+import { CASH_ACCOUNTS, cashAccount, walletOfStatus } from './accounts/cashAccounts';
 import { commitWithStockLockOrBatch, registerStockLock, saveErrorAlert, STOCK_CHANGED_MESSAGE, StockChangedError } from './utils/stockLock';
 import { useStockLockSeq } from './hooks/useStockLockSeq';
 import { previousProfits } from './utils/dashboardComparison';
@@ -3012,11 +3012,12 @@ export default function MainApp({ user }: {
     const rmbTradeSource = React.useMemo(() => ({ transactions, clientTransactions: clientTransactionsDzd, profitByTxId: pamLedger.profitByTxId }), [transactions, clientTransactionsDzd, pamLedger.profitByTxId]);
     const saveRmbTrade = async (input: RmbTradeInput, profitDzd: number, pending = false): Promise<boolean> => {
         // V14-5 (accounting tour): a purchase paid now needs the money in that wallet, as in the USDT and EUR windows.
-        if (input.kind === 'buy' && input.source === 'DZD' && (input.paymentStatus === 'cash' || input.paymentStatus === 'baridi')) {
+        if (input.kind === 'buy' && input.source === 'DZD' && input.paymentStatus && input.paymentStatus !== 'credit') {
             const total = Math.round(input.quantity * Number(input.price || 0));
-            const held = input.paymentStatus === 'cash' ? Number(treasuryStats.caisse || 0) : Number(treasuryStats.baridi || 0);
+            const wallet = walletOfStatus(input.paymentStatus); // V15-2b: any dinar account
+            const held = Number(treasuryStats.accounts?.[wallet] ?? 0);
             if (total > held + 0.005) {
-                setAlert(input.paymentStatus === 'cash' ? '⚠️ Solde Caisse insuffisant.' : '⚠️ Solde BaridiMob insuffisant.');
+                setAlert(`⚠️ Solde ${wallet === 'Caisse' || wallet === 'BaridiMob' ? wallet : cashAccount(wallet).name} insuffisant.`);
                 return false;
             }
         }

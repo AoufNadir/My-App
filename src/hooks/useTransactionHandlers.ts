@@ -1,3 +1,4 @@
+import { cashAccount, isPaidNow, type PaymentChoice, paymentMethodOfStatus, walletOfStatus } from '../accounts/cashAccounts';
 import { EXTRA_CURRENCY_CODES } from '../currency/tradeCurrencies';
 import { useCallback, useState, useMemo, type MutableRefObject } from 'react';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
@@ -95,7 +96,7 @@ export type PrefillSell = {
     sellQty?: string;
     sellPrice?: string;
     clientId?: string;
-    paymentStatus?: 'credit' | 'baridi' | 'cash';
+    paymentStatus?: PaymentChoice;
     creditDueDate?: string;
     /** V5-3: the exact total in dinars, kept as typed (the inventory investigator's sale or purchase) */
     total?: string;
@@ -118,7 +119,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         baridi: 'BaridiMob',
         cash: 'Espèces'
     };
-    const affectsClientBalance = (status: 'credit' | 'baridi' | 'cash') => status === 'credit';
+    const affectsClientBalance = (status: PaymentChoice) => status === 'credit';
     const getClientDisplayNameById = (clientId: string) => {
         const client = clientsDzd.find((item) => item.id === clientId);
         return client?.fullName || client?.nom || 'Client';
@@ -157,11 +158,11 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     const [eurUsdtRate, setEurUsdtRate] = useState('');
     const [linkedClientId, setLinkedClientId] = useState('none');
     const [linkedClientDzdId, setLinkedClientDzdId] = useState('none');
-    const [clientPaymentStatus, setClientPaymentStatus] = useState<'credit' | 'baridi' | 'cash'>('cash');
+    const [clientPaymentStatus, setClientPaymentStatus] = useState<PaymentChoice>('cash');
     // V13-1: the payment status is never chosen for the user. A new operation opens with none chosen and cannot be
     // saved until one is pressed; an edited one opens on the status it was saved with.
     const [paymentStatusChosen, setPaymentStatusChosen] = useState(false);
-    const choosePaymentStatus = useCallback((status: 'credit' | 'baridi' | 'cash') => {
+    const choosePaymentStatus = useCallback((status: PaymentChoice) => {
         setPaymentStatusChosen(true);
         setClientPaymentStatus(status);
     }, []);
@@ -617,14 +618,15 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             totalCost = Math.round(totalCost);
             // V14-5 (accounting tour, owner's choice): a purchase paid now from the Caisse or BaridiMob needs the money
             // there, as an expense does. On an edit, what the purchase already took from that wallet is given back first.
-            if (buyUsdtMode !== 'with_eur' && (clientPaymentStatus === 'cash' || clientPaymentStatus === 'baridi') && !(clientPaymentStatus === 'cash' && linkedClientDzdId !== 'none')) {
-                const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
-                const held = wallet === 'Caisse' ? Number(treasuryStats.caisse || 0) : Number(treasuryStats.baridi || 0);
+            if (buyUsdtMode !== 'with_eur' && isPaidNow(clientPaymentStatus) && !(clientPaymentStatus === 'cash' && linkedClientDzdId !== 'none')) {
+                const wallet = walletOfStatus(clientPaymentStatus);
+                // V15-2b: any dinar account (Caisse, BaridiMob or one the owner added).
+                const held = Number((treasuryStats as { accounts?: Record<string, number> }).accounts?.[wallet] ?? (wallet === 'Caisse' ? treasuryStats.caisse : wallet === 'BaridiMob' ? treasuryStats.baridi : 0));
                 const givenBack = editingTx
                     ? treasuryTransactions.filter((tx) => tx.linkedTxId === editingTx.id && tx.type === 'Retrait' && tx.source === wallet).reduce((sum, tx) => sum + Number(tx.amount || 0), 0)
                     : 0;
                 if (totalCost > held + givenBack + 0.005) {
-                    setAlert(wallet === 'Caisse' ? '⚠️ Solde Caisse insuffisant.' : '⚠️ Solde BaridiMob insuffisant.');
+                    setAlert(`⚠️ Solde ${wallet === 'Caisse' || wallet === 'BaridiMob' ? wallet : cashAccount(wallet).name} insuffisant.`);
                     return;
                 }
             }
@@ -689,7 +691,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         type: 'Règlement Reçu', notes: `Financement achat de ${formatNumber(quantity, { min: 0, max: 2 })} ${currency}`,
                         linkedTxId: editingTx.id,
                         linkRole: 'primary',
-                        paymentMethod: paymentMethodByStatus[clientPaymentStatus],
+                        paymentMethod: paymentMethodOfStatus(clientPaymentStatus),
                         affectsBalance: affectsClientBalance(clientPaymentStatus),
                         ...buyEurDueDate
                     });
@@ -700,12 +702,12 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         type: 'Ajustement Solde', notes: appendOriginalClientToNote(`Avance DZD liée à achat de ${formatNumber(quantity, { min: 0, max: 2 })} ${currency}`, linkedClientId),
                         linkedTxId: editingTx.id,
                         linkRole: 'dzd_receiver',
-                        paymentMethod: paymentMethodByStatus['credit'],
+                        paymentMethod: paymentMethodOfStatus('credit'),
                         affectsBalance: true
                     });
                 }
                 if (buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit' && !shouldLinkCashToDzdClient) {
-                    const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                    const source = walletOfStatus(clientPaymentStatus);
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp, date, time, type: 'Retrait', source, amount: totalCost,
                         notes: `Achat ${formatNumber(quantity, { min: 0, max: 2 })} ${currency}`, linkedTxId: editingTx.id
@@ -733,7 +735,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     });
                 }
                 if (buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit' && !shouldLinkCashToDzdClient) {
-                    const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                    const source = walletOfStatus(clientPaymentStatus);
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp, date, time, type: 'Retrait', source, amount: totalCost,
                         notes: `Achat ${formatNumber(quantity, { min: 0, max: 2 })} ${currency}`, linkedTxId: mainTxRef.id
@@ -745,7 +747,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         type: 'Règlement Reçu', notes: `Financement achat de ${formatNumber(quantity, { min: 0, max: 2 })} ${currency}`,
                         linkedTxId: mainTxRef.id,
                         linkRole: 'primary',
-                        paymentMethod: paymentMethodByStatus[clientPaymentStatus],
+                        paymentMethod: paymentMethodOfStatus(clientPaymentStatus),
                         affectsBalance: affectsClientBalance(clientPaymentStatus),
                         ...buyEurDueDate
                     });
@@ -756,14 +758,14 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         type: 'Ajustement Solde', notes: appendOriginalClientToNote(`Avance DZD liée à achat de ${formatNumber(quantity, { min: 0, max: 2 })} ${currency}`, linkedClientId),
                         linkedTxId: mainTxRef.id,
                         linkRole: 'dzd_receiver',
-                        paymentMethod: paymentMethodByStatus['credit'],
+                        paymentMethod: paymentMethodOfStatus('credit'),
                         affectsBalance: true
                     });
                 }
                 setAlert('✅ Transaction ajoutée.');
             }
             if (buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit' && !shouldLinkCashToDzdClient) {
-                const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                const wallet = walletOfStatus(clientPaymentStatus) as 'Caisse' | 'BaridiMob'; // diagnostics only know these two; the rows carry any account
                 recordTreasuryShadow({
                     operationId: `shadow:portfolio-buy:${mainTxId}`,
                     actorUid: userDocRef.id,
@@ -817,7 +819,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 });
             }
             else {
-                const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                const wallet = walletOfStatus(clientPaymentStatus) as 'Caisse' | 'BaridiMob'; // diagnostics only know these two; the rows carry any account
                 recordPortfolioShadow({
                     operationId: `shadow:portfolio-buy-cash:${mainTxId}`,
                     actorUid: userDocRef.id,
@@ -887,7 +889,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                             recentOperation: { operationId: `legacy:portfolio.buy-credit:${mainTxId}`, source: 'legacy', type: `Achat ${currency}`, effectiveAt: timestamp },
                         });
                     }
-                    const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                    const wallet = walletOfStatus(clientPaymentStatus) as 'Caisse' | 'BaridiMob'; // diagnostics only know these two; the rows carry any account
                     return mustPrepareWriterReadModelDelta('portfolio.buy-cash', {
                         operationId: `legacy:portfolio.buy-cash:${mainTxId}`,
                         effectiveAt: timestamp,
@@ -1088,7 +1090,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         type: clientTxType, notes: clientSaleNote,
                         linkedTxId: editingTx.id,
                         linkRole: 'primary',
-                        paymentMethod: isUsdtSettledInEur ? paymentMethodByStatus['cash'] : paymentMethodByStatus[clientPaymentStatus],
+                        paymentMethod: isUsdtSettledInEur ? paymentMethodOfStatus('cash') : paymentMethodOfStatus(clientPaymentStatus),
                         affectsBalance: isUsdtSettledInEur ? false : affectsClientBalance(clientPaymentStatus),
                         ...(clientPaymentStatus === 'credit' && !isUsdtSettledInEur ? { creditDueDate } : {}),
                     });
@@ -1099,12 +1101,12 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         type: 'Paiement Effectué', notes: appendOriginalClientToNote(`Paiement DZD lié à vente de ${formatNumber(quantity, { min: 0, max: 2 })} ${sellCurrency}`, linkedClientId),
                         linkedTxId: editingTx.id,
                         linkRole: 'dzd_receiver',
-                        paymentMethod: paymentMethodByStatus[clientPaymentStatus],
+                        paymentMethod: paymentMethodOfStatus(clientPaymentStatus),
                         affectsBalance: true
                     });
                 }
                 if (!isUsdtSettledInEur && clientPaymentStatus !== 'credit' && !shouldLinkSettlementToDzdClient) {
-                    const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                    const source = walletOfStatus(clientPaymentStatus);
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp, date, time, type: 'Ajout', source, amount: totalRevenue,
                         notes: treasurySaleNote, linkedTxId: editingTx.id
@@ -1148,7 +1150,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 batch.set(ref, mainSellCreate);
                 createLinkedEurSettlementTx(ref.id);
                 if (!isUsdtSettledInEur && clientPaymentStatus !== 'credit' && !shouldLinkSettlementToDzdClient) {
-                    const source = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                    const source = walletOfStatus(clientPaymentStatus);
                     batch.set(userDocRef.collection('treasury_txs').doc(), {
                         timestamp, date, time, type: 'Ajout', source, amount: totalRevenue,
                         notes: treasurySaleNote, linkedTxId: ref.id
@@ -1160,7 +1162,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         type: clientTxType, notes: clientSaleNote,
                         linkedTxId: ref.id,
                         linkRole: 'primary',
-                        paymentMethod: isUsdtSettledInEur ? paymentMethodByStatus['cash'] : paymentMethodByStatus[clientPaymentStatus],
+                        paymentMethod: isUsdtSettledInEur ? paymentMethodOfStatus('cash') : paymentMethodOfStatus(clientPaymentStatus),
                         affectsBalance: isUsdtSettledInEur ? false : affectsClientBalance(clientPaymentStatus),
                         ...(clientPaymentStatus === 'credit' && !isUsdtSettledInEur ? { creditDueDate } : {}),
                     });
@@ -1171,14 +1173,14 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         type: 'Paiement Effectué', notes: appendOriginalClientToNote(`Paiement DZD lié à vente de ${formatNumber(quantity, { min: 0, max: 2 })} ${sellCurrency}`, linkedClientId),
                         linkedTxId: ref.id,
                         linkRole: 'dzd_receiver',
-                        paymentMethod: paymentMethodByStatus[clientPaymentStatus],
+                        paymentMethod: paymentMethodOfStatus(clientPaymentStatus),
                         affectsBalance: true
                     });
                 }
                 setAlert('✅ Transaction ajoutée.');
             }
             if (!isUsdtSettledInEur && clientPaymentStatus !== 'credit' && !shouldLinkSettlementToDzdClient) {
-                const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                const wallet = walletOfStatus(clientPaymentStatus) as 'Caisse' | 'BaridiMob'; // diagnostics only know these two; the rows carry any account
                 recordTreasuryShadow({
                     operationId: `shadow:portfolio-sell:${editingTx?.id || `${timestamp}:${sellCurrency}`}`,
                     actorUid: userDocRef.id,
@@ -1232,7 +1234,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 });
             }
             else {
-                const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                const wallet = walletOfStatus(clientPaymentStatus) as 'Caisse' | 'BaridiMob'; // diagnostics only know these two; the rows carry any account
                 recordPortfolioShadow({
                     operationId: `shadow:portfolio-sell-cash:${editingTx?.id || `${timestamp}:${sellCurrency}`}`,
                     actorUid: userDocRef.id,
@@ -1350,7 +1352,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                             recentOperation: { operationId: `legacy:portfolio.sell-credit:${committedSellTxId}`, source: 'legacy', type: `Vente ${sellCurrency}`, effectiveAt: timestamp },
                         });
                     }
-                    const wallet = clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                    const wallet = walletOfStatus(clientPaymentStatus) as 'Caisse' | 'BaridiMob'; // diagnostics only know these two; the rows carry any account
                     return mustPrepareWriterReadModelDelta('portfolio.sell-cash', {
                         operationId: `legacy:portfolio.sell-cash:${committedSellTxId}`,
                         effectiveAt: timestamp,

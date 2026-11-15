@@ -49,3 +49,13 @@ export function setCustomAccounts(custom: readonly CashAccount[]): boolean {
     refreshLiveLists();
     return true;
 }
+
+// ---- V15-2b: the payment choice of a sale or a purchase ----
+/** « credit » (on the client's account), « cash » (Caisse), « baridi » (BaridiMob), or the id of another dinar account. */
+export type PaymentChoice = 'credit' | 'cash' | 'baridi' | (string & {});
+/** The dinar account a payment made now goes to (or comes from). */
+export const walletOfStatus = (status: PaymentChoice | null | undefined): string => (status === 'baridi' ? 'BaridiMob' : status === 'cash' || !status || status === 'credit' ? 'Caisse' : status);
+/** The words kept on the client's row, as before for the three old choices; the account's name for the others. */
+export const paymentMethodOfStatus = (status: PaymentChoice | null | undefined): string => (status === 'credit' ? 'Crédit' : status === 'baridi' ? 'BaridiMob' : status === 'cash' || !status ? 'Espèces' : cashAccount(status).name);
+/** A payment made now (not on the client's account). */
+export const isPaidNow = (status: PaymentChoice | null | undefined): boolean => Boolean(status) && status !== 'credit';

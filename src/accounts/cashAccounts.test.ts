@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { CASH_ACCOUNT_IDS, CASH_ACCOUNTS, checkCashAccount, readCustomAccounts, setCustomAccounts } from './cashAccounts';
+import { CASH_ACCOUNT_IDS, CASH_ACCOUNTS, checkCashAccount, isPaidNow, paymentMethodOfStatus, readCustomAccounts, setCustomAccounts, walletOfStatus } from './cashAccounts';
+import { rmbTradeRows } from '../utils/rmbTrade';
+import { channelSentenceKey, tradeChannel } from '../utils/channelSummary';
 import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
 
 // V15-2 (owner): dinar accounts beyond the Caisse and BaridiMob, added from the settings.
@@ -18,6 +20,26 @@ const snap = computeCapitalSnapshot({ caisseBalance: 1000, baridiBalance: 500, o
 assert.equal(snap.cashTotal, 1750);
 assert.equal(snap.totalCapital, 1750);
 assert.equal(computeCapitalSnapshot({ caisseBalance: 1000, baridiBalance: 500, totalDettes: 0, totalAvances: 0 }).cashTotal, 1500, 'none: as before');
+// V15-2b: a sale or a purchase paid now on that account.
+assert.equal(walletOfStatus('cash'), 'Caisse');
+assert.equal(walletOfStatus('baridi'), 'BaridiMob');
+assert.equal(walletOfStatus('acc_a1'), 'acc_a1');
+assert.equal(paymentMethodOfStatus('cash'), 'Espèces', 'the old words, unchanged');
+assert.equal(paymentMethodOfStatus('baridi'), 'BaridiMob');
+assert.equal(paymentMethodOfStatus('credit'), 'Crédit');
+assert.equal(paymentMethodOfStatus('acc_a1'), 'BNA', 'the account named on the client row');
+assert.ok(isPaidNow('acc_a1') && !isPaidNow('credit') && !isPaidNow(null));
+const rows = rmbTradeRows({ kind: 'sell', currency: 'RMB', source: 'DZD', quantity: 10, price: 35, clientId: 'c1', paymentStatus: 'acc_a1' }, Date.UTC(2026, 10, 15), 'm1', 20);
+const treasury = rows.linked.find((row) => row.collection === 'treasury_txs')!;
+assert.equal(treasury.data.source, 'acc_a1', 'the dinars enter BNA');
+assert.equal(treasury.data.amount, 350);
+const clientRow = rows.linked.find((row) => row.collection === 'dzd_client_txs')!;
+assert.equal(clientRow.data.affectsBalance, false, 'paid now: the client owes nothing');
+assert.equal(clientRow.data.paymentMethod, 'BNA');
+const strip = tradeChannel({ operation: 'sell', status: 'acc_a1', amount: 350 })!;
+assert.equal(strip.wallet, 'acc_a1');
+assert.equal(channelSentenceKey(strip, 'sell'), 'channelStrip.inAccount', '« 350 DZD entrent dans BNA »');
+assert.equal(channelSentenceKey(tradeChannel({ operation: 'buy', status: 'cash', amount: 1 })!, 'buy'), 'channelStrip.outCaisse', 'the Caisse as before');
 setCustomAccounts([]);
 assert.deepEqual(CASH_ACCOUNT_IDS, ['Caisse', 'BaridiMob']);
 console.log('cashAccounts.test: dinar accounts added from the settings, counted in the cash and the capital');

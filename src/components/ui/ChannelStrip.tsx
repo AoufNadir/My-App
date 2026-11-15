@@ -1,3 +1,4 @@
+import { cashAccount } from '../../accounts/cashAccounts';
 import type { ReactNode } from 'react';
 import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
@@ -46,6 +47,7 @@ export function ChannelStrip({ summary, operation, amountLabel, clientName, usua
     const sentence = fill(String(t(channelSentenceKey(summary, operation))), {
         amount: isolate(amountLabel),
         client: isolate(clientName || String(t('channelStrip.theClient'))),
+        name: isolate(summary.wallet ? cashAccount(summary.wallet).name : ''),
     });
     return (<div data-channel={summary.kind} data-channel-tone={CHANNEL_TONE[summary.kind]} className="space-y-1.5">
       <div className={`flex items-start gap-2 rounded-xl border px-3 py-2 ${style.box}`}>

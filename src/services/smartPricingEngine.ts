@@ -552,7 +552,7 @@ function estimateBaselineMargins(
         const adj = bracketAdjustment(policy, getVolumeBracket(qty));
         const debt = tx.linkedClientId ? debtByClientId?.get(tx.linkedClientId) : undefined;
         const { termDays: term } = resolveCreditTerm(
-            tx.clientPaymentStatus || 'cash', tx.creditDueDate, tx.timestamp,
+            tx.clientPaymentStatus === 'credit' ? 'credit' : tx.clientPaymentStatus === 'baridi' ? 'baridi' : 'cash', tx.creditDueDate, tx.timestamp, // V15-2b: another account is paid now, like cash
             debt?.avgSettleDays ?? null, debt?.settledLotCount ?? 0, policy,
         );
         const financing = tx.clientPaymentStatus === 'credit'

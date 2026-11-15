@@ -1,3 +1,4 @@
+import { isPaidNow, paymentMethodOfStatus, walletOfStatus } from '../accounts/cashAccounts';
 import { useMemo } from 'react';
 import { db } from '../firebase';
 import { now } from '../utils';
@@ -273,7 +274,7 @@ export function usePoOrderHandlers(actorUid: string, accountingContext: PoOrderA
                     affectedSummaries: ['dashboard_summary', 'portfolio_summary', 'treasury_summary', 'clients_summary', 'investors_summary', 'financial_summary'],
                     wallets: ctx.clientPaymentStatus === 'credit'
                         ? undefined
-                        : { [ctx.clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse']: totalRevenue },
+                        : { [walletOfStatus(ctx.clientPaymentStatus)]: totalRevenue },
                     portfolio: {
                         [ctx.currencyCode]: {
                             quantityDelta: -quantity,
@@ -334,7 +335,7 @@ export function usePoOrderHandlers(actorUid: string, accountingContext: PoOrderA
 
                 // Customer sale receipt: prepaid cash/BaridiMob only; credit creates no cash movement.
                 if (ctx.clientPaymentStatus !== 'credit') {
-                    const source = ctx.clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                    const source = walletOfStatus(ctx.clientPaymentStatus);
                     transaction.set(treasuryReceiptRef!, {
                         timestamp,
                         date,
@@ -372,7 +373,7 @@ export function usePoOrderHandlers(actorUid: string, accountingContext: PoOrderA
                 }));
             });
             if (ctx.clientPaymentStatus !== 'credit') {
-                const wallet = ctx.clientPaymentStatus === 'baridi' ? 'BaridiMob' : 'Caisse';
+                const wallet = walletOfStatus(ctx.clientPaymentStatus) as 'Caisse' | 'BaridiMob'; // diagnostics only know these two; the rows carry any account
                 recordTreasuryShadow({
                     operationId: `shadow:po-order:${order.id}`,
                     actorUid,

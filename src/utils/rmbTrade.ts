@@ -1,3 +1,4 @@
+import { paymentMethodOfStatus, walletOfStatus, type PaymentChoice } from '../accounts/cashAccounts';
 import { isExtraCurrency, type TradeCurrencyCode } from '../currency/tradeCurrencies';
 import { stampAt } from './editStamp';
 
@@ -11,7 +12,7 @@ import { stampAt } from './editStamp';
 
 export type TradeCurrency = TradeCurrencyCode;
 export type RmbSource = 'DZD' | TradeCurrency;
-export type PaymentStatus = 'credit' | 'baridi' | 'cash';
+export type PaymentStatus = PaymentChoice;
 export type RmbTradeInput = {
     kind: 'buy' | 'sell';
     /** V13-4: the currency bought or sold (RMB when left out). With dinars only RMB goes through here. */
@@ -103,17 +104,17 @@ export function rmbTradeRows(input: RmbTradeInput, nowMs: number, mainId: string
     const price = input.price as number;
     const total = Math.round(input.quantity * price);
     const paidNow = status !== 'credit';
-    const wallet = status === 'baridi' ? 'BaridiMob' : 'Caisse';
+    const wallet = walletOfStatus(status);
     const linked: RmbRow[] = [];
     if (input.kind === 'buy') {
         if (paidNow)
             linked.push({ collection: 'treasury_txs', data: { ...stamp, type: 'Retrait', source: wallet, amount: total, notes: `Achat ${qty(input.quantity)} ${currency}`, linkedTxId: mainId } });
-        linked.push({ collection: 'dzd_client_txs', data: { ...stamp, clientId: input.clientId, montant: total, type: 'Règlement Reçu', notes: `Financement achat de ${qty(input.quantity)} ${currency}`, linkedTxId: mainId, linkRole: 'primary', paymentMethod: PAYMENT_METHOD[status], affectsBalance: status === 'credit' } });
+        linked.push({ collection: 'dzd_client_txs', data: { ...stamp, clientId: input.clientId, montant: total, type: 'Règlement Reçu', notes: `Financement achat de ${qty(input.quantity)} ${currency}`, linkedTxId: mainId, linkRole: 'primary', paymentMethod: paymentMethodOfStatus(status), affectsBalance: status === 'credit' } });
         return { main: { ...stamp, type: 'buy', currency, quantity: input.quantity, price, total, notes, clientPaymentStatus: status, purchaseFundingCurrency: 'DZD' }, linked };
     }
     if (paidNow)
         linked.push({ collection: 'treasury_txs', data: { ...stamp, type: 'Ajout', source: wallet, amount: total, notes: `Vente ${qty(input.quantity)} ${currency}`, linkedTxId: mainId } });
-    linked.push({ collection: 'dzd_client_txs', data: { ...stamp, clientId: input.clientId, montant: -total, type: `Vente ${currency}`, notes: `Vente de ${qty(input.quantity)} ${currency}`, linkedTxId: mainId, linkRole: 'primary', paymentMethod: PAYMENT_METHOD[status], affectsBalance: status === 'credit' } });
+    linked.push({ collection: 'dzd_client_txs', data: { ...stamp, clientId: input.clientId, montant: -total, type: `Vente ${currency}`, notes: `Vente de ${qty(input.quantity)} ${currency}`, linkedTxId: mainId, linkRole: 'primary', paymentMethod: paymentMethodOfStatus(status), affectsBalance: status === 'credit' } });
     return { main: { ...stamp, type: 'sell', currency, quantity: input.quantity, sell: price, total, profit: round2(profitDzd), notes, linkedClientId: input.clientId, clientPaymentStatus: status, settlementCurrency: 'DZD' }, linked };
 }
 

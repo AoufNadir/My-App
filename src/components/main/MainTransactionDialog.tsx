@@ -315,7 +315,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
     const channelSummary = hasDinarAmount && clientPaymentStatus && (isSellMode || isBuyMode)
         ? tradeChannel({
             operation: isSellMode ? 'sell' : 'buy',
-            status: clientPaymentStatus === 'credit' || clientPaymentStatus === 'baridi' ? clientPaymentStatus : 'cash',
+            status: clientPaymentStatus, // V15-2b: credit, cash, baridi or another dinar account
             primaryClientId: linkedClientId,
             otherClientId: linkedClientDzdId,
             amount: totalFieldNumber,
@@ -449,7 +449,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
     // V12-17: « paid now, sent (or received) later » only makes sense when the money moves now, in cash or by BaridiMob;
     // on credit nothing is paid yet, so the switch is not offered.
     const renderPendingSwitch = (kind: 'delivery' | 'receipt') => {
-        const paidNow = clientPaymentStatus === 'cash' || clientPaymentStatus === 'baridi';
+        const paidNow = Boolean(clientPaymentStatus) && clientPaymentStatus !== 'credit'; // V15-2b: any account paid now
         const allowed = !editingTx && hasPrimaryClient && paidNow
             && (kind === 'delivery' ? !isUsdtSellSettledInEur && Boolean(setDeliveryPending) : buyUsdtMode !== 'with_eur' && Boolean(setReceiptPending));
         if (!allowed)

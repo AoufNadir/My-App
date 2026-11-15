@@ -4,9 +4,9 @@
  * handlers read (useTransactionHandlers: `shouldLinkSettlementToDzdClient`, `shouldLinkCashToDzdClient`),
  * so the strip says what will really be recorded, including a client chosen to take the amount.
  */
-export type ChannelStatus = 'cash' | 'baridi' | 'credit';
+export type ChannelStatus = 'cash' | 'baridi' | 'credit' | (string & {}); // V15-2b: or another dinar account's id
 export type ChannelKind = 'cash' | 'baridi' | 'credit' | 'client';
-export type ChannelWallet = 'Caisse' | 'BaridiMob';
+export type ChannelWallet = string; // 'Caisse', 'BaridiMob' or another dinar account's id
 
 export type ChannelSummary = {
     kind: ChannelKind;
@@ -20,7 +20,7 @@ export type ChannelSummary = {
 };
 
 const hasId = (id: string | null | undefined): id is string => Boolean(id) && id !== 'none';
-const walletOf = (status: 'cash' | 'baridi'): ChannelWallet => (status === 'baridi' ? 'BaridiMob' : 'Caisse');
+const walletOf = (status: string): ChannelWallet => (status === 'baridi' ? 'BaridiMob' : status === 'cash' ? 'Caisse' : status);
 
 /**
  * A sale or a purchase paid in dinars. A sale hands the settlement to another client for cash and
@@ -42,7 +42,8 @@ export function tradeChannel(input: {
     const takenByOther = hasId(input.otherClientId) && (input.operation === 'sell' || input.status === 'cash');
     if (takenByOther)
         return { kind: 'client', wallet: null, flow, amount: input.amount, accountClientId: input.otherClientId as string };
-    return { kind: input.status, wallet: walletOf(input.status), flow, amount: input.amount, accountClientId: null };
+    // V15-2b: another dinar account looks like BaridiMob (blue) and says its own name.
+    return { kind: input.status === 'cash' ? 'cash' : 'baridi', wallet: walletOf(input.status), flow, amount: input.amount, accountClientId: null };
 }
 
 /**
@@ -77,6 +78,8 @@ export function channelSentenceKey(summary: Pick<ChannelSummary, 'kind' | 'walle
         return operation === 'buy' ? 'channelStrip.creditBuy' : 'channelStrip.creditSell';
     if (summary.kind === 'client')
         return summary.flow === 'in' ? 'channelStrip.clientIn' : 'channelStrip.clientOut';
+    if (summary.wallet && summary.wallet !== 'BaridiMob' && summary.wallet !== 'Caisse')
+        return `channelStrip.${summary.flow}Account`;
     const wallet = summary.wallet === 'BaridiMob' ? 'Baridi' : 'Caisse';
     return `channelStrip.${summary.flow}${wallet}`;
 }

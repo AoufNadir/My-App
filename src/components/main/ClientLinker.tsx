@@ -1,3 +1,4 @@
+import { CUSTOM_CASH_ACCOUNTS, type PaymentChoice } from '../../accounts/cashAccounts';
 import { memo } from 'react';
 import { Label } from '../ui/Label';
 import { SearchableSelect } from '../ui/SearchableSelect';
@@ -9,7 +10,7 @@ import { PlusIcon } from '../icons/PlusIcon';
 import type { ClientDzd } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { selectableClients } from '../../utils/clientRegistry';
-type PaymentStatus = 'credit' | 'baridi' | 'cash';
+type PaymentStatus = PaymentChoice;
 type ClientLinkerProps = {
     linkedClientId: string;
     setLinkedClientId: (clientId: string) => void;
@@ -69,14 +70,14 @@ function ClientLinkerComponent({ linkedClientId, setLinkedClientId, linkedClient
             {hasPrimaryClient && !hidePaymentStatus && (<div>
                     <Label>{t('transactions.paymentStatus')}</Label>
                     <div role="radiogroup" aria-label={t('transactions.paymentStatus') as string} className="grid gap-2">
-                        {PAYMENT_CARDS.map((card) => {
+                        {[...PAYMENT_CARDS, ...CUSTOM_CASH_ACCOUNTS.map((account) => ({ id: account.id, label: '', name: account.name, hint: '', icon: CreditCardIcon, on: 'border-primary bg-primary/5', iconOn: 'bg-surface text-primary', text: 'text-primary', dot: 'border-primary bg-primary' }))].map((card) => {
                             const on = clientPaymentStatus === card.id;
                             const Icon = card.icon;
                             return (<button key={card.id} type="button" role="radio" aria-checked={on} onClick={() => setClientPaymentStatus(card.id)} className={`flex w-full items-center gap-3 rounded-card border-2 px-3 py-2.5 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${on ? card.on : 'border-border bg-surface hover:bg-surface-muted'}`}>
                                 <span aria-hidden="true" className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${on ? card.iconOn : 'bg-surface-muted text-neutral-500'}`}><Icon className="h-5 w-5"/></span>
                                 <span className="min-w-0 flex-1">
-                                    <span className={`block text-sm font-bold ${on ? card.text : 'text-neutral-900'}`}>{t(card.label)}</span>
-                                    <span className="block text-xs text-neutral-600">{t(card.hint)}</span>
+                                    <span className={`block text-sm font-bold ${on ? card.text : 'text-neutral-900'}`}>{'name' in card ? (t('transactions.settledAccount') as string).replace('{name}', String(card.name)) : t(card.label)}</span>
+                                    <span className="block text-xs text-neutral-600">{'name' in card ? (t('transactions.paymentAccountHint') as string).replace('{name}', String(card.name)) : t(card.hint)}</span>
                                 </span>
                                 <span aria-hidden="true" className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${on ? `${card.dot} text-white` : 'border-border-strong'}`}>{on && <CheckIcon className="h-3 w-3"/>}</span>
                             </button>);

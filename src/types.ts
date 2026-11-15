@@ -1,3 +1,4 @@
+import type { PaymentChoice } from './accounts/cashAccounts';
 import type { TradeCurrencyCode } from './currency/tradeCurrencies';
 import type { ClientWallets } from './utils/clientWallets';
 export interface Tx {
@@ -33,7 +34,7 @@ export interface Tx {
     conversionLeg?: 'out';
     linkedClientId?: string;
     linkedClientDzdId?: string;
-    clientPaymentStatus?: 'credit' | 'baridi' | 'cash';
+    clientPaymentStatus?: PaymentChoice;
     paymentMethod?: 'Espèces' | 'BaridiMob' | 'Crédit';
     /** ISO yyyy-mm-dd. Required for new credit sales; legacy credit rows may omit it. */
     creditDueDate?: string;
