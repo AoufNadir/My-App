@@ -145,6 +145,8 @@ import { AccountUsageContext, type AccountUsage } from './accounts/AccountUsageC
 import { cashBalanceOf } from './accounts/cashAccounts';
 import { monthlyProfitSeries, suggestGoal, weekOfMonth } from './services/flexibleGoal';
 import { buildGoalCoach } from './services/goalCoach';
+import { useGoalHistory } from './hooks/useGoalHistory';
+import { goalHistoryRows } from './services/goalHistory';
 import { absentClients, lastWeekSummary, stockForGoal } from './services/goalAlerts';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { useSetupDone } from './hooks/useSetupDone';
@@ -511,6 +513,9 @@ export default function MainApp({ user }: {
         const minimum = Number(pricingPlanSync.plan.minimumGoal) > 0 ? Number(pricingPlanSync.plan.minimumGoal) : Math.round(target * 0.81 / 1000) * 1000;
         return { coach: buildGoalCoach({ rows: pamLedger.sellProfitRows, goal: { minimum, target, stretch: Math.round(target * 1.15) }, now: Date.now(), raisedInWeek: goalDecidedWeek }), minimum };
     }, [pamLedger, pricingPlanSync.plan.monthlyGoal, pricingPlanSync.plan.minimumGoal, goalDecidedWeek]);
+    // P6: the goal of each month and what it made, for Analyse.
+    const savedGoals = useGoalHistory(userDocRef as never);
+    const goalHistory = React.useMemo(() => goalHistoryRows(savedGoals, pamLedger.sellProfitRows, Date.now()), [savedGoals, pamLedger]);
     // P5: the bell's goal alerts.
     const goalAlerts = React.useMemo(() => {
         const now = Date.now();
@@ -2369,6 +2374,7 @@ export default function MainApp({ user }: {
         return { usdt: target('USDT'), eur: target('EUR') };
     }, [smartPricingByCurrency]);
     const portfolioPageProps = useMemo(() => ({
+        goalHistory,
         showEur,
         showRmb,
         rmbStock,
@@ -2408,7 +2414,7 @@ export default function MainApp({ user }: {
         reportYear,
         setReportYear,
         // V12-11: no pencil on the stock: a quantity is never set by hand without someone behind the movement.
-    }), [
+    }), [goalHistory, 
         statsView, portfolioStats, smartTargetPrices,
         usdtReportMonth, usdtReportYear, transactions, clientTransactionsDzd, reportClientRows, selectedHeatmapDay,
         fieldBase,

@@ -1,5 +1,7 @@
 import { Tx, ClientDzd, ClientTransactionDzd } from '../../types';
 export type AnalyticsPageProps = {
+    /** P6: the goal history (last six months with a goal) */
+    goalHistory?: ReadonlyArray<import('../../services/goalHistory').GoalHistoryRow>;
     statsView: 'usdt' | 'clients';
     setStatsView: (view: 'usdt' | 'clients') => void;
     setIsSettingsModalOpen: (isOpen: boolean) => void;

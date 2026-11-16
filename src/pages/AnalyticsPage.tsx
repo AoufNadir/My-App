@@ -1,4 +1,5 @@
 import { lazy, Suspense, useMemo, useState } from 'react';
+import { GoalHistoryCard } from '../components/analytics/GoalHistoryCard';
 import { createPortal } from 'react-dom';
 import { IconButton } from '../components/ui/IconButton';
 import { Select } from '../components/ui/Select';
@@ -91,6 +92,8 @@ export function AnalyticsPage({ initialKind = 'month', ...props }: AnalyticsPage
       </section>
 
       <AnalyticsOverview transactions={props.transactions} ledger={ledger} clientTransactionsDzd={props.clientTransactionsDzd} clientsDzd={props.clientsDzd} getClientFullName={props.getClientFullName} kind={kind} year={year} month={month} monthNames={monthOptions}/>
+
+      {props.goalHistory && <GoalHistoryCard rows={props.goalHistory}/>}
 
       <AnalyticsExportSheet isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} monthLabel={selectedMonthLabel} year={year} realizedProfit={monthStats.profit} monthlyHasData={monthlyHasData} onExportMonthly={props.handleExportUsdtReport} reportClient={props.reportClient} reportMonth={props.reportMonth} reportYear={props.reportYear} reportMonths={props.reportMonths} reportYears={props.reportYears} clientsDzd={props.clientsDzd} getClientFullName={props.getClientFullName} onExportClient={openClientReport}/>
       {reportedClient && clientReport && (<Suspense fallback={null}>
