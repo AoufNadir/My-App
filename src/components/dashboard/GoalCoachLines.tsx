@@ -63,10 +63,12 @@ export function GoalCoachLines({ coach, minimum, onAcceptTarget, onKeep }: { coa
       <span className="font-semibold text-neutral-800">{withLtr(`${w.week(review.week).replace(/(\d\/4)/, iso('$1'))} · ${statusText}`)}</span>
       <span className="text-neutral-500">{withLtr(w.projection(amount(review.projection)))}</span>
       <span className="font-bold text-primary">{withLtr(adviceText)}</span>
-      {proposal && onAcceptTarget && (<span className="mt-1 flex flex-wrap items-center gap-2 rounded-button bg-primary/5 px-2 py-1.5" onClick={(event) => event.stopPropagation()}>
-          <span className="min-w-0 flex-1 font-semibold text-neutral-800">{withLtr(proposal.text)}</span>
+      {proposal && onAcceptTarget && (<span className="mt-1 flex flex-col gap-2 rounded-button bg-primary/5 px-3 py-2" onClick={(event) => event.stopPropagation()}>
+          <span className="block w-full font-semibold leading-5 text-neutral-800">{withLtr(proposal.text)}</span>
+          <span className="flex gap-2">
           <span role="button" tabIndex={0} onClick={() => onAcceptTarget(proposal.target)} onKeyDown={(e) => { if (e.key === 'Enter') onAcceptTarget(proposal.target); }} className="rounded-full bg-primary px-3 py-1 font-bold text-white">{w.accept}</span>
           <span role="button" tabIndex={0} onClick={() => onKeep?.()} onKeyDown={(e) => { if (e.key === 'Enter') onKeep?.(); }} className="rounded-full border border-border bg-surface px-3 py-1 font-semibold text-neutral-700">{w.keepGoal}</span>
+          </span>
         </span>)}
     </span>);
 }
