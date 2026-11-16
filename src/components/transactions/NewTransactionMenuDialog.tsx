@@ -1,4 +1,5 @@
 import { EXTRA_TRADE_CURRENCIES, type TradeCurrencyCode } from '../../currency/tradeCurrencies';
+import { CASH_ACCOUNTS, SHOWN_CASH_ACCOUNTS } from '../../accounts/cashAccounts';
 import { Button } from '../ui/Button';
 import { Modal, ModalContent, ModalHeader, ModalTitle } from '../ui/Modal';
 import { ListRow } from '../cards/ListRow';
@@ -97,13 +98,13 @@ export function NewTransactionMenuDialog({
               onClick={() => runAfterClose(openPersonalWithdrawalModal)}
             />
           )}
-          <ListRow
+          {SHOWN_CASH_ACCOUNTS.length >= 2 && (<ListRow
             tone="primary"
             title={t('transactions.internalTransferShort')}
-            subtitle={t('transactions.caisseAndBaridi')}
+            subtitle={SHOWN_CASH_ACCOUNTS.length === 2 && CASH_ACCOUNTS.length === 2 ? t('transactions.caisseAndBaridi') : SHOWN_CASH_ACCOUNTS.map((a) => (a.id === 'Caisse' ? t('transactions.cash') : a.name)).join(' ↔ ')}
             icon={<RefreshCwIcon className="h-5 w-5" />}
             onClick={() => runAfterClose(openWalletTransferModal)}
-          />
+          />)}
           <ListRow
             tone="primary"
             title={t('transactions.clientTransfer')}

@@ -1,4 +1,5 @@
 import { inventoryAccountCurrency, inventoryAccountLabel } from './inventoryLabels';
+import { isAccountShown } from '../../accounts/cashAccounts';
 import type { TradeCurrencyCode } from '../../currency/tradeCurrencies';
 import { useCurrencyShown } from '../../contexts/CurrencyVisibilityContext';
 import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -117,9 +118,13 @@ export function InventorySection({ expected, checks, corrections, ready, onSave,
 
     // V14-2: a hidden currency's wallet is not counted, unless the books still expect some in it.
     const isShown = useCurrencyShown();
-    const countable = (account: InventoryAccount) => (account !== 'caisse' && account !== 'baridi')
-        ? isShown(account.toUpperCase() as TradeCurrencyCode) || Math.abs(Number(expected?.[account] ?? 0)) > 0.005
-        : true;
+    // V15-4: a hidden dinar account (Caisse, BaridiMob or one the owner added) is not counted unless it holds money.
+    const cashId = (account: InventoryAccount): string | null => (account === 'caisse' ? 'Caisse' : account === 'baridi' ? 'BaridiMob' : String(account).startsWith('acc_') ? String(account) : null);
+    const countable = (account: InventoryAccount) => {
+        const id = cashId(account);
+        const shown = id ? isAccountShown(id) : isShown(account.toUpperCase() as TradeCurrencyCode);
+        return shown || Math.abs(Number(expected?.[account] ?? 0)) > 0.005;
+    };
     const hasDraft = INVENTORY_ACCOUNTS.some((account) => draft[account].trim() !== '');
     const edit = (account: InventoryAccount, value: string) => {
         setDraft((current) => ({ ...current, [account]: value }));

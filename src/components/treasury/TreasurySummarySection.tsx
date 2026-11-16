@@ -1,4 +1,5 @@
 import { ListRow, SectionCard, StatTile } from '../cards';
+import { isAccountShown } from '../../accounts/cashAccounts';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { WalletIcon } from '../icons/WalletIcon';
 import { LandmarkIcon } from '../icons/LandmarkIcon';
@@ -27,8 +28,8 @@ export function TreasurySummarySection({ caisseBalance, baridiBalance, dettesAbs
     const showAdvances = shouldShowAmount(totalAvances);
     return (<>
       <div className="grid grid-cols-2 gap-2">
-        <StatTile label={t('common.caisseBalance') as string} value={caisseBalance} icon={<WalletIcon className="h-3.5 w-3.5"/>} tone="dzd" onEdit={openTreasuryBalanceEditModal ? () => openTreasuryBalanceEditModal('Caisse') : undefined} editLabel={t('common.edit') as string}/>
-        <StatTile label={t('common.baridiBalance') as string} value={baridiBalance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd" onEdit={openTreasuryBalanceEditModal ? () => openTreasuryBalanceEditModal('BaridiMob') : undefined} editLabel={t('common.edit') as string}/>
+        {(isAccountShown('Caisse') || caisseBalance !== 0) && <StatTile label={t('common.caisseBalance') as string} value={caisseBalance} icon={<WalletIcon className="h-3.5 w-3.5"/>} tone="dzd" onEdit={openTreasuryBalanceEditModal ? () => openTreasuryBalanceEditModal('Caisse') : undefined} editLabel={t('common.edit') as string}/>}
+        {(isAccountShown('BaridiMob') || baridiBalance !== 0) && <StatTile label={t('common.baridiBalance') as string} value={baridiBalance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd" onEdit={openTreasuryBalanceEditModal ? () => openTreasuryBalanceEditModal('BaridiMob') : undefined} editLabel={t('common.edit') as string}/>}
       </div>
 
       {(showReceivables || showAdvances) && (<SectionCard title={t('treasury.clientPositions')} flush>
