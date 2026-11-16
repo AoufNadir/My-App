@@ -54,6 +54,7 @@ assert.equal(behind.neededPerDay, Math.round((8_400_000 - 2_400_000) / 21));
 const weak = reviewGoal({ goal: levels, monthDeals: pace(100_000, 10), now: NOW });
 assert.equal(weak.status, 'out_of_reach');
 assert.equal(weak.proposeMinimum, true);
+assert.equal(reviewGoal({ goal: levels, monthDeals: pace(100_000, 10), now: NOW, raisedInWeek: 2 }).proposeMinimum, false, '« keep my goal » closes it for the week');
 // one huge deal does not trigger a raise
 const oneBig = reviewGoal({ goal: levels, monthDeals: [...pace(250_000, 10), day(9, 4_000_000)], now: NOW });
 assert.equal(oneBig.proposedTarget, null, 'a single exceptional deal is not a trend: no raise');

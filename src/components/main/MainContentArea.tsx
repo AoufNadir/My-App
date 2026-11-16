@@ -97,6 +97,9 @@ const areDashboardPagePropsEqual = (prev: any, next: any) => (prev?.portfolioSta
     && prev?.isDataReady === next?.isDataReady
     && prev?.profitByTxId === next?.profitByTxId
     && prev?.suggestedGoal === next?.suggestedGoal
+    && prev?.goalCoach === next?.goalCoach
+    && prev?.minimumGoal === next?.minimumGoal
+    && prev?.onKeepGoal === next?.onKeepGoal
     // V12-1 and V12-2: the movements without a reason and the USDT/EUR owed to clients arrive after the page.
     && prev?.unexplainedMovementCount === next?.unexplainedMovementCount
     && sameJson(prev?.pendingDeliveries, next?.pendingDeliveries)

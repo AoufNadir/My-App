@@ -14,6 +14,7 @@ assert.equal(compare(home({ unexplainedMovementCount: 0 }), home({ unexplainedMo
 assert.equal(compare(home({ pendingDeliveries: { clients: 0, USDT: 0, EUR: 0 } }), home({ pendingDeliveries: { clients: 0, USDT: 0, EUR: 0 } })), true, 'same numbers in a new object: no redraw');
 assert.equal(compare(home({ pendingDeliveries: { clients: 0, USDT: 0, EUR: 0 } }), home({ pendingDeliveries: { clients: 1, USDT: 3_906.25, EUR: 0 } })), false, 'USDT owed to a client: redraw');
 assert.equal(compare(home({ suggestedGoal: 0 }), home({ suggestedGoal: 150_000 })), false, 'suggested goal');
+assert.equal(compare(home({ goalCoach: null }), home({ goalCoach: {} })), false, 'P3: goal coach');
 assert.equal(compare({ ...home({}), dailyOverview: { previousProfit: { month: 1 } } }, { ...home({}), dailyOverview: { previousProfit: { month: 2 } } }), false, 'the comparison with the previous period');
 
 const portfolio = (extra: Record<string, unknown>) => same('statistiques', 'portfolioPageProps', extra);

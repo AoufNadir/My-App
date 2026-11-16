@@ -154,7 +154,7 @@ export function reviewGoal(input: {
         gap: Math.round(profitSoFar - expectedSoFar),
         status,
         proposedTarget: proposedTarget !== null && proposedTarget > target ? proposedTarget : null,
-        proposeMinimum: status === 'out_of_reach' && week >= 2,
+        proposeMinimum: status === 'out_of_reach' && week >= 2 && input.raisedInWeek !== week,
         neededPerDay,
     };
 }

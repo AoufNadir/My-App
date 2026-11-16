@@ -37,6 +37,8 @@ import { InventoryReminderAlert } from '../components/treasury/InventoryReminder
 import { ServiceProfitCard } from '../components/dashboard/ServiceProfitCard';
 import { hasNoServiceActivity, type OwnerProfitSplit } from '../utils/serviceProfitOverview';
 import { useLanguage } from '../contexts/LanguageContext';
+import { GoalCoachLines } from '../components/dashboard/GoalCoachLines';
+import type { GoalCoach } from '../services/goalCoach';
 const RECENT_TRANSACTION_LIMIT = 5;
 const EMPTY_RECENT_DATE_RANGE = { start: null, end: null };
 const ignoreRecentFilterChange = (_mode: TransactionFilterMode) => undefined;
@@ -123,6 +125,10 @@ type DashboardPageProps = {
     /** The goal to suggest when none is set (the average monthly profit of the last 90 days). */
     suggestedGoal?: number;
     onSaveGoal?: (goal: number) => void;
+    /** P3: the weekly goal coach, its floor, and « keep my goal » (no second proposal this week) */
+    goalCoach?: GoalCoach | null;
+    minimumGoal?: number;
+    onKeepGoal?: () => void;
     /** V12-1: money movements nothing explains (no client, no link, no reason), and the way to the list. */
     unexplainedMovementCount?: number;
     /** V12-13: habits against forgetting */
@@ -273,7 +279,7 @@ function QuickSituationCard({ toReceive, toPay, liquidityGap, onOpen }: {
         : <div className={cardClass}>{content}</div>;
 }
 /** Progress toward the month's goal; without a goal, a line that invites to set one. */
-function GoalCard({ goal, profit, suggested, onSave }: { goal: number; profit: number; suggested: number; onSave?: (goal: number) => void }) {
+function GoalCard({ goal, profit, suggested, onSave, coach, minimum = 0, onKeepGoal }: { goal: number; profit: number; suggested: number; onSave?: (goal: number) => void; coach?: GoalCoach | null; minimum?: number; onKeepGoal?: () => void }) {
     const { t } = useLanguage();
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState('');
@@ -316,6 +322,7 @@ function GoalCard({ goal, profit, suggested, onSave }: { goal: number; profit: n
         <CurrencyAmount value={profit} currency="DZD" size="sm" decimals={0}/>
         <CurrencyAmount value={goal} currency="DZD" size="sm" decimals={0}/>
       </span>
+      {coach && <GoalCoachLines coach={coach} minimum={minimum} onAcceptTarget={(target) => { onSave(target); onKeepGoal?.(); }} onKeep={onKeepGoal}/>}
     </button>);
 }
 /** « +12 % vs hier » under the main number; nothing when the period before had no profit to compare with. */
@@ -385,6 +392,9 @@ function DashboardContent({
     monthlyGoal = 0,
     suggestedGoal = 0,
     onSaveGoal,
+    goalCoach = null,
+    minimumGoal = 0,
+    onKeepGoal,
     initialNotificationsOpen = false,
     unexplainedMovementCount = 0,
     habits,
@@ -612,7 +622,7 @@ function DashboardContent({
           {habits.lateRecordings > 0 && <p className="text-xs font-semibold text-financial-debt">{fillTemplate(t('habits.lateCount') as string, { count: <CountText value={habits.lateRecordings}/> })}</p>}
         </div>)}
 
-      <GoalCard goal={monthlyGoal} profit={dailyOverview.monthToDateProfit} suggested={suggestedGoal} onSave={onSaveGoal}/>
+      <GoalCard goal={monthlyGoal} profit={dailyOverview.monthToDateProfit} suggested={suggestedGoal} onSave={onSaveGoal} coach={goalCoach} minimum={minimumGoal} onKeepGoal={onKeepGoal}/>
 
       {serviceProfitCard}
 

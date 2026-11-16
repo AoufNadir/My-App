@@ -143,7 +143,8 @@ import { AppToast } from './components/ui/AppToast';
 import { translateAlert } from './utils/alertMessages';
 import { AccountUsageContext, type AccountUsage } from './accounts/AccountUsageContext';
 import { cashBalanceOf } from './accounts/cashAccounts';
-import { monthlyProfitSeries, suggestGoal } from './services/flexibleGoal';
+import { monthlyProfitSeries, suggestGoal, weekOfMonth } from './services/flexibleGoal';
+import { buildGoalCoach } from './services/goalCoach';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { useSetupDone } from './hooks/useSetupDone';
 import { shouldShowOnboarding } from './utils/onboarding';
@@ -499,6 +500,16 @@ export default function MainApp({ user }: {
     // histories stay low-confidence and are not extrapolated into a fake plan.
     // P2: the proposed monthly goal (median of the last six months, +5 %, season), from every currency's sales.
     const goalSuggestion = React.useMemo(() => suggestGoal(monthlyProfitSeries(pamLedger.sellProfitRows, Date.now()), Date.now()), [pamLedger]);
+    // P3: « keep my goal » / an accepted raise closes the proposal for the rest of the week (on this phone).
+    const goalWeekKey = `app_goal_week_${new Date().getFullYear()}-${new Date().getMonth() + 1}`;
+    const [goalDecidedWeek, setGoalDecidedWeek] = useState<number | null>(() => { try { const v = Number(localStorage.getItem(goalWeekKey)); return Number.isFinite(v) && v > 0 ? v : null; } catch { return null; } });
+    const decideGoalThisWeek = useCallback(() => { const week = weekOfMonth(new Date().getDate()); setGoalDecidedWeek(week); try { localStorage.setItem(goalWeekKey, String(week)); } catch { /* private mode */ } }, [goalWeekKey]);
+    const goalCoach = React.useMemo(() => {
+        const target = Number(pricingPlanSync.plan.monthlyGoal) || 0;
+        if (target <= 0) return null;
+        const minimum = Number(pricingPlanSync.plan.minimumGoal) > 0 ? Number(pricingPlanSync.plan.minimumGoal) : Math.round(target * 0.81 / 1000) * 1000;
+        return { coach: buildGoalCoach({ rows: pamLedger.sellProfitRows, goal: { minimum, target, stretch: Math.round(target * 1.15) }, now: Date.now(), raisedInWeek: goalDecidedWeek }), minimum };
+    }, [pamLedger, pricingPlanSync.plan.monthlyGoal, pricingPlanSync.plan.minimumGoal, goalDecidedWeek]);
     const salesHistory90 = React.useMemo(() => {
         const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
         const rows = pamLedger.sellProfitRows
@@ -2829,6 +2840,9 @@ export default function MainApp({ user }: {
         suggestedGoal: goalSuggestion?.target ?? Math.round(salesHistory90.avgMonthlyProfit),
         onSaveGoal: (goal: number) => pricingPlanSync.savePlan({ monthlyGoal: goal }),
         monthlyGoal: monthlyGoalState,
+        goalCoach: goalCoach?.coach ?? null,
+        minimumGoal: goalCoach?.minimum ?? 0,
+        onKeepGoal: decideGoalThisWeek,
         weeklyRecap,
         onDismissWeeklyRecap: dismissWeeklyRecap,
         monthlyRecap,
