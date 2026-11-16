@@ -143,6 +143,7 @@ import { AppToast } from './components/ui/AppToast';
 import { translateAlert } from './utils/alertMessages';
 import { AccountUsageContext, type AccountUsage } from './accounts/AccountUsageContext';
 import { cashBalanceOf } from './accounts/cashAccounts';
+import { monthlyProfitSeries, suggestGoal } from './services/flexibleGoal';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { useSetupDone } from './hooks/useSetupDone';
 import { shouldShowOnboarding } from './utils/onboarding';
@@ -496,6 +497,8 @@ export default function MainApp({ user }: {
 
     // Rolling history normalized by the actual observed calendar span. Short
     // histories stay low-confidence and are not extrapolated into a fake plan.
+    // P2: the proposed monthly goal (median of the last six months, +5 %, season), from every currency's sales.
+    const goalSuggestion = React.useMemo(() => suggestGoal(monthlyProfitSeries(pamLedger.sellProfitRows, Date.now()), Date.now()), [pamLedger]);
     const salesHistory90 = React.useMemo(() => {
         const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
         const rows = pamLedger.sellProfitRows
@@ -2823,7 +2826,7 @@ export default function MainApp({ user }: {
             price: smartTargetPrices.usdt > 0 ? smartTargetPrices.usdt : dashboardPortfolioStats.usdt.avgBuy,
             pam: dashboardPortfolioStats.usdt.avgBuy,
         } : null,
-        suggestedGoal: Math.round(salesHistory90.avgMonthlyProfit),
+        suggestedGoal: goalSuggestion?.target ?? Math.round(salesHistory90.avgMonthlyProfit),
         onSaveGoal: (goal: number) => pricingPlanSync.savePlan({ monthlyGoal: goal }),
         monthlyGoal: monthlyGoalState,
         weeklyRecap,
@@ -3102,7 +3105,7 @@ export default function MainApp({ user }: {
                             isOpen={isMonthPlanOpen}
                             onClose={() => setIsMonthPlanOpen(false)}
                             context={smartPricingCtx}
-                            suggestedGoal={Math.round(salesHistory90.avgMonthlyProfit)}
+                            suggestedGoal={goalSuggestion?.target ?? Math.round(salesHistory90.avgMonthlyProfit)}
                             clients={monthPlanClients}
                             syncState={pricingPlanSync.syncState}
                             onSavePlan={pricingPlanSync.savePlan}
