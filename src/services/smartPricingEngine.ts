@@ -144,6 +144,8 @@ export type CustomerProfile = {
     score: number;
     segment: CustomerSegment;
     vol30d: number;
+    /** P1: usual monthly volume (the larger of the last 30 days and the 90-day monthly average) */
+    monthlyVolume: number;
     txCount30d: number;
     txCount90d: number;
     creditRatio90d: number;
@@ -180,11 +182,29 @@ export function buildCustomerProfiles(
     now = Date.now(),
     derivedProfits?: DerivedProfitLookup,
     currency?: PricingCurrency,
+    clientRows?: ReadonlyArray<ClientTransactionDzd>,
 ): Map<string, CustomerProfile> {
+    // P1 (owner): a sale « on account » paid from money the client had already sent us is not credit. The client's
+    // balance just before the sale says how much of it was prepaid; only the rest counts as credit.
+    const rowsByClient = new Map<string, Array<{ ts: number; amount: number }>>();
+    for (const row of clientRows || []) {
+        if (row.affectsBalance === false) continue;
+        const list = rowsByClient.get(row.clientId) || [];
+        list.push({ ts: Number(row.timestamp) || 0, amount: Number(row.montant) || 0 });
+        rowsByClient.set(row.clientId, list);
+    }
+    for (const list of rowsByClient.values()) list.sort((a, b) => a.ts - b.ts);
+    const balanceBefore = (clientId: string, ts: number) => {
+        let sum = 0;
+        for (const row of rowsByClient.get(clientId) || []) { if (row.ts >= ts) break; sum += row.amount; }
+        return sum;
+    };
+    const tradeCurrency = currency || 'USDT';
     const start30 = now - 30 * DAY;
     const start90 = now - 90 * DAY;
     type Acc = {
         vol30: number;
+        vol90: number;
         count30: number;
         count90: number;
         credit90: number;
@@ -202,6 +222,7 @@ export function buildCustomerProfiles(
         const clientId = tx.linkedClientId;
         const row = acc.get(clientId) || {
             vol30: 0,
+            vol90: 0,
             count30: 0,
             count90: 0,
             credit90: 0,
@@ -212,13 +233,18 @@ export function buildCustomerProfiles(
             trackedNegotiations: 0,
         };
         const qty = Math.max(0, finite(tx.quantity));
-        if (tx.timestamp >= start30 && tx.currency === 'USDT') {
+        if (tx.timestamp >= start90 && tx.currency === tradeCurrency) row.vol90 += qty;
+        if (tx.timestamp >= start30 && tx.currency === tradeCurrency) {
             row.vol30 += qty;
             row.count30++;
         }
         if (tx.timestamp >= start90) {
             row.count90++;
-            if (tx.clientPaymentStatus === 'credit') row.credit90++;
+            if (tx.clientPaymentStatus === 'credit') {
+                const total = qty * Math.max(0, finite(tx.sell));
+                const prepaid = rowsByClient.size > 0 ? Math.max(0, balanceBefore(clientId, tx.timestamp)) : 0;
+                row.credit90 += total > 0 ? Math.max(0, Math.min(1, (total - prepaid) / total)) : 1;
+            }
             row.profit90 += derivedProfitFor(tx, derivedProfits);
             row.qty90 += qty;
             const target = finite(tx.spSnapshot?.corridor.targetPrice, finite(tx.spTargetPrice));
@@ -237,8 +263,12 @@ export function buildCustomerProfiles(
         const creditRatio = row.count90 > 0 ? row.credit90 / row.count90 : 0;
         const avgMargin = row.qty90 > 0 ? row.profit90 / row.qty90 : 0;
         const negoLossPerUnit = row.negotiationQty > 0 ? row.negotiationLoss / row.negotiationQty : 0;
-        const volumePts = 35 * Math.min(1, vipVolumeThreshold > 0 ? row.vol30 / vipVolumeThreshold : 0);
-        const frequencyPts = 15 * Math.min(1, row.count30 / 6);
+        // P1 (owner): a client matters by what they buy in a month, not by how often. One purchase of 5 000 a
+        // month weighs like a regular buyer of 5 000; the number of purchases only adds, it never takes away.
+        const monthlyVolume = Math.max(row.vol30, row.vol90 / 3);
+        const volumeShare = Math.min(1, vipVolumeThreshold > 0 ? monthlyVolume / vipVolumeThreshold : 0);
+        const volumePts = 35 * volumeShare;
+        const frequencyPts = 15 * Math.max(Math.min(1, row.count30 / 6), volumeShare);
         const paymentPts = 25 * (1 - creditRatio);
         const marginPts = 15 * Math.min(1, Math.max(0, avgMargin) / 2);
         // Negotiation history influences OPENING only. Keep the behavioral
@@ -250,6 +280,7 @@ export function buildCustomerProfiles(
             score,
             segment: segmentFromScore(score, false),
             vol30d: row.vol30,
+            monthlyVolume: round2(Math.max(row.vol30, row.vol90 / 3)),
             txCount30d: row.count30,
             txCount90d: row.count90,
             creditRatio90d: round2(creditRatio),
@@ -270,6 +301,7 @@ export function newClientProfile(clientId: string): CustomerProfile {
         score: 45,
         segment: 'new',
         vol30d: 0,
+        monthlyVolume: 0,
         txCount30d: 0,
         txCount90d: 0,
         creditRatio90d: 0,
@@ -567,6 +599,17 @@ function estimateBaselineMargins(
         : { floor: 0, target: 0 };
 }
 
+/** P1: settled on average within the default credit term, over at least two settled credits. */
+export function paysOnTime(avgSettleDays: number | null | undefined, settledLots: number, policy: Pick<PricingPolicyConfig, 'creditDefaultTermDays'>): boolean {
+    return avgSettleDays !== null && avgSettleDays !== undefined && settledLots >= 2 && avgSettleDays <= policy.creditDefaultTermDays;
+}
+
+/** P1: how much of a sale « on account » the client's positive balance already covers (0 to 1). */
+export function prepaidShare(balance: number, saleTotal: number): number {
+    if (!(saleTotal > 0)) return 0;
+    return Math.max(0, Math.min(1, Math.max(0, finite(balance)) / saleTotal));
+}
+
 export function buildPricingContext(input: PricingContextInput): PricingContext {
     const now = input.now ?? Date.now();
     const currency = input.currency || 'USDT';
@@ -587,6 +630,7 @@ export function buildPricingContext(input: PricingContextInput): PricingContext 
         now,
         input.derivedProfits,
         currency,
+        input.clientTransactions,
     );
     const clients = input.clients || [];
     const clientsById = new Map(clients.map((client) => [client.id, client]));
@@ -607,6 +651,12 @@ export function buildPricingContext(input: PricingContextInput): PricingContext 
         if (profile) {
             profile.avgSettleDays = debt.avgSettleDays;
             profile.settledCreditLots = debt.settledLotCount;
+            // P1 (owner): a client who always settles on time is a good payer even when they buy on account:
+            // the credit share no longer lowers their score.
+            if (paysOnTime(debt.avgSettleDays, debt.settledLotCount, policy) && profile.creditRatio90d > 0) {
+                profile.score = Math.min(100, Math.round(profile.score + 25 * profile.creditRatio90d));
+                profile.segment = segmentFromScore(profile.score, profile.isNew);
+            }
         }
     }
 
@@ -700,7 +750,9 @@ export type PricingReasonCode =
     | 'goal_above_market_range'
     | 'goal_volume_missing'
     | 'learned_opening_buffer'
-    | 'insufficient_stock';
+    | 'insufficient_stock'
+    | 'prepaid_from_balance'
+    | 'loyal_small_qty';
 
 export type PricingWarning = PricingReasonCode;
 export type SmartWarning = PricingReasonCode;
@@ -894,25 +946,33 @@ export function quoteSale(ctx: PricingContext, input: SaleQuoteInput): SaleQuote
     if (!profile || profile.txCount90d < 3) reasons.push('client_low_confidence');
 
     let preliminarySegment = effectiveSegment;
-    if (bracket === 'small' && (preliminarySegment === 'vip' || preliminarySegment === 'good')) {
+    // P1 (owner): a loyal client keeps their price on a small purchase: what counts is their monthly volume.
+    const loyal = Boolean(profile && profile.monthlyVolume >= ctx.policy.regularVolumeThreshold && (effectiveSegment === 'vip' || effectiveSegment === 'good'));
+    if (bracket === 'small' && loyal) reasons.push('loyal_small_qty');
+    else if (bracket === 'small' && (preliminarySegment === 'vip' || preliminarySegment === 'good')) {
         preliminarySegment = NORMALIZED_SEGMENT_FOR_SMALL;
         reasons.push('small_qty_no_vip');
     }
-    const qtyAdj = bracketAdjustment(ctx.policy, bracket);
-    if (bracket === 'small') reasons.push('small_qty_premium');
+    const qtyAdj = bracket === 'small' && loyal ? 0 : bracketAdjustment(ctx.policy, bracket);
+    if (bracket === 'small' && !loyal) reasons.push('small_qty_premium');
     if (bracket === 'large') reasons.push('large_qty_discount');
+    // P1 (owner): « on account » paid from the client's own advance is not credit: no financing on the covered part.
+    const roughTotal = quantity * Math.max(input.actualUnitPrice || 0, ctx.pam);
+    const covered = payment.kind === 'credit' ? prepaidShare(debtState?.balance || 0, roughTotal) : 0;
+    const prepaid = payment.kind === 'credit' && covered >= 0.999;
+    if (payment.kind === 'credit' && covered > 0) reasons.push('prepaid_from_balance');
     const financing = payment.kind === 'credit'
-        ? ctx.pam * ctx.policy.monthlyCapitalCostRate * (termDays / 30)
+        ? ctx.pam * ctx.policy.monthlyCapitalCostRate * (termDays / 30) * (1 - covered)
         : 0;
     if (financing > 0) reasons.push('credit_financing_cost');
-    if (payment.kind === 'credit' && termSource !== 'explicit') reasons.push('credit_term_estimated');
+    if (payment.kind === 'credit' && !prepaid && termSource !== 'explicit') reasons.push('credit_term_estimated');
 
     const firstBand = ctx.policy.marketBands[effectiveMarket][preliminarySegment];
     const firstTargetMargin = Math.max(0, (firstBand[0] + firstBand[1]) / 2 + qtyAdj + financing + ctx.goal.targetShift);
     const estimatedTarget = ceilToMarketPrice(ctx.pam + firstTargetMargin);
-    const firstRisk = buildCreditRisk(ctx, input.clientId, payment, quantity * (input.actualUnitPrice || estimatedTarget));
+    const firstRisk = buildCreditRisk(ctx, input.clientId, prepaid ? { kind: 'cash' } : payment, quantity * (input.actualUnitPrice || estimatedTarget));
     let pricedAs = preliminarySegment;
-    if (payment.kind === 'credit') {
+    if (payment.kind === 'credit' && !prepaid) {
         if (firstRisk.overLimit || firstRisk.seriousOverdue) pricedAs = worseSegment(pricedAs, 'risky');
         else if (firstRisk.highUtilization || firstRisk.overdueAmount > 0) pricedAs = worseSegment(pricedAs, 'weak');
         if (effectiveMarket === 'falling') reasons.push('falling_prefer_cash');
@@ -946,7 +1006,7 @@ export function quoteSale(ctx: PricingContext, input: SaleQuoteInput): SaleQuote
     const openingPrice = Math.max(targetPrice, ceilToMarketPrice(ctx.pam + openingMargin));
     const actualSource = input.actualPriceSource || 'target';
     const actualPrice = Math.max(0, finite(input.actualUnitPrice, targetPrice));
-    const finalRisk = buildCreditRisk(ctx, input.clientId, payment, quantity * (actualPrice || targetPrice));
+    const finalRisk = buildCreditRisk(ctx, input.clientId, prepaid ? { kind: 'cash' } : payment, quantity * (actualPrice || targetPrice));
     for (const reason of finalRisk.reasons) if (!reasons.includes(reason)) reasons.push(reason);
     const expectedProfit = round2((targetPrice - ctx.pam) * quantity);
     const coveragePct = ctx.goal.remainingGoal > 0 && expectedProfit > 0
