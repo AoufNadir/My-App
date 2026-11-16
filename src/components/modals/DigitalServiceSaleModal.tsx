@@ -91,7 +91,8 @@ export function DigitalServiceSaleModal({
     // received the money. Nothing is chosen in advance (rule 11); an existing sale opens on its saved way.
     const [saleWay, setSaleWay] = useState<'now' | 'credit' | null>(saleWallet === 'Credit' ? 'credit' : saleWallet ? 'now' : null);
     useEffect(() => { if (!isOpen) setSaleWay(null); else if (saleWallet) setSaleWay(saleWallet === 'Credit' ? 'credit' : 'now'); }, [isOpen, saleWallet]);
-    const wayWords = lang === 'ar' ? { now: 'دُفعت الآن', credit: 'مؤجَّلة (دَين)', ask: 'كيف دُفعت؟', where: 'أين دخل المال؟' } : { now: 'Payée maintenant', credit: 'Différée (crédit)', ask: 'Comment est-elle payée ?', where: 'Où entre l’argent ?' };
+    // Same words as the buy and sell windows (« Statut du paiement client », « Paiement différé », « Réglé »).
+    const wayWords = { ask: t('transactions.paymentStatus') as string, now: lang === 'ar' ? 'مدفوع الآن' : 'Réglé maintenant', credit: t('transactions.credit') as string, where: lang === 'ar' ? 'أين يذهب المال؟' : 'Où va l’argent ?' };
     const fieldBase = 'rounded-xl border-border bg-surface text-neutral-900';
     const clientOptions = useMemo(() => selectableClients(clientsDzd, [clientId]).map((client) => ({
         value: client.id,
