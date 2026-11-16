@@ -867,7 +867,7 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 const details = [
                     clientLabel,
                     tx.notes || '',
-                    `${tx.purchaseWallet} → ${tx.saleWallet === 'Credit' ? t('transactions.credit') : tx.saleWallet}`,
+                    `${tx.purchaseWallet === 'Credit' ? t('transactions.credit') : tx.purchaseWallet} → ${tx.saleWallet === 'Credit' ? t('transactions.credit') : tx.saleWallet}`,
                 ].filter(Boolean).join(' - ');
                 return {
                     typeLabel: t('digitalServices.menuTitle'),

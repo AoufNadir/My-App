@@ -614,7 +614,7 @@ export default function MainApp({ user }: {
         setAlert, setSelectedClientId: (id: string | null) => setSelectedClientId(id), setView: (v: string) => setView(v),
         smartQuoteRef,
     });
-    const { isDigitalServiceModalOpen, isDigitalServiceSaving, editingDigitalServiceTx, digitalServiceClientId, setDigitalServiceClientId, digitalServiceName, setDigitalServiceName, digitalServicePurchaseWallet, setDigitalServicePurchaseWallet, digitalServicePurchaseAmount, setDigitalServicePurchaseAmount, digitalServiceSaleWallet, setDigitalServiceSaleWallet, digitalServiceSaleAmount, setDigitalServiceSaleAmount, digitalServiceDate, setDigitalServiceDate, digitalServiceNote, setDigitalServiceNote, digitalServicePreview, openDigitalServiceModal, closeDigitalServiceModal, handleSaveDigitalService, handleDeleteDigitalService } = useDigitalServiceHandlers({
+    const { isDigitalServiceModalOpen, isDigitalServiceSaving, editingDigitalServiceTx, digitalServiceClientId, setDigitalServiceClientId, digitalServiceSupplierId, setDigitalServiceSupplierId, digitalServiceName, setDigitalServiceName, digitalServicePurchaseWallet, setDigitalServicePurchaseWallet, digitalServicePurchaseAmount, setDigitalServicePurchaseAmount, digitalServiceSaleWallet, setDigitalServiceSaleWallet, digitalServiceSaleAmount, setDigitalServiceSaleAmount, digitalServiceDate, setDigitalServiceDate, digitalServiceNote, setDigitalServiceNote, digitalServicePreview, openDigitalServiceModal, closeDigitalServiceModal, handleSaveDigitalService, handleDeleteDigitalService } = useDigitalServiceHandlers({
         userDocRef,
         clientsDzd,
         clientTransactionsDzd,
@@ -3158,7 +3158,7 @@ export default function MainApp({ user }: {
         handleSaveDeliveryExpense,
         isDigitalServiceModalOpen, closeDigitalServiceModal,
         isDigitalServiceSaving,
-        digitalServiceClientId, setDigitalServiceClientId,
+        digitalServiceClientId, setDigitalServiceClientId, digitalServiceSupplierId, setDigitalServiceSupplierId,
         digitalServiceName, setDigitalServiceName,
         digitalServicePurchaseWallet, setDigitalServicePurchaseWallet,
         digitalServicePurchaseAmount, setDigitalServicePurchaseAmount,

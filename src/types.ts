@@ -195,7 +195,7 @@ export interface ClientTransactionDzd {
     date: string;
     time: string;
     montant: number; // Positive = Credit (Advance), Negative = Debt
-    type: 'Règlement Reçu' | 'Paiement Effectué' | 'Vente USDT' | 'Vente EUR' | `Vente ${TradeCurrencyCode}` | 'Achat EUR' | 'Vente service numérique' | 'Solde Initial' | 'Transfert Entrant' | 'Transfert Sortant' | 'Ajustement Solde' | 'Remise solde';
+    type: 'Règlement Reçu' | 'Paiement Effectué' | 'Vente USDT' | 'Vente EUR' | `Vente ${TradeCurrencyCode}` | 'Achat EUR' | 'Vente service numérique' | 'Achat service numérique' | 'Solde Initial' | 'Transfert Entrant' | 'Transfert Sortant' | 'Ajustement Solde' | 'Remise solde';
     notes?: string;
     /** Free-form labels for filtering (shared with Tx tags). */
     tags?: string[];
@@ -255,7 +255,9 @@ export interface DigitalServiceTransaction {
     type: 'digital_service_sale';
     clientId: string;
     serviceName: string;
-    purchaseWallet: 'Caisse' | 'BaridiMob' | TradeCurrencyCode;
+    purchaseWallet: 'Caisse' | 'BaridiMob' | TradeCurrencyCode | 'Credit';
+    /** V15-6: bought on credit from this supplier (a client of the list), who is owed the purchase price */
+    supplierId?: string;
     purchaseCurrency: 'DZD' | TradeCurrencyCode;
     purchaseAmount: number;
     purchaseRateToDzd: number;

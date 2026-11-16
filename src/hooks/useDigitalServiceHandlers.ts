@@ -96,14 +96,16 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
     const [editingDigitalServiceTx, setEditingDigitalServiceTx] = useState<DigitalServiceTransaction | null>(null);
     const [digitalServiceClientId, setDigitalServiceClientId] = useState('');
     const [digitalServiceName, setDigitalServiceName] = useState('');
-    const [digitalServicePurchaseWallet, setDigitalServicePurchaseWalletState] = useState<FinancialWallet>('Caisse');
+    // V15-6: who we bought from, when the purchase is on credit (rule 11: no money owed without its owner).
+    const [digitalServiceSupplierId, setDigitalServiceSupplierId] = useState('');
+    const [digitalServicePurchaseWallet, setDigitalServicePurchaseWalletState] = useState<DigitalServiceSaleWallet>('Caisse');
     // V13-5: neither wallet is chosen for the owner (rule 11); an edited sale keeps its own.
     const [purchaseWalletChosen, setPurchaseWalletChosen] = useState(false);
     const [saleWalletChosen, setSaleWalletChosen] = useState(false);
-    const setDigitalServicePurchaseWallet = useCallback((wallet: FinancialWallet) => { setPurchaseWalletChosen(true); setDigitalServicePurchaseWalletState(wallet); }, []);
+    const setDigitalServicePurchaseWallet = useCallback((wallet: DigitalServiceSaleWallet) => { setPurchaseWalletChosen(Boolean(wallet)); setDigitalServicePurchaseWalletState(wallet); }, []);
     const [digitalServicePurchaseAmount, setDigitalServicePurchaseAmount] = useState('');
     const [digitalServiceSaleWallet, setDigitalServiceSaleWalletState] = useState<DigitalServiceSaleWallet>('Caisse');
-    const setDigitalServiceSaleWallet = useCallback((wallet: DigitalServiceSaleWallet) => { setSaleWalletChosen(true); setDigitalServiceSaleWalletState(wallet); }, []);
+    const setDigitalServiceSaleWallet = useCallback((wallet: DigitalServiceSaleWallet) => { setSaleWalletChosen(Boolean(wallet)); setDigitalServiceSaleWalletState(wallet); }, []);
     const [digitalServiceSaleAmount, setDigitalServiceSaleAmount] = useState('');
     const [digitalServiceDate, setDigitalServiceDate] = useState(toIsoToday());
     const [digitalServiceNote, setDigitalServiceNote] = useState('');
@@ -132,6 +134,7 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
         setEditingDigitalServiceTx(null);
         setDigitalServiceClientId('');
         setDigitalServiceName('');
+        setDigitalServiceSupplierId('');
         setDigitalServicePurchaseWalletState('Caisse');
         setPurchaseWalletChosen(false);
         setDigitalServicePurchaseAmount('');
@@ -148,6 +151,7 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
             setDigitalServiceClientId(tx.clientId);
             setDigitalServiceName(tx.serviceName || '');
             setDigitalServicePurchaseWallet(tx.purchaseWallet);
+            setDigitalServiceSupplierId(tx.supplierId || '');
             setDigitalServicePurchaseAmount(String(tx.purchaseAmount || ''));
             setDigitalServiceSaleWallet(tx.saleWallet);
             setDigitalServiceSaleAmount(String(tx.saleAmount || ''));
@@ -175,6 +179,10 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
         if (!digitalServiceClientId) return '⚠️ Client requis.';
         if (!purchaseWalletChosen || !saleWalletChosen) return '⚠️ Choisissez le portefeuille.';
         if (!digitalServiceName.trim()) return '⚠️ Service numérique requis.';
+        if (digitalServicePurchaseWallet === 'Credit') {
+            if (!digitalServiceSupplierId) return '⚠️ Fournisseur requis.';
+            if (digitalServiceSupplierId === digitalServiceClientId) return '⚠️ Le fournisseur doit être différent du client.';
+        }
         if (!Number.isFinite(purchaseAmount) || purchaseAmount <= 0) return '⚠️ Prix d’achat invalide.';
         if (!Number.isFinite(saleAmount) || saleAmount <= 0) return '⚠️ Prix de vente invalide.';
         if (isAssetWallet(digitalServicePurchaseWallet) && getWalletRateToDzd(digitalServicePurchaseWallet, rates) <= 0) {
@@ -184,6 +192,7 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
             return `⚠️ PMA ${digitalServiceSaleWallet} indisponible.`;
         }
         const epsilon = 0.005;
+        if (digitalServicePurchaseWallet === 'Credit') return ''; // V15-6: nothing leaves a wallet now
         const currentAvailable = isCashWallet(digitalServicePurchaseWallet)
             ? cashBalanceOf(treasuryStats, digitalServicePurchaseWallet) // V15-2c: any dinar account
             : isAssetWallet(digitalServicePurchaseWallet)
@@ -256,7 +265,24 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
                 linkedDigitalServiceTxId: mainRef.id,
                 origin: 'digital_service_sale',
             };
-            if (isCashWallet(digitalServicePurchaseWallet)) {
+            const supplier = clientsDzd.find((item) => item.id === digitalServiceSupplierId);
+            if (digitalServicePurchaseWallet === 'Credit') {
+                // V15-6: bought on credit: the supplier's account says we owe them the price; no wallet moves.
+                const ref = userDocRef.collection('dzd_client_txs').doc();
+                batch.set(ref, {
+                    ...childBase,
+                    clientId: digitalServiceSupplierId,
+                    timestamp: stamp.timestamp,
+                    date: stamp.date,
+                    time: stamp.time,
+                    montant: preview.purchaseAmountDzd,
+                    type: 'Achat service numérique',
+                    notes: [serviceLabel, `Fournisseur: ${clientName(supplier)}`, note].filter(Boolean).join(' - '),
+                    paymentMethod: 'Crédit',
+                    affectsBalance: true,
+                });
+            }
+            else if (isCashWallet(digitalServicePurchaseWallet)) {
                 const ref = userDocRef.collection('treasury_txs').doc();
                 linkedTreasuryTxIds.push(ref.id);
                 batch.set(ref, {
@@ -346,6 +372,7 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
                 clientId: digitalServiceClientId,
                 serviceName: serviceLabel,
                 purchaseWallet: digitalServicePurchaseWallet,
+                ...(digitalServicePurchaseWallet === 'Credit' ? { supplierId: digitalServiceSupplierId } : {}),
                 purchaseCurrency: preview.purchaseCurrency,
                 purchaseAmount,
                 purchaseRateToDzd: preview.purchaseRateToDzd,
@@ -584,6 +611,8 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
         editingDigitalServiceTx,
         digitalServiceClientId,
         setDigitalServiceClientId,
+        digitalServiceSupplierId,
+        setDigitalServiceSupplierId,
         digitalServiceName,
         setDigitalServiceName,
         digitalServicePurchaseWallet: purchaseWalletChosen ? digitalServicePurchaseWallet : null,

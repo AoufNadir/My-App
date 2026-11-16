@@ -28,11 +28,14 @@ type DigitalServiceSaleModalProps = {
     isSaving: boolean;
     clientId: string;
     setClientId: (value: string) => void;
+    /** V15-6: who we bought from, when the purchase is on credit */
+    supplierId?: string;
+    setSupplierId?: (value: string) => void;
     serviceName: string;
     setServiceName: (value: string) => void;
     /** null: not chosen yet (V13-5) */
-    purchaseWallet: FinancialWallet | null;
-    setPurchaseWallet: (value: FinancialWallet) => void;
+    purchaseWallet: DigitalServiceSaleWallet | null;
+    setPurchaseWallet: (value: DigitalServiceSaleWallet) => void;
     purchaseAmount: string;
     setPurchaseAmount: (value: string) => void;
     saleWallet: DigitalServiceSaleWallet | null;
@@ -65,6 +68,8 @@ export function DigitalServiceSaleModal({
     isSaving,
     clientId,
     setClientId,
+    supplierId = '',
+    setSupplierId = () => {},
     serviceName,
     setServiceName,
     purchaseWallet,
@@ -91,6 +96,9 @@ export function DigitalServiceSaleModal({
     // received the money. Nothing is chosen in advance (rule 11); an existing sale opens on its saved way.
     const [saleWay, setSaleWay] = useState<'now' | 'credit' | null>(saleWallet === 'Credit' ? 'credit' : saleWallet ? 'now' : null);
     useEffect(() => { if (!isOpen) setSaleWay(null); else if (saleWallet) setSaleWay(saleWallet === 'Credit' ? 'credit' : 'now'); }, [isOpen, saleWallet]);
+    const [buyWay, setBuyWay] = useState<'now' | 'credit' | null>(purchaseWallet === 'Credit' ? 'credit' : purchaseWallet ? 'now' : null);
+    useEffect(() => { if (!isOpen) setBuyWay(null); else if (purchaseWallet) setBuyWay(purchaseWallet === 'Credit' ? 'credit' : 'now'); }, [isOpen, purchaseWallet]);
+    const supplierWords = lang === 'ar' ? { supplier: 'المورد (من اشتريت منه)', hint: 'يُسجَّل في حسابه أن له عندك هذا المبلغ.' } : { supplier: 'Fournisseur (à qui vous achetez)', hint: 'Son compte indiquera que vous lui devez ce montant.' };
     // Same words as the buy and sell windows (« Statut du paiement client », « Paiement différé », « Réglé »).
     const wayWords = { ask: t('transactions.paymentStatus') as string, now: lang === 'ar' ? 'مدفوع الآن' : 'Réglé maintenant', credit: t('transactions.credit') as string, where: lang === 'ar' ? 'أين يذهب المال؟' : 'Où va l’argent ?' };
     const fieldBase = 'rounded-xl border-border bg-surface text-neutral-900';
@@ -102,7 +110,8 @@ export function DigitalServiceSaleModal({
     const balances = walletBalancesOf(treasuryStats, portfolioStats);
     const purchaseCurrency = purchaseWallet ? getWalletCurrency(purchaseWallet) : 'DZD';
     const saleCurrency = saleWallet ? getWalletCurrency(saleWallet) : 'DZD';
-    const purchaseAvailable = purchaseWallet ? Number(balances[purchaseWallet] || 0) : 0;
+    const purchaseAvailable = purchaseWallet && purchaseWallet !== 'Credit' ? Number(balances[purchaseWallet] || 0) : 0;
+    const supplierOptions = useMemo(() => selectableClients(clientsDzd, [supplierId]).filter((client) => client.id !== clientId).map((client) => ({ value: client.id, label: getClientName(client) })), [clientsDzd, supplierId, clientId]);
 
     // Display only: once a sale price is typed, the sale and its margin stay visible at the bottom
     // (the same numbers as the summary above).
@@ -150,14 +159,28 @@ export function DigitalServiceSaleModal({
                 </FormCard>
 
                 <FormCard title={t('digitalServices.purchaseWallet')}>
-                    <WalletPicker value={purchaseWallet} onChange={(next) => setPurchaseWallet(next as FinancialWallet)} wallets={FINANCIAL_WALLETS} labels={{ Caisse: t('transactions.cash') as string, BaridiMob: t('transactions.baridi') as string }} balances={balances} ariaLabel={t('digitalServices.purchaseWallet') as string} chooseLabel={t('transactions.walletChoose') as string}/>
+                    <div>
+                        <Label>{wayWords.ask}</Label>
+                        <div className="mt-1 grid grid-cols-2 gap-2" role="radiogroup" aria-label={wayWords.ask}>
+                            {(['now', 'credit'] as const).map((way) => (<button key={way} type="button" role="radio" aria-checked={buyWay === way} onClick={() => { setBuyWay(way); if (way === 'credit') setPurchaseWallet('Credit'); else if (purchaseWallet === 'Credit') setPurchaseWallet(null as never); }} className={`h-11 rounded-button border text-sm font-semibold ${buyWay === way ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-surface text-neutral-700'}`}>{wayWords[way]}</button>))}
+                        </div>
+                    </div>
+                    {buyWay === 'credit' && (<div>
+                        <Label>{supplierWords.supplier}</Label>
+                        <div className="mt-1"><SearchableSelect value={supplierId} onChange={setSupplierId} options={supplierOptions} fieldClassName={fieldBase} searchPlaceholder={t('transactions.searchClient') as string} emptyOptionLabel={t('transactions.noClient') as string} emptyValue="" noResultsLabel={t('transactions.noClientFound') as string}/></div>
+                        <p className="mt-1 text-xs text-neutral-600">{supplierWords.hint}</p>
+                    </div>)}
+                    {buyWay === 'now' && (<div>
+                        <Label>{lang === 'ar' ? 'من أين يخرج المال؟' : 'D’où sort l’argent ?'}</Label>
+                                            <WalletPicker value={purchaseWallet} onChange={(next) => setPurchaseWallet(next as DigitalServiceSaleWallet)} wallets={FINANCIAL_WALLETS} labels={{ Caisse: t('transactions.cash') as string, BaridiMob: t('transactions.baridi') as string }} balances={balances} ariaLabel={t('digitalServices.purchaseWallet') as string} chooseLabel={t('transactions.walletChoose') as string}/>
+                    </div>)}
                     <MoneyField
                         label={t('digitalServices.purchaseAmount')}
                         value={purchaseAmount}
                         onChange={setPurchaseAmount}
                         currency={purchaseCurrency}
                         placeholder="0"
-                        hint={(
+                        hint={buyWay === 'credit' ? undefined : (
                             <span className="inline-flex flex-wrap items-center gap-1">
                                 {t('delivery.availableBalance')}:
                                 <CurrencyAmount value={purchaseAvailable} currency={purchaseCurrency} semantic="plain" size="sm" decimals={purchaseCurrency === 'DZD' ? 0 : 2}/>

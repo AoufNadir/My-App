@@ -456,6 +456,9 @@ export function classifyClientRow(row: ClientTransactionDzd, linked?: Tx): Repor
                 ...(affectsBalance ? {} : { method: settledInEur ? 'eur' : paidThroughAnotherAccount ? 'other' : ledgerMethod }),
             };
         }
+        case 'Achat service numérique':
+            // V15-6: we bought a digital service from this client on credit: it is owed to them.
+            return { ...base, kind: 'service', dzdCents: Math.abs(montantCents) };
         case 'Vente service numérique': {
             // Paid in USDT or EUR, its DZD amount is our own valuation of that currency.
             const paidInCurrency = !affectsBalance && (ledgerMethod === 'usdt' || ledgerMethod === 'eur');
