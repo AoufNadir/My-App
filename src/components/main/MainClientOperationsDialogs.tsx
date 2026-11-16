@@ -1,4 +1,4 @@
-import { CASH_ACCOUNT_IDS, CUSTOM_CASH_ACCOUNTS, adjustmentAssetForWallet, cashAccount, cashBalanceOf, cashWalletOfAsset, walletOfStatus } from '../../accounts/cashAccounts';
+import { CASH_ACCOUNT_IDS, CUSTOM_CASH_ACCOUNTS, SHOWN_CUSTOM_CASH_ACCOUNTS, isAccountShown, adjustmentAssetForWallet, cashAccount, cashBalanceOf, cashWalletOfAsset, walletOfStatus } from '../../accounts/cashAccounts';
 import { isTradeCurrency, TRADE_CURRENCY_CODES, liveRecord } from '../../currency/tradeCurrencies';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ModalContent, ModalHeader, ModalTitle } from '../ui/Modal';
@@ -416,10 +416,10 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                                 </span>
                             </div>
                             <SegmentedControl size="md" ariaLabel={t('transactions.settlementMethod') as string} value={settlementPaymentStatus} onChange={(value) => setClientTxPaymentStatus?.(value)} options={[
-                                { id: 'cash', label: <><WalletIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{t('transactions.cash')}</>, tone: 'profit' },
-                                { id: 'baridi', label: <><BanknotesIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{t('transactions.baridi')}</>, tone: 'primary' },
-                                ...CUSTOM_CASH_ACCOUNTS.map((account) => ({ id: account.id, label: <><BanknotesIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{account.name}</>, tone: 'primary' as const })),
-                            ]} columns={CUSTOM_CASH_ACCOUNTS.length > 0 ? 2 : undefined}/>
+                                { id: 'cash', label: <><WalletIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{t('transactions.cash')}</>, tone: 'profit' as const },
+                                { id: 'baridi', label: <><BanknotesIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{t('transactions.baridi')}</>, tone: 'primary' as const },
+                                ...SHOWN_CUSTOM_CASH_ACCOUNTS.map((account) => ({ id: account.id, label: <><BanknotesIcon aria-hidden="true" className="h-4 w-4 shrink-0"/>{account.name}</>, tone: 'primary' as const })),
+                            ].filter((option) => option.id === settlementPaymentStatus || isAccountShown(walletOfStatus(option.id)))} columns={SHOWN_CUSTOM_CASH_ACCOUNTS.length > 0 ? 2 : undefined}/>
                             <p className={`mt-1.5 text-xs leading-5 ${clientSettlementWalletInsufficient ? 'font-medium text-financial-loss' : 'text-neutral-500'}`}>
                                 {clientSettlementWalletInsufficient
                 ? formatMessage(t, 'transactions.insufficientAssetBalance', 'Solde {asset} insuffisant.', { asset: clientSettlementWalletLabel })

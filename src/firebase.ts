@@ -398,6 +398,9 @@ class FirestoreDocumentSnapshot {
     get id() {
         return this.nativeSnapshot.id;
     }
+    get metadata() {
+        return this.nativeSnapshot.metadata;
+    }
     get exists() {
         return this.nativeSnapshot.exists();
     }

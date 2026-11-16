@@ -1,4 +1,4 @@
-import { CUSTOM_CASH_ACCOUNTS, type PaymentChoice } from '../../accounts/cashAccounts';
+import { SHOWN_CUSTOM_CASH_ACCOUNTS, isAccountShown, walletOfStatus, type PaymentChoice } from '../../accounts/cashAccounts';
 import { memo } from 'react';
 import { Label } from '../ui/Label';
 import { SearchableSelect } from '../ui/SearchableSelect';
@@ -70,7 +70,7 @@ function ClientLinkerComponent({ linkedClientId, setLinkedClientId, linkedClient
             {hasPrimaryClient && !hidePaymentStatus && (<div>
                     <Label>{t('transactions.paymentStatus')}</Label>
                     <div role="radiogroup" aria-label={t('transactions.paymentStatus') as string} className="grid gap-2">
-                        {[...PAYMENT_CARDS, ...CUSTOM_CASH_ACCOUNTS.map((account) => ({ id: account.id, label: '', name: account.name, hint: '', icon: CreditCardIcon, on: 'border-primary bg-primary/5', iconOn: 'bg-surface text-primary', text: 'text-primary', dot: 'border-primary bg-primary' }))].map((card) => {
+                        {[...PAYMENT_CARDS.filter((card) => card.id === 'credit' || isAccountShown(walletOfStatus(card.id)) || card.id === clientPaymentStatus), ...SHOWN_CUSTOM_CASH_ACCOUNTS.map((account) => ({ id: account.id, label: '', name: account.name, hint: '', icon: CreditCardIcon, on: 'border-primary bg-primary/5', iconOn: 'bg-surface text-primary', text: 'text-primary', dot: 'border-primary bg-primary' }))].map((card) => {
                             const on = clientPaymentStatus === card.id;
                             const Icon = card.icon;
                             return (<button key={card.id} type="button" role="radio" aria-checked={on} onClick={() => setClientPaymentStatus(card.id)} className={`flex w-full items-center gap-3 rounded-card border-2 px-3 py-2.5 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${on ? card.on : 'border-border bg-surface hover:bg-surface-muted'}`}>

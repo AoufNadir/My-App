@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { FormCard } from '../ui/FormCard';
-import { CASH_ACCOUNTS, checkCashAccount, type CashAccountKind } from '../../accounts/cashAccounts';
+import { CASH_ACCOUNTS, accountActions, checkCashAccount, isAccountShown, type CashAccountKind } from '../../accounts/cashAccounts';
+import { useAccountUsage } from '../../accounts/AccountUsageContext';
 
 // V15-2 (owner): the places that hold dinars. The Caisse and BaridiMob are always there; the owner adds a bank
 // account, CCP, another e-wallet or a second cash box. Saved on the user document; nothing is deleted.
 const W = {
-    fr: { title: 'Comptes en dinars', hint: 'Où sont vos dinars. Chaque compte a son solde, compte dans le capital et peut recevoir un virement interne.', builtIn: 'Toujours là', add: 'Ajouter un compte', name: 'Nom (ex. BNA, CCP, Banque)', kind: 'Type', kinds: { cash: 'Espèces', bank: 'Banque', mobile: 'Portefeuille électronique' }, save: 'Ajouter', cancel: 'Annuler', errors: { name: 'Écrivez un nom de 2 à 30 caractères.', taken: 'Ce nom existe déjà.', kind: 'Choisissez le type.' } },
-    ar: { title: 'الحسابات بالدينار', hint: 'أين دنانيرك. لكل حساب رصيده، ويُحسب في رأس المال، ويقبل التحويل الداخلي.', builtIn: 'موجود دائماً', add: 'أضف حساباً', name: 'الاسم (مثل BNA أو CCP أو البنك)', kind: 'النوع', kinds: { cash: 'نقد', bank: 'بنك', mobile: 'محفظة إلكترونية' }, save: 'أضف', cancel: 'إلغاء', errors: { name: 'اكتب اسماً من 2 إلى 30 حرفاً.', taken: 'هذا الاسم موجود.', kind: 'اختر النوع.' } },
+    fr: { title: 'Comptes en dinars', hint: 'Où sont vos dinars. Chaque compte a son solde, compte dans le capital et peut recevoir un virement interne.', builtIn: 'Toujours là', add: 'Ajouter un compte', name: 'Nom (ex. BNA, CCP, Banque)', kind: 'Type', kinds: { cash: 'Espèces', bank: 'Banque', mobile: 'Portefeuille électronique' }, save: 'Ajouter', cancel: 'Annuler', shown: 'Affiché', hiddenLabel: 'Masqué', hide: 'Masquer', show: 'Afficher', remove: 'Supprimer', confirmRemove: 'Confirmer la suppression', notEmpty: 'Solde non nul : videz-le avant de le masquer.', lastShown: 'Gardez au moins un compte affiché.', usedKeep: 'Déjà utilisé : il peut être masqué, pas supprimé.', waiting: 'Synchronisation…', errors: { name: 'Écrivez un nom de 2 à 30 caractères.', taken: 'Ce nom existe déjà.', kind: 'Choisissez le type.' } },
+    ar: { title: 'الحسابات بالدينار', hint: 'أين دنانيرك. لكل حساب رصيده، ويُحسب في رأس المال، ويقبل التحويل الداخلي.', builtIn: 'موجود دائماً', add: 'أضف حساباً', name: 'الاسم (مثل BNA أو CCP أو البنك)', kind: 'النوع', kinds: { cash: 'نقد', bank: 'بنك', mobile: 'محفظة إلكترونية' }, save: 'أضف', cancel: 'إلغاء', shown: 'ظاهر', hiddenLabel: 'مخفي', hide: 'إخفاء', show: 'إظهار', remove: 'حذف', confirmRemove: 'تأكيد الحذف', notEmpty: 'رصيده ليس صفراً: فرّغه قبل إخفائه.', lastShown: 'أبقِ حساباً واحداً ظاهراً على الأقل.', usedKeep: 'استُعمل من قبل: يمكن إخفاؤه لا حذفه.', waiting: 'جارٍ المزامنة…', errors: { name: 'اكتب اسماً من 2 إلى 30 حرفاً.', taken: 'هذا الاسم موجود.', kind: 'اختر النوع.' } },
 };
 type UserDocRefLike = { set: (data: Record<string, unknown>, options: { merge: boolean }) => Promise<unknown> } | null | undefined;
 
@@ -19,14 +20,44 @@ export function CashAccountsSettings({ userDocRef }: { userDocRef: UserDocRefLik
     const [kind, setKind] = useState<CashAccountKind | ''>(''); // rule 11: nothing chosen in advance
     const [error, setError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
+    const accountUsage = useAccountUsage();
+    const [removing, setRemoving] = useState<string | null>(null);
+    const write = async (data: Record<string, unknown>) => {
+        setSaving(true);
+        try { await userDocRef?.set(data, { merge: true }); }
+        catch (e) { console.error(e); setError(String((e as Error)?.message || e)); }
+        finally { setSaving(false); }
+    };
+    // V15-4: hiding writes only the list of hidden ids; deleting removes an unused account from `customAccounts`.
+    const saveHidden = (ids: string[]) => write({ hiddenAccounts: ids });
+    const removeAccount = (id: string) => {
+        setRemoving(null);
+        const custom = CASH_ACCOUNTS.filter((a) => a.custom && a.id !== id).map(({ id: i, name: n, kind: k }) => ({ id: i, name: n, kind: k }));
+        const hidden = CASH_ACCOUNTS.filter((a) => a.id !== id && !isAccountShown(a.id)).map((a) => a.id);
+        return write({ customAccounts: custom, hiddenAccounts: hidden });
+    };
     const reset = () => { setAdding(false); setName(''); setKind(''); setError(null); };
     return (<FormCard title={w.title}>
       <p className="text-xs text-neutral-600">{w.hint}</p>
       <ul className="space-y-1.5">
-        {CASH_ACCOUNTS.map((account) => (<li key={account.id} className="flex items-center justify-between rounded-card border border-border bg-surface px-3 py-2.5">
-            <span className="text-sm font-bold text-neutral-900">{account.id === 'Caisse' ? (lang === 'ar' ? 'الصندوق' : 'Caisse') : account.name}</span>
-            <span className="text-xs text-neutral-600">{account.custom ? w.kinds[account.kind] : w.builtIn}</span>
-          </li>))}
+        {CASH_ACCOUNTS.map((account) => {
+            const hidden = CASH_ACCOUNTS.filter((a) => !isAccountShown(a.id)).map((a) => a.id);
+            const isHidden = hidden.includes(account.id);
+            const usage = accountUsage.byId[account.id] ?? { balance: 0, used: true };
+            const actions = accountActions(account.id, usage, hidden);
+            const note = !accountUsage.ready ? w.waiting : !isHidden && !actions.canHide ? (Math.abs(usage.balance) >= 0.005 ? w.notEmpty : w.lastShown) : account.custom && !actions.canDelete && usage.used ? w.usedKeep : null;
+            return (<li key={account.id} className={`rounded-card border border-border px-3 py-2.5 ${isHidden ? 'bg-surface-muted' : 'bg-surface'}`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className={`text-sm font-bold ${isHidden ? 'text-neutral-500' : 'text-neutral-900'}`}>{account.id === 'Caisse' ? (lang === 'ar' ? 'الصندوق' : 'Caisse') : account.name}</span>
+                <span className="text-xs text-neutral-600">{account.custom ? w.kinds[account.kind] : w.builtIn} · {isHidden ? w.hiddenLabel : w.shown}</span>
+              </div>
+              {accountUsage.ready && (<div className="mt-2 flex flex-wrap gap-2">
+                  {(isHidden || actions.canHide) && (<button type="button" disabled={saving} onClick={() => saveHidden(isHidden ? hidden.filter((id) => id !== account.id) : [...hidden, account.id])} className="h-9 rounded-button border border-border bg-surface px-3 text-xs font-semibold text-neutral-800">{isHidden ? w.show : w.hide}</button>)}
+                  {actions.canDelete && (<button type="button" disabled={saving} onClick={() => (removing === account.id ? removeAccount(account.id) : setRemoving(account.id))} className={`h-9 rounded-button px-3 text-xs font-semibold ${removing === account.id ? 'bg-financial-loss text-white' : 'border border-financial-loss text-financial-loss'}`}>{removing === account.id ? w.confirmRemove : w.remove}</button>)}
+                </div>)}
+              {note && <p className="mt-1 text-[11px] text-neutral-600">{note}</p>}
+            </li>);
+        })}
       </ul>
       {!adding ? (<button type="button" onClick={() => setAdding(true)} className="w-full rounded-card border border-dashed border-primary px-3 py-3 text-sm font-bold text-primary">+ {w.add}</button>) : (<div className="space-y-2 rounded-card border border-border bg-surface-muted p-3">
           <label className="block">

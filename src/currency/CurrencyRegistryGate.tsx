@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { db } from '../firebase';
 import { readCustomCurrencies, setCustomCurrencies } from './tradeCurrencies';
-import { readCustomAccounts, setCustomAccounts } from '../accounts/cashAccounts';
+import { readCustomAccounts, readHiddenAccounts, setCustomAccounts, setHiddenAccounts } from '../accounts/cashAccounts';
 
 /**
  * V15-1: the currencies the owner added in the settings live on his user document (`customCurrencies`). They are put
@@ -14,7 +14,7 @@ export function CurrencyRegistryGate({ uid, loading, children }: { uid: string; 
         const ref = db.collection('users').doc(uid);
         return ref.onSnapshot((snapshot) => {
             const data = snapshot.data();
-            const accountsChanged = setCustomAccounts(readCustomAccounts(data?.customAccounts)); // V15-2: the owner's dinar accounts
+            const accountsChanged = [setCustomAccounts(readCustomAccounts(data?.customAccounts)), setHiddenAccounts(readHiddenAccounts(data?.hiddenAccounts))].some(Boolean); // V15-2/V15-4: the owner's dinar accounts, and the hidden ones
             const changed = setCustomCurrencies(readCustomCurrencies(data?.customCurrencies)) || accountsChanged;
             setVersion((current) => (current === null ? 0 : changed ? current + 1 : current));
         }, undefined, (error) => {

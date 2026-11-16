@@ -1,4 +1,5 @@
 import { useCurrencyShown, useShowEur, useShowRmb, useShowUsdt } from '../contexts/CurrencyVisibilityContext';
+import { isAccountShown } from '../accounts/cashAccounts';
 import { EXTRA_CURRENCY_CODES, tradeCurrency, type TradeCurrencyCode } from '../currency/tradeCurrencies';
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { CurrencyAmount, type AmountSemantic } from '../components/financial/CurrencyAmount';
@@ -616,8 +617,8 @@ function DashboardContent({
       {serviceProfitCard}
 
       <StatTileGrid>
-        <StatTile label={t('common.caisseBalance') as string} value={capitalSnapshot.caisseBalance} icon={<WalletIcon className="h-3.5 w-3.5"/>} tone="dzd"/>
-        <StatTile label={t('common.baridiBalance') as string} value={capitalSnapshot.baridiBalance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd"/>
+        {(isAccountShown('Caisse') || capitalSnapshot.caisseBalance !== 0) && <StatTile label={t('common.caisseBalance') as string} value={capitalSnapshot.caisseBalance} icon={<WalletIcon className="h-3.5 w-3.5"/>} tone="dzd"/>}
+        {(isAccountShown('BaridiMob') || capitalSnapshot.baridiBalance !== 0) && <StatTile label={t('common.baridiBalance') as string} value={capitalSnapshot.baridiBalance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd"/>}
         {otherCashAccounts.map((account) => (<Fragment key={account.id}><StatTile label={account.name} value={account.balance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd"/></Fragment>))}
         {(showUsdt || usdtInStock > 0) && <StatTile label={t('dashboard.usdtInStock') as string} value={usdtInStock} currency="USDT" decimals={2} icon={<DollarSignIcon className="h-3.5 w-3.5"/>} tone="usdt"/>}
         {(showEur || eurInStock > 0) && <StatTile label={t('dashboard.eurInStock') as string} value={eurInStock} currency="EUR" decimals={2} icon={<EuroIcon className="h-3.5 w-3.5"/>} tone="eur"/>}

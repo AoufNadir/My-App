@@ -1,5 +1,5 @@
 import { registerStockHistory } from './utils/stockGuard';
-import { CASH_ACCOUNTS, adjustmentAssetForWallet, cashAccount, isCustomCashAccount, walletOfStatus } from './accounts/cashAccounts';
+import { CASH_ACCOUNTS, SHOWN_CASH_ACCOUNTS, isAccountShown, adjustmentAssetForWallet, cashAccount, isCustomCashAccount, walletOfStatus } from './accounts/cashAccounts';
 import { commitWithStockLockOrBatch, registerStockLock, saveErrorAlert, STOCK_CHANGED_MESSAGE, StockChangedError } from './utils/stockLock';
 import { useStockLockSeq } from './hooks/useStockLockSeq';
 import { previousProfits } from './utils/dashboardComparison';
@@ -141,6 +141,11 @@ import { buildPricingContext, quoteSale, type SmartSaleSnapshot } from './servic
 import { alertToastDurationMs, detectAlertTone } from './utils/alertTone';
 import { AppToast } from './components/ui/AppToast';
 import { translateAlert } from './utils/alertMessages';
+import { AccountUsageContext, type AccountUsage } from './accounts/AccountUsageContext';
+import { cashBalanceOf } from './accounts/cashAccounts';
+import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
+import { useSetupDone } from './hooks/useSetupDone';
+import { shouldShowOnboarding } from './utils/onboarding';
 
 /** True from the first render where `value` is true, and stays true afterwards. */
 function useLatchedFlag(value: boolean): boolean {
@@ -262,6 +267,14 @@ export default function MainApp({ user }: {
     const pricingPlanSync = useSmartPricingPlan(userDocRef);
     // V13-2: EUR hidden in the settings leaves the buy / sell windows and the portfolio page; nothing else changes.
     const hiddenCurrencies = useHiddenCurrencies(userDocRef as never);
+    const setup = useSetupDone(userDocRef as never);
+    const showOnboarding = shouldShowOnboarding({ setupDone: setup.setupDone, isDataLoaded, counts: [transactions.length, clientsDzd.length, treasuryTransactions.length, (investors ?? []).length] });
+    // V15-4: what each dinar account holds and whether a movement used it, for hiding or deleting it in the settings.
+    const accountUsage = useMemo<AccountUsage>(() => {
+        const used = new Set<string>();
+        treasuryTransactions.forEach((tx) => { const row = tx as { source?: unknown; destination?: unknown }; [row.source, row.destination].forEach((v) => { if (typeof v === 'string') used.add(v); }); });
+        return { ready: isDataLoaded && dataStatus.hasServerSynced, byId: Object.fromEntries(CASH_ACCOUNTS.map((a) => [a.id, { balance: cashBalanceOf(treasuryStats, a.id), used: used.has(a.id) }])) };
+    }, [treasuryTransactions, treasuryStats, isDataLoaded, dataStatus.hasServerSynced]);
     const showEur = !hiddenCurrencies.isHidden('EUR');
     const showRmb = !hiddenCurrencies.isHidden('RMB');
     const showUsdt = !hiddenCurrencies.isHidden('USDT');
@@ -655,7 +668,7 @@ export default function MainApp({ user }: {
     const setWalletTransferSourceAndSync = useCallback((value: string) => {
         setWalletTransferSource(value);
         // V15-2: with only the Caisse and BaridiMob the other one is the destination; with more, the owner picks it.
-        setWalletTransferDest(CASH_ACCOUNTS.length === 2 ? (CASH_ACCOUNTS.find((account) => account.id !== value)?.id ?? '') : '');
+        setWalletTransferDest(SHOWN_CASH_ACCOUNTS.length === 2 ? (SHOWN_CASH_ACCOUNTS.find((account) => account.id !== value)?.id ?? '') : '');
     }, []);
     const [editingWalletTransferTx, setEditingWalletTransferTx] = useState<TreasuryTx | null>(null);
     const [editingTreasuryCard, setEditingTreasuryCard] = useState<TreasuryCard | null>(null);
@@ -1337,7 +1350,7 @@ export default function MainApp({ user }: {
         else {
             setEditingWalletTransferTx(null);
             setWalletTransferSource('Caisse');
-            setWalletTransferDest(CASH_ACCOUNTS.length === 2 ? 'BaridiMob' : ''); // V15-2: more accounts, the owner picks
+            setWalletTransferDest(SHOWN_CASH_ACCOUNTS.length === 2 ? (SHOWN_CASH_ACCOUNTS.find((account) => account.id !== 'Caisse')?.id ?? '') : ''); // V15-2: more accounts, the owner picks
             setWalletTransferAmount('');
             setWalletTransferNotes('');
         }
@@ -2750,7 +2763,7 @@ export default function MainApp({ user }: {
     const dashboardCanQuickSell = Number(dashboardPortfolioStats?.usdt?.available || 0) > 0;
     const dashboardPageProps = {
         // V15-2: the owner's other dinar accounts, one tile each after the Caisse and BaridiMob.
-        otherCashAccounts: CASH_ACCOUNTS.filter((account) => account.custom).map((account) => ({ id: account.id, name: account.name, balance: Number(treasuryStats.accounts?.[account.id] ?? 0) })),
+        otherCashAccounts: CASH_ACCOUNTS.filter((account) => account.custom && (isAccountShown(account.id) || Number(treasuryStats.accounts?.[account.id] ?? 0) !== 0)).map((account) => ({ id: account.id, name: account.name, balance: Number(treasuryStats.accounts?.[account.id] ?? 0) })),
         rmbInStock: rmbStock.quantity,
         extraInStock: EXTRA_CURRENCY_CODES.filter((code) => code !== 'RMB').map((code) => ({ code, quantity: extraStocks[code]?.quantity ?? 0 })),
         dailyOverview: dashboardDailyOverview,
@@ -2840,7 +2853,7 @@ export default function MainApp({ user }: {
         destination: walletTransferDest, setDestination: setWalletTransferDest, notes: walletTransferNotes, setNotes: setWalletTransferNotes,
         onMax: handleWalletTransferMaxClick, onSwap: handleSwapSourceDest, onConfirm: handleWalletTransfer, isInvalid: isWalletTransferInvalid,
         isSaving, caisseBalance: getWalletTransferEditableBalance('Caisse'), baridiBalance: getWalletTransferEditableBalance('BaridiMob'), balances: Object.fromEntries(CASH_ACCOUNTS.map((account) => [account.id, getWalletTransferEditableBalance(account.id)])), title: editingWalletTransferTx ? `${t('common.edit')} ${t('transactions.internalTransferShort')}` : t('transactions.internalTransferShort'),
-        subtitle: CASH_ACCOUNTS.length === 2 ? `${t('transactions.cash')} ↔ ${t('transactions.baridi')}` : CASH_ACCOUNTS.map((account) => (account.id === 'Caisse' ? t('transactions.cash') : account.name)).join(' · '), amountLabel: t('transactions.amount'), fromLabel: t('transactions.from'),
+        subtitle: SHOWN_CASH_ACCOUNTS.length === 2 && CASH_ACCOUNTS.length === 2 ? `${t('transactions.cash')} ↔ ${t('transactions.baridi')}` : SHOWN_CASH_ACCOUNTS.map((account) => (account.id === 'Caisse' ? t('transactions.cash') : account.name)).join(' · '), amountLabel: t('transactions.amount'), fromLabel: t('transactions.from'),
         toLabel: t('transactions.to'), sourceLabel: t('common.source'), destinationLabel: t('common.destination'),
         notesOptionalLabel: t('common.notesOptional'), sameAccountErrorText: t('formErrors.sameWallet'),
         processingText: t('common.processing'), confirmText: editingWalletTransferTx ? t('common.save') : t('transactions.confirmTransfer')
@@ -3059,7 +3072,8 @@ export default function MainApp({ user }: {
             return false;
         }
     };
-    return (<CurrencyVisibilityProvider hidden={hiddenCurrencies.hidden}><div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
+    return (<AccountUsageContext.Provider value={accountUsage}><CurrencyVisibilityProvider hidden={hiddenCurrencies.hidden}><div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
+            {showOnboarding && <OnboardingFlow userDocRef={userDocRef as never} onFinish={setup.finishSetup}/>}
             <OfflineBanner />
             <div className="mx-auto max-w-4xl px-page-x pb-24 sm:px-4">
                     <MainHeaderBar {...{ view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), handleOpenGlobalSearch, onOpenSettings: openSettingsModal, onSignOut: handleSignOut, labels: navLabels }}/>
@@ -3282,5 +3296,5 @@ export default function MainApp({ user }: {
     }}/>
             </Suspense>)}
 
-        </div></CurrencyVisibilityProvider>);
+        </div></CurrencyVisibilityProvider></AccountUsageContext.Provider>);
 }

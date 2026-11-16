@@ -14,6 +14,38 @@ export const BUILT_IN_ACCOUNTS: readonly CashAccount[] = [
 export const CASH_ACCOUNTS: CashAccount[] = [...BUILT_IN_ACCOUNTS];
 export const CASH_ACCOUNT_IDS: string[] = liveList(() => CASH_ACCOUNTS.map((a) => a.id));
 export const CUSTOM_CASH_ACCOUNTS: CashAccount[] = liveList(() => CASH_ACCOUNTS.filter((a) => a.custom));
+// V15-4 (owner): an account the owner does not use is hidden from the choices (payment cards, wallet lists,
+// transfers, home tiles, inventory). It stays in CASH_ACCOUNTS so every balance and the capital still count it; the
+// settings only allow hiding an account whose balance is 0. Saved on the user document (`hiddenAccounts`).
+const HIDDEN_ACCOUNTS = new Set<string>();
+export const isAccountShown = (id: string): boolean => !HIDDEN_ACCOUNTS.has(id);
+export const SHOWN_CASH_ACCOUNTS: CashAccount[] = liveList(() => CASH_ACCOUNTS.filter((a) => !HIDDEN_ACCOUNTS.has(a.id)));
+export const SHOWN_CASH_ACCOUNT_IDS: string[] = liveList(() => SHOWN_CASH_ACCOUNTS.map((a) => a.id));
+export const SHOWN_CUSTOM_CASH_ACCOUNTS: CashAccount[] = liveList(() => SHOWN_CASH_ACCOUNTS.filter((a) => a.custom));
+export function readHiddenAccounts(raw: unknown): string[] {
+    return Array.isArray(raw) ? [...new Set(raw.filter((v): v is string => typeof v === 'string' && (v === 'Caisse' || v === 'BaridiMob' || /^acc_[a-z0-9]+$/.test(v))))].sort() : [];
+}
+let hiddenSignature = '';
+/** True when the hidden list changed. Never hides every account: with all hidden, all are shown. */
+export function setHiddenAccounts(ids: readonly string[]): boolean {
+    const next = ids.join();
+    if (next === hiddenSignature) return false;
+    hiddenSignature = next;
+    HIDDEN_ACCOUNTS.clear();
+    ids.forEach((id) => HIDDEN_ACCOUNTS.add(id));
+    if (CASH_ACCOUNTS.every((a) => HIDDEN_ACCOUNTS.has(a.id))) HIDDEN_ACCOUNTS.clear();
+    refreshLiveLists();
+    return true;
+}
+/** What the settings allow for one account: hide only with a 0 balance and another account shown; delete only an
+ * added account that no movement ever used. */
+export function accountActions(id: string, usage: { balance: number; used: boolean }, hidden: readonly string[]): { canHide: boolean; canDelete: boolean } {
+    const shownOthers = CASH_ACCOUNTS.filter((a) => a.id !== id && !hidden.includes(a.id)).length;
+    return {
+        canHide: Math.abs(usage.balance) < 0.005 && shownOthers > 0,
+        canDelete: id.startsWith('acc_') && !usage.used && Math.abs(usage.balance) < 0.005,
+    };
+}
 export const isCashAccountId = (value: unknown): value is string => typeof value === 'string' && CASH_ACCOUNT_IDS.includes(value);
 export const cashAccount = (id: string): CashAccount => CASH_ACCOUNTS.find((a) => a.id === id) ?? { id, name: id, kind: 'cash' };
 
@@ -46,6 +78,7 @@ export function setCustomAccounts(custom: readonly CashAccount[]): boolean {
     if (next === signature) return false;
     signature = next;
     CASH_ACCOUNTS.splice(0, CASH_ACCOUNTS.length, ...BUILT_IN_ACCOUNTS, ...custom.map((a) => ({ ...a, custom: true })));
+    if (CASH_ACCOUNTS.every((a) => HIDDEN_ACCOUNTS.has(a.id))) HIDDEN_ACCOUNTS.clear();
     refreshLiveLists();
     return true;
 }

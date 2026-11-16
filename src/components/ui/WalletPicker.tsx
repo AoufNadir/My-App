@@ -1,4 +1,4 @@
-import { CASH_ACCOUNT_IDS, cashAccount, isCashAccountId } from '../../accounts/cashAccounts';
+import { CASH_ACCOUNT_IDS, SHOWN_CASH_ACCOUNT_IDS, cashAccount, isCashAccountId } from '../../accounts/cashAccounts';
 import { TRADE_CURRENCY_CODES, type TradeCurrencyCode, liveList } from '../../currency/tradeCurrencies';
 import React from 'react';
 import { useCurrencyShown } from '../../contexts/CurrencyVisibilityContext';
@@ -55,4 +55,4 @@ export function walletBalancesOf(treasuryStats: { caisse?: number; baridi?: numb
         ...Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, Number(stats[code.toLowerCase()]?.available || 0)])),
     };
 }
-export const FINANCIAL_WALLETS: PickerWallet[] = liveList(() => [...CASH_ACCOUNT_IDS, ...TRADE_CURRENCY_CODES]); // V15-2c: every dinar account, then the currencies
+export const FINANCIAL_WALLETS: PickerWallet[] = liveList(() => [...SHOWN_CASH_ACCOUNT_IDS, ...TRADE_CURRENCY_CODES]); // V15-4: hidden accounts are not offered // V15-2c: every dinar account, then the currencies

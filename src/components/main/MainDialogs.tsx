@@ -1,4 +1,4 @@
-import { CASH_ACCOUNTS, cashAccount } from '../../accounts/cashAccounts';
+import { SHOWN_CASH_ACCOUNTS as CASH_ACCOUNTS, cashAccount } from '../../accounts/cashAccounts';
 import React from 'react';
 import { DATE_PRESET_IDS, activeDatePreset, datePresetRange, type DatePresetId } from '../../utils/datePresets';
 import { Modal, ModalContent, ModalDescription, ModalFooter, ModalHeader, ModalTitle } from '../ui/Modal';

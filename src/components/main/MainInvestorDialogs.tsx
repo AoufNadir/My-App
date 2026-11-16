@@ -1,4 +1,4 @@
-import { CUSTOM_CASH_ACCOUNTS, cashBalanceOf, cashAccount } from '../../accounts/cashAccounts';
+import { SHOWN_CUSTOM_CASH_ACCOUNTS as CUSTOM_CASH_ACCOUNTS, cashBalanceOf, cashAccount, isAccountShown } from '../../accounts/cashAccounts';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -40,8 +40,8 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                                 <div className="mt-1 grid grid-cols-3 gap-2">
                                     {([
                                         { v: 'none', label: t('investorDialog.openingBalance') },
-                                        { v: 'Caisse', label: t('transactions.cash') },
-                                        { v: 'BaridiMob', label: 'BaridiMob' },
+                                        ...(isAccountShown('Caisse') ? [{ v: 'Caisse', label: t('transactions.cash') }] : []),
+                                        ...(isAccountShown('BaridiMob') ? [{ v: 'BaridiMob', label: 'BaridiMob' }] : []),
                                         ...CUSTOM_CASH_ACCOUNTS.map((account) => ({ v: account.id, label: account.name })),
                                     ] as Array<{ v: string; label: string }>).map(opt => (
                                         <button
@@ -160,8 +160,8 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                                     <Label>{t('investorDialog.paymentSource')}</Label>
                                     <Select value={paymentSource} onChange={(event) => setInvestorTxPaymentSource(event.target.value)} className="mt-1">
                                         <option value="" disabled>{t('transactions.walletChoose')}</option>
-                                        <option value="Caisse">{t('transactions.cash')}</option>
-                                        <option value="BaridiMob">{t('transactions.baridi')}</option>
+                                        {isAccountShown('Caisse') && <option value="Caisse">{t('transactions.cash')}</option>}
+                                        {isAccountShown('BaridiMob') && <option value="BaridiMob">{t('transactions.baridi')}</option>}
                                         {CUSTOM_CASH_ACCOUNTS.map((account) => (<option key={account.id} value={account.id}>{account.name}</option>))}
                                     </Select>
                                     <p className="mt-1 text-xs text-neutral-500">
@@ -173,8 +173,8 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                                     <Label>{t('investorDialog.depositDestination')}</Label>
                                     <Select value={paymentSource} onChange={(event) => setInvestorTxPaymentSource(event.target.value)} className="mt-1">
                                         <option value="" disabled>{t('transactions.walletChoose')}</option>
-                                        <option value="Caisse">{t('transactions.cash')}</option>
-                                        <option value="BaridiMob">{t('transactions.baridi')}</option>
+                                        {isAccountShown('Caisse') && <option value="Caisse">{t('transactions.cash')}</option>}
+                                        {isAccountShown('BaridiMob') && <option value="BaridiMob">{t('transactions.baridi')}</option>}
                                         {CUSTOM_CASH_ACCOUNTS.map((account) => (<option key={account.id} value={account.id}>{account.name}</option>))}
                                     </Select>
                                     <p className="mt-1 text-xs text-neutral-500">
@@ -186,8 +186,8 @@ export function MainInvestorDialogs({ isInvestorModalOpen, setIsInvestorModalOpe
                                     <Label>{t('investorDialog.withdrawalSource')}</Label>
                                     <Select value={paymentSource} onChange={(event) => setInvestorTxPaymentSource(event.target.value)} className="mt-1">
                                         <option value="" disabled>{t('transactions.walletChoose')}</option>
-                                        <option value="Caisse">{t('transactions.cash')}</option>
-                                        <option value="BaridiMob">{t('transactions.baridi')}</option>
+                                        {isAccountShown('Caisse') && <option value="Caisse">{t('transactions.cash')}</option>}
+                                        {isAccountShown('BaridiMob') && <option value="BaridiMob">{t('transactions.baridi')}</option>}
                                         {CUSTOM_CASH_ACCOUNTS.map((account) => (<option key={account.id} value={account.id}>{account.name}</option>))}
                                     </Select>
                                     <p className="mt-1 text-xs text-neutral-500">
