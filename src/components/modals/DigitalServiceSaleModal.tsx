@@ -1,7 +1,7 @@
 import { SHOWN_CASH_ACCOUNT_IDS } from '../../accounts/cashAccounts';
 import { TRADE_CURRENCY_CODES } from '../../currency/tradeCurrencies';
 import { FINANCIAL_WALLETS, WalletPicker, walletBalancesOf } from '../ui/WalletPicker';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ClientDzd, PortfolioStats } from '../../types';
 import type { DigitalServicePreview, DigitalServiceSaleWallet, FinancialWallet } from '../../utils/digitalServiceAccounting';
 import { getWalletCurrency } from '../../utils/digitalServiceAccounting';
@@ -86,7 +86,12 @@ export function DigitalServiceSaleModal({
     onOpenClientModal,
     onSave,
 }: DigitalServiceSaleModalProps) {
-    const { t } = useLanguage();
+    const { t, lang } = useLanguage();
+    // V15-5 (owner): the sale is paid now or deferred. Deferred needs nothing more; paid now asks which wallet
+    // received the money. Nothing is chosen in advance (rule 11); an existing sale opens on its saved way.
+    const [saleWay, setSaleWay] = useState<'now' | 'credit' | null>(saleWallet === 'Credit' ? 'credit' : saleWallet ? 'now' : null);
+    useEffect(() => { if (!isOpen) setSaleWay(null); else if (saleWallet) setSaleWay(saleWallet === 'Credit' ? 'credit' : 'now'); }, [isOpen, saleWallet]);
+    const wayWords = lang === 'ar' ? { now: 'دُفعت الآن', credit: 'مؤجَّلة (دَين)', ask: 'كيف دُفعت؟', where: 'أين دخل المال؟' } : { now: 'Payée maintenant', credit: 'Différée (crédit)', ask: 'Comment est-elle payée ?', where: 'Où entre l’argent ?' };
     const fieldBase = 'rounded-xl border-border bg-surface text-neutral-900';
     const clientOptions = useMemo(() => selectableClients(clientsDzd, [clientId]).map((client) => ({
         value: client.id,
@@ -161,7 +166,16 @@ export function DigitalServiceSaleModal({
                 </FormCard>
 
                 <FormCard title={t('digitalServices.saleWallet')}>
-                    <WalletPicker value={saleWallet} onChange={(next) => setSaleWallet(next as DigitalServiceSaleWallet)} wallets={[...SHOWN_CASH_ACCOUNT_IDS, 'Credit', ...TRADE_CURRENCY_CODES]} labels={{ Caisse: t('transactions.cash') as string, BaridiMob: t('transactions.baridi') as string, Credit: t('transactions.credit') as string }} balances={balances} ariaLabel={t('digitalServices.saleWallet') as string} chooseLabel={t('transactions.walletChoose') as string}/>
+                    <div>
+                        <Label>{wayWords.ask}</Label>
+                        <div className="mt-1 grid grid-cols-2 gap-2" role="radiogroup" aria-label={wayWords.ask}>
+                            {(['now', 'credit'] as const).map((way) => (<button key={way} type="button" role="radio" aria-checked={saleWay === way} onClick={() => { setSaleWay(way); if (way === 'credit') setSaleWallet('Credit' as DigitalServiceSaleWallet); else if (saleWallet === 'Credit') setSaleWallet(null as never); }} className={`h-11 rounded-button border text-sm font-semibold ${saleWay === way ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-surface text-neutral-700'}`}>{wayWords[way]}</button>))}
+                        </div>
+                    </div>
+                    {saleWay === 'now' && (<div>
+                        <Label>{wayWords.where}</Label>
+                        <WalletPicker value={saleWallet} onChange={(next) => setSaleWallet(next as DigitalServiceSaleWallet)} wallets={[...SHOWN_CASH_ACCOUNT_IDS, ...TRADE_CURRENCY_CODES]} labels={{ Caisse: t('transactions.cash') as string, BaridiMob: t('transactions.baridi') as string, Credit: t('transactions.credit') as string }} balances={balances} ariaLabel={t('digitalServices.saleWallet') as string} chooseLabel={t('transactions.walletChoose') as string}/>
+                    </div>)}
                     <MoneyField
                         label={t('digitalServices.saleAmount')}
                         value={saleAmount}

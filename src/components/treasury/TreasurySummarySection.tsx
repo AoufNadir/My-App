@@ -1,5 +1,6 @@
 import { ListRow, SectionCard, StatTile } from '../cards';
-import { isAccountShown } from '../../accounts/cashAccounts';
+import { CUSTOM_CASH_ACCOUNTS, isAccountShown } from '../../accounts/cashAccounts';
+import { Fragment } from 'react';
 import { CurrencyAmount } from '../financial/CurrencyAmount';
 import { WalletIcon } from '../icons/WalletIcon';
 import { LandmarkIcon } from '../icons/LandmarkIcon';
@@ -10,6 +11,8 @@ import { useLanguage } from '../../contexts/LanguageContext';
 type TreasurySummarySectionProps = {
     caisseBalance: number;
     baridiBalance: number;
+    /** V15-5: the owner's other dinar accounts, by id */
+    otherCashBalances?: Record<string, number>;
     dettesAbs: number;
     totalAvances: number;
     /** V12-11: no longer passed: a balance is never set by hand without someone behind the movement */
@@ -21,7 +24,7 @@ type TreasurySummarySectionProps = {
  * The two cash balances as tiles (a tap corrects them), then what clients and service clients
  * owe or hold, each shown when it is not zero. The investors' share is in the card above.
  */
-export function TreasurySummarySection({ caisseBalance, baridiBalance, dettesAbs, totalAvances, openTreasuryBalanceEditModal, openDeliveryExpenseModal, deliveryExpenseLabel }: TreasurySummarySectionProps) {
+export function TreasurySummarySection({ caisseBalance, baridiBalance, otherCashBalances = {}, dettesAbs, totalAvances, openTreasuryBalanceEditModal, openDeliveryExpenseModal, deliveryExpenseLabel }: TreasurySummarySectionProps) {
     const { t } = useLanguage();
     const shouldShowAmount = (value: number) => Math.abs(Number(value) || 0) > 0.005;
     const showReceivables = shouldShowAmount(dettesAbs);
@@ -30,6 +33,7 @@ export function TreasurySummarySection({ caisseBalance, baridiBalance, dettesAbs
       <div className="grid grid-cols-2 gap-2">
         {(isAccountShown('Caisse') || caisseBalance !== 0) && <StatTile label={t('common.caisseBalance') as string} value={caisseBalance} icon={<WalletIcon className="h-3.5 w-3.5"/>} tone="dzd" onEdit={openTreasuryBalanceEditModal ? () => openTreasuryBalanceEditModal('Caisse') : undefined} editLabel={t('common.edit') as string}/>}
         {(isAccountShown('BaridiMob') || baridiBalance !== 0) && <StatTile label={t('common.baridiBalance') as string} value={baridiBalance} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd" onEdit={openTreasuryBalanceEditModal ? () => openTreasuryBalanceEditModal('BaridiMob') : undefined} editLabel={t('common.edit') as string}/>}
+        {CUSTOM_CASH_ACCOUNTS.filter((account) => isAccountShown(account.id) || Number(otherCashBalances[account.id] ?? 0) !== 0).map((account) => (<Fragment key={account.id}><StatTile label={account.name} value={Number(otherCashBalances[account.id] ?? 0)} icon={<LandmarkIcon className="h-3.5 w-3.5"/>} tone="dzd"/></Fragment>))}
       </div>
 
       {(showReceivables || showAdvances) && (<SectionCard title={t('treasury.clientPositions')} flush>

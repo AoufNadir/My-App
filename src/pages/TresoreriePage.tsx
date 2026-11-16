@@ -169,7 +169,7 @@ export function TresoreriePage({ caisseBalance, baridiBalance, otherCashBalances
     return (<div className="anim-page-in flex flex-col gap-3">
       <CapitalOverviewCard t={t} capitalSnapshot={capitalSnapshot} investorBreakdown={investorBreakdown} showBreakdown/>
 
-      <TreasurySummarySection caisseBalance={caisseBalance} baridiBalance={baridiBalance} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string}/>
+      <TreasurySummarySection caisseBalance={caisseBalance} baridiBalance={baridiBalance} otherCashBalances={otherCashBalances} dettesAbs={capitalSnapshot.receivables} totalAvances={capitalSnapshot.clientAdvances} openDeliveryExpenseModal={openDeliveryExpenseModal} deliveryExpenseLabel={t('delivery.addExpense') as string}/>
 
       {inventoryEnabled && (<div id="inventory" className="scroll-mt-20"><InventorySection expected={inventoryExpectedNow} checks={inventoryChecks} corrections={balanceCorrections} ready={inventoryReady} onSave={(data) => { saveInventoryCheck(data); }} onDelete={deleteInventoryCheck} onCorrect={(row) => onCorrectInventory?.(row)} treasuryTransactions={treasuryTransactions} portfolioTransactions={transactions} onInvestigate={onInvestigate}/></div>)}
 
