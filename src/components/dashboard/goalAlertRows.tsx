@@ -13,8 +13,8 @@ export type GoalAlerts = {
 const n = (v: number) => <bdi dir="ltr">{Math.round(v).toLocaleString('fr-FR').replace(/ | /g, ' ')}</bdi>;
 const W = {
     ar: {
-        absentTitle: (name: string) => `${name} غائب`,
-        absentBody: (q: ReactNode, d: ReactNode) => <>يشتري عادة {q} USDT في الشهر · لم يشترِ منذ {d} يوماً</>,
+        absentTitle: (name: string) => `⭐ ${name} غائب`,
+        absentBody: (g: ReactNode, d: ReactNode, q: ReactNode) => <>يشتري عادة كل {g} أيام ({q} USDT في الشهر) · لم يشترِ منذ {d} يوماً</>,
         stockTitle: 'مخزون الهدف',
         stockBody: (need: ReactNode, have: ReactNode) => <>للهدف تحتاج {need} USDT · مخزونك {have}</>,
         weekTitle: (w: number) => `الهدف · الأسبوع ${w}`,
@@ -22,8 +22,8 @@ const W = {
         advice: { keep: 'حافظ على وتيرتك', quantity: 'زِد الكمية', price: 'زِد السعر', both: 'زِد الكمية والسعر' },
     },
     fr: {
-        absentTitle: (name: string) => `${name} ne passe plus`,
-        absentBody: (q: ReactNode, d: ReactNode) => <>Achète d’habitude {q} USDT par mois · rien depuis {d} jours</>,
+        absentTitle: (name: string) => `⭐ ${name} ne passe plus`,
+        absentBody: (g: ReactNode, d: ReactNode, q: ReactNode) => <>Achète d’habitude tous les {g} jours ({q} USDT par mois) · rien depuis {d} jours</>,
         stockTitle: 'Stock pour l’objectif',
         stockBody: (need: ReactNode, have: ReactNode) => <>L’objectif demande {need} USDT · votre stock {have}</>,
         weekTitle: (w: number) => `Objectif · semaine ${w}`,
@@ -37,7 +37,7 @@ export function goalAlertRows(alerts: GoalAlerts | null | undefined, lang: 'ar' 
     const w = W[lang];
     const rows: Array<{ item: ActionItem; signature: string }> = [];
     for (const c of alerts.absent) {
-        rows.push({ signature: `${Math.floor(c.daysSince / 7)}`, item: { id: `goal-absent-${c.clientId}`, tone: 'debt', icon: icons.client, title: w.absentTitle(c.name), detail: w.absentBody(n(c.monthlyQty), n(c.daysSince)), onOpen: onOpenClient ? () => onOpenClient(c.clientId) : undefined } });
+        rows.push({ signature: `${Math.floor((c.daysSince - Math.max(7, c.usualGapDays * 2)) / 7)}`, item: { id: `goal-absent-${c.clientId}`, tone: 'debt', icon: icons.client, title: w.absentTitle(c.name), detail: w.absentBody(n(c.usualGapDays), n(c.daysSince), n(c.monthlyQty)), onOpen: onOpenClient ? () => onOpenClient(c.clientId) : undefined } });
     }
     if (alerts.stock) rows.push({ signature: `${alerts.stock.needed}|${Math.floor(alerts.stock.stock / 500)}`, item: { id: 'goal-stock', tone: 'debt', icon: icons.stock, title: w.stockTitle, detail: w.stockBody(n(alerts.stock.needed), n(alerts.stock.stock)) } });
     if (alerts.lastWeek) {

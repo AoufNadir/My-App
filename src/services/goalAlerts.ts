@@ -6,29 +6,45 @@ import { weekOfMonth, type ProfitRow } from './flexibleGoal';
 
 const DAY = 86_400_000;
 export type AlertSale = ProfitRow & { quantity?: number | null; currency?: string | null; linkedClientId?: string | null; tx?: { linkedClientId?: string | null } };
-export type AbsentClient = { clientId: string; monthlyQty: number; daysSince: number };
+export type AbsentClient = { clientId: string; monthlyQty: number; daysSince: number; usualGapDays: number };
 
-export const ALERT_RULES = { absentDays: 21, minMonthlyQty: 1000, maxAbsent: 3 } as const;
+// V16 (owner, 2026-11-16): « remind me of my good clients when they disappear ». A good client is one the pricing
+// engine ranks VIP or good (monthly volume, regularity, payment), or one who buys a lot each month. Absent means
+// unusual for that client: twice their usual gap between purchases, never less than 7 days.
+export const ALERT_RULES = { lookbackDays: 180, minMonthlyQty: 1000, minAbsentDays: 7, gapFactor: 2, defaultGapDays: 30, maxAbsent: 3 } as const;
 
 const usdt = (row: AlertSale) => (row.currency || 'USDT') === 'USDT';
+const median = (values: number[]) => { const s = [...values].sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
-/** Regular clients (≥ 1 000 USDT a month over 90 days) with no purchase for 21 days or more; the biggest first. */
-export function absentClients(rows: readonly AlertSale[], now: number): AbsentClient[] {
-    const since = now - 90 * DAY;
-    const byClient = new Map<string, { qty: number; last: number }>();
+/** Good clients whose silence is unusual for them; the biggest first, three at most. */
+export function absentClients(rows: readonly AlertSale[], now: number, goodClientIds: ReadonlySet<string> = new Set()): AbsentClient[] {
+    const since = now - ALERT_RULES.lookbackDays * DAY;
+    const since90 = now - 90 * DAY;
+    const byClient = new Map<string, { qty: number; qty90: number; days: Set<number> }>();
     for (const row of rows) {
         const id = row.linkedClientId ?? row.tx?.linkedClientId; // ledger rows keep the sale under `tx`
         if (!id || id === 'none' || !usdt(row) || row.timestamp < since || row.timestamp > now) continue;
-        const entry = byClient.get(id) || { qty: 0, last: 0 };
-        entry.qty += Math.max(0, Number(row.quantity) || 0);
-        entry.last = Math.max(entry.last, row.timestamp);
+        const entry = byClient.get(id) || { qty: 0, qty90: 0, days: new Set<number>() };
+        const q = Math.max(0, Number(row.quantity) || 0);
+        entry.qty += q;
+        if (row.timestamp >= since90) entry.qty90 += q;
+        entry.days.add(Math.floor(row.timestamp / DAY));
         byClient.set(id, entry);
     }
-    return [...byClient.entries()]
-        .map(([clientId, e]) => ({ clientId, monthlyQty: Math.round(e.qty / 3), daysSince: Math.floor((now - e.last) / DAY) }))
-        .filter((c) => c.monthlyQty >= ALERT_RULES.minMonthlyQty && c.daysSince >= ALERT_RULES.absentDays)
-        .sort((a, b) => b.monthlyQty - a.monthlyQty)
-        .slice(0, ALERT_RULES.maxAbsent);
+    const months = ALERT_RULES.lookbackDays / 30;
+    const out: AbsentClient[] = [];
+    for (const [clientId, e] of byClient) {
+        // the larger of the 3-month and 6-month averages (a recent big buyer is not diluted)
+        const monthlyQty = Math.round(Math.max(e.qty / months, e.qty90 / 3));
+        if (!goodClientIds.has(clientId) && monthlyQty < ALERT_RULES.minMonthlyQty) continue;
+        const days = [...e.days].sort((a, b) => a - b);
+        const gaps = days.slice(1).map((d, i) => d - days[i]);
+        const usualGapDays = gaps.length >= 2 ? Math.max(1, Math.round(median(gaps))) : ALERT_RULES.defaultGapDays;
+        const daysSince = Math.floor(now / DAY) - days[days.length - 1];
+        if (daysSince >= Math.max(ALERT_RULES.minAbsentDays, usualGapDays * ALERT_RULES.gapFactor))
+            out.push({ clientId, monthlyQty, daysSince, usualGapDays });
+    }
+    return out.sort((a, b) => b.monthlyQty - a.monthlyQty).slice(0, ALERT_RULES.maxAbsent);
 }
 
 /** USDT the rest of the goal needs at the usual margin, when the stock does not cover it. */

@@ -137,7 +137,7 @@ type ClientSortMode = 'all' | 'advances' | 'debts' | 'debts_oldest_highest' | 'z
 import { reorderClientName, nameMatchesQuery } from './utils/nameUtils';
 import { clientNameKey, clientPhoneKey, isClientActive, selectableClients } from './utils/clientRegistry';
 import { investorResetForDeletedRow } from './utils/managerCapital';
-import { buildPricingContext, quoteSale, type SmartSaleSnapshot } from './services/smartPricingEngine';
+import { buildCustomerProfiles, buildPricingContext, quoteSale, type SmartSaleSnapshot } from './services/smartPricingEngine';
 import { alertToastDurationMs, detectAlertTone } from './utils/alertTone';
 import { AppToast } from './components/ui/AppToast';
 import { translateAlert } from './utils/alertMessages';
@@ -520,13 +520,16 @@ export default function MainApp({ user }: {
     const goalAlerts = React.useMemo(() => {
         const now = Date.now();
         const names = new Map(clientsDzd.map((c) => [c.id, (c.fullName || c.nom || '').trim() || '—']));
-        const absent = absentClients(pamLedger.sellProfitRows as never, now).filter((c) => names.has(c.clientId)).map((c) => ({ ...c, name: names.get(c.clientId)! }));
+        // V16: the clients the pricing engine ranks VIP or good (monthly volume, regularity, payment).
+        const profiles = buildCustomerProfiles(transactions, pricingPlanSync.policy.vipVolumeThreshold, now, undefined, 'USDT', clientTransactionsDzd);
+        const good = new Set([...profiles.values()].filter((p) => p.segment === 'vip' || p.segment === 'good').map((p) => p.clientId));
+        const absent = absentClients(pamLedger.sellProfitRows as never, now, good).filter((c) => names.has(c.clientId)).map((c) => ({ ...c, name: names.get(c.clientId)! }));
         const coach = goalCoach?.coach;
         const target = Number(pricingPlanSync.plan.monthlyGoal) || 0;
         const stock = coach ? stockForGoal({ remainingProfit: target - coach.review.profitSoFar, marginPerUnit: coach.marginUsual || coach.marginNow, stock: Number(portfolioStats.usdt.available) || 0 }) : null;
         const week = coach ? lastWeekSummary({ rows: pamLedger.sellProfitRows, target, now }) : null;
         return { absent, stock, lastWeek: week && coach ? { ...week, advice: coach.advice } : null };
-    }, [pamLedger, clientsDzd, goalCoach, pricingPlanSync.plan.monthlyGoal, portfolioStats.usdt.available]);
+    }, [pamLedger, clientsDzd, goalCoach, pricingPlanSync.plan.monthlyGoal, portfolioStats.usdt.available, transactions, clientTransactionsDzd, pricingPlanSync.policy.vipVolumeThreshold]);
     const salesHistory90 = React.useMemo(() => {
         const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
         const rows = pamLedger.sellProfitRows
