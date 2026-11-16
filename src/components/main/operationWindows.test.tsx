@@ -305,7 +305,10 @@ const WALLET_BALANCES = ['1⍽250⍽000', '480⍽000', '5⍽900,00', '1⍽200,00
 const changed: string[] = [];
 for (const [name, renderScreen] of Object.entries(SCREENS) as Array<[keyof typeof SCREENS, (lang: Lang) => string]>)
     for (const lang of ['fr', 'ar'] as const) {
-        const [body, bar] = splitAtBar(renderScreen(lang));
+        const [fullBody, bar] = splitAtBar(renderScreen(lang));
+        // P4: the two price-guide lines (segment, suggested price, gain, share of the goal) are new on purpose;
+        // they are checked on their own below and left out of the « same numbers » comparison.
+        const body = fullBody.replace(/<div[^>]*data-testid="price-guide"[\s\S]*?<\/div>/, '');
         const inBody = showSpaces(distinctScreenNumbers(body));
         const inBar = showSpaces(distinctScreenNumbers(bar));
         const newAtBottom = NEW_AT_BOTTOM[name] ?? [];
@@ -324,6 +327,12 @@ for (const [name, renderScreen] of Object.entries(SCREENS) as Array<[keyof typeo
             changed.push(`${name}.${lang}: no longer shown [${lost.join(' ')}], new [${added.join(' ')}], total missing at the bottom [${missingTotals.join(' ')}]`);
     }
 assert.deepEqual(changed, [], 'every window shows the same numbers, written the same way');
+for (const lang of ['fr', 'ar'] as const) {
+    const guide = /data-testid="price-guide"[\s\S]*?<\/div>/.exec(SCREENS.sellEur(lang))?.[0] ?? '';
+    assert.ok(guide, `${lang}: P4 the sale window shows the price guide`);
+    assert.match(guide, lang === 'ar' ? /السعر المقترح/ : /Prix suggéré/);
+    assert.match(guide, /3⍽300|3\u202f300|3 300/, `${lang}: P4 the gain at the typed price, the same as the footer`);
+}
 
 // What the bar says, in the reader's language: each total next to its label, then why Confirm is
 // off, in red when a typed value is wrong and in grey when a field is still empty.

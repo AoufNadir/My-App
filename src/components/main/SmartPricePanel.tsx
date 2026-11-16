@@ -53,6 +53,24 @@ const SEGMENT_CLS: Record<CustomerSegment, string> = {
     new: 'bg-neutral-100 text-neutral-500',
 };
 
+// P4 (owner): two short lines above the price buttons: who the client is and the suggested price, then what this
+// price earns and how far it moves the goal. Read only; the price stays the owner's.
+const P4_WORDS = {
+    ar: {
+        segment: { vip: 'VIP', good: 'عميل جيد', normal: 'عميل عادي', weak: 'عميل ضعيف', risky: 'عميل مخاطر', new: 'عميل جديد' } as Record<CustomerSegment, string>,
+        pay: { cash: 'نقداً', baridi: 'نقداً', credit: 'دفع مؤجل', prepaid: 'دفع مسبق' } as Record<string, string>,
+        suggested: 'السعر المقترح', profit: 'ربح', ofGoal: 'من الباقي للهدف',
+        belowA: '⚠ تحت المقترح بـ', belowB: 'يؤخّر الهدف',
+    },
+    fr: {
+        segment: { vip: 'VIP', good: 'Bon client', normal: 'Client normal', weak: 'Client faible', risky: 'Client à risque', new: 'Nouveau client' } as Record<CustomerSegment, string>,
+        pay: { cash: 'comptant', baridi: 'comptant', credit: 'paiement différé', prepaid: 'payé d’avance' } as Record<string, string>,
+        suggested: 'Prix suggéré', profit: 'Gain', ofGoal: 'du reste de l’objectif',
+        belowA: '⚠ Sous le prix suggéré de', belowB: 'retarde l’objectif de',
+    },
+};
+const fmtDzd = (n: number) => `${fmt0(n)} DZD`;
+
 const IMPORTANT_REASONS = new Set<PricingReasonCode>([
     'credit_high_utilization', 'credit_over_limit', 'credit_overdue', 'credit_serious_overdue',
     'credit_term_estimated',
@@ -65,7 +83,7 @@ export function SmartPricePanel({
     available, currentPrice, isEditing, onApplyPrice, smartQuoteRef,
     marketOverride, clientOverride, compact = false,
 }: Props) {
-    const { t } = useLanguage();
+    const { t, lang } = useLanguage();
     const [showDetails, setShowDetails] = React.useState(false);
     const lastAppliedPriceRef = React.useRef<number | null>(null);
     const lastAppliedSourceRef = React.useRef<Exclude<PriceSource, 'manual'>>('target');
@@ -108,8 +126,26 @@ export function SmartPricePanel({
     ];
     // The button that matches the price now in the field is lit; a hand-typed price lights none.
     const selectedSource = currentPrice > 0 ? corridor.find((item) => Math.abs(currentPrice - item.price) < 0.001)?.source ?? null : null;
+    const w = P4_WORDS[lang];
+    const target = quote.corridor.targetPrice;
+    const payKey = quote.reasonCodes.includes('prepaid_from_balance') && payment === 'credit' ? 'prepaid' : payment;
+    const price = currentPrice > 0 ? currentPrice : 0;
+    const gain = price > 0 ? (price - smartPricing.pam) * quantity : null;
+    const remaining = quote.goal.remainingGoal;
+    const share = gain !== null && remaining > 0 && gain > 0 ? Math.min(100, Math.round(gain / remaining * 100)) : null;
+    const underBy = price > 0 && price < target - 0.001 ? target - price : 0;
     return (
         <div className="space-y-2">
+            <div className="rounded-xl bg-surface-muted px-3 py-2 text-xs leading-5" data-testid="price-guide">
+                <p className="font-semibold text-neutral-800">
+                    <span className={`me-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${SEGMENT_CLS[quote.pricedAs]}`}>{w.segment[quote.pricedAs]}</span>
+                    {w.pay[payKey] ?? ''} → {w.suggested} <bdi dir="ltr" className="font-black">{fmtPrice(target)}</bdi>
+                </p>
+                {gain !== null && (<p className={gain < 0 ? 'font-semibold text-financial-loss' : 'text-neutral-600'}>
+                    {w.profit} <bdi dir="ltr" className="font-bold">{fmtDzd(gain)}</bdi>{share !== null && <> · <bdi dir="ltr">{share}%</bdi> {w.ofGoal}</>}
+                </p>)}
+                {underBy > 0 && <p className="font-semibold text-warning">{w.belowA} <bdi dir="ltr">{fmtPrice(Math.round(underBy * 100) / 100)}</bdi> · {w.belowB} <bdi dir="ltr">{fmtDzd(underBy * quantity)}</bdi></p>}
+            </div>
             <div role="group" aria-label={t('smartPricing.title')} className="grid grid-cols-3 gap-2">
                 {corridor.map((item) => {
                     const selected = item.source === selectedSource;
