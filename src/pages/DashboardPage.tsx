@@ -130,6 +130,9 @@ type DashboardPageProps = {
     goalCoach?: GoalCoach | null;
     /** P5: goal alerts for the bell */
     goalAlerts?: GoalAlerts | null;
+    /** V16-2: days since the last full backup on this phone (-1: never), null when not due */
+    backupDueDays?: number | null;
+    onOpenBackup?: () => void;
     minimumGoal?: number;
     onKeepGoal?: () => void;
     /** V12-1: money movements nothing explains (no client, no link, no reason), and the way to the list. */
@@ -397,6 +400,8 @@ function DashboardContent({
     onSaveGoal,
     goalCoach = null,
     goalAlerts = null,
+    backupDueDays = null,
+    onOpenBackup,
     onOpenClient,
     minimumGoal = 0,
     onKeepGoal,
@@ -567,6 +572,11 @@ function DashboardContent({
     };
     for (const item of actionItems)
         addRow(item, item.id === 'overdue-debts' ? String(overdueCount) : item.id === 'unexplained-movements' ? String(unexplainedMovementCount) : item.id === 'pending-deliveries' ? `${pendingDeliveries?.USDT}|${pendingDeliveries?.EUR}|${pendingDeliveries?.late ?? 0}` : item.id === 'supplier-receipts' ? String(suppliersWaiting) : item.id === 'p2p-unbalanced' ? JSON.stringify(habits?.p2pUnbalanced.map((p) => [p.id, Math.round(p.balance)])) : item.id === 'evening-count' ? new Date().toDateString() : 'on', item.id === 'overdue-debts' || item.id === 'uncovered-advances' || (item.id === 'pending-deliveries' && (pendingDeliveries?.late ?? 0) > 0));
+    // V16-2: no full backup for 7 days (or never) on this phone.
+    if (backupDueDays !== null) {
+        const ar = lang === 'ar';
+        addRow({ id: 'backup-due', tone: 'debt', icon: <AlertTriangleIcon className="h-4 w-4"/>, title: ar ? 'نسخة احتياطية لبياناتك' : 'Sauvegarde de vos données', detail: backupDueDays < 0 ? (ar ? 'لم تأخذ أي نسخة بعد · الإعدادات ← النسخ الاحتياطي' : 'Aucune sauvegarde encore · Réglages → Sauvegarde') : (ar ? <>آخر نسخة منذ <bdi dir="ltr">{backupDueDays}</bdi> يوماً · الإعدادات ← النسخ الاحتياطي</> : <>Dernière sauvegarde il y a <bdi dir="ltr">{backupDueDays}</bdi> jours · Réglages → Sauvegarde</>), onOpen: onOpenBackup }, String(Math.floor(Math.max(0, backupDueDays) / 7)));
+    }
     // P5: goal alerts (absent regular clients, stock for the goal, last week's summary).
     for (const { item, signature } of goalAlertRows(goalAlerts, lang, { client: <AlertTriangleIcon className="h-4 w-4"/>, stock: <DollarSignIcon className="h-4 w-4"/>, week: <TrendingUpIcon className="h-4 w-4"/> }, onOpenClient))
         addRow(item, signature);

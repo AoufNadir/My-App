@@ -148,6 +148,7 @@ import { buildGoalCoach } from './services/goalCoach';
 import { useGoalHistory } from './hooks/useGoalHistory';
 import { goalHistoryRows } from './services/goalHistory';
 import { absentClients, lastWeekSummary, stockForGoal } from './services/goalAlerts';
+import { buildFullBackup, daysSinceBackup, LAST_BACKUP_KEY } from './utils/fullBackup';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { useSetupDone } from './hooks/useSetupDone';
 import { shouldShowOnboarding } from './utils/onboarding';
@@ -513,6 +514,9 @@ export default function MainApp({ user }: {
         const minimum = Number(pricingPlanSync.plan.minimumGoal) > 0 ? Number(pricingPlanSync.plan.minimumGoal) : Math.round(target * 0.81 / 1000) * 1000;
         return { coach: buildGoalCoach({ rows: pamLedger.sellProfitRows, goal: { minimum, target, stretch: Math.round(target * 1.15) }, now: Date.now(), raisedInWeek: goalDecidedWeek }), minimum };
     }, [pamLedger, pricingPlanSync.plan.monthlyGoal, pricingPlanSync.plan.minimumGoal, goalDecidedWeek]);
+    // V16-2: when the last full backup was taken on this phone (for the bell reminder after 7 days).
+    const [lastBackupAt, setLastBackupAt] = useState<string | null>(() => { try { return localStorage.getItem(LAST_BACKUP_KEY); } catch { return null; } });
+    const backupAgeDays = daysSinceBackup(lastBackupAt);
     // P6: the goal of each month and what it made, for Analyse.
     const savedGoals = useGoalHistory(userDocRef as never);
     const goalHistory = React.useMemo(() => goalHistoryRows(savedGoals, pamLedger.sellProfitRows, Date.now()), [savedGoals, pamLedger]);
@@ -2863,6 +2867,8 @@ export default function MainApp({ user }: {
         monthlyGoal: monthlyGoalState,
         goalCoach: goalCoach?.coach ?? null,
         goalAlerts,
+        backupDueDays: transactions.length > 0 && (backupAgeDays === null || backupAgeDays >= 7) ? (backupAgeDays ?? -1) : null,
+        onOpenBackup: openSettingsModal,
         minimumGoal: goalCoach?.minimum ?? 0,
         onKeepGoal: decideGoalThisWeek,
         weeklyRecap,
@@ -3012,43 +3018,30 @@ export default function MainApp({ user }: {
     ]);
 
     // Pricing context for the smart sell assistant
-    const handleExportBackup = React.useCallback(() => {
+    // V16-2: the full backup (every collection of the account), not only what the pages have loaded.
+    const handleExportBackup = React.useCallback(async () => {
+        if (!userDocRef) return;
         try {
-            const backup = {
-                version: 2,
-                app: 'Pro Digital',
-                exportedAt: new Date().toISOString(),
-                data: {
-                    transactions,
-                    clientsDzd,
-                    clientTransactionsDzd,
-                    treasuryTransactions,
-                    investors: derivedInvestors,
-                    investorTransactions,
-                    treasuryCards,
-                    manualAssetTransactions,
-                    pricing: {
-                        policy: pricingPlanSync.policy,
-                        plan: pricingPlanSync.plan,
-                        overrides: pricingPlanSync.overrides,
-                    },
-                },
-            };
-            const json = JSON.stringify(backup, null, 2);
+            const { backup, total } = await buildFullBackup(userDocRef as never);
+            const json = JSON.stringify(backup, null, 1);
             const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `prodigital_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            a.download = `prodigital_backup_${backup.exportedAt.slice(0, 16).replace(/[:T]/g, '-')}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+            try { localStorage.setItem(LAST_BACKUP_KEY, backup.exportedAt); } catch { /* private mode */ }
+            setLastBackupAt(backup.exportedAt);
+            console.info(`Backup: ${total} documents`);
             setAlert('✅ Sauvegarde téléchargée avec succès.');
-        } catch {
+        } catch (error) {
+            console.error('Backup failed:', error);
             setAlert('❌ Erreur lors de la sauvegarde.');
         }
-    }, [transactions, clientsDzd, clientTransactionsDzd, treasuryTransactions, derivedInvestors, investorTransactions, treasuryCards, manualAssetTransactions, pricingPlanSync.policy, pricingPlanSync.plan, pricingPlanSync.overrides]);
+    }, [userDocRef, setAlert]);
     const rmbHoldings = (() => {
         const of = (stats?: { available?: number; locked?: number; avgBuy?: number }) => ({ available: Number(stats?.available || 0), avgBuy: Number(stats?.avgBuy || 0) });
         return { ...Object.fromEntries(EXTRA_CURRENCY_CODES.map((code) => [code, of((pamLedger.holdings as Record<string, any> | undefined)?.[code])])), USDT: of(portfolioStats.usdt), EUR: of(portfolioStats.eur) } as Record<TradeCurrencyCode, { available: number; avgBuy: number }>;
