@@ -38,6 +38,7 @@ import { ServiceProfitCard } from '../components/dashboard/ServiceProfitCard';
 import { hasNoServiceActivity, type OwnerProfitSplit } from '../utils/serviceProfitOverview';
 import { useLanguage } from '../contexts/LanguageContext';
 import { GoalCoachLines } from '../components/dashboard/GoalCoachLines';
+import { goalAlertRows, type GoalAlerts } from '../components/dashboard/goalAlertRows';
 import type { GoalCoach } from '../services/goalCoach';
 const RECENT_TRANSACTION_LIMIT = 5;
 const EMPTY_RECENT_DATE_RANGE = { start: null, end: null };
@@ -127,6 +128,8 @@ type DashboardPageProps = {
     onSaveGoal?: (goal: number) => void;
     /** P3: the weekly goal coach, its floor, and « keep my goal » (no second proposal this week) */
     goalCoach?: GoalCoach | null;
+    /** P5: goal alerts for the bell */
+    goalAlerts?: GoalAlerts | null;
     minimumGoal?: number;
     onKeepGoal?: () => void;
     /** V12-1: money movements nothing explains (no client, no link, no reason), and the way to the list. */
@@ -393,6 +396,8 @@ function DashboardContent({
     suggestedGoal = 0,
     onSaveGoal,
     goalCoach = null,
+    goalAlerts = null,
+    onOpenClient,
     minimumGoal = 0,
     onKeepGoal,
     initialNotificationsOpen = false,
@@ -417,7 +422,7 @@ function DashboardContent({
     inventoryReminder = null,
     onInventoryReminderSnooze,
 }: DashboardPageProps) {
-    const { t } = useLanguage();
+    const { t, lang } = useLanguage();
     const [profitPeriod, setProfitPeriod] = useState<ProfitPeriod>(readStoredProfitPeriod);
     const selectProfitPeriod = (period: ProfitPeriod) => {
         setProfitPeriod(period);
@@ -562,6 +567,9 @@ function DashboardContent({
     };
     for (const item of actionItems)
         addRow(item, item.id === 'overdue-debts' ? String(overdueCount) : item.id === 'unexplained-movements' ? String(unexplainedMovementCount) : item.id === 'pending-deliveries' ? `${pendingDeliveries?.USDT}|${pendingDeliveries?.EUR}|${pendingDeliveries?.late ?? 0}` : item.id === 'supplier-receipts' ? String(suppliersWaiting) : item.id === 'p2p-unbalanced' ? JSON.stringify(habits?.p2pUnbalanced.map((p) => [p.id, Math.round(p.balance)])) : item.id === 'evening-count' ? new Date().toDateString() : 'on', item.id === 'overdue-debts' || item.id === 'uncovered-advances' || (item.id === 'pending-deliveries' && (pendingDeliveries?.late ?? 0) > 0));
+    // P5: goal alerts (absent regular clients, stock for the goal, last week's summary).
+    for (const { item, signature } of goalAlertRows(goalAlerts, lang, { client: <AlertTriangleIcon className="h-4 w-4"/>, stock: <DollarSignIcon className="h-4 w-4"/>, week: <TrendingUpIcon className="h-4 w-4"/> }, onOpenClient))
+        addRow(item, signature);
     if (onInvestorTermReinvest && onInvestorTermWithdraw) {
         for (const term of investorTerms) {
             notificationItems.push({

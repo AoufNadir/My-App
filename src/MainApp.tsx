@@ -145,6 +145,7 @@ import { AccountUsageContext, type AccountUsage } from './accounts/AccountUsageC
 import { cashBalanceOf } from './accounts/cashAccounts';
 import { monthlyProfitSeries, suggestGoal, weekOfMonth } from './services/flexibleGoal';
 import { buildGoalCoach } from './services/goalCoach';
+import { absentClients, lastWeekSummary, stockForGoal } from './services/goalAlerts';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { useSetupDone } from './hooks/useSetupDone';
 import { shouldShowOnboarding } from './utils/onboarding';
@@ -510,6 +511,17 @@ export default function MainApp({ user }: {
         const minimum = Number(pricingPlanSync.plan.minimumGoal) > 0 ? Number(pricingPlanSync.plan.minimumGoal) : Math.round(target * 0.81 / 1000) * 1000;
         return { coach: buildGoalCoach({ rows: pamLedger.sellProfitRows, goal: { minimum, target, stretch: Math.round(target * 1.15) }, now: Date.now(), raisedInWeek: goalDecidedWeek }), minimum };
     }, [pamLedger, pricingPlanSync.plan.monthlyGoal, pricingPlanSync.plan.minimumGoal, goalDecidedWeek]);
+    // P5: the bell's goal alerts.
+    const goalAlerts = React.useMemo(() => {
+        const now = Date.now();
+        const names = new Map(clientsDzd.map((c) => [c.id, (c.fullName || c.nom || '').trim() || '—']));
+        const absent = absentClients(pamLedger.sellProfitRows as never, now).filter((c) => names.has(c.clientId)).map((c) => ({ ...c, name: names.get(c.clientId)! }));
+        const coach = goalCoach?.coach;
+        const target = Number(pricingPlanSync.plan.monthlyGoal) || 0;
+        const stock = coach ? stockForGoal({ remainingProfit: target - coach.review.profitSoFar, marginPerUnit: coach.marginUsual || coach.marginNow, stock: Number(portfolioStats.usdt.available) || 0 }) : null;
+        const week = coach ? lastWeekSummary({ rows: pamLedger.sellProfitRows, target, now }) : null;
+        return { absent, stock, lastWeek: week && coach ? { ...week, advice: coach.advice } : null };
+    }, [pamLedger, clientsDzd, goalCoach, pricingPlanSync.plan.monthlyGoal, portfolioStats.usdt.available]);
     const salesHistory90 = React.useMemo(() => {
         const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
         const rows = pamLedger.sellProfitRows
@@ -2841,6 +2853,7 @@ export default function MainApp({ user }: {
         onSaveGoal: (goal: number) => pricingPlanSync.savePlan({ monthlyGoal: goal }),
         monthlyGoal: monthlyGoalState,
         goalCoach: goalCoach?.coach ?? null,
+        goalAlerts,
         minimumGoal: goalCoach?.minimum ?? 0,
         onKeepGoal: decideGoalThisWeek,
         weeklyRecap,
