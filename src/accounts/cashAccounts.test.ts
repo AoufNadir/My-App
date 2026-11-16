@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { CASH_ACCOUNT_IDS, CASH_ACCOUNTS, checkCashAccount, isPaidNow, paymentMethodOfStatus, readCustomAccounts, setCustomAccounts, walletOfStatus } from './cashAccounts';
 import { rmbTradeRows } from '../utils/rmbTrade';
 import { channelSentenceKey, tradeChannel } from '../utils/channelSummary';
+import { classifyClientRow } from '../utils/clientActivityReport';
+import { PHONE_WORDS } from '../components/clients/clientActivityPhoneText';
+import { summaryRowText } from '../components/clients/clientSummaryText';
+import { buildTreasuryReport } from '../utils/treasuryReport';
 import { computeCapitalSnapshot } from '../utils/capitalSnapshot';
 
 // V15-2 (owner): dinar accounts beyond the Caisse and BaridiMob, added from the settings.
@@ -40,6 +44,16 @@ const strip = tradeChannel({ operation: 'sell', status: 'acc_a1', amount: 350 })
 assert.equal(strip.wallet, 'acc_a1');
 assert.equal(channelSentenceKey(strip, 'sell'), 'channelStrip.inAccount', '« 350 DZD entrent dans BNA »');
 assert.equal(channelSentenceKey(tradeChannel({ operation: 'buy', status: 'cash', amount: 1 })!, 'buy'), 'channelStrip.outCaisse', 'the Caisse as before');
+// V15-2d: the client's reports say the account's name.
+const pay = classifyClientRow({ id: 'p1', clientId: 'c1', montant: 30000, type: 'Règlement Reçu', paymentMethod: 'BNA', affectsBalance: true, timestamp: 1, date: '', time: '' } as never);
+assert.equal(pay.accountName, undefined, 'a payment that moves the balance: no account (the old words)');
+const sale = classifyClientRow({ id: 's1', clientId: 'c1', montant: -350, type: 'Vente RMB', paymentMethod: 'BNA', affectsBalance: false, timestamp: 1, date: '', time: '' } as never);
+assert.equal(sale.accountName, 'BNA');
+assert.equal(PHONE_WORDS.ar.operation.how(sale, true), 'دفعتَ ثمنها عبر BNA');
+assert.equal(PHONE_WORDS.fr.operation.how(sale, true), 'Payé par BNA');
+assert.ok(summaryRowText(sale, { viaOtherClient: false, onBehalf: false }, 'ar').details.includes('دفعتَ ثمنها عبر BNA'));
+const treasuryReport = buildTreasuryReport({ rows: [], balances: { caisse: 1, baridi: 2, accounts: { acc_a1: 300 } }, issuedAt: 0 });
+assert.deepEqual(treasuryReport.others, [{ name: 'BNA', balance: 300 }], 'the treasury report lists the account');
 setCustomAccounts([]);
 assert.deepEqual(CASH_ACCOUNT_IDS, ['Caisse', 'BaridiMob']);
 console.log('cashAccounts.test: dinar accounts added from the settings, counted in the cash and the capital');

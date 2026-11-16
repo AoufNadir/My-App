@@ -163,8 +163,8 @@ export function TresoreriePage({ caisseBalance, baridiBalance, otherCashBalances
     const balanceCorrections = useMemo(() => listBalanceCorrections(treasuryTransactions, transactions), [treasuryTransactions, transactions]);
 
     // The treasury report: its movements and balances are fixed when the window opens.
-    const [report, setReport] = useState<{ rows: ReturnType<typeof treasuryPdfRows>; balances: { caisse: number; baridi: number } } | null>(null);
-    const exportPdf = () => setReport({ rows: treasuryPdfRows(treasuryTransactions), balances: { caisse: caisseBalance, baridi: baridiBalance } });
+    const [report, setReport] = useState<{ rows: ReturnType<typeof treasuryPdfRows>; balances: { caisse: number; baridi: number; accounts?: Record<string, number> } } | null>(null);
+    const exportPdf = () => setReport({ rows: treasuryPdfRows(treasuryTransactions), balances: { caisse: caisseBalance, baridi: baridiBalance, accounts: otherCashBalances } });
 
     return (<div className="anim-page-in flex flex-col gap-3">
       <CapitalOverviewCard t={t} capitalSnapshot={capitalSnapshot} investorBreakdown={investorBreakdown} showBreakdown/>

@@ -35,7 +35,7 @@ export function ExpensesReportDialog({ onClose, periodKey, expenses, managerProf
     return (<ReportDocumentDialog onClose={onClose} title={t('reports.expensesReport') as string} subtitle={expensesPeriodLabel(periodKey, report.periodStart, appLang === 'ar' ? 'ar' : 'fr')} languageKey="expenses_report_lang" fileName={expensesReportFileName(report.periodStart, report.periodEnd)} pdfTitle={(lang) => `${EXPENSES_REPORT_WORDS[lang].title} · ${expensesPeriodLabel(periodKey, report.periodStart, lang)}`} issuedAt={now} reference={report.reference} renderSheet={(lang, variant) => <ExpensesReportSheet report={report} lang={lang} issuedAt={now} variant={variant}/>}/>);
 }
 
-export function TreasuryReportDialog({ onClose, rows, balances, now: fixedNow }: { onClose: () => void; rows: ReadonlyArray<TreasuryMovementInput>; balances: { caisse: number; baridi: number }; now?: number }) {
+export function TreasuryReportDialog({ onClose, rows, balances, now: fixedNow }: { onClose: () => void; rows: ReadonlyArray<TreasuryMovementInput>; balances: { caisse: number; baridi: number; accounts?: Record<string, number> }; now?: number }) {
     const { t } = useLanguage();
     const [now] = useState(() => fixedNow ?? Date.now());
     // Opens on this month: a whole history is a heavy PDF. The balances stay today's.

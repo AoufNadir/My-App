@@ -1,3 +1,4 @@
+import { CUSTOM_CASH_ACCOUNTS } from '../accounts/cashAccounts';
 import { isTradeCurrency, TRADE_CURRENCY_CODES, type TradeCurrencyCode } from '../currency/tradeCurrencies';
 import type { ClientTransactionDzd, Tx } from '../types';
 import { toCents } from './money';
@@ -64,6 +65,8 @@ export type ReportEntryKind =
 
 export type ReportEntry = {
     id: string;
+    /** V15-2d: paid now on a dinar account the owner added (its name), instead of the Caisse or BaridiMob */
+    accountName?: string;
     timestamp: number;
     kind: ReportEntryKind;
     /** True when the row moves the client balance (same rule as the client page) */
@@ -431,9 +434,11 @@ export function classifyClientRow(row: ClientTransactionDzd, linked?: Tx): Repor
     const montantCents = toCents(Number(row.montant) || 0);
     const affectsBalance = row.affectsBalance !== false;
     const balanceCents = affectsBalance ? montantCents : 0;
-    const base = { id: row.id, timestamp: Number(row.timestamp) || 0, affectsBalance, balanceCents };
+    const baseRow = { id: row.id, timestamp: Number(row.timestamp) || 0, affectsBalance, balanceCents };
     const portfolio = linked && (linked.type === 'buy' || linked.type === 'sell') ? linked : undefined;
     const ledgerMethod = methodFromLedger(row.paymentMethod);
+    const accountName = !affectsBalance && CUSTOM_CASH_ACCOUNTS.some((a) => a.name === row.paymentMethod) ? String(row.paymentMethod) : undefined;
+    const base = { ...baseRow, ...(accountName ? { accountName } : {}) };
     switch (row.type) {
         case saleTypeOf(row.type): {
             // V14-4: « Vente <code> » for every currency of the list

@@ -1,3 +1,4 @@
+import { CUSTOM_CASH_ACCOUNTS } from '../accounts/cashAccounts';
 // The treasury report's numbers (V3-6). They are the numbers of the old printed report
 // (buildTreasuryPdf in pdfReports.ts); the sheet writes them in the report's language.
 
@@ -25,6 +26,8 @@ export type TreasuryReport = {
     issuedAt: number;
     caisse: number;
     baridi: number;
+    /** V15-2d: the owner's other dinar accounts, by name */
+    others: Array<{ name: string; balance: number }>;
     totalIn: number;
     totalOut: number;
     /** What came in minus what went out over the listed movements */
@@ -48,7 +51,7 @@ export const treasuryReportReference = (issuedAt: number) => `T-${dayDashed(issu
 /** ProDigital_Tresorerie_2026-10-10.pdf */
 export const treasuryReportFileName = (issuedAt: number) => `ProDigital_Tresorerie_${dayDashed(issuedAt)}.pdf`;
 
-export function buildTreasuryReport(input: { rows: ReadonlyArray<TreasuryMovementInput>; balances: { caisse: number; baridi: number }; issuedAt: number }): TreasuryReport {
+export function buildTreasuryReport(input: { rows: ReadonlyArray<TreasuryMovementInput>; balances: { caisse: number; baridi: number; accounts?: Record<string, number> }; issuedAt: number }): TreasuryReport {
     const { rows, balances, issuedAt } = input;
     const totalIn = rows.reduce((sum, row) => (isTreasuryIn(row.type) ? sum + row.amount : sum), 0);
     const totalOut = rows.reduce((sum, row) => (isTreasuryOut(row.type) ? sum + row.amount : sum), 0);
@@ -57,6 +60,7 @@ export function buildTreasuryReport(input: { rows: ReadonlyArray<TreasuryMovemen
         issuedAt,
         caisse: balances.caisse,
         baridi: balances.baridi,
+        others: CUSTOM_CASH_ACCOUNTS.map((account) => ({ name: account.name, balance: Number(balances.accounts?.[account.id] ?? 0) })),
         totalIn,
         totalOut,
         netFlow: totalIn - totalOut,

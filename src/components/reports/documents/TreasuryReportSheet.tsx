@@ -1,3 +1,5 @@
+import { Fragment } from 'react';
+import { cashAccount, isCustomCashAccount } from '../../../accounts/cashAccounts';
 import type { TreasuryReport } from '../../../utils/treasuryReport';
 import { COMMON_REPORT_WORDS, TREASURY_REPORT_WORDS, reportTranslator } from '../documentWords';
 import { formatDate, formatWholeDzd } from '../reportFormat';
@@ -28,7 +30,7 @@ export function TreasuryReportSheet({ report, lang, variant }: TreasuryReportShe
     const t = reportTranslator(lang);
     const { th, td, tdNum } = REPORT_CELL;
     const typeName = (type: string) => (MOVEMENT_WORD_KEYS[type] ? t(MOVEMENT_WORD_KEYS[type]) : type);
-    const walletName = (source: string) => (WALLET_WORD_KEYS[source] ? t(WALLET_WORD_KEYS[source]) : source);
+    const walletName = (source: string) => (WALLET_WORD_KEYS[source] ? t(WALLET_WORD_KEYS[source]) : isCustomCashAccount(source) ? cashAccount(source).name : source);
 
     return (<ReportSheet lang={lang} variant={variant}>
       <ReportHeader tagline={c.brandTagline} title={w.title} referenceLabel={c.reference} reference={report.reference} issuedLabel={c.issued} issued={formatDate(report.issuedAt)}/>
@@ -43,6 +45,9 @@ export function TreasuryReportSheet({ report, lang, variant }: TreasuryReportShe
           <ReportCard dot="bg-primary" title={w.baridi}>
             <ReportCardValue>{num(`${formatWholeDzd(report.baridi)} DZD`)}</ReportCardValue>
           </ReportCard>
+          {(report.others ?? []).map((account) => (<Fragment key={account.name}><ReportCard dot="bg-primary" title={account.name}>
+            <ReportCardValue>{num(`${formatWholeDzd(account.balance)} DZD`)}</ReportCardValue>
+          </ReportCard></Fragment>))}
           <ReportCard dot={report.netFlow >= 0 ? 'bg-financial-profit' : 'bg-financial-loss'} title={w.netFlow}>
             <ReportCardValue tone={flowTone(report.netFlow)}>{num(signedWhole(report.netFlow))}</ReportCardValue>
           </ReportCard>

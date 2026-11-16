@@ -109,6 +109,8 @@ const AR_RECEIVED_MONEY: Partial<MethodWords> = {
 const AR_OPERATION: OperationWords = {
     quantity: (currency, quantity) => (currency === 'EUR' ? `${isolate(quantity)} يورو` : isolate(`${quantity} ${`${currency}`}`)),
     title: (entry, amount, small) => {
+        // V15-2d: paid now on a dinar account the owner added: its name.
+        if (entry.accountName && entry.kind === 'payment') return `دفعتَ عبر ${entry.accountName}`;
         switch (entry.kind) {
             case 'buy': return amount ? `اشتريتَ ${amount}` : entry.currency === 'EUR' ? 'اشتريتَ يورو' : `اشتريتَ ${entry.currency}`;
             case 'service': return 'اشتريتَ خدمة رقمية';
@@ -123,6 +125,9 @@ const AR_OPERATION: OperationWords = {
     },
     unitPrice: (price) => `بسعر ${price} للواحد`,
     how: (entry, showBalance) => {
+        if (entry.accountName && !entry.affectsBalance && (entry.kind === 'buy' || entry.kind === 'service')) return `دفعتَ ثمنها عبر ${entry.accountName}`;
+        if (entry.accountName && !entry.affectsBalance && entry.kind === 'saleToUs') return `استلمتَ ثمنها عبر ${entry.accountName}`;
+        if (entry.accountName && entry.kind === 'withdrawal') return `استلمتَ المال عبر ${entry.accountName}`;
         const method = entry.method || 'other';
         switch (entry.kind) {
             case 'buy':
@@ -197,6 +202,8 @@ const FR_RECEIVED_MONEY: Partial<MethodWords> = {
 const FR_OPERATION: OperationWords = {
     quantity: (currency, quantity) => (currency === 'EUR' ? `${isolate(quantity)} euros` : isolate(`${quantity} ${`${currency}`}`)),
     title: (entry, amount, small) => {
+        // V15-2d: paid now on a dinar account the owner added: its name.
+        if (entry.accountName && entry.kind === 'payment') return `Vous avez payé par ${entry.accountName}`;
         switch (entry.kind) {
             case 'buy': return amount ? `Vous avez acheté ${amount}` : entry.currency === 'EUR' ? 'Vous avez acheté des euros' : `Vous avez acheté des ${entry.currency}`;
             case 'service': return 'Vous avez acheté un service numérique';
@@ -211,6 +218,9 @@ const FR_OPERATION: OperationWords = {
     },
     unitPrice: (price) => `au prix de ${price} l’unité`,
     how: (entry, showBalance) => {
+        if (entry.accountName && !entry.affectsBalance && (entry.kind === 'buy' || entry.kind === 'service')) return `Payé par ${entry.accountName}`;
+        if (entry.accountName && !entry.affectsBalance && entry.kind === 'saleToUs') return `Vous avez reçu le prix par ${entry.accountName}`;
+        if (entry.accountName && entry.kind === 'withdrawal') return `Vous avez reçu l’argent par ${entry.accountName}`;
         const method = entry.method || 'other';
         switch (entry.kind) {
             case 'buy':

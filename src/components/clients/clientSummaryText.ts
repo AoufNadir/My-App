@@ -139,6 +139,18 @@ function receivedWay(entry: ReportEntry, context: SummaryRowContext, w: Words): 
 
 export function summaryRowText(entry: ReportEntry, context: SummaryRowContext, lang: ReportSheetLang): SummaryRowText {
     const w = WORDS[lang];
+    // V15-2d: paid now on a dinar account the owner added: the sentence says its name.
+    if (entry.accountName && !context.viaOtherClient && !context.onBehalf) {
+        const name = entry.accountName;
+        const ar = lang === 'ar';
+        if (entry.kind === 'payment') return { title: ar ? `دفعتَ عبر ${name}` : `Vous avez payé par ${name}`, details: [] };
+        if (entry.kind === 'withdrawal') return { title: ar ? `استلمتَ المال عبر ${name}` : `Vous avez reçu l’argent par ${name}`, details: [] };
+        if ((entry.kind === 'buy' || entry.kind === 'service' || entry.kind === 'saleToUs') && !entry.affectsBalance) {
+            const base = summaryRowText({ ...entry, accountName: undefined }, context, lang);
+            const how = entry.kind === 'saleToUs' ? (ar ? `استلمتَ ثمنها عبر ${name}` : `Reçu par ${name}`) : (ar ? `دفعتَ ثمنها عبر ${name}` : `Payé par ${name}`);
+            return { title: base.title, details: [...base.details.slice(0, entry.kind === 'service' ? 0 : -1), how] };
+        }
+    }
     const channel = channelKey(entry, context);
     const quantity = entry.quantity && entry.currency ? w.quantity(entry.quantity, currencyUnit(entry.currency)) : null;
     const currency = (entry.currency ?? 'USDT') as TradeCurrencyCode;
