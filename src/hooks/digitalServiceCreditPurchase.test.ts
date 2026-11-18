@@ -13,7 +13,7 @@ const supplierRow = classifyClientRow({ id: 'r', clientId: 's', timestamp: 1, mo
 assert.equal(supplierRow.balanceCents, 300000, 'the supplier is owed the price (positive: theirs with us)');
 assert.equal(supplierRow.kind, 'service');
 
-const src = readFileSync(new URL('./useDigitalServiceHandlers.ts', import.meta.url), 'utf8');
+const src = readFileSync(new URL('./useDigitalServiceHandlers.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.match(src, /if \(!digitalServiceSupplierId\) return '⚠️ Fournisseur requis\.'/, 'rule 11: no credit purchase without its supplier');
 assert.match(src, /if \(digitalServicePurchaseWallet === 'Credit'\) return '';/, 'no wallet balance check when nothing leaves a wallet');
 const creditBranch = src.slice(src.indexOf("if (digitalServicePurchaseWallet === 'Credit') {\n                // V15-6"), src.indexOf('else if (isCashWallet(digitalServicePurchaseWallet))'));
