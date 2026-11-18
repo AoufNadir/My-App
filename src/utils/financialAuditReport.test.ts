@@ -64,15 +64,31 @@ console.log('financial audit report tests passed');
     bad.collections.dzd_client_txs = [doc('ct1', { clientId: 'c1', montant: -3_000, timestamp: at(4) }), doc('ct2', { clientId: 'nobody', montant: 100, timestamp: at(4) })];
     const { text: t8 } = buildFinancialAudit(bad, { now: NOW });
     assert.match(t8, /Soldes recalculés: BaridiMob 3 800 · Caisse -49 350/);
-    assert.match(t8, /❌ Trésorerie: aucun compte en dessous de zéro \(1\)\n- Caisse passe à -10 000 le 2026-11-02/);
+    assert.match(t8, /⚠️ Trésorerie: aucun compte en dessous de zéro \(historique depuis un solde de départ 0\) \(1\)\n- Caisse passe à -10 000 le 2026-11-02/);
     assert.match(t8, /❌ Trésorerie: aucun mouvement ignoré par le calcul \(2\)/);
     assert.match(t8, /compte « Mystère » non reconnu/);
     assert.match(t8, /✅ Stock: aucune devise en dessous de zéro/);
-    assert.match(t8, /❌ Clients: chaque ligne appartient à un client existant \(1\)/);
+    assert.match(t8, /❌ Clients: chaque ligne appartient à un client existant · 1 client\(s\) supprimé\(s\), net non nul \(1\)/);
     assert.match(t8, /Clients: dettes -3 000 · avances 100 · net -2 900\./);
-    assert.match(t8, /❌ Liens: .* \(1\)\n- trésorerie t5 · linkedTxId → opération gone absent/);
+    assert.match(t8, /❌ Liens: .* \(1\)\n- trésorerie t5 · linkedTxId → ligne gone absent/);
     assert.match(t8, /✅ Partage: chaque mois/);
-    assert.match(t8, /❌ Avances personnelles réglées \(1\)\n- 2026-11-15 12:00 · 1 200 DZD/);
-    assert.match(text, /✅ Avances personnelles réglées\nAucune avance en attente\./);
+    assert.match(t8, /⚠️ Avances personnelles à régler \(suivi, pas une erreur\) \(1\)\n- 2026-11-15 12:00 · 1 200 DZD/);
+    assert.match(text, /✅ Avances personnelles à régler \(suivi, pas une erreur\)\nAucune avance en attente\./);
+    // An expense paid in USDT moves no dinar; one without its stock row is an error.
+    const cur: BackupFile = JSON.parse(JSON.stringify(backup));
+    cur.collections.treasury_txs.push(
+        doc('pu', { origin: 'personal_expense', type: 'Retrait', amount: 2_600, timestamp: at(5) }),
+        doc('pj', { origin: 'delivery_expense', type: 'Retrait', amount: 1_300, expenseWallet: 'USDT', timestamp: at(6) }),
+        doc('tl', { type: 'Ajout', amount: 100, source: 'Caisse', linkedTxId: 'ct9', timestamp: at(1, 9) }),
+    );
+    cur.collections.usdt_txs.push(doc('wu', { type: 'withdraw', currency: 'USDT', quantity: 10, linkedPersonalExpenseTxId: 'pu', timestamp: at(5) }));
+    cur.collections.dzd_clients = [doc('c1', { name: 'Client' })];
+    cur.collections.dzd_client_txs = [doc('ct9', { clientId: 'gone', montant: 500, timestamp: at(1) }), doc('ct8', { clientId: 'gone', montant: -500, timestamp: at(2) })];
+    const { text: tc } = buildFinancialAudit(cur, { now: NOW });
+    assert.match(tc, /✅ Trésorerie: aucun mouvement ignoré par le calcul/);
+    assert.match(tc, /❌ Dépenses payées en devise: chacune a sa sortie de stock \(1\)\n- .* 1 300 DZD payé en USDT sans ligne de stock \(id pj\)/);
+    assert.match(tc, /Dépenses payées en devise .*\(1\):\n- .* 10 USDT \(2 600 DZD\) · personal_expense \(id pu\)/);
+    assert.match(tc, /✅ Liens/, 'a treasury linkedTxId may point to a client line');
+    assert.match(tc, /⚠️ Clients: .* 1 client\(s\) supprimé\(s\), net nul \(2\)/);
     console.log('financial audit section 8 passed');
 }

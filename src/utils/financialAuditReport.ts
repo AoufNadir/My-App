@@ -29,6 +29,8 @@ const fmt = (v: number) => (Math.round(v) || 0).toLocaleString('fr-FR').replace(
 const day = (ts: number) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const when = (ts: number) => { const d = new Date(ts); return `${day(ts)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
+const orphanRowsNote = (clients: number, zero: boolean) => (clients ? ` · ${clients} client(s) supprimé(s), net ${zero ? 'nul' : 'non nul'}` : '');
+
 export function periodStarts(now: number) {
     const d = new Date(now);
     const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -201,9 +203,10 @@ export function buildFinancialAudit(backup: BackupFile, options: AuditOptions) {
     const treasuryIds = new Set(treasuryDocs.map((t) => t.id));
     const clientTxIds = new Set(clientDocs.map((t) => t.id));
     const investorTxIds = new Set(investorTxs.map((t) => t.id));
-    const check = (title: string, problems: string[], okText = 'OK') => {
+    // ❌ = a proven break of a rule; ⚠️ = something to follow up or explain, not an error by itself.
+    const check = (title: string, problems: string[], okText = 'OK', mark = '❌') => {
         out();
-        out(`### ${problems.length ? '❌' : '✅'} ${title}${problems.length ? ` (${problems.length})` : ''}`);
+        out(`### ${problems.length ? mark : '✅'} ${title}${problems.length ? ` (${problems.length})` : ''}`);
         if (!problems.length) { out(okText); return; }
         for (const p of problems.slice(0, 15)) out(`- ${p}`);
         if (problems.length > 15) out(`- … et ${problems.length - 15} autres`);
@@ -223,6 +226,11 @@ export function buildFinancialAudit(backup: BackupFile, options: AuditOptions) {
     const negatives: string[] = [];
     const ignored: string[] = [];
     const negativeSeen = new Set<string>();
+    // An expense paid in a currency (USDT, EUR, …) moves no dinar: its stock row carries it.
+    const stockRowOf = new Map<string, Doc>();
+    for (const t of usdtTxs) for (const f of ['linkedPersonalExpenseTxId', 'linkedProjectExpenseTxId']) if (typeof t[f] === 'string') stockRowOf.set(String(t[f]), t);
+    const paidInCurrency: string[] = [];
+    const missingStockRow: string[] = [];
     for (const t of [...treasuryDocs].sort((a, b) => tsOf(a) - tsOf(b))) {
         const amount = num(t.amount);
         const type = String(t.type ?? '');
@@ -237,6 +245,13 @@ export function buildFinancialAudit(backup: BackupFile, options: AuditOptions) {
         } else {
             const factor = type === 'Ajout' || type === 'Adjustment (+)' ? 1 : type === 'Retrait' || type === 'Adjustment (-)' ? -1 : 0;
             const wallet = walletOf(t.source) ?? (t.asset === 'DZD-Caisse' ? 'Caisse' : t.asset === 'DZD-Baridi' ? 'BaridiMob' : null);
+            const currencyWallet = typeof t.expenseWallet === 'string' && !walletOf(t.expenseWallet) ? t.expenseWallet : null;
+            if (!wallet && (stockRowOf.has(t.id) || currencyWallet)) {
+                const stock = stockRowOf.get(t.id);
+                if (stock) paidInCurrency.push(`${when(tsOf(t))} · ${r2(num(stock.quantity))} ${String(stock.currency ?? currencyWallet ?? 'USDT')} (${fmt(amount)} DZD) · ${String(t.origin ?? '')} (id ${t.id})`);
+                else missingStockRow.push(`${when(tsOf(t))} · ${fmt(amount)} DZD payé en ${currencyWallet} sans ligne de stock (id ${t.id})`);
+                continue;
+            }
             if (!factor || !wallet) { ignored.push(`${when(tsOf(t))} · ${type} ${fmt(amount)} · compte « ${String(t.source ?? t.asset ?? '')} » non reconnu (id ${t.id})`); continue; }
             moves.push([wallet, factor * amount]);
         }
@@ -250,23 +265,36 @@ export function buildFinancialAudit(backup: BackupFile, options: AuditOptions) {
     }
     out();
     out(`Soldes recalculés: ${Object.entries(balances).map(([w, b]) => `${w} ${fmt(b)}`).join(' · ') || 'aucun'}`);
-    check('Trésorerie: aucun compte en dessous de zéro', negatives);
+    check('Trésorerie: aucun compte en dessous de zéro (historique depuis un solde de départ 0)', negatives, 'OK', '⚠️');
     check('Trésorerie: aucun mouvement ignoré par le calcul', ignored);
+    check('Dépenses payées en devise: chacune a sa sortie de stock', missingStockRow);
+    if (paidInCurrency.length) {
+        out();
+        out(`Dépenses payées en devise (aucun dinar ne bouge, la sortie est dans le stock) (${paidInCurrency.length}):`);
+        for (const p of paidInCurrency) out(`- ${p}`);
+    }
 
     // 8.2 Stock: never negative, every sale costed.
-    const stockProblems = pamLedger.operationRows
-        .filter((row) => num(row.statsAfter.available) < -0.005)
-        .map((row) => `${row.currency} à ${r2(num(row.statsAfter.available))} après l'opération du ${when(row.timestamp)} (id ${row.txId})`);
-    check('Stock: aucune devise en dessous de zéro', stockProblems);
-    const ledgerWarnings = pamLedger.warnings.filter((w) => w.severity === 'high' || w.code === 'oversell' || w.code === 'uncosted_quantity_sold' || w.code === 'missing_buy_total')
-        .map((w) => `${w.currency} · ${w.code} · ${w.message} (id ${w.txId})`);
-    check('Stock: chaque vente a un coût d’achat', ledgerWarnings);
+    const below = pamLedger.operationRows.filter((row) => num(row.statsAfter.available) < -0.005)
+        .map((row) => ({ row, v: r2(num(row.statsAfter.available)) }));
+    const line = ({ row, v }: { row: typeof pamLedger.operationRows[number]; v: number }) => `${row.currency} à ${v} après l'opération du ${when(row.timestamp)} (id ${row.txId})`;
+    check('Stock: aucune devise en dessous de zéro', below.filter((b) => b.v <= -0.1).map(line));
+    check('Stock: écarts d’arrondi (moins de 0.1 unité)', below.filter((b) => b.v > -0.1).map(line), 'OK', '⚠️');
+    const byTx = new Map<string, Set<string>>();
+    for (const w of pamLedger.warnings) byTx.set(w.txId, (byTx.get(w.txId) || new Set()).add(w.code));
+    const uncosted = [...byTx].filter(([, c]) => c.has('oversell') || c.has('uncosted_quantity_sold') || c.has('missing_buy_total')).map(([id, c]) => `${[...c].join(' + ')} (id ${id})`);
+    check('Stock: chaque vente a un coût d’achat', uncosted);
+    const stored = [...byTx].filter(([, c]) => c.has('stored_mismatch')).map(([id]) => `bénéfice ancien enregistré ≠ bénéfice recalculé; l'application utilise le recalculé (id ${id})`);
+    check('Bénéfices anciens enregistrés différents du calcul (sans effet)', stored, 'OK', '⚠️');
     out();
     out(`Stock recalculé: ${Object.entries(pamLedger.holdings).map(([c, h]) => `${c} ${r2(num(h.available))} (PAM ${r2(num(h.avgBuy))})`).join(' · ')}`);
 
     // 8.3 Clients: every line belongs to a client; balances.
     const orphanClientRows = clientDocs.filter((t) => !clientIds.has(String(t.clientId))).map((t) => `${when(tsOf(t))} · ${fmt(num(t.montant))} · client ${String(t.clientId)} introuvable (id ${t.id})`);
-    check('Clients: chaque ligne appartient à un client existant', orphanClientRows);
+    const orphanNet = new Map<string, number>();
+    for (const t of clientDocs) if (!clientIds.has(String(t.clientId))) orphanNet.set(String(t.clientId), r2((orphanNet.get(String(t.clientId)) || 0) + num(t.montant)));
+    const orphanZero = [...orphanNet.values()].every((v) => Math.abs(v) < 0.5);
+    check(`Clients: chaque ligne appartient à un client existant${orphanRowsNote(orphanNet.size, orphanZero)}`, orphanClientRows, 'OK', orphanZero ? '⚠️' : '❌');
     let debts = 0, advances = 0;
     const byClient = new Map<string, number>();
     for (const t of clientDocs) if (t.affectsBalance !== false) byClient.set(String(t.clientId), r2((byClient.get(String(t.clientId)) || 0) + num(t.montant)));
@@ -275,14 +303,15 @@ export function buildFinancialAudit(backup: BackupFile, options: AuditOptions) {
     out(`Clients: dettes ${fmt(debts)} · avances ${fmt(advances)} · net ${fmt(debts + advances)}.`);
 
     // 8.4 Links: a link points to a document that exists.
+    const anyId = new Set([...usdtIds, ...treasuryIds, ...clientTxIds, ...investorTxIds]);
     const broken: string[] = [];
     const need = (from: string, d: Doc, field: string, pool: Set<string>, poolName: string) => {
         const v = d[field];
         if (typeof v === 'string' && v && !pool.has(v)) broken.push(`${from} ${d.id} · ${field} → ${poolName} ${v} absent`);
     };
-    for (const t of usdtTxs) { need('opération', t, 'linkedTreasuryTxId', treasuryIds, 'trésorerie'); need('opération', t, 'linkedClientTxId', clientTxIds, 'ligne client'); need('opération', t, 'linkedClientDzdId', clientTxIds, 'ligne client'); }
-    for (const t of treasuryDocs) { need('trésorerie', t, 'linkedTxId', usdtIds, 'opération'); need('trésorerie', t, 'linkedInvestorTxId', investorTxIds, 'mouvement investisseur'); need('trésorerie', t, 'linkedCapitalInvestorTxId', investorTxIds, 'mouvement investisseur'); }
-    for (const t of clientDocs) { need('ligne client', t, 'linkedTxId', usdtIds, 'opération'); need('ligne client', t, 'linkedTreasuryTxId', treasuryIds, 'trésorerie'); }
+    for (const t of usdtTxs) { need('opération', t, 'linkedTreasuryTxId', treasuryIds, 'trésorerie'); need('opération', t, 'linkedClientTxId', clientTxIds, 'ligne client'); need('opération', t, 'linkedClientDzdId', clientIds, 'client'); }
+    for (const t of treasuryDocs) { need('trésorerie', t, 'linkedTxId', anyId, 'ligne'); need('trésorerie', t, 'linkedInvestorTxId', investorTxIds, 'mouvement investisseur'); need('trésorerie', t, 'linkedCapitalInvestorTxId', investorTxIds, 'mouvement investisseur'); }
+    for (const t of clientDocs) { need('ligne client', t, 'linkedTxId', anyId, 'ligne'); need('ligne client', t, 'linkedTreasuryTxId', treasuryIds, 'trésorerie'); }
     for (const t of investorTxs as unknown as Doc[]) need('mouvement investisseur', t, 'linkedTreasuryTxId', treasuryIds, 'trésorerie');
     check('Liens: aucune ligne ne pointe vers une ligne supprimée', broken);
 
@@ -302,6 +331,6 @@ export function buildFinancialAudit(backup: BackupFile, options: AuditOptions) {
     // 8.6 Things waiting for a decision.
     const pending = personalExpenses.filter((e) => (e as { advanceState?: unknown }).advanceState === 'pending')
         .map((e) => `${when(num(e.timestamp))} · ${fmt(num(e.amount))} DZD · avance personnelle en attente (comptée comme argent que le gérant doit au projet)`);
-    check('Avances personnelles réglées', pending, 'Aucune avance en attente.');
+    check('Avances personnelles à régler (suivi, pas une erreur)', pending, 'Aucune avance en attente.', '⚠️');
     return { text: lines.join('\n') };
 }
