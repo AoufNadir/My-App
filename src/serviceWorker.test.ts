@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 // V9-13: the service worker leaves Firebase/Google API requests to the browser. Proxying Firestore's long
 // Listen channel through respondWith(fetch()) made every cancelled request a « Failed to fetch » in the console.
 
-const source = readFileSync(new URL('../public/service-worker.js', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../public/service-worker.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const start = source.indexOf("url.hostname === 'firestore.googleapis.com'");
 assert.ok(start > 0, 'the Firebase hosts are still listed');
 const block = source.slice(start, source.indexOf('// Network-first for the app shell', start));

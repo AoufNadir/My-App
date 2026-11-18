@@ -100,7 +100,7 @@ for (const window of windows) {
         if (seen.has(file))
             return;
         seen.add(file);
-        for (const match of readFileSync(file, 'utf8').matchAll(/(?:from\s+|import\()'([^']+)'/g)) {
+        for (const match of readFileSync(file, 'utf8').replace(/\r\n/g, '\n').matchAll(/(?:from\s+|import\()'([^']+)'/g)) {
             const spec = match[1];
             if (!spec.startsWith('.')) {
                 seen.add(spec);

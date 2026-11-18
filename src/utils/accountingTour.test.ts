@@ -22,7 +22,7 @@ const snap = computeCapitalSnapshot({ caisseBalance: 0, baridiBalance: 0, portfo
 assert.equal(Math.round(snap.stockValue * 100) / 100, 100, '3 USDT bought 100 DZD are worth 100, not 99.99');
 
 // 2 to 4. Rule 11: no wallet chosen in advance for an investor's capital, a client payment or receipt.
-const read = (file: string) => readFileSync(new URL(file, import.meta.url), 'utf8');
+const read = (file: string) => readFileSync(new URL(file, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const investors = read('../hooks/useInvestorHandlers.ts');
 // V15-2c: the sources are any dinar account now, still none in advance.
 assert.match(investors, /\[investorInitialCapitalSource, setInvestorInitialCapitalSource\] = useState<string>\(''\)/, 'new investor: no capital source in advance');

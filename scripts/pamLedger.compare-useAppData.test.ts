@@ -266,7 +266,7 @@ function makeRow(
 }
 
 function compareFile(filePath: string) {
-  const input = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  const input = JSON.parse(fs.readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n'));
   const transactions = extractTransactions(input);
   const useAppDataStats = computeUseAppDataPortfolioStats(transactions);
   const ledger = computePamLedger(transactions);

@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 // clients by mistake, so the Home page never finished loading: every collection of the app must always be
 // subscribed, whatever the manual services do.
 
-const source = readFileSync(new URL('./useAppData.ts', import.meta.url), 'utf8');
+const source = readFileSync(new URL('./useAppData.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const subscription = (key: string) => {
     const start = source.indexOf(`subscribeToCollection(\n            '${key}',`);
     assert.ok(start > 0, `the « ${key} » subscription exists`);

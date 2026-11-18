@@ -165,7 +165,7 @@ try {
         const fixturePath = writeFixture('out', fixture(baseCollections()));
         const report = runBackfill(['--dry-run', '--run-id=test-run', `--fixture=${fixturePath}`, `--out=${outputPath}`]);
         assert.equal(existsSync(outputPath), true);
-        const persisted = JSON.parse(readFileSync(outputPath, 'utf8'));
+        const persisted = JSON.parse(readFileSync(outputPath, 'utf8').replace(/\r\n/g, '\n'));
         assert.equal(persisted.plan.totalItems, report.plan.totalItems);
     }
 } finally {

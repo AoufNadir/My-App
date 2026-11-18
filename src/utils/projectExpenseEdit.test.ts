@@ -4,7 +4,7 @@ import { batchCreatesNegativeStock } from './stockGuard';
 import type { Tx } from '../types';
 
 // V14-6 (owner): a project expense opens its own window to be edited, instead of « delete it and enter it again ».
-const read = (file: string) => readFileSync(new URL(file, import.meta.url), 'utf8');
+const read = (file: string) => readFileSync(new URL(file, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const handlers = read('../hooks/useTransactionHandlers.ts');
 assert.match(handlers, /const openEditDeliveryExpense = \(tx: TreasuryTx\)/, 'the window opens on the saved expense');
 assert.match(handlers, /setDeliveryExpenseWalletChosen\(true\)/, 'its wallet stays the one chosen then');

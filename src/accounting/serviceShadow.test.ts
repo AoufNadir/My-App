@@ -18,14 +18,14 @@ import {
 assert.equal(SERVICES_V2_READINESS, 'shadow', 'Services Shadow must not activate a V2 writer or closure.');
 assert.ok(SERVICE_SHADOW_WRITERS.length >= 3, 'The service writer inventory must be explicit.');
 for (const writer of SERVICE_SHADOW_WRITERS.filter((writer) => writer.v2Policy === 'shadow_observed')) {
-    const source = readFileSync(new URL(`../${writer.file.replace(/^src\//, '')}`, import.meta.url), 'utf8');
+    const source = readFileSync(new URL(`../${writer.file.replace(/^src\//, '')}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
     assert.match(source, /recordServiceShadow/, `${writer.id} must observe Legacy with the service Shadow builder.`);
     assert.doesNotMatch(source, /commitFinancialOperation|accounting_operations/, `${writer.id} must not activate V2 in Shadow.`);
 }
 
-const pureBuilderSource = readFileSync(new URL('./serviceShadow.ts', import.meta.url), 'utf8');
+const pureBuilderSource = readFileSync(new URL('./serviceShadow.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.doesNotMatch(pureBuilderSource, /firebase|recordServiceShadow|Date\.now|Math\.random/, 'Service Draft builders must be pure and Firestore-free.');
-const diagnosticsSource = readFileSync(new URL('./serviceShadowDiagnostics.ts', import.meta.url), 'utf8');
+const diagnosticsSource = readFileSync(new URL('./serviceShadowDiagnostics.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.doesNotMatch(diagnosticsSource, /firebase|collection\(|\.set\(|\.update\(|\.delete\(/, 'Service diagnostics must never write Firebase.');
 
 for (const fixture of SERVICE_SHADOW_EXPECTED_FIXTURES) {

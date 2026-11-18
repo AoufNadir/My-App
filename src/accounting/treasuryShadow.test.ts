@@ -23,7 +23,7 @@ assert.deepEqual(
 assert.ok(TREASURY_SHADOW_WRITERS.length >= 18, 'The current Treasury writer inventory must stay explicit.');
 assert.ok(TREASURY_SHADOW_WRITERS.every((writer) => Boolean(writer.v2Policy)), 'Every Treasury path must declare its future V2 policy.');
 for (const writer of TREASURY_SHADOW_WRITERS.filter((writer) => writer.shadowKinds.length > 0)) {
-    const source = readFileSync(new URL(`../${writer.file.replace(/^src\//, '')}`, import.meta.url), 'utf8');
+    const source = readFileSync(new URL(`../${writer.file.replace(/^src\//, '')}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
     assert.match(source, /recordTreasuryShadow/, `${writer.id} must invoke the non-blocking Shadow observer.`);
 }
 
@@ -31,21 +31,21 @@ const globalReset = TREASURY_SHADOW_WRITERS.find((writer) => writer.id === 'main
 assert.deepEqual(globalReset?.shadowKinds, [], 'Global Reset must never become a V2 financial reversal.');
 assert.equal(globalReset?.v2Policy, GLOBAL_RESET_V2_POLICY);
 assert.equal(GLOBAL_RESET_V2_POLICY, 'dev_admin_only_pre_cutover');
-const mainAppSource = readFileSync(new URL('../MainApp.tsx', import.meta.url), 'utf8');
+const mainAppSource = readFileSync(new URL('../MainApp.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.doesNotMatch(mainAppSource, /shadow:global-reset/, 'Global Reset must not emit a financial-reversal Shadow draft.');
 for (const id of ['clients.entity-delete', 'investors.entity-delete']) {
     const entityDeletion = TREASURY_SHADOW_WRITERS.find((writer) => writer.id === id);
     assert.deepEqual(entityDeletion?.shadowKinds, [], `${id} must not reverse financial history.`);
     assert.equal(entityDeletion?.v2Policy, 'archive_entity', `${id} must archive/inactivate in V2.`);
 }
-assert.doesNotMatch(readFileSync(new URL('../hooks/useClientHandlers.ts', import.meta.url), 'utf8'), /shadow:client-delete/);
-assert.doesNotMatch(readFileSync(new URL('../hooks/useInvestorHandlers.ts', import.meta.url), 'utf8'), /shadow:investor-delete|shadow:investor-return-delete/);
+assert.doesNotMatch(readFileSync(new URL('../hooks/useClientHandlers.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n'), /shadow:client-delete/);
+assert.doesNotMatch(readFileSync(new URL('../hooks/useInvestorHandlers.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n'), /shadow:investor-delete|shadow:investor-return-delete/);
 
-const poHandlerSource = readFileSync(new URL('../hooks/usePoOrderHandlers.ts', import.meta.url), 'utf8');
+const poHandlerSource = readFileSync(new URL('../hooks/usePoOrderHandlers.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.equal(PO_ORDER_CASH_FLOW, 'customer_sale_receipt_only_when_prepaid');
 assert.match(poHandlerSource, /ctx\.clientPaymentStatus !== 'credit'/, 'A credit PO order must not create a cash receipt.');
 
-const pureBuilderSource = readFileSync(new URL('./treasuryShadow.ts', import.meta.url), 'utf8');
+const pureBuilderSource = readFileSync(new URL('./treasuryShadow.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.doesNotMatch(pureBuilderSource, /firebase|recordTreasuryShadow|Date\.now/, 'Treasury Draft builders must remain pure and Firestore-free.');
 
 for (const fixture of TREASURY_SHADOW_EXPECTED_FIXTURES) {

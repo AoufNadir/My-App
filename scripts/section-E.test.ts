@@ -95,7 +95,7 @@ function buildJGd0Fixture(): Tx[] {
 // =============================================================
 
 test('T-E-001: useReportExports_passesPamLedgerToBuildMonthly (POST FIX-1)', () => {
-    const source = readFileSync(join(projectRoot, 'src/hooks/useReportExports.ts'), 'utf8');
+    const source = readFileSync(join(projectRoot, 'src/hooks/useReportExports.ts'), 'utf8').replace(/\r\n/g, '\n');
     const buildMonthlyCallMatch = /buildMonthlyPdfReport\(\{[\s\S]*?\}\);/.exec(source);
     assert.ok(buildMonthlyCallMatch, 'buildMonthlyPdfReport call must exist in useReportExports.ts');
     const callBody = buildMonthlyCallMatch[0];
@@ -111,7 +111,7 @@ test('T-E-001: useReportExports_passesPamLedgerToBuildMonthly (POST FIX-1)', () 
 // =============================================================
 
 test('T-E-002: useReportExports_importsComputePamLedger (POST FIX-1)', () => {
-    const source = readFileSync(join(projectRoot, 'src/hooks/useReportExports.ts'), 'utf8');
+    const source = readFileSync(join(projectRoot, 'src/hooks/useReportExports.ts'), 'utf8').replace(/\r\n/g, '\n');
     assert.ok(
         source.includes("import { computePamLedger }") || source.includes('from \'../utils/pamLedger\''),
         'AFTER FIX-1: useReportExports must import computePamLedger',
@@ -329,7 +329,7 @@ test('T-E-010: globalNetProfit_addsUsdtAndEurTotalsAsDzd', () => {
 // =============================================================
 
 test('T-E-013: clientPdfReport_doesNotUseGetRealizedProfit', () => {
-    const source = readFileSync(join(projectRoot, 'src/utils/pdfReports.ts'), 'utf8');
+    const source = readFileSync(join(projectRoot, 'src/utils/pdfReports.ts'), 'utf8').replace(/\r\n/g, '\n');
     // Locate buildClientPdfReport function body (between its export and the next `export function`)
     const clientFnStart = source.indexOf('export function buildClientPdfReport');
     assert.notEqual(clientFnStart, -1, 'buildClientPdfReport must exist');
@@ -369,7 +369,7 @@ test('T-E-014: investorPdfReport_usesDerivedTotalProfit_fromInput', () => {
     assert.ok(compactHtml.includes('5000,00'), 'totalProfit 5000 must render');
     assert.ok(report.html.includes('Aucun mouvement sur cette p&eacute;riode'), 'empty investor report must render compact movement note');
     // No reference to getRealizedProfit / tx.profit in the investor report path
-    const source = readFileSync(join(projectRoot, 'src/utils/pdfReports.ts'), 'utf8');
+    const source = readFileSync(join(projectRoot, 'src/utils/pdfReports.ts'), 'utf8').replace(/\r\n/g, '\n');
     const investorFnStart = source.indexOf('export function buildInvestorPdfReport');
     assert.notEqual(investorFnStart, -1, 'buildInvestorPdfReport must exist');
     const nextExport = source.indexOf('export function', investorFnStart + 1);
@@ -606,7 +606,7 @@ test('T-E-017: monthlyPdfReport_rendersExecutiveSummaryAndShortDetails', () => {
 // =============================================================
 
 test('T-E-007 (PARTIAL/STATIC): useAnalyticsViewModel.ts uses derivedProfit, never tx.profit fallback', () => {
-    const source = readFileSync(join(projectRoot, 'src/components/analytics/useAnalyticsViewModel.ts'), 'utf8');
+    const source = readFileSync(join(projectRoot, 'src/components/analytics/useAnalyticsViewModel.ts'), 'utf8').replace(/\r\n/g, '\n');
     // Must use pamLedger.profitByTxId
     assert.ok(
         source.includes('pamLedger.profitByTxId'),

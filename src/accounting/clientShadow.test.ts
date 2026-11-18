@@ -23,14 +23,14 @@ assert.equal(CLIENTS_V2_READINESS, 'shadow', 'Clients readiness must never activ
 assert.deepEqual([...CLIENT_SHADOW_KINDS].sort(), [...CLIENT_SHADOW_EXPECTED_KINDS].sort(), 'Every observed Client writer kind needs an independent accounting fixture.');
 assert.ok(CLIENT_SHADOW_WRITERS.length >= 16, 'The complete Client writer inventory must remain explicit.');
 for (const writer of CLIENT_SHADOW_WRITERS.filter((writer) => writer.v2Policy === 'shadow_observed')) {
-    const source = readFileSync(new URL(`../${writer.file.replace(/^src\//, '')}`, import.meta.url), 'utf8');
+    const source = readFileSync(new URL(`../${writer.file.replace(/^src\//, '')}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
     assert.match(source, /recordClientShadow/, `${writer.id} must invoke the non-blocking Client Shadow observer.`);
     assert.doesNotMatch(source, /commitFinancialOperation|accounting_operations/, `${writer.id} must not activate a V2 writer in Shadow.`);
 }
 
-const pureBuilderSource = readFileSync(new URL('./clientShadow.ts', import.meta.url), 'utf8');
+const pureBuilderSource = readFileSync(new URL('./clientShadow.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.doesNotMatch(pureBuilderSource, /firebase|recordClientShadow|Date\.now|Math\.random/, 'Client Draft builders must remain pure and Firestore-free.');
-const diagnosticsSource = readFileSync(new URL('./clientShadowDiagnostics.ts', import.meta.url), 'utf8');
+const diagnosticsSource = readFileSync(new URL('./clientShadowDiagnostics.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.doesNotMatch(diagnosticsSource, /firebase|collection\(|\.set\(|\.update\(|\.delete\(/, 'Client diagnostics must not write Firebase.');
 
 for (const fixture of CLIENT_SHADOW_EXPECTED_FIXTURES) {

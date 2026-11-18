@@ -39,6 +39,6 @@ const ALLOWED = new Set([
 const files: string[] = [];
 const walk = (dir: string) => readdirSync(dir).forEach((entry) => { const path = join(dir, entry); if (statSync(path).isDirectory()) walk(path); else if (/\.tsx?$/.test(entry) && !/\.test\./.test(entry)) files.push(path); });
 walk('src');
-const offenders = files.filter((path) => !ALLOWED.has(path.replace(/\\/g, '/')) && !path.includes('translations') && readFileSync(path, 'utf8').includes("'RMB'"));
+const offenders = files.filter((path) => !ALLOWED.has(path.replace(/\\/g, '/')) && !path.includes('translations') && readFileSync(path, 'utf8').replace(/\r\n/g, '\n').includes("'RMB'"));
 assert.deepEqual(offenders, [], 'these files name RMB by hand: read the currency list instead');
 console.log(`tradeCurrencies.test: ${TRADE_CURRENCY_CODES.join(', ')} known everywhere; no new hand-written RMB`);

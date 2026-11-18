@@ -197,8 +197,8 @@ assert.equal(prepareWriterReadModelDelta('treasury.adjustment', {
     affectedSummaries: ['dashboard_summary'],
 }).ok, false, 'Prepared deltas must not silently drift from the coverage matrix');
 
-const deltasSource = readFileSync('src/readModels/readModelDeltas.ts', 'utf8');
-const matrixSource = readFileSync('src/readModels/writerCoverageMatrix.ts', 'utf8');
+const deltasSource = readFileSync('src/readModels/readModelDeltas.ts', 'utf8').replace(/\r\n/g, '\n');
+const matrixSource = readFileSync('src/readModels/writerCoverageMatrix.ts', 'utf8').replace(/\r\n/g, '\n');
 assert.doesNotMatch(deltasSource, /from ['"].*firebase|collection\(|\.set\(|\.update\(|\.delete\(|getDocs|onSnapshot/);
 assert.doesNotMatch(matrixSource, /from ['"].*firebase|collection\(|\.set\(|\.update\(|\.delete\(|getDocs|onSnapshot/);
 

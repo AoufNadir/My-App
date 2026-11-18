@@ -30,14 +30,14 @@ assert.ok(PORTFOLIO_SHADOW_WRITERS.length >= 16, 'Every present or prepared Port
 assert.ok(PORTFOLIO_SHADOW_WRITERS.every((writer) => Boolean(writer.v2Policy)));
 assert.equal(PORTFOLIO_V2_READINESS, 'ready', 'Portfolio readiness is tracking-only until the global V2 cutover.');
 for (const writer of PORTFOLIO_SHADOW_WRITERS.filter((writer) => writer.v2Policy === 'shadow_observed')) {
-    const source = readFileSync(new URL(`../${writer.file.replace(/^src\//, '')}`, import.meta.url), 'utf8');
+    const source = readFileSync(new URL(`../${writer.file.replace(/^src\//, '')}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
     assert.match(source, /recordPortfolioShadow/, `${writer.id} must invoke the non-blocking Portfolio Shadow observer.`);
     assert.doesNotMatch(source, /commitFinancialOperation|accounting_operations/, `${writer.id} must not activate a V2 writer in Shadow.`);
 }
 
-const pureBuilderSource = readFileSync(new URL('./portfolioShadow.ts', import.meta.url), 'utf8');
+const pureBuilderSource = readFileSync(new URL('./portfolioShadow.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.doesNotMatch(pureBuilderSource, /firebase|recordPortfolioShadow|Date\.now|Math\.random/, 'Portfolio Draft builders must stay pure and Firestore-free.');
-const diagnosticsSource = readFileSync(new URL('./portfolioShadowDiagnostics.ts', import.meta.url), 'utf8');
+const diagnosticsSource = readFileSync(new URL('./portfolioShadowDiagnostics.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.doesNotMatch(diagnosticsSource, /firebase|collection\(|\.set\(|\.update\(|\.delete\(/, 'Portfolio diagnostics must not write Firebase.');
 
 for (const fixture of PORTFOLIO_SHADOW_EXPECTED_FIXTURES) {

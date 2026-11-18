@@ -120,7 +120,7 @@ test('T-A-003: eurConversion_doesNotEnforceAmountMatch (Q4 CONFIRMED: window-onl
 // =========================================================================
 
 test('T-A-004: handleSell_storesSnapshotProfit_usingCurrentAvgBuy (A-014 FRAGILITY)', () => {
-    const source = readFileSync(join(projectRoot, 'src/hooks/useTransactionHandlers.ts'), 'utf8');
+    const source = readFileSync(join(projectRoot, 'src/hooks/useTransactionHandlers.ts'), 'utf8').replace(/\r\n/g, '\n');
     const fnStart = source.indexOf('const handleSell');
     assert.notEqual(fnStart, -1, 'handleSell must exist');
     const fnBody = source.slice(fnStart, fnStart + 4000);

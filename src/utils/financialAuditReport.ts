@@ -282,10 +282,31 @@ export function buildFinancialAudit(backup: BackupFile, options: AuditOptions) {
     check('Stock: écarts d’arrondi (moins de 0.1 unité)', below.filter((b) => b.v > -0.1).map(line), 'OK', '⚠️');
     const byTx = new Map<string, Set<string>>();
     for (const w of pamLedger.warnings) byTx.set(w.txId, (byTx.get(w.txId) || new Set()).add(w.code));
-    const uncosted = [...byTx].filter(([, c]) => c.has('oversell') || c.has('uncosted_quantity_sold') || c.has('missing_buy_total')).map(([id, c]) => `${[...c].join(' + ')} (id ${id})`);
-    check('Stock: chaque vente a un coût d’achat', uncosted);
-    const stored = [...byTx].filter(([, c]) => c.has('stored_mismatch')).map(([id]) => `bénéfice ancien enregistré ≠ bénéfice recalculé; l'application utilise le recalculé (id ${id})`);
-    check('Bénéfices anciens enregistrés différents du calcul (sans effet)', stored, 'OK', '⚠️');
+    // A sale with units not backed by a recorded purchase (pamLedger.purchasedQty). The engine still costs EVERY unit
+    // at the average price before the sale (soldCostDzd = average × quantity), so the profit is not inflated; only a
+    // sale with no average at all (cost 0) is an error.
+    const uncostedRows = [...byTx].filter(([, c]) => c.has('oversell') || c.has('uncosted_quantity_sold') || c.has('missing_buy_total')).map(([id, c]) => {
+        const sale = pamLedger.profitByTxId[id];
+        if (!sale) return { zeroCost: true, text: `${[...c].join(' + ')} (id ${id})` };
+        const units = num(sale.quantityWithoutCostBasis);
+        const avg = num(sale.statsBefore.avgBuy);
+        return {
+            zeroCost: avg <= 0,
+            text: `${when(sale.timestamp)} · vente ${r2(num(sale.quantity))} ${sale.currency}, stock avant ${r2(num(sale.statsBefore.available))} · ${r2(units)} ${sale.currency} sans achat enregistré, comptés au prix moyen ${r2(avg)} (≈ ${fmt(units * avg)} DZD) → bénéfice ${fmt(num(sale.derivedProfit))} DZD · ${[...c].join(' + ')} (id ${id})`,
+        };
+    });
+    check('Stock: chaque vente a un coût d’achat (coût nul)', uncostedRows.filter((u) => u.zeroCost).map((u) => u.text));
+    check('Stock: unités vendues sans achat enregistré, comptées au prix moyen', uncostedRows.filter((u) => !u.zeroCost).map((u) => u.text), 'OK', '⚠️');
+    // Old profits saved inside the operations: the split, the dashboard and the reports recompute them; listed as a count.
+    const storedRows = pamLedger.sellProfitRows.filter((r) => byTx.get(r.txId)?.has('stored_mismatch'));
+    const storedGap = storedRows.reduce((sum, r) => sum + num(r.storedProfit) - num(r.derivedProfit), 0);
+    const biggest = [...storedRows].sort((a, b) => Math.abs(num(b.storedProfit) - num(b.derivedProfit)) - Math.abs(num(a.storedProfit) - num(a.derivedProfit))).slice(0, 5);
+    out();
+    out(`### ${storedRows.length ? '⚠️' : '✅'} Bénéfices anciens enregistrés ≠ recalculés (${storedRows.length})`);
+    out(storedRows.length
+        ? `Le partage des bénéfices utilise le bénéfice recalculé (règle 7), pas celui enregistré. Somme des écarts enregistré − recalculé: ${fmt(storedGap)} DZD. Les 5 plus grands:`
+        : 'OK');
+    for (const r of biggest) out(`- ${when(r.timestamp)} · enregistré ${fmt(num(r.storedProfit))} · recalculé ${fmt(num(r.derivedProfit))} (id ${r.txId})`);
     out();
     out(`Stock recalculé: ${Object.entries(pamLedger.holdings).map(([c, h]) => `${c} ${r2(num(h.available))} (PAM ${r2(num(h.avgBuy))})`).join(' · ')}`);
 
@@ -317,14 +338,15 @@ export function buildFinancialAudit(backup: BackupFile, options: AuditOptions) {
 
     // 8.5 Distribution: for every month, the investors' profits add up to the net exactly.
     const distProblems: string[] = [];
-    const first = Math.min(...pamLedger.sellProfitRows.map((r) => r.timestamp), now);
+    // From the first month with a sale or a project expense.
+    const first = Math.min(...pamLedger.sellProfitRows.map((r) => r.timestamp), ...deliveryExpenses.map((e) => num(e.timestamp)).filter((t) => t > 0), now);
     for (let d = new Date(new Date(first).getFullYear(), new Date(first).getMonth(), 1); d.getTime() <= now; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
         const from = d.getTime();
         const to = Math.min(now, new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime() - 1);
         const econ = deriveInvestorEconomics({ ...base, periodStartTs: from, periodEndTs: to } as never);
         const sumInv = econ.derivedInvestors.reduce((s, i) => s + num(i.totalProfit), 0);
         const gap = r2(sumInv - num(econ.totals.netDistributableProfit));
-        if (Math.abs(gap) > 1) distProblems.push(`${day(from).slice(0, 7)}: investisseurs ${fmt(sumInv)} ≠ net ${fmt(num(econ.totals.netDistributableProfit))} (écart ${gap})`);
+        if (Math.abs(gap) > 0.01) distProblems.push(`${day(from).slice(0, 7)}: investisseurs ${fmt(sumInv)} ≠ net ${fmt(num(econ.totals.netDistributableProfit))} (écart ${gap})`);
     }
     check('Partage: chaque mois, la somme des parts = le net à partager', distProblems);
 

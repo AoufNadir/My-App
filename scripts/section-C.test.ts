@@ -354,7 +354,7 @@ test('T-C-011: assetClientBalances_doesNotApplyAffectsBalanceFilter (CURRENT —
 // =========================================================================
 
 test('T-C-012: manualAssetPayment_createsLinkedAjoutTreasuryTx (static)', () => {
-    const source = readFileSync(join(projectRoot, 'src/hooks/useAssetHandlers.ts'), 'utf8');
+    const source = readFileSync(join(projectRoot, 'src/hooks/useAssetHandlers.ts'), 'utf8').replace(/\r\n/g, '\n');
     // POST FIX-5: source uses a `treasuryType` variable that is 'Ajout' for inflows
     // ('payment_received') and 'Retrait' for outflows ('payment_made').
     assert.ok(
@@ -380,7 +380,7 @@ test('T-C-012: manualAssetPayment_createsLinkedAjoutTreasuryTx (static)', () => 
 // =========================================================================
 
 test('T-C-013: manualAssetExpense_createsRetraitTreasuryTx (POST FIX-5 / Q7)', () => {
-    const source = readFileSync(join(projectRoot, 'src/hooks/useAssetHandlers.ts'), 'utf8');
+    const source = readFileSync(join(projectRoot, 'src/hooks/useAssetHandlers.ts'), 'utf8').replace(/\r\n/g, '\n');
     const fnStart = source.indexOf('handleCreateAssetTransaction');
     const fnEnd = source.indexOf('handleCreateAssetClient', fnStart);
     const fnBody = source.slice(fnStart, fnEnd);
@@ -418,7 +418,7 @@ test('T-C-014: assetClient_adjustmentDeltaThreshold_below0_01Skipped', () => {
 // =========================================================================
 
 test('T-C-015: assetClient_cascadeDeletesActifTransactions (POST FIX-6 / Q8)', () => {
-    const source = readFileSync(join(projectRoot, 'src/hooks/useAssetHandlers.ts'), 'utf8');
+    const source = readFileSync(join(projectRoot, 'src/hooks/useAssetHandlers.ts'), 'utf8').replace(/\r\n/g, '\n');
     const fnStart = source.indexOf('handleDeleteAssetClient');
     const fnEnd = source.indexOf('openAssetClientModal', fnStart);
     const fnBody = source.slice(fnStart, fnEnd);

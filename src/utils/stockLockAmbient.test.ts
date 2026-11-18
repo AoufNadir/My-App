@@ -57,10 +57,10 @@ const batchOf = (path: string) => {
     seen = null;
 
     // The app registers the lock, and the save windows use the clear message.
-    const main = readFileSync(new URL('../MainApp.tsx', import.meta.url), 'utf8');
+    const main = readFileSync(new URL('../MainApp.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
     assert.match(main, /registerStockLock\(/);
     for (const file of ['../hooks/useTransactionHandlers.ts', '../hooks/useInvestorHandlers.ts', '../hooks/useDigitalServiceHandlers.ts']) {
-        const src = readFileSync(new URL(file, import.meta.url), 'utf8');
+        const src = readFileSync(new URL(file, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
         assert.match(src, /saveErrorAlert\(e, /, file);
     }
     console.log('stockLockAmbient.test: expenses, withdrawals and services take the same stock lock as sales');

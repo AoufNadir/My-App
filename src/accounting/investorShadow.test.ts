@@ -21,14 +21,14 @@ import {
 assert.equal(INVESTORS_V2_READINESS, 'shadow', 'Investors Shadow must not activate a V2 writer or closure.');
 assert.ok(INVESTOR_SHADOW_WRITERS.length >= 11, 'The Investor writer inventory must be explicit.');
 for (const writer of INVESTOR_SHADOW_WRITERS.filter((writer) => writer.v2Policy === 'shadow_observed' && writer.file.endsWith('.ts'))) {
-    const source = readFileSync(new URL(`../${writer.file.replace(/^src\//, '')}`, import.meta.url), 'utf8');
+    const source = readFileSync(new URL(`../${writer.file.replace(/^src\//, '')}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
     if (writer.file.includes('useInvestorHandlers')) assert.match(source, /recordInvestorShadow/, `${writer.id} must observe Legacy without enabling V2.`);
     assert.doesNotMatch(source, /commitFinancialOperation|accounting_operations/, `${writer.id} must not create a V2 Firebase operation in Shadow.`);
 }
 
-const pureBuilderSource = readFileSync(new URL('./investorShadow.ts', import.meta.url), 'utf8');
+const pureBuilderSource = readFileSync(new URL('./investorShadow.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.doesNotMatch(pureBuilderSource, /firebase|recordInvestorShadow|Date\.now|Math\.random/, 'Investor draft builders must be pure and Firestore-free.');
-const diagnosticsSource = readFileSync(new URL('./investorShadowDiagnostics.ts', import.meta.url), 'utf8');
+const diagnosticsSource = readFileSync(new URL('./investorShadowDiagnostics.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.doesNotMatch(diagnosticsSource, /firebase|collection\(|\.set\(|\.update\(|\.delete\(/, 'Investor diagnostics must never write Firebase.');
 
 assert.doesNotThrow(assertInvestorShadowFixtures, 'Independent Investor accounting fixtures must balance.');

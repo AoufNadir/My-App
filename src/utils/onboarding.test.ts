@@ -11,8 +11,8 @@ for (let i = 0; i < 4; i++) {
     const counts = [0, 0, 0, 0]; counts[i] = 1;
     assert.equal(shouldShowOnboarding({ ...base, counts }), false, 'an account with any data never sees it');
 }
-const main = readFileSync(new URL('../MainApp.tsx', import.meta.url), 'utf8');
+const main = readFileSync(new URL('../MainApp.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.match(main, /counts: \[transactions\.length, clientsDzd\.length, treasuryTransactions\.length/);
-const hook = readFileSync(new URL('../hooks/useSetupDone.ts', import.meta.url), 'utf8');
+const hook = readFileSync(new URL('../hooks/useSetupDone.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.match(hook, /fromCache === false/, 'only the server answer opens the setup');
 console.log('onboarding tests passed');

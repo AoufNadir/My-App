@@ -90,5 +90,10 @@ console.log('financial audit report tests passed');
     assert.match(tc, /Dépenses payées en devise .*\(1\):\n- .* 10 USDT \(2 600 DZD\) · personal_expense \(id pu\)/);
     assert.match(tc, /✅ Liens/, 'a treasury linkedTxId may point to a client line');
     assert.match(tc, /⚠️ Clients: .* 1 client\(s\) supprimé\(s\), net nul \(2\)/);
+    // A sale above the stock: the units without cost and how much the profit may be overstated.
+    const over: BackupFile = JSON.parse(JSON.stringify(backup));
+    over.collections.usdt_txs.push(doc('s9', { type: 'sell', currency: 'USDT', quantity: 8_010, sell: 260, total: 2_082_600, timestamp: at(17), date: '17/11/2026', time: '12:00' }));
+    const { text: to } = buildFinancialAudit(over, { now: NOW });
+    assert.match(to, /✅ Stock: chaque vente a un coût d’achat \(coût nul\)[\s\S]*⚠️ Stock: unités vendues sans achat enregistré, comptées au prix moyen \(1\)\n- .* vente 1000 USDT, stock avant 990 · 10 USDT sans achat enregistré, comptés au prix moyen 250 \(≈ 2 500 DZD\) → bénéfice 20 000 DZD .*\(id s3\)/);
     console.log('financial audit section 8 passed');
 }

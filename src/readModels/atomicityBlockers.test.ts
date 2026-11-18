@@ -15,7 +15,7 @@ import {
 } from './readModelActivation';
 
 const root = process.cwd();
-const source = (path: string) => readFileSync(join(root, path), 'utf8');
+const source = (path: string) => readFileSync(join(root, path), 'utf8').replace(/\r\n/g, '\n');
 
 function sourceSlice(file: string, marker: string, endMarker: string): string {
     const content = source(file);

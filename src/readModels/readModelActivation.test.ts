@@ -114,16 +114,16 @@ const read = prepareReadModelDeltaApplication({ snapshot, delta, summaryWriteMod
 assert.equal(read.status, 'prepared');
 assert.equal(read.failureBlocksLegacy, true);
 
-const mainAppSource = readFileSync('src/MainApp.tsx', 'utf8');
+const mainAppSource = readFileSync('src/MainApp.tsx', 'utf8').replace(/\r\n/g, '\n');
 assert.match(mainAppSource, /subscribeCoreFinancial:\s*!shouldUseDashboardReadModel/, 'Dashboard read mode must not subscribe to full legacy financial history');
 assert.match(mainAppSource, /useDashboardSummaryReadModel\(userDocRef,\s*readModelsMode\)/, 'Dashboard read mode must subscribe to dashboard_summary');
 assert.match(mainAppSource, /transactions:\s*dashboardSummary\s*\?\s*EMPTY_TRANSACTIONS\s*:\s*transactions/, 'Dashboard read props must not require full transaction history');
 assert.doesNotMatch(mainAppSource, /writeInitialReadModelSnapshot\(/, 'Initial snapshot writer must never run automatically from MainApp');
 
-const initialSnapshotSource = readFileSync('src/readModels/initialSnapshotWriter.ts', 'utf8');
+const initialSnapshotSource = readFileSync('src/readModels/initialSnapshotWriter.ts', 'utf8').replace(/\r\n/g, '\n');
 assert.match(initialSnapshotSource, /manual_initial_snapshot/, 'Initial snapshot writer must remain explicit/manual');
 
-const historyCardSource = readFileSync('src/components/transactions/TransactionsHistoryCard.tsx', 'utf8');
+const historyCardSource = readFileSync('src/components/transactions/TransactionsHistoryCard.tsx', 'utf8').replace(/\r\n/g, '\n');
 assert.match(historyCardSource, /INITIAL_VISIBLE\s*=\s*60/, 'History display must keep local pagination');
 assert.match(historyCardSource, /setVisibleTransactionCount\(\(prev\) => prev \+ LOAD_MORE_COUNT\)/, 'History display must support load-more pagination');
 assert.doesNotMatch(historyCardSource, /\.limit\(/, 'History pagination must stay display-only and never limit accounting source queries');

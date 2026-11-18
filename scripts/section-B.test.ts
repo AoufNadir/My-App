@@ -349,7 +349,7 @@ test('T-B-011: overdueAmount_displaysOnlyOverdueLotsSum (POST FIX-4 / Q5)', () =
 test('T-B-012: paymentMethod_normalizationHandlesEncodingVariants', () => {
     // The source has a check that compares against BOTH the proper 'Crédit' and the mojibake
     // 'CrÃ©dit' to defend against legacy double-encoded data. Confirm both literals exist.
-    const source = readFileSync(join(projectRoot, 'src/hooks/useClientHandlers.ts'), 'utf8');
+    const source = readFileSync(join(projectRoot, 'src/hooks/useClientHandlers.ts'), 'utf8').replace(/\r\n/g, '\n');
     const proper = (source.match(/'Crédit'/g) || []).length;
     const mojibake = (source.match(/'CrÃ©dit'/g) || []).length;
     assert.ok(

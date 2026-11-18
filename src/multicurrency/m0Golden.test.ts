@@ -73,5 +73,5 @@ if (process.env.UPDATE_GOLDEN === '1' || !existsSync(file)) {
     writeFileSync(file, text);
     console.log('m0Golden: reference written');
 }
-assert.deepEqual(JSON.parse(text), JSON.parse(readFileSync(file, 'utf8')), 'the ledger and the capital give the pinned numbers');
+assert.deepEqual(JSON.parse(text), JSON.parse(readFileSync(file, 'utf8').replace(/\r\n/g, '\n')), 'the ledger and the capital give the pinned numbers');
 console.log('m0Golden tests passed: ledger and capital equal to the pinned reference');

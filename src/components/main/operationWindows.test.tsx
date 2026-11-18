@@ -658,8 +658,8 @@ console.log('operationWindows.test: V13-7 adjustment with nothing pre-chosen');
 // from MainApp through MainAppDialogs to the window, and the window's own default is « not chosen ».
 {
     const { readFileSync } = await import('node:fs');
-    const dialogs = readFileSync(new URL('./MainAppDialogs.tsx', import.meta.url), 'utf8');
-    const window = readFileSync(new URL('./MainClientOperationsDialogs.tsx', import.meta.url), 'utf8');
+    const dialogs = readFileSync(new URL('./MainAppDialogs.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+    const window = readFileSync(new URL('./MainClientOperationsDialogs.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
     for (const flag of ['adjustmentTabChosen', 'adjustmentAssetChosen', 'setAdjustmentTabChosen', 'setAdjustmentAssetChosen'])
         assert.ok((dialogs.match(new RegExp(`\\b${flag}\\b`, 'g')) || []).length >= 2, `MainAppDialogs passes ${flag} on`);
     assert.ok(window.includes('adjustmentTabChosen = false') && window.includes('adjustmentAssetChosen = false'), 'missing flags mean nothing is chosen');

@@ -17,7 +17,7 @@ const tFr = (key: string) => lookup('fr', key) ?? key;
 
 // Each template has its Arabic text, which uses only the {parts} the French message carries
 // (« un seul investisseur » needs no count).
-const keysOf = readFileSync(new URL('./alertMessages.ts', import.meta.url), 'utf8').matchAll(/\[(?:'(?:[^'\\]|\\.)*'|"[^"]*"), '(alerts\.\w+)'\]/g);
+const keysOf = readFileSync(new URL('./alertMessages.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n').matchAll(/\[(?:'(?:[^'\\]|\\.)*'|"[^"]*"), '(alerts\.\w+)'\]/g);
 const templateKeys = [...keysOf].map((match) => match[1]);
 assert.equal(templateKeys.length, KNOWN_ALERT_TEMPLATES.length, 'one key per template');
 const parts = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]);
@@ -67,7 +67,7 @@ function texts(node: ts.Expression, sf: ts.SourceFile): string[] {
 }
 const messages = new Map<string, string>();
 for (const file of files) {
-    const sf = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    const sf = ts.createSourceFile(file, readFileSync(file, 'utf8').replace(/\r\n/g, '\n'), ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
     (function visit(node: ts.Node) {
         if (ts.isCallExpression(node) && node.arguments.length > 0) {
             const callee = node.expression;

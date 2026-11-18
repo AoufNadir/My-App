@@ -28,8 +28,8 @@ function committed(operation: AccountingOperationDraft): AccountingOperation {
     return { ...operation, idempotencyPayload: createIdempotencyPayload(operation) };
 }
 
-const source = readFileSync(new URL('./lifecycleV2.ts', import.meta.url), 'utf8');
-const diagnosticsSource = readFileSync(new URL('./lifecycleV2Diagnostics.ts', import.meta.url), 'utf8');
+const source = readFileSync(new URL('./lifecycleV2.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+const diagnosticsSource = readFileSync(new URL('./lifecycleV2Diagnostics.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
 assert.equal(LIFECYCLE_V2_READINESS, 'ready');
 assert.ok(LIFECYCLE_V2_COVERAGE.some((item) => item.id === 'lifecycle.v2-cross-domain' && item.v2Policy === 'full_reversal'));

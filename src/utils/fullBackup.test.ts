@@ -24,7 +24,7 @@ assert.equal(writes.length, 0, 'nothing written');
 for (const name of ['digital_service_txs', 'inventory_checks', 'movement_reasons', 'subscriptions', 'pricing_plans', 'client_confirmations', 'investors', 'investor_transactions'])
     assert.ok((BACKUP_COLLECTIONS as readonly string[]).includes(name), name);
 // every money collection guarded by the write gate is in the backup
-const gate = readFileSync(new URL('../firebase.ts', import.meta.url), 'utf8');
+const gate = readFileSync(new URL('../firebase.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 for (const name of /FINANCIAL_COLLECTIONS = new Set\(\[([\s\S]*?)\]\)/.exec(gate)![1].match(/'([a-zA-Z_]+)'/g)!.map((s) => s.slice(1, -1)))
     assert.ok((BACKUP_COLLECTIONS as readonly string[]).includes(name), `money collection ${name} is backed up`);
 assert.deepEqual(plainValue([1, { a: null }]), [1, { a: null }]);
