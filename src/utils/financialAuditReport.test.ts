@@ -94,6 +94,6 @@ console.log('financial audit report tests passed');
     const over: BackupFile = JSON.parse(JSON.stringify(backup));
     over.collections.usdt_txs.push(doc('s9', { type: 'sell', currency: 'USDT', quantity: 8_010, sell: 260, total: 2_082_600, timestamp: at(17), date: '17/11/2026', time: '12:00' }));
     const { text: to } = buildFinancialAudit(over, { now: NOW });
-    assert.match(to, /✅ Stock: chaque vente a un coût d’achat \(coût nul\)[\s\S]*⚠️ Stock: unités vendues sans achat enregistré, comptées au prix moyen \(1\)\n- .* vente 1000 USDT, stock avant 990 · 10 USDT sans achat enregistré, comptés au prix moyen 250 \(≈ 2 500 DZD\) → bénéfice 20 000 DZD .*\(id s3\)/);
+    assert.match(to, /✅ Stock: chaque vente a un coût d’achat \(coût nul\)[\s\S]*⚠️ Stock: unités vendues non couvertes par l’historique de coût, comptées au prix moyen \(1\)\n- .* vente 1000 USDT, stock avant 990 · 10 USDT non couverts par l'historique de coût, comptés au prix moyen 250 \(≈ 2 500 DZD\) → bénéfice 20 000 DZD .*\(id s3\)/);
     console.log('financial audit section 8 passed');
 }

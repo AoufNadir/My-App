@@ -292,11 +292,11 @@ export function buildFinancialAudit(backup: BackupFile, options: AuditOptions) {
         const avg = num(sale.statsBefore.avgBuy);
         return {
             zeroCost: avg <= 0,
-            text: `${when(sale.timestamp)} · vente ${r2(num(sale.quantity))} ${sale.currency}, stock avant ${r2(num(sale.statsBefore.available))} · ${r2(units)} ${sale.currency} sans achat enregistré, comptés au prix moyen ${r2(avg)} (≈ ${fmt(units * avg)} DZD) → bénéfice ${fmt(num(sale.derivedProfit))} DZD · ${[...c].join(' + ')} (id ${id})`,
+            text: `${when(sale.timestamp)} · vente ${r2(num(sale.quantity))} ${sale.currency}, stock avant ${r2(num(sale.statsBefore.available))} · ${r2(units)} ${sale.currency} non couverts par l'historique de coût, comptés au prix moyen ${r2(avg)} (≈ ${fmt(units * avg)} DZD) → bénéfice ${fmt(num(sale.derivedProfit))} DZD · ${[...c].join(' + ')} (id ${id})`,
         };
     });
     check('Stock: chaque vente a un coût d’achat (coût nul)', uncostedRows.filter((u) => u.zeroCost).map((u) => u.text));
-    check('Stock: unités vendues sans achat enregistré, comptées au prix moyen', uncostedRows.filter((u) => !u.zeroCost).map((u) => u.text), 'OK', '⚠️');
+    check('Stock: unités vendues non couvertes par l’historique de coût, comptées au prix moyen', uncostedRows.filter((u) => !u.zeroCost).map((u) => u.text), 'OK', '⚠️');
     // Old profits saved inside the operations: the split, the dashboard and the reports recompute them; listed as a count.
     const storedRows = pamLedger.sellProfitRows.filter((r) => byTx.get(r.txId)?.has('stored_mismatch'));
     const storedGap = storedRows.reduce((sum, r) => sum + num(r.storedProfit) - num(r.derivedProfit), 0);
