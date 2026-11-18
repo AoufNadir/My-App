@@ -48,3 +48,31 @@ console.log('financial audit report tests passed');
     assert.ok(/Total: initial 3 420 000 \+ apports 0 \+ réinvesti 0 − retraits 0 = 3 420 000/.test(t7), 'owner capital total');
     console.log('financial audit section 7 passed');
 }
+
+{
+    // Section 8: each check finds what it must, and the clean parts say OK.
+    const bad: BackupFile = JSON.parse(JSON.stringify(backup));
+    bad.collections.treasury_txs.push(
+        doc('t0', { type: 'Ajout', amount: 10_000, source: 'Caisse', timestamp: at(1, 8) }),
+        doc('t1', { type: 'Retrait', amount: 20_000, source: 'Caisse', timestamp: at(2) }),
+        doc('t2', { type: 'Retrait', amount: 0, source: 'Caisse', timestamp: at(2) }),
+        doc('t3', { type: 'Retrait', amount: 500, source: 'Mystère', timestamp: at(2) }),
+        doc('t4', { origin: 'personal_expense', type: 'Retrait', amount: 1_200, source: 'BaridiMob', advanceState: 'pending', timestamp: at(15) }),
+        doc('t5', { type: 'Ajout', amount: 5_000, source: 'BaridiMob', linkedTxId: 'gone', timestamp: at(1, 7) }),
+    );
+    bad.collections.dzd_clients = [doc('c1', { name: 'Client' })];
+    bad.collections.dzd_client_txs = [doc('ct1', { clientId: 'c1', montant: -3_000, timestamp: at(4) }), doc('ct2', { clientId: 'nobody', montant: 100, timestamp: at(4) })];
+    const { text: t8 } = buildFinancialAudit(bad, { now: NOW });
+    assert.match(t8, /Soldes recalculés: BaridiMob 3 800 · Caisse -49 350/);
+    assert.match(t8, /❌ Trésorerie: aucun compte en dessous de zéro \(1\)\n- Caisse passe à -10 000 le 2026-11-02/);
+    assert.match(t8, /❌ Trésorerie: aucun mouvement ignoré par le calcul \(2\)/);
+    assert.match(t8, /compte « Mystère » non reconnu/);
+    assert.match(t8, /✅ Stock: aucune devise en dessous de zéro/);
+    assert.match(t8, /❌ Clients: chaque ligne appartient à un client existant \(1\)/);
+    assert.match(t8, /Clients: dettes -3 000 · avances 100 · net -2 900\./);
+    assert.match(t8, /❌ Liens: .* \(1\)\n- trésorerie t5 · linkedTxId → opération gone absent/);
+    assert.match(t8, /✅ Partage: chaque mois/);
+    assert.match(t8, /❌ Avances personnelles réglées \(1\)\n- 2026-11-15 12:00 · 1 200 DZD/);
+    assert.match(text, /✅ Avances personnelles réglées\nAucune avance en attente\./);
+    console.log('financial audit section 8 passed');
+}

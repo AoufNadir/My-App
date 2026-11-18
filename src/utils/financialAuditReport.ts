@@ -189,5 +189,119 @@ export function buildFinancialAudit(backup: BackupFile, options: AuditOptions) {
         out(`Total: initial ${fmt(rec.openingCapital)} + apports ${fmt(rec.realCapitalAdditions)} + réinvesti ${fmt(rec.reinvestments)} − retraits ${fmt(rec.realCapitalWithdrawals)} = ${fmt(rec.currentCapital)}.`);
         if (inv.isManager && options.declaredOwnerCapital) out(`Écart avec le capital déclaré (${fmt(options.declaredOwnerCapital)}): ${fmt(options.declaredOwnerCapital - rec.currentCapital)}.`);
     }
+
+    // 8. Integrity checks: rules that must always hold. Each says OK or lists the lines that break it.
+    out();
+    out(`## 8. Contrôles d'intégrité`);
+    const usdtTxs = transactions as unknown as Doc[];
+    const treasuryDocs = treasury as unknown as Doc[];
+    const clientDocs = clientTxs as unknown as Doc[];
+    const clientIds = new Set(rows(backup, 'dzd_clients').map((c) => c.id));
+    const usdtIds = new Set(usdtTxs.map((t) => t.id));
+    const treasuryIds = new Set(treasuryDocs.map((t) => t.id));
+    const clientTxIds = new Set(clientDocs.map((t) => t.id));
+    const investorTxIds = new Set(investorTxs.map((t) => t.id));
+    const check = (title: string, problems: string[], okText = 'OK') => {
+        out();
+        out(`### ${problems.length ? '❌' : '✅'} ${title}${problems.length ? ` (${problems.length})` : ''}`);
+        if (!problems.length) { out(okText); return; }
+        for (const p of problems.slice(0, 15)) out(`- ${p}`);
+        if (problems.length > 15) out(`- … et ${problems.length - 15} autres`);
+    };
+    const tsOf = (d: Doc) => num(d.timestamp);
+
+    // 8.1 Cash: replay every dinar movement in time order; a wallet never goes below zero; no movement ignored.
+    const walletOf = (raw: unknown): string | null => {
+        if (typeof raw !== 'string' || !raw) return null;
+        const n = raw.toLowerCase();
+        if (n.includes('caisse')) return 'Caisse';
+        if (n.includes('baridi')) return 'BaridiMob';
+        if (raw.startsWith('acc_')) return raw;
+        return null;
+    };
+    const balances: Record<string, number> = {};
+    const negatives: string[] = [];
+    const ignored: string[] = [];
+    const negativeSeen = new Set<string>();
+    for (const t of [...treasuryDocs].sort((a, b) => tsOf(a) - tsOf(b))) {
+        const amount = num(t.amount);
+        const type = String(t.type ?? '');
+        if (!(amount > 0)) { ignored.push(`${when(tsOf(t))} · ${type} · montant ${String(t.amount)} (id ${t.id})`); continue; }
+        const moves: Array<[string, number]> = [];
+        if (type === 'Transfer') {
+            const legacy = /from\s+(.+?)\s+to\s+(.+)/i.exec(String(t.asset ?? ''));
+            const from = walletOf(t.source) ?? (legacy ? walletOf(legacy[1]) : null);
+            const to = walletOf(t.destination) ?? (legacy ? walletOf(legacy[2]) : null);
+            if (!from || !to || from === to) { ignored.push(`${when(tsOf(t))} · virement sans compte clair (id ${t.id})`); continue; }
+            moves.push([from, -amount], [to, amount]);
+        } else {
+            const factor = type === 'Ajout' || type === 'Adjustment (+)' ? 1 : type === 'Retrait' || type === 'Adjustment (-)' ? -1 : 0;
+            const wallet = walletOf(t.source) ?? (t.asset === 'DZD-Caisse' ? 'Caisse' : t.asset === 'DZD-Baridi' ? 'BaridiMob' : null);
+            if (!factor || !wallet) { ignored.push(`${when(tsOf(t))} · ${type} ${fmt(amount)} · compte « ${String(t.source ?? t.asset ?? '')} » non reconnu (id ${t.id})`); continue; }
+            moves.push([wallet, factor * amount]);
+        }
+        for (const [w, delta] of moves) {
+            balances[w] = r2((balances[w] || 0) + delta);
+            if (balances[w] < -0.5 && !negativeSeen.has(w)) {
+                negativeSeen.add(w);
+                negatives.push(`${w} passe à ${fmt(balances[w])} le ${when(tsOf(t))} (id ${t.id}) — première fois`);
+            }
+        }
+    }
+    out();
+    out(`Soldes recalculés: ${Object.entries(balances).map(([w, b]) => `${w} ${fmt(b)}`).join(' · ') || 'aucun'}`);
+    check('Trésorerie: aucun compte en dessous de zéro', negatives);
+    check('Trésorerie: aucun mouvement ignoré par le calcul', ignored);
+
+    // 8.2 Stock: never negative, every sale costed.
+    const stockProblems = pamLedger.operationRows
+        .filter((row) => num(row.statsAfter.available) < -0.005)
+        .map((row) => `${row.currency} à ${r2(num(row.statsAfter.available))} après l'opération du ${when(row.timestamp)} (id ${row.txId})`);
+    check('Stock: aucune devise en dessous de zéro', stockProblems);
+    const ledgerWarnings = pamLedger.warnings.filter((w) => w.severity === 'high' || w.code === 'oversell' || w.code === 'uncosted_quantity_sold' || w.code === 'missing_buy_total')
+        .map((w) => `${w.currency} · ${w.code} · ${w.message} (id ${w.txId})`);
+    check('Stock: chaque vente a un coût d’achat', ledgerWarnings);
+    out();
+    out(`Stock recalculé: ${Object.entries(pamLedger.holdings).map(([c, h]) => `${c} ${r2(num(h.available))} (PAM ${r2(num(h.avgBuy))})`).join(' · ')}`);
+
+    // 8.3 Clients: every line belongs to a client; balances.
+    const orphanClientRows = clientDocs.filter((t) => !clientIds.has(String(t.clientId))).map((t) => `${when(tsOf(t))} · ${fmt(num(t.montant))} · client ${String(t.clientId)} introuvable (id ${t.id})`);
+    check('Clients: chaque ligne appartient à un client existant', orphanClientRows);
+    let debts = 0, advances = 0;
+    const byClient = new Map<string, number>();
+    for (const t of clientDocs) if (t.affectsBalance !== false) byClient.set(String(t.clientId), r2((byClient.get(String(t.clientId)) || 0) + num(t.montant)));
+    for (const b of byClient.values()) { if (b < 0) debts += b; else advances += b; }
+    out();
+    out(`Clients: dettes ${fmt(debts)} · avances ${fmt(advances)} · net ${fmt(debts + advances)}.`);
+
+    // 8.4 Links: a link points to a document that exists.
+    const broken: string[] = [];
+    const need = (from: string, d: Doc, field: string, pool: Set<string>, poolName: string) => {
+        const v = d[field];
+        if (typeof v === 'string' && v && !pool.has(v)) broken.push(`${from} ${d.id} · ${field} → ${poolName} ${v} absent`);
+    };
+    for (const t of usdtTxs) { need('opération', t, 'linkedTreasuryTxId', treasuryIds, 'trésorerie'); need('opération', t, 'linkedClientTxId', clientTxIds, 'ligne client'); need('opération', t, 'linkedClientDzdId', clientTxIds, 'ligne client'); }
+    for (const t of treasuryDocs) { need('trésorerie', t, 'linkedTxId', usdtIds, 'opération'); need('trésorerie', t, 'linkedInvestorTxId', investorTxIds, 'mouvement investisseur'); need('trésorerie', t, 'linkedCapitalInvestorTxId', investorTxIds, 'mouvement investisseur'); }
+    for (const t of clientDocs) { need('ligne client', t, 'linkedTxId', usdtIds, 'opération'); need('ligne client', t, 'linkedTreasuryTxId', treasuryIds, 'trésorerie'); }
+    for (const t of investorTxs as unknown as Doc[]) need('mouvement investisseur', t, 'linkedTreasuryTxId', treasuryIds, 'trésorerie');
+    check('Liens: aucune ligne ne pointe vers une ligne supprimée', broken);
+
+    // 8.5 Distribution: for every month, the investors' profits add up to the net exactly.
+    const distProblems: string[] = [];
+    const first = Math.min(...pamLedger.sellProfitRows.map((r) => r.timestamp), now);
+    for (let d = new Date(new Date(first).getFullYear(), new Date(first).getMonth(), 1); d.getTime() <= now; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+        const from = d.getTime();
+        const to = Math.min(now, new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime() - 1);
+        const econ = deriveInvestorEconomics({ ...base, periodStartTs: from, periodEndTs: to } as never);
+        const sumInv = econ.derivedInvestors.reduce((s, i) => s + num(i.totalProfit), 0);
+        const gap = r2(sumInv - num(econ.totals.netDistributableProfit));
+        if (Math.abs(gap) > 1) distProblems.push(`${day(from).slice(0, 7)}: investisseurs ${fmt(sumInv)} ≠ net ${fmt(num(econ.totals.netDistributableProfit))} (écart ${gap})`);
+    }
+    check('Partage: chaque mois, la somme des parts = le net à partager', distProblems);
+
+    // 8.6 Things waiting for a decision.
+    const pending = personalExpenses.filter((e) => (e as { advanceState?: unknown }).advanceState === 'pending')
+        .map((e) => `${when(num(e.timestamp))} · ${fmt(num(e.amount))} DZD · avance personnelle en attente (comptée comme argent que le gérant doit au projet)`);
+    check('Avances personnelles réglées', pending, 'Aucune avance en attente.');
     return { text: lines.join('\n') };
 }
