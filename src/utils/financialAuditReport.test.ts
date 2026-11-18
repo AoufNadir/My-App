@@ -41,3 +41,10 @@ assert.match(text, /Contrôle: somme des bénéfices des investisseurs 80 650 = 
 // today: rule = 20 000 × (0.3 + 0.7 × 0.7355) = 16 296.77, the app the same: gap 0
 assert.match(text, /\| Aujourd’hui[^\n]*\| 16 297 \| 16 297 \| 0 \|/);
 console.log('financial audit report tests passed');
+
+{
+    const { text: t7 } = buildFinancialAudit(backup as never, { now: NOW, declaredOwnerCapital: 3_420_000, declaredOthersCapital: 1_230_000 });
+    assert.ok(t7.includes('## 7. Mouvements de capital'), 'section 7 present');
+    assert.ok(/Total: initial 3 420 000 \+ apports 0 \+ réinvesti 0 − retraits 0 = 3 420 000/.test(t7), 'owner capital total');
+    console.log('financial audit section 7 passed');
+}

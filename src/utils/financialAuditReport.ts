@@ -26,7 +26,8 @@ const rows = (backup: BackupFile, name: string): Doc[] => (backup.collections[na
 const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 const fmt = (v: number) => (Math.round(v) || 0).toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ');
-const day = (ts: number) => new Date(ts).toISOString().slice(0, 10);
+const day = (ts: number) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const when = (ts: number) => { const d = new Date(ts); return `${day(ts)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
 export function periodStarts(now: number) {
     const d = new Date(now);
@@ -156,5 +157,37 @@ export function buildFinancialAudit(backup: BackupFile, options: AuditOptions) {
     out();
     out(`Contrôle: somme des bénéfices des investisseurs ${fmt(sum)} = net à partager ${fmt(num(full.totals.netDistributableProfit))} (écart ${r2(sum - num(full.totals.netDistributableProfit))}).`);
     if (manager) out(`Gérant: ${manager.name || manager.id}.`);
+    out();
+
+    // 7. Capital movements, line by line, to match against the owner's own records.
+    out(`## 7. Mouvements de capital (à comparer avec vos documents)`);
+    const ordered = [...full.derivedInvestors].sort((a, b) => Number(Boolean(b.isManager)) - Number(Boolean(a.isManager)));
+    for (const inv of ordered) {
+        const txs = investorTxs.filter((t) => t.investorId === inv.id).sort((a, b) => num(a.timestamp) - num(b.timestamp));
+        const rec = buildInvestorCapitalReconciliation(inv as Investor, txs, personalExpenses);
+        const opening = new Set(rec.deposits.filter((d) => d.classification === 'initial').map((d) => d.id));
+        out();
+        out(`### ${inv.isManager ? '⭐ ' : ''}${inv.name || inv.id}`);
+        out(`| Date | Type | Montant | Compte | Capital affiché après | Note |`);
+        out(`|---|---|---|---|---|---|`);
+        let running = rec.deposits.some((d) => d.classification === 'initial') ? 0 : rec.openingCapital;
+        if (running) out(`| — | Capital initial déclaré (sans opération) | ${fmt(running)} | — | ${fmt(running)} | |`);
+        for (const t of txs) {
+            const amount = num(t.amount);
+            let label: string;
+            let delta = 0;
+            if (t.type === 'deposit_capital') { label = opening.has(t.id) ? 'Capital initial' : 'Apport de capital'; delta = amount; }
+            else if (t.type === 'reinvest_profit') { label = 'Bénéfice réinvesti'; delta = amount; }
+            else if (t.type === 'withdraw_capital') {
+                const personal = isPersonalExpenseCapitalWithdrawal(t, personalExpenses);
+                label = personal ? 'Retrait de capital pour dépense perso (non déduit du capital affiché, déduit du poids)' : 'Retrait de capital';
+                delta = personal ? 0 : -amount;
+            } else continue;
+            running += delta;
+            out(`| ${when(num(t.timestamp))} | ${label} | ${fmt(delta || -amount)} | ${t.paymentSource ?? '—'} | ${fmt(running)} | ${String(t.notes ?? '').replace(/\|/g, '/')} |`);
+        }
+        out(`Total: initial ${fmt(rec.openingCapital)} + apports ${fmt(rec.realCapitalAdditions)} + réinvesti ${fmt(rec.reinvestments)} − retraits ${fmt(rec.realCapitalWithdrawals)} = ${fmt(rec.currentCapital)}.`);
+        if (inv.isManager && options.declaredOwnerCapital) out(`Écart avec le capital déclaré (${fmt(options.declaredOwnerCapital)}): ${fmt(options.declaredOwnerCapital - rec.currentCapital)}.`);
+    }
     return { text: lines.join('\n') };
 }
