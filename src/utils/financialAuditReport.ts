@@ -25,7 +25,7 @@ function revive(value: unknown): unknown {
 const rows = (backup: BackupFile, name: string): Doc[] => (backup.collections[name] || []).map((d) => ({ id: d.id, ...(revive(d.data) as Record<string, unknown> || {}) }));
 const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const r2 = (v: number) => Math.round(v * 100) / 100;
-const fmt = (v: number) => (Math.round(v) || 0).toLocaleString('fr-FR').replace(/ | /g, ' ');
+const fmt = (v: number) => (Math.round(v) || 0).toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ');
 const day = (ts: number) => new Date(ts).toISOString().slice(0, 10);
 
 export function periodStarts(now: number) {
