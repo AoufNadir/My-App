@@ -1,6 +1,7 @@
 import { adjustmentAssetForWallet, cashAccount, cashBalanceOf, cashWalletOfAsset, isPaidNow, type PaymentChoice, paymentMethodOfStatus, walletOfStatus } from '../accounts/cashAccounts';
 import { EXTRA_CURRENCY_CODES } from '../currency/tradeCurrencies';
-import { useCallback, useState, useMemo, type MutableRefObject } from 'react';
+import { useCallback, useRef, useState, useMemo, type MutableRefObject } from 'react';
+import { createSecondPress, expenseWarning, operationWarning } from '../services/preSaveGuard';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
 import { Tx, PortfolioStats, ClientDzd, TreasuryTx, ClientTransactionDzd, Investor, InvestorTransaction } from '../types';
 import { now, parseAndEvaluate } from '../utils';
@@ -132,6 +133,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
     // Modal State
     const [mode, setMode] = useState<TransactionFormMode | null>(null);
     const [editingTx, setEditingTx] = useState<Tx | null>(null);
+    // V17-2: a second press saves an unusual amount or price (the first one only says why).
+    const secondPress = useRef(createSecondPress()).current;
     const [isTotalManual, setIsTotalManual] = useState(false);
     // Form State
     const [buyUsdtAmount, setBuyUsdtAmount] = useState('');
@@ -630,6 +633,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     return;
                 }
             }
+            const buyWarning = operationWarning({ side: 'buy', currency, quantity, price, timestamp: Date.now(), clientId: linkedClientId !== 'none' ? linkedClientId : null, history: transactions, editingId: editingTx?.id });
+            if (!secondPress.check(buyWarning, `buy|${currency}|${quantity}|${price}|${linkedClientId}`, setAlert))
+                return;
             const buyMetadata: any = {
                 purchaseFundingCurrency: mode === 'buy_usdt' && buyUsdtMode === 'with_eur' ? 'EUR' : 'DZD'
             };
@@ -978,6 +984,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             }
             const totalRevenue = Math.round(saleValueDzd);
             const profit = Number((saleValueDzd - (avg * quantity)).toFixed(2));
+            const sellWarning = operationWarning({ side: 'sell', currency: sellCurrency, quantity, price: sell, timestamp: Date.now(), clientId: linkedClientId !== 'none' ? linkedClientId : null, history: transactions, editingId: editingTx?.id });
+            if (!secondPress.check(sellWarning, `sell|${sellCurrency}|${quantity}|${sell}|${linkedClientId}`, setAlert))
+                return;
             const liveSnapshot = smartQuoteRef?.current;
             const validSnapshot = liveSnapshot
                 && liveSnapshot.currency === sellCurrency
@@ -1791,6 +1800,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
             amount: amountNum,
             rates: projectExpenseRates,
         });
+        const expenseWarn = expenseWarning({ origin: 'delivery_expense', amount: Number(preview.amountDzd) || amountNum, timestamp: Date.now(), history: treasuryTransactions.map((tx) => ({ id: tx.id, origin: tx.origin, amount: Number(tx.amount) || 0, timestamp: Number(tx.timestamp) || 0 })), editingId: editedExpense?.id });
+        if (!secondPress.check(expenseWarn, `project|${amountNum}|${deliveryExpenseMethod}`, setAlert))
+            return;
         if (isSaving)
             return;
         setIsSaving(true);

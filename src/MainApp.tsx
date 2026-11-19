@@ -413,6 +413,8 @@ export default function MainApp({ user }: {
     // and each extra currency under its lower-case code.
     const walletPortfolioStats = useMemo(() => ({ ...portfolioStats, ...Object.fromEntries((Object.entries(extraStocks) as Array<[string, ExtraStock]>).map(([code, stock]) => [code.toLowerCase(), { available: stock.quantity, avgBuy: stock.avgBuy }])) }), [portfolioStats, extraStocks]);
     const deliveryExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense'), [treasuryTransactions]);
+    // V17-2: the personal expenses as the guard before saving reads them.
+    const personalExpenseHistory = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense').map((tx) => ({ id: tx.id, origin: tx.origin, amount: Number(tx.amount) || 0, timestamp: Number(tx.timestamp) || 0 })), [treasuryTransactions]);
     const personalExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense'), [treasuryTransactions]);
     const debtWriteOffs = useMemo(() => collectDebtWriteOffs(clientTransactionsDzd), [clientTransactionsDzd]);
     // The client rows as the client reports read them: payments recorded from the treasury adjustment window get their channel back (V7-1).
@@ -679,7 +681,7 @@ export default function MainApp({ user }: {
     // Personal withdrawal (manager's daily personal expense)
     isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen, personalWithdrawalAmount, setPersonalWithdrawalAmount, personalWithdrawalMethod, setPersonalWithdrawalMethod, personalWithdrawalDate, setPersonalWithdrawalDate, personalWithdrawalNote, setPersonalWithdrawalNote, personalWithdrawalMode, setPersonalWithdrawalMode, personalWithdrawalPreview, editingPersonalExpenseTx, personalExpenseToDelete, setPersonalExpenseToDelete, openEditPersonalExpense, openPersonalWithdrawalModal, closePersonalWithdrawalModal, handleSavePersonalWithdrawal, handleDeletePersonalExpense, managerAvailableProfit, managerCapitalInvested, managerExists,
     // Reconcile advance
-    isReconcileAdvanceModalOpen, reconcileAdvanceTx, reconcileActualAmount, setReconcileActualAmount, reconcileSpentDescription, setReconcileSpentDescription, openReconcileAdvanceModal, closeReconcileAdvanceModal, handleReconcilePersonalAdvance } = useInvestorHandlers(userDocRef, derivedInvestors, treasuryStats, walletPortfolioStats, setAlert);
+    isReconcileAdvanceModalOpen, reconcileAdvanceTx, reconcileActualAmount, setReconcileActualAmount, reconcileSpentDescription, setReconcileSpentDescription, openReconcileAdvanceModal, closeReconcileAdvanceModal, handleReconcilePersonalAdvance } = useInvestorHandlers(userDocRef, derivedInvestors, treasuryStats, walletPortfolioStats, setAlert, personalExpenseHistory);
     // --- 3. LOCAL UI STATE ---
     const [isNewOperationMenuOpen, setIsNewOperationMenuOpen] = useState(false);
     // V13-3 / V13-4: the RMB and conversion window (null: closed): which side, which currency, which source.
