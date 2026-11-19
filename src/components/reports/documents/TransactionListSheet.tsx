@@ -1,4 +1,5 @@
 import { getTransactionTagLabel } from '../../../utils/transactionTerminology';
+import { readableNote } from '../../../utils/generatedNote';
 import type { TransactionListReport } from '../../../utils/listReports';
 import { COMMON_REPORT_WORDS, TRANSACTION_LIST_WORDS, reportTranslator } from '../documentWords';
 import { formatDate, formatLoggedPrice, formatLoggedQuantity, formatWholeDzd } from '../reportFormat';
@@ -71,7 +72,7 @@ export function TransactionListSheet({ report, lang, variant }: TransactionListS
                   <td className={`${tdNum} font-semibold`}>{num(formatWholeDzd(row.totalDzd))}</td>
                   <td className={`${td} text-neutral-600`}>{row.client ? <bdi>{row.client}</bdi> : '—'}</td>
                   <td className={`${td} text-neutral-600`}>
-                    {row.notes ? <bdi className="block break-words text-[11px]">{row.notes}</bdi> : '—'}
+                    {row.notes ? <bdi className="block break-words text-[11px]">{readableNote(row.notes, lang)}</bdi> : '—'}
                     {row.tags.length > 0 && (<span className="mt-0.5 flex flex-wrap gap-1">
                         {row.tags.map((tag) => (<small key={tag} className="rounded bg-surface-muted px-1.5 py-px text-[10.5px] text-neutral-600">{getTransactionTagLabel(tag, t)}</small>))}
                       </span>)}

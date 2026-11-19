@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import { readableNote } from '../../../utils/generatedNote';
 import type { ReactNode } from 'react';
 import type { MonthlyClientRef, MonthlyReport } from '../../../utils/monthlyReport';
 import { getClientOperationLabel, getClientTransferDetails, getManualClientNote, getPortfolioOperationLabel } from '../../../utils/transactionTerminology';
@@ -166,8 +167,8 @@ export function MonthlyReportSheet({ report, lang, issuedAt, variant }: MonthlyR
                 {report.portfolioOperations.rows.map((row, index) => {
                 const typeLabel = row.usdtSaleSettledInEur ? t('ledger.sellUsdtEur') : getPortfolioOperationLabel(row.type, row.currency, t);
                 const notes: ReactNode = row.euroSettlement
-                    ? `${row.notes || '-'} | ${formatAmount(row.euroSettlement.saleValueEur)} EUR x ${formatAmount(row.euroSettlement.eurToDzdRate)} DZD`
-                    : row.notes || '-';
+                    ? `${readableNote(row.notes, lang) || '-'} | ${formatAmount(row.euroSettlement.saleValueEur)} EUR x ${formatAmount(row.euroSettlement.eurToDzdRate)} DZD`
+                    : readableNote(row.notes, lang) || '-';
                 return (<tr key={row.id} data-pdf-row="" data-pdf-break={index > 0 ? '' : undefined}>
                     <td className={td}><When timestamp={row.timestamp}/></td>
                     <td className={td}>{typeLabel}</td>
@@ -201,7 +202,7 @@ export function MonthlyReportSheet({ report, lang, issuedAt, variant }: MonthlyR
                 {report.clientMovements.rows.map((row, index) => {
                 const notes = row.type === 'Transfert Entrant' || row.type === 'Transfert Sortant'
                     ? getClientTransferDetails(row, row.counterpartName, t)
-                    : getManualClientNote(row.notes);
+                    : readableNote(getManualClientNote(row.notes), lang);
                 return (<tr key={row.id} data-pdf-row="" data-pdf-break={index > 0 ? '' : undefined}>
                     <td className={td}><When timestamp={row.timestamp}/></td>
                     <td className={td}><bdi>{clientName(row.client)}</bdi></td>

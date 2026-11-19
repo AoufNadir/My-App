@@ -186,7 +186,7 @@ const CurrencyCard: React.FC<CurrencyCardProps> = ({ currency, tiers, s, handler
 }
 
 function AddCurrencyForm({ s, handlers, setAlert }: { s: Strings; handlers: PoOrderHandlers; setAlert: (m: string) => void }) {
-    const [code, setCode] = useState<PoCurrencyCode>('USDT');
+    const [code, setCode] = useState<PoCurrencyCode | ''>(''); // rule 11: no currency picked in advance
     const [label, setLabel] = useState('');
     const [minOrder, setMinOrder] = useState('');
     const [maxOrder, setMaxOrder] = useState('');
@@ -195,11 +195,11 @@ function AddCurrencyForm({ s, handlers, setAlert }: { s: Strings; handlers: PoOr
     const submit = async () => {
         const min = Number(minOrder);
         const max = Number(maxOrder);
-        if (!label.trim() || !min || !max || max < min) return;
+        if (!code || !label.trim() || !min || !max || max < min) return;
         setBusy(true);
         try {
             await handlers.addCurrency({ code, label: label.trim(), minOrder: min, maxOrder: max });
-            setLabel(''); setMinOrder(''); setMaxOrder('');
+            setCode(''); setLabel(''); setMinOrder(''); setMaxOrder('');
         } catch {
             setAlert(`❌ ${s.error}`);
         } finally {
@@ -212,6 +212,7 @@ function AddCurrencyForm({ s, handlers, setAlert }: { s: Strings; handlers: PoOr
             <label className="text-xs font-medium text-neutral-600">
                 {s.code}
                 <select className={`${fieldClass} mt-1`} value={code} onChange={(e) => setCode(e.target.value as PoCurrencyCode)}>
+                    <option value="" disabled>—</option>
                     <option value="USDT">USDT</option>
                     <option value="EUR">EUR</option>
                 </select>

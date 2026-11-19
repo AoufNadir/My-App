@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import { readableNote } from '../../../utils/generatedNote';
 import { cashAccount, isCustomCashAccount } from '../../../accounts/cashAccounts';
 import type { TreasuryReport } from '../../../utils/treasuryReport';
 import { COMMON_REPORT_WORDS, TREASURY_REPORT_WORDS, reportTranslator } from '../documentWords';
@@ -80,7 +81,7 @@ export function TreasuryReportSheet({ report, lang, variant }: TreasuryReportShe
                     <td className={td}>{typeName(row.type)}</td>
                     <td className={td}>{walletName(row.source)}</td>
                     <td className={`${tdNum} font-semibold ${amountTone}`}>{num(`${row.direction === 'in' ? '+' : row.direction === 'out' ? '−' : ''}${formatWholeDzd(row.amount)}`)}</td>
-                    <td className={td}><bdi>{row.notes}</bdi></td>
+                    <td className={td}><bdi>{readableNote(row.notes, lang)}</bdi></td>
                   </tr>);
             })}
             </tbody>
