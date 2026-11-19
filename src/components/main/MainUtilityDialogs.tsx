@@ -14,6 +14,7 @@ import { CurrencyVisibilitySettings } from './CurrencyVisibilitySettings';
 import { CashAccountsSettings } from './CashAccountsSettings';
 import { HabitsSettings } from './HabitsSettings';
 import { SettingsSection } from './SettingsSection';
+import { EditLogSettings } from './EditLogSettings';
 
 type MainUtilityDialogsProps = Record<string, any>;
 
@@ -115,6 +116,9 @@ function MainUtilityDialogsComponent({
                     </SettingsSection>)}
                     {userDocRef && (<SettingsSection title={t('settings.secHabits')} summary={t('settings.secHabitsSummary')} icon={<CheckIcon className="h-4 w-4"/>} open={openSection === 'habits'} onToggle={() => toggleSection('habits')}>
                         <HabitsSettings userDocRef={userDocRef} />
+                    </SettingsSection>)}
+                    {userDocRef && (<SettingsSection title={t('settings.secEditLog')} summary={t('settings.secEditLogSummary')} icon={<span className="text-sm font-bold">✎</span>} open={openSection === 'editLog'} onToggle={() => toggleSection('editLog')}>
+                        {openSection === 'editLog' && <EditLogSettings userDocRef={userDocRef} />}
                     </SettingsSection>)}
                     <SettingsSection title={t('settings.backupTitle')} summary={t('settings.secBackupSummary')} icon={<span className="text-sm font-bold">↓</span>} open={openSection === 'backup'} onToggle={() => toggleSection('backup')}>
                         <FormCard description={t('settings.backupDescription')}>

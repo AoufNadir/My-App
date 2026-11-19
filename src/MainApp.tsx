@@ -17,6 +17,8 @@ import { useLanguage } from './contexts/LanguageContext';
 import { signOut } from 'firebase/auth';
 import { auth, type AppUser } from './firebaseAuth';
 import { db, fieldValueDelete, setFinancialWriteGate } from './firebase';
+import { setEditLogSource } from './utils/editLog';
+import { useEditLog } from './hooks/useEditLog';
 import { recordTreasuryLegacyDeletionShadow, recordTreasuryShadow } from './accounting/treasuryShadowDiagnostics';
 import { recordPortfolioShadow } from './accounting/portfolioShadowDiagnostics';
 import { inventoryFromLegacyPortfolioStats } from './accounting/portfolioShadowLegacyAdapter';
@@ -148,6 +150,7 @@ import { buildGoalCoach } from './services/goalCoach';
 import { useGoalHistory } from './hooks/useGoalHistory';
 import { goalHistoryRows } from './services/goalHistory';
 import { absentClients, lastWeekSummary, stockForGoal } from './services/goalAlerts';
+import { guardFindings } from './services/guardChecks';
 import { buildFullBackup, daysSinceBackup, LAST_BACKUP_KEY } from './utils/fullBackup';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { useSetupDone } from './hooks/useSetupDone';
@@ -334,6 +337,17 @@ export default function MainApp({ user }: {
         });
         return () => setFinancialWriteGate(null);
     }, []);
+    // V17-3: the edit log reads the « before » of a change from what is already in memory (no extra read).
+    const editLogCollectionsRef = useRef<Record<string, ReadonlyArray<{ id?: string }>>>({});
+    editLogCollectionsRef.current = {
+        usdt_txs: transactions, dzd_clients: clientsDzd, dzd_client_txs: clientTransactionsDzd, treasury_txs: treasuryTransactions,
+        treasury_cards: treasuryCards, digital_service_txs: digitalServiceTransactions, actifTransactions: manualAssetTransactions,
+        investors, investor_transactions: investorTransactions,
+    } as Record<string, ReadonlyArray<{ id?: string }>>;
+    useEffect(() => {
+        setEditLogSource((collection, docId) => (editLogCollectionsRef.current[collection] || []).find((row) => row.id === docId) as Record<string, unknown> | undefined);
+        return () => setEditLogSource(null);
+    }, []);
     const clientShadowReadReconciliation = useMemo(() => {
         if (!shadowDiagnosticsEnabled || !isFinancialDataReady || shouldUseDashboardReadModel) return null;
         return reconcileLegacyClientsToShadow(clientTransactionsDzd, clientsDzd.map((client) => client.id));
@@ -412,6 +426,8 @@ export default function MainApp({ user }: {
     // and each extra currency under its lower-case code.
     const walletPortfolioStats = useMemo(() => ({ ...portfolioStats, ...Object.fromEntries((Object.entries(extraStocks) as Array<[string, ExtraStock]>).map(([code, stock]) => [code.toLowerCase(), { available: stock.quantity, avgBuy: stock.avgBuy }])) }), [portfolioStats, extraStocks]);
     const deliveryExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'delivery_expense'), [treasuryTransactions]);
+    // V17-2: the personal expenses as the guard before saving reads them.
+    const personalExpenseHistory = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense').map((tx) => ({ id: tx.id, origin: tx.origin, amount: Number(tx.amount) || 0, timestamp: Number(tx.timestamp) || 0 })), [treasuryTransactions]);
     const personalExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense'), [treasuryTransactions]);
     const debtWriteOffs = useMemo(() => collectDebtWriteOffs(clientTransactionsDzd), [clientTransactionsDzd]);
     // The client rows as the client reports read them: payments recorded from the treasury adjustment window get their channel back (V7-1).
@@ -534,6 +550,22 @@ export default function MainApp({ user }: {
         const week = coach ? lastWeekSummary({ rows: pamLedger.sellProfitRows, target, now }) : null;
         return { absent, stock, lastWeek: week && coach ? { ...week, advice: coach.advice } : null };
     }, [pamLedger, clientsDzd, goalCoach, pricingPlanSync.plan.monthlyGoal, portfolioStats.usdt.available, transactions, clientTransactionsDzd, pricingPlanSync.policy.vipVolumeThreshold]);
+    // V17-3: the newest lines of the edit log (the guard watches big edits and deletes; the settings list them).
+    const editLog = useEditLog(userDocRef as never, Boolean(userDocRef));
+    // V17-1: the guard: what looks like a mistake in what is recorded (read only).
+    const guardAlerts = React.useMemo(() => {
+        const names = new Map(CASH_ACCOUNTS.map((a) => [a.id, a.name]));
+        const wallets = Object.fromEntries(Object.entries(treasuryStats.accounts || {}).map(([id, balance]) => [names.get(id) || id, Number(balance) || 0]));
+        return guardFindings({
+            now: Date.now(),
+            expenses: treasuryTransactions.map((tx) => ({ id: tx.id, origin: tx.origin, amount: Number(tx.amount) || 0, timestamp: Number(tx.timestamp) || 0, advanceState: tx.advanceState ?? null })),
+            operations: transactions.map((tx) => ({ id: tx.id, type: tx.type, currency: tx.currency, quantity: Number(tx.quantity) || 0, price: tx.price, sell: tx.sell, timestamp: Number(tx.timestamp) || 0, linkedClientId: tx.linkedClientId })),
+            sales: pamLedger.sellProfitRows.map((r) => ({ txId: r.txId, currency: r.currency, quantity: r.quantity, timestamp: r.timestamp, derivedProfit: r.derivedProfit, sellPrice: r.sellPrice, historicalAvgBuy: r.historicalAvgBuy })),
+            wallets,
+            feeHistory: managerFeeHistory || [],
+            edits: editLog,
+        });
+    }, [treasuryTransactions, transactions, pamLedger, treasuryStats.accounts, managerFeeHistory, editLog]);
     const salesHistory90 = React.useMemo(() => {
         const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
         const rows = pamLedger.sellProfitRows
@@ -665,7 +697,7 @@ export default function MainApp({ user }: {
     // Personal withdrawal (manager's daily personal expense)
     isPersonalWithdrawalModalOpen, setIsPersonalWithdrawalModalOpen, personalWithdrawalAmount, setPersonalWithdrawalAmount, personalWithdrawalMethod, setPersonalWithdrawalMethod, personalWithdrawalDate, setPersonalWithdrawalDate, personalWithdrawalNote, setPersonalWithdrawalNote, personalWithdrawalMode, setPersonalWithdrawalMode, personalWithdrawalPreview, editingPersonalExpenseTx, personalExpenseToDelete, setPersonalExpenseToDelete, openEditPersonalExpense, openPersonalWithdrawalModal, closePersonalWithdrawalModal, handleSavePersonalWithdrawal, handleDeletePersonalExpense, managerAvailableProfit, managerCapitalInvested, managerExists,
     // Reconcile advance
-    isReconcileAdvanceModalOpen, reconcileAdvanceTx, reconcileActualAmount, setReconcileActualAmount, reconcileSpentDescription, setReconcileSpentDescription, openReconcileAdvanceModal, closeReconcileAdvanceModal, handleReconcilePersonalAdvance } = useInvestorHandlers(userDocRef, derivedInvestors, treasuryStats, walletPortfolioStats, setAlert);
+    isReconcileAdvanceModalOpen, reconcileAdvanceTx, reconcileActualAmount, setReconcileActualAmount, reconcileSpentDescription, setReconcileSpentDescription, openReconcileAdvanceModal, closeReconcileAdvanceModal, handleReconcilePersonalAdvance } = useInvestorHandlers(userDocRef, derivedInvestors, treasuryStats, walletPortfolioStats, setAlert, personalExpenseHistory);
     // --- 3. LOCAL UI STATE ---
     const [isNewOperationMenuOpen, setIsNewOperationMenuOpen] = useState(false);
     // V13-3 / V13-4: the RMB and conversion window (null: closed): which side, which currency, which source.
@@ -700,8 +732,9 @@ export default function MainApp({ user }: {
     const [clientSortMode, setClientSortMode] = useState<ClientSortMode>('all');
     const [isWalletTransferModalOpen, setIsWalletTransferModalOpen] = useState(false);
     const [walletTransferAmount, setWalletTransferAmount] = useState('');
-    const [walletTransferSource, setWalletTransferSource] = useState<string>('Caisse');
-    const [walletTransferDest, setWalletTransferDest] = useState<string>('BaridiMob');
+    // Rule 11: neither wallet is picked in advance.
+    const [walletTransferSource, setWalletTransferSource] = useState<string>('');
+    const [walletTransferDest, setWalletTransferDest] = useState<string>('');
     const [walletTransferNotes, setWalletTransferNotes] = useState('');
     const setWalletTransferSourceAndSync = useCallback((value: string) => {
         setWalletTransferSource(value);
@@ -1364,8 +1397,8 @@ export default function MainApp({ user }: {
         setEditingWalletTransferTx(null);
         setWalletTransferAmount('');
         setWalletTransferNotes('');
-        setWalletTransferSource('Caisse');
-        setWalletTransferDest('BaridiMob');
+        setWalletTransferSource('');
+        setWalletTransferDest('');
     };
     const openWalletTransferModal = (txToEdit: TreasuryTx | null = null, prefill?: { amount: string; source: 'Caisse' | 'BaridiMob'; destination: 'Caisse' | 'BaridiMob'; notes: string }) => {
         if (!txToEdit && prefill) {
@@ -1387,8 +1420,8 @@ export default function MainApp({ user }: {
         }
         else {
             setEditingWalletTransferTx(null);
-            setWalletTransferSource('Caisse');
-            setWalletTransferDest(SHOWN_CASH_ACCOUNTS.length === 2 ? (SHOWN_CASH_ACCOUNTS.find((account) => account.id !== 'Caisse')?.id ?? '') : ''); // V15-2: more accounts, the owner picks
+            setWalletTransferSource(''); // rule 11: the owner picks the source (and with two accounts the destination follows)
+            setWalletTransferDest('');
             setWalletTransferAmount('');
             setWalletTransferNotes('');
         }
@@ -1953,6 +1986,10 @@ export default function MainApp({ user }: {
             setAlert("⚠️ Montant invalide.");
             return;
         }
+        if (!walletTransferSource) {
+            setAlert('⚠️ Choisissez le portefeuille.');
+            return;
+        }
         if (walletTransferSource === walletTransferDest) {
             setAlert(t('common.sameSourceDest'));
             return;
@@ -2092,6 +2129,7 @@ export default function MainApp({ user }: {
         || isNaN(walletTransferAmountValue)
         || walletTransferAmountValue <= 0
         || walletTransferAmountValue > walletTransferSourceBalance
+        || !walletTransferSource
         || !walletTransferDest
         || walletTransferSource === walletTransferDest;
     const handleSaveTreasuryCard = async () => {
@@ -2867,6 +2905,7 @@ export default function MainApp({ user }: {
         monthlyGoal: monthlyGoalState,
         goalCoach: goalCoach?.coach ?? null,
         goalAlerts,
+        guardAlerts,
         backupDueDays: transactions.length > 0 && (backupAgeDays === null || backupAgeDays >= 7) ? (backupAgeDays ?? -1) : null,
         onOpenBackup: openSettingsModal,
         minimumGoal: goalCoach?.minimum ?? 0,

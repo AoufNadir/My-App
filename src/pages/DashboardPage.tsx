@@ -38,6 +38,8 @@ import { ServiceProfitCard } from '../components/dashboard/ServiceProfitCard';
 import { hasNoServiceActivity, type OwnerProfitSplit } from '../utils/serviceProfitOverview';
 import { useLanguage } from '../contexts/LanguageContext';
 import { GoalCoachLines } from '../components/dashboard/GoalCoachLines';
+import { GuardAlertCard } from '../components/dashboard/GuardAlertCard';
+import { readGuardOk, storeGuardOk, type GuardFinding } from '../services/guardChecks';
 import { goalAlertRows, type GoalAlerts } from '../components/dashboard/goalAlertRows';
 import type { GoalCoach } from '../services/goalCoach';
 const RECENT_TRANSACTION_LIMIT = 5;
@@ -130,6 +132,8 @@ type DashboardPageProps = {
     goalCoach?: GoalCoach | null;
     /** P5: goal alerts for the bell */
     goalAlerts?: GoalAlerts | null;
+    /** V17-1: the guard's findings (read only). */
+    guardAlerts?: GuardFinding[];
     /** V16-2: days since the last full backup on this phone (-1: never), null when not due */
     backupDueDays?: number | null;
     onOpenBackup?: () => void;
@@ -400,6 +404,7 @@ function DashboardContent({
     onSaveGoal,
     goalCoach = null,
     goalAlerts = null,
+    guardAlerts = [],
     backupDueDays = null,
     onOpenBackup,
     onOpenClient,
@@ -428,6 +433,12 @@ function DashboardContent({
     onInventoryReminderSnooze,
 }: DashboardPageProps) {
     const { t, lang } = useLanguage();
+    const [guardOk, setGuardOk] = useState<Set<string>>(readGuardOk);
+    const markGuardOk = (id: string) => {
+        const next = new Set<string>(guardOk).add(id);
+        setGuardOk(next);
+        storeGuardOk(next);
+    };
     const [profitPeriod, setProfitPeriod] = useState<ProfitPeriod>(readStoredProfitPeriod);
     const selectProfitPeriod = (period: ProfitPeriod) => {
         setProfitPeriod(period);
@@ -580,6 +591,16 @@ function DashboardContent({
     // P5: goal alerts (absent regular clients, stock for the goal, last week's summary).
     for (const { item, signature } of goalAlertRows(goalAlerts, lang, { client: <AlertTriangleIcon className="h-4 w-4"/>, stock: <DollarSignIcon className="h-4 w-4"/>, week: <TrendingUpIcon className="h-4 w-4"/> }, onOpenClient))
         addRow(item, signature);
+    // V17-1: the guard. « C'est juste » hides a line for good on this phone.
+    for (const finding of guardAlerts.filter((f) => !guardOk.has(f.id))) {
+        const open = finding.kind === 'negative_wallet' || finding.kind === 'open_advance' || finding.kind === 'duplicate_expense' || finding.kind === 'unusual_expense'
+            ? onOpenTreasury
+            : finding.kind === 'fee_change' ? undefined : onOpenTransactions; // big_edit, prices, twins: the operations page
+        notificationItems.push({
+            entry: { id: `guard-${finding.id}`, signature: 'on', urgent: finding.kind === 'negative_wallet' || finding.kind === 'duplicate_expense' || finding.kind === 'twin_operation' },
+            card: <GuardAlertCard finding={finding} lang={lang} onOpen={open} onOk={() => markGuardOk(finding.id)}/>,
+        });
+    }
     if (onInvestorTermReinvest && onInvestorTermWithdraw) {
         for (const term of investorTerms) {
             notificationItems.push({

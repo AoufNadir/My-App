@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Button } from '../ui/Button';
 import { MoneyField } from '../ui/MoneyField';
@@ -32,8 +32,9 @@ type Props = {
 export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedTotal, userDocRef, setAlert, treasuryStats, periodLockedThrough = null }: Props) {
     const { t } = useLanguage();
     const [totalInput, setTotalInput] = useState('');
-    const [paymentSource, setPaymentSource] = useState<'Caisse' | 'BaridiMob'>('Caisse');
+    const [paymentSource, setPaymentSource] = useState<'' | 'Caisse' | 'BaridiMob'>(''); // rule 11: no wallet picked in advance
     const [isSaving, setIsSaving] = useState(false);
+    useEffect(() => { if (!isOpen) setPaymentSource(''); }, [isOpen]);
     const [confirmed, setConfirmed] = useState(false);
 
     // Payouts are whole DZD, so the suggestion is rounded down: never above what is owed.
@@ -50,9 +51,9 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
 
     const totalDistributed = distribution.reduce((s, d) => s + d.amount, 0);
     const hasExceedingRow = distribution.some(d => d.exceedsAvailable);
-    const sourceBalance = paymentSource === 'Caisse' ? treasuryStats.caisse : treasuryStats.baridi;
-    const exceedsCash = totalDistributed > sourceBalance + 0.005;
-    const canConfirm = distribution.length > 0 && totalDistributed > 0 && !hasExceedingRow && !exceedsCash;
+    const sourceBalance = paymentSource === 'Caisse' ? treasuryStats.caisse : paymentSource === 'BaridiMob' ? treasuryStats.baridi : 0;
+    const exceedsCash = !!paymentSource && totalDistributed > sourceBalance + 0.005;
+    const canConfirm = !!paymentSource && distribution.length > 0 && totalDistributed > 0 && !hasExceedingRow && !exceedsCash;
     // The months this distribution will close, shown before confirming.
     const lockAfterConfirm = confirmed ? lockAfterDistribution(periodLockedThrough, Date.now()) : null;
 

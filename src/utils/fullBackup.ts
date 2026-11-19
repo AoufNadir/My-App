@@ -7,7 +7,7 @@ export const BACKUP_COLLECTIONS = [
     'digital_service_txs', 'actifTransactions', 'manual_assets', 'manual_asset_clients',
     'investors', 'investor_transactions', 'deliveries', 'inventory_checks', 'movement_reasons',
     'client_confirmations', 'subscriptions', 'pricing_plans', 'pricing_overrides', 'pricing_settings',
-    'period_lock_history', 'manager_fee_history',
+    'period_lock_history', 'manager_fee_history', 'edit_log',
 ] as const;
 
 export const LAST_BACKUP_KEY = 'app_last_backup_at';

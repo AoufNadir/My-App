@@ -100,6 +100,7 @@ const areDashboardPagePropsEqual = (prev: any, next: any) => (prev?.portfolioSta
     && prev?.suggestedGoal === next?.suggestedGoal
     && prev?.goalCoach === next?.goalCoach
     && prev?.goalAlerts === next?.goalAlerts
+    && prev?.guardAlerts === next?.guardAlerts
     && prev?.backupDueDays === next?.backupDueDays
     && prev?.onOpenBackup === next?.onOpenBackup
     && prev?.minimumGoal === next?.minimumGoal

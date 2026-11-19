@@ -1,4 +1,5 @@
 import { addDoc, collection, deleteField, deleteDoc, doc, getDoc, getDocs, getFirestore, initializeFirestore, limit, onSnapshot, orderBy, persistentLocalCache, persistentMultipleTabManager, query, runTransaction as nativeRunTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch, type DocumentData, type DocumentReference as NativeDocumentReference, type DocumentSnapshot as NativeDocumentSnapshot, type Firestore, type OrderByDirection, type Query as NativeQuery, type QuerySnapshot as NativeQuerySnapshot, type SetOptions, type Transaction as NativeTransaction, type Unsubscribe, type WhereFilterOp, type WriteBatch as NativeWriteBatch, } from 'firebase/firestore';
+import { EDIT_LOG_COLLECTION, EDIT_LOG_MAX_OPERATIONS, editLogEntryFor } from './utils/editLog';
 import { app } from './firebaseApp';
 // FIX-PERF (Phase 3): enable IndexedDB-backed persistent cache so cold starts
 // hydrate instantly from local storage while the live snapshot listeners
@@ -262,6 +263,12 @@ function isFinancialPath(path: string): boolean {
     const segments = path.split('/');
     return segments[0] === 'users' && FINANCIAL_COLLECTIONS.has(segments[2] || '');
 }
+// V17-3: the « before / after » line of a change to an existing money line (null for a creation).
+function editLogFor(ref: NativeDocumentReference<DocumentData>, kind: 'set' | 'update' | 'delete', data?: DocumentData, options?: SetOptions) {
+    const found = editLogEntryFor({ path: ref.path, kind, data, merge: Boolean(options && (options as { merge?: boolean }).merge), isMoney: (c) => FINANCIAL_COLLECTIONS.has(c) });
+    if (!found) return null;
+    return { ref: doc(collection(ref.firestore, `${found.userPath}/${EDIT_LOG_COLLECTION}`)), entry: found.entry };
+}
 export function financialWriteRefusal(writes: readonly (string | FinancialWrite)[]): FinancialWriteBlockedError | null {
     const financialWrites = writes
         .map((write): FinancialWrite => (typeof write === 'string' ? { path: write, kind: 'set' } : write))
@@ -286,6 +293,7 @@ export type FirestoreBatchOperation =
 
 export class FirestoreWriteBatch {
     readonly operations: FirestoreBatchOperation[] = [];
+    private logged = false;
     constructor(private readonly nativeBatch: NativeWriteBatch) { }
     set(ref: FirestoreDocumentReference, data: DocumentData, options?: SetOptions) {
         this.operations.push({ kind: 'set', ref, data, options });
@@ -311,6 +319,13 @@ export class FirestoreWriteBatch {
         })));
         if (refusal)
             return Promise.reject(refusal);
+        if (!this.logged && this.operations.length <= EDIT_LOG_MAX_OPERATIONS) {
+            this.logged = true;
+            for (const operation of this.operations) {
+                const log = editLogFor(operation.ref.nativeRef, operation.kind, operation.kind === 'delete' ? undefined : operation.data, operation.kind === 'set' ? operation.options : undefined);
+                if (log) this.nativeBatch.set(log.ref, log.entry);
+            }
+        }
         return this.nativeBatch.commit();
     }
 }
@@ -323,6 +338,7 @@ export class FirestoreTransaction {
     }
     set(ref: FirestoreDocumentReference, data: DocumentData, options?: SetOptions) {
         throwIfFinancialWriteBlocked({ path: ref.nativeRef.path, kind: 'set', data });
+        this.log(editLogFor(ref.nativeRef, 'set', data, options));
         if (options) {
             this.nativeTransaction.set(ref.nativeRef, data, options);
             return;
@@ -331,11 +347,16 @@ export class FirestoreTransaction {
     }
     update(ref: FirestoreDocumentReference, data: DocumentData) {
         throwIfFinancialWriteBlocked({ path: ref.nativeRef.path, kind: 'update', data });
+        this.log(editLogFor(ref.nativeRef, 'update', data));
         this.nativeTransaction.update(ref.nativeRef, data);
     }
     delete(ref: FirestoreDocumentReference) {
         throwIfFinancialWriteBlocked({ path: ref.nativeRef.path, kind: 'delete' });
+        this.log(editLogFor(ref.nativeRef, 'delete'));
         this.nativeTransaction.delete(ref.nativeRef);
+    }
+    private log(found: ReturnType<typeof editLogFor>) {
+        if (found) this.nativeTransaction.set(found.ref, found.entry);
     }
 }
 // Transaction writes (order completion, summary writer) go through the same gate:
@@ -365,6 +386,13 @@ export class FirestoreDocumentReference {
         const refusal = financialWriteRefusal([{ path: this.nativeRef.path, kind: 'set', data }]);
         if (refusal)
             return Promise.reject(refusal);
+        const log = editLogFor(this.nativeRef, 'set', data, options);
+        if (log) {
+            const pair = writeBatch(this.nativeRef.firestore);
+            if (options) pair.set(this.nativeRef, data, options); else pair.set(this.nativeRef, data);
+            pair.set(log.ref, log.entry);
+            return pair.commit();
+        }
         if (options) {
             return setDoc(this.nativeRef, data, options);
         }
@@ -374,12 +402,26 @@ export class FirestoreDocumentReference {
         const refusal = financialWriteRefusal([{ path: this.nativeRef.path, kind: 'update', data }]);
         if (refusal)
             return Promise.reject(refusal);
+        const log = editLogFor(this.nativeRef, 'update', data);
+        if (log) {
+            const pair = writeBatch(this.nativeRef.firestore);
+            pair.update(this.nativeRef, data);
+            pair.set(log.ref, log.entry);
+            return pair.commit();
+        }
         return updateDoc(this.nativeRef, data);
     }
     delete() {
         const refusal = financialWriteRefusal([{ path: this.nativeRef.path, kind: 'delete' }]);
         if (refusal)
             return Promise.reject(refusal);
+        const log = editLogFor(this.nativeRef, 'delete');
+        if (log) {
+            const pair = writeBatch(this.nativeRef.firestore);
+            pair.delete(this.nativeRef);
+            pair.set(log.ref, log.entry);
+            return pair.commit();
+        }
         return deleteDoc(this.nativeRef);
     }
     onSnapshot(callback: (snapshot: FirestoreDocumentSnapshot) => void, options?: {

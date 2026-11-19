@@ -1,7 +1,8 @@
 import { cashAccount, cashBalanceOf } from '../accounts/cashAccounts';
 import { saveErrorAlert } from '../utils/stockLock';
 import { EXTRA_CURRENCY_CODES, isTradeCurrency } from '../currency/tradeCurrencies';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { createSecondPress, expenseWarning, type PastExpense } from '../services/preSaveGuard';
 import { db, fieldValueDelete, type FirestoreDocumentReference } from '../firebase';
 import { Investor, InvestorTransaction, PortfolioStats, TreasuryTx } from '../types';
 import { now, parseAndEvaluate } from '../utils';
@@ -50,8 +51,10 @@ const emptyPersonalExpenseInvestorLinks = (): PersonalExpenseInvestorLinks => ({
 export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, derivedInvestors: any[], treasuryStats: {
     caisse: number;
     baridi: number;
-}, portfolioStats: PortfolioStats, setAlert: (msg: string) => void) {
+}, portfolioStats: PortfolioStats, setAlert: (msg: string) => void, personalExpenseHistory: readonly PastExpense[] = []) {
     const [isSaving, setIsSaving] = useState(false);
+    // V17-2: a second press saves an unusual personal expense (the first one only says why).
+    const secondPress = useRef(createSecondPress()).current;
     // Modal & form state
     const [isInvestorModalOpen, setIsInvestorModalOpen] = useState(false);
     const [editingInvestor, setEditingInvestor] = useState<Investor | null>(null);
@@ -89,7 +92,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     }, []);
     const [personalWithdrawalDate, setPersonalWithdrawalDate] = useState<string>('');
     const [personalWithdrawalNote, setPersonalWithdrawalNote] = useState('');
-    const [personalWithdrawalMode, setPersonalWithdrawalMode] = useState<'expense' | 'advance'>('expense');
+    const [personalWithdrawalMode, setPersonalWithdrawalMode] = useState<'' | 'expense' | 'advance'>(''); // rule 11: neither chosen in advance
     const [editingPersonalExpenseTx, setEditingPersonalExpenseTx] = useState<TreasuryTx | null>(null);
     const [personalExpenseToDelete, setPersonalExpenseToDelete] = useState<TreasuryTx | null>(null);
     const personalWithdrawalRates = useMemo(() => ({
@@ -114,7 +117,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         setPersonalWithdrawalWalletChosen(false);
         setPersonalWithdrawalDate('');
         setPersonalWithdrawalNote('');
-        setPersonalWithdrawalMode('expense');
+        setPersonalWithdrawalMode('');
         setIsPersonalWithdrawalModalOpen(true);
     };
     const closePersonalWithdrawalModal = () => {
@@ -379,6 +382,10 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         setIsPersonalWithdrawalModalOpen(true);
     };
     const handleSavePersonalWithdrawal = async () => {
+        if (!personalWithdrawalMode) {
+            setAlert('⚠️ Choisissez : dépense ou avance.');
+            return;
+        }
         if (!personalWithdrawalWalletChosen) {
             setAlert('⚠️ Choisissez le portefeuille.');
             return;
@@ -427,6 +434,9 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
             setAlert(`⚠️ Solde ${personalWithdrawalMethod} insuffisant.`);
             return;
         }
+        const personalWarn = expenseWarning({ origin: 'personal_expense', amount: Number(preview.amountDzd) || amountNum, timestamp: Date.now(), history: personalExpenseHistory, editingId: editingPersonalExpenseTx?.id });
+        if (!secondPress.check(personalWarn, `personal|${amountNum}|${personalWithdrawalMethod}|${personalWithdrawalMode}`, setAlert))
+            return;
         if (isSaving)
             return;
         setIsSaving(true);
