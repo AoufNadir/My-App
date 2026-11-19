@@ -233,9 +233,16 @@ export default function MainApp({ user }: {
     const { managerFeePercentage, managerFeeHistory, saveManagerFeePercentage, isSettingsLoaded } = useSettings(userDocRef);
     const stockLockSeq = useStockLockSeq(userDocRef);
     const stockLockSeqRef = useRef(stockLockSeq);
-    stockLockSeqRef.current = stockLockSeq;
+    // V18: a render with the listener's older number must not undo the number this tab has just written.
+    const committedSeqRef = useRef<number | null>(null);
+    stockLockSeqRef.current = stockLockSeq !== null && committedSeqRef.current !== null && committedSeqRef.current > stockLockSeq ? committedSeqRef.current : stockLockSeq;
     // V14-5: every save that touches stock (expenses, withdrawals, services, edits, deletes) goes through the lock.
-    useEffect(() => registerStockLock({ db, expected: () => stockLockSeqRef.current }), []);
+    useEffect(() => registerStockLock({
+        db,
+        expected: () => stockLockSeqRef.current,
+        // V18: the number this tab just wrote (the listener follows later; a larger number from another tab wins).
+        committed: (seq) => { committedSeqRef.current = seq; if (stockLockSeqRef.current !== null && stockLockSeqRef.current !== undefined && seq > stockLockSeqRef.current) stockLockSeqRef.current = seq; },
+    }), []);
     const stockHistoryRef = useRef(transactions);
     stockHistoryRef.current = transactions;
     useEffect(() => registerStockHistory(() => stockHistoryRef.current), []);
@@ -3124,7 +3131,7 @@ export default function MainApp({ user }: {
                 });
             // V13-7: whatever takes stock out (a sale, or paying with another currency) goes with the stock lock.
             if (input.kind === 'sell' || input.source !== 'DZD')
-                await commitWithStockLockOrBatch(db, userDocRef, batch, stockLockSeq);
+                await commitWithStockLockOrBatch(db, userDocRef, batch, stockLockSeqRef.current);
             else
                 await batch.commit();
             setAlert('✅ Transaction ajoutée.');

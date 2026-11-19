@@ -65,3 +65,16 @@ const batchOf = (path: string) => {
     }
     console.log('stockLockAmbient.test: expenses, withdrawals and services take the same stock lock as sales');
 })();
+
+// V18: the tab that moved the lock is told the new number at once (a sale right after a delete is not refused).
+{
+    const { commitWithStockLockOrBatch: commit, registerStockLock: register } = await import('./stockLock');
+    let stored = 4;
+    const db = { runTransaction: async (fn: any) => fn({ get: async () => ({ exists: true, data: () => ({ seq: stored }) }), set: (_r: any, d: any) => { if (d?.seq) stored = d.seq; }, update() {}, delete() {} }) };
+    const seen: number[] = [];
+    const off = register({ db, expected: () => 4, committed: (n) => seen.push(n) });
+    const ref = { collection: () => ({ doc: () => ({ nativeRef: { path: 'users/u/stock_lock/main' } }) }) } as any;
+    await commit(db, ref, { operations: [], commit: async () => {} } as any, 4);
+    assert.deepEqual(seen, [5]);
+    off();
+}

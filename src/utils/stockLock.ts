@@ -59,7 +59,10 @@ export async function commitWithStockLockOrBatch(db: DbLike, userDocRef: Firesto
         return;
     }
     try {
-        await commitWithStockLock(db, userDocRef, batch, expected);
+        const next = await commitWithStockLock(db, userDocRef, batch, expected);
+        // V18 (performance): this tab moved the lock itself, so it knows the new number at once. Without this, a sale
+        // made right after a delete waited for the listener and was refused (« Une autre opération… ») on a slow line.
+        ambientLock?.committed?.(next);
     }
     catch (error) {
         if (error instanceof StockChangedError || (error instanceof Error && error.name === 'FinancialWriteBlockedError'))
@@ -75,11 +78,16 @@ export async function commitWithStockLockOrBatch(db: DbLike, userDocRef: Firesto
  * registers the lock once (MainApp), and every save whose batch touches a stock row goes through it automatically
  * (readModels/productionSummaryWriter), so two windows can never take the same stock whatever they record.
  */
-export type AmbientStockLock = { db: DbLike; expected: () => number | null | undefined };
+export type AmbientStockLock = { db: DbLike; expected: () => number | null | undefined; committed?: (seq: number) => void };
 let ambientLock: AmbientStockLock | null = null;
 export function registerStockLock(lock: AmbientStockLock): () => void {
     ambientLock = lock;
     return () => { if (ambientLock === lock) ambientLock = null; };
+}
+/** V18: the newest lock number this tab knows (the listener's, or the one it has just written itself). */
+export function currentStockLockSeq(fallback: number | null | undefined): number | null {
+    const seen = ambientLock?.expected();
+    return seen ?? fallback ?? null;
 }
 export function batchTouchesStock(batch: Pick<FirestoreWriteBatch, 'operations'>): boolean {
     return (batch.operations || []).some((op) => op.ref.nativeRef.path.includes('/usdt_txs/'));
