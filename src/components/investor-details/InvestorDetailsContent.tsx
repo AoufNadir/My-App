@@ -131,8 +131,11 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
             </span>) : <span className="text-base text-neutral-400">-</span>,
         },
     ];
-    const primaryCapitalLabel = isManager ? t('investors.managerOwnedCapital') as string : t('investors.capitalInvested') as string;
-    const primaryCapitalValue = isManager ? Number(managerProfitBreakdown?.actualOwnerCapital ?? managerCapital?.ownerCapital ?? capitalSnapshot?.netOwnedCapital ?? 0) : investor.capitalInvested;
+    // V17-4 (owner, 2026-11-19): two figures for the manager, each with what it means: the capital his share comes
+    // from (the weight of the split), then what he really owns today (from the balance sheet). No figure is computed differently.
+    const primaryCapitalLabel = isManager ? t('investors.capitalInProject') as string : t('investors.capitalInvested') as string;
+    const ownedToday = Number(managerProfitBreakdown?.actualOwnerCapital ?? managerCapital?.ownerCapital ?? capitalSnapshot?.netOwnedCapital ?? 0);
+    const primaryCapitalValue = isManager ? Number((investor as { shareCapital?: number }).shareCapital ?? ownedToday) : investor.capitalInvested;
     // An investor's available profit sits under the capital; the other figures are tiles.
     const [availableLine, ...investorTiles] = investorSecondary;
     const tiles = isManager ? managerSecondary : investorTiles;
@@ -154,9 +157,17 @@ export function InvestorDetailsContent({ investor, capitalSnapshot, managerProfi
               <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${statusPill.className}`}>{statusPill.label}</span>
             </div>
             <CurrencyAmount value={primaryCapitalValue} currency="DZD" semantic="plain" size="hero" decimals={0} className="mt-0.5 block"/>
+            {isManager && <p className="mt-0.5 text-xs text-neutral-500">{t('investors.capitalInProjectHint')}</p>}
             <p className="mt-0.5 text-xs text-neutral-500">{String(t('investors.investorSince')).replace('{date}', formattedEntryDate)}</p>
           </div>
         </div>
+        {isManager && (<div data-testid="owned-today" className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
+            <span className="min-w-0">
+              <span className="block text-[13px] font-semibold text-neutral-700">{t('investors.ownedToday')}</span>
+              <span className="block text-xs text-neutral-500">{t('investors.ownedTodayHint')}</span>
+            </span>
+            <CurrencyAmount value={ownedToday} currency="DZD" semantic="plain" size="lg" decimals={0} className="shrink-0"/>
+          </div>)}
         {!isManager && (<div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
             <p className={`text-[13px] font-semibold ${requiresRegularization ? 'text-financial-loss' : 'text-neutral-700'}`}>{availableLine.label}</p>
             <CurrencyAmount value={availableLine.value} currency="DZD" semantic={availableLine.semantic ?? 'auto'} size="lg" decimals={0} className="shrink-0"/>

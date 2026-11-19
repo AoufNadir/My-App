@@ -68,4 +68,11 @@ const sale = [buy(T, 10_000, 250), sell(T + 1, 10_000, 260)];
 near(run([buy(T, 1_000, 250)]).totals.netDistributableProfit, 0, 'no sale, no profit');
 // 7. The same sale with a 40/60 split (test only, production unchanged).
 near(of(run(sale, [], '40'), 'owner').totalProfit, ownerFormula(100_000, 0.4), '40/60 follows the same formula');
+// V17-4: the manager's « capital in the project » shown on his page is exactly the weight his share comes from.
+{
+    const r = run(sale);
+    assert.equal(of(r, 'owner').shareCapital, OWNER);
+    assert.equal(of(r, 'others').shareCapital, OTHERS);
+    near(of(r, 'owner').sharePercentage, OWNER / TOTAL, 'share = capital in the project / all capitals');
+}
 console.log('financialAudit.test: owner formula matches; findings 1 (capital weight) and 2 (loss paid twice) reproduced');

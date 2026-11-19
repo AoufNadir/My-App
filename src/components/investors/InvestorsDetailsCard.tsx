@@ -18,6 +18,8 @@ type InvestorsStats = {
     netDistributableProfit?: number;
 };
 type InvestorsDetailsCardProps = {
+    /** V17-4: the manager's capital in the project (the weight of his share). */
+    managerShareCapital?: number | null;
     stats: InvestorsStats;
     capitalSnapshot?: CapitalSnapshot;
     managerFeePercentage: string;
@@ -40,7 +42,7 @@ function DetailRow({ label, value, semantic = 'auto', hideWhenZero = false }: { 
       <CurrencyAmount value={value} currency="DZD" semantic={semantic} size="md" decimals={0} className="shrink-0 font-semibold"/>
     </div>);
 }
-export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercentage, managerProfitBreakdown, onOpenCommissionEditor, reconciliationDifference = 0 }: InvestorsDetailsCardProps) {
+export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercentage, managerProfitBreakdown, onOpenCommissionEditor, reconciliationDifference = 0, managerShareCapital = null }: InvestorsDetailsCardProps) {
     const { t } = useLanguage();
     const hasProjectCosts = (stats.totalDeliveryExpenses ?? 0) > 0 || (stats.totalDebtWriteOffs ?? 0) > 0;
     const hasReconciliationIssue = Math.abs(reconciliationDifference) > 0.01;
@@ -61,7 +63,8 @@ export function InvestorsDetailsCard({ stats, capitalSnapshot, managerFeePercent
           <DetailRow label={t('investors.profitsToPay') as string} value={stats.totalAvailable} semantic="auto"/>
         </DetailGroup>
         {(managerProfitBreakdown || capitalSnapshot) && (<DetailGroup title={t('investors.netPart')}>
-            <DetailRow label={t('investors.capitalOwned') as string} value={ownerCapital} semantic="plain"/>
+            {managerShareCapital !== null && <DetailRow label={t('investors.capitalInProject') as string} value={managerShareCapital} semantic="plain"/>}
+            <DetailRow label={t('investors.ownedToday') as string} value={ownerCapital} semantic="plain"/>
           </DetailGroup>)}
         <DetailGroup title={t('investors.result')}>
           <DetailRow label={t('investors.managerShare') as string} value={stats.managerFee} semantic="auto"/>

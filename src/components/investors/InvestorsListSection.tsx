@@ -23,7 +23,7 @@ export function investorListRows(investors: DerivedInvestor[], capitalSnapshot?:
         isManager: !!inv.isManager,
         isActive: !!inv.isActive,
         capitalInvested: inv.isManager
-            ? Number(managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot?.netOwnedCapital ?? inv.capitalInvested ?? 0)
+            ? Number(inv.shareCapital ?? managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot?.netOwnedCapital ?? inv.capitalInvested ?? 0) // V17-4: the capital the share comes from
             : Number(inv.capitalInvested || 0),
         availableProfit: inv.isManager ? 0 : Number(inv.displayAvailableProfit || 0),
         withdrawnProfit: Number(inv.withdrawnProfit || 0),
@@ -58,7 +58,7 @@ export function InvestorsListSection({ investors, capitalSnapshot, managerProfit
                 const availableProfit = isManager ? 0 : Number(investor.displayAvailableProfit || 0);
                 const requiresRegularization = !isManager && rawAvailableProfit < -0.005;
                 const displayedCapital = isManager
-                    ? Number(managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot?.netOwnedCapital ?? investor.capitalInvested ?? 0)
+                    ? Number(investor.shareCapital ?? managerProfitBreakdown?.actualOwnerCapital ?? capitalSnapshot?.netOwnedCapital ?? investor.capitalInvested ?? 0)
                     : Number(investor.capitalInvested || 0);
                 const hasRoi = !isManager && investor.roi !== null && investor.roi !== undefined;
                 const term = termsByInvestorId?.get(investor.id);

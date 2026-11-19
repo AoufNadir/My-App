@@ -55,7 +55,7 @@ function investor(fields: Partial<DerivedInvestor> & Pick<DerivedInvestor, 'id' 
         ...fields,
     };
 }
-const manager = investor({ id: 'inv-m', name: 'Yacine Benali', entryDate: '2025-01-15', isManager: true, capitalInvested: 1_200_000, initialCapital: 1_000_000, sharePercentage: 0.6977, totalProfit: 186_420, withdrawnProfit: 64_000, notes: 'Gérant et porteur du projet.' });
+const manager = investor({ id: 'inv-m', name: 'Yacine Benali', entryDate: '2025-01-15', isManager: true, capitalInvested: 1_200_000, shareCapital: 1_150_000, initialCapital: 1_000_000, sharePercentage: 0.6977, totalProfit: 186_420, withdrawnProfit: 64_000, notes: 'Gérant et porteur du projet.' });
 const sofiane = investor({ id: 'inv-a', name: 'Sofiane Haddad', entryDate: '2025-03-01', capitalInvested: 400_000, initialCapital: 300_000, sharePercentage: 0.2326, totalProfit: 62_450.5, withdrawnProfit: 20_000, reinvestedProfit: 4_200, availableProfit: 38_250.5, displayAvailableProfit: 38_251, roi: 15.6126, notes: 'Retraits le 1er du mois, par BaridiMob.' });
 const lina = investor({ id: 'inv-b', name: 'Lina Mansouri', entryDate: '2026-02-10', capitalInvested: 120_000, initialCapital: 120_000, sharePercentage: 0.0698, totalProfit: 5_800, withdrawnProfit: 9_000, availableProfit: -3_200, roi: 4.8333 });
 const omar = investor({ id: 'inv-c', name: 'Omar Kaci', entryDate: '2025-06-01', isActive: false, archived: true, initialCapital: 150_000, totalProfit: 21_300, withdrawnProfit: 19_450, availableProfit: 1_850 });
@@ -183,16 +183,16 @@ if (process.env.SCREEN_CAPTURE) {
 // narrow space between thousands). French and Arabic showed the same ones.
 const BEFORE: Record<keyof typeof SCREENS, string[]> = {
     // V9-5: the « Services » row (14⍽500) is gone from the capital detail.
-    investors: ['+15.6', '+1⍽850', '+38⍽251', '+4.8', '0', '02/09/2026', '120⍽000', '15⍽000', '1⍽200', '1⍽541⍽524', '1⍽730⍽000', '2024', '2025', '2026', '236⍽170', '265⍽000', '3', '30', '31/08/2026', '36⍽901', '375⍽000', '38⍽250', '3⍽200', '3⍽384⍽124', '3⍽941⍽024', '400⍽000', '4⍽500', '520⍽000', '55⍽926'],
-    investorsNoCosts: ['+15.6', '+1⍽850', '+38⍽251', '+4.8', '0', '02/09/2026', '12,50', '120⍽000', '15⍽000', '1⍽541⍽524', '1⍽730⍽000', '2024', '2025', '2026', '265⍽000', '275⍽971', '3', '30', '31/08/2026', '36⍽901', '375⍽000', '38⍽250', '3⍽200', '3⍽384⍽124', '3⍽941⍽024', '400⍽000', '520⍽000', '55⍽926'],
+    investors: ['+15.6', '+1⍽850', '+38⍽251', '+4.8', '0', '02/09/2026', '120⍽000', '15⍽000', '1⍽200', '1⍽541⍽524', '1⍽730⍽000', '2024', '2025', '2026', '236⍽170', '265⍽000', '3', '30', '31/08/2026', '36⍽901', '375⍽000', '38⍽250', '3⍽200', '3⍽384⍽124', '3⍽941⍽024', '400⍽000', '4⍽500', '520⍽000', '55⍽926', '1⍽150⍽000'],
+    investorsNoCosts: ['+15.6', '+1⍽850', '+38⍽251', '+4.8', '0', '02/09/2026', '12,50', '120⍽000', '15⍽000', '1⍽541⍽524', '1⍽730⍽000', '2024', '2025', '2026', '265⍽000', '275⍽971', '3', '30', '31/08/2026', '36⍽901', '375⍽000', '38⍽250', '3⍽200', '3⍽384⍽124', '3⍽941⍽024', '400⍽000', '520⍽000', '55⍽926', '1⍽150⍽000'],
     distribution: ['100.0', '1⍽250⍽000', '38⍽250', '38⍽250,5', '480⍽000'],
     commission: ['55⍽926,00'],
     investorDetail: ['+15,61', '01/03/2025', '1', '20⍽000', '23,26', '38⍽251', '400⍽000', '578', '6', '62⍽451'],
     investorHistory: ['+100⍽000', '+15,61', '+18⍽200', '+300⍽000', '+44⍽251', '+4⍽200', '-20⍽000', '01/03/2025', '01/07/2026', '05/01/2026', '09:30', '10:00', '11:00', '15/04/2026', '18:00', '19:00', '20⍽000', '23,26', '31/08/2026', '31/12/2025', '38⍽251', '400⍽000', '6', '62⍽451'],
     oweDetail: ['+4,83', '0', '10/02/2026', '120⍽000', '232', '3⍽200', '5⍽800', '6,98', '9⍽000'],
     // V4-3 adds one figure to the manager's page, '172⍽520': the profit from the USDT and EUR sales (72 561 + 99 959), first line of « Détail de mon profit de propriétaire ».
-    managerDetail: ['0', '122⍽420', '13⍽900', '15/01/2025', '172⍽520', '186⍽420', '1⍽000⍽000', '1⍽200', '241⍽870', '26⍽000', '30', '38⍽000', '3⍽377⍽400', '3⍽384⍽124', '4', '4⍽500', '55⍽450', '623', '64⍽000', '6⍽724', '72⍽561', '99⍽959'],
-    managerHistory: ['+1⍽000⍽000', '+200⍽000', '-12⍽000', '-5⍽000', '0', '09:00', '10/05/2026', '122⍽420', '13:00', '13⍽900', '15/01/2025', '16:00', '172⍽520', '17:00', '186⍽420', '1⍽000⍽000', '1⍽200', '20/09/2026', '241⍽870', '25/09/2026', '26⍽000', '30', '38⍽000', '3⍽377⍽400', '3⍽384⍽124', '4', '4⍽500', '55⍽450', '64⍽000', '6⍽724', '72⍽561', '99⍽959'],
+    managerDetail: ['0', '122⍽420', '13⍽900', '15/01/2025', '172⍽520', '186⍽420', '1⍽000⍽000', '1⍽200', '241⍽870', '26⍽000', '30', '38⍽000', '3⍽377⍽400', '3⍽384⍽124', '4', '4⍽500', '55⍽450', '623', '64⍽000', '6⍽724', '72⍽561', '99⍽959', '1⍽150⍽000'],
+    managerHistory: ['+1⍽000⍽000', '+200⍽000', '-12⍽000', '-5⍽000', '0', '09:00', '10/05/2026', '122⍽420', '13:00', '13⍽900', '15/01/2025', '16:00', '172⍽520', '17:00', '186⍽420', '1⍽000⍽000', '1⍽200', '20/09/2026', '241⍽870', '25/09/2026', '26⍽000', '30', '38⍽000', '3⍽377⍽400', '3⍽384⍽124', '4', '4⍽500', '55⍽450', '64⍽000', '6⍽724', '72⍽561', '99⍽959', '1⍽150⍽000'],
     portal: ['+100⍽000', '+15,61', '+18⍽200', '+300⍽000', '+44⍽251', '+4⍽200', '+62⍽451', '-20⍽000', '01/03/2025', '01/07/2026', '05/01/2026', '09:30', '10:00', '11:00', '15/04/2026', '18:00', '19:00', '2026', '31/08/2026', '31/12/2025', '400⍽000', '438⍽251', '579'],
     portalManager: ['+15,53', '+186⍽420', '+1⍽000⍽000', '+200⍽000', '-12⍽000', '-5⍽000', '09:00', '10/05/2026', '13:00', '15/01/2025', '16:00', '17:00', '1⍽200⍽000', '20/09/2026', '2026', '25/09/2026', '624'],
     expenses: ['+40,5', '-11⍽200', '-2⍽500', '-4⍽300', '-8⍽000', '03/09/2026', '08:00', '09:00', '10⍽000', '10⍽500', '11⍽200', '13:10', '14:00', '15/09/2026', '15⍽000', '17,5', '17:20', '18:45', '2', '2026', '22/09/2026', '26⍽000', '28/09/2026', '29/09/2026', '2⍽500', '30/09/2026', '4', '5⍽000', '64⍽500', '73⍽500', '867'],
@@ -200,6 +200,8 @@ const BEFORE: Record<keyof typeof SCREENS, string[]> = {
     expensesWeek: ['-2⍽500', '-8⍽000', '09:00', '10⍽000', '10⍽500', '13:10', '14:00', '15⍽000', '18:45', '1⍽500', '2', '22/09/2026', '26⍽000', '28', '28/09/2026', '29/09/2026', '2⍽500', '30/09/2026', '5⍽000', '64⍽500', '7,9', '73⍽500', '8⍽000'],
     expensesYear: ['+616,7', '-11⍽200', '-12⍽000', '-20⍽000', '-2⍽500', '-4⍽300', '-6⍽500', '-8⍽000', '02/08/2026', '03/09/2026', '08:00', '09:00', '10:00', '10⍽000', '10⍽500', '12/03/2026', '13:10', '14:00', '15/09/2026', '15:00', '15⍽000', '177', '17:20', '18:45', '2', '20/08/2026', '2026', '20⍽000', '21:00', '22/09/2026', '26⍽000', '28/09/2026', '29/09/2026', '2⍽500', '30/09/2026', '34,5', '5⍽000', '64⍽500', '7', '73⍽500'],
 };
+// V17-4 (owner, 2026-11-19): the manager's capital in the project (1 150 000, the weight of his share) is shown next to
+// what he owns today; it is the only new number.
 const changed: string[] = [];
 for (const [name, renderScreen] of Object.entries(SCREENS) as Array<[keyof typeof SCREENS, (lang: Lang) => string]>)
     for (const lang of ['fr', 'ar'] as const) {
@@ -233,7 +235,7 @@ function assertOrder(screen: keyof typeof SCREENS, lang: Lang, parts: string[]) 
 }
 for (const lang of ['fr', 'ar'] as const) {
     assertPairs('investors', lang, [
-        ['investors.capitalInvested', '520 000'], ['investors.capitalProject', '3 941 024'], ['investors.capitalOwned', '3 384 124'],
+        ['investors.capitalInvested', '520 000'], ['investors.capitalProject', '3 941 024'], ['investors.capitalInProject', '1 150 000'], ['investors.ownedToday', '3 384 124'],
         ['investors.profitsToPay', '36 901'], ['investors.managerShare', '55 926'],
         ['finance.liquidity', '1 730 000'], ['finance.stock', '1 541 524'], ['finance.netPosition', '265 000'], ['finance.treasuryCards', '375 000'],
         ['personalExpenses.personalAdvance', '15 000'], ['investors.managerCommissionRate', '30'],
@@ -241,7 +243,7 @@ for (const lang of ['fr', 'ar'] as const) {
     ]);
     assert.ok(textOf(SCREENS.investors(lang)).includes(`${label(lang, 'profitDistribution.availableToWithdraw')} :|${n('38 250')}`), `investors.${lang}: amount the plan can pay`);
     // The list keeps its order; each investor shows his own capital, then his profit and return.
-    assertOrder('investors', lang, ['Yacine Benali', '3 384 124', 'Sofiane Haddad', '400 000', '+38 251', '+15.6%', 'Lina Mansouri', '120 000', label(lang, 'investors.balanceToRegularize'), '3 200', '+4.8%', 'Omar Kaci', '0', '+1 850']);
+    assertOrder('investors', lang, ['Yacine Benali', '1 150 000', 'Sofiane Haddad', '400 000', '+38 251', '+15.6%', 'Lina Mansouri', '120 000', label(lang, 'investors.balanceToRegularize'), '3 200', '+4.8%', 'Omar Kaci', '0', '+1 850']);
     assertPairs('investorsNoCosts', lang, [['investors.attributedProfit', '275 971']]);
     // The status pill sits between the capital label and its amount.
     assertOrder('investorDetail', lang, [label(lang, 'investors.capitalInvested'), '400 000']);
@@ -250,7 +252,8 @@ for (const lang of ['fr', 'ar'] as const) {
         ['investors.totalWithdrawn', '20 000'], ['investors.fundShare', '23,26'], ['investors.cumulativeReturn', '+15,61'], ['investors.investmentDuration', '578'],
     ]);
     assertPairs('oweDetail', lang, [['investors.balanceToRegularize', '3 200'], ['investors.totalProfitCumulative', '5 800'], ['investors.totalWithdrawn', '9 000']]);
-    assertOrder('managerDetail', lang, [label(lang, 'investors.managerOwnedCapital'), '3 384 124']);
+    // V17-4: the capital his share comes from, what it means, then what he really owns today (balance sheet).
+    assertOrder('managerDetail', lang, [label(lang, 'investors.capitalInProject'), '1 150 000', label(lang, 'investors.capitalInProjectHint'), label(lang, 'investors.ownedToday'), label(lang, 'investors.ownedTodayHint'), '3 384 124']);
     // V4-3: the profit of the owner starts with where it comes from (sales, other businesses), then the total.
     assertOrder('managerDetail', lang, [label(lang, 'investors.totalEarned'), '186 420', label(lang, 'investors.ownerProfitBreakdown'), label(lang, 'investors.profitFromSales'), '172 520', label(lang, 'investors.profitFromOtherBusinesses'), '13 900', label(lang, 'investors.personalTotalProfit'), '186 420', label(lang, 'investors.ideaShare'), '72 561']);
     assertPairs('managerDetail', lang, [

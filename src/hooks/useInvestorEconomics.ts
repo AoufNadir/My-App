@@ -30,6 +30,8 @@ export type DerivedInvestor = Investor & {
     currentPersonalExpenses: number;
     /** Historical plus current personal expenses. */
     totalPersonalExpenses: number;
+    /** V17-4: the capital the next sale is split by (the weight behind sharePercentage). */
+    shareCapital?: number;
     managerCapital?: ManagerOwnerCapitalBreakdown | null;
     accountingWarnings: InvestorAccountingWarning[];
     /** Presentation-only whole-DZD amount whose investor-list sum matches the rounded total. */
@@ -612,6 +614,7 @@ export function deriveInvestorEconomics(input: InvestorEconomicsInput): Investor
         return {
             ...draft.inv,
             capitalInvested: draft.capitalInvested,
+            shareCapital: roundM(shareWeightById.get(draft.inv.id) || 0),
             sharePercentage: currentShare,
             totalProfit: draft.totalProfit,
             availableProfit: draft.availableProfit,

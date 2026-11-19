@@ -125,7 +125,7 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
 
       <InvestorsListSection investors={investors} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onAddInvestor={onAddInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor} termsByInvestorId={investorTermsByInvestorId}/>
 
-      <InvestorsDetailsCard stats={displayedStats} capitalSnapshot={capitalSnapshot} managerFeePercentage={managerFeePercentage} managerProfitBreakdown={managerProfitBreakdown} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference}/>
+      <InvestorsDetailsCard stats={displayedStats} capitalSnapshot={capitalSnapshot} managerFeePercentage={managerFeePercentage} managerProfitBreakdown={managerProfitBreakdown} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference} managerShareCapital={investors.find((inv) => inv.isManager)?.shareCapital ?? null}/>
 
       {periodLock && (<PeriodLockCard {...periodLock} setAlert={setAlert}/>)}
 
