@@ -134,57 +134,18 @@ async function resolveDeletionTarget(transactionId: string, transactionType: Tra
 export async function findLinkedTransactions(transactionId: string, userDocRef: FirestoreDocumentReference): Promise<LinkedTransaction[]> {
     const linked: LinkedTransaction[] = [];
     try {
-        // Search Client Transactions for linkedTxId
-        const clientTxQuery = await userDocRef
-            .collection('dzd_client_txs')
-            .where('linkedTxId', '==', transactionId)
-            .get();
-        clientTxQuery.forEach(doc => {
-            linked.push({
-                id: doc.id,
-                collection: 'dzd_client_txs',
-                type: 'client_tx',
-                data: doc.data()
-            });
-        });
-        // Search Treasury Transactions for linkedTxId
-        const treasuryTxQuery = await userDocRef
-            .collection('treasury_txs')
-            .where('linkedTxId', '==', transactionId)
-            .get();
-        treasuryTxQuery.forEach(doc => {
-            linked.push({
-                id: doc.id,
-                collection: 'treasury_txs',
-                type: 'treasury_tx',
-                data: doc.data()
-            });
-        });
-        // Search USDT/EUR Transactions for linkedTxId (used by conversion helper rows)
-        const usdtTxQuery = await userDocRef
-            .collection('usdt_txs')
-            .where('linkedTxId', '==', transactionId)
-            .get();
-        usdtTxQuery.forEach(doc => {
-            linked.push({
-                id: doc.id,
-                collection: 'usdt_txs',
-                type: 'usdt_tx',
-                data: doc.data()
-            });
-        });
-        // Search Asset Transactions for linkedTreasuryTxId
-        const assetTxQuery = await userDocRef
-            .collection('actifTransactions')
-            .where('linkedTreasuryTxId', '==', transactionId)
-            .get();
-        assetTxQuery.forEach(doc => {
-            linked.push({
-                id: doc.id,
-                collection: 'actifTransactions',
-                type: 'asset_tx',
-                data: doc.data()
-            });
+        // V18 (performance): the four searches do not depend on each other, so they go to the server together
+        // instead of one after the other. The rows are added in the same order as before.
+        const searches: Array<[string, TransactionType, string]> = [
+            ['dzd_client_txs', 'client_tx', 'linkedTxId'],
+            ['treasury_txs', 'treasury_tx', 'linkedTxId'],
+            ['usdt_txs', 'usdt_tx', 'linkedTxId'],
+            ['actifTransactions', 'asset_tx', 'linkedTreasuryTxId'],
+        ];
+        const snapshots = await Promise.all(searches.map(([collection, , field]) => userDocRef.collection(collection).where(field, '==', transactionId).get()));
+        snapshots.forEach((snapshot, i) => {
+            const [collection, type] = searches[i];
+            snapshot.forEach((doc) => { linked.push({ id: doc.id, collection, type, data: doc.data() }); });
         });
     }
     catch (e) {
