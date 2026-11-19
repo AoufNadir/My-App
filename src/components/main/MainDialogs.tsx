@@ -215,7 +215,8 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
     const accountIds = CASH_ACCOUNTS.map((account) => account.id);
     const twoAccounts = accountIds.length === 2;
     const walletBalance = (wallet: InternalWallet, _c?: number, _b?: number) => balances?.[wallet] ?? (wallet === 'Caisse' ? caisseBalance : wallet === 'BaridiMob' ? baridiBalance : 0);
-    const getOppositeWallet = (wallet: InternalWallet): InternalWallet => (twoAccounts ? accountIds.find((id) => id !== wallet) ?? wallet : '');
+    // Rule 11: no source picked in advance, so no destination either until the owner picks the source.
+    const getOppositeWallet = (wallet: InternalWallet): InternalWallet => (wallet && twoAccounts ? accountIds.find((id) => id !== wallet) ?? wallet : '');
     const destinationWallet = twoAccounts ? getOppositeWallet(source) : destination;
     React.useEffect(() => {
         if (isOpen && twoAccounts && destination !== destinationWallet) {
@@ -233,7 +234,9 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
     const hasAmount = !!amount && Number.isFinite(typedAmount) && typedAmount > 0;
     const blockedReason = !isInvalid || isSaving
         ? undefined
-        : source === destination
+        : !source
+            ? undefined
+            : source === destination
             ? sameAccountErrorText
             : !hasAmount
                 ? t('transactions.enterValidAmount') as string
@@ -271,17 +274,17 @@ export function WalletTransferDialog({ isOpen, onClose, amount, setAmount, sourc
               <Label>{toLabel}</Label>
               {twoAccounts && <span className="text-xs font-medium text-neutral-500">{t('transactions.automatic')}</span>}
             </div>
-            {twoAccounts ? (<div className="mt-2">
+            {twoAccounts ? (!destinationWallet ? null : <div className="mt-2">
               <WalletChoiceCard wallet={destinationWallet} name={walletName(destinationWallet)} balance={walletBalance(destinationWallet)} readOnly helperText={destinationLabel}/>
             </div>) : (<div className="mt-2 grid grid-cols-2 gap-2">
               {accountIds.filter((id) => id !== source).map((id) => (<React.Fragment key={id}><WalletChoiceCard wallet={id} name={walletName(id)} balance={walletBalance(id)} selected={destination === id} onClick={() => setDestination(id)}/></React.Fragment>))}
             </div>)}
-            {source === destination && (<p className="mt-1 text-xs font-medium text-danger">{sameAccountErrorText}</p>)}
+            {!!source && source === destination && (<p className="mt-1 text-xs font-medium text-danger">{sameAccountErrorText}</p>)}
           </div>
 
           {(() => {
             const amt = parseAndEvaluate(amount);
-            if (!Number.isFinite(amt) || amt <= 0 || source === destination)
+            if (!source || !Number.isFinite(amt) || amt <= 0 || source === destination)
                 return null;
             if (!destinationWallet)
                 return null;

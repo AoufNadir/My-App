@@ -716,8 +716,9 @@ export default function MainApp({ user }: {
     const [clientSortMode, setClientSortMode] = useState<ClientSortMode>('all');
     const [isWalletTransferModalOpen, setIsWalletTransferModalOpen] = useState(false);
     const [walletTransferAmount, setWalletTransferAmount] = useState('');
-    const [walletTransferSource, setWalletTransferSource] = useState<string>('Caisse');
-    const [walletTransferDest, setWalletTransferDest] = useState<string>('BaridiMob');
+    // Rule 11: neither wallet is picked in advance.
+    const [walletTransferSource, setWalletTransferSource] = useState<string>('');
+    const [walletTransferDest, setWalletTransferDest] = useState<string>('');
     const [walletTransferNotes, setWalletTransferNotes] = useState('');
     const setWalletTransferSourceAndSync = useCallback((value: string) => {
         setWalletTransferSource(value);
@@ -1380,8 +1381,8 @@ export default function MainApp({ user }: {
         setEditingWalletTransferTx(null);
         setWalletTransferAmount('');
         setWalletTransferNotes('');
-        setWalletTransferSource('Caisse');
-        setWalletTransferDest('BaridiMob');
+        setWalletTransferSource('');
+        setWalletTransferDest('');
     };
     const openWalletTransferModal = (txToEdit: TreasuryTx | null = null, prefill?: { amount: string; source: 'Caisse' | 'BaridiMob'; destination: 'Caisse' | 'BaridiMob'; notes: string }) => {
         if (!txToEdit && prefill) {
@@ -1403,8 +1404,8 @@ export default function MainApp({ user }: {
         }
         else {
             setEditingWalletTransferTx(null);
-            setWalletTransferSource('Caisse');
-            setWalletTransferDest(SHOWN_CASH_ACCOUNTS.length === 2 ? (SHOWN_CASH_ACCOUNTS.find((account) => account.id !== 'Caisse')?.id ?? '') : ''); // V15-2: more accounts, the owner picks
+            setWalletTransferSource(''); // rule 11: the owner picks the source (and with two accounts the destination follows)
+            setWalletTransferDest('');
             setWalletTransferAmount('');
             setWalletTransferNotes('');
         }
@@ -1969,6 +1970,10 @@ export default function MainApp({ user }: {
             setAlert("⚠️ Montant invalide.");
             return;
         }
+        if (!walletTransferSource) {
+            setAlert('⚠️ Choisissez le portefeuille.');
+            return;
+        }
         if (walletTransferSource === walletTransferDest) {
             setAlert(t('common.sameSourceDest'));
             return;
@@ -2108,6 +2113,7 @@ export default function MainApp({ user }: {
         || isNaN(walletTransferAmountValue)
         || walletTransferAmountValue <= 0
         || walletTransferAmountValue > walletTransferSourceBalance
+        || !walletTransferSource
         || !walletTransferDest
         || walletTransferSource === walletTransferDest;
     const handleSaveTreasuryCard = async () => {

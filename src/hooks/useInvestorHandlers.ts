@@ -92,7 +92,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
     }, []);
     const [personalWithdrawalDate, setPersonalWithdrawalDate] = useState<string>('');
     const [personalWithdrawalNote, setPersonalWithdrawalNote] = useState('');
-    const [personalWithdrawalMode, setPersonalWithdrawalMode] = useState<'expense' | 'advance'>('expense');
+    const [personalWithdrawalMode, setPersonalWithdrawalMode] = useState<'' | 'expense' | 'advance'>(''); // rule 11: neither chosen in advance
     const [editingPersonalExpenseTx, setEditingPersonalExpenseTx] = useState<TreasuryTx | null>(null);
     const [personalExpenseToDelete, setPersonalExpenseToDelete] = useState<TreasuryTx | null>(null);
     const personalWithdrawalRates = useMemo(() => ({
@@ -117,7 +117,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         setPersonalWithdrawalWalletChosen(false);
         setPersonalWithdrawalDate('');
         setPersonalWithdrawalNote('');
-        setPersonalWithdrawalMode('expense');
+        setPersonalWithdrawalMode('');
         setIsPersonalWithdrawalModalOpen(true);
     };
     const closePersonalWithdrawalModal = () => {
@@ -382,6 +382,10 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
         setIsPersonalWithdrawalModalOpen(true);
     };
     const handleSavePersonalWithdrawal = async () => {
+        if (!personalWithdrawalMode) {
+            setAlert('⚠️ Choisissez : dépense ou avance.');
+            return;
+        }
         if (!personalWithdrawalWalletChosen) {
             setAlert('⚠️ Choisissez le portefeuille.');
             return;

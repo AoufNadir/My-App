@@ -30,7 +30,19 @@ assert.match(investors, /\[investorTxPaymentSource, setInvestorTxPaymentSource\]
 assert.equal((investors.match(/Choisissez le portefeuille/g) || []).length >= 2, true, 'both saves refuse without a wallet');
 const clients = read('../hooks/useClientHandlers.ts');
 assert.match(clients, /useState<PaymentChoice \| null>\(null\)/, 'client payment: no wallet in advance');
-assert.match(clients, /setClientPaymentStatus\(isSettlement \? null : 'cash'\)/);
+assert.match(clients, /setClientPaymentStatus\(null\); \/\/ rule 11/, 'V17-2: no way of paying in advance for any client operation');
+assert.doesNotMatch(clients, /isSettlement \? null : 'cash'/);
+// V17-2 (owner, 2026-11-19): nothing chosen in advance anywhere.
+const investorsSrc = read('../hooks/useInvestorHandlers.ts');
+assert.match(investorsSrc, /useState<'' \| 'expense' \| 'advance'>\(''\)/, 'personal withdrawal: neither expense nor advance in advance');
+assert.match(investorsSrc, /Choisissez : dépense ou avance\./);
+const mainApp = read('../MainApp.tsx');
+assert.match(mainApp, /useState<string>\(''\);\n    const \[walletTransferDest, setWalletTransferDest\] = useState<string>\(''\);/, 'internal transfer: no wallet in advance');
+assert.doesNotMatch(mainApp, /setWalletTransferSource\('Caisse'\)/);
+assert.match(mainApp, /if \(!walletTransferSource\) \{\n            setAlert\('⚠️ Choisissez le portefeuille\.'\)/);
+const distribution = read('../components/investors/ProfitDistributionSheet.tsx');
+assert.match(distribution, /useState<'' \| 'Caisse' \| 'BaridiMob'>\(''\)/, 'profit distribution: no wallet in advance');
+assert.match(distribution, /const canConfirm = !!paymentSource/);
 assert.doesNotMatch(clients, /setClientPaymentStatus\(usualChannel \?\? 'cash'\)/, 'the usual channel is a hint only');
 
 // 5. A purchase paid now needs the money in the wallet (USDT, EUR and every other currency).

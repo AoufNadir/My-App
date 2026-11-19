@@ -153,11 +153,12 @@ const ALERT_TEMPLATES: ReadonlyArray<readonly [string, string]> = [
     ['Service numérique requis.', 'alerts.digitalServiceRequired'],
     ['Prix d’achat invalide.', 'alerts.purchasePriceInvalid'],
     ['Prix de vente invalide.', 'alerts.salePriceInvalid'],
+    ['Choisissez : dépense ou avance.', 'alerts.chooseExpenseOrAdvance'],
     // V17-2: the guard before saving.
-    ['Même dépense de {amount} DZD déjà enregistrée le {date}. Appuyez encore sur Confirmer si ce n’est pas un doublon.', 'alerts.guardDuplicateExpense'],
-    ['Dépense de {amount} DZD, d’habitude environ {usual}. Appuyez encore sur Confirmer si le montant est juste.', 'alerts.guardUnusualExpense'],
-    ['Prix {price}, loin de l’habitude ({usual}). Appuyez encore sur Confirmer si le prix est juste.', 'alerts.guardFarPrice'],
-    ['Même opération enregistrée il y a quelques minutes. Appuyez encore sur Confirmer si ce n’est pas un doublon.', 'alerts.guardTwinOperation'],
+    ['Même dépense de {amount} DZD déjà enregistrée le {date}. Appuyez encore pour enregistrer si ce n’est pas un doublon.', 'alerts.guardDuplicateExpense'],
+    ['Dépense de {amount} DZD, d’habitude environ {usual}. Appuyez encore pour enregistrer si le montant est juste.', 'alerts.guardUnusualExpense'],
+    ['Prix {price}, loin de l’habitude ({usual}). Appuyez encore pour enregistrer si le prix est juste.', 'alerts.guardFarPrice'],
+    ['Même opération enregistrée il y a quelques minutes. Appuyez encore pour enregistrer si ce n’est pas un doublon.', 'alerts.guardTwinOperation'],
 ];
 
 type Translate = (key: string) => unknown;

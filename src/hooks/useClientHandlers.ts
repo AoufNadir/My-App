@@ -505,7 +505,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
             setClientTxSource('Caisse');
             // V5-4: a payment received starts on the way this client usually pays; every other operation starts in cash.
             const isSettlement = presetClientTxType === CLIENT_TX_PAYMENT_RECEIVED || presetClientTxType === CLIENT_TX_PAYMENT_MADE;
-            setClientPaymentStatus(isSettlement ? null : 'cash');
+            setClientPaymentStatus(null); // rule 11: no way of paying picked in advance, whatever the operation
             setLinkedClientId(selectedClientId || 'none');
             setClientTxReceiverClientId('none');
             setClientTxUsdtAmount('');

@@ -32,7 +32,8 @@ interface PersonalWithdrawalModalProps {
     setDate: (v: string) => void;
     note: string;
     setNote: (v: string) => void;
-    mode: 'expense' | 'advance';
+    /** '' until the owner picks one (rule 11). */
+    mode: '' | 'expense' | 'advance';
     setMode: (v: 'expense' | 'advance') => void;
     treasuryStats: {
         caisse: number;

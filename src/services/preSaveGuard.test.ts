@@ -41,9 +41,9 @@ assert.equal(operationWarning({ side: 'buy', currency: 'USDT', quantity: 300, pr
 // The messages read in Arabic, with their numbers.
 const t = (key: string) => key.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], (translations as Record<string, unknown>).ar);
 for (const [message, expected] of [
-    [`⚠️ ${expenseWarning({ origin: 'personal_expense', amount: 39_500, timestamp: NOW, history: withBig })}`, /^⚠️ مصروف بنفس المبلغ 39 500 DZD مسجّل يوم \d\d\/\d\d\./],
-    [`⚠️ ${expenseWarning({ origin: 'personal_expense', amount: 39_500, timestamp: NOW, history: usual })}`, /^⚠️ مصروف 39 500 DZD، والمعتاد نحو 400\./],
-    [`⚠️ ${operationWarning({ side: 'sell', currency: 'USDT', quantity: 300, price: 2620, timestamp: NOW, history: sells })}`, /^⚠️ السعر 2 620 بعيد عن المعتاد \(261\)\./],
+    [`⚠️ ${expenseWarning({ origin: 'personal_expense', amount: 39_500, timestamp: NOW, history: withBig })}`, /^⚠️ مصروف بنفس المبلغ \u206639 500 DZD\u2069 مسجّل يوم \u2066\d\d\/\d\d\u2069\. اضغط الزر مرة أخرى/],
+    [`⚠️ ${expenseWarning({ origin: 'personal_expense', amount: 39_500, timestamp: NOW, history: usual })}`, /^⚠️ مصروف \u206639 500 DZD\u2069، والمعتاد نحو \u2066400\u2069\./],
+    [`⚠️ ${operationWarning({ side: 'sell', currency: 'USDT', quantity: 300, price: 2620, timestamp: NOW, history: sells })}`, /^⚠️ السعر \u20662 620\u2069 بعيد عن المعتاد \(\u2066261\u2069\)\./],
     [`⚠️ ${operationWarning({ side: 'sell', currency: 'USDT', quantity: 300, price: 262, timestamp: NOW, clientId: 'c1', history: justSold })}`, /^⚠️ العملية نفسها سُجّلت قبل دقائق\./],
 ] as const)
     assert.match(translateAlert(message, 'ar', t), expected);

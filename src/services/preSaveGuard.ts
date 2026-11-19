@@ -27,13 +27,13 @@ export function expenseWarning(input: { origin: 'personal_expense' | 'delivery_e
             .filter((e) => Math.abs(e.timestamp - input.timestamp) <= GUARD_RULES.duplicateDays * DAY)
             .filter((e) => Math.abs(num(e.amount) - amount) <= Math.max(num(e.amount), amount) * GUARD_RULES.duplicateShare)
             .sort((a, b) => b.timestamp - a.timestamp)[0];
-        if (twin) return `Même dépense de ${fmt(amount)} DZD déjà enregistrée le ${dayOf(twin.timestamp)}. Appuyez encore sur Confirmer si ce n’est pas un doublon.`;
+        if (twin) return `Même dépense de ${fmt(amount)} DZD déjà enregistrée le ${dayOf(twin.timestamp)}. Appuyez encore pour enregistrer si ce n’est pas un doublon.`;
     }
     if (amount >= GUARD_RULES.unusualMin) {
         const before = same.filter((e) => e.timestamp < input.timestamp && e.timestamp >= input.timestamp - GUARD_RULES.unusualHistoryDays * DAY).map((e) => num(e.amount));
         const usual = median(before);
         if (before.length >= GUARD_RULES.unusualMinSamples && usual > 0 && amount >= usual * GUARD_RULES.unusualFactor)
-            return `Dépense de ${fmt(amount)} DZD, d’habitude environ ${fmt(usual)}. Appuyez encore sur Confirmer si le montant est juste.`;
+            return `Dépense de ${fmt(amount)} DZD, d’habitude environ ${fmt(usual)}. Appuyez encore pour enregistrer si le montant est juste.`;
     }
     return null;
 }
@@ -48,11 +48,11 @@ export function operationWarning(input: { side: 'buy' | 'sell'; currency: string
         .filter((o) => o.id !== input.editingId && o.type === input.side && (o.currency || 'USDT') === input.currency && num(o.quantity) > 0 && priceOf(o) > 0);
     const twin = ops.find((o) => Math.abs(o.timestamp - input.timestamp) <= GUARD_RULES.twinMinutes * 60_000
         && num(o.quantity) === quantity && priceOf(o) === price && (o.linkedClientId || '') === (input.clientId || ''));
-    if (twin) return `Même opération enregistrée il y a quelques minutes. Appuyez encore sur Confirmer si ce n’est pas un doublon.`;
+    if (twin) return `Même opération enregistrée il y a quelques minutes. Appuyez encore pour enregistrer si ce n’est pas un doublon.`;
     const recent = ops.filter((o) => o.timestamp <= input.timestamp).sort((a, b) => b.timestamp - a.timestamp).slice(0, GUARD_RULES.priceSamples).map(priceOf);
     const usual = median(recent);
     if (recent.length >= GUARD_RULES.priceMinSamples && usual > 0 && Math.abs(price - usual) > usual * GUARD_RULES.priceShare)
-        return `Prix ${fmt(price)}, loin de l’habitude (${fmt(usual)}). Appuyez encore sur Confirmer si le prix est juste.`;
+        return `Prix ${fmt(price)}, loin de l’habitude (${fmt(usual)}). Appuyez encore pour enregistrer si le prix est juste.`;
     return null;
 }
 
