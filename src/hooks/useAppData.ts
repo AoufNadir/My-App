@@ -80,24 +80,40 @@ export function useAppData(user: AppUser, refreshKey: number, options: UseAppDat
         applyDocs: (docs: any[]) => void
     ) => {
         let appliedInitialDocs = false;
+        // V18 (performance): each document is converted once and kept while it does not change. Before, every write
+        // converted the whole collection again (thousands of doc.data() calls) and gave every page new objects, so the
+        // phone froze for a moment after each save. The rows given to the app are the same, in the same order.
+        let mapped = new Map<string, any>();
         setCollectionState((current) => ({
             ...current,
             [key]: { received: false, fromCache: false, serverSynced: false }
         }));
         return query.onSnapshot((snapshot) => {
             const fromCache = Boolean(snapshot.metadata?.fromCache);
-            setCollectionState((current) => ({
-                ...current,
-                [key]: {
-                    received: true,
-                    fromCache,
-                    serverSynced: current[key]?.serverSynced || !fromCache
-                }
-            }));
-            if (appliedInitialDocs && (snapshot.docChanges?.() || []).length === 0)
+            setCollectionState((current) => {
+                const previous = current[key];
+                const serverSynced = previous?.serverSynced || !fromCache;
+                // A snapshot that only says « saved on the server » must not redraw the whole app.
+                if (previous && previous.received && previous.fromCache === fromCache && previous.serverSynced === serverSynced)
+                    return current;
+                return { ...current, [key]: { received: true, fromCache, serverSynced } };
+            });
+            const changes = snapshot.docChanges?.() || [];
+            if (appliedInitialDocs && changes.length === 0)
                 return;
+            const changed = new Set<string>();
+            if (appliedInitialDocs) for (const change of changes) changed.add(change.doc.id);
+            const next = new Map<string, any>();
+            const rows: any[] = [];
+            for (const doc of snapshot.docs) {
+                let row = mapped.get(doc.id);
+                if (row === undefined || changed.has(doc.id)) row = mapDocs([doc])[0] ?? null;
+                next.set(doc.id, row);
+                if (row !== null) rows.push(row);
+            }
+            mapped = next;
             appliedInitialDocs = true;
-            applyDocs(mapDocs(snapshot.docs));
+            applyDocs(rows);
         }, { includeMetadataChanges: true });
     }, []);
     // Core financial listeners stay mounted across every page transition.
