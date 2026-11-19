@@ -10,6 +10,8 @@ import { formatNumber } from '../../pages/shared/pageFormat';
 import type { ClientDzd, ClientTransactionDzd, Tx } from '../../types';
 import { analyticsWindow, computePeriodStats, hasActivity, percentChange, profitEffects, profitSeries, rankClients, type AnalyticsPeriodKind, type PeriodStats, type ProfitSeries } from '../../utils/analyticsPeriod';
 import type { PamLedgerResult } from '../../utils/pamLedger';
+import { buildInsights, capitalUse, clientTrends, creditVsNow, monthForecast, profitByWeekday, type SaleRow } from '../../utils/analyticsInsights';
+import { CapitalUseCard, ClientsCard, EffectBars, GoalForecast, InsightsCard, WeekdayRows } from './AnalyticsInsightsBlocks';
 
 // The Analyse page's body (V10-1): the same five blocks whether the period is a month, a year or everything.
 //   1. the profit of the period and how it moves against the one before
@@ -34,6 +36,12 @@ type Props = {
     monthNames: ReadonlyArray<string>;
     /** For tests and screenshots; the time the page opened otherwise */
     now?: number;
+    /** V18: the capital now (total, client debts, stock value) for « does my money work? » */
+    capital?: { total: number; debts: number; stockValue: number } | null;
+    /** V18: this month's goal (only shown on the current month) */
+    monthlyGoal?: number;
+    /** V18: more blocks at the end of the « more details » fold (the goal history) */
+    extraDetails?: ReactNode;
 };
 
 const fill = (template: string, values: Record<string, string | number>) => Object.entries(values).reduce((text, [name, value]) => text.split(`{${name}}`).join(String(value)), template);
@@ -84,7 +92,7 @@ function ProfitCalendar({ series, kind, year, month, shortMonth, weekdays }: { s
     return <div className={`grid gap-1 ${series.buckets.length === 1 ? 'grid-cols-1' : series.buckets.length === 2 ? 'grid-cols-2' : 'grid-cols-4'}`}>{series.buckets.map((bucket) => cell(bucket.index, String(bucket.index), bucket, true))}</div>;
 }
 
-export function AnalyticsOverview({ transactions, ledger, clientTransactionsDzd, clientsDzd, getClientFullName, kind, year, month, monthNames, now: fixedNow }: Props) {
+export function AnalyticsOverview({ transactions, ledger, clientTransactionsDzd, clientsDzd, getClientFullName, kind, year, month, monthNames, now: fixedNow, capital = null, monthlyGoal = 0, extraDetails = null }: Props) {
     const { t, lang } = useLanguage();
     const [now] = useState(() => fixedNow ?? Date.now());
     const [clientSort, setClientSort] = useState<'volume' | 'profit'>('volume');
@@ -110,6 +118,15 @@ export function AnalyticsOverview({ transactions, ledger, clientTransactionsDzd,
     const currentName = kind === 'month' ? `${monthName} ${year}` : kind === 'year' ? String(year) : label('anAllPeriod');
     const previousName = kind === 'month' ? periodName('month', month === 0 ? year - 1 : year, (month + 11) % 12) : kind === 'year' ? String(year - 1) : '';
 
+    // V18: the new figures (analyticsInsights.ts), from the same ledger.
+    const lang2 = lang === 'ar' ? 'ar' : 'fr';
+    const sales = ledger.sellProfitRows as unknown as SaleRow[];
+    const nameOf = (id: string) => clientNameById.get(id) ?? (t('portfolio.unknownClient') as string);
+    const periodDays = Math.max(1, (Math.min(window.current.to, now) - window.current.from) / 86_400_000);
+    const trends = clientTrends(sales, window.current, window.previous ?? null);
+    const use = capital && capital.total > 0 ? capitalUse({ profit: stats.profit, range: window.current, now, sales, capital: capital.total, debts: capital.debts, stockValue: capital.stockValue }) : null;
+    const insights = buildInsights({ credit: creditVsNow(sales, window.current), trends, use: use ?? { profitPerMillion: null, stockDays: null, debtShare: null, debts: 0, capital: 0 }, periodDays });
+    const weekdays7 = profitByWeekday(sales, window.current);
     const monthlyHasData = hasActivity(stats) || series.activeCount > 0;
     if (!monthlyHasData)
         return <EmptyState icon={<CalendarIcon className="h-5 w-5"/>} title={t('portfolio.noMonthlyActivity') as string} subtitle={t('portfolio.emptyPeriod') as string} className="rounded-card border border-border bg-surface"/>;
@@ -135,11 +152,15 @@ export function AnalyticsOverview({ transactions, ledger, clientTransactionsDzd,
     const marginMoves = previous ? TRADE_CURRENCY_CODES.map(currencyKey)
         .filter((key) => stats[key] && previous[key] && stats[key].marginPer100 !== null && previous[key].marginPer100 !== null)
         .map((key) => label('anMarginMove', { currency: key.toUpperCase(), range: ltr(`${count(previous[key].marginPer100!)} → ${count(stats[key].marginPer100!)} DZD`) })) : [];
-    const summary = effects && material(effects.total) ? (<SectionCard flush title={label(effects.total > 0 ? 'anSummaryUp' : 'anSummaryDown', { amount: ltr(`${count(Math.abs(effects.total))} DZD`) })}>
-        {material(effects.volume) && effectRow('volume', label('anEffectVolume'), effects.volume)}
-        {material(effects.margin) && effectRow('margin', label('anEffectMargin'), effects.margin)}
-        {material(effects.other) && effectRow('other', label('anEffectOther'), effects.other)}
-        {marginMoves.length > 0 && <div className="border-t border-border px-4 py-3 text-[13px] leading-snug text-neutral-600">{marginMoves.map((line) => <p key={line} dir="auto">{line}</p>)}</div>}
+    // V18: the same three effects (they add up to the change), drawn as bars.
+    void effectRow;
+    const summary = effects && material(effects.total) ? (<SectionCard title={label(effects.total > 0 ? 'anSummaryUp' : 'anSummaryDown', { amount: ltr(`${count(Math.abs(effects.total))} DZD`) })}>
+        <EffectBars rows={[
+            ...(material(effects.volume) ? [{ key: 'volume', title: label('anEffectVolume'), value: effects.volume }] : []),
+            ...(material(effects.margin) ? [{ key: 'margin', title: label('anEffectMargin'), value: effects.margin }] : []),
+            ...(material(effects.other) ? [{ key: 'other', title: label('anEffectOther'), value: effects.other }] : []),
+        ]}/>
+        {marginMoves.length > 0 && <div className="mt-3 border-t border-border pt-2 text-[13px] leading-snug text-neutral-600">{marginMoves.map((line) => <p key={line} dir="auto">{line}</p>)}</div>}
       </SectionCard>) : null;
 
     // 3. Volumes and margin
@@ -193,7 +214,7 @@ export function AnalyticsOverview({ transactions, ledger, clientTransactionsDzd,
 
     // 5. Clients and the fold
     const clientRows = clientSort === 'volume' ? ranking.byVolume : ranking.byProfit;
-    const clients = (<SectionCard title={t('portfolio.topClients') as string}>
+    const bestClients = (<div>
         {ranking.byVolume.length === 0 && ranking.byProfit.length === 0
             ? <p className="text-sm text-neutral-500">{t('portfolio.noClientMonthlyData')}</p>
             : (<div className="flex flex-col gap-2">
@@ -203,7 +224,7 @@ export function AnalyticsOverview({ transactions, ledger, clientTransactionsDzd,
                     : <CurrencyAmount value={row.realizedProfit} currency="DZD" semantic="auto" size="md" decimals={0} showSign/>}/></Fragment>))}</div>
                 {ranking.topThreeShare !== null && ranking.byVolume.length >= 2 && <p className="text-xs leading-snug text-neutral-500">{label('anConcentration', { pct: Math.round(ranking.topThreeShare) })}</p>}
               </div>)}
-      </SectionCard>);
+      </div>);
     const detailRow = (title: string, value: ReactNode) => (<div key={title} className="flex items-baseline justify-between gap-3 border-t border-border py-2 first:border-t-0 text-sm"><span className="text-neutral-600">{title}</span><span className="font-bold tabular-nums text-neutral-900">{value}</span></div>);
     const details = (<details className="group rounded-card border border-border bg-surface">
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-[15px] font-bold text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary [&::-webkit-details-marker]:hidden">
@@ -218,15 +239,23 @@ export function AnalyticsOverview({ transactions, ledger, clientTransactionsDzd,
           {detailRow(`${label('anBought')} USDT`, count(stats.usdt.bought))}
           {detailRow(`${label('anBought')} EUR`, count(stats.eur.bought))}
           {EXTRA_CURRENCY_CODES.filter((code) => (stats[currencyKey(code)]?.bought ?? 0) > 0).map((code) => detailRow(`${label('anBought')} ${code}`, count(stats[currencyKey(code)].bought)))}
+          <WeekdayRows lang={lang2} values={weekdays7}/>
         </div>
+        <div className="flex flex-col gap-3 px-3 pb-3">{table}{extraDetails}</div>
       </details>);
 
+    // V18: answer first (how am I doing, what to do), then why, then the money, the clients, the days, the rest.
+    const isCurrentMonth = kind === 'month' && window.inProgress;
+    const forecast = isCurrentMonth ? monthForecast(stats.profit, window.current, now) : null;
+    const goalBlock = <GoalForecast lang={lang2} profit={stats.profit} goal={isCurrentMonth ? monthlyGoal : 0} forecast={forecast}/>;
+    const heroNoteFull = (<div>{heroNote}{goalBlock}</div>);
     return (<>
-      <HeroCard label={label('anProfitOf', { period: currentName })} value={stats.profit} semantic="auto" showSign note={heroNote}/>
+      <HeroCard label={label('anProfitOf', { period: currentName })} value={stats.profit} semantic="auto" showSign note={heroNoteFull}/>
+      <InsightsCard lang={lang2} insights={insights} clientName={nameOf}/>
       {summary}
-      {table}
+      {use && <CapitalUseCard lang={lang2} use={use}/>}
+      <ClientsCard lang={lang2} best={bestClients} trends={trends} clientName={nameOf}/>
       {calendar}
-      {clients}
       {details}
     </>);
 }

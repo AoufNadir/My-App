@@ -2,6 +2,10 @@ import { Tx, ClientDzd, ClientTransactionDzd } from '../../types';
 export type AnalyticsPageProps = {
     /** P6: the goal history (last six months with a goal) */
     goalHistory?: ReadonlyArray<import('../../services/goalHistory').GoalHistoryRow>;
+    /** V18: the capital now, for « does my money work? » (total, client debts, stock value) */
+    analyticsCapital?: { total: number; debts: number; stockValue: number } | null;
+    /** V18: this month's goal */
+    monthlyGoal?: number;
     statsView: 'usdt' | 'clients';
     setStatsView: (view: 'usdt' | 'clients') => void;
     setIsSettingsModalOpen: (isOpen: boolean) => void;

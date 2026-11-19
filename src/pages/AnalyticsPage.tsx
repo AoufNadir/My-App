@@ -91,9 +91,7 @@ export function AnalyticsPage({ initialKind = 'month', ...props }: AnalyticsPage
         {picker}
       </section>
 
-      <AnalyticsOverview transactions={props.transactions} ledger={ledger} clientTransactionsDzd={props.clientTransactionsDzd} clientsDzd={props.clientsDzd} getClientFullName={props.getClientFullName} kind={kind} year={year} month={month} monthNames={monthOptions}/>
-
-      {props.goalHistory && <GoalHistoryCard rows={props.goalHistory}/>}
+      <AnalyticsOverview transactions={props.transactions} ledger={ledger} clientTransactionsDzd={props.clientTransactionsDzd} clientsDzd={props.clientsDzd} getClientFullName={props.getClientFullName} kind={kind} year={year} month={month} monthNames={monthOptions} capital={props.analyticsCapital ?? null} monthlyGoal={props.monthlyGoal ?? 0} extraDetails={props.goalHistory ? <GoalHistoryCard rows={props.goalHistory}/> : null}/>
 
       <AnalyticsExportSheet isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} monthLabel={selectedMonthLabel} year={year} realizedProfit={monthStats.profit} monthlyHasData={monthlyHasData} onExportMonthly={props.handleExportUsdtReport} reportClient={props.reportClient} reportMonth={props.reportMonth} reportYear={props.reportYear} reportMonths={props.reportMonths} reportYears={props.reportYears} clientsDzd={props.clientsDzd} getClientFullName={props.getClientFullName} onExportClient={openClientReport}/>
       {reportedClient && clientReport && (<Suspense fallback={null}>

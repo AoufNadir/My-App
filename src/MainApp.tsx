@@ -2420,6 +2420,9 @@ export default function MainApp({ user }: {
     }, [smartPricingByCurrency]);
     const portfolioPageProps = useMemo(() => ({
         goalHistory,
+        // V18: the Analyse page's « does my money work? » and the goal bar.
+        analyticsCapital: { total: capitalSnapshot.totalCapital, debts: capitalSnapshot.receivables, stockValue: capitalSnapshot.stockValue },
+        monthlyGoal: Number(pricingPlanSync.plan.monthlyGoal) || 0,
         showEur,
         showRmb,
         rmbStock,
@@ -2459,7 +2462,7 @@ export default function MainApp({ user }: {
         reportYear,
         setReportYear,
         // V12-11: no pencil on the stock: a quantity is never set by hand without someone behind the movement.
-    }), [goalHistory, 
+    }), [goalHistory, capitalSnapshot.totalCapital, capitalSnapshot.receivables, capitalSnapshot.stockValue, pricingPlanSync.plan.monthlyGoal, 
         statsView, portfolioStats, smartTargetPrices,
         usdtReportMonth, usdtReportYear, transactions, clientTransactionsDzd, reportClientRows, selectedHeatmapDay,
         fieldBase,

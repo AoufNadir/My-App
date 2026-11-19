@@ -274,7 +274,8 @@ for (const lang of ['fr', 'ar'] as const) {
     // The month: profit 18 031, against August (6 000 until the same day): ▲ 201 %
     assert.ok(analytics.month.includes(`+18${nbsp}031 | DZD | ▲ 201 %`), `analytics.${lang}: profit of the month, with its change`);
     // Why it moved: the three lines add up to the change (18 031 − 6 000 = 12 031), in whole dinars.
-    const effects = analytics.month.match(new RegExp(`${pt('anEffectVolume')} \\| \\+(\\d[\\d${nbsp}]*) \\| DZD \\| ${pt('anEffectMargin')} \\| \\+(\\d[\\d${nbsp}]*) \\| DZD \\| ${pt('anEffectOther')} \\| \\+(\\d[\\d${nbsp}]*)`));
+    // V18: the effects are bars now: « title | +amount » (the DZD is in the section's title).
+    const effects = analytics.month.match(new RegExp(`${pt('anEffectVolume')} \\| \\+(\\d[\\d ${nbsp}]*) \\| ${pt('anEffectMargin')} \\| \\+(\\d[\\d ${nbsp}]*) \\| ${pt('anEffectOther')} \\| \\+(\\d[\\d ${nbsp}]*)`));
     assert.ok(effects, `analytics.${lang}: the effects of volume, margin and the rest`);
     assert.deepEqual(effects!.slice(1).map(amount), [5_538, 2_893, 3_600], `analytics.${lang}: effects`);
     assert.equal(amount(effects![1]) + amount(effects![2]) + amount(effects![3]), 12_031, `analytics.${lang}: they add up to the change of the profit`);
