@@ -311,7 +311,8 @@ export default function MainApp({ user }: {
     useEffect(() => {
         if (!isFinancialDataReady || typeof window === 'undefined' || navigator.onLine === false)
             return;
-        const preload = () => { import('./pages/TransactionsPage').catch(() => { }); };
+        // V18: the report fonts too, so the first client picture or PDF opens without waiting for them.
+        const preload = () => { import('./pages/TransactionsPage').catch(() => { }); import('./components/reports/reportPdf').then((m) => m.prewarmReportFonts()).catch(() => { }); };
         if (typeof window.requestIdleCallback === 'function') {
             const idleId = window.requestIdleCallback(preload, { timeout: 5000 });
             return () => window.cancelIdleCallback(idleId);

@@ -347,6 +347,22 @@ export async function sharedFontEmbedCSS(sheet: HTMLElement): Promise<string | u
     return fontCssOnce;
 }
 
+/**
+ * V18: read the fonts while the app is idle, so the first picture or PDF does not wait for them. The probe uses every
+ * family the app loads (Latin and Arabic), so the CSS kept covers any report in either language.
+ */
+export function prewarmReportFonts(): void {
+    if (typeof document === 'undefined' || fontCssOnce) return;
+    const probe = document.createElement('div');
+    probe.setAttribute('aria-hidden', 'true');
+    probe.style.cssText = 'position:fixed;left:-10000px;top:0;opacity:0;pointer-events:none';
+    probe.innerHTML = '<span style="font-family:Inter,Cairo,Tajawal,var(--font-latin),var(--font-arabic);font-weight:400">a ب</span>'
+        + '<span style="font-family:Inter,Cairo,Tajawal,var(--font-latin),var(--font-arabic);font-weight:700">a ب</span>';
+    document.body.appendChild(probe);
+    const done = () => probe.remove();
+    (document.fonts?.ready ?? Promise.resolve()).then(() => sharedFontEmbedCSS(probe)).then(done, done);
+}
+
 export async function renderSheetImage(sheet: HTMLElement): Promise<Blob> {
     if (document.fonts?.ready)
         await document.fonts.ready;
