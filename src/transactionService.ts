@@ -76,6 +76,8 @@ async function resolveDeletionTarget(transactionId: string, transactionType: Tra
     transactionId: string;
     transactionType: TransactionType;
     error?: string;
+    /** V18 (performance): the target's data as read here, so the delete does not read it again. */
+    data?: any;
 }> {
     const key = `${transactionType}:${transactionId}`;
     if (visited.has(key)) {
@@ -89,7 +91,7 @@ async function resolveDeletionTarget(transactionId: string, transactionType: Tra
     const txDoc = await userDocRef.collection(COLLECTION_MAP[transactionType]).doc(transactionId).get();
     const txData = txDoc.data() as any;
     if (!txData) {
-        return { transactionId, transactionType };
+        return { transactionId, transactionType, data: null };
     }
     if (transactionType === 'client_tx' && txData.linkedTxId) {
         if (txData.origin === 'adjustment') {
@@ -106,7 +108,7 @@ async function resolveDeletionTarget(transactionId: string, transactionType: Tra
         // the current client row is already the parent transaction we should delete.
         if ((linkedTreasuryData?.origin === 'client_tx' && linkedTreasuryData?.linkedTxId === transactionId)
             || reverseTreasuryLinks.docs.some((doc) => (doc.data() as any)?.origin === 'client_tx')) {
-            return { transactionId, transactionType };
+            return { transactionId, transactionType, data: txData };
         }
         return resolveDeletionTarget(txData.linkedTxId, 'usdt_tx', userDocRef, visited);
     }
@@ -125,7 +127,7 @@ async function resolveDeletionTarget(transactionId: string, transactionType: Tra
         }
         return resolveDeletionTarget(txData.linkedTxId, 'usdt_tx', userDocRef, visited);
     }
-    return { transactionId, transactionType };
+    return { transactionId, transactionType, data: txData };
 }
 /**
  * Find all transactions linked to a given transaction ID
@@ -177,12 +179,16 @@ export async function applyTransactionDelete(transactionId: string, transactionT
         transactionType = resolvedTarget.transactionType;
         const batch = userDocRef.firestore.batch();
         const mainCollection = COLLECTION_MAP[transactionType];
-        const mainSnapshot = await userDocRef.collection(mainCollection).doc(transactionId).get();
-        const mainData = mainSnapshot.data() as any;
+        // V18 (performance): the target was just read by resolveDeletionTarget; the linked rows are searched at the
+        // same time. The same documents are read as before, only fewer times and not one after the other.
+        const [mainData, linkedTxs] = await Promise.all([
+            resolvedTarget.data !== undefined
+                ? Promise.resolve(resolvedTarget.data)
+                : userDocRef.collection(mainCollection).doc(transactionId).get().then((snap) => snap.data() as any),
+            findLinkedTransactions(transactionId, userDocRef),
+        ]);
         // Delete main transaction
         batch.delete(userDocRef.collection(mainCollection).doc(transactionId));
-        // Find and delete all linked transactions
-        const linkedTxs = await findLinkedTransactions(transactionId, userDocRef);
         recordTreasuryDeletionShadow(userDocRef, transactionId, [
             ...(transactionType === 'treasury_tx' && mainData ? [mainData] : []),
             ...linkedTxs.filter((tx) => tx.collection === 'treasury_txs').map((tx) => tx.data),
@@ -213,8 +219,7 @@ export async function applyTransactionDelete(transactionId: string, transactionT
         if (transactionType === 'usdt_tx') {
             const hasLinkedUsdtChild = linkedTxs.some(tx => tx.collection === 'usdt_txs');
             if (!hasLinkedUsdtChild) {
-                const mainTxDoc = await userDocRef.collection('usdt_txs').doc(transactionId).get();
-                const mainTxData = mainTxDoc.data() as any;
+                const mainTxData = mainData;
                 if (mainTxData &&
                     mainTxData.type === 'buy' &&
                     mainTxData.currency === 'USDT' &&
@@ -248,8 +253,7 @@ export async function applyTransactionDelete(transactionId: string, transactionT
         }
         // For asset transactions, also check for linkedTreasuryTxId field
         if (transactionType === 'asset_tx') {
-            const assetTxDoc = await userDocRef.collection('actifTransactions').doc(transactionId).get();
-            const assetTxData = assetTxDoc.data();
+            const assetTxData = mainData;
             if (assetTxData?.linkedTreasuryTxId) {
                 batch.delete(userDocRef.collection('treasury_txs').doc(assetTxData.linkedTreasuryTxId));
             }
@@ -260,8 +264,7 @@ export async function applyTransactionDelete(transactionId: string, transactionT
         // a generic delete of a personal_expense leaves the investor_tx and any
         // return tx orphaned. Mirror the cleanup done by handleDeletePersonalExpense.
         if (transactionType === 'treasury_tx') {
-            const treasuryDoc = await userDocRef.collection('treasury_txs').doc(transactionId).get();
-            const treasuryData = treasuryDoc.data() as any;
+            const treasuryData = mainData;
             if (treasuryData?.origin === 'personal_expense') {
                 await deletePersonalPortfolioChildren(transactionId);
                 const investorTxIds = new Set<string>();
