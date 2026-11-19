@@ -59,8 +59,23 @@ service cloud.firestore {
     // /{document=**} wildcard alone does NOT match the parent document.
     match /users/{ownerUid} {
       allow read, write: if signedIn() && request.auth.uid == ownerUid;
-      match /{document=**} {
+      // Every document of a collection, except the stock lock (below).
+      match /{coll}/{docId} {
+        allow read: if signedIn() && request.auth.uid == ownerUid;
+        allow write: if signedIn() && request.auth.uid == ownerUid && coll != 'stock_lock';
+      }
+      // Deeper documents (sub-collections of a document): owner-only, as before. ({rest=**} also matches nothing,
+      // so the sub-collection segment is named: this rule must not reach users/{uid}/{coll}/{docId} itself.)
+      match /{coll}/{docId}/{subColl}/{rest=**} {
         allow read, write: if signedIn() && request.auth.uid == ownerUid;
+      }
+      // V19: the stock lock moves by exactly one at each write. A save made on an older number (another phone or tab
+      // saved first) is refused by the server, with every line of its batch: two windows never take the same stock.
+      match /stock_lock/{lockId} {
+        allow read: if signedIn() && request.auth.uid == ownerUid;
+        allow create: if signedIn() && request.auth.uid == ownerUid && request.resource.data.seq == 1;
+        allow update: if signedIn() && request.auth.uid == ownerUid && request.resource.data.seq == resource.data.seq + 1;
+        allow delete: if signedIn() && request.auth.uid == ownerUid;
       }
     }
 

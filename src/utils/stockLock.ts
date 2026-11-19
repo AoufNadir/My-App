@@ -46,6 +46,29 @@ export async function commitWithStockLock(db: DbLike, userDocRef: FirestoreDocum
     });
 }
 
+/** V19: the same writes as commitWithStockLock in one batch; the rules check the lock. */
+export async function commitWithStockLockBatch(userDocRef: FirestoreDocumentReference, batch: Pick<FirestoreWriteBatch, 'operations'>, expected: number): Promise<number> {
+    const lockRef = userDocRef.collection('stock_lock').doc('main');
+    const next = expected + 1;
+    const out = (userDocRef as unknown as { firestore: { batch: () => FirestoreWriteBatch } }).firestore.batch();
+    for (const op of batch.operations) {
+        const isStockRow = op.ref.nativeRef.path.includes('/usdt_txs/');
+        if (op.kind === 'delete') out.delete(op.ref);
+        else if (op.kind === 'update') out.update(op.ref, isStockRow ? { ...op.data, stockSeq: next } : op.data);
+        else if (op.options) out.set(op.ref, isStockRow ? { ...op.data, stockSeq: next } : op.data, op.options);
+        else out.set(op.ref, isStockRow ? { ...op.data, stockSeq: next } : op.data);
+    }
+    out.set(lockRef, { seq: next, at: Date.now() });
+    try {
+        await out.commit();
+    }
+    catch (error) {
+        if ((error as { code?: string })?.code === 'permission-denied') throw new StockChangedError();
+        throw error;
+    }
+    return next;
+}
+
 /**
  * V14-3 (owner, 2026-11-13: « Erreur lors de la vente » on the live site): a transaction needs the server at that very
  * moment (a phone that drops the connection for a second fails it), while a batch waits and retries. So: the lock
@@ -59,7 +82,13 @@ export async function commitWithStockLockOrBatch(db: DbLike, userDocRef: Firesto
         return;
     }
     try {
-        const next = await commitWithStockLock(db, userDocRef, batch, expected);
+        // V19 (performance): one trip to the server instead of two (a transaction reads the lock, then writes). The
+        // batch moves the lock to expected + 1 and the security rules refuse it, with all its lines, when the lock is no
+        // longer at `expected` (firestore.rules, stock_lock).
+        const canBatch = typeof (userDocRef as unknown as { firestore?: { batch?: unknown } }).firestore?.batch === 'function';
+        const next = canBatch
+            ? await commitWithStockLockBatch(userDocRef, batch, expected)
+            : await commitWithStockLock(db, userDocRef, batch, expected);
         // V18 (performance): this tab moved the lock itself, so it knows the new number at once. Without this, a sale
         // made right after a delete waited for the listener and was refused (« Une autre opération… ») on a slow line.
         ambientLock?.committed?.(next);

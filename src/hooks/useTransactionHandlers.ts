@@ -17,6 +17,7 @@ import {
 import { operationStamp } from '../utils/editStamp';
 import { formatNumber } from '../pages/shared/pageFormat';
 import { applyTransactionDelete } from '../transactionService';
+import { announceDelete } from '../utils/deleteUndo';
 import { transferStamp } from '../utils/transferStamp';
 import { computePamLedger } from '../utils/pamLedger';
 import { STOCK_CHANGED_MESSAGE, StockChangedError, currentStockLockSeq, saveErrorAlert } from '../utils/stockLock';
@@ -65,6 +66,8 @@ interface HandlerProps {
     /** V13-7: the stock lock number this tab has seen (useStockLockSeq) */
     stockLockSeq?: number | null;
     setAlert: (msg: string) => void;
+    /** V19: a message with « Annuler » (MainApp.notifyWithUndo). */
+    notifyWithUndo?: (message: string, run: () => void) => void;
     setSelectedClientId: (id: string | null) => void;
     setView: (view: 'transactions' | 'dzd' | 'tresorerie' | 'statistiques' | 'tresorerie' | 'investors') => void;
     /** Live smart-pricing quote for the open sell form (SmartPricePanel keeps it current). */
@@ -113,7 +116,7 @@ const dzdSaleDraft = (currency: PortfolioCurrency, sellAmount: string, sellPrice
     const saleValueDzd = isTotalManual && totalInput > 0 ? totalInput : quantity * unitPrice;
     return { currency, quantity, sellPrice: unitPrice, saleValueDzd, totalRevenue: Math.round(saleValueDzd) };
 };
-export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats, periodLockedThrough, stockLockSeq, setAlert, setSelectedClientId, setView, smartQuoteRef }: HandlerProps) {
+export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats, periodLockedThrough, stockLockSeq, setAlert, notifyWithUndo, setSelectedClientId, setView, smartQuoteRef }: HandlerProps) {
     const [isSaving, setIsSaving] = useState(false);
     const paymentMethodByStatus: Record<'credit' | 'baridi' | 'cash', 'Crédit' | 'BaridiMob' | 'Espèces'> = {
         credit: 'Crédit',
@@ -684,11 +687,10 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     ...(mode === 'buy_eur' && clientPaymentStatus !== 'credit' && editingTx.creditDueDate ? { creditDueDate: fieldValueDelete() } : buyEurDueDate),
                     ...buyMetadata
                 });
-                const qsClient = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', editingTx.id).get();
+                // V19 (performance): the three searches go to the server together.
+                const [qsClient, qsTreasury, qsLinkedUsdt] = await Promise.all(['dzd_client_txs', 'treasury_txs', 'usdt_txs'].map((name) => userDocRef.collection(name).where('linkedTxId', '==', editingTx.id).get()));
                 qsClient.forEach(d => batch.delete(d.ref));
-                const qsTreasury = await userDocRef.collection('treasury_txs').where('linkedTxId', '==', editingTx.id).get();
                 qsTreasury.forEach(d => batch.delete(d.ref));
-                const qsLinkedUsdt = await userDocRef.collection('usdt_txs').where('linkedTxId', '==', editingTx.id).get();
                 qsLinkedUsdt.forEach(d => batch.delete(d.ref));
                 createLinkedEurConversionTx();
                 if (linkedClientId !== 'none') {
@@ -719,7 +721,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         notes: `Achat ${formatNumber(quantity, { min: 0, max: 2 })} ${currency}`, linkedTxId: editingTx.id
                     });
                 }
-                setAlert('✅ Transaction mise à jour.');
+                // V19: the success message comes after the server has accepted the write (below).
             }
             else {
                 batch.set(mainTxRef, {
@@ -768,7 +770,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         affectsBalance: true
                     });
                 }
-                setAlert('✅ Transaction ajoutée.');
+                // V19: the success message comes after the server has accepted the write (below).
             }
             if (buyUsdtMode !== 'with_eur' && clientPaymentStatus !== 'credit' && !shouldLinkCashToDzdClient) {
                 const wallet = walletOfStatus(clientPaymentStatus) as 'Caisse' | 'BaridiMob'; // diagnostics only know these two; the rows carry any account
@@ -912,6 +914,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 batch,
                 deltas: readModelDelta ? [readModelDelta] : [],
             });
+            setAlert(editingTx ? '✅ Transaction mise à jour.' : '✅ Transaction ajoutée.');
             closeForm();
             if (linkedClientId !== 'none') {
                 setTimeout(() => {
@@ -1086,11 +1089,10 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                     mainSellUpdate.linkedClientDzdId = fieldValueDelete();
                 }
                 batch.update(userDocRef.collection('usdt_txs').doc(editingTx.id), mainSellUpdate);
-                const qsClient = await userDocRef.collection('dzd_client_txs').where('linkedTxId', '==', editingTx.id).get();
+                // V19 (performance): the three searches go to the server together.
+                const [qsClient, qsTreasury, qsLinkedUsdt] = await Promise.all(['dzd_client_txs', 'treasury_txs', 'usdt_txs'].map((name) => userDocRef.collection(name).where('linkedTxId', '==', editingTx.id).get()));
                 qsClient.forEach(d => batch.delete(d.ref));
-                const qsTreasury = await userDocRef.collection('treasury_txs').where('linkedTxId', '==', editingTx.id).get();
                 qsTreasury.forEach(d => batch.delete(d.ref));
-                const qsLinkedUsdt = await userDocRef.collection('usdt_txs').where('linkedTxId', '==', editingTx.id).get();
                 qsLinkedUsdt.forEach(d => batch.delete(d.ref));
                 createLinkedEurSettlementTx(editingTx.id);
                 if (linkedClientId !== 'none') {
@@ -1121,7 +1123,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         notes: treasurySaleNote, linkedTxId: editingTx.id
                     });
                 }
-                setAlert('✅ Transaction mise à jour.');
+                // V19: the success message comes after the server has accepted the write (below).
             }
             else {
                 const ref = userDocRef.collection('usdt_txs').doc();
@@ -1186,7 +1188,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                         affectsBalance: true
                     });
                 }
-                setAlert('✅ Transaction ajoutée.');
+                // V19: the success message comes after the server has accepted the write (below).
             }
             if (!isUsdtSettledInEur && clientPaymentStatus !== 'credit' && !shouldLinkSettlementToDzdClient) {
                 const wallet = walletOfStatus(clientPaymentStatus) as 'Caisse' | 'BaridiMob'; // diagnostics only know these two; the rows carry any account
@@ -1397,6 +1399,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 }
                 throw error;
             }
+            setAlert(editingTx ? '✅ Transaction mise à jour.' : '✅ Transaction ajoutée.');
             closeForm();
             if (linkedClientId !== 'none') {
                 setTimeout(() => {
@@ -1695,7 +1698,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
         try {
             const result = await applyTransactionDelete(txId, type, userDocRef);
             if (result.success)
-                setAlert('✅ Transaction supprimée.');
+                announceDelete(result, setAlert, notifyWithUndo);
             else
                 setAlert(`❌ ${result.error || 'Erreur lors de la suppression.'}`);
         }

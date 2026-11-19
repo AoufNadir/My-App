@@ -50,10 +50,10 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                 : 'clients.deleteNote');
     return (<>
             {/* Delete portfolio tx confirmation */}
-            <ConfirmDialog isOpen={txToDelete !== null} onClose={() => setTxToDelete(null)} onConfirm={handleDeleteConfirm} title={t('transactions.deleteTransaction')} description={t('transactions.confirmDeleteTx')} note={t('transactions.irreversibleAction')} confirmLabel={t('common.delete')} cancelLabel={t('common.cancel')}/>
+            <ConfirmDialog isOpen={txToDelete !== null} onClose={() => setTxToDelete(null)} onConfirm={handleDeleteConfirm} title={t('transactions.deleteTransaction')} description={t('transactions.confirmDeleteTx')} note={t('transactions.undoableDelete')} confirmLabel={t('common.delete')} cancelLabel={t('common.cancel')}/>
 
             {/* Delete client tx confirmation */}
-            <ConfirmDialog isOpen={clientTxToDelete !== null} onClose={() => setClientTxToDelete(null)} onConfirm={handleDeleteClientTxConfirm} title={t('transactions.deleteTransaction')} description={t('transactions.confirmDeleteTx')} note={t('transactions.irreversibleAction')} confirmLabel={t('common.delete')} cancelLabel={t('common.cancel')}/>
+            <ConfirmDialog isOpen={clientTxToDelete !== null} onClose={() => setClientTxToDelete(null)} onConfirm={handleDeleteClientTxConfirm} title={t('transactions.deleteTransaction')} description={t('transactions.confirmDeleteTx')} note={t('transactions.undoableDelete')} confirmLabel={t('common.delete')} cancelLabel={t('common.cancel')}/>
 
             {/* Create/Edit Client */}
             <Modal isOpen={isClientModalOpen} onClose={() => setIsClientModalOpen(false)} className="max-w-md bg-surface">

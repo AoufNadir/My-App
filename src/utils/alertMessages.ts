@@ -29,6 +29,8 @@ const ALERT_TEMPLATES: ReadonlyArray<readonly [string, string]> = [
     ['Transaction liée à un service introuvable.', 'alerts.serviceLinkedTxNotFound'],
     ['Transaction introuvable.', 'alerts.txNotFound'],
     ['Transaction supprimée.', 'alerts.txDeleted'],
+    ['Suppression annulée.', 'alerts.deleteUndone'],
+    ['Impossible d’annuler la suppression.', 'alerts.deleteUndoError'],
     ['Erreur lors de la suppression.', 'alerts.deleteError'],
     ['Transaction investisseur supprimée.', 'alerts.investorTxDeleted'],
     ['Réinitialisation globale désactivée en mode Read Models.', 'alerts.resetDisabledReadModels'],

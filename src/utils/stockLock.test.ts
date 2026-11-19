@@ -50,3 +50,33 @@ const sale = (id: string) => ({ operations: [{ kind: 'set', ref: ref(`users/u/us
     assert.equal(committed, 2);
     console.log('stockLock.test: two tabs cannot sell the same stock, the second sale is refused whole');
 })();
+
+// V19: the one-trip lock. The fake server applies the rule of firestore.rules: the lock moves by exactly one.
+{
+    const { commitWithStockLockBatch } = await import('./stockLock');
+    let stored = 7;
+    const written: string[] = [];
+    const makeBatch = () => {
+        const ops: any[] = [];
+        return {
+            operations: ops,
+            set(r: any, d: any) { ops.push({ kind: 'set', ref: r, data: d }); },
+            update(r: any, d: any) { ops.push({ kind: 'update', ref: r, data: d }); },
+            delete(r: any) { ops.push({ kind: 'delete', ref: r }); },
+            async commit() {
+                const lock = ops.find((o) => o.ref.nativeRef.path.endsWith('stock_lock/main'));
+                if (lock && lock.data.seq !== stored + 1) throw Object.assign(new Error('denied'), { code: 'permission-denied' });
+                if (lock) stored = lock.data.seq;
+                ops.forEach((o) => written.push(`${o.kind}:${o.ref.nativeRef.path}:${o.data?.stockSeq ?? ''}`));
+            },
+        };
+    };
+    const user = Object.assign(ref('users/u'), { firestore: { batch: makeBatch } });
+    const sale = (id: string) => ({ operations: [{ kind: 'set', ref: ref(`users/u/usdt_txs/${id}`), data: { quantity: 1 } }] }) as any;
+    assert.equal(await commitWithStockLockBatch(user, sale('a'), 7), 8);
+    assert.ok(written.includes('set:users/u/usdt_txs/a:8'), 'the stock row carries the new number');
+    const before = written.length;
+    await assert.rejects(commitWithStockLockBatch(user, sale('b'), 7), StockChangedError);
+    assert.equal(written.length, before, 'a save on an older number writes nothing');
+    assert.equal(stored, 8);
+}

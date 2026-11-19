@@ -1,3 +1,4 @@
+import { announceDelete } from '../utils/deleteUndo';
 import { cashAccount, cashBalanceOf, paymentMethodOfStatus, walletOfStatus, type PaymentChoice } from '../accounts/cashAccounts';
 import { saveErrorAlert } from '../utils/stockLock';
 import { useRef, useState } from 'react';
@@ -837,7 +838,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         try {
             const result = await applyTransactionDelete(clientTxToDelete.id, 'client_tx', userDocRef);
             if (result.success)
-                setAlert('✅ Transaction supprimée.');
+                announceDelete(result, setAlert, notifyUndo);
             else
                 setAlert('❌ Erreur lors de la suppression.');
         }

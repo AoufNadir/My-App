@@ -162,6 +162,8 @@ export async function findLinkedTransactions(transactionId: string, userDocRef: 
 export async function applyTransactionDelete(transactionId: string, transactionType: TransactionType, userDocRef: FirestoreDocumentReference): Promise<{
     success: boolean;
     error?: string;
+    /** V19: writes back every line this delete removed, exactly as it was (absent when one of them could not be kept). */
+    undo?: () => Promise<void>;
 }> {
     try {
         const legacyMutationPolicy = resolveLegacyMutationPolicy({});
@@ -179,6 +181,9 @@ export async function applyTransactionDelete(transactionId: string, transactionT
         transactionType = resolvedTarget.transactionType;
         const batch = userDocRef.firestore.batch();
         const mainCollection = COLLECTION_MAP[transactionType];
+        // V19: what each deleted line held, by path, so « Annuler » can write it back.
+        const kept = new Map<string, any>();
+        const keep = (ref: any, data: any) => { const path = ref?.nativeRef?.path ?? ref?.path; if (path && data && typeof data === 'object' && Object.keys(data).length > 0) kept.set(path, data); };
         // V18 (performance): the target was just read by resolveDeletionTarget; the linked rows are searched at the
         // same time. The same documents are read as before, only fewer times and not one after the other.
         const [mainData, linkedTxs] = await Promise.all([
@@ -188,12 +193,14 @@ export async function applyTransactionDelete(transactionId: string, transactionT
             findLinkedTransactions(transactionId, userDocRef),
         ]);
         // Delete main transaction
+        keep(userDocRef.collection(mainCollection).doc(transactionId), mainData);
         batch.delete(userDocRef.collection(mainCollection).doc(transactionId));
         recordTreasuryDeletionShadow(userDocRef, transactionId, [
             ...(transactionType === 'treasury_tx' && mainData ? [mainData] : []),
             ...linkedTxs.filter((tx) => tx.collection === 'treasury_txs').map((tx) => tx.data),
         ]);
         for (const linkedTx of linkedTxs) {
+            keep(userDocRef.collection(linkedTx.collection).doc(linkedTx.id), linkedTx.data);
             batch.delete(userDocRef.collection(linkedTx.collection).doc(linkedTx.id));
         }
         const deletePersonalPortfolioChildren = async (txId: string) => {
@@ -206,10 +213,12 @@ export async function applyTransactionDelete(transactionId: string, transactionT
                 const data = doc.data() as any;
                 if (data.origin !== 'personal_expense' && data.origin !== 'personal_expense_return') return;
                 seen.add(doc.id);
+                keep(doc.ref, data);
                 batch.delete(doc.ref);
             });
             byPersonalId.forEach((doc) => {
                 if (seen.has(doc.id)) return;
+                keep(doc.ref, doc.data());
                 batch.delete(doc.ref);
             });
         };
@@ -246,6 +255,7 @@ export async function applyTransactionDelete(transactionId: string, transactionT
                         return bTs - aTs;
                     });
                     if (candidates.length === 1) {
+                        keep(candidates[0].ref, candidates[0].data());
                         batch.delete(candidates[0].ref);
                     }
                 }
@@ -289,6 +299,7 @@ export async function applyTransactionDelete(transactionId: string, transactionT
                     .get();
                 for (const doc of returnDocs.docs) {
                     await deletePersonalPortfolioChildren(doc.id);
+                    keep(doc.ref, doc.data());
                     batch.delete(doc.ref);
                 }
             }
@@ -307,12 +318,35 @@ export async function applyTransactionDelete(transactionId: string, transactionT
             deletedAt,
             status: 'deleted',
         }));
+        // V19: the lines found only by their id (an investor line, an asset's treasury line) are read once, together.
+        const deletes = (batch.operations || []).filter((op: any) => op.kind === 'delete');
+        const missing = deletes.filter((op: any) => !kept.has(op.ref.nativeRef.path));
+        if (missing.length > 0 && missing.length <= 10) {
+            const snaps = await Promise.all(missing.map((op: any) => op.ref.get().catch(() => null)));
+            snaps.forEach((snap: any, i: number) => { if (snap?.exists) keep(missing[i].ref, snap.data()); });
+        }
+        const restorable = deletes.length > 0 && deletes.every((op: any) => kept.has(op.ref.nativeRef.path));
+        const indexRef = operationIndexRef(userDocRef, transactionType, transactionId);
         await commitLegacyWithReadModelDeltas({
             userDocRef,
             batch,
             deltas: [],
         });
-        return { success: true };
+        if (!restorable)
+            return { success: true };
+        const restore = deletes.map((op: any) => ({ ref: op.ref, data: kept.get(op.ref.nativeRef.path) }));
+        return {
+            success: true,
+            // The same lines with the same ids and fields: every figure comes back as it was. The « deleted » mark of the
+            // operation index is removed (a later edit or delete then finds the lines by their links, as for any line).
+            undo: async () => {
+                const back = userDocRef.firestore.batch();
+                for (const row of restore)
+                    back.set(row.ref, row.data);
+                back.delete(indexRef);
+                await commitLegacyWithReadModelDeltas({ userDocRef, batch: back, deltas: [] });
+            },
+        };
     }
     catch (e: any) {
         console.error('Error in applyTransactionDelete:', e);

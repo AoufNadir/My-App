@@ -1,4 +1,4 @@
-const CACHE_NAME = 'prodigital-cache-v12';
+const CACHE_NAME = 'prodigital-cache-v13';
 
 // ─── Push Notifications ───────────────────────────────────────────────────────
 
@@ -90,7 +90,9 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Network-first for the app shell so users get latest hashed assets after deployment.
-  if (url.pathname === '/' || url.pathname === '/index.html' || url.pathname.endsWith('/')) {
+  // V19: every page opening (any path, with or without ?action=…) asks the network first. Before, a path such as
+  // /investors or /?action=quick-expense was served from the old cache, so a phone kept the previous version.
+  if (event.request.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html' || url.pathname.endsWith('/')) {
     event.respondWith(
       fetch(event.request, { cache: 'no-store' })
         .then((response) => {
