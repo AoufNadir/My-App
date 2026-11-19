@@ -229,7 +229,11 @@ export function buildInvestorReport(input: InvestorReportInput, now: number): In
     const availableProfit = Number(input.investor.availableProfit || 0);
     // Closing capital from the caller, built from the whole history up to the report end
     // (managerCapital above only sees the period's rows).
-    const capital = Number(input.investor.capitalInvested || 0);
+    const heldCapital = Number(input.investor.capitalInvested || 0);
+    // V17-4 (owner, 2026-11-19): the manager's « capital » is the capital his share comes from, as on his page; his
+    // estimated value stays the capital that also holds his retained profit.
+    const shareCapital = (input.investor as { shareCapital?: number }).shareCapital;
+    const capital = isManager && Number.isFinite(Number(shareCapital)) ? Number(shareCapital) : heldCapital;
     return {
         investorId: input.investor.id,
         investorName: input.investor.name || '',
@@ -240,7 +244,7 @@ export function buildInvestorReport(input: InvestorReportInput, now: number): In
         reference: investorReportReference(input.investor.id, startTs, endTs, now),
         capital,
         availableProfit,
-        estimatedValue: isManager ? capital : capital + availableProfit,
+        estimatedValue: isManager ? heldCapital : capital + availableProfit,
         sharePercent: Number(input.investor.sharePercentage || 0) * 100,
         notes: input.investor.notes || '',
         periodProfit,

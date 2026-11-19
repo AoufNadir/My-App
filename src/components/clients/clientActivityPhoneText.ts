@@ -166,7 +166,8 @@ const AR: PhoneWords = {
     partsTitle: (unit) => (unit === 'week' ? 'إيقاع مشترياتك أسبوعاً بأسبوع' : unit === 'month' ? 'مشترياتك شهراً بشهر' : 'مشترياتك سنة بسنة'),
     noPurchase: 'لا شراء',
     operationsTitle: 'عملياتك',
-    per100: (currency, amount) => `كل 100 ${currency === 'EUR' ? 'يورو' : `${currency}`} كلّفتك ${amount}`,
+    // « 100 USDT » is kept together: without the isolate the Arabic line showed « USDT 100 ».
+    per100: (currency, amount) => `كل ${currency === 'EUR' ? '100 يورو' : `\u2066100 ${currency}\u2069`} كلّفتك ${amount}`,
     rangeCaption: (period) => `أسعار شرائك خلال ${period}`,
     title: { range: 'كشف حسابك', month: 'كشف حسابك الشهري', year: 'كشف حسابك السنوي' },
     ledger: {

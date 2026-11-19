@@ -219,8 +219,18 @@ for (const investor of investors) {
         const html = renderToStaticMarkup(<InvestorReportSheet report={report} lang="fr" variant="print"/>);
         const after = newPage(html, isManager);
 
+        // V17-4 (owner, 2026-11-19): the manager's « capital » is now the capital his share comes from (as on his page),
+        // so his capital and his period yield are checked against that capital; everything else is as before.
+        const changedForManager = new Set(['capital', 'yield']);
         for (const key of ['capital', 'availableProfit', 'estimatedValue', 'share', 'periodProfit', 'yield', 'count', 'movements'] as const)
-            assert.deepEqual(after[key], before[key], `${what}: ${key}`);
+            if (!(isManager && changedForManager.has(key))) assert.deepEqual(after[key], before[key], `${what}: ${key}`);
+        if (isManager) {
+            const shareCapital = Number((prepared.input.investor as { shareCapital?: number }).shareCapital);
+            assert.ok(Number.isFinite(shareCapital), `${what}: the capital of his share is known`);
+            assert.equal(report.capital, shareCapital, `${what}: capital = the capital his share comes from`);
+            assert.equal(report.yieldPct, shareCapital > 0 ? (report.periodProfit / shareCapital) * 100 : null, `${what}: yield on that capital`);
+            assert.equal(report.estimatedValue, Number(prepared.input.investor.capitalInvested || 0), `${what}: estimated value unchanged`);
+        }
         assert.equal(after.rows.length, before.rows.length, `${what}: every operation`);
         assert.equal(after.rows.length, report.operations.length);
         before.rows.forEach((row, index) => {
@@ -256,7 +266,8 @@ assert.deepEqual([...seen].sort(), ['deposit', 'distribution', 'personalExpense'
 {
     const managerYear = buildInvestorReport((prepareInvestorReportInput(sources, 'inv-m', ranges[3][1]) as Extract<PreparedInvestorReport, { ok: true }>).input, NOW);
     assert.ok(managerYear.profitOut > 0 && managerYear.reinvested > 0, 'manager: personal expenses and profit kept');
-    assert.equal(managerYear.estimatedValue, managerYear.capital, 'manager: his capital already holds his profit');
+    // V17-4: his estimated value is the capital that holds his kept profit; his « capital » is the one his share comes from.
+    assert.ok(managerYear.estimatedValue > managerYear.capital, 'manager: estimated value holds the kept profit, above the capital of his share');
     const archived = buildInvestorReport((prepareInvestorReportInput(sources, 'inv-c', {}) as Extract<PreparedInvestorReport, { ok: true }>).input, NOW);
     assert.equal(archived.yieldPct, null, 'archived, all capital withdrawn: no yield');
     const empty = buildInvestorReport((prepareInvestorReportInput(sources, 'inv-a', ranges[4][1]) as Extract<PreparedInvestorReport, { ok: true }>).input, NOW);

@@ -63,7 +63,8 @@ export function MonthPlanSheet({
     const { t, lang } = useLanguage();
     const [clientId, setClientId] = useState('');
     const [quantity, setQuantity] = useState('');
-    const [payment, setPayment] = useState<'cash' | 'baridi' | 'credit'>('cash');
+    // Rule 11 (owner, 2026-11-19): no way of paying picked in advance, here too.
+    const [payment, setPayment] = useState<'' | 'cash' | 'baridi' | 'credit'>('');
     const [creditDueDate, setCreditDueDate] = useState('');
     const [actualPrice, setActualPrice] = useState('');
     const [priceSource, setPriceSource] = useState<PriceSource>('target');
@@ -97,6 +98,8 @@ export function MonthPlanSheet({
         setLargeAdjDraft(String(Math.abs(context.policy.quantityAdjustments.large)));
         setPlanError('');
         setPortalMessage('');
+        setPayment('');
+        setCreditDueDate('');
     }, [isOpen, context.plan, context.policy]);
 
     const options = useMemo(() => clients.map((client) => ({ value: client.id, label: client.name })), [clients]);
@@ -110,7 +113,7 @@ export function MonthPlanSheet({
         kind: 'client', currency: 'USDT', clientId, customerSegment: sessionClientSegment, scope: 'sale',
     } : undefined;
     const quote = useMemo(() => {
-        if (!clientId || qty <= 0 || context.pam <= 0) return null;
+        if (!clientId || !payment || qty <= 0 || context.pam <= 0) return null;
         return quoteSale(context, {
             currency: 'USDT', clientId, quantity: qty,
             payment: { kind: payment, dueDate: creditDueDate },
@@ -143,7 +146,7 @@ export function MonthPlanSheet({
         setActualPrice(price.toFixed(2));
     };
 
-    const handlePayment = (next: typeof payment) => {
+    const handlePayment = (next: 'cash' | 'baridi' | 'credit') => {
         setPayment(next);
         if (next === 'credit' && !creditDueDate) setCreditDueDate(tomorrowIso());
         if (next !== 'credit') setCreditDueDate('');
@@ -223,7 +226,7 @@ export function MonthPlanSheet({
     };
 
     const useInSale = () => {
-        if (!quote || !clientId || qty <= 0 || actual <= 0 || quote.status !== 'ready') return;
+        if (!quote || !payment || !clientId || qty <= 0 || actual <= 0 || quote.status !== 'ready') return;
         onClose();
         onUseInSale({
             sellQty: String(qty), sellPrice: actual.toFixed(2), clientId,
@@ -300,7 +303,7 @@ export function MonthPlanSheet({
                         hint={`${fmt2(context.available)} USDT`}/>
                     <div>
                         <p className="mb-1.5 text-sm font-semibold text-neutral-700">{t('smartPricing.payment')}</p>
-                        <SegmentedControl size="md" ariaLabel={t('smartPricing.payment')} value={payment} onChange={handlePayment}
+                        <SegmentedControl size="md" ariaLabel={t('smartPricing.payment')} value={payment} onChange={(next) => handlePayment(next as 'cash' | 'baridi' | 'credit')}
                             options={(['cash', 'baridi', 'credit'] as const).map((kind) => ({ id: kind, label: t(`smartPricing.${kind}`), tone: 'primary' as const }))}/>
                     </div>
                     {payment === 'credit' && (
@@ -312,9 +315,9 @@ export function MonthPlanSheet({
                     )}
                 </FormCard>
 
-                <SmartPricePanel smartPricing={context} currency="USDT" clientId={clientId || 'none'} quantity={qty}
+                {payment && <SmartPricePanel smartPricing={context} currency="USDT" clientId={clientId || 'none'} quantity={qty}
                     payment={payment} creditDueDate={creditDueDate} available={context.available} currentPrice={actual}
-                    isEditing={false} onApplyPrice={applyCorridorPrice} marketOverride={marketOverride} clientOverride={clientOverride}/>
+                    isEditing={false} onApplyPrice={applyCorridorPrice} marketOverride={marketOverride} clientOverride={clientOverride}/>}
 
                 {quote?.status === 'ready' && (
                     <FormCard>
