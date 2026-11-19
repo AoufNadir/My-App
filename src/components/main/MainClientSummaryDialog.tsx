@@ -21,7 +21,10 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
     const imageHolder = useRef<HTMLDivElement | null>(null);
     const [image, setImage] = useState<{ blob: Blob; key: string } | null>(null);
     const [isSharing, setIsSharing] = useState(false);
-    const imageKey = `${summaryClient?.id || ''}:${reportLang}`;
+    // V18 (performance): the picture is made again only when what it shows changes, not each time the app receives
+    // data (before, every update restarted the capture and « Préparation… » could last).
+    const summarySignature = useMemo(() => (summary ? JSON.stringify(summary) : ''), [summary]);
+    const imageKey = `${summaryClient?.id || ''}:${reportLang}:${summarySignature}`;
     useEffect(() => {
         if (!summary)
             return;
@@ -44,7 +47,8 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
             cancelled = true;
             window.clearTimeout(timer);
         };
-    }, [summary, imageKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [imageKey]);
     const readyImage = image && image.key === imageKey ? image.blob : null;
     // V6-1: the window shows the very picture that will be sent, in the language that will be sent.
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);

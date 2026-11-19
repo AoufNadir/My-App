@@ -212,7 +212,7 @@ export type PdfPageFooter = {
 export async function renderReportPdf(sheet: HTMLElement, title: string, footer?: PdfPageFooter, onProgress?: (done: number, count: number) => void, page: PdfPageSpec = A4_PAGE): Promise<Blob> {
     if (document.fonts?.ready)
         await document.fonts.ready;
-    const { toCanvas, getFontEmbedCSS } = await import('html-to-image');
+    const { toCanvas } = await import('html-to-image');
     const unfreeze = freezeListColumns(sheet);
     const unrelease = releaseTableScroll(sheet);
     let away = rowsAway([]);
@@ -220,13 +220,7 @@ export async function renderReportPdf(sheet: HTMLElement, title: string, footer?
         const { width, slices, rows } = planSheetPages(sheet, page);
         away = rowsAway(rows);
         // The fonts are read once for all the pages.
-        let fontEmbedCSS: string | undefined;
-        try {
-            fontEmbedCSS = await getFontEmbedCSS(sheet, { cacheBust: false });
-        }
-        catch (error) {
-            console.warn('Report fonts could not be read once:', error);
-        }
+        const fontEmbedCSS = await sharedFontEmbedCSS(sheet);
         const pages: PdfImagePage[] = [];
         for (let index = 0; index < slices.length; index++) {
             pages.push(await renderPage(toCanvas, sheet, { width, rows, slice: slices[index], index, count: slices.length, fontEmbedCSS, footer, away, page }));
@@ -341,18 +335,32 @@ async function renderPage(toCanvas: ToCanvas, sheet: HTMLElement, { width, rows,
  * thousand pixels wide for the 420px phone sheet, as sharp as a phone screen and light to send.
  * Runs in the browser only.
  */
+// V18 (performance): reading and embedding the fonts is the slowest part of a capture and they never change while the
+// app is open, so they are read once and kept (the same CSS goes into every picture and every PDF).
+let fontCssOnce: Promise<string | undefined> | null = null;
+export async function sharedFontEmbedCSS(sheet: HTMLElement): Promise<string | undefined> {
+    if (!fontCssOnce) {
+        fontCssOnce = import('html-to-image')
+            .then(({ getFontEmbedCSS }) => getFontEmbedCSS(sheet, { cacheBust: false }))
+            .catch((error) => { console.warn('Report fonts could not be read once:', error); fontCssOnce = null; return undefined; });
+    }
+    return fontCssOnce;
+}
+
 export async function renderSheetImage(sheet: HTMLElement): Promise<Blob> {
     if (document.fonts?.ready)
         await document.fonts.ready;
     const { toCanvas } = await import('html-to-image');
+    const fontEmbedCSS = await sharedFontEmbedCSS(sheet);
     const canvas = await capture(toCanvas, sheet, {
+        fontEmbedCSS,
         width: sheet.offsetWidth || PDF_PAGE_WIDTH_PX,
         height: sheet.scrollHeight || sheet.offsetHeight,
         backgroundColor: '#ffffff',
         // The logo comes from the app's offline cache: no cache-busting query.
         cacheBust: false,
         style: { margin: '0', transform: 'none' },
-    }, [3, 2, 1]);
+    }, [2, 1.5, 1]);
     const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((png) => (png ? resolve(png) : reject(new Error('PNG encoding failed'))), 'image/png');
     });
