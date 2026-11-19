@@ -23,7 +23,7 @@ const W = {
         loss: (f: Extract<GuardFinding, { kind: 'sale_below_cost' }>) => [`بيع بخسارة`, <>{f.currency} بسعر {n(f.price)} تحت متوسط الشراء {n(f.average)} يوم {d(f.timestamp)} · خسارة {dzd(f.loss)}</>],
         twin: (f: Extract<GuardFinding, { kind: 'twin_operation' }>) => [`عملية مكرّرة؟`, <>{W.ar.side(f.side)} {n(f.quantity)} {f.currency} بسعر {n(f.price)} مرتين خلال دقائق يوم {d(f.timestamp)}</>],
         negative: (f: Extract<GuardFinding, { kind: 'negative_wallet' }>) => [`رصيد سالب`, <>{f.wallet}: {n(f.balance)} · راجع آخر الحركات أو قم بالجرد</>],
-        fee: (f: Extract<GuardFinding, { kind: 'fee_change' }>) => [`تغيّرت نسبة الإدارة`, <>{f.from === null ? '' : <>من {n(f.from)}% </>}إلى {n(f.to)}% يوم {d(f.timestamp)} · تُطبَّق على كل بيع بعدها</>],
+        fee: (f: Extract<GuardFinding, { kind: 'fee_change' }>) => [`تغيّرت نسبة الإدارة`, <>{f.from === null ? '' : <>من {n(f.from)}% </>}إلى {n(f.to)}% {f.changes > 1 ? <>({n(f.changes)} تغييرات منذ {d(f.firstTimestamp)})</> : <>يوم {d(f.timestamp)}</>} · تُطبَّق على كل بيع بعدها</>],
         advance: (f: Extract<GuardFinding, { kind: 'open_advance' }>) => [`سلفة لم تُسوَّ`, <>{dzd(f.amount)} منذ {n(f.days)} يوماً · سوِّها مصروفاً أو أرجع المال</>],
     },
     fr: {
@@ -37,7 +37,7 @@ const W = {
         loss: (f: Extract<GuardFinding, { kind: 'sale_below_cost' }>) => [`Vente à perte`, <>{f.currency} à {n(f.price)} sous le prix moyen {n(f.average)} le {d(f.timestamp)} · perte {dzd(f.loss)}</>],
         twin: (f: Extract<GuardFinding, { kind: 'twin_operation' }>) => [`Opération en double ?`, <>{W.fr.side(f.side)} {n(f.quantity)} {f.currency} à {n(f.price)} deux fois en quelques minutes le {d(f.timestamp)}</>],
         negative: (f: Extract<GuardFinding, { kind: 'negative_wallet' }>) => [`Solde négatif`, <>{f.wallet} : {n(f.balance)} · vérifiez les derniers mouvements ou faites l’inventaire</>],
-        fee: (f: Extract<GuardFinding, { kind: 'fee_change' }>) => [`Taux de gestion modifié`, <>{f.from === null ? '' : <>de {n(f.from)} % </>}à {n(f.to)} % le {d(f.timestamp)} · s’applique à chaque vente suivante</>],
+        fee: (f: Extract<GuardFinding, { kind: 'fee_change' }>) => [`Taux de gestion modifié`, <>{f.from === null ? '' : <>de {n(f.from)} % </>}à {n(f.to)} % {f.changes > 1 ? <>({n(f.changes)} changements depuis le {d(f.firstTimestamp)})</> : <>le {d(f.timestamp)}</>} · s’applique à chaque vente suivante</>],
         advance: (f: Extract<GuardFinding, { kind: 'open_advance' }>) => [`Avance non régularisée`, <>{dzd(f.amount)} depuis {n(f.days)} jours · régularisez-la ou rendez l’argent</>],
     },
 };

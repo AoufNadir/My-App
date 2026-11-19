@@ -33,7 +33,7 @@ export type GuardFinding =
     | { kind: 'sale_below_cost'; id: string; currency: string; price: number; average: number; loss: number; timestamp: number; txId: string }
     | { kind: 'twin_operation'; id: string; side: 'buy' | 'sell'; currency: string; quantity: number; price: number; timestamp: number; txId: string }
     | { kind: 'negative_wallet'; id: string; wallet: string; balance: number }
-    | { kind: 'fee_change'; id: string; from: number | null; to: number; timestamp: number }
+    | { kind: 'fee_change'; id: string; from: number | null; to: number; changes: number; firstTimestamp: number; timestamp: number }
     | { kind: 'open_advance'; id: string; amount: number; days: number; timestamp: number; txId: string };
 
 const median = (values: number[]) => {
@@ -126,14 +126,22 @@ export function guardFindings(input: {
     for (const [wallet, balance] of Object.entries(input.wallets))
         if (balance < -0.5) out.push({ kind: 'negative_wallet', id: `neg-${wallet}`, wallet, balance });
 
-    // 7. A change of the management rate in the last 30 days.
-    const fees = [...input.feeHistory].filter((f) => num(f.effectiveFrom) > 0).sort((a, b) => a.effectiveFrom - b.effectiveFrom);
-    fees.forEach((f, i) => {
-        if (f.effectiveFrom < now - GUARD_RULES.feeChangeDays * DAY || f.effectiveFrom > now) return;
-        const before = i > 0 ? num(fees[i - 1].percentage) : null;
-        if (before !== null && before === num(f.percentage)) return;
-        out.push({ kind: 'fee_change', id: `fee-${f.effectiveFrom}-${f.percentage}`, from: before, to: num(f.percentage), timestamp: f.effectiveFrom });
-    });
+    // 7. The management rate changed in the last 30 days: ONE line, from the rate before the first change to the rate
+    // now, with the number of changes (several saves the same day are one story).
+    const fees = [...input.feeHistory].filter((f) => num(f.effectiveFrom) > 0 && f.effectiveFrom <= now).sort((a, b) => a.effectiveFrom - b.effectiveFrom);
+    const recentFrom = fees.findIndex((f) => f.effectiveFrom >= now - GUARD_RULES.feeChangeDays * DAY);
+    if (recentFrom >= 0) {
+        const before = recentFrom > 0 ? num(fees[recentFrom - 1].percentage) : null;
+        let previous = before;
+        let changes = 0;
+        for (const f of fees.slice(recentFrom)) {
+            if (previous === null || num(f.percentage) !== previous) changes += 1;
+            previous = num(f.percentage);
+        }
+        const last = fees[fees.length - 1];
+        if (changes > 0 && (before === null || before !== num(last.percentage) || changes > 1))
+            out.push({ kind: 'fee_change', id: `fee-${last.effectiveFrom}-${last.percentage}`, from: before, to: num(last.percentage), changes, firstTimestamp: fees[recentFrom].effectiveFrom, timestamp: last.effectiveFrom });
+    }
 
     // 8. A personal advance still open after 7 days.
     for (const e of input.expenses) {

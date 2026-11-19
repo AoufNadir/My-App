@@ -48,7 +48,12 @@ assert.deepEqual(guardFindings({ ...base, expenses: usualExpenses, operations: u
     });
     assert.deepEqual(f.filter((x) => x.kind === 'sale_below_cost').map((x) => x.kind === 'sale_below_cost' && x.loss), [1_500]);
     assert.deepEqual(f.filter((x) => x.kind === 'negative_wallet').map((x) => x.kind === 'negative_wallet' && x.wallet), ['Caisse']);
-    assert.deepEqual(f.filter((x) => x.kind === 'fee_change').map((x) => x.kind === 'fee_change' && [x.from, x.to]), [[30, 40]], 'one change, the same rate saved again is not a change');
+    assert.deepEqual(f.filter((x) => x.kind === 'fee_change').map((x) => x.kind === 'fee_change' && [x.from, x.to, x.changes]), [[30, 40, 1]], 'one change, the same rate saved again is not a change');
+    // 30 → 35 → 40 → 50 → 40: one line, from 30 to 40, four changes.
+    const g = guardFindings({ ...base, expenses: [], operations: [], feeHistory: [{ percentage: 30, effectiveFrom: at(50) }, { percentage: 35, effectiveFrom: at(6) }, { percentage: 40, effectiveFrom: at(3) }, { percentage: 50, effectiveFrom: at(1) }, { percentage: 40, effectiveFrom: at(0, -5) }] });
+    assert.deepEqual(g.map((x) => x.kind === 'fee_change' && [x.from, x.to, x.changes]), [[30, 40, 4]]);
+    const ar = renderToStaticMarkup(React.createElement(GuardAlertCard, { finding: g[0], lang: 'ar', onOk: () => undefined }));
+    assert.match(ar, /من <bdi[^>]*>30<\/bdi>% إلى <bdi[^>]*>40<\/bdi>% \(<bdi[^>]*>4<\/bdi> تغييرات منذ/);
     assert.deepEqual(f.filter((x) => x.kind === 'open_advance').map((x) => x.kind === 'open_advance' && x.days), [9], 'an advance of 2 days is not late yet');
 }
 
