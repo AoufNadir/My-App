@@ -41,42 +41,44 @@ export function useSettings(userDocRef: FirestoreDocumentReference) {
         localStorage.setItem('managerFeePercentage', managerFeePercentage);
     }, [managerFeePercentage]);
     useEffect(() => {
-        const loadSettings = async () => {
-            try {
-                const [doc, historySnapshot] = await Promise.all([
-                    userDocRef.get(),
-                    userDocRef.collection('manager_fee_history').orderBy('effectiveFrom', 'asc').get()
-                ]);
-                if (doc.exists) {
-                    const data = doc.data();
-                    if (data?.managerFeePercentage !== undefined) {
-                        setManagerFeePercentage(normalizeStoredManagerFeePercentage(data.managerFeePercentage));
-                    }
-                }
-                const history = historySnapshot.docs.reduce<ManagerFeeHistoryEntry[]>((items, historyDoc) => {
-                    const data = historyDoc.data();
-                    const percentage = Number(data?.percentage);
-                    const effectiveFrom = toMs(data?.effectiveFrom, Number.NaN);
-                    if (!Number.isFinite(percentage) || !Number.isFinite(effectiveFrom))
-                        return items;
-                    items.push({
-                        id: historyDoc.id,
-                        percentage,
-                        effectiveFrom,
-                        createdAt: toMs(data?.createdAt, effectiveFrom),
-                    });
+        // V18 (performance): listeners instead of one-time reads. A one-time read waits for the server, so the whole
+        // app stayed on its loading screen while the phone already held every figure in its cache. A listener answers
+        // from the cache at once, then again when the server confirms. Saving still waits for the server
+        // (setFinancialWriteGate in MainApp), as before.
+        let docSeen = false;
+        let historySeen = false;
+        const markSeen = () => { if (docSeen && historySeen) setIsSettingsLoaded(true); };
+        const unsubDoc = userDocRef.onSnapshot((doc: any) => {
+            if (doc.exists) {
+                const data = doc.data();
+                if (data?.managerFeePercentage !== undefined)
+                    setManagerFeePercentage(normalizeStoredManagerFeePercentage(data.managerFeePercentage));
+            }
+            docSeen = true;
+            markSeen();
+        }, undefined, (e: unknown) => { console.error('Error loading settings:', e); docSeen = true; markSeen(); });
+        const unsubHistory = userDocRef.collection('manager_fee_history').orderBy('effectiveFrom', 'asc').onSnapshot((historySnapshot: any) => {
+            const history = historySnapshot.docs.reduce((items: ManagerFeeHistoryEntry[], historyDoc: any) => {
+                const data = historyDoc.data();
+                const percentage = Number(data?.percentage);
+                const effectiveFrom = toMs(data?.effectiveFrom, Number.NaN);
+                if (!Number.isFinite(percentage) || !Number.isFinite(effectiveFrom))
                     return items;
-                }, []);
-                setManagerFeeHistory(history);
-            }
-            catch (e) {
-                console.error('Error loading settings:', e);
-            }
-            finally {
-                setIsSettingsLoaded(true);
-            }
-        };
-        loadSettings();
+                items.push({
+                    id: historyDoc.id,
+                    percentage,
+                    effectiveFrom,
+                    createdAt: toMs(data?.createdAt, effectiveFrom),
+                });
+                return items;
+            }, [] as ManagerFeeHistoryEntry[]);
+            setManagerFeeHistory(history);
+            historySeen = true;
+            markSeen();
+        });
+        // A listener that never answers (an error the query wrapper does not pass on) must not keep the app closed.
+        const safety = setTimeout(() => setIsSettingsLoaded(true), 15_000);
+        return () => { clearTimeout(safety); unsubDoc(); unsubHistory(); };
     }, [userDocRef]);
     const saveManagerFeePercentage = useCallback(async (value: string | number) => {
         const percentage = parseManagerFeePercentage(value);
