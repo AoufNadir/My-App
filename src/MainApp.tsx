@@ -148,6 +148,7 @@ import { buildGoalCoach } from './services/goalCoach';
 import { useGoalHistory } from './hooks/useGoalHistory';
 import { goalHistoryRows } from './services/goalHistory';
 import { absentClients, lastWeekSummary, stockForGoal } from './services/goalAlerts';
+import { guardFindings } from './services/guardChecks';
 import { buildFullBackup, daysSinceBackup, LAST_BACKUP_KEY } from './utils/fullBackup';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { useSetupDone } from './hooks/useSetupDone';
@@ -534,6 +535,19 @@ export default function MainApp({ user }: {
         const week = coach ? lastWeekSummary({ rows: pamLedger.sellProfitRows, target, now }) : null;
         return { absent, stock, lastWeek: week && coach ? { ...week, advice: coach.advice } : null };
     }, [pamLedger, clientsDzd, goalCoach, pricingPlanSync.plan.monthlyGoal, portfolioStats.usdt.available, transactions, clientTransactionsDzd, pricingPlanSync.policy.vipVolumeThreshold]);
+    // V17-1: the guard: what looks like a mistake in what is recorded (read only).
+    const guardAlerts = React.useMemo(() => {
+        const names = new Map(CASH_ACCOUNTS.map((a) => [a.id, a.name]));
+        const wallets = Object.fromEntries(Object.entries(treasuryStats.accounts || {}).map(([id, balance]) => [names.get(id) || id, Number(balance) || 0]));
+        return guardFindings({
+            now: Date.now(),
+            expenses: treasuryTransactions.map((tx) => ({ id: tx.id, origin: tx.origin, amount: Number(tx.amount) || 0, timestamp: Number(tx.timestamp) || 0, advanceState: tx.advanceState ?? null })),
+            operations: transactions.map((tx) => ({ id: tx.id, type: tx.type, currency: tx.currency, quantity: Number(tx.quantity) || 0, price: tx.price, sell: tx.sell, timestamp: Number(tx.timestamp) || 0, linkedClientId: tx.linkedClientId })),
+            sales: pamLedger.sellProfitRows.map((r) => ({ txId: r.txId, currency: r.currency, quantity: r.quantity, timestamp: r.timestamp, derivedProfit: r.derivedProfit, sellPrice: r.sellPrice, historicalAvgBuy: r.historicalAvgBuy })),
+            wallets,
+            feeHistory: managerFeeHistory || [],
+        });
+    }, [treasuryTransactions, transactions, pamLedger, treasuryStats.accounts, managerFeeHistory]);
     const salesHistory90 = React.useMemo(() => {
         const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
         const rows = pamLedger.sellProfitRows
@@ -2867,6 +2881,7 @@ export default function MainApp({ user }: {
         monthlyGoal: monthlyGoalState,
         goalCoach: goalCoach?.coach ?? null,
         goalAlerts,
+        guardAlerts,
         backupDueDays: transactions.length > 0 && (backupAgeDays === null || backupAgeDays >= 7) ? (backupAgeDays ?? -1) : null,
         onOpenBackup: openSettingsModal,
         minimumGoal: goalCoach?.minimum ?? 0,
