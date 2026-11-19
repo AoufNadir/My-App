@@ -16,14 +16,14 @@ export type ActionItem = {
     read?: boolean;
 };
 
-export function ActionCenter({ title, items }: { title: string; items: ReadonlyArray<ActionItem> }) {
+export function ActionCenter({ title, items, hideTitle = false }: { title: string; items: ReadonlyArray<ActionItem>; hideTitle?: boolean }) {
     if (items.length === 0)
         return null;
     return (<section aria-label={title} className="overflow-hidden rounded-card border border-border bg-surface">
-      <h2 className="flex items-center justify-between gap-2 px-4 pb-1 pt-3 text-xs font-bold uppercase tracking-wide text-neutral-500">
+      {!hideTitle && (<h2 className="flex items-center justify-between gap-2 px-4 pb-1 pt-3 text-xs font-bold uppercase tracking-wide text-neutral-500">
         <span>{title}</span>
         <span className="rounded-full bg-surface-muted px-2 py-0.5 tabular-nums text-neutral-600">{items.length}</span>
-      </h2>
+      </h2>)}
       <ul>
         {items.map((item) => {
             const content = (<>

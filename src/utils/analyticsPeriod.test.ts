@@ -200,3 +200,12 @@ for (const [kind, year, month] of [['month', 2026, 9], ['month', 2026, 8], ['mon
     assert.equal(hasActivity(stats), true);
 }
 console.log('analyticsPeriod tests passed');
+
+// V19: a sale paid at once with no client row still ranks its client (the sale names it).
+{
+    const { rankClients: rank } = await import('./analyticsPeriod');
+    const tx = { id: 's1', type: 'sell', currency: 'USDT', quantity: 100, sell: 260, price: 0, timestamp: 1_000, linkedClientId: 'c9' } as any;
+    const r = rank({ transactions: [tx], clientTransactions: [], ledger: { profitByTxId: { s1: { derivedProfit: 500 } } } as any, clientNameById: new Map([['c9', 'Cash client']]), unknownName: '?', range: { from: 0, to: 2_000 } as any });
+    const all = JSON.stringify(r);
+    assert.ok(all.includes('Cash client'), all);
+}

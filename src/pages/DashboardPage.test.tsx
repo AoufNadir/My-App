@@ -842,7 +842,7 @@ const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/'/g, '
     assertContainsEach(monthHtml, [amountText(total, 'DZD', 2)], 'total of the overdue debts');
     const alertButton = monthHtml.match(/<button[^>]*>(?:(?!<\/button>).)*<\/button>/g)?.find((button) => button.includes('clients en retard'));
     assert.ok(alertButton, 'the whole line is one button that opens the clients');
-    assert.ok(monthHtml.includes(escapeHtml(fr.dashboard.actionCenter)), 'the lines sit under « À traiter »');
+    assert.ok(monthHtml.includes('data-testid="bell-level-now"') && monthHtml.includes('Important maintenant'), 'V19: the late clients sit under « Important maintenant »');
     // The reminders that only said all is well are gone.
     for (const key of ['stable', 'calmDay', 'attentionNeeded'])
         assert.ok(!monthHtml.includes(escapeHtml(fr.dashboard[key])), `no "${fr.dashboard[key]}"`);
@@ -891,7 +891,7 @@ const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/'/g, '
         assert.ok(html.includes(escapeHtml(fr.dashboard[key])), `${key} shown next to the debts`);
     assert.ok(html.includes(escapeHtml(fr.dashboard.overdueClientsMany.split('{')[0])), 'late clients shown too');
     const quiet = renderNew({ overdueDebtClients: [], overdueDebtClientCount: 0 });
-    assert.ok(!quiet.includes(escapeHtml(fr.dashboard.actionCenter)), 'no « À traiter » when there is nothing to do');
+    assert.ok(!quiet.includes('data-testid="bell-level-now"'), 'V19: no « Important maintenant » when nothing is urgent');
 }
 
 // ---- 5. The weekly and monthly recaps show the same figures as the banners they replace ----

@@ -18,3 +18,16 @@ assert.deepEqual(parseReadMap('not json'), {});
 assert.deepEqual(parseReadMap('[1,2]'), {});
 assert.deepEqual(parseReadMap('{"a":"1","b":2}'), { a: '1' }, 'only text signatures are kept');
 console.log('notificationCenter tests passed');
+
+// V19: three levels.
+{
+    const { notificationLevel } = await import('./notificationCenter');
+    assert.equal(notificationLevel({ id: 'guard-dup-1', signature: 'on' }), 'now');
+    assert.equal(notificationLevel({ id: 'pending-deliveries', signature: 'x', urgent: true }), 'now');
+    assert.equal(notificationLevel({ id: 'unexplained-movements', signature: '2' }), 'now');
+    assert.equal(notificationLevel({ id: 'pending-deliveries', signature: 'x' }), 'follow');
+    assert.equal(notificationLevel({ id: 'goal-absent-c1', signature: '0' }), 'follow');
+    assert.equal(notificationLevel({ id: 'backup-due', signature: '1' }), 'reminder');
+    assert.equal(notificationLevel({ id: 'subscription-s1', signature: 'on' }), 'reminder');
+    assert.equal(notificationLevel({ id: 'weekly-recap', signature: 'w' }), 'reminder');
+}

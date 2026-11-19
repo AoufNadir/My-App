@@ -314,7 +314,10 @@ export function rankClients(input: {
             continue;
         if (tx.currency === 'USDT')
             totalUsdtSold += Number(tx.quantity || 0);
-        const client = linked.get(tx.id);
+        // V19: a sale whose client row is missing (old rows, or a sale paid at once that wrote none) still counts for
+        // the client named on the sale itself. The client rows, when they exist, decide as before.
+        const ownClient = (tx as { linkedClientId?: string }).linkedClientId;
+        const client = linked.get(tx.id) ?? (ownClient && ownClient !== 'none' ? { clientId: ownClient } : undefined);
         if (!client)
             continue;
         let rank = ranks.get(client.clientId);

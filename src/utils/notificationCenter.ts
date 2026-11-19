@@ -6,6 +6,21 @@
 export type NotificationEntry = { id: string; signature: string; urgent?: boolean };
 export type ReadMap = Record<string, string>;
 
+/**
+ * V19 (owner, 2026-11-19): the bell in three levels, so a possible mistake is never lost among reminders.
+ * « now »: money at risk or a possible recording error (the guard, uncovered advances, late debts, unexplained moves).
+ * « follow »: work to do soon (deliveries, absent clients, stock for the goal, an investor's term, P2P).
+ * « reminder »: habits and summaries (backup, subscriptions, evening count, cash count, recaps), folded by default.
+ */
+export type NotificationLevel = 'now' | 'follow' | 'reminder';
+const NOW_IDS = new Set(['uncovered-advances', 'overdue-debts', 'unexplained-movements']);
+const REMINDER_IDS = new Set(['backup-due', 'evening-count', 'inventory-reminder', 'weekly-recap', 'monthly-recap', 'notifications', 'goal-week']);
+export function notificationLevel(entry: NotificationEntry): NotificationLevel {
+    if (entry.urgent || entry.id.startsWith('guard-') || NOW_IDS.has(entry.id)) return 'now';
+    if (REMINDER_IDS.has(entry.id) || entry.id.startsWith('subscription-')) return 'reminder';
+    return 'follow';
+}
+
 export const NOTIFICATION_READ_STORAGE_KEY = 'app_notification_read';
 
 export function isUnread(entry: NotificationEntry, read: ReadMap): boolean {
