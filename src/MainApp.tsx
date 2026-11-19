@@ -17,6 +17,8 @@ import { useLanguage } from './contexts/LanguageContext';
 import { signOut } from 'firebase/auth';
 import { auth, type AppUser } from './firebaseAuth';
 import { db, fieldValueDelete, setFinancialWriteGate } from './firebase';
+import { setEditLogSource } from './utils/editLog';
+import { useEditLog } from './hooks/useEditLog';
 import { recordTreasuryLegacyDeletionShadow, recordTreasuryShadow } from './accounting/treasuryShadowDiagnostics';
 import { recordPortfolioShadow } from './accounting/portfolioShadowDiagnostics';
 import { inventoryFromLegacyPortfolioStats } from './accounting/portfolioShadowLegacyAdapter';
@@ -335,6 +337,17 @@ export default function MainApp({ user }: {
         });
         return () => setFinancialWriteGate(null);
     }, []);
+    // V17-3: the edit log reads the « before » of a change from what is already in memory (no extra read).
+    const editLogCollectionsRef = useRef<Record<string, ReadonlyArray<{ id?: string }>>>({});
+    editLogCollectionsRef.current = {
+        usdt_txs: transactions, dzd_clients: clientsDzd, dzd_client_txs: clientTransactionsDzd, treasury_txs: treasuryTransactions,
+        treasury_cards: treasuryCards, digital_service_txs: digitalServiceTransactions, actifTransactions: manualAssetTransactions,
+        investors, investor_transactions: investorTransactions,
+    } as Record<string, ReadonlyArray<{ id?: string }>>;
+    useEffect(() => {
+        setEditLogSource((collection, docId) => (editLogCollectionsRef.current[collection] || []).find((row) => row.id === docId) as Record<string, unknown> | undefined);
+        return () => setEditLogSource(null);
+    }, []);
     const clientShadowReadReconciliation = useMemo(() => {
         if (!shadowDiagnosticsEnabled || !isFinancialDataReady || shouldUseDashboardReadModel) return null;
         return reconcileLegacyClientsToShadow(clientTransactionsDzd, clientsDzd.map((client) => client.id));
@@ -537,6 +550,8 @@ export default function MainApp({ user }: {
         const week = coach ? lastWeekSummary({ rows: pamLedger.sellProfitRows, target, now }) : null;
         return { absent, stock, lastWeek: week && coach ? { ...week, advice: coach.advice } : null };
     }, [pamLedger, clientsDzd, goalCoach, pricingPlanSync.plan.monthlyGoal, portfolioStats.usdt.available, transactions, clientTransactionsDzd, pricingPlanSync.policy.vipVolumeThreshold]);
+    // V17-3: the newest lines of the edit log (the guard watches big edits and deletes; the settings list them).
+    const editLog = useEditLog(userDocRef as never, Boolean(userDocRef));
     // V17-1: the guard: what looks like a mistake in what is recorded (read only).
     const guardAlerts = React.useMemo(() => {
         const names = new Map(CASH_ACCOUNTS.map((a) => [a.id, a.name]));
@@ -548,8 +563,9 @@ export default function MainApp({ user }: {
             sales: pamLedger.sellProfitRows.map((r) => ({ txId: r.txId, currency: r.currency, quantity: r.quantity, timestamp: r.timestamp, derivedProfit: r.derivedProfit, sellPrice: r.sellPrice, historicalAvgBuy: r.historicalAvgBuy })),
             wallets,
             feeHistory: managerFeeHistory || [],
+            edits: editLog,
         });
-    }, [treasuryTransactions, transactions, pamLedger, treasuryStats.accounts, managerFeeHistory]);
+    }, [treasuryTransactions, transactions, pamLedger, treasuryStats.accounts, managerFeeHistory, editLog]);
     const salesHistory90 = React.useMemo(() => {
         const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
         const rows = pamLedger.sellProfitRows

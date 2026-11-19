@@ -3,6 +3,8 @@
 // a wallet below zero, a change of the management rate, an advance left open. Read only: nothing is written, nothing
 // is corrected, nothing is blocked; the owner opens the line or says it is right.
 
+import { moneyChange, type EditLogEntry } from '../utils/editLog';
+
 const DAY = 86_400_000;
 
 export const GUARD_RULES = {
@@ -20,6 +22,9 @@ export const GUARD_RULES = {
     twinMinutes: 10, // the same operation twice within 10 minutes
     feeChangeDays: 30,
     advanceDays: 7,
+    editDays: 14, // a big edit or delete of the last 14 days
+    editMin: 1000, // at least 1 000 of difference
+    editShare: 0.5, // and 50 % of the old amount
 } as const;
 
 export type GuardExpense = { id: string; origin?: string; amount: number; timestamp: number; advanceState?: string | null; notes?: string };
@@ -34,7 +39,8 @@ export type GuardFinding =
     | { kind: 'twin_operation'; id: string; side: 'buy' | 'sell'; currency: string; quantity: number; price: number; timestamp: number; txId: string }
     | { kind: 'negative_wallet'; id: string; wallet: string; balance: number }
     | { kind: 'fee_change'; id: string; from: number | null; to: number; changes: number; firstTimestamp: number; timestamp: number }
-    | { kind: 'open_advance'; id: string; amount: number; days: number; timestamp: number; txId: string };
+    | { kind: 'open_advance'; id: string; amount: number; days: number; timestamp: number; txId: string }
+    | { kind: 'big_edit'; id: string; what: 'operation' | 'personal_expense' | 'delivery_expense' | 'treasury' | 'client' | 'investor' | 'other'; deleted: boolean; from: number; to: number | null; timestamp: number };
 
 const median = (values: number[]) => {
     if (!values.length) return 0;
@@ -52,6 +58,8 @@ export function guardFindings(input: {
     sales: readonly GuardSale[];
     wallets: Record<string, number>;
     feeHistory: ReadonlyArray<{ percentage: number; effectiveFrom: number }>;
+    /** V17-3: the edit log (newest lines). */
+    edits?: ReadonlyArray<EditLogEntry & { id: string }>;
 }): GuardFinding[] {
     const { now } = input;
     const since = now - GUARD_RULES.windowDays * DAY;
@@ -148,6 +156,24 @@ export function guardFindings(input: {
         if (e.origin !== 'personal_expense' || e.advanceState !== 'pending') continue;
         const days = Math.floor((now - e.timestamp) / DAY);
         if (days >= GUARD_RULES.advanceDays) out.push({ kind: 'open_advance', id: `adv-${e.id}`, amount: num(e.amount), days, timestamp: e.timestamp, txId: e.id });
+    }
+
+    // 9. V17-3: a money line changed a lot, or deleted, in the last 14 days (from the edit log).
+    for (const e of input.edits || []) {
+        if (!(Number(e.at) >= now - GUARD_RULES.editDays * DAY)) continue;
+        // The investor line that pays an expense moves with it: the expense line already says it.
+        if (e.collection === 'investor_transactions' && (e.before.origin === 'personal_expense' || e.before.origin === 'delivery_expense')) continue;
+        const change = moneyChange(e);
+        if (!change) continue;
+        const deleted = e.kind === 'delete';
+        const diff = Math.abs((change.to ?? 0) - change.from);
+        if (diff < GUARD_RULES.editMin || (!deleted && diff < Math.abs(change.from) * GUARD_RULES.editShare)) continue;
+        const origin = String(e.before.origin ?? '');
+        const what = e.collection === 'usdt_txs' ? 'operation'
+            : e.collection === 'treasury_txs' ? (origin === 'personal_expense' ? 'personal_expense' : origin === 'delivery_expense' ? 'delivery_expense' : 'treasury')
+                : e.collection === 'dzd_client_txs' ? 'client'
+                    : e.collection === 'investor_transactions' ? 'investor' : 'other';
+        out.push({ kind: 'big_edit', id: `edit-${e.id}`, what, deleted, from: change.from, to: deleted ? null : change.to, timestamp: Number(e.at) });
     }
 
     return out.sort((a, b) => ('timestamp' in b ? b.timestamp : now) - ('timestamp' in a ? a.timestamp : now));

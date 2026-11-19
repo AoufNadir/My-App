@@ -595,7 +595,7 @@ function DashboardContent({
     for (const finding of guardAlerts.filter((f) => !guardOk.has(f.id))) {
         const open = finding.kind === 'negative_wallet' || finding.kind === 'open_advance' || finding.kind === 'duplicate_expense' || finding.kind === 'unusual_expense'
             ? onOpenTreasury
-            : finding.kind === 'fee_change' ? undefined : onOpenTransactions;
+            : finding.kind === 'fee_change' ? undefined : onOpenTransactions; // big_edit, prices, twins: the operations page
         notificationItems.push({
             entry: { id: `guard-${finding.id}`, signature: 'on', urgent: finding.kind === 'negative_wallet' || finding.kind === 'duplicate_expense' || finding.kind === 'twin_operation' },
             card: <GuardAlertCard finding={finding} lang={lang} onOpen={open} onOk={() => markGuardOk(finding.id)}/>,

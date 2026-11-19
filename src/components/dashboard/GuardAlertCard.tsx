@@ -24,6 +24,8 @@ const W = {
         twin: (f: Extract<GuardFinding, { kind: 'twin_operation' }>) => [`عملية مكرّرة؟`, <>{W.ar.side(f.side)} {n(f.quantity)} {f.currency} بسعر {n(f.price)} مرتين خلال دقائق يوم {d(f.timestamp)}</>],
         negative: (f: Extract<GuardFinding, { kind: 'negative_wallet' }>) => [`رصيد سالب`, <>{f.wallet}: {n(f.balance)} · راجع آخر الحركات أو قم بالجرد</>],
         fee: (f: Extract<GuardFinding, { kind: 'fee_change' }>) => [`تغيّرت نسبة الإدارة`, <>{f.from === null ? '' : <>من {n(f.from)}% </>}إلى {n(f.to)}% {f.changes > 1 ? <>({n(f.changes)} تغييرات منذ {d(f.firstTimestamp)})</> : <>يوم {d(f.timestamp)}</>} · تُطبَّق على كل بيع بعدها</>],
+        what: { operation: 'عملية', personal_expense: 'مصروف شخصي', delivery_expense: 'مصروف المشروع', treasury: 'حركة خزينة', client: 'سطر عميل', investor: 'حركة مستثمر', other: 'سطر' } as Record<string, string>,
+        edit: (f: Extract<GuardFinding, { kind: 'big_edit' }>) => [f.deleted ? `حذف كبير` : `تعديل كبير`, f.deleted ? <>حُذف {W.ar.what[f.what]} بمبلغ {n(f.from)} يوم {d(f.timestamp)}</> : <>{W.ar.what[f.what]}: من {n(f.from)} إلى {n(f.to ?? 0)} يوم {d(f.timestamp)}</>],
         advance: (f: Extract<GuardFinding, { kind: 'open_advance' }>) => [`سلفة لم تُسوَّ`, <>{dzd(f.amount)} منذ {n(f.days)} يوماً · سوِّها مصروفاً أو أرجع المال</>],
     },
     fr: {
@@ -38,6 +40,8 @@ const W = {
         twin: (f: Extract<GuardFinding, { kind: 'twin_operation' }>) => [`Opération en double ?`, <>{W.fr.side(f.side)} {n(f.quantity)} {f.currency} à {n(f.price)} deux fois en quelques minutes le {d(f.timestamp)}</>],
         negative: (f: Extract<GuardFinding, { kind: 'negative_wallet' }>) => [`Solde négatif`, <>{f.wallet} : {n(f.balance)} · vérifiez les derniers mouvements ou faites l’inventaire</>],
         fee: (f: Extract<GuardFinding, { kind: 'fee_change' }>) => [`Taux de gestion modifié`, <>{f.from === null ? '' : <>de {n(f.from)} % </>}à {n(f.to)} % {f.changes > 1 ? <>({n(f.changes)} changements depuis le {d(f.firstTimestamp)})</> : <>le {d(f.timestamp)}</>} · s’applique à chaque vente suivante</>],
+        what: { operation: 'Opération', personal_expense: 'Dépense perso', delivery_expense: 'Frais du projet', treasury: 'Mouvement de trésorerie', client: 'Ligne client', investor: 'Mouvement investisseur', other: 'Ligne' } as Record<string, string>,
+        edit: (f: Extract<GuardFinding, { kind: 'big_edit' }>) => [f.deleted ? `Grosse suppression` : `Grosse modification`, f.deleted ? <>{W.fr.what[f.what]} de {n(f.from)} supprimé(e) le {d(f.timestamp)}</> : <>{W.fr.what[f.what]} : de {n(f.from)} à {n(f.to ?? 0)} le {d(f.timestamp)}</>],
         advance: (f: Extract<GuardFinding, { kind: 'open_advance' }>) => [`Avance non régularisée`, <>{dzd(f.amount)} depuis {n(f.days)} jours · régularisez-la ou rendez l’argent</>],
     },
 };
@@ -53,6 +57,7 @@ export function guardText(f: GuardFinding, lang: 'ar' | 'fr'): [string, ReactNod
         case 'negative_wallet': return w.negative(f) as [string, ReactNode];
         case 'fee_change': return w.fee(f) as [string, ReactNode];
         case 'open_advance': return w.advance(f) as [string, ReactNode];
+        case 'big_edit': return w.edit(f) as [string, ReactNode];
     }
 }
 
