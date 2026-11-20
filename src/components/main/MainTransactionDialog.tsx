@@ -90,7 +90,18 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
         saleStatusTouchedRef.current = true;
         saleStatusFromClientRef.current = false;
         latestSale.current.setClientPaymentStatus(status);
+        // V19-2 (owner, 2026-11-20): once the payment is chosen, the next thing to type is the quantity: the window
+        // moves to it and puts the cursor in it (nothing is filled, nothing else is chosen).
+        if (status && typeof window !== 'undefined')
+            window.requestAnimationFrame(() => {
+                const field = document.querySelector<HTMLInputElement>('[data-sale-quantity] input');
+                if (!field || field.value) return;
+                field.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                field.focus({ preventScroll: true });
+            });
     }, []);
+    // V19-2: the notes are a small link until used (an empty card took a whole screen height on the phone).
+    const [notesOpen, setNotesOpen] = React.useState(false);
     const activeCurrency = mode === 'buy_eur' || mode === 'sell_eur' ? 'EUR' : 'USDT';
     // V11-1: the client comes first; once chosen, the assistant shows the last price with him. One pass over
     // the operations per client and currency (not per keystroke); nothing here is written anywhere.
@@ -690,7 +701,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                                     {renderSellQuantityField()}
                                     {renderReadonlyEurRateField()}
                                 </>) : (<>
-                                    {renderSellQuantityField()}
+                                    <div data-sale-quantity="">{renderSellQuantityField()}</div>
                                     {activeSmartPricing && (
                                     <SmartPricePanel
                                         smartPricing={activeSmartPricing}
@@ -757,7 +768,10 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                             </>)}
 
                         {/* Notes (optional). The tags input is gone (V11-1): the tags already on operations stay. */}
-                        {!isChoosingSource && (<FormCard>
+                        {!isChoosingSource && !notesOpen && !notes && (<button type="button" onClick={() => setNotesOpen(true)} className="flex min-h-11 w-full items-center gap-2 rounded-card border border-dashed border-border-strong bg-surface px-4 text-sm font-semibold text-neutral-600 hover:bg-neutral-50">
+                            <span aria-hidden="true" className="text-base leading-none">+</span>{t('common.notesOptional') as string}
+                        </button>)}
+                        {!isChoosingSource && (notesOpen || !!notes) && (<FormCard>
                             <Textarea
                                 label={t('common.notesOptional') as string}
                                 value={notes ?? ''}
