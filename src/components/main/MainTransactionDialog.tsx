@@ -86,20 +86,29 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
     const pickSaleClient = React.useCallback((id: string) => {
         latestSale.current.setLinkedClientId(id);
     }, []);
+    // V19-2: move to the empty quantity field of the window and put the cursor in it.
+    const goToQuantity = () => {
+        if (typeof window === 'undefined') return;
+        window.requestAnimationFrame(() => {
+            const field = document.querySelector<HTMLInputElement>('[data-op-quantity] input');
+            if (!field || field.value) return;
+            field.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            field.focus({ preventScroll: true });
+        });
+    };
     const pickSaleStatus = React.useCallback((status: string) => {
         saleStatusTouchedRef.current = true;
         saleStatusFromClientRef.current = false;
         latestSale.current.setClientPaymentStatus(status);
         // V19-2 (owner, 2026-11-20): once the payment is chosen, the next thing to type is the quantity: the window
         // moves to it and puts the cursor in it (nothing is filled, nothing else is chosen).
-        if (status && typeof window !== 'undefined')
-            window.requestAnimationFrame(() => {
-                const field = document.querySelector<HTMLInputElement>('[data-sale-quantity] input');
-                if (!field || field.value) return;
-                field.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                field.focus({ preventScroll: true });
-            });
+        if (status) goToQuantity();
     }, []);
+    // V19-2: the same for a purchase.
+    const pickBuyStatus = (status: string) => {
+        setClientPaymentStatus(status);
+        if (status) goToQuantity();
+    };
     // V19-2: the notes are a small link until used (an empty card took a whole screen height on the phone).
     const [notesOpen, setNotesOpen] = React.useState(false);
     const activeCurrency = mode === 'buy_eur' || mode === 'sell_eur' ? 'EUR' : 'USDT';
@@ -585,11 +594,11 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                         {/* Buy USDT with DZD */}
                         {buyUsdtMode === 'with_dzd' && (<>
                                 <FormCard title={t('transactions.stepWhoBuy')}>
-                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} {...clientLinkerErrors}/>
+                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} setClientPaymentStatus={pickBuyStatus} {...clientLinkerErrors}/>
                                 </FormCard>
                                 {renderAssistant((price) => applyBuyUsdtPrice(price.toFixed(2)), parseAndEvaluate(buyUsdtPrice))}
                                 <FormCard title={t('transactions.stepHowMuch')}>
-                                <MoneyField label={t('transactions.quantity')} value={buyUsdtAmount} onChange={(val) => {
+                                <div data-op-quantity=""><MoneyField label={t('transactions.quantity')} value={buyUsdtAmount} onChange={(val) => {
                     setBuyUsdtAmount(val);
                     const qty = parseAndEvaluate(val);
                     const price = parseAndEvaluate(buyUsdtPrice);
@@ -602,7 +611,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                     const qty = parseAndEvaluate(buyUsdtAmount);
                     if (!isNaN(qty) && qty > 0)
                         setBuyUsdtAmount(qty.toFixed(2));
-                }} currency="USDT" error={fieldError('buyUsdtAmount')}/>
+                }} currency="USDT" error={fieldError('buyUsdtAmount')}/></div>
                                 <MoneyField label={t('transactions.buyPrice')} value={buyUsdtPrice} onChange={applyBuyUsdtPrice} currency="DZD" error={fieldError('buyUsdtPrice')}/>
                                 <MoneyField label={t('transactions.totalAmount')} value={buyUsdtTotal} onChange={(val) => {
                     setBuyUsdtTotal(val);
@@ -701,7 +710,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                                     {renderSellQuantityField()}
                                     {renderReadonlyEurRateField()}
                                 </>) : (<>
-                                    <div data-sale-quantity="">{renderSellQuantityField()}</div>
+                                    <div data-op-quantity="">{renderSellQuantityField()}</div>
                                     {activeSmartPricing && (
                                     <SmartPricePanel
                                         smartPricing={activeSmartPricing}
@@ -727,12 +736,12 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                         {/* Buy EUR */}
                         {mode === 'buy_eur' && !isChoosingEurSource && (<>
                                 <FormCard title={t('transactions.stepWhoBuy')}>
-                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} {...clientLinkerErrors}/>
+                                <ClientLinker {...{ linkedClientId, setLinkedClientId, linkedClientDzdId, setLinkedClientDzdId, openClientModal, clientsDzd, fieldBase, clientPaymentStatus, setClientPaymentStatus }} setClientPaymentStatus={pickBuyStatus} {...clientLinkerErrors}/>
                                 {clientPaymentStatus === 'credit' && renderCreditDueDateField(false)}
                                 </FormCard>
                                 {renderAssistant((price) => applyBuyEurPrice(price.toFixed(2)), parseAndEvaluate(buyEurPrice))}
                                 <FormCard title={t('transactions.stepHowMuch')}>
-                                <MoneyField label={t('transactions.quantity')} value={buyEurAmount} onChange={(val) => {
+                                <div data-op-quantity=""><MoneyField label={t('transactions.quantity')} value={buyEurAmount} onChange={(val) => {
                     setBuyEurAmount(val);
                     const qty = parseAndEvaluate(val);
                     const price = parseAndEvaluate(buyEurPrice);
@@ -741,7 +750,7 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
                         setBuyEurTotal((qty * price).toFixed(0));
                     else if (qty === 0 || val === '')
                         setBuyEurTotal('');
-                }} currency="EUR" error={fieldError('buyEurAmount')}/>
+                }} currency="EUR" error={fieldError('buyEurAmount')}/></div>
                                 <MoneyField label={t('portfolio.buyPriceEur')} value={buyEurPrice} onChange={applyBuyEurPrice} currency="DZD" error={fieldError('buyEurPrice')} hint={t('transactions.basedOnPamEur')}/>
                                 <MoneyField label={t('transactions.totalAmount')} value={buyEurTotal} onChange={(val) => {
                     setBuyEurTotal(val);
