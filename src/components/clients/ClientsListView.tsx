@@ -247,7 +247,7 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
                 const balanceColor = balance < 0 ? 'text-financial-debt' : balance > 0 ? 'text-financial-profit' : 'text-neutral-400';
 
                 return (<SwipeableListItem key={client.id} onEdit={() => openClientModal(client)} onDelete={() => setClientToDelete(client)}>
-                    <div onTouchStart={() => handleTouchStart(client)} onTouchEnd={handleTouchEnd} onContextMenu={(e) => { e.preventDefault(); handleTouchStart(client); }} onClick={() => setSelectedClientId(client.id)}
+                    <div onClick={() => setSelectedClientId(client.id)}
                     className="relative z-10 flex w-full cursor-pointer items-center gap-3 border-t border-border bg-surface px-4 py-3 transition-colors hover:bg-surface-muted"
                     style={{ contentVisibility: 'auto', containIntrinsicSize: '72px' }}>
                       {/* The row opens the client; this button gives it to the keyboard. */}
