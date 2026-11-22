@@ -49,3 +49,7 @@ tsc_output.txt
 # Firestore backup: secret key and copies stay on the owner computer
 serviceAccount.json
 backups/
+dist-e2e
+e2e/.firestore.rules
+e2e/.run.log
+e2e/.fail-*.png

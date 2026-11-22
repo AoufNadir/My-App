@@ -11,7 +11,8 @@
     "ci": "npm run typecheck && npm test && npm run build",
     "ci:win": "npm run typecheck && npm run test:each && npm run build",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "e2e": "node e2e/run.mjs"
   },
   "dependencies": {
     "@dataconnect/generated": "file:src/dataconnect-generated",

@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteField, deleteDoc, doc, getDoc, getDocs, getFirestore, initializeFirestore, limit, onSnapshot, orderBy, persistentLocalCache, persistentMultipleTabManager, query, runTransaction as nativeRunTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch, type DocumentData, type DocumentReference as NativeDocumentReference, type DocumentSnapshot as NativeDocumentSnapshot, type Firestore, type OrderByDirection, type Query as NativeQuery, type QuerySnapshot as NativeQuerySnapshot, type SetOptions, type Transaction as NativeTransaction, type Unsubscribe, type WhereFilterOp, type WriteBatch as NativeWriteBatch, } from 'firebase/firestore';
+import { connectFirestoreEmulator, addDoc, collection, deleteField, deleteDoc, doc, getDoc, getDocs, getFirestore, initializeFirestore, limit, onSnapshot, orderBy, persistentLocalCache, persistentMultipleTabManager, query, runTransaction as nativeRunTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch, type DocumentData, type DocumentReference as NativeDocumentReference, type DocumentSnapshot as NativeDocumentSnapshot, type Firestore, type OrderByDirection, type Query as NativeQuery, type QuerySnapshot as NativeQuerySnapshot, type SetOptions, type Transaction as NativeTransaction, type Unsubscribe, type WhereFilterOp, type WriteBatch as NativeWriteBatch, } from 'firebase/firestore';
 import { EDIT_LOG_COLLECTION, EDIT_LOG_MAX_OPERATIONS, editLogEntryFor } from './utils/editLog';
 import { app } from './firebaseApp';
 // FIX-PERF (Phase 3): enable IndexedDB-backed persistent cache so cold starts
@@ -23,6 +23,7 @@ catch {
     // (without ignoreUndefinedProperties; dev-only path).
     firestore = getFirestore(app);
 }
+if ((import.meta as any).env.VITE_E2E_EMULATOR === '1') connectFirestoreEmulator(firestore, '127.0.0.1', 8080);
 export type { AppUser } from './firebaseAuth';
 type FirestoreReadDiagnosticKind = 'query' | 'collection' | 'document';
 type FirestoreReadDiagnosticEntry = {
