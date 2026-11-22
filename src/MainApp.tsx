@@ -42,7 +42,9 @@ import { RotateCcwIcon } from './components/icons/RotateCcwIcon';
 import { AppBottomNav } from './components/main/AppNavigation';
 import { useHiddenCurrencies } from './hooks/useHiddenCurrencies';
 import { RmbTradeDialog } from './components/main/RmbTradeDialog';
-import { EXTRA_CURRENCY_CODES, isExtraCurrency, type TradeCurrencyCode } from './currency/tradeCurrencies';
+import { EXTRA_CURRENCY_CODES, TRADE_CURRENCIES, isExtraCurrency, type TradeCurrencyCode } from './currency/tradeCurrencies';
+import { buildDayClose } from './utils/dayClose';
+import { DayCloseSheet } from './components/dashboard/DayCloseSheet';
 type ExtraStock = { quantity: number; avgBuy: number; value: number };
 import { isRmbOperation, rmbTradeRows, type RmbTradeInput } from './utils/rmbTrade';
 import { CurrencyVisibilityProvider } from './contexts/CurrencyVisibilityContext';
@@ -203,9 +205,15 @@ export default function MainApp({ user }: {
     const [refreshKey, setRefreshKey] = useState(0);
     const [alert, setAlert] = useState('');
     // The undo offered with a message belongs to that message only: a newer message drops it.
-    const [alertUndo, setAlertUndo] = useState<{ message: string; run: () => void } | null>(null);
+    const [alertUndo, setAlertUndo] = useState<{ message: string; run: () => void; label?: 'send' } | null>(null);
     const notifyWithUndo = useCallback((message: string, run: () => void) => {
         setAlertUndo({ message, run });
+        setAlert(message);
+    }, []);
+    const [summaryClient, setSummaryClient] = useState<ClientDzd | null>(null);
+    // V23-1: after a sale to a client, the success message offers « Envoyer au client » (his summary picture).
+    const offerSendToClient = useCallback((message: string, client: ClientDzd) => {
+        setAlertUndo({ message, run: () => setSummaryClient(client), label: 'send' });
         setAlert(message);
     }, []);
     const { investorIdFromUrl, isInvestorRoute, navigateToView, selectedClientId, setSelectedClientId, setView, view } = useMainNavigation();
@@ -454,6 +462,16 @@ export default function MainApp({ user }: {
     // V17-2: the personal expenses as the guard before saving reads them.
     const personalExpenseHistory = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense').map((tx) => ({ id: tx.id, origin: tx.origin, amount: Number(tx.amount) || 0, timestamp: Number(tx.timestamp) || 0 })), [treasuryTransactions]);
     const personalExpenses = useMemo(() => treasuryTransactions.filter((tx) => tx.origin === 'personal_expense'), [treasuryTransactions]);
+    // V23-1: « Clôture du jour », computed only while it is open.
+    const [isDayCloseOpen, setIsDayCloseOpen] = useState(false);
+    const openDayClose = useCallback(() => setIsDayCloseOpen(true), []);
+    const dayClose = useMemo(() => isDayCloseOpen ? buildDayClose({ transactions, profitByTxId: pamLedger.profitByTxId, treasury: treasuryTransactions, now: Date.now() }) : null, [isDayCloseOpen, transactions, pamLedger, treasuryTransactions]);
+    const dayCloseAccountName = (id: string) => (id === 'Caisse' ? (lang === 'ar' ? 'الصندوق' : 'Caisse') : cashAccount(id).name);
+    const dayCloseWallets = isDayCloseOpen ? [
+        ...SHOWN_CASH_ACCOUNTS.map((a) => ({ id: a.id, name: dayCloseAccountName(a.id), amount: cashBalanceOf(treasuryStats, a.id), unit: 'DZD' })),
+        ...TRADE_CURRENCIES.filter((c) => !hiddenCurrencies.isHidden(c.code) || Number((walletPortfolioStats as Record<string, { available?: number }>)[c.code.toLowerCase()]?.available || 0) > 0)
+            .map((c) => ({ id: c.code, name: c.code, amount: Number((walletPortfolioStats as Record<string, { available?: number }>)[c.code.toLowerCase()]?.available || 0), unit: c.code })),
+    ] : [];
     const debtWriteOffs = useMemo(() => collectDebtWriteOffs(clientTransactionsDzd), [clientTransactionsDzd]);
     // The client rows as the client reports read them: payments recorded from the treasury adjustment window get their channel back (V7-1).
     const reportClientRows = useMemo(() => withAdjustmentChannels(clientTransactionsDzd, treasuryTransactions), [clientTransactionsDzd, treasuryTransactions]);
@@ -706,7 +724,7 @@ export default function MainApp({ user }: {
         userDocRef, portfolioStats: walletPortfolioStats, transactions, clientsDzd, clientTransactionsDzd,
         investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats,
         periodLockedThrough: periodLock.lockedThrough, stockLockSeq,
-        setAlert, notifyWithUndo, setSelectedClientId: (id: string | null) => setSelectedClientId(id), setView: (v: string) => setView(v),
+        setAlert, notifyWithUndo, offerSendToClient, setSelectedClientId: (id: string | null) => setSelectedClientId(id), setView: (v: string) => setView(v),
         smartQuoteRef,
     });
     const { isDigitalServiceModalOpen, isDigitalServiceSaving, editingDigitalServiceTx, digitalServiceClientId, setDigitalServiceClientId, digitalServiceSupplierId, setDigitalServiceSupplierId, digitalServiceName, setDigitalServiceName, digitalServicePurchaseWallet, setDigitalServicePurchaseWallet, digitalServicePurchaseAmount, setDigitalServicePurchaseAmount, digitalServiceSaleWallet, setDigitalServiceSaleWallet, digitalServiceSaleAmount, setDigitalServiceSaleAmount, digitalServiceDate, setDigitalServiceDate, digitalServiceNote, setDigitalServiceNote, digitalServicePreview, openDigitalServiceModal, closeDigitalServiceModal, handleSaveDigitalService, handleDeleteDigitalService } = useDigitalServiceHandlers({
@@ -781,7 +799,6 @@ export default function MainApp({ user }: {
     const [portfolioBalanceEditNotes, setPortfolioBalanceEditNotes] = useState('');
     const [editingPortfolioBalanceTx, setEditingPortfolioBalanceTx] = useState<Tx | null>(null);
     const [copiedValue, setCopiedValue] = useState<string | null>(null);
-    const [summaryClient, setSummaryClient] = useState<ClientDzd | null>(null);
     const [treasuryTxToDelete, setTreasuryTxToDelete] = useState<TreasuryTx | null>(null);
     const touchTimer = useRef<any>(null);
     // --- 4. DERIVATIONS ---
@@ -2902,6 +2919,7 @@ export default function MainApp({ user }: {
         onOpenClient: openDashboardClient,
         onOpenClientDebts: openClientsWithDebtFollowUp,
         onOpenTreasury: () => setView('tresorerie'),
+        onOpenDayClose: openDayClose,
         unexplainedMovementCount: movementsCounted ? unexplainedMovementCount : 0,
         habits: { subscriptionsDue: subscriptionsDue.map((sub) => ({ id: sub.id, name: sub.name, amount: sub.amount, wallet: sub.wallet })), eveningCount, smallExpenses, lateRecordings, p2pUnbalanced },
         onRecordSubscription: (id: string) => { const sub = subscriptionsDue.find((item) => item.id === id); if (sub) recordSubscription(sub); },
@@ -3200,7 +3218,8 @@ export default function MainApp({ user }: {
                 <NewTransactionMenuDialog isOpen={isNewOperationMenuOpen} onClose={closeNewOperationMenu} t={t as (key: string) => string} openForm={(mode) => openForm(mode)} openWalletTransferModal={openWalletTransferModal} openTransferModal={openTransferModal} openAdjustmentModal={(type) => openAdjustmentModal(type)} openDeliveryExpenseModal={openDeliveryExpenseModal} openDigitalServiceModal={() => openDigitalServiceModal(null)} openPersonalWithdrawalModal={openPersonalWithdrawalModal} showUsdt={showUsdt || portfolioStats.usdt.available > 0} showEur={showEur} showRmb={showRmb} openRmb={(kind, currency = 'RMB') => openExtraTrade(kind, currency as TradeCurrencyCode)} balances={{ USDT: portfolioStats.usdt.available, EUR: portfolioStats.eur.available, ...Object.fromEntries((Object.entries(extraStocks) as Array<[string, ExtraStock]>).map(([code, stock]) => [code, stock.quantity])) }} hidden={hiddenCurrencies.hidden.filter((code) => !((extraStocks[code]?.quantity ?? 0) > 0))}/>
                 <RmbTradeDialog kind={tradeWin?.kind ?? null} currency={tradeWin?.currency ?? 'RMB'} initialSource={tradeWin?.source ?? null} onClose={() => setTradeWin(null)} onSwitch={switchTradeWindow} holdings={rmbHoldings} clientsDzd={clientsDzd} openClientModal={openClientModal} fieldBase={fieldBase} onSave={saveRmbTrade} parseAndEvaluate={parseAndEvaluate} tradeSource={rmbTradeSource}/>
 
-                {alert && (<AppToast message={translateAlert(alert, lang, t)} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? t('common.undo') : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined}/>)}
+                {dayClose && (<DayCloseSheet isOpen={isDayCloseOpen} onClose={() => setIsDayCloseOpen(false)} day={dayClose} wallets={dayCloseWallets} accountName={dayCloseAccountName} onCount={() => { setIsDayCloseOpen(false); setView('tresorerie'); }}/>)}
+                {alert && (<AppToast message={translateAlert(alert, lang, t)} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? (activeAlertUndo.label === 'send' ? (lang === 'ar' ? 'أرسل للعميل' : 'Envoyer au client') : t('common.undo')) : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined} actionIcon={activeAlertUndo?.label === 'send' ? 'share' : 'undo'}/>)}
 
 
                 {isGlobalSearchOpen && (<Suspense fallback={null}>

@@ -309,7 +309,9 @@ for (const [name, renderScreen] of Object.entries(SCREENS) as Array<[keyof typeo
         // P4: the two price-guide lines (segment, suggested price, gain, share of the goal) are new on purpose;
         // they are checked on their own below and left out of the « same numbers » comparison.
         const body = fullBody.replace(/<div[^>]*data-testid="price-guide"[\s\S]*?<\/div>/, '');
-        const inBody = showSpaces(distinctScreenNumbers(body));
+        // V23-1: the readable echo of a typed number (« 246 500 · 246,5 mille ») only repeats the field; it is left aside.
+        const bodyWithoutEcho = body.replace(/<span data-readable-amount=""[^>]*>(?:[^<]|<!--[^>]*-->)*<\/span>/g, '');
+        const inBody = showSpaces(distinctScreenNumbers(bodyWithoutEcho));
         const inBar = showSpaces(distinctScreenNumbers(bar));
         const newAtBottom = NEW_AT_BOTTOM[name] ?? [];
         const keptAtBottom = KEPT_AT_BOTTOM[name] ?? [];

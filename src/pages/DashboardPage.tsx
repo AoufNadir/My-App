@@ -1,3 +1,4 @@
+import { CheckIcon } from '../components/icons/CheckIcon';
 import { useCurrencyShown, useShowEur, useShowRmb, useShowUsdt } from '../contexts/CurrencyVisibilityContext';
 import { isAccountShown } from '../accounts/cashAccounts';
 import { EXTRA_CURRENCY_CODES, tradeCurrency, type TradeCurrencyCode } from '../currency/tradeCurrencies';
@@ -139,6 +140,8 @@ type DashboardPageProps = {
     onOpenBackup?: () => void;
     /** V21-1: activation requests waiting for the operator (only on his account). */
     accessRequestCount?: number;
+    /** V23-1: opens « Clôture du jour ». */
+    onOpenDayClose?: () => void;
     minimumGoal?: number;
     onKeepGoal?: () => void;
     /** V12-1: money movements nothing explains (no client, no link, no reason), and the way to the list. */
@@ -410,6 +413,7 @@ function DashboardContent({
     backupDueDays = null,
     onOpenBackup,
     accessRequestCount = 0,
+    onOpenDayClose,
     onOpenClient,
     minimumGoal = 0,
     onKeepGoal,
@@ -644,6 +648,15 @@ function DashboardContent({
             <span className="mt-0.5 block text-xs text-neutral-600">{t('movementReview.homeBody')}</span>
           </span>
           <span className="shrink-0 text-sm font-bold text-financial-debt">{t('movementReview.homeAction')}</span>
+        </button>)}
+
+      {onOpenDayClose && new Date().getHours() >= 17 && (<button type="button" data-testid="day-close-card" onClick={onOpenDayClose} className="flex min-h-touch w-full items-center gap-3 rounded-card border border-primary/30 bg-primary/5 px-4 py-3 text-start transition-colors hover:bg-primary/10">
+          <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><CheckIcon className="h-5 w-5"/></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-neutral-900">{lang === 'ar' ? 'إقفال اليوم' : 'Clôture du jour'}</span>
+            <span className="block text-xs text-neutral-500">{lang === 'ar' ? 'مبيعات اليوم وربحه، ثم عدّ الصندوق' : 'Ventes et bénéfice du jour, puis le comptage'}</span>
+          </span>
+          <ChevronRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-neutral-400 rtl:-scale-x-100"/>
         </button>)}
 
       {onQuickExpense && (<button type="button" onClick={onQuickExpense} className="flex min-h-touch w-full items-center gap-3 rounded-card border border-border bg-surface px-4 py-3 text-start transition-colors hover:bg-surface-muted">
