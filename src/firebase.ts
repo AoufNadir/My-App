@@ -23,7 +23,7 @@ catch {
     // (without ignoreUndefinedProperties; dev-only path).
     firestore = getFirestore(app);
 }
-if ((import.meta as any).env.VITE_E2E_EMULATOR === '1') connectFirestoreEmulator(firestore, '127.0.0.1', 8080);
+if ((() => { try { return (import.meta as any).env.VITE_E2E_EMULATOR === '1'; } catch { return false; } })()) connectFirestoreEmulator(firestore, '127.0.0.1', 8080);
 export type { AppUser } from './firebaseAuth';
 type FirestoreReadDiagnosticKind = 'query' | 'collection' | 'document';
 type FirestoreReadDiagnosticEntry = {
