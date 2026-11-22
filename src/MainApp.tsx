@@ -153,6 +153,7 @@ import { absentClients, lastWeekSummary, stockForGoal } from './services/goalAle
 import { guardFindings } from './services/guardChecks';
 import { buildFullBackup, daysSinceBackup, LAST_BACKUP_KEY } from './utils/fullBackup';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
+import { openingWrites, type OpeningInput } from './utils/openingBalances';
 import { useSetupDone } from './hooks/useSetupDone';
 import { shouldShowOnboarding } from './utils/onboarding';
 
@@ -284,6 +285,18 @@ export default function MainApp({ user }: {
     // V13-2: EUR hidden in the settings leaves the buy / sell windows and the portfolio page; nothing else changes.
     const hiddenCurrencies = useHiddenCurrencies(userDocRef as never);
     const setup = useSetupDone(userDocRef as never);
+    // V20-1: « Ce que vous avez aujourd'hui »: the opening capital, written in one batch (all or nothing), then the setup is done.
+    const finishOnboarding = async (opening: OpeningInput) => {
+        if (userDocRef) {
+            const writes = openingWrites(opening, now(), () => userDocRef.collection('investors').doc().id);
+            if (writes.length > 0) {
+                const batch = db.batch();
+                writes.forEach((w) => batch.set(userDocRef.collection(w.collection).doc(w.id), w.data));
+                await commitLegacyWithReadModelDeltas({ userDocRef, batch });
+            }
+        }
+        await setup.finishSetup();
+    };
     const showOnboarding = shouldShowOnboarding({ setupDone: setup.setupDone, isDataLoaded, counts: [transactions.length, clientsDzd.length, treasuryTransactions.length, (investors ?? []).length] });
     // V15-4: what each dinar account holds and whether a movement used it, for hiding or deleting it in the settings.
     const accountUsage = useMemo<AccountUsage>(() => {
@@ -3155,7 +3168,7 @@ export default function MainApp({ user }: {
         }
     };
     return (<AccountUsageContext.Provider value={accountUsage}><CurrencyVisibilityProvider hidden={hiddenCurrencies.hidden}><div className={`min-h-screen bg-gradient-to-br ${bgApp} transition-colors duration-300`}>
-            {showOnboarding && <OnboardingFlow userDocRef={userDocRef as never} onFinish={setup.finishSetup}/>}
+            {showOnboarding && <OnboardingFlow userDocRef={userDocRef as never} onFinish={finishOnboarding}/>}
             <OfflineBanner />
             <div className="mx-auto max-w-4xl px-page-x pb-24 sm:px-4">
                     <MainHeaderBar {...{ view, setView: navigateToView, globalSearchTitle: t('common.globalSearch'), handleOpenGlobalSearch, onOpenSettings: openSettingsModal, onSignOut: handleSignOut, labels: navLabels }}/>
