@@ -49,6 +49,15 @@ service cloud.firestore {
       return hasProfile() && profile().role == 'client' && profile().status == 'approved';
     }
 
+    // V21-1 (owner): a customer works only with an activation the operator wrote in access/{uid}. Past its end date
+    // the account is read-only (the customer still sees his data and can take a backup). The operator is never
+    // limited: his own data is written exactly as before.
+    function canWrite(uid) {
+      return isBootstrapAdmin()
+        || (exists(/databases/$(database)/documents/access/$(uid))
+            && get(/databases/$(database)/documents/access/$(uid)).data.until > request.time.toMillis());
+    }
+
     function isAgent() {
       return hasProfile() && profile().role == 'agent' && profile().status == 'approved';
     }
@@ -58,25 +67,42 @@ service cloud.firestore {
     // managerFeePercentage…) AND every nested subcollection. The bare
     // /{document=**} wildcard alone does NOT match the parent document.
     match /users/{ownerUid} {
-      allow read, write: if signedIn() && request.auth.uid == ownerUid;
+      allow read: if signedIn() && request.auth.uid == ownerUid;
+      allow write: if signedIn() && request.auth.uid == ownerUid && canWrite(ownerUid);
       // Every document of a collection, except the stock lock (below).
       match /{coll}/{docId} {
         allow read: if signedIn() && request.auth.uid == ownerUid;
-        allow write: if signedIn() && request.auth.uid == ownerUid && coll != 'stock_lock';
+        allow write: if signedIn() && request.auth.uid == ownerUid && coll != 'stock_lock' && canWrite(ownerUid);
       }
       // Deeper documents (sub-collections of a document): owner-only, as before. ({rest=**} also matches nothing,
       // so the sub-collection segment is named: this rule must not reach users/{uid}/{coll}/{docId} itself.)
       match /{coll}/{docId}/{subColl}/{rest=**} {
-        allow read, write: if signedIn() && request.auth.uid == ownerUid;
+        allow read: if signedIn() && request.auth.uid == ownerUid;
+        allow write: if signedIn() && request.auth.uid == ownerUid && canWrite(ownerUid);
       }
       // V19: the stock lock moves by exactly one at each write. A save made on an older number (another phone or tab
       // saved first) is refused by the server, with every line of its batch: two windows never take the same stock.
       match /stock_lock/{lockId} {
         allow read: if signedIn() && request.auth.uid == ownerUid;
-        allow create: if signedIn() && request.auth.uid == ownerUid && request.resource.data.seq == 1;
-        allow update: if signedIn() && request.auth.uid == ownerUid && request.resource.data.seq == resource.data.seq + 1;
-        allow delete: if signedIn() && request.auth.uid == ownerUid;
+        allow create: if signedIn() && request.auth.uid == ownerUid && canWrite(ownerUid) && request.resource.data.seq == 1;
+        allow update: if signedIn() && request.auth.uid == ownerUid && canWrite(ownerUid) && request.resource.data.seq == resource.data.seq + 1;
+        allow delete: if signedIn() && request.auth.uid == ownerUid && canWrite(ownerUid);
       }
+    }
+
+    // ── V21-1: subscriptions. Only the operator activates, extends or stops an account. ──
+    match /access/{uid} {
+      allow read: if isBootstrapAdmin() || (signedIn() && request.auth.uid == uid);
+      allow write: if isBootstrapAdmin();
+    }
+    // A new customer asks for his activation (his own request only: name, phone, email, time).
+    match /access_requests/{uid} {
+      allow read: if isBootstrapAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'phone', 'email', 'requestedAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
+        && request.resource.data.phone is string && request.resource.data.phone.size() <= 30;
+      allow delete: if isBootstrapAdmin();
     }
 
     // ── Role / profile docs. ──

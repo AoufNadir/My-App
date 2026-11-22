@@ -252,6 +252,12 @@ let financialWriteGate: FinancialWriteGate | null = null;
 export function setFinancialWriteGate(gate: FinancialWriteGate | null) {
     financialWriteGate = gate;
 }
+// V21-1: an account whose subscription ended is read-only (the Firestore rules refuse its writes too); the message
+// says so before any write is sent.
+let readOnlyReason: string | null = null;
+export function setReadOnlyReason(reason: string | null) {
+    readOnlyReason = reason;
+}
 export class FinancialWriteBlockedError extends Error {
     constructor(reason: string) {
         super(reason);
@@ -273,6 +279,12 @@ export function financialWriteRefusal(writes: readonly (string | FinancialWrite)
     const financialWrites = writes
         .map((write): FinancialWrite => (typeof write === 'string' ? { path: write, kind: 'set' } : write))
         .filter((write) => isFinancialPath(write.path));
+    if (financialWrites.length > 0 && readOnlyReason) {
+        const onBlockedRO = financialWriteGate?.onBlocked;
+        if (onBlockedRO)
+            setTimeout(() => onBlockedRO(readOnlyReason as string), 0);
+        return new FinancialWriteBlockedError(readOnlyReason);
+    }
     if (!financialWriteGate || financialWrites.length === 0)
         return null;
     const reason = financialWriteGate.blockedReason()

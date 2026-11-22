@@ -22,3 +22,8 @@ export const ORDER_SYSTEM_CONFIGURED = ORDER_SYSTEM_ENABLED && OPERATOR_UID !== 
 export function isOperatorUid(uid: string | null | undefined): boolean {
     return ORDER_SYSTEM_CONFIGURED && !!uid && uid === OPERATOR_UID;
 }
+
+/** V21-1: the operator (owner) account: never limited by subscriptions, and the only one that activates others. */
+export function isOwnerUid(uid: string | null | undefined): boolean {
+    return !!uid && uid === OPERATOR_UID;
+}
