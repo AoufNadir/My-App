@@ -6,8 +6,18 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { daysLeft, type AccessState } from '../../utils/access';
 
 // V21-1 (owner): what a customer sees before his activation, and the line shown near the end of his subscription.
-// The operator's WhatsApp number for activation requests (digits with the country code, e.g. 213…). Empty: no button.
-export const OWNER_CONTACT_WHATSAPP = '';
+// The operator's WhatsApp number (app_config/contact, written by him in « Abonnés »): digits with the country code.
+export const whatsappDigits = (raw: string): string => {
+    const digits = raw.replace(/\D/g, '');
+    return digits.startsWith('0') ? `213${digits.slice(1)}` : digits;
+};
+export function useOwnerContact() {
+    const [whatsapp, setWhatsapp] = useState('');
+    useEffect(() => db.collection('app_config').doc('contact').onSnapshot((snap) => {
+        setWhatsapp(snap.exists ? String((snap.data() as { whatsapp?: unknown }).whatsapp ?? '') : '');
+    }, {}, () => setWhatsapp('')), []);
+    return whatsapp;
+}
 
 const W = {
     fr: {
@@ -46,6 +56,7 @@ export function PendingActivationScreen({ uid, email }: { uid: string; email: st
     const [phone, setPhone] = useState('');
     const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
     const [error, setError] = useState<string | null>(null);
+    const contact = whatsappDigits(useOwnerContact());
     useEffect(() => db.collection('access_requests').doc(uid).onSnapshot((snap) => {
         if (snap.exists) { const d = snap.data() as { name?: string; phone?: string }; setName((v) => v || d.name || ''); setPhone((v) => v || d.phone || ''); setStatus('sent'); }
     }), [uid]);
@@ -69,7 +80,7 @@ export function PendingActivationScreen({ uid, email }: { uid: string; email: st
         {error && <p role="alert" className="text-sm font-semibold text-financial-loss">{error}</p>}
         {status === 'sent' && <p role="status" className="rounded-card bg-primary/10 px-3 py-3 text-sm font-semibold text-primary">{w.sent}</p>}
         <button type="button" onClick={send} disabled={status === 'sending'} className="h-12 rounded-button bg-primary text-sm font-bold text-white">{status === 'sending' ? w.sending : w.send}</button>
-        {OWNER_CONTACT_WHATSAPP && (<a href={`https://wa.me/${OWNER_CONTACT_WHATSAPP}`} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center rounded-button border border-border bg-surface text-sm font-bold text-neutral-800">{w.contact}</a>)}
+        {contact.length >= 8 && (<a href={`https://wa.me/${contact}`} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center rounded-button border border-border bg-surface text-sm font-bold text-neutral-800">{w.contact}</a>)}
         <button type="button" onClick={() => signOut(auth).catch(() => undefined)} className="mt-auto text-sm font-semibold text-neutral-600 underline">{w.logout}</button>
       </div>
     </div>);

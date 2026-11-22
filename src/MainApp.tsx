@@ -154,6 +154,8 @@ import { guardFindings } from './services/guardChecks';
 import { buildFullBackup, daysSinceBackup, LAST_BACKUP_KEY } from './utils/fullBackup';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { openingWrites, type OpeningInput } from './utils/openingBalances';
+import { useSubscribers } from './hooks/useAccess';
+import { isOwnerUid } from './config/orderSystem';
 import { useSetupDone } from './hooks/useSetupDone';
 import { shouldShowOnboarding } from './utils/onboarding';
 
@@ -284,6 +286,8 @@ export default function MainApp({ user }: {
     const pricingPlanSync = useSmartPricingPlan(userDocRef);
     // V13-2: EUR hidden in the settings leaves the buy / sell windows and the portfolio page; nothing else changes.
     const hiddenCurrencies = useHiddenCurrencies(userDocRef as never);
+    // V21-1: the operator sees new activation requests in the bell.
+    const accessRequests = useSubscribers(isOwnerUid(userDocRef?.id));
     const setup = useSetupDone(userDocRef as never);
     // V20-1: « Ce que vous avez aujourd'hui »: the opening capital, written in one batch (all or nothing), then the setup is done.
     const finishOnboarding = async (opening: OpeningInput) => {
@@ -2932,6 +2936,7 @@ export default function MainApp({ user }: {
         guardAlerts,
         backupDueDays: transactions.length > 0 && (backupAgeDays === null || backupAgeDays >= 7) ? (backupAgeDays ?? -1) : null,
         onOpenBackup: openSettingsModal,
+        accessRequestCount: accessRequests.requests.length,
         minimumGoal: goalCoach?.minimum ?? 0,
         onKeepGoal: decideGoalThisWeek,
         weeklyRecap,

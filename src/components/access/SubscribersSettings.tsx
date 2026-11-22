@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { db } from '../../firebase';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useSubscribers, type AccessRequest, type AccessRow } from '../../hooks/useAccess';
+import { useOwnerContact } from './AccessScreens';
 import { ACCESS_DURATIONS, daysLeft, extendedUntil, type AccessDurationId } from '../../utils/access';
 
 // V21-1 (owner): the operator activates, extends or stops the accounts of his customers. Writes access/{uid} only
@@ -14,6 +15,7 @@ const W = {
         until: (d: string) => `jusqu’au ${d}`, left: (n: number) => `${n} j restants`, ended: 'Terminé (lecture seule)',
         confirmStop: 'Arrêter cet abonnement maintenant ? Le compte passe en lecture seule.',
         error: 'Enregistrement impossible.',
+        contact: 'Votre WhatsApp (affiché aux comptes en attente)', save: 'Enregistrer', saved: 'Enregistré',
     },
     ar: {
         requests: 'طلبات جديدة', subscribers: 'المشتركون', none: 'لا شيء', noneSubs: 'لا مشترك',
@@ -22,6 +24,7 @@ const W = {
         until: (d: string) => `حتى ${d}`, left: (n: number) => `باقٍ ${n} يوماً`, ended: 'انتهى (قراءة فقط)',
         confirmStop: 'أوقف هذا الاشتراك الآن؟ يصير الحساب قراءة فقط.',
         error: 'تعذّر الحفظ.',
+        contact: 'رقم واتساب الخاص بك (يظهر للحسابات المنتظرة)', save: 'احفظ', saved: 'حُفظ',
     },
 };
 
@@ -33,6 +36,13 @@ export function SubscribersSettings() {
     const { requests, subscribers } = useSubscribers(true);
     const [busy, setBusy] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const savedContact = useOwnerContact();
+    const [contact, setContact] = useState<string | null>(null);
+    const [contactSaved, setContactSaved] = useState(false);
+    const saveContact = () => write('contact', async () => {
+        await db.collection('app_config').doc('contact').set({ whatsapp: (contact ?? savedContact).replace(/[^\d+ ]/g, '').trim().slice(0, 20) });
+        setContactSaved(true);
+    });
     const now = Date.now();
     const write = async (uid: string, run: () => Promise<unknown>) => {
         setBusy(uid); setError(null);
@@ -52,6 +62,14 @@ export function SubscribersSettings() {
       </div>);
     return (<div data-testid="subscribers" className="space-y-4">
       {error && <p role="alert" className="text-xs font-semibold text-financial-loss">{error}</p>}
+      <section className="space-y-2">
+        <label className="block"><span className="block text-xs font-semibold text-neutral-700">{w.contact}</span>
+          <div className="mt-1 flex gap-2">
+            <input value={contact ?? savedContact} inputMode="tel" dir="ltr" placeholder="0555 00 00 00" onChange={(e) => { setContact(e.target.value); setContactSaved(false); }} className="h-11 min-w-0 flex-1 rounded-button border border-border bg-surface px-3 text-sm text-neutral-900"/>
+            <button type="button" disabled={busy === 'contact'} onClick={saveContact} className="h-11 shrink-0 rounded-button bg-primary px-4 text-sm font-bold text-white disabled:opacity-50">{contactSaved ? w.saved : w.save}</button>
+          </div>
+        </label>
+      </section>
       <section className="space-y-2">
         <h3 className="text-sm font-bold text-neutral-900">{w.requests} · {requests.length}</h3>
         {requests.length === 0 && <p className="text-xs text-neutral-600">{w.none}</p>}
