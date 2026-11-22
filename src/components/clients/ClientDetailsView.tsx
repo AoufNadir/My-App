@@ -1,6 +1,6 @@
 import { isTradeCurrency } from '../../currency/tradeCurrencies';
 import type { TradeCurrencyCode } from '../../currency/tradeCurrencies';
-import { Fragment, lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useDeliveries } from '../../hooks/useDeliveries';
 import { deliveryStates, operationQuantities, type DeliveryDoc } from '../../utils/deferredDelivery';
 const isActivityReportOpenForDeliveries = (clientId: string | null | undefined) => Boolean(clientId);
@@ -384,6 +384,15 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
         : selectedClientBalance < -0.01
             ? 'bg-financial-debt-bg text-financial-debt'
             : 'bg-surface-muted text-neutral-600';
+    const balanceRef = useRef<HTMLDivElement | null>(null);
+    const [balanceInView, setBalanceInView] = useState(true);
+    useEffect(() => {
+        const node = balanceRef.current;
+        if (!node || typeof IntersectionObserver === 'undefined') return undefined;
+        const observer = new IntersectionObserver(([entry]) => setBalanceInView(entry.isIntersecting), { threshold: 0 });
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, [selectedClientId]);
     const quickActions = [
         { id: 'collect', label: t('clients.actionCollect') as string, icon: <ArrowDownLeftIcon className="h-5 w-5"/>, tone: 'bg-financial-profit-bg text-financial-profit', onClick: () => openClientTxModal(null, 'Règlement Reçu', selectedClientId) },
         { id: 'pay', label: t('clients.actionPay') as string, icon: <ArrowUpRightIcon className="h-5 w-5"/>, tone: 'bg-financial-loss-bg text-financial-loss', onClick: () => openClientTxModal(null, 'Paiement Effectué', selectedClientId) },
@@ -421,6 +430,16 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
       </div>
 
       {/* Balance and the actions used every day, before anything else */}
+      {/* V23-1: once the balance card leaves the screen, a slim bar keeps the balance and « Encaisser / Payer » at hand. */}
+      {!balanceInView && (<div data-testid="client-sticky-bar" className="fixed inset-x-0 top-0 z-[40] flex items-center gap-2 border-b border-border bg-surface/95 px-4 py-2 shadow-card backdrop-blur sm:hidden">
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-xs font-semibold text-neutral-600">{clientName}</span>
+            <CurrencyAmount value={selectedClientBalance} currency="DZD" semantic="plain" size="md" decimals={0} className={`block font-black ${balanceStatusColor}`}/>
+          </span>
+          {quickActions.filter((a) => a.id === 'collect' || a.id === 'pay').map((action) => (<button key={action.id} type="button" onClick={action.onClick} className="flex h-10 shrink-0 items-center gap-1.5 rounded-button border border-border bg-surface px-2.5 text-xs font-bold text-neutral-800">
+              <span aria-hidden="true" className={`flex h-6 w-6 items-center justify-center rounded-full ${action.tone}`}>{action.icon}</span>{action.label}
+            </button>))}
+        </div>)}
       <section aria-label={t('common.balance') as string} className="rounded-card border border-border bg-surface p-4">
         <div className="flex items-center gap-3">
           <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-muted text-base font-bold text-neutral-600">
@@ -434,7 +453,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
             <CurrencyAmount value={selectedClientBalance} currency="DZD" semantic="plain" size="hero" decimals={0} className={`mt-0.5 block ${balanceStatusColor}`}/>
           </div>
         </div>
-        <div role="group" aria-label={t('clients.quickActions') as string} className={`mt-4 grid gap-2 ${quickActions.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
+        <div ref={balanceRef as never} role="group" aria-label={t('clients.quickActions') as string} className={`mt-4 grid gap-2 ${quickActions.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
           {quickActions.map((action) => (<button key={action.id} type="button" onClick={action.onClick} data-testid={'testId' in action ? action.testId : undefined} className="flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1.5 rounded-button border border-border bg-surface px-1 py-2 text-center text-xs font-semibold leading-tight text-neutral-800 transition-colors hover:bg-surface-muted active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
               <span aria-hidden="true" className={`flex h-9 w-9 items-center justify-center rounded-full ${action.tone}`}>{action.icon}</span>
               <span className="max-w-full">{action.label}</span>

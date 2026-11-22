@@ -68,6 +68,8 @@ interface HandlerProps {
     setAlert: (msg: string) => void;
     /** V19: a message with « Annuler » (MainApp.notifyWithUndo). */
     notifyWithUndo?: (message: string, run: () => void) => void;
+    /** V23-1: the success message of a sale offers to send the client his summary. */
+    offerSendToClient?: (message: string, client: ClientDzd) => void;
     setSelectedClientId: (id: string | null) => void;
     setView: (view: 'transactions' | 'dzd' | 'tresorerie' | 'statistiques' | 'tresorerie' | 'investors') => void;
     /** Live smart-pricing quote for the open sell form (SmartPricePanel keeps it current). */
@@ -116,7 +118,7 @@ const dzdSaleDraft = (currency: PortfolioCurrency, sellAmount: string, sellPrice
     const saleValueDzd = isTotalManual && totalInput > 0 ? totalInput : quantity * unitPrice;
     return { currency, quantity, sellPrice: unitPrice, saleValueDzd, totalRevenue: Math.round(saleValueDzd) };
 };
-export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats, periodLockedThrough, stockLockSeq, setAlert, notifyWithUndo, setSelectedClientId, setView, smartQuoteRef }: HandlerProps) {
+export function useTransactionHandlers({ userDocRef, portfolioStats, transactions, clientsDzd, clientTransactionsDzd, investors, investorTransactions, managerFeePercentage, managerFeeHistory, treasuryTransactions, personalExpenses, treasuryStats, periodLockedThrough, stockLockSeq, setAlert, notifyWithUndo, offerSendToClient, setSelectedClientId, setView, smartQuoteRef }: HandlerProps) {
     const [isSaving, setIsSaving] = useState(false);
     const paymentMethodByStatus: Record<'credit' | 'baridi' | 'cash', 'Crédit' | 'BaridiMob' | 'Espèces'> = {
         credit: 'Crédit',
@@ -914,7 +916,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 batch,
                 deltas: readModelDelta ? [readModelDelta] : [],
             });
-            setAlert(editingTx ? '✅ Transaction mise à jour.' : '✅ Transaction ajoutée.');
+            const soldTo = !editingTx && linkedClientId !== 'none' ? clientsDzd.find((c) => c.id === linkedClientId) : undefined;
+            if (soldTo && offerSendToClient) offerSendToClient('✅ Transaction ajoutée.', soldTo);
+            else setAlert(editingTx ? '✅ Transaction mise à jour.' : '✅ Transaction ajoutée.');
             closeForm();
             if (linkedClientId !== 'none') {
                 setTimeout(() => {
@@ -1399,7 +1403,9 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 }
                 throw error;
             }
-            setAlert(editingTx ? '✅ Transaction mise à jour.' : '✅ Transaction ajoutée.');
+            const soldTo = !editingTx && linkedClientId !== 'none' ? clientsDzd.find((c) => c.id === linkedClientId) : undefined;
+            if (soldTo && offerSendToClient) offerSendToClient('✅ Transaction ajoutée.', soldTo);
+            else setAlert(editingTx ? '✅ Transaction mise à jour.' : '✅ Transaction ajoutée.');
             closeForm();
             if (linkedClientId !== 'none') {
                 setTimeout(() => {

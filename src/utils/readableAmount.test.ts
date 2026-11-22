@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { amountInWords, readableAmount } from './readableAmount';
+assert.equal(readableAmount(999, 'fr'), null);
+assert.equal(readableAmount(500000, 'fr'), '500 000 · 500 mille');
+assert.equal(readableAmount(500000, 'ar'), '500 000 · 500 ألف');
+assert.equal(amountInWords(1250000, 'fr'), '1,25 million');
+assert.equal(amountInWords(3000000, 'fr'), '3 millions');
+assert.equal(amountInWords(3000000, 'ar'), '3 مليون');
+assert.equal(amountInWords(2_500_000_000, 'ar'), '2,5 مليار');
+assert.equal(readableAmount(25500.5, 'fr'), '25 500,5 · 25,5 mille');
+console.log('readableAmount: ok');

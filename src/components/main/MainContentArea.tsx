@@ -104,6 +104,7 @@ const areDashboardPagePropsEqual = (prev: any, next: any) => (prev?.portfolioSta
     && prev?.backupDueDays === next?.backupDueDays
     && prev?.onOpenBackup === next?.onOpenBackup
     && prev?.accessRequestCount === next?.accessRequestCount
+    && prev?.onOpenDayClose === next?.onOpenDayClose
     && prev?.minimumGoal === next?.minimumGoal
     && prev?.onKeepGoal === next?.onKeepGoal
     // V12-1 and V12-2: the movements without a reason and the USDT/EUR owed to clients arrive after the page.
