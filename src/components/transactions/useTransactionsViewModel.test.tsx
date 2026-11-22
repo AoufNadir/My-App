@@ -577,11 +577,13 @@ function referenceViewModel({ t, filterMode, dateRange, transactions, digitalSer
             const legacyTransferMatch = typeof txData.asset === 'string'
                 ? /from\s+(.+?)\s+to\s+(.+)/i.exec(txData.asset)
                 : null;
-            const transferFrom = txData.source || legacyTransferMatch?.[1] || 'N/A';
-            const transferTo = txData.destination || legacyTransferMatch?.[2] || 'N/A';
+            // V24-2: the only change on purpose: « Caisse » is shown in the app's language.
+            const walletName = (raw: string) => (raw === 'Caisse' ? t('movementReview.walletCaisse') : raw);
+            const transferFrom = walletName(txData.source || legacyTransferMatch?.[1] || 'N/A');
+            const transferTo = walletName(txData.destination || legacyTransferMatch?.[2] || 'N/A');
             const sourceLabel = isTransfer
                 ? `${transferFrom} -> ${transferTo}`
-                : (txData.source || txData.asset || txData.expenseWallet || 'N/A');
+                : walletName(txData.source || txData.asset || txData.expenseWallet || 'N/A');
             const displayAmount = Number(txData.amountDzd ?? tx.amount ?? 0);
             const typeLabel = isTransfer
                 ? t('ledger.internalTransfer')
