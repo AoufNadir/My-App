@@ -14,7 +14,7 @@ export type ClientActivityPhoneSheetProps = {
     /** « phone »: the 420px sheet the PDF pages are cut from; « screen »: the preview in the window */
     variant: 'screen' | 'phone';
     /** V12-2: USDT/EUR the client bought and has not received yet (shown whatever the period: it is today's state) */
-    waiting?: ReadonlyArray<{ currency: 'USDT' | 'EUR'; committed: number; delivered: number; remaining: number }>;
+    waiting?: ReadonlyArray<{ currency: string; committed: number; delivered: number; remaining: number }>;
 };
 
 // Lines after purchases and payments, in this order; the opening balance entered during the period comes first.

@@ -602,7 +602,7 @@ function MainClientOperationsDialogsComponent({ isClientTxModalOpen, setIsClient
                             {adjustmentReason === 'client' && isDzdAdjustment && (<div>
                                 <Label>{t('movementReason.clientField')}</Label>
                                 <div className="mt-1">
-                                    <SearchableSelect value={adjustmentClientId} onChange={setAdjustmentClientId} options={selectableClients(clientsDzd || [], [adjustmentClientId]).map((client: any) => ({ value: client.id, label: getClientFullName(client) }))} searchPlaceholder={t('transactions.searchClient')} noResultsLabel={t('transactions.noClientFound')}/>
+                                    <SearchableSelect fieldClassName={fieldBase} value={adjustmentClientId} onChange={setAdjustmentClientId} options={selectableClients(clientsDzd || [], [adjustmentClientId]).map((client: any) => ({ value: client.id, label: getClientFullName(client) }))} searchPlaceholder={t('transactions.searchClient')} noResultsLabel={t('transactions.noClientFound')}/>
                                 </div>
                                 {adjustmentClientBalanceHint && <p className="mt-1.5 text-xs leading-snug text-neutral-500">{adjustmentClientBalanceHint}</p>}
                             </div>)}

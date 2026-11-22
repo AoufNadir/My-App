@@ -578,7 +578,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     investorId: managerInvestor.id,
                     isManager: true,
                     amountDzd: preview.amountDzd,
-                    wallet: personalWithdrawalMethod,
+                    wallet: personalWithdrawalMethod as never,
                 }, {
                     managerAdvanceDzd: preview.amountDzd,
                     cashDeltasDzd: isCashWallet(personalWithdrawalMethod) ? { [personalWithdrawalMethod]: -preview.amountDzd } : {},
@@ -595,7 +595,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     amountDzd: preview.amountDzd,
                     profitAmountDzd: funding.profitAmount,
                     capitalAmountDzd: funding.capitalAmount,
-                    wallet: personalWithdrawalMethod,
+                    wallet: personalWithdrawalMethod as never,
                 }, {
                     personalExpenseProfitDzd: funding.profitAmount,
                     personalExpenseCapitalDzd: funding.capitalAmount,
@@ -1074,10 +1074,10 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                             actorUid: userDocRef.id,
                             effectiveAt: depositTs,
                             kind: 'investor_capital_deposit_cash',
-                            wallet: investorInitialCapitalSource,
+                            wallet: investorInitialCapitalSource as never,
                             amountDzd: capital,
                             investorId: ref.id,
-                        }, [{ type: 'Ajout', source: investorInitialCapitalSource, amount: capital }]);
+                        }, [{ type: 'Ajout', source: investorInitialCapitalSource as never, amount: capital }]);
                     }
                     recordInvestorShadow({
                         operationId: `shadow:investor-initial-capital:${investorTxRef.id}`,
@@ -1087,7 +1087,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                         investorId: ref.id,
                         isManager,
                         amountDzd: capital,
-                        wallet: investorInitialCapitalSource,
+                        wallet: investorInitialCapitalSource as never,
                     }, {
                         capitalDeltasDzd: { [ref.id]: capital },
                         cashDeltasDzd: investorInitialCapitalSource === 'none' ? {} : { [investorInitialCapitalSource]: capital },
@@ -1284,10 +1284,10 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     actorUid: userDocRef.id,
                     effectiveAt: timestamp,
                     kind,
-                    wallet: investorTxPaymentSource,
+                    wallet: investorTxPaymentSource as never,
                     amountDzd: amount,
                     investorId: selectedInvestorId,
-                }, [{ type: legacyType, source: investorTxPaymentSource, amount }]);
+                }, [{ type: legacyType, source: investorTxPaymentSource as never, amount }]);
             }
             if (investorTxType === 'withdraw_profit') {
                 recordInvestorShadow({
@@ -1299,7 +1299,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     isManager: selectedInvestor.isManager === true,
                     amountDzd: amount,
                     availableProfitBeforeDzd: Number(selectedInvestor.availableProfit || 0),
-                    wallet: investorTxPaymentSource,
+                    wallet: investorTxPaymentSource as never,
                 }, {
                     profitDueDeltasDzd: { [selectedInvestorId]: -amount },
                     profitPayoutsDzd: { [selectedInvestorId]: amount },
@@ -1316,7 +1316,7 @@ export function useInvestorHandlers(userDocRef: FirestoreDocumentReference, deri
                     investorId: selectedInvestorId,
                     isManager: selectedInvestor.isManager === true,
                     amountDzd: amount,
-                    wallet: investorTxPaymentSource,
+                    wallet: investorTxPaymentSource as never,
                 }, {
                     capitalDeltasDzd: { [selectedInvestorId]: isWithdrawal ? -amount : amount },
                     cashDeltasDzd: { [investorTxPaymentSource]: isWithdrawal ? -amount : amount },

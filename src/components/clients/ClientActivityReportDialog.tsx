@@ -23,7 +23,7 @@ export type ClientActivityReportDialogProps = {
     /** For tests and screenshots; the time the window opened otherwise */
     now?: number;
     /** V12-2: USDT/EUR bought and not received yet, shown on the report */
-    waiting?: ReadonlyArray<{ currency: 'USDT' | 'EUR'; committed: number; delivered: number; remaining: number }>;
+    waiting?: ReadonlyArray<{ currency: string; committed: number; delivered: number; remaining: number }>;
 };
 
 /**

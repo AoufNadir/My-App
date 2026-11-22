@@ -1,3 +1,4 @@
+import { cashAccount } from '../../accounts/cashAccounts';
 import { EXTRA_CURRENCY_CODES, isExtraCurrency } from '../../currency/tradeCurrencies';
 import { useEffect, useMemo, useState } from 'react';
 import { Tx, ClientDzd, ClientTransactionDzd, TreasuryTx, DigitalServiceTransaction } from '../../types';
@@ -830,11 +831,13 @@ export function useTransactionsViewModel({ t, filterMode, setFilterMode, dateRan
                 const legacyTransferMatch = typeof txData.asset === 'string'
                     ? /from\s+(.+?)\s+to\s+(.+)/i.exec(txData.asset)
                     : null;
-                const transferFrom = txData.source || legacyTransferMatch?.[1] || 'N/A';
-                const transferTo = txData.destination || legacyTransferMatch?.[2] || 'N/A';
+                // V24-2: « Caisse » and an owner's account id are shown by their name in the app's language.
+                const walletName = (raw: string) => (raw === 'Caisse' ? t('movementReview.walletCaisse') : raw.startsWith('acc_') ? cashAccount(raw).name : raw);
+                const transferFrom = walletName(txData.source || legacyTransferMatch?.[1] || 'N/A');
+                const transferTo = walletName(txData.destination || legacyTransferMatch?.[2] || 'N/A');
                 const sourceLabel = isTransfer
                     ? `${transferFrom} -> ${transferTo}`
-                    : (txData.source || txData.asset || txData.expenseWallet || 'N/A');
+                    : walletName(txData.source || txData.asset || txData.expenseWallet || 'N/A');
                 const displayAmount = Number(txData.amountDzd ?? tx.amount ?? 0);
                 const typeLabel = isTransfer
                     ? t('ledger.internalTransfer')

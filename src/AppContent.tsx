@@ -13,6 +13,8 @@ import {
     AgentDashboardPlaceholder,
 } from './components/portal/PortalScreens';
 import { ClientPortalPage } from './pages/ClientPortalPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { UpdateBar } from './components/ui/UpdateBar';
 import { isOwnerUid } from './config/orderSystem';
 import { useAccess } from './hooks/useAccess';
 import { accessState } from './utils/access';
@@ -61,11 +63,14 @@ export default function AppContent() {
         <>
             <AccessBanner state={subscription} until={access.access?.until ?? null} />
             <CurrencyRegistryGate uid={user.uid} loading={loadingScreen}>
-                <Suspense fallback={loadingScreen}>
-                    <MainApp user={user} />
-                </Suspense>
+                <ErrorBoundary key="app">
+                    <Suspense fallback={loadingScreen}>
+                        <MainApp user={user} />
+                    </Suspense>
+                </ErrorBoundary>
             </CurrencyRegistryGate>
             {isLocked && <AuthLockScreen onUnlock={unlock} />}
+            <UpdateBar />
         </>
     );
     // Role gate is dormant until the operator uid is configured; the operator

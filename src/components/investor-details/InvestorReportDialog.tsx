@@ -49,7 +49,7 @@ export function InvestorReportDialog({ onClose, investorId, investorName, prepar
     const catchingUp = shownStartTs !== startTs || shownEndTs !== endTs || shownError !== dateError;
     const prepared = useMemo(() => (shownError ? null : prepareReport(investorId, { startTs: shownStartTs, endTs: shownEndTs })), [shownError, prepareReport, investorId, shownStartTs, shownEndTs]);
     const report = useMemo(() => (prepared?.ok ? buildInvestorReport(prepared.input, now) : null), [prepared, now]);
-    const notFound = prepared && !prepared.ok ? t(prepared.reason === 'notFoundAtClose' ? 'investors.reportNotFoundAtClose' : 'investors.reportNotFound') : null;
+    const notFound = prepared && !prepared.ok ? t((prepared as { reason?: string }).reason === 'notFoundAtClose' ? 'investors.reportNotFoundAtClose' : 'investors.reportNotFound') : null;
 
     // Nothing is sent, or made ahead, while the report is catching up with the dates.
     const job = report && !catchingUp ? {

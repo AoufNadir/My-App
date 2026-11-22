@@ -484,8 +484,8 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
                 kind: 'digital_service_sale',
                 clientId: digitalServiceClientId,
                 serviceName: serviceLabel,
-                purchase: servicePurchase,
-                sale: serviceSale,
+                purchase: servicePurchase as never,
+                sale: serviceSale as never,
             }, {
                 serviceRevenueDzd: preview.saleAmountDzd,
                 serviceCostDzd: preview.purchaseAmountDzd,
