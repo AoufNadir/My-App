@@ -107,7 +107,9 @@ const TresoreriePage = React.lazy(() => import('./pages/TresoreriePage').then((m
 const InvestorsPage = React.lazy(() => import('./pages/InvestorsPage').then((module) => ({ default: module.InvestorsPage })));
 const InvestorDetailsPage = React.lazy(() => import('./pages/InvestorDetailsPage').then((module) => ({ default: module.InvestorDetailsPage })));
 const InvestorDashboardPage = React.lazy(() => import('./pages/InvestorDashboardPage').then((module) => ({ default: module.InvestorDashboardPage })));
-const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
+// V24-1: the Home page is the first one shown: its download starts with MainApp's, not after it (one wait less).
+const dashboardPageImport = import('./pages/DashboardPage');
+const DashboardPage = React.lazy(() => dashboardPageImport.then((module) => ({ default: module.DashboardPage })));
 const GlobalSearchDialog = React.lazy(() => import('./components/main/MainDialogs').then((module) => ({ default: module.GlobalSearchDialog })));
 const MainAppDialogs = React.lazy(() => import('./components/main/MainAppDialogs').then((module) => ({ default: module.MainAppDialogs })));
 const MonthPlanSheet = React.lazy(() => import('./components/calculator/MonthPlanSheet').then((module) => ({ default: module.MonthPlanSheet })));
@@ -154,6 +156,7 @@ import { goalHistoryRows } from './services/goalHistory';
 import { absentClients, lastWeekSummary, stockForGoal } from './services/goalAlerts';
 import { guardFindings } from './services/guardChecks';
 import { buildFullBackup, daysSinceBackup, LAST_BACKUP_KEY } from './utils/fullBackup';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { openingWrites, type OpeningInput } from './utils/openingBalances';
 import { useSubscribers } from './hooks/useAccess';
@@ -2426,6 +2429,14 @@ export default function MainApp({ user }: {
         const timer = window.setTimeout(() => setAlert(''), duration);
         return () => window.clearTimeout(timer);
     }, [alert, alertTone, activeAlertUndo]);
+    // V24-1: a short vibration tells the result without reading: one pulse saved, two pulses refused (phones that can).
+    React.useEffect(() => {
+        if (!alert || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+        try {
+            if (alertTone === 'success') navigator.vibrate(30);
+            else if (alertTone === 'error' || alertTone === 'warning') navigator.vibrate([60, 80, 60]);
+        } catch { /* not allowed: nothing */ }
+    }, [alert, alertTone]);
     /* Legacy persisted navigation/search effects moved to hooks.
     useEffect(() => {
         const p = window.location.pathname;
@@ -3252,6 +3263,7 @@ export default function MainApp({ user }: {
             </div>
 
             {hasOpenMainAppDialog && (<Suspense fallback={null}>
+            <ErrorBoundary key="dialogs">
             <MainAppDialogs {...{
         profitByTxId: pamLedger.profitByTxId,
         isWalletTransferModalOpen, walletTransferDialogProps,
@@ -3424,6 +3436,7 @@ export default function MainApp({ user }: {
         reinvestInput, setReinvestInput,
         handleReinvestProfit,
     }}/>
+            </ErrorBoundary>
             </Suspense>)}
 
         </div></CurrencyVisibilityProvider></AccountUsageContext.Provider>);
