@@ -2794,6 +2794,17 @@ export default function MainApp({ user }: {
         if (movementsCounted)
             notifications.notifyUnexplainedMovements(unexplainedMovementCount);
     }, [movementsCounted, unexplainedMovementCount]);
+    // V22-1: a phone notification for each new activation request (the operator's account only). The first reading
+    // only remembers the list, so old requests are not announced again.
+    React.useEffect(() => {
+        const ids = accessRequests.requests.map((r) => r.uid);
+        let known: string[] | null = null;
+        try { const raw = localStorage.getItem('app_known_access_requests'); known = raw ? JSON.parse(raw) : null; localStorage.setItem('app_known_access_requests', JSON.stringify(ids)); } catch { return; }
+        if (!known || notifications.permission !== 'granted') return;
+        const fresh = accessRequests.requests.filter((r) => !known!.includes(r.uid));
+        for (const r of fresh)
+            notifications.showNotification(lang === 'ar' ? 'طلب تفعيل جديد' : 'Nouvelle demande d’activation', `${r.name}${r.phone ? ` · ${r.phone}` : ''}`, { tag: `access-request-${r.uid}` });
+    }, [accessRequests.requests]);
     // The same reminder on the phone, once a day; nothing while it is put off or the server has not answered.
     React.useEffect(() => {
         if (notifications.permission !== 'granted' || !inventoryReminder.reminder) return;

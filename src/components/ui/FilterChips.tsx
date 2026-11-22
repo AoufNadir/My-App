@@ -34,7 +34,7 @@ function FilterChips({ chips, activeIds, onToggle, label, className = '' }: Filt
         else if (chipBox.right > rowBox.right)
             row.scrollBy({ left: chipBox.right - rowBox.right + 16 });
     }, [activeKey]);
-    return (<div ref={rowRef} role="group" aria-label={label} className={['-mx-4 flex gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden', className].filter(Boolean).join(' ')}>
+    return (<div ref={rowRef} role="group" aria-label={label} className={['flex flex-wrap gap-2 py-1', className].filter(Boolean).join(' ')}>
       {chips.map((chip) => {
             const active = activeIds.includes(chip.id);
             return (<button key={chip.id} type="button" aria-pressed={active} onClick={() => onToggle(chip.id)} className={[

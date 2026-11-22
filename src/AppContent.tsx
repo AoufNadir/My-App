@@ -55,7 +55,7 @@ export default function AppContent() {
         return loadingScreen;
     }
     if (subscription === 'pending') {
-        return <PendingActivationScreen uid={user.uid} email={user.email ?? ''} />;
+        return <PendingActivationScreen uid={user.uid} email={user.email ?? ''} displayName={user.displayName ?? ''} />;
     }
     const operatorView = (
         <>

@@ -54,7 +54,7 @@ type InvestorsStats = {
     netDistributableProfit: number;
 };
 export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capitalSnapshot, investorBreakdown, onOpenInvestor, onAddInvestor, onEditInvestor, onDeleteInvestor, investorEconomicsTotals, managerFeePercentage, managerFeeHistory, saveManagerFeePercentage, userDocRef, setAlert, treasuryStats, managerProfitBreakdown, periodLock, investorTermsByInvestorId }) => {
-    const { t } = useLanguage();
+    const { t, lang } = useLanguage();
     const stats: InvestorsStats = useMemo(() => {
         const nonManagerInvestors = investors.filter((inv) => inv.isActive && !inv.isManager);
         const totalCapital = investorBreakdown?.capital ?? nonManagerInvestors.reduce((sum, inv) => sum + Math.max(0, Number(inv.capitalInvested || 0)), 0);
@@ -125,7 +125,16 @@ export const InvestorsPage: React.FC<InvestorsPageProps> = ({ investors, capital
 
       <InvestorsListSection investors={investors} capitalSnapshot={capitalSnapshot} managerProfitBreakdown={managerProfitBreakdown} activeCount={stats.activeCount} onOpenInvestor={onOpenInvestor} onAddInvestor={onAddInvestor} onEditInvestor={onEditInvestor} onDeleteInvestor={onDeleteInvestor} termsByInvestorId={investorTermsByInvestorId}/>
 
-      <InvestorsDetailsCard stats={displayedStats} capitalSnapshot={capitalSnapshot} managerFeePercentage={managerFeePercentage} managerProfitBreakdown={managerProfitBreakdown} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference} managerShareCapital={investors.find((inv) => inv.isManager)?.shareCapital ?? null}/>
+      {/* V22-2: the full financial summary is folded: the page opens on the figures above and the investors. */}
+      <details className="group rounded-card border border-border bg-surface">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-bold text-neutral-800">
+          <span>{lang === 'ar' ? 'التفاصيل المالية الكاملة' : 'Synthèse financière détaillée'}</span>
+          <span aria-hidden="true" className="text-neutral-400 transition-transform group-open:rotate-90 rtl:-scale-x-100">›</span>
+        </summary>
+        <div className="px-1 pb-1">
+        <InvestorsDetailsCard stats={displayedStats} capitalSnapshot={capitalSnapshot} managerFeePercentage={managerFeePercentage} managerProfitBreakdown={managerProfitBreakdown} onOpenCommissionEditor={() => setIsCommissionModalOpen(true)} reconciliationDifference={investorEconomicsTotals.reconciliationDifference} managerShareCapital={investors.find((inv) => inv.isManager)?.shareCapital ?? null}/>
+        </div>
+      </details>
 
       {periodLock && (<PeriodLockCard {...periodLock} setAlert={setAlert}/>)}
 

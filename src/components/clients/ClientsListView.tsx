@@ -194,17 +194,14 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
             <UserPlusIcon className="h-[22px] w-[22px]"/>
           </button>
           <ReportButton variant="header" onClick={exportPdf}/>
-          {onImportClients && (<button type="button" onClick={() => setImportOpen(true)} className={headerIconClass} title={t('clients.importCsv') as string} aria-label={t('clients.importCsv') as string}>
-              <UploadCloudIcon className="h-[22px] w-[22px]"/>
-            </button>)}
         </>, headerActionsSlot)}
 
       <SearchField value={clientSearchQuery} onChange={setClientSearchQuery} placeholder={t('transactions.searchClient') as string} clearLabel={t('transactions.clearSearch') as string}/>
 
-      <FilterChips chips={quickFilters} activeIds={[activeQuickFilter]} onToggle={selectQuickFilter} label={t('clients.filterAction') as string}/>
-
-      {/* Category and group: only when the clients have them */}
-      {((clientLoyaltyMap && tierCounts.size > 0) || availableGroups.length > 0) && (<div className="flex flex-wrap items-center gap-2">
+      {/* V22-2: quick filters, category and group on one row (they wrap on a narrow phone). */}
+      <div className="flex flex-wrap items-center gap-2">
+      <FilterChips chips={quickFilters} activeIds={[activeQuickFilter]} onToggle={selectQuickFilter} label={t('clients.filterAction') as string} className="contents"/>
+      {((clientLoyaltyMap && tierCounts.size > 0) || availableGroups.length > 0) && (<>
           {clientLoyaltyMap && tierCounts.size > 0 && (<Dropdown align="start" trigger={(<button type="button" aria-haspopup="menu" className={`inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors ${activeTier ? 'border-primary bg-primary/10 text-neutral-900' : 'border-border bg-surface text-neutral-700 hover:border-border-strong'}`}>
                   <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${activeTier ? activeTier.dot : 'bg-neutral-300'}`}/>
                   <span className="min-w-0 truncate">{activeTier ? t(activeTier.label) : t('clients.allCategories')}</span>
@@ -229,7 +226,8 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
           {availableGroups.map(g => (<button key={g} type="button" aria-pressed={activeGroupFilter === g} onClick={() => setActiveGroupFilter(activeGroupFilter === g ? null : g)} className={`relative inline-flex min-h-9 items-center rounded-full border px-3 text-[13px] font-semibold transition-colors before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] ${activeGroupFilter === g ? 'border-primary bg-primary text-white' : 'border-border bg-surface text-neutral-600 hover:border-border-strong hover:text-neutral-900'}`}>
               {g}
             </button>))}
-        </div>)}
+        </>)}
+      </div>
 
       <SectionCard flush title={<>{t('clients.clientsList')} <span className="font-semibold text-neutral-500">· <bdi>{groupFilteredClients.length}</bdi></span></>}>
         {groupFilteredClients.length > 0 ? (<div>
@@ -319,6 +317,10 @@ export function ClientsListView({ openClientModal, clientSearchQuery, setClientS
             </p>
           </div>)}
       </SectionCard>
+
+      {onImportClients && (<button type="button" onClick={() => setImportOpen(true)} className="mx-auto flex min-h-11 items-center gap-2 text-sm font-semibold text-neutral-600 underline sm:hidden">
+          <UploadCloudIcon className="h-4 w-4"/>{t('clients.importCsv')}
+        </button>)}
 
       {onImportClients && (<CsvImportSheet isOpen={importOpen} onClose={() => setImportOpen(false)} title={t('clients.importClients')} fields={importFields} onConfirm={onImportClients}/>)}
 

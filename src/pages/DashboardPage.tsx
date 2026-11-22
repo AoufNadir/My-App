@@ -630,7 +630,7 @@ function DashboardContent({
     return (<div className="anim-page-in flex flex-col gap-3">
       <NotificationCenter items={notificationItems} initialOpen={initialNotificationsOpen}/>
 
-      <HeroCard top={<SegmentedControl options={PROFIT_PERIODS.map((period) => ({ id: period, label: t(PROFIT_PERIOD_LABEL_KEYS[period].option) as string }))} value={profitPeriod} onChange={selectProfitPeriod} ariaLabel={t('dashboard.periodPicker') as string}/>} label={`${t('dashboard.profitSummary')} · ${t(PROFIT_PERIOD_LABEL_KEYS[profitPeriod].title)}`} value={salesProfit} semantic={salesProfit < 0 ? 'loss' : 'plain'} note={previousProfit === undefined ? undefined : <ProfitChange current={salesProfit} previous={previousProfit} period={profitPeriod}/>} secondary={{
+      <HeroCard top={<SegmentedControl options={PROFIT_PERIODS.map((period) => ({ id: period, label: t(PROFIT_PERIOD_LABEL_KEYS[period].option) as string }))} value={profitPeriod} onChange={selectProfitPeriod} ariaLabel={t('dashboard.periodPicker') as string}/>} label={`${t('dashboard.profitSummary')} · ${t(PROFIT_PERIOD_LABEL_KEYS[profitPeriod].title)}`} value={salesProfit} semantic={salesProfit < 0 ? 'loss' : 'plain'} note={previousProfit === undefined ? undefined : <ProfitChange current={salesProfit} previous={previousProfit} period={profitPeriod}/>} secondary={Math.abs((ownerProfitByPeriod[profitPeriod] ?? 0) - salesProfit) < 0.5 ? undefined : {
             label: t('dashboard.ownerProfitSummary') as string,
             hint: t(profitSplit ? 'dashboard.ownerProfitSummaryTradingHint' : 'dashboard.ownerProfitSummaryHint') as string,
             value: ownerProfitByPeriod[profitPeriod],

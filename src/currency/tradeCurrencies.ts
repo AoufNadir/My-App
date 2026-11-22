@@ -101,3 +101,18 @@ export function setCustomCurrencies(custom: readonly TradeCurrencyInfo[]): boole
 export function refreshLiveLists(): void {
     for (const refresh of refreshers) refresh();
 }
+
+/** V22-1: the currencies offered in one tap in « Ajouter une devise » (the 4 fields stay for any other). */
+export const COMMON_CURRENCIES: readonly { code: string; symbol: string; nameFr: string; nameAr: string }[] = [
+    { code: 'USD', symbol: '$', nameFr: 'le dollar américain', nameAr: 'الدولار الأمريكي' },
+    { code: 'GBP', symbol: '£', nameFr: 'la livre sterling', nameAr: 'الجنيه الإسترليني' },
+    { code: 'CAD', symbol: 'C$', nameFr: 'le dollar canadien', nameAr: 'الدولار الكندي' },
+    { code: 'CHF', symbol: 'Fr', nameFr: 'le franc suisse', nameAr: 'الفرنك السويسري' },
+    { code: 'AED', symbol: 'د.إ', nameFr: 'le dirham des Émirats', nameAr: 'الدرهم الإماراتي' },
+    { code: 'SAR', symbol: 'ر.س', nameFr: 'le riyal saoudien', nameAr: 'الريال السعودي' },
+    { code: 'TRY', symbol: '₺', nameFr: 'la livre turque', nameAr: 'الليرة التركية' },
+    { code: 'TND', symbol: 'د.ت', nameFr: 'le dinar tunisien', nameAr: 'الدينار التونسي' },
+    { code: 'MAD', symbol: 'د.م', nameFr: 'le dirham marocain', nameAr: 'الدرهم المغربي' },
+    { code: 'USDC', symbol: 'USDC', nameFr: 'l’USDC', nameAr: 'الـ USDC' },
+    { code: 'BTC', symbol: '₿', nameFr: 'le bitcoin', nameAr: 'البيتكوين' },
+];

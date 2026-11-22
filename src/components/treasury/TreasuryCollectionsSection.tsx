@@ -21,6 +21,11 @@ export function TreasuryCollectionsSection({ treasuryCards, openTreasuryCardModa
       <PlusIcon className="h-4 w-4"/>
       {t('transactions.add')}
     </Button>);
+    // V22-2: with no card, only a small link remains (the dinar accounts in the settings cover most needs).
+    if (visibleCards.length === 0)
+        return (<button type="button" onClick={() => openTreasuryCardModal()} className="mx-auto flex min-h-11 items-center gap-1.5 text-sm font-semibold text-neutral-600 underline">
+          <PlusIcon className="h-4 w-4"/>{t('finance.treasuryCards')}
+        </button>);
     return (<SectionCard title={t('finance.treasuryCards')} actions={visibleCards.length > 0 ? addButton : undefined} flush>
       {visibleCards.length > 0 ? visibleCards.map((card) => (<div key={card.id} className="flex items-center border-t border-border first:border-t-0">
           <button type="button" onClick={() => openTreasuryCardModal(card)} aria-label={`${t('common.edit')} : ${card.name}`} className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-3 ps-4 pe-1 text-start transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">

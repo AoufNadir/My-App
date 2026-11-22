@@ -49,23 +49,29 @@ const W = {
 };
 export const readOnlyMessage = (lang: 'fr' | 'ar') => W[lang].readOnly;
 
-export function PendingActivationScreen({ uid, email }: { uid: string; email: string }) {
+export function PendingActivationScreen({ uid, email, displayName = '' }: { uid: string; email: string; displayName?: string }) {
     const { lang } = useLanguage();
     const w = W[lang];
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+    const [completed, setCompleted] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const contact = whatsappDigits(useOwnerContact());
+    // V22-1: the request is sent as soon as a new account arrives (name from Google or the e-mail), so the operator
+    // hears of every sign-up even if the customer never presses the button; the form only completes it.
     useEffect(() => db.collection('access_requests').doc(uid).onSnapshot((snap) => {
-        if (snap.exists) { const d = snap.data() as { name?: string; phone?: string }; setName((v) => v || d.name || ''); setPhone((v) => v || d.phone || ''); setStatus('sent'); }
-    }), [uid]);
+        if (snap.exists) { const d = snap.data() as { name?: string; phone?: string }; setName((v) => v || d.name || ''); setPhone((v) => v || d.phone || ''); return; }
+        if ((snap as { metadata?: { fromCache?: boolean } }).metadata?.fromCache !== false) return; // only once the server said « none »
+        const autoName = (displayName || email.split('@')[0] || 'Nouveau compte').trim().slice(0, 80);
+        db.collection('access_requests').doc(uid).set({ name: autoName, phone: '', email: email.slice(0, 120), requestedAt: Date.now() }).catch((e: unknown) => console.error(e));
+    }, { includeMetadataChanges: true }), [uid]);
     const send = async () => {
         if (!name.trim()) { setError(w.nameNeeded); return; }
         setError(null); setStatus('sending');
         try {
             await db.collection('access_requests').doc(uid).set({ name: name.trim().slice(0, 80), phone: phone.trim().slice(0, 30), email: email.slice(0, 120), requestedAt: Date.now() });
-            setStatus('sent');
+            setStatus('sent'); setCompleted(true);
         } catch (e) { console.error(e); setError(w.error); setStatus('idle'); }
     };
     const input = 'mt-1 h-12 w-full rounded-button border border-border bg-surface px-3 text-sm text-neutral-900';
@@ -78,7 +84,7 @@ export function PendingActivationScreen({ uid, email }: { uid: string; email: st
         <label className="block"><span className="block text-xs font-semibold text-neutral-700">{w.phone}</span>
           <input value={phone} inputMode="tel" dir="ltr" onChange={(e) => setPhone(e.target.value)} className={input}/></label>
         {error && <p role="alert" className="text-sm font-semibold text-financial-loss">{error}</p>}
-        {status === 'sent' && <p role="status" className="rounded-card bg-primary/10 px-3 py-3 text-sm font-semibold text-primary">{w.sent}</p>}
+        {completed && <p role="status" className="rounded-card bg-primary/10 px-3 py-3 text-sm font-semibold text-primary">{w.sent}</p>}
         <button type="button" onClick={send} disabled={status === 'sending'} className="h-12 rounded-button bg-primary text-sm font-bold text-white">{status === 'sending' ? w.sending : w.send}</button>
         {contact.length >= 8 && (<a href={`https://wa.me/${contact}`} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center rounded-button border border-border bg-surface text-sm font-bold text-neutral-800">{w.contact}</a>)}
         <button type="button" onClick={() => signOut(auth).catch(() => undefined)} className="mt-auto text-sm font-semibold text-neutral-600 underline">{w.logout}</button>
