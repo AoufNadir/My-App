@@ -126,7 +126,7 @@ function amountsIn(html: string): string[] {
 }
 const amountText = (value: number) => amountsIn(renderToStaticMarkup(<CurrencyAmount value={value} currency="DZD" decimals={0}/>))[0];
 const sections = (html: string) => html.match(/<section[\s\S]*?<\/section>/g) ?? [];
-const sectionWith = (html: string, text: string) => sections(html).find((section) => section.includes(text));
+const sectionWith = (html: string, text: string) => sections(html).find((section: string) => section.includes(text));
 const fr = translations.fr as unknown as { dashboard: Record<string, string>; digitalServices: Record<string, string> };
 const ar = translations.ar as unknown as typeof fr;
 const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/'/g, '&#x27;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

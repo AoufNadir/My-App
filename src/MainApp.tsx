@@ -1278,7 +1278,7 @@ export default function MainApp({ user }: {
             investorBreakdown,
             investorLiability,
             capitalSnapshot,
-            servicesSummary,
+            servicesSummary: { ...servicesSummary, servicesCount: 0, clientsCount: 0 },
             dailyOverview,
             globalNetProfit,
             managerProfitBreakdown,

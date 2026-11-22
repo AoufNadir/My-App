@@ -146,7 +146,7 @@ export function ProfitDistributionSheet({ isOpen, onClose, investors, suggestedT
         onClose();
     };
 
-    const sourceLabel = (src: 'Caisse' | 'BaridiMob') => t(src === 'Caisse' ? 'transactions.cash' : 'transactions.baridi') as string;
+    const sourceLabel = (src: 'Caisse' | 'BaridiMob' | '') => t(src === 'Caisse' ? 'transactions.cash' : 'transactions.baridi') as string;
     const confirmWarning = String(t(distribution.length > 1 ? 'profitDistribution.confirmWarningMany' : 'profitDistribution.confirmWarningOne'))
         .replace(/\{count\}/g, String(distribution.length))
         .replace('{source}', sourceLabel(paymentSource));

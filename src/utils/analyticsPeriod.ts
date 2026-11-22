@@ -74,7 +74,7 @@ export type CurrencyPeriodStats = {
     marginPer100: number | null;
 };
 /** V14-4: one entry per currency of the list, under its lower-case code (usdt, eur, rmb, and the next ones). */
-export type PeriodStats = { usdt: CurrencyPeriodStats; eur: CurrencyPeriodStats; rmb: CurrencyPeriodStats } & { [currency: string]: unknown } & {
+export type PeriodStats = { usdt: CurrencyPeriodStats; eur: CurrencyPeriodStats; rmb: CurrencyPeriodStats } & { [currency: string]: any } & {
     /** All the sales, as the old page counted them */
     profit: number;
     sellCount: number;
