@@ -5,8 +5,16 @@
 
 /** Algerian 0XXXXXXXXX becomes 213XXXXXXXXX; other numbers keep their digits. */
 export function formatWaNumber(phone: string): string {
-    const digits = phone.replace(/\D/g, '');
-    if (digits.startsWith('0') && digits.length >= 9) return '213' + digits.slice(1);
+    // V25-5 (owner): foreign numbers too. « +44 … » and « 0044 … » are kept as they are (without + / 00); an Algerian
+    // number « 0555 12 34 56 » (0 then 9 digits) gets 213; a longer number written with a 0 in place of « + » keeps its
+    // country code (0447… → 447…). A number already starting with a country code is kept.
+    const trimmed = phone.trim();
+    const digits = trimmed.replace(/\D/g, '');
+    if (trimmed.startsWith('+')) return digits;
+    if (digits.startsWith('00')) return digits.slice(2);
+    if (digits.startsWith('0') && digits.length === 10) return '213' + digits.slice(1);
+    if (digits.startsWith('0') && digits.length > 10) return digits.slice(1);
+    if (digits.length === 9 && /^[5-7]/.test(digits)) return '213' + digits;
     return digits;
 }
 function getUserAgent(): string {

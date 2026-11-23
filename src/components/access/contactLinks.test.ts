@@ -12,3 +12,15 @@ assert.equal(telegramLink({ whatsapp: '', telegram: '@prodigital_dz' }), 'https:
 assert.equal(hasContact({ whatsapp: '', telegram: '' }), false);
 assert.equal(hasContact({ whatsapp: '', telegram: 'prodigital_dz' }), true);
 console.log('contactLinks: ok');
+// V25-5: foreign numbers, and a phone number for Telegram.
+import { formatWaNumber } from '../../utils/whatsapp';
+assert.equal(formatWaNumber('+44 7919 219916'), '447919219916');
+assert.equal(formatWaNumber('0044 7919 219916'), '447919219916');
+assert.equal(formatWaNumber('0447919219916'), '447919219916');
+assert.equal(formatWaNumber('0555 12 34 56'), '213555123456');
+assert.equal(formatWaNumber('555123456'), '213555123456');
+assert.equal(formatWaNumber('+213 555 12 34 56'), '213555123456');
+assert.equal(formatWaNumber('33612345678'), '33612345678');
+assert.equal(telegramLink({ whatsapp: '', telegram: '+44 7919 219916' }), 'https://t.me/+447919219916');
+assert.equal(telegramName('0044 7919 219916'), '+447919219916');
+console.log('contactLinks V25-5: ok');
