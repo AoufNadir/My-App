@@ -126,7 +126,7 @@ export function RmbTradeDialog({ kind, onClose, onSwitch, holdings, clientsDzd, 
     const preview = input && source !== 'DZD' ? rmbConversionPreview(input, Object.fromEntries(TRADE_CURRENCY_CODES.map((code) => [code, holdings[code]?.avgBuy ?? 0])) as Record<TradeCurrencyCode, number>) : null;
     const usual = clientId !== 'none' ? usualChannelOf(clientsDzd.find((c) => c.id === clientId)) : null;
     // V14-2: « not sent yet » (sale) / « not received yet » (purchase), with a client, paid in cash or BaridiMob.
-    const pendingAllowed = source === 'DZD' && clientId !== 'none' && Boolean(status) && status !== 'credit'; // V15-2b: any account paid now
+    const pendingAllowed = source === 'DZD' && clientId !== 'none' && Boolean(status) && (status !== 'credit' || kind === 'sell'); // V25-1: a sale on credit can be sent later too; // V15-2b: any account paid now
     const save = async () => {
         if (!input || !check?.ok || saving) return;
         setSaving(true);

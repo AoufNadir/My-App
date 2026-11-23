@@ -470,7 +470,9 @@ export function MainTransactionDialog({ transactions, clientTransactionsDzd, pro
     // on credit nothing is paid yet, so the switch is not offered.
     const renderPendingSwitch = (kind: 'delivery' | 'receipt') => {
         const paidNow = Boolean(clientPaymentStatus) && clientPaymentStatus !== 'credit'; // V15-2b: any account paid now
-        const allowed = !editingTx && hasPrimaryClient && paidNow
+        // V25-1 (owner): a sale on the client's account (often money he advanced) can also be sent later, when he asks.
+        const statusAllows = kind === 'delivery' ? Boolean(clientPaymentStatus) : paidNow;
+        const allowed = !editingTx && hasPrimaryClient && statusAllows
             && (kind === 'delivery' ? !isUsdtSellSettledInEur && Boolean(setDeliveryPending) : buyUsdtMode !== 'with_eur' && Boolean(setReceiptPending));
         if (!allowed)
             return null;
