@@ -67,7 +67,11 @@ export function deliveryStates(docs: ReadonlyArray<DeliveryDoc>, sales?: SaleLoo
         const direction: DeliveryDirection = doc.direction === 'from_supplier' ? 'from_supplier' : 'to_client';
         const key = `${direction}|${doc.clientId}|${doc.currency}`;
         const linkedTime = doc.saleTxId ? saleTimes?.get(doc.saleTxId) : undefined;
-        const state = byKey.get(key) ?? { clientId: doc.clientId, direction, currency: doc.currency, committed: 0, delivered: 0, remaining: 0, since: doc.saleTimestamp ?? linkedTime ?? doc.timestamp, deliveries: [], commitments: [] };
+        let state = byKey.get(key) ?? { clientId: doc.clientId, direction, currency: doc.currency, committed: 0, delivered: 0, remaining: 0, since: doc.saleTimestamp ?? linkedTime ?? doc.timestamp, deliveries: [], commitments: [] };
+        // V25-4 (owner): an order fully sent is over; a new order starts its own count (the statement and the page show
+        // the open order only, not every order since the first one). The remaining quantity is the same either way.
+        if (state.committed > 0 && state.remaining === 0)
+            state = { ...state, committed: 0, delivered: 0, since: doc.saleTimestamp ?? linkedTime ?? doc.timestamp, deliveries: [], commitments: [] };
         if (doc.kind === 'commitment') {
             state.committed = fromCents(cents(state.committed) + cents(doc.quantity));
             state.commitments.push(doc);

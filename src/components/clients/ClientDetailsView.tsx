@@ -170,7 +170,7 @@ function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transa
     // This client's sales in USDT/EUR paid in dinars, newest first: the ones that can still be « not sent yet ».
     const sales = useMemo(() => (transactions ?? [])
         .filter((tx: any) => tx.type === 'sell' && tx.id && tx.linkedClientId === clientId && isTradeCurrency(tx.currency) && tx.settlementCurrency !== 'EUR' && !tx.crossTrade)
-        .map((tx: any) => ({ id: tx.id as string, currency: tx.currency as TradeCurrencyCode, quantity: Number(tx.quantity) || 0, timestamp: Number(tx.timestamp) || 0 }))
+        .map((tx: any) => ({ id: tx.id as string, currency: tx.currency as TradeCurrencyCode, quantity: Number(tx.quantity) || 0, timestamp: Number(tx.timestamp) || 0, price: Number(tx.sell ?? tx.price) || (Number(tx.quantity) > 0 ? Number(tx.total) / Number(tx.quantity) : 0) }))
         .filter((sale) => sale.quantity > 0)
         .sort((a, b) => b.timestamp - a.timestamp), [transactions, clientId]);
     // V12-8: this client's purchases (he is the supplier): found through his account rows linked to a purchase.
