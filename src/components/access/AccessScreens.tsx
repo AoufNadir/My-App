@@ -6,18 +6,8 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { daysLeft, type AccessState } from '../../utils/access';
 
 // V21-1 (owner): what a customer sees before his activation, and the line shown near the end of his subscription.
-// The operator's WhatsApp number (app_config/contact, written by him in « Abonnés »): digits with the country code.
-export const whatsappDigits = (raw: string): string => {
-    const digits = raw.replace(/\D/g, '');
-    return digits.startsWith('0') ? `213${digits.slice(1)}` : digits;
-};
-export function useOwnerContact() {
-    const [whatsapp, setWhatsapp] = useState('');
-    useEffect(() => db.collection('app_config').doc('contact').onSnapshot((snap) => {
-        setWhatsapp(snap.exists ? String((snap.data() as { whatsapp?: unknown }).whatsapp ?? '') : '');
-    }, {}, () => setWhatsapp('')), []);
-    return whatsapp;
-}
+// The owner's WhatsApp / Telegram (V25-3: « Contact avec les clients » in the settings).
+import { telegramLink, useOwnerContact, whatsappLink } from './ContactSettings';
 
 const W = {
     fr: {
@@ -26,7 +16,8 @@ const W = {
         name: 'Nom et prénom', phone: 'Téléphone',
         send: 'Envoyer la demande', sending: 'Envoi…',
         sent: 'Demande envoyée. Vous pourrez commencer dès l’activation de votre compte.',
-        contact: 'Contacter sur WhatsApp',
+        contact: 'Contacter sur WhatsApp', telegram: 'Contacter sur Telegram',
+        waMessage: (name: string, email: string) => `Bonjour, je souhaite activer mon compte ProDigital.\nNom : ${name}\nE-mail : ${email}`,
         nameNeeded: 'Écrivez votre nom.', error: 'Envoi impossible. Réessayez.',
         logout: 'Se déconnecter',
         expiring: (d: number) => `Votre abonnement se termine dans ${d} jour${d > 1 ? 's' : ''}. Renouvelez-le pour continuer à enregistrer.`,
@@ -39,7 +30,8 @@ const W = {
         name: 'الاسم واللقب', phone: 'الهاتف',
         send: 'أرسل طلب التفعيل', sending: 'جارٍ الإرسال…',
         sent: 'أُرسل الطلب. تستطيع البدء فور تفعيل حسابك.',
-        contact: 'تواصل عبر واتساب',
+        contact: 'تواصل عبر واتساب', telegram: 'تواصل عبر تلغرام',
+        waMessage: (name: string, email: string) => `السلام عليكم، أريد تفعيل حسابي في ProDigital.\nالاسم: ${name}\nالبريد: ${email}`,
         nameNeeded: 'اكتب اسمك.', error: 'تعذّر الإرسال. حاول مرة أخرى.',
         logout: 'تسجيل الخروج',
         expiring: (d: number) => `اشتراكك ينتهي بعد ${d} ${d > 1 ? 'أيام' : 'يوم'}. جدّده لتواصل التسجيل.`,
@@ -57,7 +49,7 @@ export function PendingActivationScreen({ uid, email, displayName = '' }: { uid:
     const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
     const [completed, setCompleted] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const contact = whatsappDigits(useOwnerContact());
+    const ownerContact = useOwnerContact();
     // V22-1: the request is sent as soon as a new account arrives (name from Google or the e-mail), so the operator
     // hears of every sign-up even if the customer never presses the button; the form only completes it.
     useEffect(() => db.collection('access_requests').doc(uid).onSnapshot((snap) => {
@@ -86,7 +78,8 @@ export function PendingActivationScreen({ uid, email, displayName = '' }: { uid:
         {error && <p role="alert" className="text-sm font-semibold text-financial-loss">{error}</p>}
         {completed && <p role="status" className="rounded-card bg-primary/10 px-3 py-3 text-sm font-semibold text-primary">{w.sent}</p>}
         <button type="button" onClick={send} disabled={status === 'sending'} className="h-12 rounded-button bg-primary text-sm font-bold text-white">{status === 'sending' ? w.sending : w.send}</button>
-        {contact.length >= 8 && (<a href={`https://wa.me/${contact}`} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center rounded-button border border-border bg-surface text-sm font-bold text-neutral-800">{w.contact}</a>)}
+        {(() => { const wa = whatsappLink(ownerContact, w.waMessage(name.trim() || email, email)); return wa && (<a href={wa} target="_blank" rel="noreferrer" data-testid="contact-whatsapp" className="flex h-12 items-center justify-center rounded-button border border-[#25D366]/40 bg-[#25D366]/10 text-sm font-bold text-neutral-800">{w.contact}</a>); })()}
+        {(() => { const tg = telegramLink(ownerContact); return tg && (<a href={tg} target="_blank" rel="noreferrer" data-testid="contact-telegram" className="flex h-12 items-center justify-center rounded-button border border-[#229ED9]/40 bg-[#229ED9]/10 text-sm font-bold text-neutral-800">{w.telegram}</a>); })()}
         <button type="button" onClick={() => signOut(auth).catch(() => undefined)} className="mt-auto text-sm font-semibold text-neutral-600 underline">{w.logout}</button>
       </div>
     </div>);
