@@ -37,6 +37,8 @@ type UseDigitalServiceHandlersArgs = {
         baridi: number;
     };
     setAlert: (msg: string) => void;
+    /** V25-2: the success message offers « Envoyer au client ». */
+    offerSendToClient?: (message: string, client: ClientDzd) => void;
 };
 
 const SALE_PAYMENT_METHOD: Record<DigitalServiceSaleWallet, 'Espèces' | 'BaridiMob' | 'Crédit' | TradeCurrencyCode> = {
@@ -90,7 +92,7 @@ function ownerProfitPeriodDeltas(timestamp: number, ownerProfitDzd: number) {
     };
 }
 
-export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransactionsDzd, portfolioStats, treasuryStats, setAlert }: UseDigitalServiceHandlersArgs) {
+export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransactionsDzd, portfolioStats, treasuryStats, setAlert, offerSendToClient }: UseDigitalServiceHandlersArgs) {
     const [isDigitalServiceModalOpen, setIsDigitalServiceModalOpen] = useState(false);
     const [isDigitalServiceSaving, setIsDigitalServiceSaving] = useState(false);
     const [editingDigitalServiceTx, setEditingDigitalServiceTx] = useState<DigitalServiceTransaction | null>(null);
@@ -574,7 +576,10 @@ export function useDigitalServiceHandlers({ userDocRef, clientsDzd, clientTransa
                 batch,
                 deltas: readModelDelta ? [readModelDelta] : [],
             });
-            setAlert(editingDigitalServiceTx ? '✅ Vente de service numérique mise à jour.' : '✅ Vente de service numérique enregistrée.');
+            const savedMessage = editingDigitalServiceTx ? '✅ Vente de service numérique mise à jour.' : '✅ Vente de service numérique enregistrée.';
+            const serviceClient = clientsDzd.find((c) => c.id === digitalServiceClientId);
+            if (serviceClient && offerSendToClient) offerSendToClient(savedMessage, serviceClient);
+            else setAlert(savedMessage);
             closeDigitalServiceModal();
         }
         catch (e) {

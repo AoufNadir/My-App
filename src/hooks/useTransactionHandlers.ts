@@ -916,8 +916,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 batch,
                 deltas: readModelDelta ? [readModelDelta] : [],
             });
-            const soldTo = !editingTx && linkedClientId !== 'none' ? clientsDzd.find((c) => c.id === linkedClientId) : undefined;
-            if (soldTo && offerSendToClient) offerSendToClient('✅ Transaction ajoutée.', soldTo);
+            const soldTo = linkedClientId !== 'none' ? clientsDzd.find((c) => c.id === linkedClientId) : undefined;
+            if (soldTo && offerSendToClient) offerSendToClient(editingTx ? '✅ Transaction mise à jour.' : '✅ Transaction ajoutée.', soldTo);
             else setAlert(editingTx ? '✅ Transaction mise à jour.' : '✅ Transaction ajoutée.');
             closeForm();
             if (linkedClientId !== 'none') {
@@ -1403,8 +1403,8 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 }
                 throw error;
             }
-            const soldTo = !editingTx && linkedClientId !== 'none' ? clientsDzd.find((c) => c.id === linkedClientId) : undefined;
-            if (soldTo && offerSendToClient) offerSendToClient('✅ Transaction ajoutée.', soldTo);
+            const soldTo = linkedClientId !== 'none' ? clientsDzd.find((c) => c.id === linkedClientId) : undefined;
+            if (soldTo && offerSendToClient) offerSendToClient(editingTx ? '✅ Transaction mise à jour.' : '✅ Transaction ajoutée.', soldTo);
             else setAlert(editingTx ? '✅ Transaction mise à jour.' : '✅ Transaction ajoutée.');
             closeForm();
             if (linkedClientId !== 'none') {
@@ -1678,7 +1678,10 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 });
             }
             await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: editingTreasuryTx ? [] : readModelDeltas });
-            setAlert('✅ Ajustement enregistré.');
+            // V25-2: a movement for a client (he paid, or was paid) offers « Envoyer au client ».
+            const adjustedClient = adjustmentClientId && adjustmentClientId !== 'none' ? clientsDzd.find((c) => c.id === adjustmentClientId) : undefined;
+            if (adjustedClient && offerSendToClient) offerSendToClient('✅ Ajustement enregistré.', adjustedClient);
+            else setAlert('✅ Ajustement enregistré.');
             setIsAdjustmentModalOpen(false);
             if (adjustedClientId) {
                 setTimeout(() => {
@@ -2121,7 +2124,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 },
             });
             await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [readModelDelta] });
-            setAlert('✅ Transfert réussi.');
+            { const from = clientsDzd.find((c) => c.id === transferFromClientId); if (from && offerSendToClient) offerSendToClient('✅ Transfert réussi.', from); else setAlert('✅ Transfert réussi.'); } // V25-2
             setIsTransferModalOpen(false);
             setTransferAmount('');
             setTransferFromClientId('');
@@ -2185,7 +2188,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 ...(moved ? { ...moved, timestamp: moved.timestamp + 1 } : {})
             });
             await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [] });
-            setAlert('✅ Transfert mis à jour.');
+            { const from = clientsDzd.find((c) => c.id === transferFromClientId); if (from && offerSendToClient) offerSendToClient('✅ Transfert mis à jour.', from); else setAlert('✅ Transfert mis à jour.'); } // V25-2
             closeTransferModal();
         }
         catch (e) {

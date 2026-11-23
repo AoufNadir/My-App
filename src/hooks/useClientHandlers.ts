@@ -52,8 +52,14 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     investorTransactions: InvestorTransaction[];
     managerFeePercentage: string;
     managerFeeHistory?: ManagerFeeHistoryEntry[];
-}, notifyUndo?: (message: string, undo: () => void) => void) {
+}, notifyUndo?: (message: string, undo: () => void) => void, offerSendToClient?: (message: string, client: ClientDzd) => void) {
     const { t } = useLanguage();
+    // V25-2 (owner): every saved operation of a client offers « Envoyer au client » (his summary picture).
+    const announce = (message: string, clientId: string | null | undefined) => {
+        const client = clientId ? clientsDzd.find((c) => c.id === clientId) : undefined;
+        if (client && offerSendToClient) offerSendToClient(message, client);
+        else setAlert(message);
+    };
     const [isSaving, setIsSaving] = useState(false);
     // Set synchronously, so a second tap that still holds an older render's handler is ignored too.
     const clientSaveInFlight = useRef(false);
@@ -637,7 +643,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     wallets: walletDeltas,
                     recentOperation: { operationId: `legacy:clients.settlement:${editingClientTx.id}`, source: 'legacy', type: normalizedClientTxType, effectiveAt: timestamp },
                 });
-                setAlert('✅ Transaction mise à jour.');
+                announce('✅ Transaction mise à jour.', editingClientTx.clientId);
             }
             else {
                 if (receiverClientId !== 'none') {
@@ -666,7 +672,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                             paymentMethod: 'Crédit',
                             linkedTxId: outgoingTransferRef.id
                         });
-                        setAlert('✅ Dette transférée au client qui a reçu.');
+                        announce('✅ Dette transférée au client qui a reçu.', targetClientId);
                         const clientsDelta = combineClientPositionDeltas([
                             balanceTransitionForClient(targetClientId, amount),
                             balanceTransitionForClient(receiverClientId, -amount),
@@ -704,7 +710,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                             paymentMethod: 'Crédit',
                             linkedTxId: outgoingTransferRef.id
                         });
-                        setAlert('✅ Droit transféré au client qui a reçu.');
+                        announce('✅ Droit transféré au client qui a reçu.', targetClientId);
                         const clientsDelta = combineClientPositionDeltas([
                             balanceTransitionForClient(receiverClientId, amount),
                             balanceTransitionForClient(targetClientId, -amount),
@@ -752,7 +758,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                         wallets: walletDeltas,
                         recentOperation: { operationId: `legacy:clients.settlement:${clientTxRef.id}`, source: 'legacy', type: normalizedClientTxType, effectiveAt: timestamp },
                     });
-                    setAlert('✅ Transaction ajoutée.');
+                    announce('✅ Transaction ajoutée.', targetClientId);
                 }
             }
             if (effectiveClientPaymentStatus !== 'credit' && receiverClientId === 'none') {
@@ -923,7 +929,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                     },
                 });
             await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [readModelDelta] });
-            setAlert(isDebtWriteOff ? '✅ Dette effacée, comptée comme perte.' : '✅ Solde effacé.');
+            announce(isDebtWriteOff ? '✅ Dette effacée, comptée comme perte.' : '✅ Solde effacé.', clientId);
         } catch {
             setAlert('❌ Erreur lors de l\'effacement.');
         }
@@ -1058,7 +1064,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 });
             }
             await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [readModelDelta] });
-            setAlert('✅ Transfert entre clients réussi.');
+            announce('✅ Transfert entre clients réussi.', fromClientId);
             return true;
         }
         catch (e) {
