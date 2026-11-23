@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { hasContact, telegramLink, telegramName, whatsappDigits, whatsappLink } from './ContactSettings';
+assert.equal(whatsappDigits('0555 12 34 56'), '213555123456');
+assert.equal(whatsappDigits('+213 555 12 34 56'), '213555123456');
+assert.equal(telegramName('@prodigital_dz'), 'prodigital_dz');
+assert.equal(telegramName('https://t.me/prodigital_dz'), 'prodigital_dz');
+assert.equal(telegramName('ab'), '');
+assert.equal(telegramName('nom avec espace'), '');
+assert.equal(whatsappLink({ whatsapp: '0555 12 34 56', telegram: '' }, 'Bonjour\nNom : A'), 'https://wa.me/213555123456?text=Bonjour%0ANom%20%3A%20A');
+assert.equal(whatsappLink({ whatsapp: '12', telegram: '' }, 'x'), null);
+assert.equal(telegramLink({ whatsapp: '', telegram: '@prodigital_dz' }), 'https://t.me/prodigital_dz');
+assert.equal(hasContact({ whatsapp: '', telegram: '' }), false);
+assert.equal(hasContact({ whatsapp: '', telegram: 'prodigital_dz' }), true);
+console.log('contactLinks: ok');

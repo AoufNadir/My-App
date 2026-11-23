@@ -99,8 +99,9 @@ service cloud.firestore {
     match /app_config/contact {
       allow read: if signedIn();
       allow write: if isBootstrapAdmin()
-        && request.resource.data.keys().hasOnly(['whatsapp'])
-        && request.resource.data.whatsapp is string && request.resource.data.whatsapp.size() <= 20;
+        && request.resource.data.keys().hasOnly(['whatsapp', 'telegram'])
+        && request.resource.data.whatsapp is string && request.resource.data.whatsapp.size() <= 20
+        && (!('telegram' in request.resource.data) || (request.resource.data.telegram is string && request.resource.data.telegram.size() <= 32));
     }
     // A new customer asks for his activation (his own request only: name, phone, email, time).
     match /access_requests/{uid} {

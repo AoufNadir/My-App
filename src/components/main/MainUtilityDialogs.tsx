@@ -16,6 +16,7 @@ import { HabitsSettings } from './HabitsSettings';
 import { SettingsSection } from './SettingsSection';
 import { EditLogSettings } from './EditLogSettings';
 import { SubscribersSettings } from '../access/SubscribersSettings';
+import { ContactSettings } from '../access/ContactSettings';
 import { isOwnerUid } from '../../config/orderSystem';
 
 type MainUtilityDialogsProps = Record<string, any>;
@@ -121,6 +122,9 @@ function MainUtilityDialogsComponent({
                     </SettingsSection>)}
                     {userDocRef && (<SettingsSection title={t('settings.secEditLog')} summary={t('settings.secEditLogSummary')} icon={<span className="text-sm font-bold">✎</span>} open={openSection === 'editLog'} onToggle={() => toggleSection('editLog')}>
                         {openSection === 'editLog' && <EditLogSettings userDocRef={userDocRef} />}
+                    </SettingsSection>)}
+                    {userDocRef && isOwnerUid(userDocRef.id) && (<SettingsSection title={t('settings.secContact')} summary={t('settings.secContactSummary')} icon={<span className="text-sm font-bold">☎</span>} open={openSection === 'contact'} onToggle={() => toggleSection('contact')}>
+                        {openSection === 'contact' && <ContactSettings />}
                     </SettingsSection>)}
                     {userDocRef && isOwnerUid(userDocRef.id) && (<SettingsSection title={t('settings.secSubscribers')} summary={t('settings.secSubscribersSummary')} icon={<span className="text-sm font-bold">★</span>} open={openSection === 'subscribers'} onToggle={() => toggleSection('subscribers')}>
                         {openSection === 'subscribers' && <SubscribersSettings />}
