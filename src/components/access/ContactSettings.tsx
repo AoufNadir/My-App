@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { db } from '../../firebase';
+import { formatWaNumber } from '../../utils/whatsapp';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 // V25-3 (owner): « Contact avec les clients » — where a waiting account reaches the owner: a WhatsApp number and/or a
@@ -7,14 +8,14 @@ import { useLanguage } from '../../contexts/LanguageContext';
 export type OwnerContact = { whatsapp: string; telegram: string };
 
 /** Digits with the country code (0555… → 213555…). */
-export const whatsappDigits = (raw: string): string => {
-    const digits = raw.replace(/\D/g, '');
-    return digits.startsWith('0') ? `213${digits.slice(1)}` : digits;
-};
+export const whatsappDigits = (raw: string): string => formatWaNumber(raw);
 /** A Telegram username without « @ » nor a link (5–32 letters, digits, « _ »), or '' when not valid. */
 export const telegramName = (raw: string): string => {
     const name = raw.trim().replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '');
-    return /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(name) ? name : '';
+    if (/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(name)) return name;
+    // V25-5: a phone number works too (t.me/+447…): stored as « +digits ».
+    if (/^[+0\d][\d\s().-]{6,}$/.test(name)) { const digits = formatWaNumber(name); return digits.length >= 8 ? `+${digits}` : ''; }
+    return '';
 };
 export function whatsappLink(contact: OwnerContact, message: string): string | null {
     const digits = whatsappDigits(contact.whatsapp);
@@ -38,17 +39,17 @@ export function useOwnerContact(): OwnerContact & { loaded: boolean } {
 const W = {
     fr: {
         intro: 'Les comptes qui attendent leur activation voient ces boutons pour vous joindre. Un des deux suffit.',
-        whatsapp: 'Votre numéro WhatsApp', telegram: 'Votre nom d’utilisateur Telegram',
+        whatsapp: 'Votre numéro WhatsApp', telegram: 'Telegram : nom d’utilisateur ou numéro',
         save: 'Enregistrer', saved: 'Enregistré', error: 'Enregistrement impossible.',
-        badTelegram: 'Nom Telegram invalide (5 à 32 lettres, chiffres ou « _ »).',
+        badTelegram: 'Telegram invalide : un nom (5 à 32 lettres, chiffres ou « _ ») ou un numéro.',
         none: 'Aucun contact enregistré : les comptes en attente ne voient pas comment vous joindre.',
         preview: 'Ce que voit le client', waBtn: 'Contacter sur WhatsApp', tgBtn: 'Contacter sur Telegram',
     },
     ar: {
         intro: 'تظهر هذه الأزرار للحسابات التي تنتظر التفعيل لتتواصل معك. يكفي واحد منهما.',
-        whatsapp: 'رقم واتساب الخاص بك', telegram: 'اسم المستخدم في تلغرام',
+        whatsapp: 'رقم واتساب الخاص بك', telegram: 'تلغرام: اسم المستخدم أو الرقم',
         save: 'احفظ', saved: 'حُفظ', error: 'تعذّر الحفظ.',
-        badTelegram: 'اسم تلغرام غير صالح (من 5 إلى 32 حرفاً أو رقماً أو «_»).',
+        badTelegram: 'تلغرام غير صالح: اسم (من 5 إلى 32 حرفاً أو رقماً أو «_») أو رقم هاتف.',
         none: 'لم تحفظ أي وسيلة تواصل: الحسابات المنتظرة لا ترى كيف تتواصل معك.',
         preview: 'ما يراه الزبون', waBtn: 'تواصل عبر واتساب', tgBtn: 'تواصل عبر تلغرام',
     },
@@ -79,9 +80,9 @@ export function ContactSettings() {
       <p className="text-xs text-neutral-600">{w.intro}</p>
       {saved.loaded && !hasContact(saved) && (<p role="alert" className="rounded-button bg-financial-debt-bg px-3 py-2 text-xs font-semibold text-financial-debt">{w.none}</p>)}
       <label className="block"><span className="block text-xs font-semibold text-neutral-700">{w.whatsapp}</span>
-        <input value={form.whatsapp} inputMode="tel" dir="ltr" placeholder="0555 00 00 00" onChange={(e) => { setDraft({ ...form, whatsapp: e.target.value }); setState('idle'); }} className={input}/></label>
+        <input value={form.whatsapp} inputMode="tel" dir="ltr" placeholder="0555 00 00 00 / +44 7…" onChange={(e) => { setDraft({ ...form, whatsapp: e.target.value }); setState('idle'); }} className={input}/></label>
       <label className="block"><span className="block text-xs font-semibold text-neutral-700">{w.telegram}</span>
-        <input value={form.telegram} dir="ltr" placeholder="@nom_utilisateur" autoCapitalize="none" onChange={(e) => { setDraft({ ...form, telegram: e.target.value }); setState('idle'); }} className={input}/></label>
+        <input value={form.telegram} dir="ltr" placeholder="@nom_utilisateur / +44 7…" autoCapitalize="none" onChange={(e) => { setDraft({ ...form, telegram: e.target.value }); setState('idle'); }} className={input}/></label>
       {tgInvalid && <p role="alert" className="text-xs font-semibold text-financial-loss">{w.badTelegram}</p>}
       {state === 'error' && <p role="alert" className="text-xs font-semibold text-financial-loss">{w.error}</p>}
       <button type="button" disabled={state === 'saving' || tgInvalid || !draft} onClick={save} className="h-11 w-full rounded-button bg-primary text-sm font-bold text-white disabled:opacity-50">{state === 'saved' && !draft ? w.saved : w.save}</button>
