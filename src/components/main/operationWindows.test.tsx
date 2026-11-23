@@ -555,13 +555,15 @@ for (const lang of ['fr', 'ar'] as const) {
 assert.ok(FIXED_NOW > 0);
 console.log('operationWindows.test: the buy, sell, transfer and expense windows show the same numbers as before, in French and Arabic, with their totals at the bottom; four windows have their notes field and buying EUR on credit its due date');
 
-// V12-17: « paid now, sent later » is offered only when the client pays now (cash or BaridiMob), never on credit.
+// V12-17, then V25-1 (owner, 2026-11-23): « sent later » is offered for a sale paid now and also on the client's
+// account (money he advanced, or credit); never before a payment way is chosen.
 for (const lang of ['fr', 'ar'] as const) {
     const label = (translations[lang] as unknown as { transactions: Record<string, string> }).transactions.deliveryPending;
     const sale = { mode: 'sell_eur', sellAmount: '300', sellPrice: '262', sellTotal: '78600', linkedClientId: 'c3', setDeliveryPending: () => undefined };
     assert.ok(transactionWindow(lang, { ...sale, clientPaymentStatus: 'cash' }).includes(esc(label)), `${lang}: paid in cash: offered`);
     assert.ok(transactionWindow(lang, { ...sale, clientPaymentStatus: 'baridi' }).includes(esc(label)), `${lang}: paid by BaridiMob: offered`);
-    assert.ok(!transactionWindow(lang, { ...sale, clientPaymentStatus: 'credit' }).includes(esc(label)), `${lang}: on credit: not offered`);
+    assert.ok(transactionWindow(lang, { ...sale, clientPaymentStatus: 'credit' }).includes(esc(label)), `${lang}: on credit: offered (V25-1)`);
+    assert.ok(!transactionWindow(lang, { ...sale, clientPaymentStatus: null }).includes(esc(label)), `${lang}: no payment way chosen: not offered`);
 }
 
 // V13-1: the payment status is never chosen for the user: with none chosen, no card is pressed, the window says so,

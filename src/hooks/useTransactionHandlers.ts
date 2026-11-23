@@ -1134,7 +1134,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 committedSellTxId = ref.id;
                 // V12-2: sold today at today's price, delivered later (in one or several times): the promise is kept apart,
                 // in the same batch, so the stock counted at the inventory includes what is still owed to the client.
-                if (deliveryPending && linkedClientId !== 'none' && !isUsdtSettledInEur && clientPaymentStatus !== 'credit') {
+                if (deliveryPending && linkedClientId !== 'none' && !isUsdtSettledInEur) { // V25-1: on credit too
                     batch.set(userDocRef.collection('deliveries').doc(), {
                         kind: 'commitment', direction: 'to_client', clientId: linkedClientId, currency: sellCurrency,
                         quantity, timestamp, date, time, saleTxId: ref.id,
