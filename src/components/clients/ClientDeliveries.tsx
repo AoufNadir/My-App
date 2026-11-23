@@ -68,33 +68,74 @@ const W = {
 
 const qtyText = (value: number, currency: string) => `⁦${formatNumber(value, { min: 2, max: 2 })} ${currency}⁩`;
 
-/**
- * The statement the client can get at any time: right after the sale (« held for you »), or later (sent so far, left).
- */
-export function statementMessage(lang: Lang, name: string, state: Pick<ClientDeliveryState, 'committed' | 'delivered' | 'remaining' | 'currency'>): string {
+// V25-4 (owner): the statement and the « sent » message, written for the client: his open order only, its fixed price,
+// the date, bold figures (*…* in WhatsApp). The quantity left is held for him at that price, whatever the market does.
+type MessageState = Pick<ClientDeliveryState, 'committed' | 'delivered' | 'remaining' | 'currency'>;
+export type MessageExtras = { price?: number | null; date?: string };
+const bold = (text: string) => `*${text}*`;
+const priceText = (price: number) => `⁦${formatNumber(price, { min: 2, max: 2 })} DZD⁩`;
+const today = () => new Date().toLocaleDateString('fr-FR');
+
+function orderLines(lang: Lang, state: MessageState, extras: MessageExtras, deliveredLabel: 'sofar' | 'total'): string[] {
     const c = state.currency;
-    if (state.delivered <= 0)
+    const price = extras.price && extras.price > 0 ? extras.price : null;
+    if (lang === 'ar')
+        return [
+            `▫️ الكمية المتفق عليها: ${bold(qtyText(state.committed, c))}`,
+            ...(price ? [`▫️ السعر الثابت: ${bold(priceText(price))} للوحدة`] : []),
+            `▫️ ${deliveredLabel === 'sofar' ? 'ما استلمتموه حتى الآن' : 'استلمتم إجمالاً'}: ${bold(qtyText(state.delivered, c))}`,
+            `✅ ${bold(`الباقي المحفوظ لكم: ${qtyText(state.remaining, c)}`)}`,
+        ];
+    return [
+        `▫️ Quantité convenue : ${bold(qtyText(state.committed, c))}`,
+        ...(price ? [`▫️ Prix fixé : ${bold(priceText(price))} l’unité`] : []),
+        `▫️ ${deliveredLabel === 'sofar' ? 'Déjà reçu' : 'Reçu au total'} : ${bold(qtyText(state.delivered, c))}`,
+        `✅ ${bold(`Reste réservé pour vous : ${qtyText(state.remaining, c)}`)}`,
+    ];
+}
+const greeting = (lang: Lang, name: string) => (lang === 'ar' ? `السلام عليكم ورحمة الله،\nالسيد ${bold(name)}` : `Bonjour M. ${bold(name)},`);
+const signature = (lang: Lang) => (lang === 'ar' ? `مع خالص التحية،\n${bold('ProDigital')}` : `Cordialement,\n${bold('ProDigital')}`);
+
+/** The statement the client can get at any time (« Relevé de votre commande réservée »). */
+export function statementMessage(lang: Lang, name: string, state: MessageState, extras: MessageExtras = {}): string {
+    const date = extras.date ?? today();
+    const c = state.currency;
+    if (state.remaining <= 0 && state.delivered > 0)
         return lang === 'ar'
-            ? `السلام عليكم ${name}،\n\nنؤكد لكم تسجيل طلبكم: ${qtyText(state.committed, c)} بالسعر المتفق عليه.\nالكمية محفوظة لكم، ونرسلها فور طلبكم، دفعة واحدة أو على دفعات.\n\nمع التحية،\nProDigital`
-            : `Bonjour ${name},\n\nNous confirmons votre commande de ${qtyText(state.committed, c)} au prix convenu.\nElle vous est réservée : nous l’envoyons dès que vous le demandez, en une ou plusieurs fois.\n\nCordialement,\nProDigital`;
-    if (state.remaining <= 0)
-        return lang === 'ar'
-            ? `السلام عليكم ${name}،\n\nتم إرسال كامل طلبكم: ${qtyText(state.committed, c)}.\nلا شيء باقٍ لكم عندنا. شكراً لثقتكم.\n\nمع التحية،\nProDigital`
-            : `Bonjour ${name},\n\nLa totalité de votre commande (${qtyText(state.committed, c)}) vous a été envoyée.\nPlus rien n’est en attente. Merci de votre confiance.\n\nCordialement,\nProDigital`;
+            ? [greeting(lang, name), '', `✅ ${bold('تم إرسال كامل طلبيتكم')}: ${bold(qtyText(state.committed, c))}`, `بتاريخ ${date}`, '', 'لا شيء باقٍ لكم عندنا. شكراً لثقتكم.', '', signature(lang)].join('\n')
+            : [greeting(lang, name), '', `✅ ${bold('Votre commande a été entièrement envoyée')} : ${bold(qtyText(state.committed, c))}`, `au ${date}`, '', 'Plus rien n’est en attente. Merci de votre confiance.', '', signature(lang)].join('\n');
     return lang === 'ar'
-        ? `السلام عليكم ${name}،\n\nإليكم وضع طلبكم (${qtyText(state.committed, c)}):\n• أُرسل لكم: ${qtyText(state.delivered, c)}\n• الباقي لكم عندنا: ${qtyText(state.remaining, c)}\n\nالباقي محفوظ لكم بالسعر المتفق عليه، ونرسله فور طلبكم.\n\nمع التحية،\nProDigital`
-        : `Bonjour ${name},\n\nVoici le point sur votre commande (${qtyText(state.committed, c)}) :\n• Déjà envoyé : ${qtyText(state.delivered, c)}\n• Reste à vous envoyer : ${qtyText(state.remaining, c)}\n\nLe reste vous est réservé au prix convenu ; nous l’envoyons dès que vous le demandez.\n\nCordialement,\nProDigital`;
+        ? [greeting(lang, name), '', `📋 ${bold('كشف طلبيتكم المحفوظة')}`, `بتاريخ ${date}`, '', ...orderLines(lang, state, extras, 'sofar'), '',
+            'هذه الكمية محجوزة لكم بالسعر المتفق عليه، ولا تتأثر بارتفاع السعر أو انخفاضه. نرسلها فور طلبكم، كاملة أو على دفعات.', '', signature(lang)].join('\n')
+        : [greeting(lang, name), '', `📋 ${bold('Relevé de votre commande réservée')}`, `au ${date}`, '', ...orderLines(lang, state, extras, 'sofar'), '',
+            'Cette quantité vous est réservée au prix convenu, quelle que soit l’évolution du cours. Nous vous l’envoyons dès votre demande, en une ou plusieurs fois.', '', signature(lang)].join('\n');
 }
 
 /** The message sent after a delivery, in the client's language. */
-export function deliveryMessage(lang: Lang, name: string, state: Pick<ClientDeliveryState, 'committed' | 'delivered' | 'remaining' | 'currency'>, sent: number): string {
+export function deliveryMessage(lang: Lang, name: string, state: MessageState, sent: number, extras: MessageExtras = {}): string {
+    const date = extras.date ?? today();
     const c = state.currency;
+    const done = state.remaining <= 0;
     return lang === 'ar'
-        ? `السلام عليكم ${name}،\n\nأرسلنا لكم الآن ${qtyText(sent, c)}.\n\nوضع طلبكم (${qtyText(state.committed, c)}):\n• أُرسل لكم إجمالاً: ${qtyText(state.delivered, c)}\n• الباقي لكم عندنا: ${qtyText(state.remaining, c)}\n\nنرجو تأكيد الاستلام.\n\nمع التحية،\nProDigital`
-        : `Bonjour ${name},\n\nNous venons de vous envoyer ${qtyText(sent, c)}.\n\nPoint de votre commande (${qtyText(state.committed, c)}) :\n• Envoyé au total : ${qtyText(state.delivered, c)}\n• Reste à vous envoyer : ${qtyText(state.remaining, c)}\n\nMerci de nous confirmer la bonne réception.\n\nCordialement,\nProDigital`;
+        ? [greeting(lang, name), '', `✅ ${bold(`تم إرسال ${qtyText(sent, c)}`)} إليكم اليوم ${date}.`, '', `📋 ${bold('وضع طلبيتكم')}`, ...orderLines(lang, state, extras, 'total'), '',
+            done ? 'اكتملت طلبيتكم. شكراً لثقتكم.' : 'نرجو تأكيد الاستلام.', '', signature(lang)].join('\n')
+        : [greeting(lang, name), '', `✅ ${bold(`${qtyText(sent, c)} envoyés`)} aujourd’hui, le ${date}.`, '', `📋 ${bold('Point de votre commande')}`, ...orderLines(lang, state, extras, 'total'), '',
+            done ? 'Votre commande est complète. Merci de votre confiance.' : 'Merci de nous confirmer la réception.', '', signature(lang)].join('\n');
 }
 
-export type ClientSale = { id: string; currency: DeliveryCurrency; quantity: number; timestamp: number };
+/** The fixed price of the open order: the price of its sales, weighted by quantity (none when unknown). */
+export function orderPrice(state: Pick<ClientDeliveryState, 'commitments'>, sales: ReadonlyArray<{ id: string; price?: number }>): number | null {
+    let qty = 0, value = 0;
+    for (const commitment of state.commitments) {
+        const sale = commitment.saleTxId ? sales.find((s) => s.id === commitment.saleTxId) : undefined;
+        if (!sale?.price || sale.price <= 0) continue;
+        qty += Number(commitment.quantity) || 0;
+        value += (Number(commitment.quantity) || 0) * sale.price;
+    }
+    return qty > 0 ? Math.round((value / qty) * 100) / 100 : null;
+}
+
+export type ClientSale = { id: string; currency: DeliveryCurrency; quantity: number; timestamp: number; price?: number };
 
 export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, onRecord, onRemove, sales = [], defaultOpen = false, direction = 'to_client', onAddPhone }: {
     clientId: string;
@@ -146,7 +187,8 @@ export function ClientDeliveries({ clientId, clientName, phone, docs, saleIds, o
     const tell = (state: ClientDeliveryState) => {
         const lang = clientReportLanguage(clientId);
         const sent = lastSent[state.currency];
-        const text = sent !== undefined ? deliveryMessage(lang, clientName, state, sent) : statementMessage(lang, clientName, state);
+        const extras = { price: direction === 'to_client' ? orderPrice(state, sales) : null };
+        const text = sent !== undefined ? deliveryMessage(lang, clientName, state, sent, extras) : statementMessage(lang, clientName, state, extras);
         // Straight to the client's chat; without a usable number, say so instead of opening WhatsApp's contact list.
         const number = phone ? formatWaNumber(phone) : '';
         if (number.length >= 9)
