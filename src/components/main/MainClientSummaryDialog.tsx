@@ -5,7 +5,8 @@ import { ShareIcon } from '../icons/ShareIcon';
 import { buildClientSummary } from '../../utils/clientSummary';
 import { formatWaNumber, openWhatsAppMessenger } from '../../utils/whatsapp';
 import { copyImageToClipboard } from '../../utils/clipboardImage';
-import { ClientSummarySheet, clientSummaryMessage, CLIENT_SUMMARY_WORDS } from '../clients/ClientSummarySheet';
+import { clientSummaryCover } from '../../utils/clientSummaryCover';
+import { ClientSummarySheet, CLIENT_SUMMARY_WORDS } from '../clients/ClientSummarySheet';
 import { ReportLanguagePicker, ReportPreview, ReportPrintHolder, useReportLanguage } from '../reports/ReportDialogParts';
 import { CLIENT_DEFAULT_LANGUAGE, clientReportLanguageKey } from '../reports/reportLanguage';
 import { renderSheetImage, shareOrDownloadFile } from '../reports/reportPdf';
@@ -102,16 +103,14 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
         }
         if (await copyImageToClipboard(readyImage)) {
             setAlert(t('clientSummary.pasteInChat') as string);
-            openWhatsAppMessenger(summaryClient.phone);
+            // V26-1: the chat opens with a short, ready message; the picture is pasted under it.
+            const cover = summary ? clientSummaryCover({ lang: reportLang, name: clientName, balanceCents: summary.balanceCents, operationCount: summary.operationCount, date: new Date(now).toLocaleDateString('fr-FR') }) : undefined;
+            openWhatsAppMessenger(summaryClient.phone, cover);
         }
         else
             await handleShareImage();
     };
-    // The same summary as a text message (kept for those who prefer it).
-    const handleWhatsApp = () => {
-        if (summaryClient?.phone && summary)
-            openWhatsAppMessenger(summaryClient.phone, clientSummaryMessage(summary, reportLang, clientName));
-    };
+    const sendLabel = reportLang === 'ar' ? `أرسل الكشف إلى ${clientName} على واتساب` : `Envoyer le relevé à ${clientName} sur WhatsApp`;
     const close = () => setSummaryClient(null);
     return (<Modal isOpen={summaryClient !== null} onClose={close} className="max-w-md bg-surface text-neutral-900">
       <ModalHeader onClose={close}>
@@ -136,17 +135,13 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
           </>)}
       </ModalContent>
       <ModalFooter className="flex-wrap">
-        <Button type="button" variant="outline" onClick={close}>{t('common.close')}</Button>
-        {summaryClient?.phone && (<Button type="button" variant="outline" onClick={handleWhatsApp} disabled={!summary} className="gap-2 text-[#128C7E]">
-            {t('clientSummary.whatsAppText')}
-          </Button>)}
-        {hasPhone && (<Button type="button" variant="primary" onClick={handleSendToClient} disabled={isSharing || !summaryClient} className="order-first min-w-full gap-2 bg-[#128C7E] hover:bg-[#0f7a6e]">
-            {isSharing ? t('clientSummary.preparing') : `${t('clientSummary.sendToClientChat')} · ${reportLang === 'ar' ? 'ع' : 'FR'}`}
-          </Button>)}
-        <Button type="button" variant={hasPhone ? 'outline' : 'primary'} onClick={handleShareImage} disabled={isSharing || !summaryClient} className={`${hasPhone ? '' : 'order-first'} min-w-full gap-2`}>
-          <ShareIcon aria-hidden="true" className="h-4 w-4"/>
-          {isSharing ? t('clientSummary.preparing') : `${t('clientSummary.shareImage')} · ${reportLang === 'ar' ? 'ع' : 'FR'}`}
+        {/* V26-1 (owner): one button. With a WhatsApp number: the picture goes to his chat with a ready message; without
+            one, the phone's share sheet. « WhatsApp (texte) » and « Partager en image » are gone. */}
+        <Button type="button" variant="primary" onClick={hasPhone ? handleSendToClient : handleShareImage} disabled={isSharing || !summaryClient} className={`order-first min-w-full gap-2 ${hasPhone ? '!bg-[#128C7E] hover:!bg-[#0f7a6e]' : ''}`}>
+          {!hasPhone && <ShareIcon aria-hidden="true" className="h-4 w-4"/>}
+          {isSharing ? t('clientSummary.preparing') : hasPhone ? sendLabel : t('clientSummary.shareImage')}
         </Button>
+        <Button type="button" variant="outline" onClick={close} className="min-w-full">{t('common.close')}</Button>
       </ModalFooter>
     </Modal>);
 }

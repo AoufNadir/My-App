@@ -69,7 +69,7 @@ interface HandlerProps {
     /** V19: a message with « Annuler » (MainApp.notifyWithUndo). */
     notifyWithUndo?: (message: string, run: () => void) => void;
     /** V23-1: the success message of a sale offers to send the client his summary. */
-    offerSendToClient?: (message: string, client: ClientDzd) => void;
+    offerSendToClient?: (message: string, client: ClientDzd, then?: ClientDzd[]) => void;
     setSelectedClientId: (id: string | null) => void;
     setView: (view: 'transactions' | 'dzd' | 'tresorerie' | 'statistiques' | 'tresorerie' | 'investors') => void;
     /** Live smart-pricing quote for the open sell form (SmartPricePanel keeps it current). */
@@ -2124,7 +2124,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 },
             });
             await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [readModelDelta] });
-            { const from = clientsDzd.find((c) => c.id === transferFromClientId); if (from && offerSendToClient) offerSendToClient('✅ Transfert réussi.', from); else setAlert('✅ Transfert réussi.'); } // V25-2
+            { const from = clientsDzd.find((c) => c.id === transferFromClientId); const to = clientsDzd.filter((c) => c.id === transferToClientId); if (from && offerSendToClient) offerSendToClient('✅ Transfert réussi.', from, to); else setAlert('✅ Transfert réussi.'); } // V25-2
             setIsTransferModalOpen(false);
             setTransferAmount('');
             setTransferFromClientId('');
@@ -2188,7 +2188,7 @@ export function useTransactionHandlers({ userDocRef, portfolioStats, transaction
                 ...(moved ? { ...moved, timestamp: moved.timestamp + 1 } : {})
             });
             await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [] });
-            { const from = clientsDzd.find((c) => c.id === transferFromClientId); if (from && offerSendToClient) offerSendToClient('✅ Transfert mis à jour.', from); else setAlert('✅ Transfert mis à jour.'); } // V25-2
+            { const from = clientsDzd.find((c) => c.id === transferFromClientId); const to = clientsDzd.filter((c) => c.id === transferToClientId); if (from && offerSendToClient) offerSendToClient('✅ Transfert mis à jour.', from, to); else setAlert('✅ Transfert mis à jour.'); } // V25-2
             closeTransferModal();
         }
         catch (e) {
