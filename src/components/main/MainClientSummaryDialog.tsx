@@ -5,7 +5,6 @@ import { ShareIcon } from '../icons/ShareIcon';
 import { buildClientSummary } from '../../utils/clientSummary';
 import { formatWaNumber, openWhatsAppMessenger } from '../../utils/whatsapp';
 import { copyImageToClipboard } from '../../utils/clipboardImage';
-import { clientSummaryCover } from '../../utils/clientSummaryCover';
 import { ClientSummarySheet, CLIENT_SUMMARY_WORDS } from '../clients/ClientSummarySheet';
 import { ReportLanguagePicker, ReportPreview, ReportPrintHolder, useReportLanguage } from '../reports/ReportDialogParts';
 import { CLIENT_DEFAULT_LANGUAGE, clientReportLanguageKey } from '../reports/reportLanguage';
@@ -103,9 +102,8 @@ export function MainClientSummaryDialog({ summaryClient, setSummaryClient, t, cl
         }
         if (await copyImageToClipboard(readyImage)) {
             setAlert(t('clientSummary.pasteInChat') as string);
-            // V26-1: the chat opens with a short, ready message; the picture is pasted under it.
-            const cover = summary ? clientSummaryCover({ lang: reportLang, name: clientName, balanceCents: summary.balanceCents, operationCount: summary.operationCount, date: new Date(now).toLocaleDateString('fr-FR') }) : undefined;
-            openWhatsAppMessenger(summaryClient.phone, cover);
+            // V26-2 (owner): the picture only. The chat opens empty, the copied picture is pasted and sent (no text message).
+            openWhatsAppMessenger(summaryClient.phone);
         }
         else
             await handleShareImage();
