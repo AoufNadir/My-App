@@ -208,17 +208,26 @@ export default function MainApp({ user }: {
     const [refreshKey, setRefreshKey] = useState(0);
     const [alert, setAlert] = useState('');
     // The undo offered with a message belongs to that message only: a newer message drops it.
-    const [alertUndo, setAlertUndo] = useState<{ message: string; run: () => void; label?: 'send' } | null>(null);
+    const [alertUndo, setAlertUndo] = useState<{ message: string; run: () => void; label?: 'send'; name?: string } | null>(null);
     const notifyWithUndo = useCallback((message: string, run: () => void) => {
         setAlertUndo({ message, run });
         setAlert(message);
     }, []);
     const [summaryClient, setSummaryClient] = useState<ClientDzd | null>(null);
     // V23-1: after a sale to a client, the success message offers « Envoyer au client » (his summary picture).
-    const offerSendToClient = useCallback((message: string, client: ClientDzd) => {
-        setAlertUndo({ message, run: () => setSummaryClient(client), label: 'send' });
+    // V26-1: after a transfer between two clients, the second one is offered as soon as the first one's window closes.
+    const sendQueueRef = useRef<ClientDzd[]>([]);
+    const offerSendToClient = useCallback((message: string, client: ClientDzd, then: ClientDzd[] = []) => {
+        sendQueueRef.current = then;
+        setAlertUndo({ message, run: () => setSummaryClient(client), label: 'send', name: client.fullName || client.nom || '' });
         setAlert(message);
     }, []);
+    const closeClientSummary = useCallback((next: ClientDzd | null) => {
+        setSummaryClient(next);
+        if (next !== null) return;
+        const following = sendQueueRef.current.shift();
+        if (following) offerSendToClient(lang === 'ar' ? '✅ أرسل الآن ملخص العميل الثاني.' : '✅ Envoyez maintenant le résumé du second client.', following, sendQueueRef.current);
+    }, [offerSendToClient, lang]);
     const { investorIdFromUrl, isInvestorRoute, navigateToView, selectedClientId, setSelectedClientId, setView, view } = useMainNavigation();
     const shouldUseDashboardReadModel = shouldUseDashboardSummaryForView({ readModelsMode, view });
     const shouldSubscribeInvestors = view === 'investors' || view === 'dashboard' || view === 'tresorerie' || view === 'dzd' || view === 'transactions' || view === 'expenses' || isInvestorRoute;
@@ -3232,7 +3241,7 @@ export default function MainApp({ user }: {
                 <RmbTradeDialog kind={tradeWin?.kind ?? null} currency={tradeWin?.currency ?? 'RMB'} initialSource={tradeWin?.source ?? null} onClose={() => setTradeWin(null)} onSwitch={switchTradeWindow} holdings={rmbHoldings} clientsDzd={clientsDzd} openClientModal={openClientModal} fieldBase={fieldBase} onSave={saveRmbTrade} parseAndEvaluate={parseAndEvaluate} tradeSource={rmbTradeSource}/>
 
                 {dayClose && (<DayCloseSheet isOpen={isDayCloseOpen} onClose={() => setIsDayCloseOpen(false)} day={dayClose} wallets={dayCloseWallets} accountName={dayCloseAccountName} onCount={() => { setIsDayCloseOpen(false); setView('tresorerie'); }}/>)}
-                {alert && (<AppToast message={translateAlert(alert, lang, t)} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? (activeAlertUndo.label === 'send' ? (lang === 'ar' ? 'أرسل للعميل' : 'Envoyer au client') : t('common.undo')) : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined} actionIcon={activeAlertUndo?.label === 'send' ? 'share' : 'undo'}/>)}
+                {alert && (<AppToast message={translateAlert(alert, lang, t)} tone={alertTone} closeLabel={t('common.close')} onClose={dismissAlert} actionLabel={activeAlertUndo ? (activeAlertUndo.label === 'send' ? (activeAlertUndo.name ? (lang === 'ar' ? `أرسل إلى ${activeAlertUndo.name}` : `Envoyer à ${activeAlertUndo.name}`) : (lang === 'ar' ? 'أرسل للعميل' : 'Envoyer au client')) : t('common.undo')) : undefined} onAction={activeAlertUndo ? () => { setAlert(''); activeAlertUndo.run(); } : undefined} actionIcon={activeAlertUndo?.label === 'send' ? 'share' : 'undo'}/>)}
 
 
                 {isGlobalSearchOpen && (<Suspense fallback={null}>
@@ -3411,7 +3420,7 @@ export default function MainApp({ user }: {
         treasuryTxToDelete, setTreasuryTxToDelete,
         handleDeleteTreasuryTxConfirm,
         isClientSummaryOpen,
-        summaryClient, setSummaryClient,
+        summaryClient, setSummaryClient: closeClientSummary,
         clientTransactionsDzd, reportClientRows, transactions,
         isInvestorDialogsOpen,
         isInvestorModalOpen, setIsInvestorModalOpen,

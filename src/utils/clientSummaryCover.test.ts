@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { clientSummaryCover } from './clientSummaryCover';
+const clean = (s: string) => s.replace(/[⁦⁩]/g, '').replace(/ | /g, ' ');
+const owes = clean(clientSummaryCover({ lang: 'ar', name: 'Client Test', balanceCents: -24_720_000, operationCount: 2, date: '01/01/2026' }));
+assert.ok(owes.includes('السيد *Client Test*'));
+assert.ok(owes.includes('*الباقي عليكم: 247 200,00 DZD*'), owes);
+assert.ok(owes.includes('العمليات المسجّلة: 2'));
+assert.ok(clean(clientSummaryCover({ lang: 'fr', name: 'X', balanceCents: 50_000, operationCount: 1, date: '1' })).includes('*Votre solde chez nous : 500,00 DZD*'));
+assert.ok(clientSummaryCover({ lang: 'fr', name: 'X', balanceCents: 0, operationCount: 1, date: '1' }).includes('Votre compte est soldé'));
+console.log('clientSummaryCover: ok');

@@ -52,12 +52,13 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     investorTransactions: InvestorTransaction[];
     managerFeePercentage: string;
     managerFeeHistory?: ManagerFeeHistoryEntry[];
-}, notifyUndo?: (message: string, undo: () => void) => void, offerSendToClient?: (message: string, client: ClientDzd) => void) {
+}, notifyUndo?: (message: string, undo: () => void) => void, offerSendToClient?: (message: string, client: ClientDzd, then?: ClientDzd[]) => void) {
     const { t } = useLanguage();
     // V25-2 (owner): every saved operation of a client offers « Envoyer au client » (his summary picture).
-    const announce = (message: string, clientId: string | null | undefined) => {
+    const announce = (message: string, clientId: string | null | undefined, thenClientId?: string | null) => {
         const client = clientId ? clientsDzd.find((c) => c.id === clientId) : undefined;
-        if (client && offerSendToClient) offerSendToClient(message, client);
+        const then = thenClientId ? clientsDzd.filter((c) => c.id === thenClientId) : [];
+        if (client && offerSendToClient) offerSendToClient(message, client, then);
         else setAlert(message);
     };
     const [isSaving, setIsSaving] = useState(false);
@@ -1064,7 +1065,7 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
                 });
             }
             await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [readModelDelta] });
-            announce('✅ Transfert entre clients réussi.', fromClientId);
+            announce('✅ Transfert entre clients réussi.', fromClientId, toClientId);
             return true;
         }
         catch (e) {
