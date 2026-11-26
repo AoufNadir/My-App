@@ -21,7 +21,7 @@ const DUPLICATE_FIELD_LABEL_KEYS: Record<ClientDuplicateField, string> = {
     binanceEmail: 'clients.duplicateSameBinance',
 };
 
-function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientWallets, setClientWallets, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientUsualChannel = '', setClientUsualChannel, clientIsFournisseur, setClientIsFournisseur, clientIsP2P = false, setClientIsP2P, initialBalance, setInitialBalance, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, closeClientModal, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient, isSaving = false }: MainClientCrudDialogsProps) {
+function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDeleteConfirm, clientTxToDelete, setClientTxToDelete, handleDeleteClientTxConfirm, isClientModalOpen, setIsClientModalOpen, editingClient, clientFullName, setClientFullName, clientPhone, setClientPhone, clientRedotpayId, setClientRedotpayId, clientBinanceEmail, setClientBinanceEmail, clientWallets, setClientWallets, clientNotes, setClientNotes, clientCreditLimit, setClientCreditLimit, clientGroup, setClientGroup, clientUsualChannel = '', setClientUsualChannel, clientIsFournisseur, setClientIsFournisseur, clientIsP2P = false, setClientIsP2P, clientIsAgent = false, setClientIsAgent, initialBalance, setInitialBalance, handleSaveClient, clientDuplicateMatches, confirmSaveClientDespiteDuplicates, cancelClientDuplicateWarning, restoreArchivedClient, closeClientModal, clientToDelete, clientDeleteMode, setClientToDelete, handleDeleteClient, isSaving = false }: MainClientCrudDialogsProps) {
     const duplicateMatches: ClientDuplicateMatch[] = clientDuplicateMatches || [];
     const walletTexts = clientWallets || NO_WALLET_TEXTS;
     const isBlockedClientDelete = clientDeleteMode === 'blocked';
@@ -91,6 +91,17 @@ function MainClientCrudDialogsComponent({ txToDelete, setTxToDelete, t, handleDe
                             className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${clientIsP2P ? 'bg-secondary' : 'bg-neutral-300'}`}
                             aria-pressed={clientIsP2P} aria-label={t('clients.p2pToggle')}>
                             <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${clientIsP2P ? 'translate-x-5 rtl:-translate-x-5' : 'translate-x-0'}`}/>
+                        </button>
+                    </div>)}
+                    {setClientIsAgent && (<div className="flex items-center justify-between rounded-xl border border-border bg-surface-muted px-4 py-3">
+                        <div>
+                            <p className="text-sm font-semibold text-neutral-700">{t('clients.agentToggle')}</p>
+                            <p className="mt-0.5 text-xs text-neutral-500">{t('clients.agentToggleHint')}</p>
+                        </div>
+                        <button type="button" onClick={() => setClientIsAgent(!clientIsAgent)}
+                            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${clientIsAgent ? 'bg-secondary' : 'bg-neutral-300'}`}
+                            aria-pressed={clientIsAgent} aria-label={t('clients.agentToggle')}>
+                            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${clientIsAgent ? 'translate-x-5 rtl:-translate-x-5' : 'translate-x-0'}`}/>
                         </button>
                     </div>)}
                     {/* Fournisseur toggle */}
@@ -196,6 +207,7 @@ export const areMainClientCrudDialogsPropsEqual = (prev: MainClientCrudDialogsPr
             && prev.clientUsualChannel === next.clientUsualChannel
             && prev.clientIsFournisseur === next.clientIsFournisseur
             && prev.clientIsP2P === next.clientIsP2P
+            && prev.clientIsAgent === next.clientIsAgent
             && prev.initialBalance === next.initialBalance
             && prev.clientDuplicateMatches === next.clientDuplicateMatches);
     }
