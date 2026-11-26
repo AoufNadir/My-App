@@ -107,14 +107,14 @@ function AgentCheckSheet({ deposits, onClose, agent, onTransfer, onCollect, mark
     const ar = lang === 'ar';
     const T = ar ? {
         hint: 'الربطة صحيحة؟ اضغط ✓ على سطرها. مختلفة؟ اكتب مبلغها هنا:', ok: 'إدخال', paste: 'لصق قائمة كاملة', read: 'اقرأ', cancel: 'إلغاء',
-        wait: 'لم تُعدّ', short: 'ناقص', over: 'زائد', debt: 'دَين على العميل', full: 'المبلغ كامل (خطأ كتابة)', onAgent: 'اتركه على الوسيط',
+        wait: 'لم تُعدّ', short: 'ناقص', over: 'زائد', debt: 'دَين عليه', full: 'المبلغ كامل', onAgent: 'على الوسيط',
         which: 'المبلغ يطابق أكثر من أمانة. اضغط على السطر الصحيح:', none: 'لا أمانة قريبة من هذا المبلغ', counted: 'عددت', of: 'من', confirm: 'تأكيد التحصيل',
-        choose: 'اختر لكل فرق: دَين على العميل أو المبلغ كامل.', undo: 'تراجع', note: (n: number) => `تحصيل ${n} أمانة مفحوصة`,
+        choose: 'اختر لكل فرق: دَين عليه، أو المبلغ كامل، أو على الوسيط.', undo: 'تراجع', note: (n: number) => `تحصيل ${n} أمانة مفحوصة`,
     } : {
         hint: 'Liasse juste ? ✓ sur sa ligne. Différente ? Tapez son montant ici :', ok: 'Valider', paste: 'Coller une liste complète', read: 'Lire', cancel: 'Annuler',
-        wait: 'Pas compté', short: 'manque', over: 'en trop', debt: 'Dette du client', full: 'Montant complet (erreur d’écriture)', onAgent: 'Laisser sur l’intermédiaire',
+        wait: 'Pas compté', short: 'manque', over: 'en trop', debt: 'Sa dette', full: 'Montant complet', onAgent: 'Sur l’intermédiaire',
         which: 'Ce montant correspond à plusieurs dépôts. Touchez la bonne ligne :', none: 'Aucun dépôt proche de ce montant', counted: 'Compté', of: 'sur', confirm: 'Confirmer l’encaissement',
-        choose: 'Pour chaque écart : dette du client ou montant complet.', undo: 'Annuler', note: (n: number) => `Encaissement de ${n} dépôt(s) vérifiés`,
+        choose: 'Pour chaque écart : sa dette, montant complet ou sur l’intermédiaire.', undo: 'Annuler', note: (n: number) => `Encaissement de ${n} dépôt(s) vérifiés`,
     };
     const [counted, setCounted] = useState<Record<string, number>>({});
     const [res, setRes] = useState<Record<string, Resolution>>({});
@@ -167,7 +167,6 @@ function AgentCheckSheet({ deposits, onClose, agent, onTransfer, onCollect, mark
             onCollect(Math.round(cash * 100) / 100, T.note(done.length));
         } catch (e) { console.error(e); } finally { setSaving(false); }
     };
-    const chip = (on: boolean) => `rounded-full border px-2.5 py-1 text-[11px] font-bold ${on ? 'border-primary bg-primary text-white' : 'border-border text-neutral-700'}`;
     return (<BottomSheet isOpen onClose={onClose} title={W[lang].sheet}>
       <div data-testid="agent-check" className="flex flex-col gap-2 px-4 pb-28 pt-1">
         <p className="text-xs text-neutral-600">{T.hint}</p>
@@ -200,10 +199,11 @@ function AgentCheckSheet({ deposits, onClose, agent, onTransfer, onCollect, mark
                     ? <button type="button" onClick={() => { const c = { ...counted }; delete c[d.id]; setCounted(c); }} className="shrink-0 text-[11px] text-neutral-500 underline">{T.undo}</button>
                     : !picked && <button type="button" aria-label="✓" onClick={() => setCounted((c) => ({ ...c, [d.id]: d.amount }))} className="flex h-10 w-12 shrink-0 items-center justify-center rounded-button border border-financial-profit/50 text-lg font-black text-financial-profit">✓</button>}
               </div>
-              {isDone && g !== 0 && (<div className="mt-1.5 flex flex-wrap gap-1">
-                  <button type="button" onClick={() => setRes({ ...res, [d.id]: 'client' })} className={chip(res[d.id] === 'client')}>{T.debt}</button>
-                  <button type="button" onClick={() => setRes({ ...res, [d.id]: 'paper' })} className={chip(res[d.id] === 'paper')}>{T.full}</button>
-                  <button type="button" onClick={() => setRes({ ...res, [d.id]: 'agent' })} className={chip(res[d.id] === 'agent')}>{T.onAgent}</button>
+              {isDone && g !== 0 && (<div className="mt-2 border-t border-black/5 pt-2">
+                  <p className="mb-1.5 text-[11px] font-semibold text-neutral-600">{ar ? `الفرق ${fmt(Math.abs(g))}: على من؟` : `Écart de ${fmt(Math.abs(g))} : sur qui ?`}</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {([['client', T.debt], ['paper', T.full], ['agent', T.onAgent]] as const).map(([key, text]) => (<button key={key} type="button" onClick={() => setRes({ ...res, [d.id]: key })} className={`flex min-h-10 items-center justify-center rounded-button border px-1 text-center text-xs font-bold leading-tight ${res[d.id] === key ? 'border-primary bg-primary text-white' : 'border-border bg-surface text-neutral-700'}`}>{text}</button>))}
+                  </div>
                 </div>)}
             </li>);
           })}
