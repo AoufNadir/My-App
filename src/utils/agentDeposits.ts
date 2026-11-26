@@ -28,6 +28,23 @@ export function pendingDeposits<T extends { id: string; montant?: number; timest
         .sort((a, b) => a.timestamp - b.timestamp);
 }
 
+/**
+ * V27-2: only what is still owed. The intermediary's balance says how much he holds for the owner; the newest deposits
+ * up to that amount are the ones still with him (older ones were collected before this follow-up existed). The oldest
+ * of them may be only partly there: it is kept whole, so nothing is lost from the list.
+ */
+export function outstandingOnly(deposits: readonly AgentDeposit[], owed: number): AgentDeposit[] {
+    if (!(owed > 0)) return [];
+    const kept: AgentDeposit[] = [];
+    let sum = 0;
+    for (const d of [...deposits].sort((a, b) => b.timestamp - a.timestamp)) {
+        if (c(sum) >= c(owed)) break;
+        kept.push(d);
+        sum += d.amount;
+    }
+    return kept.sort((a, b) => a.timestamp - b.timestamp);
+}
+
 /** Amounts as people write them: « 289 500,00 DA », « 289500 », « 289.500 », one per line (or separated by ; / +). */
 export function parseAmounts(text: string): number[] {
     return text.split(/[\n;+|]+/).map((part) => {

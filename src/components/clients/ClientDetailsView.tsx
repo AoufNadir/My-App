@@ -479,7 +479,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
 
       {creditLimitAlert}
 
-      {selectedClient.isAgent && (<AgentDeposits agent={selectedClient} rows={clientTransactionsDzd.filter((r) => r.clientId === selectedClient.id)} allRows={clientTransactionsDzd} transactions={(transactions ?? []) as never} clients={clientsDzd} nameOf={getClientFullName} userDocRef={userDocRef} onTransfer={onAgentTransfer} setAlert={setAlert}
+      {selectedClient.isAgent && (<AgentDeposits agent={selectedClient} owed={Math.max(0, -selectedClientBalance)} rows={clientTransactionsDzd.filter((r) => r.clientId === selectedClient.id)} allRows={clientTransactionsDzd} transactions={(transactions ?? []) as never} clients={clientsDzd} nameOf={getClientFullName} userDocRef={userDocRef} onTransfer={onAgentTransfer} setAlert={setAlert}
           onCollect={(amount, notes) => openClientTxModal(null, 'Règlement Reçu', selectedClient.id, { amount, notes, cash: true })}/>)}
 
       <Tabs variant="pills" tabs={[

@@ -39,3 +39,10 @@ const rows = [{ id: 'r1', montant: -50000, timestamp: 10 }, { id: 'r2', montant:
 const pending = pendingDeposits(rows, new Set(['r3']), 5, (row) => ({ label: row.id }));
 assert.deepEqual(pending.map((x) => [x.id, x.amount]), [['r1', 50000]]);
 console.log('agentDeposits: ok');
+// V27-2: only the newest deposits up to what the intermediary owes now (older ones were collected before).
+import { outstandingOnly } from './agentDeposits';
+const hist = [{ id: 'old1', amount: 300000, timestamp: 1, label: '' }, { id: 'old2', amount: 90000, timestamp: 2, label: '' }, { id: 'n1', amount: 50000, timestamp: 3, label: '' }, { id: 'n2', amount: 130000, timestamp: 4, label: '' }];
+assert.deepEqual(outstandingOnly(hist, 180000).map((x) => x.id), ['n1', 'n2']);
+assert.deepEqual(outstandingOnly(hist, 0), []);
+assert.deepEqual(outstandingOnly(hist, 200000).map((x) => x.id), ['old2', 'n1', 'n2']);
+console.log('agentDeposits V27-2: ok');

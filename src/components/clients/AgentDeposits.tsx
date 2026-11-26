@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { BottomSheet } from '../ui/BottomSheet';
 import { useAgentChecks } from '../../hooks/useAgentChecks';
-import { matchDeposits, parseAmounts, pendingDeposits, type AgentDeposit, type MatchLine } from '../../utils/agentDeposits';
+import { matchDeposits, outstandingOnly, parseAmounts, pendingDeposits, type AgentDeposit, type MatchLine } from '../../utils/agentDeposits';
 import type { ClientDzd, ClientTransactionDzd } from '../../types';
 
 // V27-1 (owner): on the intermediary's page (« أمين »): the deposits not collected yet, numbered, and « Vérifier » —
@@ -39,8 +39,10 @@ const W = {
 const fmt = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).replace(/ /g, ' ');
 const dateOf = (ts: number) => (ts ? new Date(ts).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '');
 
-export function AgentDeposits({ agent, rows, allRows, transactions, clients, nameOf, userDocRef, onTransfer, onCollect, setAlert }: {
+export function AgentDeposits({ agent, owed, rows, allRows, transactions, clients, nameOf, userDocRef, onTransfer, onCollect, setAlert }: {
     agent: ClientDzd;
+    /** What the intermediary holds for the owner (his debt), so only those deposits are listed. */
+    owed: number;
     rows: ReadonlyArray<ClientTransactionDzd>;
     allRows: ReadonlyArray<ClientTransactionDzd>;
     transactions: ReadonlyArray<{ id?: string; linkedClientId?: string }>;
@@ -58,13 +60,13 @@ export function AgentDeposits({ agent, rows, allRows, transactions, clients, nam
         const byId = new Map(allRows.map((r) => [r.id, r]));
         const txById = new Map(transactions.map((t) => [t.id, t]));
         const clientName = (id?: string) => { const c = id ? clients.find((x) => x.id === id) : undefined; return c ? nameOf(c) : ''; };
-        return pendingDeposits(rows as unknown as Array<{ id: string; montant?: number; timestamp?: number; affectsBalance?: boolean; linkedTxId?: string; notes?: string; type?: string }>, checks.collected, checks.since, (row) => {
+        return outstandingOnly(pendingDeposits(rows as unknown as Array<{ id: string; montant?: number; timestamp?: number; affectsBalance?: boolean; linkedTxId?: string; notes?: string; type?: string }>, checks.collected, checks.since, (row) => {
             const other = row.linkedTxId ? byId.get(row.linkedTxId) : undefined;
             const sale = row.linkedTxId ? txById.get(row.linkedTxId) : undefined;
             const clientId = (other && other.clientId !== agent.id ? other.clientId : undefined) ?? sale?.linkedClientId;
             return { clientId, label: clientName(clientId) || row.notes || row.type || '—' };
-        });
-    }, [rows, allRows, transactions, clients, nameOf, agent.id, checks.collected, checks.since]);
+        }), owed);
+    }, [rows, allRows, transactions, clients, nameOf, agent.id, checks.collected, checks.since, owed]);
     const numbered = deposits.map((d, i) => ({ ...d, no: i + 1 }));
     const total = deposits.reduce((s, d) => s + d.amount, 0);
     const [open, setOpen] = useState(false);
@@ -85,7 +87,6 @@ export function AgentDeposits({ agent, rows, allRows, transactions, clients, nam
         </ol>)}
       <div className="mt-2 flex flex-col gap-1.5">
         {deposits.length > 0 && <button type="button" onClick={() => setOpen(true)} className="h-11 rounded-button bg-primary text-sm font-bold text-white">{w.check}</button>}
-        {checks.since === 0 && deposits.length > 0 && <button type="button" onClick={() => checks.startFrom(new Date(new Date().setHours(0, 0, 0, 0)).getTime())} className="text-xs font-semibold text-neutral-600 underline">{w.startToday}</button>}
       </div>
       {open && <AgentCheckSheet deposits={numbered} onClose={() => setOpen(false)} agent={agent} onTransfer={onTransfer} onCollect={onCollect} markCollected={checks.markCollected} setAlert={setAlert}/>}
     </section>);
@@ -100,96 +101,120 @@ function AgentCheckSheet({ deposits, onClose, agent, onTransfer, onCollect, mark
     markCollected: (ids: string[], extra?: Record<string, unknown>) => Promise<void>;
     setAlert?: (m: string) => void;
 }) {
+    // V27-2 (owner): one screen, the deposits themselves. A bundle that is right: ✓ on its line. A bundle that is not:
+    // its amount in the box on top, the app finds its line and writes the gap there. Two lines alike: tap the right one.
     const { lang } = useLanguage();
-    const w = W[lang];
-    const [mode, setMode] = useState<'count' | 'paste'>('count');
-    const [amounts, setAmounts] = useState<number[]>([]);
+    const ar = lang === 'ar';
+    const T = ar ? {
+        hint: 'الربطة صحيحة؟ اضغط ✓ على سطرها. مختلفة؟ اكتب مبلغها هنا:', ok: 'إدخال', paste: 'لصق قائمة كاملة', read: 'اقرأ', cancel: 'إلغاء',
+        wait: 'لم تُعدّ', short: 'ناقص', over: 'زائد', debt: 'دَين على العميل', full: 'المبلغ كامل (خطأ كتابة)', onAgent: 'اتركه على الوسيط',
+        which: 'المبلغ يطابق أكثر من أمانة. اضغط على السطر الصحيح:', none: 'لا أمانة قريبة من هذا المبلغ', counted: 'عددت', of: 'من', confirm: 'تأكيد التحصيل',
+        choose: 'اختر لكل فرق: دَين على العميل أو المبلغ كامل.', undo: 'تراجع', note: (n: number) => `تحصيل ${n} أمانة مفحوصة`,
+    } : {
+        hint: 'Liasse juste ? ✓ sur sa ligne. Différente ? Tapez son montant ici :', ok: 'Valider', paste: 'Coller une liste complète', read: 'Lire', cancel: 'Annuler',
+        wait: 'Pas compté', short: 'manque', over: 'en trop', debt: 'Dette du client', full: 'Montant complet (erreur d’écriture)', onAgent: 'Laisser sur l’intermédiaire',
+        which: 'Ce montant correspond à plusieurs dépôts. Touchez la bonne ligne :', none: 'Aucun dépôt proche de ce montant', counted: 'Compté', of: 'sur', confirm: 'Confirmer l’encaissement',
+        choose: 'Pour chaque écart : dette du client ou montant complet.', undo: 'Annuler', note: (n: number) => `Encaissement de ${n} dépôt(s) vérifiés`,
+    };
+    const [counted, setCounted] = useState<Record<string, number>>({});
+    const [res, setRes] = useState<Record<string, Resolution>>({});
     const [draft, setDraft] = useState('');
+    const [asking, setAsking] = useState<{ amount: number; ids: string[] } | null>(null);
+    const [notFound, setNotFound] = useState<number | null>(null);
+    const [pasteOpen, setPasteOpen] = useState(false);
     const [pasted, setPasted] = useState('');
-    const [choice, setChoice] = useState<Record<number, Resolution>>({});
-    const [pick, setPick] = useState<Record<number, string>>({});
     const [saving, setSaving] = useState(false);
-    const result = useMemo(() => matchDeposits(deposits, amounts), [deposits, amounts]);
-    const noOf = (d?: AgentDeposit) => deposits.find((x) => x.id === d?.id)?.no;
-    const add = () => { const [v] = parseAmounts(draft); if (v) { setAmounts([...amounts, v]); setDraft(''); } };
-    const last = result.lines[result.lines.length - 1];
-    const needs = result.lines.filter((l) => (l.kind === 'near' || l.kind === 'ambiguous') && !choice[l.counted.index] || (l.kind === 'ambiguous' && choice[l.counted.index] === 'client' && !pick[l.counted.index]));
-    const lineDeposit = (l: MatchLine) => (l.kind === 'ambiguous' ? l.candidates!.find((d) => d.id === pick[l.counted.index]) ?? l.candidates![0] : l.deposit);
-    const collectTotal = result.lines.reduce((s, l) => s + (choice[l.counted.index] === 'paper' && lineDeposit(l) ? lineDeposit(l)!.amount : l.counted.amount), 0);
+    const free = deposits.filter((d) => counted[d.id] === undefined);
+    const place = (amount: number) => {
+        const m = matchDeposits(free, [amount]).lines[0];
+        setNotFound(null); setAsking(null);
+        if (m.kind === 'exact' || m.kind === 'near') setCounted((c) => ({ ...c, [m.deposit!.id]: amount }));
+        else if (m.kind === 'ambiguous') setAsking({ amount, ids: m.candidates!.map((d) => d.id) });
+        else setNotFound(amount);
+    };
+    const submit = () => { const [v] = parseAmounts(draft); if (v) { place(v); setDraft(''); } };
+    const readList = () => {
+        // The whole list at once, with the same matching (equal amounts first, then the nearest, never a guess).
+        const result = matchDeposits(free, parseAmounts(pasted));
+        const next = { ...counted };
+        for (const l of result.lines) if ((l.kind === 'exact' || l.kind === 'near') && l.deposit) next[l.deposit.id] = l.counted.amount;
+        setCounted(next);
+        const left = result.lines.filter((l) => l.kind === 'ambiguous' || l.kind === 'extra');
+        if (left[0]?.kind === 'ambiguous') setAsking({ amount: left[0].counted.amount, ids: left[0].candidates!.map((d) => d.id) });
+        else if (left[0]) setNotFound(left[0].counted.amount);
+        setPasteOpen(false); setPasted('');
+    };
+    const gap = (d: AgentDeposit) => (counted[d.id] === undefined ? 0 : Math.round((counted[d.id] - d.amount) * 100) / 100);
+    const done = deposits.filter((d) => counted[d.id] !== undefined);
+    const unresolved = done.filter((d) => gap(d) !== 0 && !res[d.id]);
+    const cash = done.reduce((s, d) => s + (res[d.id] === 'paper' ? d.amount : counted[d.id]), 0);
+    const due = deposits.reduce((s, d) => s + d.amount, 0);
     const confirm = async () => {
-        if (needs.length > 0) { setAlert?.(`⚠️ ${w.needChoice}`); return; }
+        if (unresolved.length > 0) { setAlert?.(`⚠️ ${T.choose}`); return; }
         setSaving(true);
         try {
-            const collectedIds: string[] = [];
-            for (const l of result.lines) {
-                const dep = lineDeposit(l);
-                if (l.kind === 'extra' || !dep) continue;
-                collectedIds.push(dep.id);
-                const res = choice[l.counted.index];
-                if (l.difference === 0 || res !== 'client' || !dep.clientId || !onTransfer) continue;
-                // Short: the gap goes back onto the client (debt); over: the client is credited.
-                const gap = Math.abs(l.difference);
-                const ok = l.difference < 0
-                    ? await onTransfer({ fromClientId: agent.id, toClientId: dep.clientId, amount: gap, notes: `${w.short(fmt(gap))} · #${noOf(dep)}` })
-                    : await onTransfer({ fromClientId: dep.clientId, toClientId: agent.id, amount: gap, notes: `${w.over(fmt(gap))} · #${noOf(dep)}` });
+            for (const d of done) {
+                const g = gap(d);
+                if (g === 0 || res[d.id] !== 'client' || !d.clientId || !onTransfer) continue;
+                const amount = Math.abs(g);
+                const ok = g < 0
+                    ? await onTransfer({ fromClientId: agent.id, toClientId: d.clientId, amount, notes: `${T.short} ${fmt(amount)} · #${d.no}` })
+                    : await onTransfer({ fromClientId: d.clientId, toClientId: agent.id, amount, notes: `${T.over} ${fmt(amount)} · #${d.no}` });
                 if (!ok) throw new Error('transfer refused');
             }
-            await markCollected(collectedIds, { lastCheckAt: Date.now() });
+            await markCollected(done.map((d) => d.id), { lastCheckAt: Date.now() });
             onClose();
-            onCollect(Math.round(collectTotal * 100) / 100, w.note(collectedIds.length));
+            onCollect(Math.round(cash * 100) / 100, T.note(done.length));
         } catch (e) { console.error(e); } finally { setSaving(false); }
     };
-    const badge = (l: MatchLine) => {
-        const map = { exact: ['bg-financial-profit-bg text-financial-profit', '✅ ' + w.exact], near: ['bg-financial-debt-bg text-financial-debt', '⚠️ ' + w.near], ambiguous: ['bg-amber-100 text-amber-900', '❓ ' + w.ambiguous], extra: ['bg-financial-loss-bg text-financial-loss', '➕ ' + w.extra] } as const;
-        const [cls, text] = map[l.kind];
-        return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${cls}`}>{text}</span>;
-    };
-    const lineView = (l: MatchLine) => {
-        const dep = l.kind === 'ambiguous' ? undefined : l.deposit;
-        return (<div key={l.counted.index} className="space-y-1.5 rounded-button border border-border bg-surface p-2">
-          <div className="flex items-center gap-2 text-sm">
-            {badge(l)}
-            <span className="min-w-0 flex-1 truncate font-semibold">{dep ? `#${noOf(dep)} ${dep.label}` : l.kind === 'ambiguous' ? l.candidates!.map((d) => `#${noOf(d)} ${d.label}`).join(' / ') : ''}</span>
-            <button type="button" onClick={() => setAmounts(amounts.filter((_, i) => i !== l.counted.index))} className="shrink-0 text-[11px] text-neutral-500 underline">{w.remove}</button>
-          </div>
-          <div className="flex justify-between text-xs text-neutral-700"><span>{w.counted} <bdi dir="ltr" className="font-bold">{fmt(l.counted.amount)}</bdi></span>
-            {(dep || l.kind === 'ambiguous') && <span>{w.due} <bdi dir="ltr" className="font-bold">{fmt((dep ?? l.candidates![0]).amount)}</bdi></span>}
-            {l.difference !== 0 && l.kind !== 'extra' && <span className={`font-bold ${l.difference < 0 ? 'text-financial-loss' : 'text-financial-profit'}`}>{l.difference < 0 ? w.short(fmt(-l.difference)) : w.over(fmt(l.difference))}</span>}
-          </div>
-          {l.kind === 'ambiguous' && (<div className="flex flex-wrap gap-1"><span className="text-[11px] font-semibold text-neutral-600">{w.either}</span>
-              {l.candidates!.map((d) => (<button key={d.id} type="button" onClick={() => { setPick({ ...pick, [l.counted.index]: d.id }); setChoice({ ...choice, [l.counted.index]: choice[l.counted.index] ?? 'client' }); }} className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${pick[l.counted.index] === d.id ? 'border-primary bg-primary text-white' : 'border-border'}`}>#{noOf(d)} {d.label}</button>))}</div>)}
-          {(l.kind === 'near' || l.kind === 'ambiguous') && l.difference !== 0 && (<div className="flex flex-wrap gap-1">
-              {(['client', 'agent', 'paper'] as const).map((r) => (<button key={r} type="button" onClick={() => setChoice({ ...choice, [l.counted.index]: r })} className={`rounded-full border px-2 py-1 text-[11px] font-bold ${choice[l.counted.index] === r ? 'border-primary bg-primary text-white' : 'border-border text-neutral-700'}`}>{r === 'client' ? w.toClient : r === 'agent' ? w.toAgent : w.paper}</button>))}
-            </div>)}
-        </div>);
-    };
-    return (<BottomSheet isOpen onClose={onClose} title={w.sheet}>
-      <div data-testid="agent-check" className="flex flex-col gap-3 px-4 pb-5 pt-2">
-        <div className="flex rounded-button bg-surface-muted p-1">
-          {(['count', 'paste'] as const).map((m) => (<button key={m} type="button" onClick={() => setMode(m)} className={`h-9 flex-1 rounded-button text-sm font-bold ${mode === m ? 'bg-surface text-neutral-900 shadow-sm' : 'text-neutral-500'}`}>{m === 'count' ? w.countNow : w.paste}</button>))}
+    const chip = (on: boolean) => `rounded-full border px-2.5 py-1 text-[11px] font-bold ${on ? 'border-primary bg-primary text-white' : 'border-border text-neutral-700'}`;
+    return (<BottomSheet isOpen onClose={onClose} title={W[lang].sheet}>
+      <div data-testid="agent-check" className="flex flex-col gap-2 px-4 pb-28 pt-1">
+        <p className="text-xs text-neutral-600">{T.hint}</p>
+        <div className="flex gap-2">
+          <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} inputMode="decimal" dir="ltr" placeholder={ar ? "مبلغ الربطة" : "Montant de la liasse"} className="h-12 min-w-0 flex-1 rounded-button border border-border bg-surface px-3 text-lg font-bold"/>
+          <button type="button" onClick={submit} className="h-12 shrink-0 rounded-button bg-primary px-4 text-sm font-bold text-white">{T.ok}</button>
         </div>
-        {mode === 'count' ? (<div className="space-y-2">
-            <div className="flex gap-2">
-              <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} inputMode="decimal" dir="ltr" placeholder={w.amount} autoFocus className="h-12 min-w-0 flex-1 rounded-button border border-border bg-surface px-3 text-lg font-bold"/>
-              <button type="button" onClick={add} className="h-12 shrink-0 rounded-button bg-primary px-4 text-sm font-bold text-white">{w.next}</button>
-            </div>
-            {last && lineView(last)}
-          </div>) : (<div className="space-y-2">
-            <p className="text-xs text-neutral-600">{w.pasteHint}</p>
-            <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={6} dir="ltr" className="w-full rounded-button border border-border bg-surface p-2 text-sm"/>
-            <button type="button" onClick={() => setAmounts(parseAmounts(pasted))} className="h-11 w-full rounded-button bg-primary text-sm font-bold text-white">{w.read}</button>
+        <button type="button" onClick={() => setPasteOpen(!pasteOpen)} className="self-start text-xs font-semibold text-primary underline">{T.paste}</button>
+        {pasteOpen && (<div className="space-y-2 rounded-button border border-border p-2">
+            <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={5} dir="ltr" className="w-full rounded-button border border-border bg-surface p-2 text-sm"/>
+            <button type="button" onClick={readList} className="h-10 w-full rounded-button bg-primary text-sm font-bold text-white">{T.read}</button>
           </div>)}
-        {amounts.length > 0 && (<>
-            <div className="flex justify-between rounded-button bg-surface-muted px-3 py-2 text-sm font-bold text-neutral-900">
-              <span>{w.counted} <bdi dir="ltr">{fmt(result.countedTotal)}</bdi></span>
-              <span>{w.due} <bdi dir="ltr">{fmt(result.dueTotal)}</bdi></span>
-            </div>
-            <div className="space-y-1.5">{result.lines.map(lineView)}</div>
-            {result.missing.length > 0 && (<div className="rounded-button border border-dashed border-border p-2 text-xs text-neutral-600"><p className="font-semibold">{w.missing}</p>
-                {result.missing.map((d) => <p key={d.id}>#{deposits.find((x) => x.id === d.id)?.no} {d.label} · <bdi dir="ltr">{fmt(d.amount)}</bdi></p>)}</div>)}
-            <p className="text-xs text-neutral-600">{w.confirmHint('')} <bdi dir="ltr" className="font-bold">{fmt(collectTotal)} DZD</bdi></p>
-            <button type="button" onClick={confirm} disabled={saving} className="h-12 rounded-button bg-financial-profit text-sm font-bold text-white disabled:opacity-50">{w.confirm}</button>
-          </>)}
+        {asking && <p role="alert" className="rounded-button bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900">{T.which} <bdi dir="ltr">{fmt(asking.amount)}</bdi></p>}
+        {notFound !== null && <p role="alert" className="rounded-button bg-financial-loss-bg px-3 py-2 text-xs font-bold text-financial-loss">{T.none}: <bdi dir="ltr">{fmt(notFound)}</bdi></p>}
+        <ul className="space-y-1.5">
+          {deposits.map((d) => {
+            const isDone = counted[d.id] !== undefined;
+            const g = gap(d);
+            const picked = asking?.ids.includes(d.id);
+            return (<li key={d.id} data-testid="agent-line" className={`rounded-button border p-2 ${picked ? 'border-amber-500 bg-amber-50' : isDone ? (g === 0 ? 'border-financial-profit/40 bg-financial-profit-bg' : 'border-financial-debt/40 bg-financial-debt-bg') : 'border-border bg-surface'}`}>
+              <div className="flex items-center gap-2" onClick={picked ? () => { setCounted((c) => ({ ...c, [d.id]: asking!.amount })); setAsking(null); } : undefined}>
+                <span className="w-8 shrink-0 text-sm font-black text-primary" dir="ltr">#{d.no}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-neutral-900">{d.label}</span>
+                  <span className="block text-[11px] text-neutral-500">
+                    <bdi dir="ltr">{fmt(d.amount)}</bdi>{isDone && g !== 0 && <> → <bdi dir="ltr" className="font-bold text-neutral-800">{fmt(counted[d.id])}</bdi> · <b className={g < 0 ? 'text-financial-loss' : 'text-financial-profit'}>{g < 0 ? T.short : T.over} <bdi dir="ltr">{fmt(Math.abs(g))}</bdi></b></>}
+                  </span>
+                </span>
+                {isDone
+                    ? <button type="button" onClick={() => { const c = { ...counted }; delete c[d.id]; setCounted(c); }} className="shrink-0 text-[11px] text-neutral-500 underline">{T.undo}</button>
+                    : !picked && <button type="button" aria-label="✓" onClick={() => setCounted((c) => ({ ...c, [d.id]: d.amount }))} className="flex h-10 w-12 shrink-0 items-center justify-center rounded-button border border-financial-profit/50 text-lg font-black text-financial-profit">✓</button>}
+              </div>
+              {isDone && g !== 0 && (<div className="mt-1.5 flex flex-wrap gap-1">
+                  <button type="button" onClick={() => setRes({ ...res, [d.id]: 'client' })} className={chip(res[d.id] === 'client')}>{T.debt}</button>
+                  <button type="button" onClick={() => setRes({ ...res, [d.id]: 'paper' })} className={chip(res[d.id] === 'paper')}>{T.full}</button>
+                  <button type="button" onClick={() => setRes({ ...res, [d.id]: 'agent' })} className={chip(res[d.id] === 'agent')}>{T.onAgent}</button>
+                </div>)}
+            </li>);
+          })}
+        </ul>
+      </div>
+      <div className="sticky bottom-0 border-t border-border bg-surface px-4 py-3">
+        <div className="mb-2 flex justify-between text-sm font-bold text-neutral-900">
+          <span>{T.counted} <bdi dir="ltr">{done.length}</bdi> {T.of} <bdi dir="ltr">{deposits.length}</bdi></span>
+          <span>{ar ? 'المبلغ' : 'Montant'} <bdi dir="ltr">{fmt(cash)}</bdi> <span className="font-normal text-neutral-500">{ar ? 'من' : 'sur'}</span> <bdi dir="ltr">{fmt(due)}</bdi></span>
+        </div>
+        <button type="button" onClick={confirm} disabled={saving || done.length === 0} className="h-12 w-full rounded-button bg-financial-profit text-sm font-bold text-white disabled:opacity-50">{T.confirm}</button>
       </div>
     </BottomSheet>);
 }
