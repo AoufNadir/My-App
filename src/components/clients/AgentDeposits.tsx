@@ -231,36 +231,48 @@ function AgentCheckSheet({ clients, nameOf, deposits, onClose, agent, onTransfer
           </div>
         </BottomSheet>);
     }
+    // V27-5 (owner): the box is at the bottom, right above the phone's keyboard; the lines it can be stay visible above
+    // it. A line that matches what is typed is lit (pulsing frame) with a big « Confirm » and both amounts side by side.
+    const inputRow = (<div className="flex gap-2">
+        <input value={draft} onChange={(e) => { setDraft(e.target.value); setAsking(null); setNotFound(null); }} onKeyDown={(e) => { if (e.key === 'Enter' && shown.length === 1 && typed > 0) tick(shown[0]); }} enterKeyHint="done" inputMode="decimal" dir="ltr" placeholder={ar ? 'اكتب مبلغ الربطة' : 'Montant de la liasse'} className="h-12 min-w-0 flex-1 rounded-button border-2 border-primary/40 bg-surface px-3 text-lg font-bold focus:border-primary focus:outline-none"/>
+        {typed > 0 && <button type="button" aria-label={ar ? 'مسح' : 'Effacer'} onClick={() => setDraft('')} className="h-12 w-12 shrink-0 rounded-button border border-border text-lg text-neutral-500">×</button>}
+      </div>);
     return (<BottomSheet isOpen onClose={onClose} title={W[lang].sheet}>
-      <div data-testid="agent-check" className="flex flex-col gap-2 px-4 pb-28 pt-1">
-        <p className="text-xs text-neutral-600">{T.hint}</p>
-        <div className="flex gap-2">
-          <input value={draft} onChange={(e) => { setDraft(e.target.value); setAsking(null); setNotFound(null); }} onKeyDown={(e) => { if (e.key === 'Enter' && shown.length === 1 && typed > 0) tick(shown[0]); }} enterKeyHint="done" inputMode="decimal" dir="ltr" placeholder={ar ? "مبلغ الربطة" : "Montant de la liasse"} className="h-12 min-w-0 flex-1 rounded-button border border-border bg-surface px-3 text-lg font-bold"/>
-        </div>
-        <button type="button" onClick={() => setPasteOpen(!pasteOpen)} className="self-start text-xs font-semibold text-primary underline">{T.paste}</button>
-        {pasteOpen && (<div className="space-y-2 rounded-button border border-border p-2">
+      <div data-testid="agent-check" className="flex flex-col gap-2 px-4 pb-44 pt-1">
+        {typed === 0 && (<div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-neutral-600">{ar ? 'اضغط ✓ على أمانة الربطة، أو اكتب مبلغها في الأسفل.' : '✓ sur le dépôt de la liasse, ou tapez son montant en bas.'}</p>
+            <button type="button" onClick={() => setPasteOpen(!pasteOpen)} className="shrink-0 text-xs font-semibold text-primary underline">{T.paste}</button>
+          </div>)}
+        {pasteOpen && typed === 0 && (<div className="space-y-2 rounded-button border border-border p-2">
             <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={5} dir="ltr" className="w-full rounded-button border border-border bg-surface p-2 text-sm"/>
             <button type="button" onClick={readList} className="h-10 w-full rounded-button bg-primary text-sm font-bold text-white">{T.read}</button>
           </div>)}
         {typed > 0 && shown.length > 1 && <p role="status" className="rounded-button bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900">{T.which} {T.pick}</p>}
         <ul className="space-y-1.5">
-          {typed > 0 && shown.length === 0 && <li className="rounded-button bg-financial-loss-bg px-3 py-2 text-xs font-bold text-financial-loss">{T.none}</li>}
+          {typed > 0 && shown.length === 0 && <li className="rounded-button bg-financial-loss-bg px-3 py-3 text-sm font-bold text-financial-loss">{T.none}: <bdi dir="ltr">{fmt(typed)}</bdi></li>}
           {shown.map((d) => {
             const isDone = counted[d.id] !== undefined;
             const g = gap(d);
-            const picked = asking?.ids.includes(d.id);
-            return (<li key={d.id} data-testid="agent-line" className={`rounded-button border p-2 ${picked ? 'border-amber-500 bg-amber-50' : isDone ? (g === 0 ? 'border-financial-profit/40 bg-financial-profit-bg' : 'border-financial-debt/40 bg-financial-debt-bg') : 'border-border bg-surface'}`}>
+            const candidate = typed > 0 && !isDone;
+            const preview = candidate ? Math.round((typed - d.amount) * 100) / 100 : 0;
+            return (<li key={d.id} data-testid="agent-line" className={`rounded-button border p-2 transition-colors ${candidate ? 'animate-[pulse_1.6s_ease-in-out_infinite] border-2 border-primary bg-primary/5 shadow-card' : isDone ? (g === 0 ? 'border-financial-profit/40 bg-financial-profit-bg' : 'border-financial-debt/40 bg-financial-debt-bg') : 'border-border bg-surface'}`}>
               <div className="flex items-center gap-2">
                 <span className="w-8 shrink-0 text-sm font-black text-primary" dir="ltr">#{d.no}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-neutral-900">{d.label}</span>
-                  <span className="block text-[11px] text-neutral-500">
-                    <bdi dir="ltr">{fmt(d.amount)}</bdi>{isDone && g !== 0 && <> → <bdi dir="ltr" className="font-bold text-neutral-800">{fmt(counted[d.id])}</bdi> · <b className={g < 0 ? 'text-financial-loss' : 'text-financial-profit'}>{g < 0 ? T.short : T.over} <bdi dir="ltr">{fmt(Math.abs(g))}</bdi></b></>}
-                  </span>
+                  {candidate ? (<span className="mt-0.5 grid grid-cols-3 gap-1 text-[11px]">
+                      <span><span className="block text-neutral-500">{ar ? 'المسجّل' : 'Attendu'}</span><bdi dir="ltr" className="font-bold text-neutral-800">{fmt(d.amount)}</bdi></span>
+                      <span><span className="block text-neutral-500">{ar ? 'المعدود' : 'Compté'}</span><bdi dir="ltr" className="font-bold text-neutral-800">{fmt(typed)}</bdi></span>
+                      <span><span className="block text-neutral-500">{ar ? 'الفرق' : 'Écart'}</span>{preview === 0 ? <b className="text-financial-profit">{ar ? 'مطابق' : 'Juste'}</b> : <b className={preview < 0 ? 'text-financial-loss' : 'text-financial-profit'}>{preview < 0 ? T.short : T.over} <bdi dir="ltr">{fmt(Math.abs(preview))}</bdi></b>}</span>
+                    </span>) : (<span className="block text-[11px] text-neutral-500">
+                      <bdi dir="ltr">{fmt(d.amount)}</bdi>{isDone && g !== 0 && <> → <bdi dir="ltr" className="font-bold text-neutral-800">{fmt(counted[d.id])}</bdi> · <b className={g < 0 ? 'text-financial-loss' : 'text-financial-profit'}>{g < 0 ? T.short : T.over} <bdi dir="ltr">{fmt(Math.abs(g))}</bdi></b></>}
+                    </span>)}
                 </span>
                 {isDone
                     ? <button type="button" onClick={() => { const c = { ...counted }; delete c[d.id]; setCounted(c); }} className="shrink-0 text-[11px] text-neutral-500 underline">{T.undo}</button>
-                    : <button type="button" aria-label="✓" onClick={() => tick(d)} className="flex h-10 w-12 shrink-0 items-center justify-center rounded-button border border-financial-profit/50 text-lg font-black text-financial-profit">✓</button>}
+                    : candidate
+                        ? <button type="button" aria-label="✓" onClick={() => tick(d)} className="flex h-12 shrink-0 items-center justify-center gap-1 rounded-button bg-primary px-3 text-sm font-black text-white shadow-card">✓ {ar ? 'أكّد' : 'OK'}</button>
+                        : <button type="button" aria-label="✓" onClick={() => tick(d)} className="flex h-10 w-12 shrink-0 items-center justify-center rounded-button border border-financial-profit/50 text-lg font-black text-financial-profit">✓</button>}
               </div>
               {isDone && g !== 0 && (<div className="mt-2 border-t border-black/5 pt-2">
                   <p className="mb-1.5 text-[11px] font-semibold text-neutral-600">{ar ? `الفرق ${fmt(Math.abs(g))}: على من؟` : `Écart de ${fmt(Math.abs(g))} : sur qui ?`}</p>
@@ -272,12 +284,15 @@ function AgentCheckSheet({ clients, nameOf, deposits, onClose, agent, onTransfer
           })}
         </ul>
       </div>
-      <div className="sticky bottom-0 border-t border-border bg-surface px-4 py-3">
-        <div className="mb-2 flex justify-between text-sm font-bold text-neutral-900">
-          <span>{T.counted} <bdi dir="ltr">{done.length}</bdi> {T.of} <bdi dir="ltr">{deposits.length}</bdi></span>
-          <span>{ar ? 'المبلغ' : 'Montant'} <bdi dir="ltr">{fmt(cash)}</bdi> <span className="font-normal text-neutral-500">{ar ? 'من' : 'sur'}</span> <bdi dir="ltr">{fmt(due)}</bdi></span>
-        </div>
-        <button type="button" onClick={confirm} disabled={saving || done.length === 0} className="h-12 w-full rounded-button bg-financial-profit text-sm font-bold text-white disabled:opacity-50">{T.confirm}</button>
+      <div className="sticky bottom-0 space-y-2 border-t border-border bg-surface px-4 py-3">
+        {inputRow}
+        {typed === 0 && (<>
+          <div className="flex justify-between text-sm font-bold text-neutral-900">
+            <span>{T.counted} <bdi dir="ltr">{done.length}</bdi> {T.of} <bdi dir="ltr">{deposits.length}</bdi></span>
+            <span>{ar ? 'المبلغ' : 'Montant'} <bdi dir="ltr">{fmt(cash)}</bdi> <span className="font-normal text-neutral-500">{ar ? 'من' : 'sur'}</span> <bdi dir="ltr">{fmt(due)}</bdi></span>
+          </div>
+          <button type="button" onClick={confirm} disabled={saving || done.length === 0} className="h-12 w-full rounded-button bg-financial-profit text-sm font-bold text-white disabled:opacity-50">{T.confirm}</button>
+        </>)}
       </div>
     </BottomSheet>);
 }
