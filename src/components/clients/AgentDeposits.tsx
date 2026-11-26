@@ -4,6 +4,7 @@ import { BottomSheet } from '../ui/BottomSheet';
 import { useAgentChecks } from '../../hooks/useAgentChecks';
 import { matchDeposits, outstandingOnly, parseAmounts, pendingDeposits, type AgentDeposit, type MatchLine } from '../../utils/agentDeposits';
 import type { ClientDzd, ClientTransactionDzd } from '../../types';
+import { openWhatsAppChooser, openWhatsAppMessenger } from '../../utils/whatsapp';
 
 // V27-1 (owner): on the intermediary's page (« أمين »): the deposits not collected yet, numbered, and « Vérifier » —
 // count each bundle (or paste the friend's list) and the app says whose it is and what is missing.
@@ -88,11 +89,13 @@ export function AgentDeposits({ agent, owed, rows, allRows, transactions, client
       <div className="mt-2 flex flex-col gap-1.5">
         {deposits.length > 0 && <button type="button" onClick={() => setOpen(true)} className="h-11 rounded-button bg-primary text-sm font-bold text-white">{w.check}</button>}
       </div>
-      {open && <AgentCheckSheet deposits={numbered} onClose={() => setOpen(false)} agent={agent} onTransfer={onTransfer} onCollect={onCollect} markCollected={checks.markCollected} setAlert={setAlert}/>}
+      {open && <AgentCheckSheet clients={clients} nameOf={nameOf} deposits={numbered} onClose={() => setOpen(false)} agent={agent} onTransfer={onTransfer} onCollect={onCollect} markCollected={checks.markCollected} setAlert={setAlert}/>}
     </section>);
 }
 
-function AgentCheckSheet({ deposits, onClose, agent, onTransfer, onCollect, markCollected, setAlert }: {
+function AgentCheckSheet({ clients, nameOf, deposits, onClose, agent, onTransfer, onCollect, markCollected, setAlert }: {
+    clients: ReadonlyArray<ClientDzd>;
+    nameOf: (c: ClientDzd) => string;
     deposits: Array<AgentDeposit & { no: number }>;
     onClose: () => void;
     agent: ClientDzd;
@@ -109,12 +112,12 @@ function AgentCheckSheet({ deposits, onClose, agent, onTransfer, onCollect, mark
         hint: 'الربطة صحيحة؟ اضغط ✓ على سطرها. مختلفة؟ اكتب مبلغها هنا:', ok: 'إدخال', paste: 'لصق قائمة كاملة', read: 'اقرأ', cancel: 'إلغاء',
         wait: 'لم تُعدّ', short: 'ناقص', over: 'زائد', debt: 'دَين عليه', full: 'المبلغ كامل', onAgent: 'على الوسيط',
         which: 'المبلغ يطابق أكثر من أمانة. اضغط على السطر الصحيح:', none: 'لا أمانة قريبة من هذا المبلغ', counted: 'عددت', of: 'من', confirm: 'تأكيد التحصيل',
-        choose: 'اختر لكل فرق: دَين عليه، أو المبلغ كامل، أو على الوسيط.', undo: 'تراجع', note: (n: number) => `تحصيل ${n} أمانة مفحوصة`,
+        choose: 'اختر لكل فرق: دَين عليه، أو المبلغ كامل، أو على الوسيط.', undo: 'تراجع', pick: 'اضغط ✓ على السطر الصحيح.', doneTitle: 'انتهى الفحص', noGap: 'كل الأمانات مطابقة.', gapsTitle: 'العملاء الذين فيهم فرق', message: 'أرسل رسالة', collect: (n: string) => `تحصيل ${n} نقداً`, note: (n: number) => `تحصيل ${n} أمانة مفحوصة`,
     } : {
         hint: 'Liasse juste ? ✓ sur sa ligne. Différente ? Tapez son montant ici :', ok: 'Valider', paste: 'Coller une liste complète', read: 'Lire', cancel: 'Annuler',
         wait: 'Pas compté', short: 'manque', over: 'en trop', debt: 'Sa dette', full: 'Montant complet', onAgent: 'Sur l’intermédiaire',
         which: 'Ce montant correspond à plusieurs dépôts. Touchez la bonne ligne :', none: 'Aucun dépôt proche de ce montant', counted: 'Compté', of: 'sur', confirm: 'Confirmer l’encaissement',
-        choose: 'Pour chaque écart : sa dette, montant complet ou sur l’intermédiaire.', undo: 'Annuler', note: (n: number) => `Encaissement de ${n} dépôt(s) vérifiés`,
+        choose: 'Pour chaque écart : sa dette, montant complet ou sur l’intermédiaire.', undo: 'Annuler', pick: 'Touchez ✓ sur la bonne ligne.', doneTitle: 'Vérification terminée', noGap: 'Tous les dépôts sont justes.', gapsTitle: 'Clients avec un écart', message: 'Envoyer un message', collect: (n: string) => `Encaisser ${n} en espèces`, note: (n: number) => `Encaissement de ${n} dépôt(s) vérifiés`,
     };
     const [counted, setCounted] = useState<Record<string, number>>({});
     const [res, setRes] = useState<Record<string, Resolution>>({});
@@ -125,6 +128,11 @@ function AgentCheckSheet({ deposits, onClose, agent, onTransfer, onCollect, mark
     const [pasted, setPasted] = useState('');
     const [saving, setSaving] = useState(false);
     const free = deposits.filter((d) => counted[d.id] === undefined);
+    // V27-3: while an amount is typed, only the deposits it can be are shown (the nearest first).
+    const typed = parseAmounts(draft)[0] ?? 0;
+    const near = (d: AgentDeposit) => Math.abs(typed - d.amount) <= Math.max(d.amount * 0.05, 1000);
+    const shown = typed > 0 ? free.filter(near).sort((a, b) => Math.abs(typed - a.amount) - Math.abs(typed - b.amount)) : deposits;
+    const [summary, setSummary] = useState<{ cash: number; count: number; gaps: Array<{ d: AgentDeposit & { no: number }; gap: number; counted: number }> } | null>(null);
     const place = (amount: number) => {
         const m = matchDeposits(free, [amount]).lines[0];
         setNotFound(null); setAsking(null);
@@ -132,7 +140,13 @@ function AgentCheckSheet({ deposits, onClose, agent, onTransfer, onCollect, mark
         else if (m.kind === 'ambiguous') setAsking({ amount, ids: m.candidates!.map((d) => d.id) });
         else setNotFound(amount);
     };
-    const submit = () => { const [v] = parseAmounts(draft); if (v) { place(v); setDraft(''); } };
+    const submit = () => {
+        if (!typed) return;
+        const m = matchDeposits(free, [typed]).lines[0];
+        if (m.kind === 'ambiguous') { setAsking({ amount: typed, ids: m.candidates!.map((d) => d.id) }); return; } // stays filtered: tap the right line
+        place(typed); setDraft('');
+    };
+    const tick = (d: AgentDeposit) => { setCounted((c) => ({ ...c, [d.id]: typed > 0 ? typed : d.amount })); setDraft(''); setAsking(null); setNotFound(null); };
     const readList = () => {
         // The whole list at once, with the same matching (equal amounts first, then the nearest, never a guess).
         const result = matchDeposits(free, parseAmounts(pasted));
@@ -163,10 +177,42 @@ function AgentCheckSheet({ deposits, onClose, agent, onTransfer, onCollect, mark
                 if (!ok) throw new Error('transfer refused');
             }
             await markCollected(done.map((d) => d.id), { lastCheckAt: Date.now() });
-            onClose();
-            onCollect(Math.round(cash * 100) / 100, T.note(done.length));
+            setSummary({ cash: Math.round(cash * 100) / 100, count: done.length, gaps: done.filter((d) => gap(d) !== 0 && res[d.id] === 'client').map((d) => ({ d, gap: gap(d), counted: counted[d.id] })) });
         } catch (e) { console.error(e); } finally { setSaving(false); }
     };
+    if (summary) {
+        const message = (g: { d: AgentDeposit; gap: number; counted: number }) => {
+            const c = clients.find((x) => x.id === g.d.clientId);
+            const name = c ? nameOf(c) : g.d.label;
+            const date = new Date(g.d.timestamp).toLocaleDateString('fr-FR');
+            const a = (v: number) => `${fmt(v)} DZD`;
+            return ar
+                ? (g.gap < 0
+                    ? `السلام عليكم ${name}،\n\nاستلمنا دفعتكم بتاريخ ${date}: ${a(g.counted)} بدل ${a(g.d.amount)}.\nالباقي عليكم: *${a(-g.gap)}*.\n\nمع خالص التحية،\nProDigital`
+                    : `السلام عليكم ${name}،\n\nاستلمنا دفعتكم بتاريخ ${date}: ${a(g.counted)} بدل ${a(g.d.amount)}.\nالزيادة *${a(g.gap)}* سُجّلت لكم رصيداً عندنا.\n\nمع خالص التحية،\nProDigital`)
+                : (g.gap < 0
+                    ? `Bonjour ${name},\n\nNous avons reçu votre paiement du ${date} : ${a(g.counted)} au lieu de ${a(g.d.amount)}.\nIl reste à régler : *${a(-g.gap)}*.\n\nCordialement,\nProDigital`
+                    : `Bonjour ${name},\n\nNous avons reçu votre paiement du ${date} : ${a(g.counted)} au lieu de ${a(g.d.amount)}.\nLe surplus de *${a(g.gap)}* est porté à votre crédit.\n\nCordialement,\nProDigital`);
+        };
+        const send = (g: { d: AgentDeposit; gap: number; counted: number }) => {
+            const phone = clients.find((x) => x.id === g.d.clientId)?.phone;
+            if (phone) openWhatsAppMessenger(phone, message(g)); else openWhatsAppChooser(message(g));
+        };
+        return (<BottomSheet isOpen onClose={onClose} title={T.doneTitle}>
+          <div data-testid="agent-summary" className="flex flex-col gap-3 px-4 pb-5 pt-1">
+            {summary.gaps.length === 0 ? <p className="rounded-button bg-financial-profit-bg px-3 py-3 text-sm font-bold text-financial-profit">✅ {T.noGap}</p> : (<>
+              <h3 className="text-sm font-bold text-neutral-900">{T.gapsTitle} · <bdi dir="ltr">{summary.gaps.length}</bdi></h3>
+              <ul className="space-y-1.5">{summary.gaps.map((g) => (<li key={g.d.id} className="flex items-center gap-2 rounded-button border border-border bg-surface p-2">
+                  <span className="w-8 shrink-0 text-sm font-black text-primary" dir="ltr">#{g.d.no}</span>
+                  <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{g.d.label}</span>
+                    <b className={`text-xs ${g.gap < 0 ? 'text-financial-loss' : 'text-financial-profit'}`}>{g.gap < 0 ? T.short : T.over} <bdi dir="ltr">{fmt(Math.abs(g.gap))}</bdi></b></span>
+                  <button type="button" onClick={() => send(g)} className="h-10 shrink-0 rounded-button border border-[#25D366]/50 bg-[#25D366]/10 px-3 text-xs font-bold text-neutral-800">{T.message}</button>
+                </li>))}</ul>
+            </>)}
+            <button type="button" onClick={() => { onClose(); onCollect(summary.cash, T.note(summary.count)); }} className="h-12 rounded-button bg-financial-profit text-sm font-bold text-white">{ar ? 'تحصيل' : 'Encaisser'} <bdi dir="ltr">{fmt(summary.cash)} DZD</bdi> {ar ? 'نقداً' : 'en espèces'}</button>
+          </div>
+        </BottomSheet>);
+    }
     return (<BottomSheet isOpen onClose={onClose} title={W[lang].sheet}>
       <div data-testid="agent-check" className="flex flex-col gap-2 px-4 pb-28 pt-1">
         <p className="text-xs text-neutral-600">{T.hint}</p>
@@ -179,15 +225,16 @@ function AgentCheckSheet({ deposits, onClose, agent, onTransfer, onCollect, mark
             <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={5} dir="ltr" className="w-full rounded-button border border-border bg-surface p-2 text-sm"/>
             <button type="button" onClick={readList} className="h-10 w-full rounded-button bg-primary text-sm font-bold text-white">{T.read}</button>
           </div>)}
-        {asking && <p role="alert" className="rounded-button bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900">{T.which} <bdi dir="ltr">{fmt(asking.amount)}</bdi></p>}
+        {asking && typed > 0 && <p role="alert" className="rounded-button bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900">{T.which} {T.pick}</p>}
         {notFound !== null && <p role="alert" className="rounded-button bg-financial-loss-bg px-3 py-2 text-xs font-bold text-financial-loss">{T.none}: <bdi dir="ltr">{fmt(notFound)}</bdi></p>}
         <ul className="space-y-1.5">
-          {deposits.map((d) => {
+          {typed > 0 && shown.length === 0 && <li className="rounded-button bg-financial-loss-bg px-3 py-2 text-xs font-bold text-financial-loss">{T.none}</li>}
+          {shown.map((d) => {
             const isDone = counted[d.id] !== undefined;
             const g = gap(d);
             const picked = asking?.ids.includes(d.id);
             return (<li key={d.id} data-testid="agent-line" className={`rounded-button border p-2 ${picked ? 'border-amber-500 bg-amber-50' : isDone ? (g === 0 ? 'border-financial-profit/40 bg-financial-profit-bg' : 'border-financial-debt/40 bg-financial-debt-bg') : 'border-border bg-surface'}`}>
-              <div className="flex items-center gap-2" onClick={picked ? () => { setCounted((c) => ({ ...c, [d.id]: asking!.amount })); setAsking(null); } : undefined}>
+              <div className="flex items-center gap-2">
                 <span className="w-8 shrink-0 text-sm font-black text-primary" dir="ltr">#{d.no}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-neutral-900">{d.label}</span>
@@ -197,7 +244,7 @@ function AgentCheckSheet({ deposits, onClose, agent, onTransfer, onCollect, mark
                 </span>
                 {isDone
                     ? <button type="button" onClick={() => { const c = { ...counted }; delete c[d.id]; setCounted(c); }} className="shrink-0 text-[11px] text-neutral-500 underline">{T.undo}</button>
-                    : !picked && <button type="button" aria-label="✓" onClick={() => setCounted((c) => ({ ...c, [d.id]: d.amount }))} className="flex h-10 w-12 shrink-0 items-center justify-center rounded-button border border-financial-profit/50 text-lg font-black text-financial-profit">✓</button>}
+                    : <button type="button" aria-label="✓" onClick={() => tick(d)} className="flex h-10 w-12 shrink-0 items-center justify-center rounded-button border border-financial-profit/50 text-lg font-black text-financial-profit">✓</button>}
               </div>
               {isDone && g !== 0 && (<div className="mt-2 border-t border-black/5 pt-2">
                   <p className="mb-1.5 text-[11px] font-semibold text-neutral-600">{ar ? `الفرق ${fmt(Math.abs(g))}: على من؟` : `Écart de ${fmt(Math.abs(g))} : sur qui ?`}</p>

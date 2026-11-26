@@ -58,6 +58,8 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
     const announce = (message: string, clientId: string | null | undefined, thenClientId?: string | null) => {
         const client = clientId ? clientsDzd.find((c) => c.id === clientId) : undefined;
         const then = thenClientId ? clientsDzd.filter((c) => c.id === thenClientId) : [];
+        // V27-3: the intermediary is not a customer: his collect and the gaps written from his check offer nothing to send.
+        if (client?.isAgent || then.some((c) => c.isAgent)) { setAlert(message); return; }
         if (client && offerSendToClient) offerSendToClient(message, client, then);
         else setAlert(message);
     };
