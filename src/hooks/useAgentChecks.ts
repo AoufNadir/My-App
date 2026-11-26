@@ -29,5 +29,9 @@ export function useAgentChecks(userDocRef: DocRef | null | undefined, agentId: s
         if (!userDocRef || !agentId) return;
         await userDocRef.collection('agent_checks').doc(agentId).set({ since }, { merge: true });
     }, [userDocRef, agentId]);
-    return { ...state, markCollected, startFrom };
+    const resetMarks = useCallback(async () => {
+        if (!userDocRef || !agentId) return;
+        await userDocRef.collection('agent_checks').doc(agentId).set({ collectedIds: [], since: 0 }, { merge: true });
+    }, [userDocRef, agentId]);
+    return { ...state, markCollected, startFrom, resetMarks };
 }

@@ -948,6 +948,38 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
 
     // Suggested MAX amount for a client transfer. It is only a shortcut to
     // settle an existing debt/advance; manual entry can create a new advance.
+    // V27-4 (owner): the intermediary's collect, written at once from « Vérifier les dépôts » (no second window): the
+    // same two lines as « Encaisser » in cash (client row + Caisse « Ajout », linked), with the same summary delta.
+    const collectFromAgent = async (agentId: string, amount: number, notes: string): Promise<boolean> => {
+        if (!(amount > 0)) return false;
+        const agent = clientsDzd.find((c) => c.id === agentId);
+        const { date, time, timestamp } = now();
+        const batch = db.batch();
+        const clientTxRef = userDocRef.collection('dzd_client_txs').doc();
+        const treasuryRef = userDocRef.collection('treasury_txs').doc();
+        batch.set(treasuryRef, { timestamp, date, time, type: 'Ajout', source: 'Caisse', amount, notes: `Client: ${agent ? (agent.fullName || agent.nom || '') : ''} - ${notes}`, linkedTxId: clientTxRef.id, origin: 'client_tx' });
+        batch.set(clientTxRef, { clientId: agentId, timestamp, date, time, montant: amount, type: CLIENT_TX_PAYMENT_RECEIVED, notes, paymentMethod: 'Espèces', linkedTxId: treasuryRef.id });
+        const clientsDelta = balanceTransitionForClient(agentId, amount);
+        clientsDelta.activeClientsTodayDelta = activeClientTodayDelta(agentId, timestamp);
+        const walletDeltas: Record<string, number> = { Caisse: amount, BaridiMob: 0 };
+        const readModelDelta = mustPrepareWriterReadModelDelta('clients.settlement', {
+            operationId: `legacy:clients.settlement:${clientTxRef.id}`,
+            effectiveAt: timestamp,
+            payload: { type: 'client_settlement_create', txId: clientTxRef.id, clientId: agentId, montant: amount, walletDeltas },
+            affectedSummaries: ['dashboard_summary', 'clients_summary', 'treasury_summary', 'financial_summary'],
+            clients: clientsDelta,
+            wallets: walletDeltas,
+            recentOperation: { operationId: `legacy:clients.settlement:${clientTxRef.id}`, source: 'legacy', type: CLIENT_TX_PAYMENT_RECEIVED, effectiveAt: timestamp },
+        });
+        try {
+            await commitLegacyWithReadModelDeltas({ userDocRef, batch, deltas: [readModelDelta] });
+            return true;
+        } catch (error) {
+            console.error(error);
+            setAlert(saveErrorAlert(error, '❌ Encaissement impossible.'));
+            return false;
+        }
+    };
     const getClientTransferableAmount = (fromClientId: string): number => {
         const balance = clientBalances.get(fromClientId) || 0;
         if (balance < 0)
@@ -1102,6 +1134,6 @@ export function useClientHandlers(userDocRef: FirestoreDocumentReference, client
         linkedClientId, setLinkedClientId, clientTxReceiverClientId, setClientTxReceiverClientId, openClientTxModal, handleSaveClientTx, handleDeleteClientTx,
         clientTxUsdtAmount, setClientTxUsdtAmount, clientTxSellPrice, setClientTxSellPrice,
         clientTxEurAmount, setClientTxEurAmount, clientTxEurPrice, setClientTxEurPrice,
-        handleClientToClientTransfer, getClientTransferableAmount
+        handleClientToClientTransfer, getClientTransferableAmount, collectFromAgent
     };
 }

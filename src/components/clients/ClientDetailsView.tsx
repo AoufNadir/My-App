@@ -57,6 +57,8 @@ type ClientDetailsViewProps = {
     openClientTxModal: (tx: ClientTransactionDzd | null, presetType?: string, selectedClientId?: string, prefill?: { amount?: number; notes?: string; cash?: boolean }) => void;
     /** V27-1: a transfer between two clients, written at once (the intermediary's check). */
     onAgentTransfer?: (params: { fromClientId: string; toClientId: string; amount: number; notes?: string }) => Promise<boolean>;
+    /** V27-4: the intermediary's collect, in cash, written at once. */
+    onAgentCollect?: (agentId: string, amount: number, notes: string) => Promise<boolean>;
     openClientToClientTransferModal: (sourceClient: ClientDzd) => void;
     /** V5-3 « confirm the client's balance »: the user document (to save what the client said), every balance, and the transfer window filled in */
     userDocRef?: any;
@@ -193,7 +195,7 @@ function ClientDeliveriesEntry({ userDocRef, clientId, clientName, phone, transa
     </>);
 }
 
-export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, reportClientRows, clientsDzd, setSelectedClientId, getClientFullName, openClientSummary, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal, userDocRef, clientBalances, onRecordClientTransfer, onAgentTransfer, setAlert}: ClientDetailsViewProps) {
+export function ClientDetailsView({ selectedClientId, selectedClient, selectedClientBalance, groupedHistory, clientTransactionsDzd, reportClientRows, clientsDzd, setSelectedClientId, getClientFullName, openClientSummary, openClientModal, copiedValue, handleCopy, transactions, profitByTxId, handleEditClientTx, handleDeleteClientTxClick, openClientTxModal, openClientToClientTransferModal, userDocRef, clientBalances, onRecordClientTransfer, onAgentTransfer, onAgentCollect, setAlert}: ClientDetailsViewProps) {
     // V12-2: what this client bought and has not received yet, for his activity report (read while it is open).
     const { docs: reportDeliveryDocs } = useDeliveries(userDocRef, Boolean(userDocRef && isActivityReportOpenForDeliveries(selectedClientId)));
     const reportWaiting = useMemo(() => {
@@ -480,7 +482,7 @@ export function ClientDetailsView({ selectedClientId, selectedClient, selectedCl
       {creditLimitAlert}
 
       {selectedClient.isAgent && (<AgentDeposits agent={selectedClient} owed={Math.max(0, -selectedClientBalance)} rows={clientTransactionsDzd.filter((r) => r.clientId === selectedClient.id)} allRows={clientTransactionsDzd} transactions={(transactions ?? []) as never} clients={clientsDzd} nameOf={getClientFullName} userDocRef={userDocRef} onTransfer={onAgentTransfer} setAlert={setAlert}
-          onCollect={(amount, notes) => openClientTxModal(null, 'Règlement Reçu', selectedClient.id, { amount, notes, cash: true })}/>)}
+          onCollect={async (amount, notes) => (onAgentCollect ? onAgentCollect(selectedClient.id, amount, notes) : (openClientTxModal(null, 'Règlement Reçu', selectedClient.id, { amount, notes, cash: true }), true))}/>)}
 
       <Tabs variant="pills" tabs={[
             { id: 'history', label: t('clients.history') as string, badge: formatNumber(totalTransactionCount, { min: 0, max: 0 }) },

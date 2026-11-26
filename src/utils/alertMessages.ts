@@ -48,6 +48,7 @@ const ALERT_TEMPLATES: ReadonlyArray<readonly [string, string]> = [
     ['Erreur: inconnue', 'alerts.errorUnknown'],
     ['Erreur: {detail}', 'alerts.errorWithDetail'],
     ['Image introuvable.', 'alerts.imageNotFound'],
+    ['Encaissement impossible.', 'alerts.agentCollectFailed'],
     ['Génération de l’image impossible. Veuillez réessayer.', 'alerts.imageFailed'],
     ['Image téléchargée.', 'alerts.imageDownloaded'],
     ['Erreur de capture : {detail}', 'alerts.captureError'],
